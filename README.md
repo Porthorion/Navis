@@ -27,8 +27,8 @@ See the validation notes and sources in [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.m
 ## Build
 
 ```
-flutter pub get
-dart run build_runner build --delete-conflicting-outputs
+./tool/bootstrap.sh
+./tool/check.sh
 flutter run
 ```
 
