@@ -18,30 +18,30 @@ Last updated: 2026-02-18
 - [x] Tech stack and methodology validation refresh — 2026-02-18 (evidence: `DEVELOPMENT_PLAN.md` stack validation section + README tech stack update)
 
 ## Blockers
-- None currently.
+- Android mobile runtime validation blocked — 2026-02-18 (error: `flutter doctor -v` reports missing Android cmdline-tools and unknown licenses; `flutter run -d emulator-5554` finds no supported mobile device)
 
 ---
 
 ## Phase 0: Project Bootstrap & Tooling
-- [ ] Flutter project creation (`flutter create`)
-- [ ] `analysis_options.yaml` with `very_good_analysis` + `riverpod_lint`
-- [ ] `pubspec.yaml` with all dependencies
-- [ ] Directory structure under `lib/src/`
+- [x] Flutter project creation (`flutter create`) — 2026-02-18 (evidence: `flutter create --org com.navis.app --platforms android,ios --project-name navis .`)
+- [x] `analysis_options.yaml` with `very_good_analysis` + `riverpod_lint` — 2026-02-18 (evidence: `analysis_options.yaml`)
+- [ ] `pubspec.yaml` with all dependencies — partial: 2026-02-18 (remaining: Phase 0-critical dependencies added; full core dependency set from plan still pending)
+- [x] Directory structure under `lib/src/` — 2026-02-18 (evidence: `lib/src/**` skeleton + `.gitkeep`)
 - [ ] Android manifest (permissions, network security config, SDK versions, predictive back)
 - [ ] Programmatic notification channel creation on startup (`playback` + `downloads`)
 - [ ] Edge-to-edge configuration for Android 15+
 - [ ] `POST_NOTIFICATIONS` runtime permission flow
 - [ ] iOS `Info.plist` (background audio, ATS, min OS 16.0)
 - [ ] Logger singleton (`app_logger.dart`)
-- [ ] `tool/bootstrap.sh` script (toolchain checks + `flutter pub get`)
-- [ ] `tool/check.sh` script (format, build_runner, analyze, custom_lint, tests)
-- [ ] `build_runner` setup + Makefile/justfile
+- [x] `tool/bootstrap.sh` script (toolchain checks + `flutter pub get`) — 2026-02-18 (evidence: `tool/bootstrap.sh`; command: `./tool/bootstrap.sh`)
+- [x] `tool/check.sh` script (format, build_runner, analyze, custom_lint, tests) — 2026-02-18 (evidence: `tool/check.sh`; command: `./tool/check.sh`)
+- [x] `build_runner` setup + Makefile/justfile — 2026-02-18 (evidence: `Makefile`; `dart run build_runner build --delete-conflicting-outputs` via `./tool/check.sh`)
 - [ ] Optional pre-commit hook for local guardrails
 - [ ] Forgejo CI quality gates (generated-code diff check, format-check, analyze, custom_lint, tests)
 - [ ] CI matrix: minimum supported Flutter + active stable baseline
 - [ ] Weekly dependency maintenance workflow (`flutter pub outdated` / `dart pub outdated`)
-- [ ] Scaffold `main.dart` + `app.dart` with `ProviderScope`
-- [ ] `flutter run` launches, `build_runner build` succeeds, `./tool/check.sh` clean
+- [x] Scaffold `main.dart` + `app.dart` with `ProviderScope` — 2026-02-18 (evidence: `lib/main.dart`, `lib/src/app.dart`, `lib/src/routing/app_router.dart`)
+- [ ] `flutter run` launches, `build_runner build` succeeds, `./tool/check.sh` clean — partial: 2026-02-18 (remaining: mobile `flutter run` blocked by Android toolchain setup; `build_runner` + `./tool/check.sh` already pass)
 
 ## Phase 1: Core Infrastructure
 ### 1.1 — Subsonic API Client
