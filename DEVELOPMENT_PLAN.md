@@ -7,6 +7,7 @@ A Flutter-based Subsonic/OpenSubsonic music player client targeting Android and 
 ## Table of Contents
 
 - [Architecture Overview](#architecture-overview)
+- [Stack Validation (2026-02-18)](#stack-validation-2026-02-18)
 - [SDK & Platform Requirements](#sdk--platform-requirements)
 - [Git Strategy & Releases](#git-strategy--releases)
 - [Execution Workflow](#execution-workflow)
@@ -46,6 +47,45 @@ A Flutter-based Subsonic/OpenSubsonic music player client targeting Android and 
 | Theming | `flex_color_scheme` + `dynamic_color` | Full Material 3 support, 66+ built-in schemes, OS-based dynamic color on Android/macOS/Windows/Linux |
 | Models | `freezed` + `json_serializable` | Immutable, value equality, copyWith, union types, JSON serialization — all generated |
 | Architecture pattern | Feature-first MVVM | Each feature self-contained with data/domain/presentation layers. Scales well. Clear boundaries. |
+
+---
+
+## Stack Validation (2026-02-18)
+
+### Verdict
+
+The selected stack is a strong and current fit for this app's requirements: large music libraries, background playback, resilient offline downloads, and reactive/dynamic UI behavior.
+
+### Why This Stack Fits
+
+| Requirement | Validation |
+|---|---|
+| App-scale routing | `go_router` remains the Flutter team's recommended router package for most apps. |
+| Large library performance | Flutter performance guidance supports this plan's lazy list/grid + split-build strategy for 10K+ item datasets. |
+| Reactive data + persistence | `drift` supports reactive queries, transactions, and isolate/threaded DB access suitable for large local libraries and sync pipelines. |
+| Background playback | `just_audio` + `audio_service` remains the standard pairing for advanced playback + lock screen/notification controls. |
+| Complex offline downloads | `background_downloader` supports persistent task queues with pause/resume/status tracking and native backends. |
+| Connectivity behavior | `connectivity_plus` is appropriate for network-type hints, but server reachability must still be verified via API calls (`ping()`). |
+
+### Constraints To Keep In Mind
+
+- `background_downloader` has platform caveats (especially iOS background limits and paused-task resume edge cases). Design queue UX/retry states around those constraints.
+- `just_audio` has known Android Gradle Plugin compatibility caveats (avoid AGP 8.6/8.7).
+- Play target API deadlines change over time; re-validate `targetSdkVersion` before each release cut.
+
+### Sources
+
+- Flutter routing guidance (`go_router`): https://docs.flutter.dev/ui/navigation
+- Flutter performance best practices: https://docs.flutter.dev/perf/best-practices
+- Flutter large lists guidance: https://docs.flutter.dev/cookbook/lists/long-lists
+- `go_router`: https://pub.dev/packages/go_router
+- `flutter_riverpod`: https://pub.dev/packages/flutter_riverpod
+- `drift`: https://pub.dev/packages/drift
+- `just_audio`: https://pub.dev/packages/just_audio
+- `audio_service`: https://pub.dev/packages/audio_service
+- `background_downloader`: https://pub.dev/packages/background_downloader
+- `connectivity_plus`: https://pub.dev/packages/connectivity_plus
+- Play target API policy: https://support.google.com/googleplay/android-developer/answer/11926878?hl=en
 
 ---
 
@@ -1053,6 +1093,7 @@ All permanent cache downloads go through a managed download queue.
 - Each task tracks: `songId`, source (album/playlist/individual), quality, format, status (queued / downloading / paused / complete / failed), progress percentage.
 - Failed downloads auto-retry up to 3 times with exponential backoff, then marked as failed for user review.
 - **Wi-Fi only downloads**: configurable in Settings. If enabled, queued downloads wait until Wi-Fi is available. If the device switches from Wi-Fi to cellular mid-download, the active download pauses and resumes when Wi-Fi returns.
+- **Platform caveat handling**: iOS background tasks can expire and paused tasks may not always restore resume data after restart. Queue manager must detect this and fall back to clean re-queue/retry with clear user-visible status.
 
 **Download Queue Screen** (`/downloads`):
 Accessible from Settings or a dedicated navigation entry.
@@ -1462,7 +1503,7 @@ Global verification rule for every phase completion:
 | Decision | Rationale |
 |---|---|
 | Riverpod over BLoC | Less boilerplate (especially with codegen). `AsyncValue` natively handles loading/error/data. No `BuildContext` requirement — critical for `AudioHandler` background isolate accessing providers. |
-| drift over ObjectBox/Isar | Music data is inherently relational (artists → albums → tracks → playlists). SQL is the natural fit. Isar development is stalled. drift's reactive streams integrate cleanly with Riverpod. |
+| drift over ObjectBox/Isar | Music data is inherently relational (artists → albums → tracks → playlists). SQL + explicit migrations + transactional consistency is the natural fit. drift's reactive streams and isolate support integrate cleanly with Riverpod. |
 | `just_audio` over `audioplayers` | Only `just_audio` offers gapless playback, `LockCachingAudioSource`, `ConcatenatingAudioSource`, and Android equalizer. `audioplayers` is simpler but lacks the features a music player needs. |
 | `flex_color_scheme` over raw `ThemeData` | Generates consistent, complete M3 themes with far less code. Dynamic color support. The Themes Playground web tool enables visual theme design without code iteration. |
 | Feature-first over layer-first | Each feature is self-contained. Adding or modifying a feature doesn't require touching files scattered across `screens/`, `controllers/`, `models/`, etc. Better for iterative agentic development. |
