@@ -21,6 +21,9 @@ In active development. See [PROGRESS.md](PROGRESS.md) for current status and [DE
 
 Flutter, Riverpod, drift (SQLite), just_audio, audio_service, Dio, freezed, go_router, flex_color_scheme.
 
+Stack validation status: reviewed against current Flutter/package guidance on 2026-02-18.  
+See the validation notes and sources in [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md#stack-validation-2026-02-18).
+
 ## Build
 
 ```
