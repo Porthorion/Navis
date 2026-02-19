@@ -8,8 +8,12 @@ on:
 
 jobs:
   release-android:
-    name: Build release APK
+    name: Build and publish release APK
     runs-on: ubuntu-latest
+
+    env:
+      FORGEJO_TOKEN: ${{ secrets.FORGEJO_TOKEN }}
+      FORGEJO_SERVER_URL: ${{ vars.FORGEJO_SERVER_URL }}
 
     steps:
       - name: Checkout
@@ -35,7 +39,7 @@ jobs:
           dart format --set-exit-if-changed .
           flutter analyze
           dart run custom_lint
-          flutter test
+          flutter test --coverage
 
       - name: Build release APK
         run: flutter build apk --release
@@ -45,3 +49,132 @@ jobs:
         with:
           name: navis-release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Publish release to Forgejo
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${FORGEJO_TOKEN:-}" ]]; then
+            echo "FORGEJO_TOKEN secret is required for release publishing." >&2
+            exit 1
+          fi
+
+          tag="${GITHUB_REF_NAME}"
+          api_base="${FORGEJO_SERVER_URL:-${GITHUB_SERVER_URL}}/api/v1"
+          repo="${GITHUB_REPOSITORY}"
+          apk_path="build/app/outputs/flutter-apk/app-release.apk"
+
+          if [[ ! -f "${apk_path}" ]]; then
+            echo "Release APK not found at ${apk_path}" >&2
+            exit 1
+          fi
+
+          prerelease="false"
+          if [[ "${tag}" =~ -(alpha|beta|rc)\.[0-9]+$ ]]; then
+            prerelease="true"
+          fi
+
+          auth_header="Authorization: token ${FORGEJO_TOKEN}"
+          release_endpoint="${api_base}/repos/${repo}/releases"
+
+          release_response="$(curl -fsS \
+            -H "${auth_header}" \
+            "${release_endpoint}/tags/${tag}" || true)"
+
+          release_id="$(python3 - <<'PY' "${release_response}"
+import json
+import sys
+
+payload = sys.argv[1].strip()
+if not payload:
+    print("")
+    raise SystemExit(0)
+
+try:
+    data = json.loads(payload)
+except json.JSONDecodeError:
+    print("")
+    raise SystemExit(0)
+
+print(data.get("id", ""))
+PY
+)"
+
+          if [[ -z "${release_id}" ]]; then
+            create_payload="$(python3 - <<'PY' "${tag}" "${prerelease}"
+import json
+import sys
+
+tag = sys.argv[1]
+prerelease = sys.argv[2].lower() == "true"
+
+payload = {
+    "tag_name": tag,
+    "name": tag,
+    "prerelease": prerelease,
+    "draft": False,
+    "generate_release_notes": True,
+}
+
+print(json.dumps(payload))
+PY
+)"
+
+            create_response="$(curl -fsS \
+              -X POST \
+              -H "${auth_header}" \
+              -H "Content-Type: application/json" \
+              -d "${create_payload}" \
+              "${release_endpoint}")"
+
+            release_id="$(python3 - <<'PY' "${create_response}"
+import json
+import sys
+
+data = json.loads(sys.argv[1])
+print(data["id"])
+PY
+)"
+          fi
+
+          assets_response="$(curl -fsS \
+            -H "${auth_header}" \
+            "${release_endpoint}/${release_id}/assets" || true)"
+
+          existing_asset_id="$(python3 - <<'PY' "${assets_response}"
+import json
+import sys
+
+payload = sys.argv[1].strip()
+if not payload:
+    print("")
+    raise SystemExit(0)
+
+try:
+    data = json.loads(payload)
+except json.JSONDecodeError:
+    print("")
+    raise SystemExit(0)
+
+for asset in data:
+    if asset.get("name") == "app-release.apk":
+        print(asset.get("id", ""))
+        break
+else:
+    print("")
+PY
+)"
+
+          if [[ -n "${existing_asset_id}" ]]; then
+            curl -fsS \
+              -X DELETE \
+              -H "${auth_header}" \
+              "${release_endpoint}/${release_id}/assets/${existing_asset_id}"
+          fi
+
+          curl -fsS \
+            -X POST \
+            -H "${auth_header}" \
+            -H "Content-Type: application/vnd.android.package-archive" \
+            --data-binary @"${apk_path}" \
+            "${release_endpoint}/${release_id}/assets?name=app-release.apk"
