@@ -1,12 +1,13 @@
-import 'package:flutter/foundation.dart';
 import 'package:logger/logger.dart';
 
 /// Minimal application logger used during bootstrap and early infrastructure.
 class AppLogger {
   AppLogger._();
 
+  static const bool _isReleaseMode = bool.fromEnvironment('dart.vm.product');
+
   static final Logger _logger = Logger(
-    level: kReleaseMode ? Level.warning : Level.trace,
+    level: _isReleaseMode ? Level.warning : Level.trace,
   );
 
   /// Logs a standard informational message.
