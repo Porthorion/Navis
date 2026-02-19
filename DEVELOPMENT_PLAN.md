@@ -1217,6 +1217,10 @@ Split into Wi-Fi and Non-Wi-Fi (cellular / mobile data) profiles. The app detect
 
 Theme mode and color scheme are independent settings, giving users full control over the visual style.
 
+*Phase alignment note*:
+- App default is dark mode from early development (pre-Phase 9) to prioritize mobile listening UX and reduce eye strain in low-light usage.
+- Full appearance controls remain in Phase 9 scope: Light/Dark/OLED/System selector, quick Light Mode toggle in settings, and complete persisted theme preferences.
+
 *Theme mode*:
 - **Light** — standard light theme.
 - **Dark** — standard dark theme with dark gray surfaces.
@@ -1227,6 +1231,7 @@ Theme mode and color scheme are independent settings, giving users full control 
 - **Dynamic** (default on supported devices) — derives the color palette from the OS wallpaper / accent color via `dynamic_color`. Falls back to a built-in default on unsupported devices.
 - **Preset themes** — a curated selection of `flex_color_scheme` palettes (e.g., Material Blue, Deep Purple, Teal, Indigo, Sakura, etc.). Shown as a grid of color swatches the user taps to preview and select.
 - **Custom** — user picks a primary seed color from a color wheel or hex input. `flex_color_scheme` generates a full M3 `ColorScheme` from that seed, applied to both light and dark variants.
+- **Mode-aware palette variants** — maintain independent palette selections for light and dark families so switching Light/Dark keeps intentional colorways in each mode instead of forcing one shared palette.
 
 *Additional*:
 - Theme preview: changing either setting immediately previews the result in real-time. No "Apply" button needed.
@@ -1504,7 +1509,7 @@ Global verification rule for every phase completion:
 | 6 | Search returns results from server. No result caching. Recent searches stored and displayed. Tap results navigate correctly. Pagination works for large result sets. |
 | 7 | Playlists list populates. Create, rename, delete playlists reflected on server. Add/remove/reorder tracks in playlists syncs to server. |
 | 8 | Rolling cache grows as tracks are streamed. LRU eviction respects rolling cache size limit without touching permanent cache. Permanent pin downloads a track in chosen quality via the download queue. Pinned content plays without network. Download queue shows progress, supports pause/cancel/reorder. Wi-Fi-only downloads pause on cellular. "Offline Only" filter shows both rolling (with temporary badge) and permanent cached songs. Promoting a rolling-cached song to permanent works without re-download. Storage stats show rolling cache, permanent cache, and cover art separately. |
-| 9 | All settings persist across restarts. Wi-Fi vs cellular streaming quality switches automatically based on network type. Theme mode (Light/Dark/OLED/System) and color scheme (Dynamic/Preset/Custom) apply immediately on change. Equalizer functional on a physical Android device. Cache management controls (rolling vs permanent) work correctly and show accurate stats. |
+| 9 | All settings persist across restarts. Wi-Fi vs cellular streaming quality switches automatically based on network type. Theme mode (Light/Dark/OLED/System) and color scheme (Dynamic/Preset/Custom) apply immediately on change, with a quick Light Mode toggle in settings and independent light-mode vs dark-mode color palette selections preserved when switching modes. Equalizer functional on a physical Android device. Cache management controls (rolling vs permanent) work correctly and show accurate stats. |
 | 10 | Hero animations for cover art work smoothly. Skeleton loading replaces spinners. No accessibility warnings from Flutter Inspector. All strings externalized. Haptic feedback on key actions. Edge-to-edge correct on Android 15 and Android 16 emulators. Predictive back gesture works with go_router. Logger output visible in debug, silent in release (with auth params redacted). App recovers gracefully from force-kill (play queue restored, download queue re-queued). Material motion transitions (SharedAxisTransition, FadeThroughTransition) visible on page navigations. Update checker: mock Forgejo API returns newer version → banner appears; returns same version → no banner; network unavailable → silent failure, no crash. |
 | 11 | AudioMuse smart queue appends tracks when configured. UI elements hidden when AudioMuse not configured. Similar artists/albums display. Fallback to Subsonic data when AudioMuse is off. |
 

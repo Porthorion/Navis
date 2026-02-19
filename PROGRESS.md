@@ -251,8 +251,8 @@ Last updated: 2026-02-19
 - [ ] Playback — general (gapless, ReplayGain, skip silence, scrobble, resume, queue sync)
 - [ ] Audio section (equalizer, loudness enhancer — Android only)
 - [ ] Downloads & cache (default quality, Wi-Fi only, concurrency, rolling/permanent/cover art stats, clear buttons)
-- [ ] Appearance — theme mode (Light / Dark / OLED / System)
-- [ ] Appearance — color scheme (Dynamic / Preset / Custom seed)
+- [ ] Appearance — theme mode (Light / Dark / OLED / System) — partial: 2026-02-19 (implemented: app defaults to Dark Mode; remaining: settings UI selector including Light Mode toggle and full persisted mode controls)
+- [ ] Appearance — color scheme (Dynamic / Preset / Custom seed) — partial: 2026-02-19 (remaining: mode-aware palette selections for light and dark families + full appearance UI)
 - [ ] Appearance — art-tinted Now Playing toggle
 - [ ] AudioMuse AI section (placeholder, hidden until Phase 11)
 - [ ] About (version, licenses, repo links)
