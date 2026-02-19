@@ -32,6 +32,27 @@ Checks performed:
 
 The script fails fast when `/tmp` is critically low to avoid misleading test hangs.
 
+## Phase 1 Close-Out Gate
+
+When Phase 1 is ready to close, run the dedicated close-out script:
+
+```bash
+export NAVIS_SMOKE_BASE_URL="https://your-subsonic-host"
+export NAVIS_SMOKE_USERNAME="your-username"
+export NAVIS_SMOKE_PASSWORD="your-password"
+# Optional:
+export NAVIS_SMOKE_API_VERSION="1.16.1"
+export NAVIS_SMOKE_USE_LEGACY_AUTH="false"
+
+./tool/phase1_closeout.sh
+# or: make phase1-closeout
+```
+
+This gate ensures:
+- drift DB tests execute (not skipped)
+- migration tests execute (not skipped)
+- real-server `ping()` + `getOpenSubsonicExtensions()` smoke succeeds
+
 ## Optional Pre-commit Hook
 
 Enable local guardrails:

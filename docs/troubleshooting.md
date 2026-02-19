@@ -15,6 +15,37 @@ rm -rf /tmp/flutter_tools.* /tmp/dart_test* /tmp/flutter_test*
 ./tool/check.sh
 ```
 
+## Drift tests are skipped (`All tests skipped`)
+
+Symptom:
+- `flutter test test/src/database/navis_database_test.dart -r expanded` ends with `All tests skipped.`
+- `flutter test test/src/database/migrations/navis_migration_test.dart -r expanded` ends with `All tests skipped.`
+
+Cause:
+- native SQLite development library is missing (`libsqlite3.so`).
+
+Fix (Ubuntu/Pop!_OS):
+
+```bash
+sudo apt-get update
+sudo apt-get install -y libsqlite3-dev sqlite3
+ls -l /usr/lib/x86_64-linux-gnu/libsqlite3.so
+```
+
+Then rerun:
+
+```bash
+./tool/phase1_closeout.sh
+```
+
+If you cannot install system packages (no sudo), use a local symlink fallback:
+
+```bash
+mkdir -p /tmp/navis-sqlite
+ln -sf /lib/x86_64-linux-gnu/libsqlite3.so.0 /tmp/navis-sqlite/libsqlite3.so
+LD_LIBRARY_PATH="/tmp/navis-sqlite:${LD_LIBRARY_PATH:-}" ./tool/phase1_closeout.sh
+```
+
 ## Android SDK not found
 
 Symptom from `flutter doctor -v`:

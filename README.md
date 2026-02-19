@@ -41,6 +41,25 @@ Run before each commit:
 
 This checks formatting, code generation, static analysis, linting, and tests.
 
+## Phase 1 Close-Out
+
+Run the dedicated close-out gate when finalizing Phase 1:
+
+```bash
+export NAVIS_SMOKE_BASE_URL="https://your-subsonic-host"
+export NAVIS_SMOKE_USERNAME="your-username"
+export NAVIS_SMOKE_PASSWORD="your-password"
+# Optional (defaults shown):
+export NAVIS_SMOKE_API_VERSION="1.16.1"
+export NAVIS_SMOKE_USE_LEGACY_AUTH="false"
+
+./tool/phase1_closeout.sh
+# or: make phase1-closeout
+```
+
+This command verifies drift DB tests are not skipped and runs a real-server
+`ping()` + capabilities smoke check.
+
 ## Release
 
 Publish a versioned release with APK to Forgejo:
