@@ -13,12 +13,15 @@ Last updated: 2026-02-19
 
 ## Current Focus
 - [x] Phase 0 end-to-end bootstrap — 2026-02-19 (evidence: `./tool/check.sh`, `flutter run -d linux`)
+- [ ] Phase 1 close-out verification — partial: 2026-02-19 (remaining: real-server `ping()` smoke + unskipped drift migration test run on host with `libsqlite3`)
 
 ## Meta Progress
 - [x] Tech stack and methodology validation refresh — 2026-02-18 (evidence: `DEVELOPMENT_PLAN.md` stack validation section + README tech stack update)
 
 ## Blockers
 - Android mobile runtime validation still blocked — 2026-02-19 (error: `flutter doctor -v` reports missing Android SDK; workaround used for Phase 0 runtime verification: `flutter run -d linux`)
+- Phase 1 real-server smoke verification blocked by missing server credentials/endpoint — 2026-02-19 (error: no Navidrome/Subsonic host configured for `ping()`; next action: run smoke test once server URL + credentials are available)
+- Native drift test execution blocked in this environment — 2026-02-19 (error: `libsqlite3.so: cannot open shared object file`; workaround: drift DB tests are present and conditionally skipped; next action: re-run unskipped on machine/CI image with sqlite shared library installed)
 
 ---
 
@@ -48,40 +51,40 @@ Last updated: 2026-02-19
 
 ## Phase 1: Core Infrastructure
 ### 1.1 — Subsonic API Client
-- [ ] Dio wrapper with all endpoint methods
-- [ ] `SubsonicAuthInterceptor` (token auth, `f=json`)
-- [ ] Freezed API response models
-- [ ] OpenSubsonic extension detection (`getOpenSubsonicExtensions`)
-- [ ] Typed error handling (`SubsonicAuthException`, etc.)
-- [ ] Dio retry interceptor (exponential backoff, skip 4xx)
-- [ ] Dio logging interceptor
-- [ ] Auth query-param redaction in API logs (`u`, `t`, `s`, `p`)
-- [ ] Cancel token support
+- [x] Dio wrapper with all endpoint methods — 2026-02-19 (evidence: `lib/src/api/subsonic_api_client.dart`, `test/src/api/subsonic_api_client_test.dart`)
+- [x] `SubsonicAuthInterceptor` (token auth, `f=json`) — 2026-02-19 (evidence: `lib/src/api/subsonic_auth_interceptor.dart`, `test/src/api/subsonic_auth_interceptor_test.dart`)
+- [x] Freezed API response models — 2026-02-19 (evidence: `lib/src/api/models/*.dart`, generated `*.freezed.dart`/`*.g.dart`, `test/src/api/models_serialization_test.dart`)
+- [x] OpenSubsonic extension detection (`getOpenSubsonicExtensions`) — 2026-02-19 (evidence: `lib/src/api/subsonic_api_client.dart`, `test/src/api/subsonic_api_client_test.dart`)
+- [x] Typed error handling (`SubsonicAuthException`, etc.) — 2026-02-19 (evidence: `lib/src/api/subsonic_error.dart`, `test/src/api/subsonic_error_test.dart`)
+- [x] Dio retry interceptor (exponential backoff, skip 4xx) — 2026-02-19 (evidence: `lib/src/api/subsonic_retry_interceptor.dart`, `test/src/api/subsonic_retry_interceptor_test.dart`)
+- [x] Dio logging interceptor — 2026-02-19 (evidence: `lib/src/api/subsonic_logging_interceptor.dart`)
+- [x] Auth query-param redaction in API logs (`u`, `t`, `s`, `p`) — 2026-02-19 (evidence: `lib/src/api/subsonic_logging_interceptor.dart`, `test/src/api/subsonic_logging_interceptor_test.dart`)
+- [x] Cancel token support — 2026-02-19 (evidence: `lib/src/api/subsonic_api_client.dart`, `test/src/api/subsonic_api_client_test.dart`)
 
 ### 1.2 — Drift Database
-- [ ] All table schemas (servers, artists, albums, songs, playlists, playlist_songs, genres, cached_tracks, download_queue, play_history, recent_searches, play_queue, play_queue_items)
-- [ ] All DAOs (ServerDao, LibraryDao, PlaylistDao, CacheDao, DownloadQueueDao, HistoryDao, PlayQueueDao)
-- [ ] Reactive queries (`Stream<List<T>>`)
-- [ ] SQLite foreign keys enabled and verified (`PRAGMA foreign_keys = ON`)
-- [ ] Query hotspot indexes added and validated (artists/albums/songs/queue)
-- [ ] Explicit transactions for multi-table writes (sync, playlist edits, cache promotion)
-- [ ] Schema versioning + migration strategy
-- [ ] `drift_flutter` initialization with `driftDatabase()`
-- [ ] Migration unit tests
+- [x] All table schemas (servers, artists, albums, songs, playlists, playlist_songs, genres, cached_tracks, download_queue, play_history, recent_searches, play_queue, play_queue_items) — 2026-02-19 (evidence: `lib/src/database/tables/*.dart`, `lib/src/database/navis_database.dart`)
+- [x] All DAOs (ServerDao, LibraryDao, PlaylistDao, CacheDao, DownloadQueueDao, HistoryDao, PlayQueueDao) — 2026-02-19 (evidence: `lib/src/database/daos/*.dart`)
+- [x] Reactive queries (`Stream<List<T>>`) — 2026-02-19 (evidence: DAO watch methods in `lib/src/database/daos/*.dart`)
+- [ ] SQLite foreign keys enabled and verified (`PRAGMA foreign_keys = ON`) — partial: 2026-02-19 (remaining: execute non-skipped drift DB tests on host with `libsqlite3`; implementation present in `lib/src/database/navis_database.dart`)
+- [x] Query hotspot indexes added and validated (artists/albums/songs/queue) — 2026-02-19 (evidence: `_createIndexes()` in `lib/src/database/navis_database.dart`)
+- [x] Explicit transactions for multi-table writes (sync, playlist edits, cache promotion) — 2026-02-19 (evidence: transactional DAO methods in `lib/src/database/daos/*.dart`)
+- [x] Schema versioning + migration strategy — 2026-02-19 (evidence: `schemaVersion`, `from1To2`, `_runMigrations` in `lib/src/database/navis_database.dart`; `drift_schemas/drift_schema_v1.json`)
+- [x] `drift_flutter` initialization with `driftDatabase()` — 2026-02-19 (evidence: `_openConnection()` in `lib/src/database/navis_database.dart`)
+- [ ] Migration unit tests — partial: 2026-02-19 (remaining: unskipped run in sqlite-capable environment; tests added at `test/src/database/migrations/navis_migration_test.dart`)
 
 ### 1.3 — Riverpod Provider Architecture
-- [ ] `serverConfigProvider`
-- [ ] `subsonicApiProvider`
-- [ ] `navisDatabaseProvider`
-- [ ] `connectivityProvider`
-- [ ] `networkTypeProvider`
-- [ ] `activeStreamingQualityProvider`
-- [ ] Feature-specific providers scaffolded
+- [x] `serverConfigProvider` — 2026-02-19 (evidence: `lib/src/features/auth/presentation/server_config_provider.dart`)
+- [x] `subsonicApiProvider` — 2026-02-19 (evidence: `lib/src/providers/app_providers.dart`)
+- [x] `navisDatabaseProvider` — 2026-02-19 (evidence: `lib/src/providers/app_providers.dart`)
+- [x] `connectivityProvider` — 2026-02-19 (evidence: `lib/src/providers/app_providers.dart`)
+- [x] `networkTypeProvider` — 2026-02-19 (evidence: `lib/src/providers/app_providers.dart`, `lib/src/utils/connectivity.dart`)
+- [x] `activeStreamingQualityProvider` — 2026-02-19 (evidence: `lib/src/providers/app_providers.dart`)
+- [x] Feature-specific providers scaffolded — 2026-02-19 (evidence: `lib/src/features/library/presentation/library_providers.dart`, `lib/src/features/search/presentation/search_providers.dart`, `lib/src/features/player/presentation/player_providers.dart`, `lib/src/features/downloads/presentation/download_providers.dart`)
 
 ### 1.4 — Routing
-- [ ] `go_router` setup with `ShellRoute`
-- [ ] All route definitions
-- [ ] Auth route guard (redirect to `/login` if not logged in)
+- [x] `go_router` setup with `ShellRoute` — 2026-02-19 (evidence: `lib/src/routing/app_router.dart`, `lib/src/routing/app_shell.dart`)
+- [x] All route definitions — 2026-02-19 (evidence: route table in `lib/src/routing/app_router.dart`, coverage in `test/src/routing/app_router_test.dart`)
+- [x] Auth route guard (redirect to `/login` if not logged in) — 2026-02-19 (evidence: redirect logic in `lib/src/routing/app_router.dart`, `test/src/routing/app_router_test.dart`)
 
 ## Phase 2: Authentication & Server Setup
 - [ ] Login screen (URL, username, password, test connection)

@@ -1,0 +1,51 @@
+import 'package:drift/drift.dart';
+import 'package:navis/src/database/tables/albums_table.dart';
+import 'package:navis/src/database/tables/artists_table.dart';
+
+class SongsTable extends Table {
+  @override
+  String get tableName => 'songs';
+
+  TextColumn get id => text()();
+
+  TextColumn get title => text()();
+
+  TextColumn get albumId => text().nullable().references(
+    AlbumsTable,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
+
+  TextColumn get artistId => text().nullable().references(
+    ArtistsTable,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
+
+  TextColumn get artistName => text().nullable()();
+
+  TextColumn get albumName => text().nullable()();
+
+  IntColumn get track => integer().nullable()();
+
+  IntColumn get discNumber => integer().nullable()();
+
+  IntColumn get duration => integer().nullable()();
+
+  IntColumn get bitRate => integer().nullable()();
+
+  TextColumn get contentType => text().nullable()();
+
+  TextColumn get suffix => text().nullable()();
+
+  IntColumn get size => integer().nullable()();
+
+  TextColumn get coverArt => text().nullable()();
+
+  DateTimeColumn get starred => dateTime().nullable()();
+
+  IntColumn get playCount => integer().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
