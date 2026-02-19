@@ -229,6 +229,11 @@ Triggered on pushes to `dev` and `phase/*` branches. Steps:
 2. Open an automated dependency update PR (or fail with a report artifact if automation is not set up yet).
 3. Re-run CI gates against updated dependencies.
 
+**Workflow maintenance rule (mandatory for AI agent sessions)**:
+- Any change to quality gates, generated code flow, test commands, Flutter/Dart versions, or release packaging must be mirrored in `.forgejo/workflows/*.yml` in the same task/PR.
+- After editing workflow files, validate YAML parsing locally before commit (example: `python3 - <<'PY' ... yaml.safe_load(...) ... PY` over `.forgejo/workflows/*.yml`).
+- Record workflow updates in `PROGRESS.md` with date + evidence, same as code/test tasks.
+
 **Runner requirements**:
 - Forgejo Actions runner (self-hosted or built-in if the instance supports it).
 - JDK 17.
