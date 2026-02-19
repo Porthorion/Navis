@@ -13,15 +13,14 @@ Last updated: 2026-02-19
 
 ## Current Focus
 - [x] Phase 0 end-to-end bootstrap — 2026-02-19 (evidence: `./tool/check.sh`, `flutter run -d linux`)
-- [ ] Phase 1 close-out verification — partial: 2026-02-19 (remaining: real-server `ping()` smoke + unskipped drift migration test run on host with `libsqlite3`)
+- [x] Phase 1 close-out verification — 2026-02-19 (evidence: `LD_LIBRARY_PATH="/tmp/navis-sqlite:${LD_LIBRARY_PATH:-}" NAVIS_SMOKE_BASE_URL=... NAVIS_SMOKE_USERNAME=... NAVIS_SMOKE_PASSWORD=... NAVIS_SMOKE_USE_LEGACY_AUTH=true NAVIS_SMOKE_API_VERSION=1.16.1 ./tool/phase1_closeout.sh`)
+- [x] Phase 1 close-out automation gate added — 2026-02-19 (evidence: `tool/phase1_closeout.sh`, `tool/phase1_ping_smoke.dart`, `Makefile` target `phase1-closeout`)
 
 ## Meta Progress
 - [x] Tech stack and methodology validation refresh — 2026-02-18 (evidence: `DEVELOPMENT_PLAN.md` stack validation section + README tech stack update)
 
 ## Blockers
 - Android mobile runtime validation still blocked — 2026-02-19 (error: `flutter doctor -v` reports missing Android SDK; workaround used for Phase 0 runtime verification: `flutter run -d linux`)
-- Phase 1 real-server smoke verification blocked by missing server credentials/endpoint — 2026-02-19 (error: no Navidrome/Subsonic host configured for `ping()`; next action: run smoke test once server URL + credentials are available)
-- Native drift test execution blocked in this environment — 2026-02-19 (error: `libsqlite3.so: cannot open shared object file`; workaround: drift DB tests are present and conditionally skipped; next action: re-run unskipped on machine/CI image with sqlite shared library installed)
 
 ---
 
@@ -70,12 +69,12 @@ Last updated: 2026-02-19
 - [x] All table schemas (servers, artists, albums, songs, playlists, playlist_songs, genres, cached_tracks, download_queue, play_history, recent_searches, play_queue, play_queue_items) — 2026-02-19 (evidence: `lib/src/database/tables/*.dart`, `lib/src/database/navis_database.dart`)
 - [x] All DAOs (ServerDao, LibraryDao, PlaylistDao, CacheDao, DownloadQueueDao, HistoryDao, PlayQueueDao) — 2026-02-19 (evidence: `lib/src/database/daos/*.dart`)
 - [x] Reactive queries (`Stream<List<T>>`) — 2026-02-19 (evidence: DAO watch methods in `lib/src/database/daos/*.dart`)
-- [ ] SQLite foreign keys enabled and verified (`PRAGMA foreign_keys = ON`) — partial: 2026-02-19 (remaining: execute non-skipped drift DB tests on host with `libsqlite3`; implementation present in `lib/src/database/navis_database.dart`)
+- [x] SQLite foreign keys enabled and verified (`PRAGMA foreign_keys = ON`) — 2026-02-19 (evidence: `LD_LIBRARY_PATH="/tmp/navis-sqlite:${LD_LIBRARY_PATH:-}" flutter test test/src/database/navis_database_test.dart -r expanded` with `enforces foreign keys` passing)
 - [x] Query hotspot indexes added and validated (artists/albums/songs/queue) — 2026-02-19 (evidence: `_createIndexes()` in `lib/src/database/navis_database.dart`)
 - [x] Explicit transactions for multi-table writes (sync, playlist edits, cache promotion) — 2026-02-19 (evidence: transactional DAO methods in `lib/src/database/daos/*.dart`)
 - [x] Schema versioning + migration strategy — 2026-02-19 (evidence: `schemaVersion`, `from1To2`, `_runMigrations` in `lib/src/database/navis_database.dart`; `drift_schemas/drift_schema_v1.json`)
 - [x] `drift_flutter` initialization with `driftDatabase()` — 2026-02-19 (evidence: `_openConnection()` in `lib/src/database/navis_database.dart`)
-- [ ] Migration unit tests — partial: 2026-02-19 (remaining: unskipped run in sqlite-capable environment; tests added at `test/src/database/migrations/navis_migration_test.dart`)
+- [x] Migration unit tests — 2026-02-19 (evidence: `LD_LIBRARY_PATH="/tmp/navis-sqlite:${LD_LIBRARY_PATH:-}" flutter test test/src/database/migrations/navis_migration_test.dart -r expanded`)
 
 ### 1.3 — Riverpod Provider Architecture
 - [x] `serverConfigProvider` — 2026-02-19 (evidence: `lib/src/features/auth/presentation/server_config_provider.dart`)
