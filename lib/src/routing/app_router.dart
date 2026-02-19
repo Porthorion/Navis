@@ -1,6 +1,7 @@
 import 'package:go_router/go_router.dart';
 import 'package:navis/src/features/home/presentation/home_screen.dart';
 
+/// Application router configuration.
 final GoRouter appRouter = GoRouter(
   routes: <RouteBase>[
     GoRoute(

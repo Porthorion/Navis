@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+min_tmp_kb=262144
+tmp_available_kb="$(df --output=avail /tmp | tail -n1 | tr -d ' ')"
+
+if [[ "${tmp_available_kb}" -lt "${min_tmp_kb}" ]]; then
+  echo "[check] Insufficient /tmp space: ${tmp_available_kb}KB available; need at least ${min_tmp_kb}KB." >&2
+  echo "[check] Free disk space and rerun ./tool/check.sh" >&2
+  exit 1
+fi
+
 run_step() {
   local label="$1"
   shift
