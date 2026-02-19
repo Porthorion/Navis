@@ -2,7 +2,11 @@
 set -euo pipefail
 
 min_tmp_kb=262144
-tmp_available_kb="$(df --output=avail /tmp | tail -n1 | tr -d ' ')"
+if df --output=avail /tmp >/dev/null 2>&1; then
+  tmp_available_kb="$(df --output=avail /tmp | tail -n1 | tr -d ' ')"
+else
+  tmp_available_kb="$(df -k /tmp | awk 'NR==2 {print $4}')"
+fi
 
 if [[ "${tmp_available_kb}" -lt "${min_tmp_kb}" ]]; then
   echo "[check] Insufficient /tmp space: ${tmp_available_kb}KB available; need at least ${min_tmp_kb}KB." >&2
