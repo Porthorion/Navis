@@ -5,15 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/subsonic_error.dart';
-import 'package:navis/src/features/auth/data/server_connection_service.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
-
-final serverConnectionServiceProvider = Provider<ServerConnectionService>((
-  ref,
-) {
-  return const SubsonicServerConnectionService();
-});
+import 'package:navis/src/features/auth/presentation/server_connection_provider.dart';
+import 'package:navis/src/features/auth/presentation/server_url_validation.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -38,6 +33,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   void initState() {
     super.initState();
     _urlController = TextEditingController();
+    _urlController.addListener(_handleUrlChanged);
     _usernameController = TextEditingController();
     _passwordController = TextEditingController();
   }
@@ -81,8 +77,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   keyboardType: TextInputType.url,
                   textInputAction: TextInputAction.next,
                   enabled: !_isBusy,
-                  validator: (value) => _validateUrl(value, l10n),
+                  validator: (value) => validateServerUrl(value, l10n),
                 ),
+                if (isInsecureHttpUrl(_urlController.text.trim())) ...<Widget>[
+                  const SizedBox(height: 8),
+                  Text(
+                    l10n.loginInsecureHttpWarning,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.error,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _usernameController,
@@ -137,23 +142,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (value == null || value.trim().isEmpty) {
       return message;
     }
-    return null;
-  }
-
-  String? _validateUrl(String? value, AppLocalizations l10n) {
-    if (value == null || value.trim().isEmpty) {
-      return l10n.loginValidationServerUrlRequired;
-    }
-
-    final uri = Uri.tryParse(value.trim());
-    if (uri == null || uri.scheme.isEmpty || uri.host.isEmpty) {
-      return l10n.loginValidationServerUrlInvalid;
-    }
-
-    if (uri.scheme != 'https') {
-      return l10n.loginValidationServerUrlHttpsOnly;
-    }
-
     return null;
   }
 
@@ -258,8 +246,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   String get _normalizedUrl {
-    final raw = _urlController.text.trim();
-    return raw.endsWith('/') ? raw.substring(0, raw.length - 1) : raw;
+    return normalizeServerUrl(_urlController.text);
+  }
+
+  void _handleUrlChanged() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {});
   }
 
   String _toUserMessage(Object error, AppLocalizations l10n) {

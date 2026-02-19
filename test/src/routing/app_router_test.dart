@@ -3,9 +3,58 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/src/app.dart';
+import 'package:navis/src/features/auth/data/sign_out_service.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
+import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
+import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/routing/app_router.dart';
+
+class _StaticReachabilityController extends ServerReachabilityController {
+  _StaticReachabilityController(this._state);
+
+  final ServerReachabilityState _state;
+
+  @override
+  ServerReachabilityState build() => _state;
+}
+
+class _TestServerConfigNotifier extends ServerConfigNotifier {
+  _TestServerConfigNotifier(this._initial);
+
+  ServerConfigModel? _initial;
+
+  @override
+  Future<ServerConfigModel?> build() async => _initial;
+
+  @override
+  Future<void> refresh() async {
+    state = AsyncData(_initial);
+  }
+
+  @override
+  Future<void> save(ServerConfigModel config) async {
+    _initial = config;
+    state = AsyncData(config);
+  }
+
+  @override
+  Future<void> clear() async {
+    _initial = null;
+    state = const AsyncData(null);
+  }
+}
+
+class _CallbackSignOutService implements SignOutService {
+  _CallbackSignOutService(this._onSignOut);
+
+  final Future<void> Function({required bool wipeLocalData}) _onSignOut;
+
+  @override
+  Future<void> signOut({required bool wipeLocalData}) {
+    return _onSignOut(wipeLocalData: wipeLocalData);
+  }
+}
 
 void main() {
   testWidgets('redirects unauthenticated user to /login', (tester) async {
@@ -64,6 +113,13 @@ void main() {
             ),
           ),
         ),
+        serverReachabilityControllerProvider.overrideWith(
+          () => _StaticReachabilityController(
+            const ServerReachabilityState(
+              status: ServerReachabilityStatus.online,
+            ),
+          ),
+        ),
       ],
     );
     addTearDown(container.dispose);
@@ -83,6 +139,46 @@ void main() {
     expect(find.text('MiniPlayer (Phase 5)'), findsOneWidget);
   });
 
+  testWidgets('shows offline banner when reachability is offline', (
+    tester,
+  ) async {
+    final container = ProviderContainer(
+      overrides: [
+        serverConfigStateProvider.overrideWithValue(
+          const AsyncData(
+            ServerConfigModel(
+              url: 'https://example.com',
+              username: 'alice',
+              password: 'secret',
+              apiVersion: '1.16.1',
+            ),
+          ),
+        ),
+        serverReachabilityControllerProvider.overrideWith(
+          () => _StaticReachabilityController(
+            const ServerReachabilityState(
+              status: ServerReachabilityStatus.offline,
+            ),
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const NavisApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Server unreachable. Retrying every 30s.'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('supports route params for detail pages', (tester) async {
     final container = ProviderContainer(
       overrides: [
@@ -93,6 +189,13 @@ void main() {
               username: 'alice',
               password: 'secret',
               apiVersion: '1.16.1',
+            ),
+          ),
+        ),
+        serverReachabilityControllerProvider.overrideWith(
+          () => _StaticReachabilityController(
+            const ServerReachabilityState(
+              status: ServerReachabilityStatus.online,
             ),
           ),
         ),
@@ -168,5 +271,59 @@ void main() {
     expect(configuredLocations, contains('/now-playing'));
 
     await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('sign out from server settings routes user to /login', (
+    tester,
+  ) async {
+    late _TestServerConfigNotifier notifier;
+
+    final container = ProviderContainer(
+      overrides: [
+        serverConfigProvider.overrideWith(
+          () => notifier = _TestServerConfigNotifier(
+            const ServerConfigModel(
+              url: 'https://example.com',
+              username: 'alice',
+              password: 'secret',
+              apiVersion: '1.16.1',
+            ),
+          ),
+        ),
+        serverReachabilityControllerProvider.overrideWith(
+          () => _StaticReachabilityController(
+            const ServerReachabilityState(
+              status: ServerReachabilityStatus.online,
+            ),
+          ),
+        ),
+        signOutServiceProvider.overrideWithValue(
+          _CallbackSignOutService(({required wipeLocalData}) async {
+            await notifier.clear();
+          }),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const NavisApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final router = container.read(appRouterProvider);
+    router.go('/settings/server');
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Sign out'));
+    await tester.tap(find.text('Sign out'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sign out (keep local data)'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sign in'), findsOneWidget);
   });
 }

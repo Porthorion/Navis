@@ -19,6 +19,11 @@ class CacheDao extends DatabaseAccessor<NavisDatabase> with _$CacheDaoMixin {
     return into(cachedTracksTable).insertOnConflictUpdate(companion);
   }
 
+  Future<List<CachedTracksTableData>> getCachedTracks() {
+    final query = select(cachedTracksTable);
+    return query.get();
+  }
+
   Future<void> updateCacheType(String songId, CacheType cacheType) {
     return (update(
       cachedTracksTable,
@@ -34,5 +39,9 @@ class CacheDao extends DatabaseAccessor<NavisDatabase> with _$CacheDaoMixin {
     return (delete(
       cachedTracksTable,
     )..where((table) => table.songId.equals(songId))).go();
+  }
+
+  Future<void> clearCachedTracks() {
+    return delete(cachedTracksTable).go();
   }
 }

@@ -1,0 +1,188 @@
+import 'dart:async';
+
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:navis/src/api/subsonic_error.dart';
+import 'package:navis/src/features/auth/domain/server_config.dart';
+import 'package:navis/src/features/auth/domain/server_reachability.dart';
+import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
+import 'package:navis/src/providers/app_providers.dart';
+
+typedef PingServer = Future<String> Function();
+
+final reachabilityRetryIntervalProvider = Provider<Duration>((ref) {
+  return const Duration(seconds: 30);
+});
+
+final pingServerProvider = Provider<PingServer?>((ref) {
+  final api = ref.watch(subsonicApiProvider);
+  if (api == null) {
+    return null;
+  }
+  return api.ping;
+});
+
+final serverReachabilityControllerProvider =
+    NotifierProvider<ServerReachabilityController, ServerReachabilityState>(
+      ServerReachabilityController.new,
+    );
+
+class ServerReachabilityController extends Notifier<ServerReachabilityState> {
+  Timer? _retryTimer;
+  bool _isChecking = false;
+  bool _pendingCheck = false;
+  String? _sessionFingerprint;
+  bool _hasAuthenticatedSession = false;
+
+  @override
+  ServerReachabilityState build() {
+    ref.onDispose(_cancelRetryTimer);
+
+    final configState = ref.read(serverConfigStateProvider).asData?.value;
+    _hasAuthenticatedSession = configState != null;
+    _sessionFingerprint = configState == null
+        ? null
+        : _toSessionFingerprint(configState);
+
+    if (_hasAuthenticatedSession) {
+      Future<void>.microtask(_checkReachability);
+    }
+
+    ref.listen<AsyncValue<ServerConfigModel?>>(
+      serverConfigStateProvider,
+      (_, next) => _onServerConfigChanged(next),
+    );
+
+    ref.listen<AsyncValue<List<ConnectivityResult>>>(
+      connectivityProvider,
+      (_, next) {
+        if (!_hasAuthenticatedSession || next.isLoading) {
+          return;
+        }
+        unawaited(_checkReachability());
+      },
+    );
+
+    return const ServerReachabilityState(
+      status: ServerReachabilityStatus.checking,
+    );
+  }
+
+  void _onServerConfigChanged(AsyncValue<ServerConfigModel?> next) {
+    if (next.isLoading && !next.hasValue) {
+      return;
+    }
+
+    final config = next.asData?.value;
+    if (config == null) {
+      _hasAuthenticatedSession = false;
+      _sessionFingerprint = null;
+      _cancelRetryTimer();
+      state = const ServerReachabilityState(
+        status: ServerReachabilityStatus.checking,
+      );
+      return;
+    }
+
+    final fingerprint = _toSessionFingerprint(config);
+    if (_sessionFingerprint == fingerprint) {
+      return;
+    }
+
+    _hasAuthenticatedSession = true;
+    _sessionFingerprint = fingerprint;
+    _cancelRetryTimer();
+    state = state.copyWith(
+      status: ServerReachabilityStatus.checking,
+      clearErrorMessage: true,
+    );
+    unawaited(_checkReachability());
+  }
+
+  Future<void> _checkReachability() async {
+    if (!_hasAuthenticatedSession) {
+      return;
+    }
+    if (_isChecking) {
+      _pendingCheck = true;
+      return;
+    }
+
+    final ping = ref.read(pingServerProvider);
+    if (!_hasAuthenticatedSession) {
+      return;
+    }
+    if (ping == null) {
+      final now = DateTime.now();
+      state = state.copyWith(
+        status: ServerReachabilityStatus.offline,
+        lastCheckedAt: now,
+        lastErrorMessage: 'Missing authenticated session.',
+      );
+      _scheduleRetryTimer();
+      return;
+    }
+
+    _isChecking = true;
+    try {
+      await ping();
+      if (!_hasAuthenticatedSession) {
+        return;
+      }
+      final now = DateTime.now();
+      state = state.copyWith(
+        status: ServerReachabilityStatus.online,
+        lastCheckedAt: now,
+        lastOnlineAt: now,
+        clearErrorMessage: true,
+      );
+      _cancelRetryTimer();
+    } on Object catch (error) {
+      if (!_hasAuthenticatedSession) {
+        return;
+      }
+      final now = DateTime.now();
+      state = state.copyWith(
+        status: ServerReachabilityStatus.offline,
+        lastCheckedAt: now,
+        lastErrorMessage: _toUserSafeError(error),
+      );
+      _scheduleRetryTimer();
+    } finally {
+      _isChecking = false;
+      if (_pendingCheck) {
+        _pendingCheck = false;
+        unawaited(_checkReachability());
+      }
+    }
+  }
+
+  String _toSessionFingerprint(ServerConfigModel config) {
+    return '${config.url}|${config.username}|${config.apiVersion}|${config.useLegacyAuth}';
+  }
+
+  void _scheduleRetryTimer() {
+    if (_retryTimer != null) {
+      return;
+    }
+
+    final interval = ref.read(reachabilityRetryIntervalProvider);
+    _retryTimer = Timer.periodic(interval, (_) {
+      unawaited(_checkReachability());
+    });
+  }
+
+  void _cancelRetryTimer() {
+    _retryTimer?.cancel();
+    _retryTimer = null;
+  }
+
+  String _toUserSafeError(Object error) {
+    return switch (error) {
+      SubsonicConnectionException() => 'Could not reach the server.',
+      SubsonicAuthException() => 'Authentication failed.',
+      SubsonicApiException() => 'Server request failed.',
+      _ => 'Could not reach the server.',
+    };
+  }
+}

@@ -8,8 +8,19 @@ import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/features/auth/data/server_connection_service.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
-import 'package:navis/src/features/auth/presentation/login_screen.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
+import 'package:navis/src/features/auth/presentation/server_connection_provider.dart';
+import 'package:navis/src/features/auth/domain/server_reachability.dart';
+import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
+
+class _StaticReachabilityController extends ServerReachabilityController {
+  _StaticReachabilityController(this._state);
+
+  final ServerReachabilityState _state;
+
+  @override
+  ServerReachabilityState build() => _state;
+}
 
 class _FakeServerConnectionService extends ServerConnectionService {
   _FakeServerConnectionService({
@@ -161,6 +172,13 @@ void main() {
           serverConfigProvider.overrideWith(
             () => notifier = _TestServerConfigNotifier(),
           ),
+          serverReachabilityControllerProvider.overrideWith(
+            () => _StaticReachabilityController(
+              const ServerReachabilityState(
+                status: ServerReachabilityStatus.online,
+              ),
+            ),
+          ),
         ],
         child: const NavisApp(),
       ),
@@ -213,5 +231,41 @@ void main() {
       find.text('Could not reach server. Check URL and network.'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('allows HTTP server URL and shows insecure transport warning', (
+    tester,
+  ) async {
+    late _TestServerConfigNotifier notifier;
+    final fakeService = _FakeServerConnectionService();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          serverConnectionServiceProvider.overrideWithValue(fakeService),
+          serverConfigProvider.overrideWith(
+            () => notifier = _TestServerConfigNotifier(),
+          ),
+          serverReachabilityControllerProvider.overrideWith(
+            () => _StaticReachabilityController(
+              const ServerReachabilityState(
+                status: ServerReachabilityStatus.online,
+              ),
+            ),
+          ),
+        ],
+        child: const NavisApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextFormField).at(0), 'http://x.test');
+    await tester.enterText(find.byType(TextFormField).at(1), 'alice');
+    await tester.enterText(find.byType(TextFormField).at(2), 'secret');
+    expect(find.textContaining('HTTP does not encrypt'), findsOneWidget);
+    await tester.tap(find.text('Connect'));
+    await tester.pumpAndSettle();
+
+    expect(notifier.savedConfigSnapshot()?.url, 'http://x.test');
   });
 }

@@ -13,6 +13,7 @@
   "loginValidationServerUrlRequired": "Server URL is required.",
   "loginValidationServerUrlInvalid": "Enter a valid server URL.",
   "loginValidationServerUrlHttpsOnly": "Use HTTPS for server URL.",
+  "loginInsecureHttpWarning": "HTTP does not encrypt traffic. Use HTTPS when possible.",
   "loginValidationUsernameRequired": "Username is required.",
   "loginValidationPasswordRequired": "Password is required.",
   "loginErrorAuthentication": "Authentication failed. Check your credentials.",
@@ -23,5 +24,46 @@
     "placeholders": {
       "apiVersion": {}
     }
-  }
+  },
+  "serverOfflineBanner": "Server unreachable. Retrying every 30s.",
+  "settingsTitle": "Settings",
+  "settingsServerTitle": "Server",
+  "settingsServerSubtitle": "View, test, and update connection settings.",
+  "settingsCacheTitle": "Cache",
+  "settingsPlaybackTitle": "Playback",
+  "settingsAppearanceTitle": "Appearance",
+  "serverSettingsTitle": "Server Settings",
+  "serverSettingsLoadError": "Could not load server settings.",
+  "serverSettingsNotAuthenticated": "No active server session. Sign in to manage server settings.",
+  "serverSettingsCurrentConnection": "Current connection",
+  "serverSettingsNameLabel": "Name",
+  "serverSettingsUrlLabel": "URL",
+  "serverSettingsUsernameLabel": "Username",
+  "serverSettingsApiVersionLabel": "API version",
+  "serverSettingsAuthModeLabel": "Auth mode",
+  "serverSettingsAuthModeToken": "Token",
+  "serverSettingsAuthModeLegacy": "Legacy password",
+  "serverSettingsCapabilitiesLabel": "Capabilities",
+  "serverSettingsCapabilitiesEmpty": "None detected",
+  "serverSettingsCapabilitiesCount": "{count} extension(s)",
+  "@serverSettingsCapabilitiesCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "serverSettingsUnknownValue": "Unknown",
+  "serverSettingsTestConnection": "Test connection",
+  "serverSettingsSave": "Save",
+  "serverSettingsSaving": "Saving...",
+  "serverSettingsSaveSuccess": "Server settings saved.",
+  "serverSettingsSignOut": "Sign out",
+  "serverSettingsSignOutKeepData": "Sign out (keep local data)",
+  "serverSettingsSignOutKeepDataSubtitle": "Remove credentials but keep downloaded and cached metadata.",
+  "serverSettingsSignOutWipeData": "Sign out and clear local data",
+  "serverSettingsSignOutWipeDataSubtitle": "Remove credentials and wipe local library, cache, and history metadata.",
+  "serverSettingsSignOutSuccess": "Signed out. Local data was preserved.",
+  "serverSettingsSignOutWipeSuccess": "Signed out and local data cleared.",
+  "serverSettingsSignOutError": "Could not complete sign out. Try again."
 }
