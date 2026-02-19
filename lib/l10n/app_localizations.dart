@@ -99,6 +99,120 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Navis'**
   String get appName;
+
+  /// No description provided for @loginTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in'**
+  String get loginTitle;
+
+  /// No description provided for @loginSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect to your Subsonic or Navidrome server.'**
+  String get loginSubtitle;
+
+  /// No description provided for @loginServerUrlLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Server URL'**
+  String get loginServerUrlLabel;
+
+  /// No description provided for @loginUsernameLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Username'**
+  String get loginUsernameLabel;
+
+  /// No description provided for @loginPasswordLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Password'**
+  String get loginPasswordLabel;
+
+  /// No description provided for @loginTestConnection.
+  ///
+  /// In en, this message translates to:
+  /// **'Test connection'**
+  String get loginTestConnection;
+
+  /// No description provided for @loginTestingConnection.
+  ///
+  /// In en, this message translates to:
+  /// **'Testing connection...'**
+  String get loginTestingConnection;
+
+  /// No description provided for @loginConnect.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect'**
+  String get loginConnect;
+
+  /// No description provided for @loginConnecting.
+  ///
+  /// In en, this message translates to:
+  /// **'Connecting...'**
+  String get loginConnecting;
+
+  /// No description provided for @loginConnectSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Connected successfully.'**
+  String get loginConnectSuccess;
+
+  /// No description provided for @loginValidationServerUrlRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Server URL is required.'**
+  String get loginValidationServerUrlRequired;
+
+  /// No description provided for @loginValidationServerUrlInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a valid server URL.'**
+  String get loginValidationServerUrlInvalid;
+
+  /// No description provided for @loginValidationServerUrlHttpsOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Use HTTPS for server URL.'**
+  String get loginValidationServerUrlHttpsOnly;
+
+  /// No description provided for @loginValidationUsernameRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Username is required.'**
+  String get loginValidationUsernameRequired;
+
+  /// No description provided for @loginValidationPasswordRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Password is required.'**
+  String get loginValidationPasswordRequired;
+
+  /// No description provided for @loginErrorAuthentication.
+  ///
+  /// In en, this message translates to:
+  /// **'Authentication failed. Check your credentials.'**
+  String get loginErrorAuthentication;
+
+  /// No description provided for @loginErrorConnection.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not reach server. Check URL and network.'**
+  String get loginErrorConnection;
+
+  /// No description provided for @loginErrorUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'Unexpected error while connecting.'**
+  String get loginErrorUnknown;
+
+  /// No description provided for @loginTestConnectionSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection successful (API {apiVersion}).'**
+  String loginTestConnectionSuccess(Object apiVersion);
 }
 
 class _AppLocalizationsDelegate

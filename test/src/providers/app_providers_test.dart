@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -31,6 +33,26 @@ void main() {
       expect(container.read(subsonicApiProvider), isNull);
     });
 
+    test('subsonicApiProvider returns null when password is unavailable', () {
+      final container = ProviderContainer(
+        overrides: [
+          serverConfigStateProvider.overrideWithValue(
+            const AsyncData(
+              ServerConfigModel(
+                url: 'https://example.com',
+                username: 'alice',
+                password: '',
+                apiVersion: '1.16.1',
+              ),
+            ),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      expect(container.read(subsonicApiProvider), isNull);
+    });
+
     test(
       'network and streaming quality providers resolve cellular profile',
       () async {
@@ -50,6 +72,7 @@ void main() {
       'artistsProvider streams rows from drift database',
       () async {
         final database = NavisDatabase(NativeDatabase.memory());
+        final artistsCompleter = Completer<List<ArtistsTableData>>();
         final container = ProviderContainer(
           overrides: [
             navisDatabaseProvider.overrideWithValue(database),
@@ -60,13 +83,29 @@ void main() {
           await database.close();
         });
 
+        final subscription = container
+            .listen<AsyncValue<List<ArtistsTableData>>>(
+              artistsProvider,
+              (_, next) {
+                next.whenData((artists) {
+                  if (artists.isNotEmpty && !artistsCompleter.isCompleted) {
+                    artistsCompleter.complete(artists);
+                  }
+                });
+              },
+              fireImmediately: true,
+            );
+        addTearDown(subscription.close);
+
         await database.libraryDao.replaceArtists(
           <ArtistsTableCompanion>[
             ArtistsTableCompanion.insert(id: 'a1', name: 'Artist 1'),
           ],
         );
 
-        final artists = await container.read(artistsProvider.future);
+        final artists = await artistsCompleter.future.timeout(
+          const Duration(seconds: 5),
+        );
         expect(artists.single.id, 'a1');
       },
       skip: !_sqliteAvailable,

@@ -31,7 +31,7 @@ void main() {
   }
 
   group('SubsonicApiClient', () {
-    test('ping succeeds and sends json format param', () async {
+    test('ping succeeds and returns server api version', () async {
       final dio = Dio(BaseOptions(baseUrl: 'https://example.com'));
       late RequestOptions captured;
       createClient(dio: dio);
@@ -51,10 +51,35 @@ void main() {
         ),
       );
 
-      await createClient(dio: dio).ping();
+      final version = await createClient(dio: dio).ping();
 
       expect(captured.path, '/rest/ping.view');
       expect(captured.queryParameters['f'], 'json');
+      expect(version, '1.16.1');
+    });
+
+    test('ping falls back to configured api version when missing', () async {
+      final dio = Dio(BaseOptions(baseUrl: 'https://example.com'));
+      final client = createClient(dio: dio);
+
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            handler.resolve(
+              Response<dynamic>(
+                requestOptions: options,
+                statusCode: 200,
+                data: <String, dynamic>{
+                  'subsonic-response': const <String, dynamic>{'status': 'ok'},
+                },
+              ),
+            );
+          },
+        ),
+      );
+
+      final version = await client.ping();
+      expect(version, '1.16.1');
     });
 
     test('parses OpenSubsonic extensions', () async {

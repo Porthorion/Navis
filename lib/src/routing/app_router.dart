@@ -22,10 +22,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   final serverConfig = ref.watch(serverConfigStateProvider);
 
   return GoRouter(
-    initialLocation: '/',
+    initialLocation: '/login',
     redirect: (context, state) {
-      final isLoggedIn = serverConfig.asData?.value != null;
       final isLoginRoute = state.matchedLocation == '/login';
+      if (serverConfig.isLoading) {
+        return isLoginRoute ? null : '/login';
+      }
+
+      final isLoggedIn = serverConfig.asData?.value != null;
 
       if (!isLoggedIn && !isLoginRoute) {
         return '/login';
