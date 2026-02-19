@@ -111,6 +111,9 @@ unlinked_spec.ds
 # Coverage
 coverage/
 
+# Release credentials (never commit)
+tool/release.env
+
 # Symbols
 app.*.symbols
 

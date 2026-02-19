@@ -1,4 +1,4 @@
-.PHONY: bootstrap check gen gen-watch test test-coverage lint format format-check
+.PHONY: bootstrap check gen gen-watch test test-coverage lint format format-check release
 
 bootstrap:
 	./tool/bootstrap.sh
@@ -26,3 +26,12 @@ format:
 
 format-check:
 	dart format --set-exit-if-changed .
+
+release:
+	@echo "Usage: make release VERSION=v0.2.0"
+	@test -n "$(VERSION)" || (echo "Error: VERSION is required" && exit 1)
+	./tool/release.sh $(VERSION)
+
+outdated:
+	flutter pub outdated
+	dart pub outdated
