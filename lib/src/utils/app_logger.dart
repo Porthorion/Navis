@@ -1,27 +1,26 @@
 import 'package:flutter/foundation.dart';
+import 'package:logger/logger.dart';
 
 /// Minimal application logger used during bootstrap and early infrastructure.
 class AppLogger {
   AppLogger._();
 
+  static final Logger _logger = Logger(
+    level: kReleaseMode ? Level.warning : Level.trace,
+  );
+
   /// Logs a standard informational message.
   static void info(String message) {
-    debugPrint('[Navis][INFO] $message');
+    _logger.i(message);
   }
 
   /// Logs a warning message.
   static void warning(String message) {
-    debugPrint('[Navis][WARN] $message');
+    _logger.w(message);
   }
 
   /// Logs an error message.
   static void error(String message, [Object? error, StackTrace? stackTrace]) {
-    debugPrint('[Navis][ERROR] $message');
-    if (error != null) {
-      debugPrint('[Navis][ERROR] $error');
-    }
-    if (stackTrace != null) {
-      debugPrint('[Navis][ERROR] $stackTrace');
-    }
+    _logger.e(message, error: error, stackTrace: stackTrace);
   }
 }
