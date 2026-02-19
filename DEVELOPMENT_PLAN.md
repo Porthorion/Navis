@@ -683,6 +683,16 @@ The MiniPlayer is rendered inside the `ShellRoute`'s scaffold, floating above th
 - Token auth preferred. Salt regenerated per request.
 - HTTPS preferred but HTTP supported for self-hosted servers.
 
+### Phase 2 Implementation Notes (2026-02-19)
+
+- `Settings` now includes a working `Server` section (`/settings/server`) with current connection details, editable credentials, test/save actions, and sign-out controls.
+- Reachability is now maintained by a dedicated controller (`ServerReachabilityStatus`: checking/online/offline) that derives truth from `ping()`, retries every 30s while offline, and uses connectivity changes as recheck hints only.
+- `AppShell` displays a global offline banner while authenticated and unreachable, with retry cadence messaging.
+- Sign-out now supports two explicit paths:
+  - `Sign out (keep local data)` clears credentials/server profile only.
+  - `Sign out and clear local data` clears credentials plus local metadata tables and attempts best-effort cached-file deletion.
+- URL policy now accepts both `https://` and `http://`; HTTP remains explicitly warned as insecure in auth/server settings UI.
+
 ---
 
 ## Phase 3: Library Browsing & Metadata Sync
