@@ -91,13 +91,13 @@ Last updated: 2026-02-19
 - [x] Auth route guard (redirect to `/login` if not logged in) — 2026-02-19 (evidence: redirect logic in `lib/src/routing/app_router.dart`, `test/src/routing/app_router_test.dart`)
 
 ## Phase 2: Authentication & Server Setup
-- [ ] Login screen (URL, username, password, test connection)
-- [ ] Server config storage in drift
-- [ ] Password encryption via `flutter_secure_storage`
+- [x] Login screen (URL, username, password, test connection) — 2026-02-19 (evidence: `lib/src/features/auth/presentation/login_screen.dart`, `test/src/features/auth/presentation/login_screen_test.dart`)
+- [x] Server config storage in drift — 2026-02-19 (evidence: `lib/src/features/auth/data/server_config_repository.dart`, `test/src/features/auth/data/server_config_repository_test.dart`)
+- [x] Password encryption via `flutter_secure_storage` — 2026-02-19 (evidence: `lib/src/features/auth/data/secure_credential_store.dart`, `pubspec.yaml`)
 - [ ] Auto-reconnect on launch with offline banner
 - [ ] Reachability-based online/offline status (server ping, not just interface connectivity)
 - [ ] Sign out clears all credentials
-- [ ] ARB string extraction begins
+- [x] ARB string extraction begins — 2026-02-19 (evidence: `lib/l10n/app_en.arb`, `lib/l10n/app_localizations.dart`, `lib/l10n/app_localizations_en.dart`, `lib/src/app.dart`)
 
 ## Phase 3: Library Browsing & Metadata Sync
 ### 3.1 — Sync Engine

@@ -45,8 +45,13 @@ class SubsonicApiClient {
       ? baseUrl.substring(0, baseUrl.length - 1)
       : baseUrl;
 
-  Future<void> ping({CancelToken? cancelToken}) async {
-    await _readRoot('/rest/ping.view', cancelToken: cancelToken);
+  Future<String> ping({CancelToken? cancelToken}) async {
+    final root = await _readRoot('/rest/ping.view', cancelToken: cancelToken);
+    final version = root['version'] as String?;
+    if (version == null || version.isEmpty) {
+      return authConfig.apiVersion;
+    }
+    return version;
   }
 
   Future<ServerCapabilities> getOpenSubsonicExtensions({
@@ -511,6 +516,13 @@ class SubsonicApiClient {
   }
 
   SubsonicException _mapDioException(DioException err) {
+    final statusCode = err.response?.statusCode;
+    if (statusCode == HttpStatus.notFound) {
+      return const SubsonicNotFoundException(
+        message: 'Requested Subsonic endpoint was not found on this server.',
+      );
+    }
+
     final error = err.error;
     if (error is TimeoutException || error is SocketException) {
       return const SubsonicConnectionException(

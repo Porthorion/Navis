@@ -52,7 +52,7 @@ final activeStreamingQualityProvider = Provider<StreamingQuality>((ref) {
 
 final subsonicApiProvider = Provider<SubsonicApiClient?>((ref) {
   final config = ref.watch(serverConfigStateProvider).asData?.value;
-  if (config == null) {
+  if (config == null || config.password.trim().isEmpty) {
     return null;
   }
 

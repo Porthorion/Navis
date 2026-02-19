@@ -25,9 +25,30 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.text('Phase 2: server URL, username and password form.'),
+      find.text('Connect to your Subsonic or Navidrome server.'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('stays on login while auth state is loading', (tester) async {
+    final container = ProviderContainer(
+      overrides: [
+        serverConfigStateProvider.overrideWithValue(
+          const AsyncLoading<ServerConfigModel?>(),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const NavisApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sign in'), findsOneWidget);
   });
 
   testWidgets('shows home shell when authenticated', (tester) async {

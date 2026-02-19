@@ -1,3 +1,27 @@
 {
-  "appName": "Navis"
+  "appName": "Navis",
+  "loginTitle": "Sign in",
+  "loginSubtitle": "Connect to your Subsonic or Navidrome server.",
+  "loginServerUrlLabel": "Server URL",
+  "loginUsernameLabel": "Username",
+  "loginPasswordLabel": "Password",
+  "loginTestConnection": "Test connection",
+  "loginTestingConnection": "Testing connection...",
+  "loginConnect": "Connect",
+  "loginConnecting": "Connecting...",
+  "loginConnectSuccess": "Connected successfully.",
+  "loginValidationServerUrlRequired": "Server URL is required.",
+  "loginValidationServerUrlInvalid": "Enter a valid server URL.",
+  "loginValidationServerUrlHttpsOnly": "Use HTTPS for server URL.",
+  "loginValidationUsernameRequired": "Username is required.",
+  "loginValidationPasswordRequired": "Password is required.",
+  "loginErrorAuthentication": "Authentication failed. Check your credentials.",
+  "loginErrorConnection": "Could not reach server. Check URL and network.",
+  "loginErrorUnknown": "Unexpected error while connecting.",
+  "loginTestConnectionSuccess": "Connection successful (API {apiVersion}).",
+  "@loginTestConnectionSuccess": {
+    "placeholders": {
+      "apiVersion": {}
+    }
+  }
 }
