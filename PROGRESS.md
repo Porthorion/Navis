@@ -27,7 +27,7 @@ Last updated: 2026-02-19
 - [x] `analysis_options.yaml` with `very_good_analysis` + `riverpod_lint` — 2026-02-18 (evidence: `analysis_options.yaml`)
 - [x] `pubspec.yaml` with all dependencies — 2026-02-19 (evidence: `pubspec.yaml`; command: `flutter pub get`)
 - [x] Directory structure under `lib/src/` — 2026-02-18 (evidence: `lib/src/**` skeleton + `.gitkeep`)
-- [x] Android manifest (permissions, network security config, SDK versions, predictive back) — 2026-02-19 (evidence: `android/app/src/main/AndroidManifest.xml`, `android/app/src/main/res/xml/network_security_config.xml`, `android/app/build.gradle.kts`)
+- [x] Android manifest (permissions, network security config, SDK versions, predictive back) — 2026-02-19 (evidence: `android/app/src/main/AndroidManifest.xml`, `android/app/src/main/res/xml/network_security_config.xml`, `android/app/build.gradle.kts` with desugaring)
 - [x] Programmatic notification channel creation on startup (`playback` + `downloads`) — 2026-02-19 (evidence: `lib/src/utils/notifications/notification_bootstrap.dart`)
 - [x] Edge-to-edge configuration for Android 15+ — 2026-02-19 (evidence: `lib/main.dart` `SystemUiMode.edgeToEdge`)
 - [x] `POST_NOTIFICATIONS` runtime permission flow — 2026-02-19 (evidence: `NotificationBootstrap.initialize()` + Android permission request)
@@ -40,8 +40,11 @@ Last updated: 2026-02-19
 - [x] Forgejo CI quality gates (generated-code diff check, format-check, analyze, custom_lint, tests) — 2026-02-19 (evidence: `.forgejo/workflows/ci.yml`)
 - [x] CI matrix: minimum supported Flutter + active stable baseline — 2026-02-19 (evidence: matrix in `.forgejo/workflows/ci.yml` using `3.32.0` + `3.41.0`)
 - [x] Weekly dependency maintenance workflow (`flutter pub outdated` / `dart pub outdated`) — 2026-02-19 (evidence: `.forgejo/workflows/maintenance.yml`)
+- [x] CI/release coverage collection enabled — 2026-02-19 (evidence: `.forgejo/workflows/ci.yml`, `.forgejo/workflows/release.yml` use `flutter test --coverage`)
+- [x] Forgejo release publishing automation (tag -> release + APK asset) — 2026-02-19 (evidence: `.forgejo/workflows/release.yml` publish step)
 - [x] Scaffold `main.dart` + `app.dart` with `ProviderScope` — 2026-02-18 (evidence: `lib/main.dart`, `lib/src/app.dart`, `lib/src/routing/app_router.dart`)
 - [x] `flutter run` launches, `build_runner build` succeeds, `./tool/check.sh` clean — 2026-02-19 (evidence: `flutter run -d linux`, `dart run build_runner build --delete-conflicting-outputs`, `./tool/check.sh`)
+- [x] Operational documentation in `docs/` — 2026-02-19 (evidence: `docs/development-workflow.md`, `docs/ci-cd.md`, `docs/troubleshooting.md`)
 
 ## Phase 1: Core Infrastructure
 ### 1.1 — Subsonic API Client
