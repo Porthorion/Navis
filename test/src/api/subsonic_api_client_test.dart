@@ -1,0 +1,317 @@
+import 'package:dio/dio.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:navis/src/api/subsonic_api_client.dart';
+import 'package:navis/src/api/subsonic_auth_interceptor.dart';
+import 'package:navis/src/api/subsonic_error.dart';
+
+void main() {
+  SubsonicApiClient createClient({
+    required Dio dio,
+  }) {
+    return SubsonicApiClient(
+      baseUrl: 'https://example.com',
+      authConfig: const SubsonicAuthConfig(
+        username: 'alice',
+        password: 'secret',
+        apiVersion: '1.16.1',
+      ),
+      dio: dio,
+      enableLogging: false,
+    );
+  }
+
+  Map<String, dynamic> ok(Map<String, dynamic> payload) {
+    return <String, dynamic>{
+      'subsonic-response': <String, dynamic>{
+        'status': 'ok',
+        'version': '1.16.1',
+        ...payload,
+      },
+    };
+  }
+
+  group('SubsonicApiClient', () {
+    test('ping succeeds and sends json format param', () async {
+      final dio = Dio(BaseOptions(baseUrl: 'https://example.com'));
+      late RequestOptions captured;
+      createClient(dio: dio);
+
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            captured = options;
+            handler.resolve(
+              Response<dynamic>(
+                requestOptions: options,
+                statusCode: 200,
+                data: ok(const <String, dynamic>{}),
+              ),
+            );
+          },
+        ),
+      );
+
+      await createClient(dio: dio).ping();
+
+      expect(captured.path, '/rest/ping.view');
+      expect(captured.queryParameters['f'], 'json');
+    });
+
+    test('parses OpenSubsonic extensions', () async {
+      final dio = Dio(BaseOptions(baseUrl: 'https://example.com'));
+      final client = createClient(dio: dio);
+
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            handler.resolve(
+              Response<dynamic>(
+                requestOptions: options,
+                statusCode: 200,
+                data: ok(<String, dynamic>{
+                  'openSubsonicExtensions': <String, dynamic>{
+                    'openSubsonicExtension': <Map<String, dynamic>>[
+                      <String, dynamic>{
+                        'name': 'transcodeOffset',
+                        'versions': <String>['1'],
+                      },
+                    ],
+                  },
+                }),
+              ),
+            );
+          },
+        ),
+      );
+
+      final capabilities = await client.getOpenSubsonicExtensions();
+      expect(capabilities.extensions, hasLength(1));
+      expect(capabilities.extensions.first.name, 'transcodeOffset');
+    });
+
+    test('parses one endpoint per category', () async {
+      final dio = Dio(BaseOptions(baseUrl: 'https://example.com'));
+      final client = createClient(dio: dio);
+
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            switch (options.path) {
+              case '/rest/getArtists.view':
+                handler.resolve(
+                  Response<dynamic>(
+                    requestOptions: options,
+                    statusCode: 200,
+                    data: ok(<String, dynamic>{
+                      'artists': <String, dynamic>{
+                        'index': <Map<String, dynamic>>[
+                          <String, dynamic>{
+                            'artist': <Map<String, dynamic>>[
+                              <String, dynamic>{'id': 'a1', 'name': 'A'},
+                            ],
+                          },
+                        ],
+                      },
+                    }),
+                  ),
+                );
+              case '/rest/getAlbumList2.view':
+                handler.resolve(
+                  Response<dynamic>(
+                    requestOptions: options,
+                    statusCode: 200,
+                    data: ok(<String, dynamic>{
+                      'albumList2': <String, dynamic>{
+                        'album': <Map<String, dynamic>>[
+                          <String, dynamic>{'id': 'al1', 'name': 'Album 1'},
+                        ],
+                      },
+                    }),
+                  ),
+                );
+              case '/rest/search3.view':
+                handler.resolve(
+                  Response<dynamic>(
+                    requestOptions: options,
+                    statusCode: 200,
+                    data: ok(<String, dynamic>{
+                      'searchResult3': <String, dynamic>{
+                        'artist': <Map<String, dynamic>>[
+                          <String, dynamic>{'id': 'a1', 'name': 'A'},
+                        ],
+                        'album': <Map<String, dynamic>>[
+                          <String, dynamic>{'id': 'al1', 'name': 'Album 1'},
+                        ],
+                        'song': <Map<String, dynamic>>[
+                          <String, dynamic>{'id': 's1', 'title': 'Song 1'},
+                        ],
+                      },
+                    }),
+                  ),
+                );
+              case '/rest/getPlaylists.view':
+                handler.resolve(
+                  Response<dynamic>(
+                    requestOptions: options,
+                    statusCode: 200,
+                    data: ok(<String, dynamic>{
+                      'playlists': <String, dynamic>{
+                        'playlist': <Map<String, dynamic>>[
+                          <String, dynamic>{'id': 'p1', 'name': 'Playlist'},
+                        ],
+                      },
+                    }),
+                  ),
+                );
+              case '/rest/getLyricsBySongId.view':
+                handler.resolve(
+                  Response<dynamic>(
+                    requestOptions: options,
+                    statusCode: 200,
+                    data: ok(<String, dynamic>{
+                      'lyricsList': <String, dynamic>{
+                        'structuredLyrics': <Map<String, dynamic>>[
+                          <String, dynamic>{
+                            'lang': 'en',
+                            'line': <Map<String, dynamic>>[
+                              <String, dynamic>{'start': 0, 'value': 'line'},
+                            ],
+                          },
+                        ],
+                      },
+                    }),
+                  ),
+                );
+              case '/rest/getPlayQueue.view':
+                handler.resolve(
+                  Response<dynamic>(
+                    requestOptions: options,
+                    statusCode: 200,
+                    data: ok(<String, dynamic>{
+                      'playQueue': <String, dynamic>{
+                        'current': 's1',
+                        'entry': <Map<String, dynamic>>[
+                          <String, dynamic>{'id': 's1', 'title': 'Song 1'},
+                        ],
+                      },
+                    }),
+                  ),
+                );
+              case '/rest/star.view':
+                handler.resolve(
+                  Response<dynamic>(
+                    requestOptions: options,
+                    statusCode: 200,
+                    data: ok(const <String, dynamic>{}),
+                  ),
+                );
+              default:
+                handler.reject(
+                  DioException(
+                    requestOptions: options,
+                    type: DioExceptionType.badResponse,
+                  ),
+                );
+            }
+          },
+        ),
+      );
+
+      final artists = await client.getArtists();
+      final albums = await client.getAlbumList2(type: 'newest');
+      final search = await client.search3(query: 'q');
+      final playlists = await client.getPlaylists();
+      final lyrics = await client.getLyricsBySongId('s1');
+      final queue = await client.getPlayQueue();
+      await client.star('s1');
+
+      expect(artists.first.id, 'a1');
+      expect(albums.first.id, 'al1');
+      expect(search.songs.first.id, 's1');
+      expect(playlists.first.id, 'p1');
+      expect(lyrics.structuredLyrics.first.line.first.value, 'line');
+      expect(queue.current, 's1');
+    });
+
+    test('forwards cancel token', () async {
+      final dio = Dio(BaseOptions(baseUrl: 'https://example.com'));
+      final client = createClient(dio: dio);
+      final token = CancelToken();
+
+      late RequestOptions captured;
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            captured = options;
+            handler.resolve(
+              Response<dynamic>(
+                requestOptions: options,
+                statusCode: 200,
+                data: ok(<String, dynamic>{
+                  'searchResult3': const <String, dynamic>{},
+                }),
+              ),
+            );
+          },
+        ),
+      );
+
+      await client.search3(query: 'hello', cancelToken: token);
+      expect(captured.cancelToken, same(token));
+    });
+
+    test('maps API error codes to typed exceptions', () async {
+      final dio = Dio(BaseOptions(baseUrl: 'https://example.com'));
+      final client = createClient(dio: dio);
+
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            handler.resolve(
+              Response<dynamic>(
+                requestOptions: options,
+                statusCode: 200,
+                data: <String, dynamic>{
+                  'subsonic-response': <String, dynamic>{
+                    'status': 'failed',
+                    'error': <String, dynamic>{
+                      'code': 40,
+                      'message': 'bad credentials',
+                    },
+                  },
+                },
+              ),
+            );
+          },
+        ),
+      );
+
+      await expectLater(
+        client.ping(),
+        throwsA(isA<SubsonicAuthException>()),
+      );
+    });
+
+    test('builds media urls without fetching', () {
+      final client = createClient(
+        dio: Dio(BaseOptions(baseUrl: 'https://example.com')),
+      );
+
+      final stream = client.streamUrl(
+        id: 'song-1',
+        maxBitRate: 320,
+        format: 'mp3',
+      );
+      final download = client.downloadUrl(id: 'song-1');
+      final cover = client.getCoverArtUrl(id: 'cover-1', size: 500);
+
+      expect(stream.path, '/rest/stream.view');
+      expect(stream.queryParameters['id'], 'song-1');
+      expect(download.path, '/rest/download.view');
+      expect(download.queryParameters['id'], 'song-1');
+      expect(cover.path, '/rest/getCoverArt.view');
+      expect(cover.queryParameters['id'], 'cover-1');
+      expect(cover.queryParameters['size'], '500');
+    });
+  });
+}
