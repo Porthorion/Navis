@@ -1,0 +1,47 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  release-android:
+    name: Build release APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.0'
+          channel: stable
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build generated code
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Verify generated files committed
+        run: git diff --exit-code
+
+      - name: Quality gates
+        run: |
+          dart format --set-exit-if-changed .
+          flutter analyze
+          dart run custom_lint
+          flutter test
+
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: navis-release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
