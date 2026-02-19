@@ -45,6 +45,7 @@ Last updated: 2026-02-19
 - [x] Weekly dependency maintenance workflow (`flutter pub outdated` / `dart pub outdated`) — 2026-02-19 (evidence: `.forgejo/workflows/maintenance.yml`)
 - [x] CI/release coverage collection enabled — 2026-02-19 (evidence: `.forgejo/workflows/ci.yml`, `.forgejo/workflows/release.yml` use `flutter test --coverage`)
 - [x] Forgejo release publishing automation (tag -> release + APK asset) — 2026-02-19 (evidence: `.forgejo/workflows/release.yml` publish step)
+- [x] Forgejo release workflow YAML parse failure fixed (`could not find expected ':'`) — 2026-02-19 (evidence: `.forgejo/workflows/release.yml`; command: local `yaml.safe_load` parse of all `.forgejo/workflows/*.yml`)
 - [x] Scaffold `main.dart` + `app.dart` with `ProviderScope` — 2026-02-18 (evidence: `lib/main.dart`, `lib/src/app.dart`, `lib/src/routing/app_router.dart`)
 - [x] `flutter run` launches, `build_runner build` succeeds, `./tool/check.sh` clean — 2026-02-19 (evidence: `flutter run -d linux`, `dart run build_runner build --delete-conflicting-outputs`, `./tool/check.sh`)
 - [x] Operational documentation in `docs/` — 2026-02-19 (evidence: `docs/development-workflow.md`, `docs/ci-cd.md`, `docs/troubleshooting.md`)
