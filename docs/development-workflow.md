@@ -43,6 +43,35 @@ chmod +x .githooks/pre-commit
 
 This runs `./tool/check.sh` before each commit.
 
+## Publishing a Release
+
+When a feature, bug fix, or phase is complete and merged to `main`:
+
+```bash
+./tool/release.sh v0.2.0
+```
+
+This runs the full quality gate, builds a release APK, tags the commit, creates a Forgejo release, and uploads the APK. See [ci-cd.md](ci-cd.md) for setup details.
+
+Pre-release builds (from `dev` branch when needed):
+
+```bash
+./tool/release.sh v0.3.0-beta.1
+```
+
+Tags containing `-alpha`, `-beta`, `-rc`, or `-dev` are automatically marked as pre-release on Forgejo.
+
+## Dependency Health
+
+Run periodically to check for outdated packages:
+
+```bash
+flutter pub outdated
+dart pub outdated
+```
+
+Or: `make outdated`
+
 ## Runtime Verification
 
 Preferred runtime targets for this project are Android and iOS.

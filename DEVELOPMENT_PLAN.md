@@ -181,8 +181,8 @@ Bug fixes on any version bump the patch: `0.3.1`, `1.0.1`, etc.
 2. Run full verification criteria for that phase.
 3. Bump version in `pubspec.yaml`.
 4. Merge `dev` → `main` (fast-forward or merge commit, no squash — preserve commit history).
-5. Tag `main` with the version.
-6. Write release notes on the Forgejo release page.
+5. Tag `main` with the version and publish the release: `./tool/release.sh v0.x.0`.
+   The script runs quality checks, builds the APK, tags, creates the Forgejo release, and uploads the APK.
 
 ### Progress Tracking
 
@@ -193,54 +193,60 @@ A `PROGRESS.md` file in the repository root serves as the canonical progress tra
 - This file is version-controlled — progress history is visible in git log.
 - Forgejo Issues may be used later for bug tracking and user-facing feature requests, but `PROGRESS.md` is the primary development tracker.
 
-### CI/CD — Forgejo Actions
+### Local Quality Gate & Release Tooling
 
-Automated builds and releases use **Forgejo Actions** (GitHub Actions-compatible). A self-hosted runner with Flutter SDK, Android SDK, and JDK is required.
+There is no CI runner configured on the Forgejo instance. All quality gates and release publishing run **locally** via scripts in `tool/`.
 
-**Release workflow** (`.forgejo/workflows/release.yml`):
+**Quality gate** (`tool/check.sh`):
 
-Triggered on version tags pushed to `main` (pattern: `v*`). Steps:
+Run before every commit (enforced via optional pre-commit hook). Steps:
 
-1. Checkout code.
-2. Set up Flutter SDK (use `subosito/flutter-action` or equivalent).
-3. Run `flutter pub get`, `dart run build_runner build --delete-conflicting-outputs`.
-4. Verify generated files are committed: `git diff --exit-code`.
-5. Run quality gates: `dart format --set-exit-if-changed .`, `flutter analyze`, `dart run custom_lint`, `flutter test --coverage`.
-6. Build release APK: `flutter build apk --release`.
-7. (Recommended for release candidates) run integration tests on emulator/device before publishing.
-8. Determine release type from tag: tags containing `-alpha`, `-beta`, or `-rc` are marked as pre-release; clean semver tags (e.g., `v1.0.0`) are marked as stable.
-9. Create a Forgejo Release via the API, attach the signed APK, and auto-generate release notes from conventional commits since the last tag.
+1. `dart format --set-exit-if-changed .` — fail if formatting drift exists.
+2. `dart run build_runner build --delete-conflicting-outputs` — regenerate code.
+3. `flutter analyze` — fail on analyzer issues.
+4. `dart run custom_lint` — fail on custom lint violations.
+5. `flutter test` — fail on test failures.
 
-**CI workflow** (`.forgejo/workflows/ci.yml`):
+**Release script** (`tool/release.sh`):
 
-Triggered on pushes to `dev` and `phase/*` branches. Steps:
+Run from the local machine to publish a versioned release with APK to Forgejo. Steps:
 
-1. Checkout, setup Flutter, `flutter pub get`, `dart run build_runner build --delete-conflicting-outputs`.
-2. Verify generated files are committed: `git diff --exit-code`.
-3. `dart format --set-exit-if-changed .` — fail if formatting drift exists.
-4. `flutter analyze` + `dart run custom_lint` — fail if any lint/analyzer issue exists.
-5. `flutter test --coverage` — fail on test failures. Track trend of line coverage over time.
-6. Optionally run a focused integration-test suite on protected branches (or nightly) to cover login/playback/offline critical flows.
-7. No artifact upload — this is a quality gate only.
+1. Run `./tool/check.sh` — full quality gate. Fails fast if anything is wrong.
+2. `flutter build apk --release` — build the release APK.
+3. Create an annotated git tag and push it.
+4. Determine release type from tag: tags containing `-alpha`, `-beta`, `-rc`, or `-dev` are marked as pre-release; clean semver tags (e.g., `v1.0.0`) are marked as stable.
+5. Create a Forgejo Release via the API.
+6. Upload the APK as a release asset.
 
-**Maintenance workflow** (`.forgejo/workflows/maintenance.yml`, scheduled weekly):
+**Release script setup**:
 
-1. `flutter pub outdated` and `dart pub outdated`.
-2. Open an automated dependency update PR (or fail with a report artifact if automation is not set up yet).
-3. Re-run CI gates against updated dependencies.
+1. Install `jq`: `sudo apt install jq`.
+2. Create `tool/release.env` (git-ignored) with your Forgejo credentials:
+   ```bash
+   FORGEJO_URL="https://your-forgejo-instance.com"
+   FORGEJO_REPO="your-user/Navis"
+   FORGEJO_TOKEN="your-api-token"
+   ```
+   Alternatively, export these as environment variables.
+3. `chmod +x tool/release.sh` (already executable in the repo).
 
-**Workflow maintenance rule (mandatory for AI agent sessions)**:
-- Any change to quality gates, generated code flow, test commands, Flutter/Dart versions, or release packaging must be mirrored in `.forgejo/workflows/*.yml` in the same task/PR.
-- After editing workflow files, validate YAML parsing locally before commit (example: `python3 - <<'PY' ... yaml.safe_load(...) ... PY` over `.forgejo/workflows/*.yml`).
-- Record workflow updates in `PROGRESS.md` with date + evidence, same as code/test tasks.
+**Usage**:
+```bash
+./tool/release.sh v0.2.0          # stable release
+./tool/release.sh v0.3.0-beta.1   # pre-release (auto-detected)
+```
 
-**Runner requirements**:
-- Forgejo Actions runner (self-hosted or built-in if the instance supports it).
-- JDK 17.
-- Android SDK (command-line tools, platform 35, build-tools 35.0.0).
-- Flutter SDK >= 3.32.0 (minimum support job) and Flutter 3.41.x stable (primary job).
-- Avoid Android Gradle Plugin 8.6/8.7 (known ExoPlayer issue affecting `just_audio`); use 8.5.x or 8.8+.
-- 4GB+ RAM for release builds.
+**Dependency health checks** (manual, periodic):
+
+Run these locally whenever you want to check for outdated dependencies:
+```bash
+flutter pub outdated
+dart pub outdated
+```
+
+**Tooling maintenance rule (mandatory for AI agent sessions)**:
+- Any change to quality gates, test commands, Flutter/Dart versions, or release packaging must be reflected in `tool/check.sh` and/or `tool/release.sh` in the same task/PR.
+- Record tooling updates in `PROGRESS.md` with date + evidence, same as code/test tasks.
 
 ---
 
@@ -431,7 +437,8 @@ test/
     (mirrors lib/src/ structure)
 tool/
 ├── bootstrap.sh                            # Local env bootstrap (sdk checks, deps)
-└── check.sh                                # Canonical local quality gate command
+├── check.sh                                # Canonical local quality gate command
+└── release.sh                              # Build, tag, and publish release to Forgejo
 drift_schemas/                             # Exported drift schemas for migration testing
 ```
 

@@ -10,7 +10,7 @@ Navis is a Flutter-based Subsonic/OpenSubsonic music player client targeting And
 ## Documentation
 
 - Development workflow: [docs/development-workflow.md](docs/development-workflow.md)
-- CI/CD runbook: [docs/ci-cd.md](docs/ci-cd.md)
+- Release & quality gates: [docs/ci-cd.md](docs/ci-cd.md)
 - Troubleshooting: [docs/troubleshooting.md](docs/troubleshooting.md)
 
 ## Bootstrap
@@ -31,13 +31,25 @@ chmod +x .githooks/pre-commit
 
 This will run `./tool/check.sh` before each commit.
 
-## CI/CD (Forgejo Actions)
+## Quality Gate
 
-Workflows are in `.forgejo/workflows/`:
+Run before each commit:
 
-- `ci.yml` — quality gates on `dev`, `main`, and `phase/**` with Flutter matrix (`3.32.0`, `3.41.0`)
-- `maintenance.yml` — weekly dependency health (`flutter pub outdated`, `dart pub outdated`)
-- `release.yml` — tag-triggered Android release APK build + artifact upload
+```bash
+./tool/check.sh
+```
+
+This checks formatting, code generation, static analysis, linting, and tests.
+
+## Release
+
+Publish a versioned release with APK to Forgejo:
+
+```bash
+./tool/release.sh v0.2.0
+```
+
+See [docs/ci-cd.md](docs/ci-cd.md) for setup and details.
 
 ## Run
 
