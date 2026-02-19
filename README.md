@@ -7,6 +7,12 @@ Navis is a Flutter-based Subsonic/OpenSubsonic music player client targeting And
 - Roadmap: [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md)
 - Progress tracker: [PROGRESS.md](PROGRESS.md)
 
+## Documentation
+
+- Development workflow: [docs/development-workflow.md](docs/development-workflow.md)
+- CI/CD runbook: [docs/ci-cd.md](docs/ci-cd.md)
+- Troubleshooting: [docs/troubleshooting.md](docs/troubleshooting.md)
+
 ## Bootstrap
 
 ```bash
