@@ -1,37 +1,50 @@
 # Navis
 
-A music player for [Navidrome](https://www.navidrome.org/) (and other Subsonic-compatible servers), built with Flutter. Targets Android and iOS.
+Navis is a Flutter-based Subsonic/OpenSubsonic music player client targeting Android and iOS.
 
-## Status
+## Project Status
 
-In active development. See [PROGRESS.md](PROGRESS.md) for current status and [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md) for the full roadmap.
+- Roadmap: [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md)
+- Progress tracker: [PROGRESS.md](PROGRESS.md)
 
-## Planned Features
+## Bootstrap
 
-- Stream your entire music library from a Navidrome server
-- Gapless playback with background audio and lock screen controls
-- Synced and unsynced lyrics
-- Offline mode with smart caching (automatic rolling cache + manual pins)
-- Download queue with quality selection
-- Full playlist management
-- Material 3 theming (light, dark, OLED black, dynamic colors)
-- In-app update checking via Forgejo releases
-
-## Tech Stack
-
-Flutter, Riverpod, drift (SQLite), just_audio, audio_service, Dio, freezed, go_router, flex_color_scheme.
-
-Stack validation status: reviewed against current Flutter/package guidance on 2026-02-18.  
-See the validation notes and sources in [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md#stack-validation-2026-02-18).
-
-## Build
-
-```
+```bash
 ./tool/bootstrap.sh
 ./tool/check.sh
+```
+
+## Local Guardrails (Optional)
+
+Enable the repository pre-commit hook:
+
+```bash
+git config core.hooksPath .githooks
+chmod +x .githooks/pre-commit
+```
+
+This will run `./tool/check.sh` before each commit.
+
+## CI/CD (Forgejo Actions)
+
+Workflows are in `.forgejo/workflows/`:
+
+- `ci.yml` — quality gates on `dev`, `main`, and `phase/**` with Flutter matrix (`3.32.0`, `3.41.0`)
+- `maintenance.yml` — weekly dependency health (`flutter pub outdated`, `dart pub outdated`)
+- `release.yml` — tag-triggered Android release APK build + artifact upload
+
+## Run
+
+```bash
 flutter run
 ```
 
-## License
+## Troubleshooting
 
-[GPL-3.0](LICENSE)
+- If tests appear stuck, verify disk headroom first:
+
+```bash
+df -h /tmp
+```
+
+`./tool/check.sh` now fails fast when `/tmp` is critically low.
