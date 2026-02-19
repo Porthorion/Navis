@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/api/models/models.dart';
@@ -215,20 +213,6 @@ final savePlayQueueProvider = Provider<Future<void> Function(List<String>)>((
 final connectivityHintProvider = Provider<String>((ref) {
   final network = ref.watch(networkTypeProvider);
   return network.name;
-});
-
-final serverReachabilityProvider = FutureProvider<bool>((ref) async {
-  final api = ref.watch(subsonicApiProvider);
-  if (api == null) {
-    return false;
-  }
-
-  try {
-    await api.ping();
-    return true;
-  } on Object {
-    return false;
-  }
 });
 
 Future<void> seedDefaultServerConfig(Ref ref) async {

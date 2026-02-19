@@ -26,7 +26,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final isLoginRoute = state.matchedLocation == '/login';
       if (serverConfig.isLoading) {
-        return isLoginRoute ? null : '/login';
+        return null;
       }
 
       final isLoggedIn = serverConfig.asData?.value != null;

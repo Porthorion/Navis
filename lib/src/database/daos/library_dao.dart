@@ -105,4 +105,13 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       });
     });
   }
+
+  Future<void> clearLibraryData() async {
+    await transaction(() async {
+      await delete(songsTable).go();
+      await delete(albumsTable).go();
+      await delete(artistsTable).go();
+      await delete(genresTable).go();
+    });
+  }
 }

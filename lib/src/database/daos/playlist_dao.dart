@@ -62,4 +62,11 @@ class PlaylistDao extends DatabaseAccessor<NavisDatabase>
       }
     });
   }
+
+  Future<void> clearAllPlaylists() async {
+    await transaction(() async {
+      await delete(playlistSongsTable).go();
+      await delete(playlistsTable).go();
+    });
+  }
 }

@@ -41,4 +41,11 @@ class HistoryDao extends DatabaseAccessor<NavisDatabase>
       ),
     );
   }
+
+  Future<void> clearAllHistory() async {
+    await transaction(() async {
+      await delete(playHistoryTable).go();
+      await delete(recentSearchesTable).go();
+    });
+  }
 }

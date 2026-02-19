@@ -1,14 +1,44 @@
 import 'package:flutter/material.dart';
-import 'package:navis/src/common_widgets/placeholder_screen.dart';
+import 'package:go_router/go_router.dart';
+import 'package:navis/l10n/app_localizations.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return const PlaceholderScreen(
-      title: 'Settings',
-      subtitle: 'Phase 9: app settings sections.',
+    final l10n = AppLocalizations.of(context)!;
+    return Scaffold(
+      appBar: AppBar(title: Text(l10n.settingsTitle)),
+      body: ListView(
+        children: <Widget>[
+          ListTile(
+            leading: const Icon(Icons.storage_outlined),
+            title: Text(l10n.settingsServerTitle),
+            subtitle: Text(l10n.settingsServerSubtitle),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.go('/settings/server'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.folder_copy_outlined),
+            title: Text(l10n.settingsCacheTitle),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.go('/settings/cache'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.graphic_eq_outlined),
+            title: Text(l10n.settingsPlaybackTitle),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.go('/settings/playback'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.palette_outlined),
+            title: Text(l10n.settingsAppearanceTitle),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.go('/settings/appearance'),
+          ),
+        ],
+      ),
     );
   }
 }

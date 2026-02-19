@@ -44,4 +44,8 @@ class DownloadQueueDao extends DatabaseAccessor<NavisDatabase>
       downloadQueueTable,
     )..where((table) => table.id.equals(id))).go();
   }
+
+  Future<void> clearQueue() {
+    return delete(downloadQueueTable).go();
+  }
 }

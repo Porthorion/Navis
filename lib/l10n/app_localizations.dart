@@ -178,6 +178,12 @@ abstract class AppLocalizations {
   /// **'Use HTTPS for server URL.'**
   String get loginValidationServerUrlHttpsOnly;
 
+  /// No description provided for @loginInsecureHttpWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'HTTP does not encrypt traffic. Use HTTPS when possible.'**
+  String get loginInsecureHttpWarning;
+
   /// No description provided for @loginValidationUsernameRequired.
   ///
   /// In en, this message translates to:
@@ -213,6 +219,210 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Connection successful (API {apiVersion}).'**
   String loginTestConnectionSuccess(Object apiVersion);
+
+  /// No description provided for @serverOfflineBanner.
+  ///
+  /// In en, this message translates to:
+  /// **'Server unreachable. Retrying every 30s.'**
+  String get serverOfflineBanner;
+
+  /// No description provided for @settingsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings'**
+  String get settingsTitle;
+
+  /// No description provided for @settingsServerTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Server'**
+  String get settingsServerTitle;
+
+  /// No description provided for @settingsServerSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'View, test, and update connection settings.'**
+  String get settingsServerSubtitle;
+
+  /// No description provided for @settingsCacheTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Cache'**
+  String get settingsCacheTitle;
+
+  /// No description provided for @settingsPlaybackTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Playback'**
+  String get settingsPlaybackTitle;
+
+  /// No description provided for @settingsAppearanceTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Appearance'**
+  String get settingsAppearanceTitle;
+
+  /// No description provided for @serverSettingsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Server Settings'**
+  String get serverSettingsTitle;
+
+  /// No description provided for @serverSettingsLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load server settings.'**
+  String get serverSettingsLoadError;
+
+  /// No description provided for @serverSettingsNotAuthenticated.
+  ///
+  /// In en, this message translates to:
+  /// **'No active server session. Sign in to manage server settings.'**
+  String get serverSettingsNotAuthenticated;
+
+  /// No description provided for @serverSettingsCurrentConnection.
+  ///
+  /// In en, this message translates to:
+  /// **'Current connection'**
+  String get serverSettingsCurrentConnection;
+
+  /// No description provided for @serverSettingsNameLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get serverSettingsNameLabel;
+
+  /// No description provided for @serverSettingsUrlLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'URL'**
+  String get serverSettingsUrlLabel;
+
+  /// No description provided for @serverSettingsUsernameLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Username'**
+  String get serverSettingsUsernameLabel;
+
+  /// No description provided for @serverSettingsApiVersionLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'API version'**
+  String get serverSettingsApiVersionLabel;
+
+  /// No description provided for @serverSettingsAuthModeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Auth mode'**
+  String get serverSettingsAuthModeLabel;
+
+  /// No description provided for @serverSettingsAuthModeToken.
+  ///
+  /// In en, this message translates to:
+  /// **'Token'**
+  String get serverSettingsAuthModeToken;
+
+  /// No description provided for @serverSettingsAuthModeLegacy.
+  ///
+  /// In en, this message translates to:
+  /// **'Legacy password'**
+  String get serverSettingsAuthModeLegacy;
+
+  /// No description provided for @serverSettingsCapabilitiesLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Capabilities'**
+  String get serverSettingsCapabilitiesLabel;
+
+  /// No description provided for @serverSettingsCapabilitiesEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'None detected'**
+  String get serverSettingsCapabilitiesEmpty;
+
+  /// No description provided for @serverSettingsCapabilitiesCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} extension(s)'**
+  String serverSettingsCapabilitiesCount(int count);
+
+  /// No description provided for @serverSettingsUnknownValue.
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown'**
+  String get serverSettingsUnknownValue;
+
+  /// No description provided for @serverSettingsTestConnection.
+  ///
+  /// In en, this message translates to:
+  /// **'Test connection'**
+  String get serverSettingsTestConnection;
+
+  /// No description provided for @serverSettingsSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get serverSettingsSave;
+
+  /// No description provided for @serverSettingsSaving.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving...'**
+  String get serverSettingsSaving;
+
+  /// No description provided for @serverSettingsSaveSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Server settings saved.'**
+  String get serverSettingsSaveSuccess;
+
+  /// No description provided for @serverSettingsSignOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign out'**
+  String get serverSettingsSignOut;
+
+  /// No description provided for @serverSettingsSignOutKeepData.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign out (keep local data)'**
+  String get serverSettingsSignOutKeepData;
+
+  /// No description provided for @serverSettingsSignOutKeepDataSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove credentials but keep downloaded and cached metadata.'**
+  String get serverSettingsSignOutKeepDataSubtitle;
+
+  /// No description provided for @serverSettingsSignOutWipeData.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign out and clear local data'**
+  String get serverSettingsSignOutWipeData;
+
+  /// No description provided for @serverSettingsSignOutWipeDataSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove credentials and wipe local library, cache, and history metadata.'**
+  String get serverSettingsSignOutWipeDataSubtitle;
+
+  /// No description provided for @serverSettingsSignOutSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Signed out. Local data was preserved.'**
+  String get serverSettingsSignOutSuccess;
+
+  /// No description provided for @serverSettingsSignOutWipeSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Signed out and local data cleared.'**
+  String get serverSettingsSignOutWipeSuccess;
+
+  /// No description provided for @serverSettingsSignOutError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not complete sign out. Try again.'**
+  String get serverSettingsSignOutError;
 }
 
 class _AppLocalizationsDelegate
