@@ -7,6 +7,8 @@ import 'package:navis/src/database/tables/songs_table.dart';
 
 part 'library_dao.g.dart';
 
+enum AlbumSortOrder { newest, name, artist }
+
 @DriftAccessor(tables: [ArtistsTable, AlbumsTable, SongsTable, GenresTable])
 class LibraryDao extends DatabaseAccessor<NavisDatabase>
     with _$LibraryDaoMixin {
@@ -28,12 +30,34 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return query.watch();
   }
 
+  Stream<ArtistsTableData?> watchArtistById(String artistId) {
+    final query = select(artistsTable)
+      ..where((table) => table.id.equals(artistId))
+      ..limit(1);
+    return query.watchSingleOrNull();
+  }
+
   Stream<List<AlbumsTableData>> watchAllAlbums() {
-    final query = select(albumsTable)
-      ..orderBy([
-        (table) => OrderingTerm.desc(table.year),
-        (table) => OrderingTerm.asc(table.name),
-      ]);
+    final query = _orderedAlbumsQuery(AlbumSortOrder.newest);
+    return query.watch();
+  }
+
+  Stream<int> watchAlbumCount() {
+    final countExpression = albumsTable.id.count();
+    final query = selectOnly(albumsTable)..addColumns([countExpression]);
+    return query.watchSingle().map((row) => row.read(countExpression) ?? 0);
+  }
+
+  Stream<List<AlbumsTableData>> watchAlbumsPage({
+    required AlbumSortOrder sort,
+    required int limit,
+    int offset = 0,
+  }) {
+    final query = _orderedAlbumsQuery(sort)
+      ..limit(
+        limit < 1 ? 1 : limit,
+        offset: offset < 0 ? 0 : offset,
+      );
     return query.watch();
   }
 
@@ -70,12 +94,56 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return query.watch();
   }
 
+  Stream<List<AlbumsTableData>> watchAlbumsByGenre(String genre) {
+    final query = select(albumsTable)
+      ..where((table) => table.genre.equals(genre))
+      ..orderBy([
+        (table) => OrderingTerm.desc(table.year),
+        (table) => OrderingTerm.asc(table.name),
+      ]);
+    return query.watch();
+  }
+
+  Stream<List<SongsTableData>> watchSongsByGenre(String genre) {
+    final query =
+        select(songsTable).join([
+            innerJoin(
+              albumsTable,
+              albumsTable.id.equalsExp(songsTable.albumId),
+            ),
+          ])
+          ..where(albumsTable.genre.equals(genre))
+          ..orderBy([
+            OrderingTerm.asc(songsTable.artistName),
+            OrderingTerm.asc(songsTable.albumName),
+            OrderingTerm.asc(songsTable.track),
+          ]);
+    return query.watch().map(
+      (rows) => rows.map((row) => row.readTable(songsTable)).toList(),
+    );
+  }
+
   Future<void> replaceArtists(List<ArtistsTableCompanion> artists) async {
     await transaction(() async {
       await delete(artistsTable).go();
       await batch((batch) {
         batch.insertAll(artistsTable, artists);
       });
+    });
+  }
+
+  Future<void> upsertArtists(List<ArtistsTableCompanion> artists) async {
+    if (artists.isEmpty) {
+      return;
+    }
+    await batch((batch) {
+      for (final artist in artists) {
+        batch.insert(
+          artistsTable,
+          artist,
+          mode: InsertMode.insertOrReplace,
+        );
+      }
     });
   }
 
@@ -88,12 +156,84 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     });
   }
 
+  Future<void> upsertAlbums(List<AlbumsTableCompanion> albums) async {
+    if (albums.isEmpty) {
+      return;
+    }
+    await batch((batch) {
+      for (final album in albums) {
+        batch.insert(
+          albumsTable,
+          album,
+          mode: InsertMode.insertOrReplace,
+        );
+      }
+    });
+  }
+
   Future<void> replaceSongs(List<SongsTableCompanion> songs) async {
     await transaction(() async {
       await delete(songsTable).go();
       await batch((batch) {
         batch.insertAll(songsTable, songs);
       });
+    });
+  }
+
+  Future<void> replaceSongsForAlbum(
+    String albumId,
+    List<SongsTableCompanion> songs,
+  ) async {
+    await transaction(() async {
+      await (delete(
+        songsTable,
+      )..where((table) => table.albumId.equals(albumId))).go();
+      if (songs.isEmpty) {
+        return;
+      }
+      await batch((batch) {
+        batch.insertAll(songsTable, songs);
+      });
+    });
+  }
+
+  Future<void> replaceSongsForAlbumsChunk(
+    Map<String, List<SongsTableCompanion>> songsByAlbumId,
+  ) async {
+    final albumIds = songsByAlbumId.keys
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toList(growable: false);
+    if (albumIds.isEmpty) {
+      return;
+    }
+
+    final songs = songsByAlbumId.values.expand((rows) => rows).toList();
+    await transaction(() async {
+      await (delete(
+        songsTable,
+      )..where((table) => table.albumId.isIn(albumIds))).go();
+      if (songs.isEmpty) {
+        return;
+      }
+      await batch((batch) {
+        batch.insertAll(songsTable, songs);
+      });
+    });
+  }
+
+  Future<void> upsertSongs(List<SongsTableCompanion> songs) async {
+    if (songs.isEmpty) {
+      return;
+    }
+    await batch((batch) {
+      for (final song in songs) {
+        batch.insert(
+          songsTable,
+          song,
+          mode: InsertMode.insertOrReplace,
+        );
+      }
     });
   }
 
@@ -106,6 +246,70 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     });
   }
 
+  Future<List<ArtistsTableData>> getAllArtists() {
+    return select(artistsTable).get();
+  }
+
+  Future<Set<String>> getArtistIds() async {
+    final query = selectOnly(artistsTable)..addColumns([artistsTable.id]);
+    final rows = await query.get();
+    return rows
+        .map((row) => row.read(artistsTable.id))
+        .whereType<String>()
+        .toSet();
+  }
+
+  Future<List<AlbumsTableData>> getAllAlbums() {
+    return select(albumsTable).get();
+  }
+
+  Future<Map<String, int?>> getAlbumSongCountsByIds(
+    Iterable<String> albumIds,
+  ) async {
+    final ids = albumIds.map((id) => id.trim()).where((id) => id.isNotEmpty);
+    final idList = ids.toList(growable: false);
+    if (idList.isEmpty) {
+      return const <String, int?>{};
+    }
+
+    final query = select(albumsTable)..where((table) => table.id.isIn(idList));
+    final rows = await query.get();
+    return <String, int?>{for (final row in rows) row.id: row.songCount};
+  }
+
+  Future<List<AlbumsTableData>> getAlbumsByArtist(String artistId) {
+    final query = select(albumsTable)
+      ..where((table) => table.artistId.equals(artistId));
+    return query.get();
+  }
+
+  Future<void> deleteAlbumsByIds(Iterable<String> albumIds) async {
+    final ids = albumIds.where((id) => id.trim().isNotEmpty).toList();
+    if (ids.isEmpty) {
+      return;
+    }
+    await transaction(() async {
+      await (delete(
+        songsTable,
+      )..where((table) => table.albumId.isIn(ids))).go();
+      await (delete(albumsTable)..where((table) => table.id.isIn(ids))).go();
+    });
+  }
+
+  Future<void> removeArtistTree(String artistId) async {
+    await transaction(() async {
+      await (delete(
+        songsTable,
+      )..where((table) => table.artistId.equals(artistId))).go();
+      await (delete(
+        albumsTable,
+      )..where((table) => table.artistId.equals(artistId))).go();
+      await (delete(
+        artistsTable,
+      )..where((table) => table.id.equals(artistId))).go();
+    });
+  }
+
   Future<void> clearLibraryData() async {
     await transaction(() async {
       await delete(songsTable).go();
@@ -113,5 +317,124 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       await delete(artistsTable).go();
       await delete(genresTable).go();
     });
+  }
+
+  Future<List<AlbumsTableData>> getPendingHydrationAlbums({
+    required int limit,
+  }) {
+    final query = _orderedAlbumsQuery(AlbumSortOrder.newest)
+      ..where((table) => table.songsHydrated.equals(false))
+      ..limit(limit < 1 ? 1 : limit);
+    return query.get();
+  }
+
+  Future<List<String>> getPendingHydrationAlbumIds() async {
+    final query = selectOnly(albumsTable)
+      ..addColumns([albumsTable.id])
+      ..where(albumsTable.songsHydrated.equals(false));
+    final rows = await query.get();
+    return rows
+        .map((row) => row.read(albumsTable.id))
+        .whereType<String>()
+        .toList(growable: false);
+  }
+
+  Future<List<AlbumsTableData>> getPendingHydrationAlbumsByIds(
+    Iterable<String> albumIds, {
+    required int limit,
+  }) async {
+    final ids = albumIds.map((id) => id.trim()).where((id) => id.isNotEmpty);
+    final idList = ids.toList(growable: false);
+    if (idList.isEmpty) {
+      return const <AlbumsTableData>[];
+    }
+
+    final query = select(albumsTable)
+      ..where(
+        (table) => table.songsHydrated.equals(false) & table.id.isIn(idList),
+      )
+      ..limit(limit < 1 ? 1 : limit);
+    final rows = await query.get();
+    final byId = <String, AlbumsTableData>{
+      for (final row in rows) row.id: row,
+    };
+    final ordered = <AlbumsTableData>[];
+    for (final id in idList) {
+      final row = byId[id];
+      if (row != null) {
+        ordered.add(row);
+      }
+    }
+    return ordered;
+  }
+
+  Future<int> countPendingHydrationAlbums() async {
+    final countExpression = albumsTable.id.count();
+    final query = selectOnly(albumsTable)
+      ..addColumns([countExpression])
+      ..where(albumsTable.songsHydrated.equals(false));
+    final row = await query.getSingle();
+    return row.read(countExpression) ?? 0;
+  }
+
+  Future<void> markAlbumsPendingHydrationByIds(
+    Iterable<String> albumIds,
+  ) async {
+    final ids = albumIds.where((id) => id.trim().isNotEmpty).toList();
+    if (ids.isEmpty) {
+      return;
+    }
+    await (update(
+      albumsTable,
+    )..where((table) => table.id.isIn(ids))).write(
+      const AlbumsTableCompanion(songsHydrated: Value(false)),
+    );
+  }
+
+  Future<void> markAlbumSongsHydrated(String albumId) {
+    return (update(
+      albumsTable,
+    )..where((table) => table.id.equals(albumId))).write(
+      const AlbumsTableCompanion(songsHydrated: Value(true)),
+    );
+  }
+
+  Future<void> markAlbumsSongsHydratedByIds(Iterable<String> albumIds) async {
+    final ids = albumIds.map((id) => id.trim()).where((id) => id.isNotEmpty);
+    final idList = ids.toList(growable: false);
+    if (idList.isEmpty) {
+      return;
+    }
+    await (update(
+      albumsTable,
+    )..where((table) => table.id.isIn(idList))).write(
+      const AlbumsTableCompanion(songsHydrated: Value(true)),
+    );
+  }
+
+  SimpleSelectStatement<$AlbumsTableTable, AlbumsTableData> _orderedAlbumsQuery(
+    AlbumSortOrder sort,
+  ) {
+    final query = select(albumsTable);
+    switch (sort) {
+      case AlbumSortOrder.newest:
+        query.orderBy([
+          (table) => OrderingTerm.desc(table.year),
+          (table) => OrderingTerm.asc(table.name),
+          (table) => OrderingTerm.asc(table.id),
+        ]);
+      case AlbumSortOrder.name:
+        query.orderBy([
+          (table) => OrderingTerm.asc(table.name),
+          (table) => OrderingTerm.asc(table.id),
+        ]);
+      case AlbumSortOrder.artist:
+        query.orderBy([
+          (table) => OrderingTerm.asc(table.artistName),
+          (table) => OrderingTerm.asc(table.name),
+          (table) => OrderingTerm.asc(table.id),
+        ]);
+    }
+    return query;
   }
 }

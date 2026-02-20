@@ -57,7 +57,7 @@ class NavisDatabase extends _$NavisDatabase {
   static QueryExecutor _openConnection() => driftDatabase(name: 'navis.sqlite');
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -79,10 +79,39 @@ class NavisDatabase extends _$NavisDatabase {
     if (from < 2 && to >= 2) {
       await from1To2(migrator);
     }
+    if (from < 3 && to >= 3) {
+      await from2To3(migrator);
+    }
   }
 
   Future<void> from1To2(Migrator migrator) async {
-    // Placeholder for the first schema migration.
+    await migrator.addColumn(
+      serverConfigTable,
+      serverConfigTable.lastFullSynced,
+    );
+  }
+
+  Future<void> from2To3(Migrator migrator) async {
+    await migrator.addColumn(
+      albumsTable,
+      albumsTable.songsHydrated,
+    );
+    await backfillAlbumHydrationState();
+  }
+
+  Future<void> backfillAlbumHydrationState() async {
+    await customStatement('''
+      UPDATE albums
+      SET songs_hydrated = CASE
+        WHEN EXISTS (
+          SELECT 1
+          FROM songs
+          WHERE songs.album_id = albums.id
+          LIMIT 1
+        ) THEN 1
+        ELSE 0
+      END;
+    ''');
   }
 
   Future<void> _createIndexes() async {
@@ -91,6 +120,15 @@ class NavisDatabase extends _$NavisDatabase {
     );
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_albums_artist_year ON albums(artist_id, year);',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_albums_year_name ON albums(year DESC, name ASC, id ASC);',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_albums_artist_name_sort ON albums(artist_name ASC, name ASC, id ASC);',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_albums_songs_hydrated ON albums(songs_hydrated, id);',
     );
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_songs_album_track ON songs(album_id, track);',

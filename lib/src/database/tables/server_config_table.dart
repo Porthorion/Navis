@@ -17,4 +17,6 @@ class ServerConfigTable extends Table {
   TextColumn get capabilities => text().nullable()();
 
   DateTimeColumn get lastSynced => dateTime().nullable()();
+
+  DateTimeColumn get lastFullSynced => dateTime().nullable()();
 }

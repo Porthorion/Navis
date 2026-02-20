@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
+import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
@@ -53,6 +54,7 @@ final subsonicApiProvider = Provider<SubsonicApiClient?>((ref) {
   if (config == null || config.password.trim().isEmpty) {
     return null;
   }
+  final networkType = ref.watch(networkTypeProvider);
 
   final authType = config.useLegacyAuth
       ? SubsonicAuthType.legacyPassword
@@ -66,6 +68,12 @@ final subsonicApiProvider = Provider<SubsonicApiClient?>((ref) {
       apiVersion: config.apiVersion,
       authType: authType,
     ),
+    maxConnectionsPerHost: switch (networkType) {
+      NetworkType.wifi => 24,
+      NetworkType.cellular => 8,
+      NetworkType.offline => 4,
+      NetworkType.other => 12,
+    },
   );
 });
 
@@ -81,21 +89,57 @@ final artistsProvider = StreamProvider<List<ArtistsTableData>>((ref) {
   return dao.watchArtists();
 });
 
+final artistByIdProvider = StreamProvider.family<ArtistsTableData?, String>((
+  ref,
+  artistId,
+) {
+  final dao = ref.watch(navisDatabaseProvider).libraryDao;
+  return dao.watchArtistById(artistId);
+});
+
+final albumsByArtistProvider =
+    StreamProvider.family<List<AlbumsTableData>, String>(
+      (ref, artistId) {
+        final dao = ref.watch(navisDatabaseProvider).libraryDao;
+        return dao.watchAlbumsByArtist(artistId);
+      },
+    );
+
 final albumProvider = StreamProvider.family<AlbumWithSongs?, String>((
   ref,
   albumId,
-) async* {
+) {
   final dao = ref.watch(navisDatabaseProvider).libraryDao;
-  await for (final album in dao.watchAlbumById(albumId)) {
+  return dao.watchAlbumById(albumId).asyncExpand((album) {
     if (album == null) {
-      yield null;
-      continue;
+      return Stream<AlbumWithSongs?>.value(null);
     }
-
-    final songs = await dao.watchSongsByAlbum(albumId).first;
-    yield AlbumWithSongs(album: album, songs: songs);
-  }
+    return dao
+        .watchSongsByAlbum(albumId)
+        .map((songs) => AlbumWithSongs(album: album, songs: songs));
+  });
 });
+
+typedef AlbumPageRequest = ({AlbumSortOrder sort, int limit});
+
+final albumPageSizeProvider = Provider<int>((_) => 60);
+
+final albumCountProvider = StreamProvider<int>((ref) {
+  final dao = ref.watch(navisDatabaseProvider).libraryDao;
+  return dao.watchAlbumCount();
+});
+
+final pagedAlbumsProvider =
+    StreamProvider.family<List<AlbumsTableData>, AlbumPageRequest>((
+      ref,
+      request,
+    ) {
+      final dao = ref.watch(navisDatabaseProvider).libraryDao;
+      return dao.watchAlbumsPage(
+        sort: request.sort,
+        limit: request.limit,
+      );
+    });
 
 final albumListProvider = StreamProvider.family<List<AlbumsTableData>, String>((
   ref,
@@ -104,6 +148,34 @@ final albumListProvider = StreamProvider.family<List<AlbumsTableData>, String>((
   final dao = ref.watch(navisDatabaseProvider).libraryDao;
   return dao.watchAllAlbums();
 });
+
+final songsProvider = StreamProvider<List<SongsTableData>>((ref) {
+  final dao = ref.watch(navisDatabaseProvider).libraryDao;
+  return dao.watchAllSongs();
+});
+
+final genresProvider = StreamProvider<List<GenresTableData>>((ref) {
+  final dao = ref.watch(navisDatabaseProvider).libraryDao;
+  return dao.watchGenres();
+});
+
+final albumsByGenreProvider =
+    StreamProvider.family<List<AlbumsTableData>, String>((
+      ref,
+      genre,
+    ) {
+      final dao = ref.watch(navisDatabaseProvider).libraryDao;
+      return dao.watchAlbumsByGenre(genre);
+    });
+
+final songsByGenreProvider =
+    StreamProvider.family<List<SongsTableData>, String>((
+      ref,
+      genre,
+    ) {
+      final dao = ref.watch(navisDatabaseProvider).libraryDao;
+      return dao.watchSongsByGenre(genre);
+    });
 
 final searchResultsProvider = FutureProvider.family<SearchResult3, String>((
   ref,
@@ -148,6 +220,18 @@ final lyricsProvider = FutureProvider.family<LyricsList, String>((
     return const LyricsList();
   }
   return api.getLyricsBySongId(songId);
+});
+
+final artistInfoProvider = FutureProvider.family<ArtistInfo?, String>((
+  ref,
+  artistId,
+) async {
+  final api = ref.watch(subsonicApiProvider);
+  if (api == null) {
+    return null;
+  }
+
+  return api.getArtistInfo2(artistId);
 });
 
 final downloadProgressProvider = StreamProvider.family<double?, String>((

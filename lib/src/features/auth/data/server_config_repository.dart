@@ -35,6 +35,7 @@ class ServerConfigRepository {
           apiVersion: config.apiVersion,
           capabilities: Value(config.capabilitiesJson),
           lastSynced: Value(config.lastSynced),
+          lastFullSynced: Value(config.lastFullSyncedAt),
         ),
       );
     } on Object catch (error, stackTrace) {
@@ -71,6 +72,20 @@ class ServerConfigRepository {
     }
   }
 
+  Future<void> updateLastSynced(DateTime value) {
+    return _serverDao.updateLastSynced(value);
+  }
+
+  Future<void> updateSyncTimestamps({
+    required DateTime lastSynced,
+    DateTime? lastFullSyncedAt,
+  }) {
+    return _serverDao.updateSyncTimestamps(
+      lastSynced: lastSynced,
+      lastFullSynced: lastFullSyncedAt,
+    );
+  }
+
   Future<ServerConfigModel?> _mapRowToModel(ServerConfigTableData? row) async {
     if (row == null) {
       await _credentials.clearPassword();
@@ -92,6 +107,7 @@ class ServerConfigRepository {
       apiVersion: row.apiVersion,
       capabilitiesJson: row.capabilities,
       lastSynced: row.lastSynced,
+      lastFullSyncedAt: row.lastFullSynced,
     );
   }
 }

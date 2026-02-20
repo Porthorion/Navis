@@ -3,6 +3,7 @@ export 'album_info.dart';
 export 'artist.dart';
 export 'artist_info.dart';
 export 'genre.dart';
+export 'indexes.dart';
 export 'lyrics.dart';
 export 'play_queue.dart';
 export 'playlist.dart';

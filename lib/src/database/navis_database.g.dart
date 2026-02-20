@@ -84,6 +84,18 @@ class $ServerConfigTableTable extends ServerConfigTable
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _lastFullSyncedMeta = const VerificationMeta(
+    'lastFullSynced',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastFullSynced =
+      GeneratedColumn<DateTime>(
+        'last_full_synced',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -93,6 +105,7 @@ class $ServerConfigTableTable extends ServerConfigTable
     apiVersion,
     capabilities,
     lastSynced,
+    lastFullSynced,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -154,6 +167,15 @@ class $ServerConfigTableTable extends ServerConfigTable
         lastSynced.isAcceptableOrUnknown(data['last_synced']!, _lastSyncedMeta),
       );
     }
+    if (data.containsKey('last_full_synced')) {
+      context.handle(
+        _lastFullSyncedMeta,
+        lastFullSynced.isAcceptableOrUnknown(
+          data['last_full_synced']!,
+          _lastFullSyncedMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -191,6 +213,10 @@ class $ServerConfigTableTable extends ServerConfigTable
         DriftSqlType.dateTime,
         data['${effectivePrefix}last_synced'],
       ),
+      lastFullSynced: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_full_synced'],
+      ),
     );
   }
 
@@ -209,6 +235,7 @@ class ServerConfigTableData extends DataClass
   final String apiVersion;
   final String? capabilities;
   final DateTime? lastSynced;
+  final DateTime? lastFullSynced;
   const ServerConfigTableData({
     required this.id,
     this.name,
@@ -217,6 +244,7 @@ class ServerConfigTableData extends DataClass
     required this.apiVersion,
     this.capabilities,
     this.lastSynced,
+    this.lastFullSynced,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -234,6 +262,9 @@ class ServerConfigTableData extends DataClass
     if (!nullToAbsent || lastSynced != null) {
       map['last_synced'] = Variable<DateTime>(lastSynced);
     }
+    if (!nullToAbsent || lastFullSynced != null) {
+      map['last_full_synced'] = Variable<DateTime>(lastFullSynced);
+    }
     return map;
   }
 
@@ -250,6 +281,9 @@ class ServerConfigTableData extends DataClass
       lastSynced: lastSynced == null && nullToAbsent
           ? const Value.absent()
           : Value(lastSynced),
+      lastFullSynced: lastFullSynced == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastFullSynced),
     );
   }
 
@@ -266,6 +300,7 @@ class ServerConfigTableData extends DataClass
       apiVersion: serializer.fromJson<String>(json['apiVersion']),
       capabilities: serializer.fromJson<String?>(json['capabilities']),
       lastSynced: serializer.fromJson<DateTime?>(json['lastSynced']),
+      lastFullSynced: serializer.fromJson<DateTime?>(json['lastFullSynced']),
     );
   }
   @override
@@ -279,6 +314,7 @@ class ServerConfigTableData extends DataClass
       'apiVersion': serializer.toJson<String>(apiVersion),
       'capabilities': serializer.toJson<String?>(capabilities),
       'lastSynced': serializer.toJson<DateTime?>(lastSynced),
+      'lastFullSynced': serializer.toJson<DateTime?>(lastFullSynced),
     };
   }
 
@@ -290,6 +326,7 @@ class ServerConfigTableData extends DataClass
     String? apiVersion,
     Value<String?> capabilities = const Value.absent(),
     Value<DateTime?> lastSynced = const Value.absent(),
+    Value<DateTime?> lastFullSynced = const Value.absent(),
   }) => ServerConfigTableData(
     id: id ?? this.id,
     name: name.present ? name.value : this.name,
@@ -298,6 +335,9 @@ class ServerConfigTableData extends DataClass
     apiVersion: apiVersion ?? this.apiVersion,
     capabilities: capabilities.present ? capabilities.value : this.capabilities,
     lastSynced: lastSynced.present ? lastSynced.value : this.lastSynced,
+    lastFullSynced: lastFullSynced.present
+        ? lastFullSynced.value
+        : this.lastFullSynced,
   );
   ServerConfigTableData copyWithCompanion(ServerConfigTableCompanion data) {
     return ServerConfigTableData(
@@ -314,6 +354,9 @@ class ServerConfigTableData extends DataClass
       lastSynced: data.lastSynced.present
           ? data.lastSynced.value
           : this.lastSynced,
+      lastFullSynced: data.lastFullSynced.present
+          ? data.lastFullSynced.value
+          : this.lastFullSynced,
     );
   }
 
@@ -326,7 +369,8 @@ class ServerConfigTableData extends DataClass
           ..write('username: $username, ')
           ..write('apiVersion: $apiVersion, ')
           ..write('capabilities: $capabilities, ')
-          ..write('lastSynced: $lastSynced')
+          ..write('lastSynced: $lastSynced, ')
+          ..write('lastFullSynced: $lastFullSynced')
           ..write(')'))
         .toString();
   }
@@ -340,6 +384,7 @@ class ServerConfigTableData extends DataClass
     apiVersion,
     capabilities,
     lastSynced,
+    lastFullSynced,
   );
   @override
   bool operator ==(Object other) =>
@@ -351,7 +396,8 @@ class ServerConfigTableData extends DataClass
           other.username == this.username &&
           other.apiVersion == this.apiVersion &&
           other.capabilities == this.capabilities &&
-          other.lastSynced == this.lastSynced);
+          other.lastSynced == this.lastSynced &&
+          other.lastFullSynced == this.lastFullSynced);
 }
 
 class ServerConfigTableCompanion
@@ -363,6 +409,7 @@ class ServerConfigTableCompanion
   final Value<String> apiVersion;
   final Value<String?> capabilities;
   final Value<DateTime?> lastSynced;
+  final Value<DateTime?> lastFullSynced;
   const ServerConfigTableCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
@@ -371,6 +418,7 @@ class ServerConfigTableCompanion
     this.apiVersion = const Value.absent(),
     this.capabilities = const Value.absent(),
     this.lastSynced = const Value.absent(),
+    this.lastFullSynced = const Value.absent(),
   });
   ServerConfigTableCompanion.insert({
     this.id = const Value.absent(),
@@ -380,6 +428,7 @@ class ServerConfigTableCompanion
     required String apiVersion,
     this.capabilities = const Value.absent(),
     this.lastSynced = const Value.absent(),
+    this.lastFullSynced = const Value.absent(),
   }) : url = Value(url),
        username = Value(username),
        apiVersion = Value(apiVersion);
@@ -391,6 +440,7 @@ class ServerConfigTableCompanion
     Expression<String>? apiVersion,
     Expression<String>? capabilities,
     Expression<DateTime>? lastSynced,
+    Expression<DateTime>? lastFullSynced,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -400,6 +450,7 @@ class ServerConfigTableCompanion
       if (apiVersion != null) 'api_version': apiVersion,
       if (capabilities != null) 'capabilities': capabilities,
       if (lastSynced != null) 'last_synced': lastSynced,
+      if (lastFullSynced != null) 'last_full_synced': lastFullSynced,
     });
   }
 
@@ -411,6 +462,7 @@ class ServerConfigTableCompanion
     Value<String>? apiVersion,
     Value<String?>? capabilities,
     Value<DateTime?>? lastSynced,
+    Value<DateTime?>? lastFullSynced,
   }) {
     return ServerConfigTableCompanion(
       id: id ?? this.id,
@@ -420,6 +472,7 @@ class ServerConfigTableCompanion
       apiVersion: apiVersion ?? this.apiVersion,
       capabilities: capabilities ?? this.capabilities,
       lastSynced: lastSynced ?? this.lastSynced,
+      lastFullSynced: lastFullSynced ?? this.lastFullSynced,
     );
   }
 
@@ -447,6 +500,9 @@ class ServerConfigTableCompanion
     if (lastSynced.present) {
       map['last_synced'] = Variable<DateTime>(lastSynced.value);
     }
+    if (lastFullSynced.present) {
+      map['last_full_synced'] = Variable<DateTime>(lastFullSynced.value);
+    }
     return map;
   }
 
@@ -459,7 +515,8 @@ class ServerConfigTableCompanion
           ..write('username: $username, ')
           ..write('apiVersion: $apiVersion, ')
           ..write('capabilities: $capabilities, ')
-          ..write('lastSynced: $lastSynced')
+          ..write('lastSynced: $lastSynced, ')
+          ..write('lastFullSynced: $lastFullSynced')
           ..write(')'))
         .toString();
   }
@@ -931,6 +988,21 @@ class $AlbumsTableTable extends AlbumsTable
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _songsHydratedMeta = const VerificationMeta(
+    'songsHydrated',
+  );
+  @override
+  late final GeneratedColumn<bool> songsHydrated = GeneratedColumn<bool>(
+    'songs_hydrated',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("songs_hydrated" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _starredMeta = const VerificationMeta(
     'starred',
   );
@@ -964,6 +1036,7 @@ class $AlbumsTableTable extends AlbumsTable
     year,
     genre,
     coverArt,
+    songsHydrated,
     starred,
     playCount,
   ];
@@ -1034,6 +1107,15 @@ class $AlbumsTableTable extends AlbumsTable
         coverArt.isAcceptableOrUnknown(data['cover_art']!, _coverArtMeta),
       );
     }
+    if (data.containsKey('songs_hydrated')) {
+      context.handle(
+        _songsHydratedMeta,
+        songsHydrated.isAcceptableOrUnknown(
+          data['songs_hydrated']!,
+          _songsHydratedMeta,
+        ),
+      );
+    }
     if (data.containsKey('starred')) {
       context.handle(
         _starredMeta,
@@ -1091,6 +1173,10 @@ class $AlbumsTableTable extends AlbumsTable
         DriftSqlType.string,
         data['${effectivePrefix}cover_art'],
       ),
+      songsHydrated: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}songs_hydrated'],
+      )!,
       starred: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}starred'],
@@ -1118,6 +1204,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
   final int? year;
   final String? genre;
   final String? coverArt;
+  final bool songsHydrated;
   final DateTime? starred;
   final int? playCount;
   const AlbumsTableData({
@@ -1130,6 +1217,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     this.year,
     this.genre,
     this.coverArt,
+    required this.songsHydrated,
     this.starred,
     this.playCount,
   });
@@ -1159,6 +1247,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     if (!nullToAbsent || coverArt != null) {
       map['cover_art'] = Variable<String>(coverArt);
     }
+    map['songs_hydrated'] = Variable<bool>(songsHydrated);
     if (!nullToAbsent || starred != null) {
       map['starred'] = Variable<DateTime>(starred);
     }
@@ -1191,6 +1280,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       coverArt: coverArt == null && nullToAbsent
           ? const Value.absent()
           : Value(coverArt),
+      songsHydrated: Value(songsHydrated),
       starred: starred == null && nullToAbsent
           ? const Value.absent()
           : Value(starred),
@@ -1215,6 +1305,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       year: serializer.fromJson<int?>(json['year']),
       genre: serializer.fromJson<String?>(json['genre']),
       coverArt: serializer.fromJson<String?>(json['coverArt']),
+      songsHydrated: serializer.fromJson<bool>(json['songsHydrated']),
       starred: serializer.fromJson<DateTime?>(json['starred']),
       playCount: serializer.fromJson<int?>(json['playCount']),
     );
@@ -1232,6 +1323,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       'year': serializer.toJson<int?>(year),
       'genre': serializer.toJson<String?>(genre),
       'coverArt': serializer.toJson<String?>(coverArt),
+      'songsHydrated': serializer.toJson<bool>(songsHydrated),
       'starred': serializer.toJson<DateTime?>(starred),
       'playCount': serializer.toJson<int?>(playCount),
     };
@@ -1247,6 +1339,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     Value<int?> year = const Value.absent(),
     Value<String?> genre = const Value.absent(),
     Value<String?> coverArt = const Value.absent(),
+    bool? songsHydrated,
     Value<DateTime?> starred = const Value.absent(),
     Value<int?> playCount = const Value.absent(),
   }) => AlbumsTableData(
@@ -1259,6 +1352,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     year: year.present ? year.value : this.year,
     genre: genre.present ? genre.value : this.genre,
     coverArt: coverArt.present ? coverArt.value : this.coverArt,
+    songsHydrated: songsHydrated ?? this.songsHydrated,
     starred: starred.present ? starred.value : this.starred,
     playCount: playCount.present ? playCount.value : this.playCount,
   );
@@ -1275,6 +1369,9 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       year: data.year.present ? data.year.value : this.year,
       genre: data.genre.present ? data.genre.value : this.genre,
       coverArt: data.coverArt.present ? data.coverArt.value : this.coverArt,
+      songsHydrated: data.songsHydrated.present
+          ? data.songsHydrated.value
+          : this.songsHydrated,
       starred: data.starred.present ? data.starred.value : this.starred,
       playCount: data.playCount.present ? data.playCount.value : this.playCount,
     );
@@ -1292,6 +1389,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
           ..write('year: $year, ')
           ..write('genre: $genre, ')
           ..write('coverArt: $coverArt, ')
+          ..write('songsHydrated: $songsHydrated, ')
           ..write('starred: $starred, ')
           ..write('playCount: $playCount')
           ..write(')'))
@@ -1309,6 +1407,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     year,
     genre,
     coverArt,
+    songsHydrated,
     starred,
     playCount,
   );
@@ -1325,6 +1424,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
           other.year == this.year &&
           other.genre == this.genre &&
           other.coverArt == this.coverArt &&
+          other.songsHydrated == this.songsHydrated &&
           other.starred == this.starred &&
           other.playCount == this.playCount);
 }
@@ -1339,6 +1439,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
   final Value<int?> year;
   final Value<String?> genre;
   final Value<String?> coverArt;
+  final Value<bool> songsHydrated;
   final Value<DateTime?> starred;
   final Value<int?> playCount;
   final Value<int> rowid;
@@ -1352,6 +1453,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     this.year = const Value.absent(),
     this.genre = const Value.absent(),
     this.coverArt = const Value.absent(),
+    this.songsHydrated = const Value.absent(),
     this.starred = const Value.absent(),
     this.playCount = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -1366,6 +1468,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     this.year = const Value.absent(),
     this.genre = const Value.absent(),
     this.coverArt = const Value.absent(),
+    this.songsHydrated = const Value.absent(),
     this.starred = const Value.absent(),
     this.playCount = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -1381,6 +1484,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     Expression<int>? year,
     Expression<String>? genre,
     Expression<String>? coverArt,
+    Expression<bool>? songsHydrated,
     Expression<DateTime>? starred,
     Expression<int>? playCount,
     Expression<int>? rowid,
@@ -1395,6 +1499,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
       if (year != null) 'year': year,
       if (genre != null) 'genre': genre,
       if (coverArt != null) 'cover_art': coverArt,
+      if (songsHydrated != null) 'songs_hydrated': songsHydrated,
       if (starred != null) 'starred': starred,
       if (playCount != null) 'play_count': playCount,
       if (rowid != null) 'rowid': rowid,
@@ -1411,6 +1516,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     Value<int?>? year,
     Value<String?>? genre,
     Value<String?>? coverArt,
+    Value<bool>? songsHydrated,
     Value<DateTime?>? starred,
     Value<int?>? playCount,
     Value<int>? rowid,
@@ -1425,6 +1531,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
       year: year ?? this.year,
       genre: genre ?? this.genre,
       coverArt: coverArt ?? this.coverArt,
+      songsHydrated: songsHydrated ?? this.songsHydrated,
       starred: starred ?? this.starred,
       playCount: playCount ?? this.playCount,
       rowid: rowid ?? this.rowid,
@@ -1461,6 +1568,9 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     if (coverArt.present) {
       map['cover_art'] = Variable<String>(coverArt.value);
     }
+    if (songsHydrated.present) {
+      map['songs_hydrated'] = Variable<bool>(songsHydrated.value);
+    }
     if (starred.present) {
       map['starred'] = Variable<DateTime>(starred.value);
     }
@@ -1485,6 +1595,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
           ..write('year: $year, ')
           ..write('genre: $genre, ')
           ..write('coverArt: $coverArt, ')
+          ..write('songsHydrated: $songsHydrated, ')
           ..write('starred: $starred, ')
           ..write('playCount: $playCount, ')
           ..write('rowid: $rowid')
@@ -5924,6 +6035,7 @@ typedef $$ServerConfigTableTableCreateCompanionBuilder =
       required String apiVersion,
       Value<String?> capabilities,
       Value<DateTime?> lastSynced,
+      Value<DateTime?> lastFullSynced,
     });
 typedef $$ServerConfigTableTableUpdateCompanionBuilder =
     ServerConfigTableCompanion Function({
@@ -5934,6 +6046,7 @@ typedef $$ServerConfigTableTableUpdateCompanionBuilder =
       Value<String> apiVersion,
       Value<String?> capabilities,
       Value<DateTime?> lastSynced,
+      Value<DateTime?> lastFullSynced,
     });
 
 class $$ServerConfigTableTableFilterComposer
@@ -5977,6 +6090,11 @@ class $$ServerConfigTableTableFilterComposer
 
   ColumnFilters<DateTime> get lastSynced => $composableBuilder(
     column: $table.lastSynced,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastFullSynced => $composableBuilder(
+    column: $table.lastFullSynced,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -6024,6 +6142,11 @@ class $$ServerConfigTableTableOrderingComposer
     column: $table.lastSynced,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<DateTime> get lastFullSynced => $composableBuilder(
+    column: $table.lastFullSynced,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$ServerConfigTableTableAnnotationComposer
@@ -6059,6 +6182,11 @@ class $$ServerConfigTableTableAnnotationComposer
 
   GeneratedColumn<DateTime> get lastSynced => $composableBuilder(
     column: $table.lastSynced,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get lastFullSynced => $composableBuilder(
+    column: $table.lastFullSynced,
     builder: (column) => column,
   );
 }
@@ -6110,6 +6238,7 @@ class $$ServerConfigTableTableTableManager
                 Value<String> apiVersion = const Value.absent(),
                 Value<String?> capabilities = const Value.absent(),
                 Value<DateTime?> lastSynced = const Value.absent(),
+                Value<DateTime?> lastFullSynced = const Value.absent(),
               }) => ServerConfigTableCompanion(
                 id: id,
                 name: name,
@@ -6118,6 +6247,7 @@ class $$ServerConfigTableTableTableManager
                 apiVersion: apiVersion,
                 capabilities: capabilities,
                 lastSynced: lastSynced,
+                lastFullSynced: lastFullSynced,
               ),
           createCompanionCallback:
               ({
@@ -6128,6 +6258,7 @@ class $$ServerConfigTableTableTableManager
                 required String apiVersion,
                 Value<String?> capabilities = const Value.absent(),
                 Value<DateTime?> lastSynced = const Value.absent(),
+                Value<DateTime?> lastFullSynced = const Value.absent(),
               }) => ServerConfigTableCompanion.insert(
                 id: id,
                 name: name,
@@ -6136,6 +6267,7 @@ class $$ServerConfigTableTableTableManager
                 apiVersion: apiVersion,
                 capabilities: capabilities,
                 lastSynced: lastSynced,
+                lastFullSynced: lastFullSynced,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
@@ -6579,6 +6711,7 @@ typedef $$AlbumsTableTableCreateCompanionBuilder =
       Value<int?> year,
       Value<String?> genre,
       Value<String?> coverArt,
+      Value<bool> songsHydrated,
       Value<DateTime?> starred,
       Value<int?> playCount,
       Value<int> rowid,
@@ -6594,6 +6727,7 @@ typedef $$AlbumsTableTableUpdateCompanionBuilder =
       Value<int?> year,
       Value<String?> genre,
       Value<String?> coverArt,
+      Value<bool> songsHydrated,
       Value<DateTime?> starred,
       Value<int?> playCount,
       Value<int> rowid,
@@ -6715,6 +6849,11 @@ class $$AlbumsTableTableFilterComposer
 
   ColumnFilters<String> get coverArt => $composableBuilder(
     column: $table.coverArt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get songsHydrated => $composableBuilder(
+    column: $table.songsHydrated,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6851,6 +6990,11 @@ class $$AlbumsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get songsHydrated => $composableBuilder(
+    column: $table.songsHydrated,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get starred => $composableBuilder(
     column: $table.starred,
     builder: (column) => ColumnOrderings(column),
@@ -6919,6 +7063,11 @@ class $$AlbumsTableTableAnnotationComposer
 
   GeneratedColumn<String> get coverArt =>
       $composableBuilder(column: $table.coverArt, builder: (column) => column);
+
+  GeneratedColumn<bool> get songsHydrated => $composableBuilder(
+    column: $table.songsHydrated,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<DateTime> get starred =>
       $composableBuilder(column: $table.starred, builder: (column) => column);
@@ -7042,6 +7191,7 @@ class $$AlbumsTableTableTableManager
                 Value<int?> year = const Value.absent(),
                 Value<String?> genre = const Value.absent(),
                 Value<String?> coverArt = const Value.absent(),
+                Value<bool> songsHydrated = const Value.absent(),
                 Value<DateTime?> starred = const Value.absent(),
                 Value<int?> playCount = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -7055,6 +7205,7 @@ class $$AlbumsTableTableTableManager
                 year: year,
                 genre: genre,
                 coverArt: coverArt,
+                songsHydrated: songsHydrated,
                 starred: starred,
                 playCount: playCount,
                 rowid: rowid,
@@ -7070,6 +7221,7 @@ class $$AlbumsTableTableTableManager
                 Value<int?> year = const Value.absent(),
                 Value<String?> genre = const Value.absent(),
                 Value<String?> coverArt = const Value.absent(),
+                Value<bool> songsHydrated = const Value.absent(),
                 Value<DateTime?> starred = const Value.absent(),
                 Value<int?> playCount = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -7083,6 +7235,7 @@ class $$AlbumsTableTableTableManager
                 year: year,
                 genre: genre,
                 coverArt: coverArt,
+                songsHydrated: songsHydrated,
                 starred: starred,
                 playCount: playCount,
                 rowid: rowid,

@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/api/subsonic_error.dart';
@@ -18,6 +19,7 @@ class SubsonicApiClient {
     required this.authConfig,
     Dio? dio,
     this.enableLogging = true,
+    this.maxConnectionsPerHost,
   }) : _uuid = const Uuid(),
        _dio =
            dio ??
@@ -29,21 +31,37 @@ class SubsonicApiClient {
                sendTimeout: const Duration(seconds: 15),
              ),
            ) {
+    _configureTransport();
     _dio.interceptors.add(SubsonicAuthInterceptor(config: authConfig));
-    _dio.interceptors.add(SubsonicRetryInterceptor(dio: _dio));
     if (enableLogging) {
       _dio.interceptors.add(SubsonicLoggingInterceptor());
     }
+    _dio.interceptors.add(SubsonicRetryInterceptor(dio: _dio));
   }
 
   final Dio _dio;
   final Uuid _uuid;
   final SubsonicAuthConfig authConfig;
   final bool enableLogging;
+  final int? maxConnectionsPerHost;
 
   static String _normalizeBaseUrl(String baseUrl) => baseUrl.endsWith('/')
       ? baseUrl.substring(0, baseUrl.length - 1)
       : baseUrl;
+
+  void _configureTransport() {
+    final maxConnections = maxConnectionsPerHost;
+    if (maxConnections == null || maxConnections < 1) {
+      return;
+    }
+    _dio.httpClientAdapter = IOHttpClientAdapter(
+      createHttpClient: () {
+        final client = HttpClient();
+        client.maxConnectionsPerHost = maxConnections;
+        return client;
+      },
+    );
+  }
 
   Future<String> ping({CancelToken? cancelToken}) async {
     final root = await _readRoot('/rest/ping.view', cancelToken: cancelToken);
@@ -155,9 +173,26 @@ class SubsonicApiClient {
       '/rest/getGenres.view',
       cancelToken: cancelToken,
     );
-    return _asMapList(
-      _asMap(root['genres'])['genre'],
-    ).map(Genre.fromJson).toList(growable: false);
+    final rawGenres = _asMapList(_asMap(root['genres'])['genre']);
+    final genres = <Genre>[];
+    for (final rawGenre in rawGenres) {
+      final rawName = rawGenre['name'];
+      if (rawName is! String) {
+        continue;
+      }
+      final name = rawName.trim();
+      if (name.isEmpty) {
+        continue;
+      }
+      genres.add(
+        Genre(
+          name: name,
+          songCount: _toInt(rawGenre['songCount']),
+          albumCount: _toInt(rawGenre['albumCount']),
+        ),
+      );
+    }
+    return genres;
   }
 
   Future<List<Album>> getAlbumList2({
@@ -178,6 +213,29 @@ class SubsonicApiClient {
     return _asMapList(
       _asMap(root['albumList2'])['album'],
     ).map(Album.fromJson).toList(growable: false);
+  }
+
+  Future<Indexes> getIndexes({
+    DateTime? ifModifiedSince,
+    CancelToken? cancelToken,
+  }) async {
+    final query = <String, dynamic>{
+      if (ifModifiedSince != null)
+        'ifModifiedSince': ifModifiedSince.toUtc().millisecondsSinceEpoch,
+    };
+    final root = await _readRoot(
+      '/rest/getIndexes.view',
+      query: query.isEmpty ? null : query,
+      cancelToken: cancelToken,
+    );
+    final indexesRoot = _asMap(root['indexes']);
+    final normalized = <String, dynamic>{
+      ...indexesRoot,
+      'index': _asMapList(indexesRoot['index']),
+      'shortcut': _asMapList(indexesRoot['shortcut']),
+      'child': _asMapList(indexesRoot['child']),
+    };
+    return Indexes.fromJson(normalized);
   }
 
   Future<List<Song>> getRandomSongs({
@@ -636,5 +694,23 @@ class SubsonicApiClient {
     }
 
     return const <Map<String, dynamic>>[];
+  }
+
+  int? _toInt(Object? value) {
+    if (value is int) {
+      return value;
+    }
+    if (value is num) {
+      return value.toInt();
+    }
+    if (value is String) {
+      final direct = int.tryParse(value);
+      if (direct != null) {
+        return direct;
+      }
+      final decimal = double.tryParse(value);
+      return decimal?.toInt();
+    }
+    return null;
   }
 }

@@ -27,6 +27,9 @@ class AlbumsTable extends Table {
 
   TextColumn get coverArt => text().nullable()();
 
+  BoolColumn get songsHydrated =>
+      boolean().withDefault(const Constant(false))();
+
   DateTimeColumn get starred => dateTime().nullable()();
 
   IntColumn get playCount => integer().nullable()();

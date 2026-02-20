@@ -25,5 +25,26 @@ class ServerDao extends DatabaseAccessor<NavisDatabase> with _$ServerDaoMixin {
     });
   }
 
+  Future<void> updateLastSynced(DateTime value) {
+    return update(serverConfigTable).write(
+      ServerConfigTableCompanion(lastSynced: Value(value)),
+    );
+  }
+
+  Future<void> updateSyncTimestamps({
+    required DateTime lastSynced,
+    DateTime? lastFullSynced,
+  }) {
+    final companion = ServerConfigTableCompanion(
+      lastSynced: Value(lastSynced),
+      lastFullSynced: lastFullSynced == null
+          ? const Value.absent()
+          : Value(lastFullSynced),
+    );
+    return update(serverConfigTable).write(
+      companion,
+    );
+  }
+
   Future<void> clearServer() => delete(serverConfigTable).go();
 }

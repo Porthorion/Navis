@@ -130,5 +130,62 @@ void main() {
       expect(credentials.password, isNull);
       expect(credentials.clearCalls, 1);
     }, skip: !_sqliteAvailable);
+
+    test('updateLastSynced updates sync timestamp only', () async {
+      await repository.save(
+        const ServerConfigModel(
+          name: 'example.com',
+          url: 'https://example.com',
+          username: 'alice',
+          password: 'secret',
+          apiVersion: '1.16.1',
+        ),
+      );
+      final before = await repository.getActiveServer();
+      final syncedAt = DateTime.now();
+
+      await repository.updateLastSynced(syncedAt);
+      final after = await repository.getActiveServer();
+
+      expect(after, isNotNull);
+      expect(after?.url, before?.url);
+      expect(after?.username, before?.username);
+      expect(after?.password, before?.password);
+      final difference = after?.lastSynced?.difference(syncedAt);
+      expect(difference, isNotNull);
+      expect(difference!.inSeconds.abs(), lessThanOrEqualTo(1));
+    }, skip: !_sqliteAvailable);
+
+    test(
+      'updateSyncTimestamps updates last full sync timestamp',
+      () async {
+        await repository.save(
+          const ServerConfigModel(
+            name: 'example.com',
+            url: 'https://example.com',
+            username: 'alice',
+            password: 'secret',
+            apiVersion: '1.16.1',
+          ),
+        );
+        final syncedAt = DateTime.now();
+        final fullSyncedAt = syncedAt.subtract(const Duration(minutes: 1));
+
+        await repository.updateSyncTimestamps(
+          lastSynced: syncedAt,
+          lastFullSyncedAt: fullSyncedAt,
+        );
+        final after = await repository.getActiveServer();
+
+        expect(after, isNotNull);
+        expect(after?.lastSynced, isNotNull);
+        expect(after?.lastFullSyncedAt, isNotNull);
+        expect(
+          after?.lastFullSyncedAt?.difference(fullSyncedAt).inSeconds.abs(),
+          lessThanOrEqualTo(1),
+        );
+      },
+      skip: !_sqliteAvailable,
+    );
   });
 }

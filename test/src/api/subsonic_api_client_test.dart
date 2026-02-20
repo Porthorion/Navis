@@ -114,6 +114,131 @@ void main() {
       expect(capabilities.extensions.first.name, 'transcodeOffset');
     });
 
+    test('getIndexes parses changed artist payload with timestamp', () async {
+      final dio = Dio(BaseOptions(baseUrl: 'https://example.com'));
+      final client = createClient(dio: dio);
+      late RequestOptions captured;
+
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            captured = options;
+            handler.resolve(
+              Response<dynamic>(
+                requestOptions: options,
+                statusCode: 200,
+                data: ok(<String, dynamic>{
+                  'indexes': <String, dynamic>{
+                    'lastModified': '1739980000000',
+                    'index': <Map<String, dynamic>>[
+                      <String, dynamic>{
+                        'name': 'A',
+                        'artist': <Map<String, dynamic>>[
+                          <String, dynamic>{'id': 'a1', 'name': 'Artist 1'},
+                        ],
+                      },
+                    ],
+                    'shortcut': <Map<String, dynamic>>[
+                      <String, dynamic>{'id': 'a2', 'name': 'Artist 2'},
+                    ],
+                  },
+                }),
+              ),
+            );
+          },
+        ),
+      );
+
+      final since = DateTime.utc(2025, 1, 1);
+      final indexes = await client.getIndexes(ifModifiedSince: since);
+
+      expect(captured.path, '/rest/getIndexes.view');
+      expect(
+        captured.queryParameters['ifModifiedSince'],
+        since.millisecondsSinceEpoch,
+      );
+      expect(indexes.indexes, hasLength(1));
+      expect(indexes.indexes.first.artists.single.id, 'a1');
+      expect(indexes.shortcut.single.id, 'a2');
+      expect(indexes.lastModified, isNotNull);
+    });
+
+    test('getIndexes handles missing lists safely', () async {
+      final dio = Dio(BaseOptions(baseUrl: 'https://example.com'));
+      final client = createClient(dio: dio);
+
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            handler.resolve(
+              Response<dynamic>(
+                requestOptions: options,
+                statusCode: 200,
+                data: ok(<String, dynamic>{
+                  'indexes': const <String, dynamic>{},
+                }),
+              ),
+            );
+          },
+        ),
+      );
+
+      final indexes = await client.getIndexes();
+      expect(indexes.indexes, isEmpty);
+      expect(indexes.shortcut, isEmpty);
+      expect(indexes.child, isEmpty);
+      expect(indexes.lastModified, isNull);
+    });
+
+    test(
+      'getGenres skips malformed genres and parses numeric fields',
+      () async {
+        final dio = Dio(BaseOptions(baseUrl: 'https://example.com'));
+        final client = createClient(dio: dio);
+
+        dio.interceptors.add(
+          InterceptorsWrapper(
+            onRequest: (options, handler) {
+              handler.resolve(
+                Response<dynamic>(
+                  requestOptions: options,
+                  statusCode: 200,
+                  data: ok(<String, dynamic>{
+                    'genres': <String, dynamic>{
+                      'genre': <Map<String, dynamic>>[
+                        <String, dynamic>{'name': null, 'songCount': 7},
+                        <String, dynamic>{
+                          'name': ' Rock ',
+                          'songCount': '10',
+                          'albumCount': '2',
+                        },
+                        <String, dynamic>{'name': ''},
+                        <String, dynamic>{'songCount': 3},
+                        <String, dynamic>{
+                          'name': 'Jazz',
+                          'songCount': 4.0,
+                          'albumCount': 1,
+                        },
+                      ],
+                    },
+                  }),
+                ),
+              );
+            },
+          ),
+        );
+
+        final genres = await client.getGenres();
+        expect(genres, hasLength(2));
+        expect(genres.first.name, 'Rock');
+        expect(genres.first.songCount, 10);
+        expect(genres.first.albumCount, 2);
+        expect(genres.last.name, 'Jazz');
+        expect(genres.last.songCount, 4);
+        expect(genres.last.albumCount, 1);
+      },
+    );
+
     test('parses one endpoint per category', () async {
       final dio = Dio(BaseOptions(baseUrl: 'https://example.com'));
       final client = createClient(dio: dio);

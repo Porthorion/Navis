@@ -15,6 +15,7 @@ abstract class ServerConfigModel with _$ServerConfigModel {
     @Default(false) bool useLegacyAuth,
     String? capabilitiesJson,
     DateTime? lastSynced,
+    DateTime? lastFullSyncedAt,
   }) = _ServerConfigModel;
 
   factory ServerConfigModel.fromJson(Map<String, dynamic> json) =>
