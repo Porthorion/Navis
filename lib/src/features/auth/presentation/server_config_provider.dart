@@ -45,6 +45,24 @@ class ServerConfigNotifier extends AsyncNotifier<ServerConfigModel?> {
     await repository.clear();
     await refresh();
   }
+
+  Future<void> updateLastSynced(DateTime value) async {
+    final repository = ref.read(serverConfigRepositoryProvider);
+    await repository.updateLastSynced(value);
+    await refresh();
+  }
+
+  Future<void> updateSyncTimestamps({
+    required DateTime lastSynced,
+    DateTime? lastFullSyncedAt,
+  }) async {
+    final repository = ref.read(serverConfigRepositoryProvider);
+    await repository.updateSyncTimestamps(
+      lastSynced: lastSynced,
+      lastFullSyncedAt: lastFullSyncedAt,
+    );
+    await refresh();
+  }
 }
 
 final serverConfigProvider =

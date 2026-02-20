@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$ServerConfigModel {
 
- int? get id; String? get name; String get url; String get username; String get password; String get apiVersion; bool get useLegacyAuth; String? get capabilitiesJson; DateTime? get lastSynced;
+ int? get id; String? get name; String get url; String get username; String get password; String get apiVersion; bool get useLegacyAuth; String? get capabilitiesJson; DateTime? get lastSynced; DateTime? get lastFullSyncedAt;
 /// Create a copy of ServerConfigModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +28,16 @@ $ServerConfigModelCopyWith<ServerConfigModel> get copyWith => _$ServerConfigMode
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ServerConfigModel&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.url, url) || other.url == url)&&(identical(other.username, username) || other.username == username)&&(identical(other.password, password) || other.password == password)&&(identical(other.apiVersion, apiVersion) || other.apiVersion == apiVersion)&&(identical(other.useLegacyAuth, useLegacyAuth) || other.useLegacyAuth == useLegacyAuth)&&(identical(other.capabilitiesJson, capabilitiesJson) || other.capabilitiesJson == capabilitiesJson)&&(identical(other.lastSynced, lastSynced) || other.lastSynced == lastSynced));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ServerConfigModel&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.url, url) || other.url == url)&&(identical(other.username, username) || other.username == username)&&(identical(other.password, password) || other.password == password)&&(identical(other.apiVersion, apiVersion) || other.apiVersion == apiVersion)&&(identical(other.useLegacyAuth, useLegacyAuth) || other.useLegacyAuth == useLegacyAuth)&&(identical(other.capabilitiesJson, capabilitiesJson) || other.capabilitiesJson == capabilitiesJson)&&(identical(other.lastSynced, lastSynced) || other.lastSynced == lastSynced)&&(identical(other.lastFullSyncedAt, lastFullSyncedAt) || other.lastFullSyncedAt == lastFullSyncedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,url,username,password,apiVersion,useLegacyAuth,capabilitiesJson,lastSynced);
+int get hashCode => Object.hash(runtimeType,id,name,url,username,password,apiVersion,useLegacyAuth,capabilitiesJson,lastSynced,lastFullSyncedAt);
 
 @override
 String toString() {
-  return 'ServerConfigModel(id: $id, name: $name, url: $url, username: $username, password: $password, apiVersion: $apiVersion, useLegacyAuth: $useLegacyAuth, capabilitiesJson: $capabilitiesJson, lastSynced: $lastSynced)';
+  return 'ServerConfigModel(id: $id, name: $name, url: $url, username: $username, password: $password, apiVersion: $apiVersion, useLegacyAuth: $useLegacyAuth, capabilitiesJson: $capabilitiesJson, lastSynced: $lastSynced, lastFullSyncedAt: $lastFullSyncedAt)';
 }
 
 
@@ -48,7 +48,7 @@ abstract mixin class $ServerConfigModelCopyWith<$Res>  {
   factory $ServerConfigModelCopyWith(ServerConfigModel value, $Res Function(ServerConfigModel) _then) = _$ServerConfigModelCopyWithImpl;
 @useResult
 $Res call({
- int? id, String? name, String url, String username, String password, String apiVersion, bool useLegacyAuth, String? capabilitiesJson, DateTime? lastSynced
+ int? id, String? name, String url, String username, String password, String apiVersion, bool useLegacyAuth, String? capabilitiesJson, DateTime? lastSynced, DateTime? lastFullSyncedAt
 });
 
 
@@ -65,7 +65,7 @@ class _$ServerConfigModelCopyWithImpl<$Res>
 
 /// Create a copy of ServerConfigModel
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = freezed,Object? name = freezed,Object? url = null,Object? username = null,Object? password = null,Object? apiVersion = null,Object? useLegacyAuth = null,Object? capabilitiesJson = freezed,Object? lastSynced = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = freezed,Object? name = freezed,Object? url = null,Object? username = null,Object? password = null,Object? apiVersion = null,Object? useLegacyAuth = null,Object? capabilitiesJson = freezed,Object? lastSynced = freezed,Object? lastFullSyncedAt = freezed,}) {
   return _then(_self.copyWith(
 id: freezed == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int?,name: freezed == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
@@ -76,6 +76,7 @@ as String,apiVersion: null == apiVersion ? _self.apiVersion : apiVersion // igno
 as String,useLegacyAuth: null == useLegacyAuth ? _self.useLegacyAuth : useLegacyAuth // ignore: cast_nullable_to_non_nullable
 as bool,capabilitiesJson: freezed == capabilitiesJson ? _self.capabilitiesJson : capabilitiesJson // ignore: cast_nullable_to_non_nullable
 as String?,lastSynced: freezed == lastSynced ? _self.lastSynced : lastSynced // ignore: cast_nullable_to_non_nullable
+as DateTime?,lastFullSyncedAt: freezed == lastFullSyncedAt ? _self.lastFullSyncedAt : lastFullSyncedAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,
   ));
 }
@@ -161,10 +162,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int? id,  String? name,  String url,  String username,  String password,  String apiVersion,  bool useLegacyAuth,  String? capabilitiesJson,  DateTime? lastSynced)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int? id,  String? name,  String url,  String username,  String password,  String apiVersion,  bool useLegacyAuth,  String? capabilitiesJson,  DateTime? lastSynced,  DateTime? lastFullSyncedAt)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ServerConfigModel() when $default != null:
-return $default(_that.id,_that.name,_that.url,_that.username,_that.password,_that.apiVersion,_that.useLegacyAuth,_that.capabilitiesJson,_that.lastSynced);case _:
+return $default(_that.id,_that.name,_that.url,_that.username,_that.password,_that.apiVersion,_that.useLegacyAuth,_that.capabilitiesJson,_that.lastSynced,_that.lastFullSyncedAt);case _:
   return orElse();
 
 }
@@ -182,10 +183,10 @@ return $default(_that.id,_that.name,_that.url,_that.username,_that.password,_tha
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int? id,  String? name,  String url,  String username,  String password,  String apiVersion,  bool useLegacyAuth,  String? capabilitiesJson,  DateTime? lastSynced)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int? id,  String? name,  String url,  String username,  String password,  String apiVersion,  bool useLegacyAuth,  String? capabilitiesJson,  DateTime? lastSynced,  DateTime? lastFullSyncedAt)  $default,) {final _that = this;
 switch (_that) {
 case _ServerConfigModel():
-return $default(_that.id,_that.name,_that.url,_that.username,_that.password,_that.apiVersion,_that.useLegacyAuth,_that.capabilitiesJson,_that.lastSynced);case _:
+return $default(_that.id,_that.name,_that.url,_that.username,_that.password,_that.apiVersion,_that.useLegacyAuth,_that.capabilitiesJson,_that.lastSynced,_that.lastFullSyncedAt);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -202,10 +203,10 @@ return $default(_that.id,_that.name,_that.url,_that.username,_that.password,_tha
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int? id,  String? name,  String url,  String username,  String password,  String apiVersion,  bool useLegacyAuth,  String? capabilitiesJson,  DateTime? lastSynced)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int? id,  String? name,  String url,  String username,  String password,  String apiVersion,  bool useLegacyAuth,  String? capabilitiesJson,  DateTime? lastSynced,  DateTime? lastFullSyncedAt)?  $default,) {final _that = this;
 switch (_that) {
 case _ServerConfigModel() when $default != null:
-return $default(_that.id,_that.name,_that.url,_that.username,_that.password,_that.apiVersion,_that.useLegacyAuth,_that.capabilitiesJson,_that.lastSynced);case _:
+return $default(_that.id,_that.name,_that.url,_that.username,_that.password,_that.apiVersion,_that.useLegacyAuth,_that.capabilitiesJson,_that.lastSynced,_that.lastFullSyncedAt);case _:
   return null;
 
 }
@@ -217,7 +218,7 @@ return $default(_that.id,_that.name,_that.url,_that.username,_that.password,_tha
 @JsonSerializable()
 
 class _ServerConfigModel implements ServerConfigModel {
-  const _ServerConfigModel({this.id, this.name, required this.url, required this.username, required this.password, required this.apiVersion, this.useLegacyAuth = false, this.capabilitiesJson, this.lastSynced});
+  const _ServerConfigModel({this.id, this.name, required this.url, required this.username, required this.password, required this.apiVersion, this.useLegacyAuth = false, this.capabilitiesJson, this.lastSynced, this.lastFullSyncedAt});
   factory _ServerConfigModel.fromJson(Map<String, dynamic> json) => _$ServerConfigModelFromJson(json);
 
 @override final  int? id;
@@ -229,6 +230,7 @@ class _ServerConfigModel implements ServerConfigModel {
 @override@JsonKey() final  bool useLegacyAuth;
 @override final  String? capabilitiesJson;
 @override final  DateTime? lastSynced;
+@override final  DateTime? lastFullSyncedAt;
 
 /// Create a copy of ServerConfigModel
 /// with the given fields replaced by the non-null parameter values.
@@ -243,16 +245,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ServerConfigModel&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.url, url) || other.url == url)&&(identical(other.username, username) || other.username == username)&&(identical(other.password, password) || other.password == password)&&(identical(other.apiVersion, apiVersion) || other.apiVersion == apiVersion)&&(identical(other.useLegacyAuth, useLegacyAuth) || other.useLegacyAuth == useLegacyAuth)&&(identical(other.capabilitiesJson, capabilitiesJson) || other.capabilitiesJson == capabilitiesJson)&&(identical(other.lastSynced, lastSynced) || other.lastSynced == lastSynced));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ServerConfigModel&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.url, url) || other.url == url)&&(identical(other.username, username) || other.username == username)&&(identical(other.password, password) || other.password == password)&&(identical(other.apiVersion, apiVersion) || other.apiVersion == apiVersion)&&(identical(other.useLegacyAuth, useLegacyAuth) || other.useLegacyAuth == useLegacyAuth)&&(identical(other.capabilitiesJson, capabilitiesJson) || other.capabilitiesJson == capabilitiesJson)&&(identical(other.lastSynced, lastSynced) || other.lastSynced == lastSynced)&&(identical(other.lastFullSyncedAt, lastFullSyncedAt) || other.lastFullSyncedAt == lastFullSyncedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,url,username,password,apiVersion,useLegacyAuth,capabilitiesJson,lastSynced);
+int get hashCode => Object.hash(runtimeType,id,name,url,username,password,apiVersion,useLegacyAuth,capabilitiesJson,lastSynced,lastFullSyncedAt);
 
 @override
 String toString() {
-  return 'ServerConfigModel(id: $id, name: $name, url: $url, username: $username, password: $password, apiVersion: $apiVersion, useLegacyAuth: $useLegacyAuth, capabilitiesJson: $capabilitiesJson, lastSynced: $lastSynced)';
+  return 'ServerConfigModel(id: $id, name: $name, url: $url, username: $username, password: $password, apiVersion: $apiVersion, useLegacyAuth: $useLegacyAuth, capabilitiesJson: $capabilitiesJson, lastSynced: $lastSynced, lastFullSyncedAt: $lastFullSyncedAt)';
 }
 
 
@@ -263,7 +265,7 @@ abstract mixin class _$ServerConfigModelCopyWith<$Res> implements $ServerConfigM
   factory _$ServerConfigModelCopyWith(_ServerConfigModel value, $Res Function(_ServerConfigModel) _then) = __$ServerConfigModelCopyWithImpl;
 @override @useResult
 $Res call({
- int? id, String? name, String url, String username, String password, String apiVersion, bool useLegacyAuth, String? capabilitiesJson, DateTime? lastSynced
+ int? id, String? name, String url, String username, String password, String apiVersion, bool useLegacyAuth, String? capabilitiesJson, DateTime? lastSynced, DateTime? lastFullSyncedAt
 });
 
 
@@ -280,7 +282,7 @@ class __$ServerConfigModelCopyWithImpl<$Res>
 
 /// Create a copy of ServerConfigModel
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = freezed,Object? name = freezed,Object? url = null,Object? username = null,Object? password = null,Object? apiVersion = null,Object? useLegacyAuth = null,Object? capabilitiesJson = freezed,Object? lastSynced = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = freezed,Object? name = freezed,Object? url = null,Object? username = null,Object? password = null,Object? apiVersion = null,Object? useLegacyAuth = null,Object? capabilitiesJson = freezed,Object? lastSynced = freezed,Object? lastFullSyncedAt = freezed,}) {
   return _then(_ServerConfigModel(
 id: freezed == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int?,name: freezed == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
@@ -291,6 +293,7 @@ as String,apiVersion: null == apiVersion ? _self.apiVersion : apiVersion // igno
 as String,useLegacyAuth: null == useLegacyAuth ? _self.useLegacyAuth : useLegacyAuth // ignore: cast_nullable_to_non_nullable
 as bool,capabilitiesJson: freezed == capabilitiesJson ? _self.capabilitiesJson : capabilitiesJson // ignore: cast_nullable_to_non_nullable
 as String?,lastSynced: freezed == lastSynced ? _self.lastSynced : lastSynced // ignore: cast_nullable_to_non_nullable
+as DateTime?,lastFullSyncedAt: freezed == lastFullSyncedAt ? _self.lastFullSyncedAt : lastFullSyncedAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,
   ));
 }

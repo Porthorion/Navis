@@ -1,8 +1,12 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:navis/src/api/subsonic_api_client.dart';
+import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
@@ -114,6 +118,7 @@ void main() {
     test('subsonicApiProvider builds client when server config exists', () {
       final container = ProviderContainer(
         overrides: [
+          networkTypeProvider.overrideWith((_) => NetworkType.other),
           serverConfigStateProvider.overrideWithValue(
             const AsyncData(
               ServerConfigModel(
@@ -130,5 +135,142 @@ void main() {
 
       expect(container.read(subsonicApiProvider), isNotNull);
     });
+
+    test('searchResultsProvider uses live search API path', () async {
+      final dio = Dio(BaseOptions(baseUrl: 'https://example.com'));
+      final client = SubsonicApiClient(
+        baseUrl: 'https://example.com',
+        authConfig: const SubsonicAuthConfig(
+          username: 'alice',
+          password: 'secret',
+          apiVersion: '1.16.1',
+        ),
+        dio: dio,
+        enableLogging: false,
+      );
+
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            if (options.path == '/rest/search3.view') {
+              handler.resolve(
+                Response<dynamic>(
+                  requestOptions: options,
+                  statusCode: 200,
+                  data: <String, dynamic>{
+                    'subsonic-response': <String, dynamic>{
+                      'status': 'ok',
+                      'searchResult3': <String, dynamic>{
+                        'artist': <Map<String, dynamic>>[
+                          <String, dynamic>{'id': 'a1', 'name': 'Artist 1'},
+                        ],
+                      },
+                    },
+                  },
+                ),
+              );
+              return;
+            }
+            handler.reject(
+              DioException(
+                requestOptions: options,
+                type: DioExceptionType.badResponse,
+              ),
+            );
+          },
+        ),
+      );
+
+      final container = ProviderContainer(
+        overrides: [
+          subsonicApiProvider.overrideWithValue(client),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final result = await container.read(
+        searchResultsProvider('hello').future,
+      );
+      expect(result.artists.single.id, 'a1');
+      expect(result.albums, isEmpty);
+      expect(result.songs, isEmpty);
+    });
+
+    test(
+      'albumProvider emits updated songs when hydration writes new rows',
+      () async {
+        final database = NavisDatabase(NativeDatabase.memory());
+        final container = ProviderContainer(
+          overrides: [
+            navisDatabaseProvider.overrideWithValue(database),
+          ],
+        );
+        addTearDown(() async {
+          container.dispose();
+          await database.close();
+        });
+
+        await database.libraryDao.replaceAlbums(
+          <AlbumsTableCompanion>[
+            AlbumsTableCompanion.insert(
+              id: 'album-1',
+              name: 'Album 1',
+              songsHydrated: const Value(false),
+            ),
+          ],
+        );
+
+        final emittedCounts = <int>[];
+        final completer = Completer<void>();
+        final subscription = container.listen<AsyncValue<AlbumWithSongs?>>(
+          albumProvider('album-1'),
+          (_, next) {
+            next.whenData((value) {
+              if (value == null) {
+                return;
+              }
+              emittedCounts.add(value.songs.length);
+              if (value.songs.length == 2 && !completer.isCompleted) {
+                completer.complete();
+              }
+            });
+          },
+          fireImmediately: true,
+        );
+        addTearDown(subscription.close);
+
+        await database.libraryDao.replaceSongsForAlbum(
+          'album-1',
+          <SongsTableCompanion>[
+            SongsTableCompanion.insert(
+              id: 'song-1',
+              title: 'Song 1',
+              albumId: const Value('album-1'),
+            ),
+          ],
+        );
+
+        await database.libraryDao.replaceSongsForAlbum(
+          'album-1',
+          <SongsTableCompanion>[
+            SongsTableCompanion.insert(
+              id: 'song-1',
+              title: 'Song 1',
+              albumId: const Value('album-1'),
+            ),
+            SongsTableCompanion.insert(
+              id: 'song-2',
+              title: 'Song 2',
+              albumId: const Value('album-1'),
+            ),
+          ],
+        );
+
+        await completer.future.timeout(const Duration(seconds: 5));
+        expect(emittedCounts, contains(1));
+        expect(emittedCounts.last, 2);
+      },
+      skip: !_sqliteAvailable,
+    );
   });
 }

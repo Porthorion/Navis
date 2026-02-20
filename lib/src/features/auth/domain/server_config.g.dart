@@ -19,6 +19,9 @@ _ServerConfigModel _$ServerConfigModelFromJson(Map<String, dynamic> json) =>
       lastSynced: json['lastSynced'] == null
           ? null
           : DateTime.parse(json['lastSynced'] as String),
+      lastFullSyncedAt: json['lastFullSyncedAt'] == null
+          ? null
+          : DateTime.parse(json['lastFullSyncedAt'] as String),
     );
 
 Map<String, dynamic> _$ServerConfigModelToJson(_ServerConfigModel instance) =>
@@ -32,4 +35,5 @@ Map<String, dynamic> _$ServerConfigModelToJson(_ServerConfigModel instance) =>
       'useLegacyAuth': instance.useLegacyAuth,
       'capabilitiesJson': instance.capabilitiesJson,
       'lastSynced': instance.lastSynced?.toIso8601String(),
+      'lastFullSyncedAt': instance.lastFullSyncedAt?.toIso8601String(),
     };

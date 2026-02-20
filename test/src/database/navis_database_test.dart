@@ -1,5 +1,7 @@
+import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:sqlite3/sqlite3.dart';
@@ -117,6 +119,76 @@ void main() {
       expect(state?.currentIndex, 0);
       expect(state?.positionMs, 4200);
       expect(items.single.id, 's1');
+    },
+    skip: !_sqliteAvailable,
+  );
+
+  test(
+    'albums paging returns SQL-sorted deterministic page',
+    () async {
+      await database.libraryDao.replaceAlbums(
+        <AlbumsTableCompanion>[
+          AlbumsTableCompanion.insert(
+            id: 'a-2024-b',
+            name: 'Beta',
+            year: const Value(2024),
+          ),
+          AlbumsTableCompanion.insert(
+            id: 'a-2025-a',
+            name: 'Alpha',
+            year: const Value(2025),
+          ),
+          AlbumsTableCompanion.insert(
+            id: 'a-2024-a',
+            name: 'Alpha',
+            year: const Value(2024),
+          ),
+        ],
+      );
+
+      final page = await database.libraryDao
+          .watchAlbumsPage(sort: AlbumSortOrder.newest, limit: 2)
+          .first;
+      expect(page.length, 2);
+      expect(page[0].id, 'a-2025-a');
+      expect(page[1].id, 'a-2024-a');
+    },
+    skip: !_sqliteAvailable,
+  );
+
+  test(
+    'pending hydration query returns only non-hydrated albums',
+    () async {
+      await database.libraryDao.replaceAlbums(
+        <AlbumsTableCompanion>[
+          AlbumsTableCompanion.insert(
+            id: 'hydrated',
+            name: 'Hydrated',
+            songsHydrated: const Value(true),
+          ),
+          AlbumsTableCompanion.insert(
+            id: 'pending-1',
+            name: 'Pending 1',
+            songsHydrated: const Value(false),
+          ),
+          AlbumsTableCompanion.insert(
+            id: 'pending-2',
+            name: 'Pending 2',
+            songsHydrated: const Value(false),
+          ),
+        ],
+      );
+
+      final pendingCount = await database.libraryDao
+          .countPendingHydrationAlbums();
+      final pendingRows = await database.libraryDao.getPendingHydrationAlbums(
+        limit: 10,
+      );
+      final pendingIds = pendingRows.map((row) => row.id).toSet();
+
+      expect(pendingCount, 2);
+      expect(pendingIds, containsAll(<String>{'pending-1', 'pending-2'}));
+      expect(pendingIds, isNot(contains('hydrated')));
     },
     skip: !_sqliteAvailable,
   );
