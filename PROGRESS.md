@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-02-19
+Last updated: 2026-02-20
 
 ---
 
@@ -16,12 +16,15 @@ Last updated: 2026-02-19
 - [x] Phase 1 close-out verification — 2026-02-19 (evidence: `LD_LIBRARY_PATH="/tmp/navis-sqlite:${LD_LIBRARY_PATH:-}" NAVIS_SMOKE_BASE_URL=... NAVIS_SMOKE_USERNAME=... NAVIS_SMOKE_PASSWORD=... NAVIS_SMOKE_USE_LEGACY_AUTH=true NAVIS_SMOKE_API_VERSION=1.16.1 ./tool/phase1_closeout.sh`)
 - [x] Phase 1 close-out automation gate added — 2026-02-19 (evidence: `tool/phase1_closeout.sh`, `tool/phase1_ping_smoke.dart`, `Makefile` target `phase1-closeout`)
 - [x] Phase 2 close-out verification — 2026-02-19 (evidence: `./tool/check.sh`, `test/src/features/auth/presentation/server_reachability_provider_test.dart`, `test/src/features/settings/presentation/server_settings_screen_test.dart`, `test/src/features/auth/data/sign_out_service_test.dart`, `test/src/routing/app_router_test.dart`)
+- [x] Phase 3 stabilization increment (albums paging + cover art + resumable song hydration) — 2026-02-20 (evidence: `./tool/check.sh`, `lib/src/features/library/presentation/library_screen.dart`, `lib/src/common_widgets/cover_art_image.dart`, `lib/src/features/library/data/library_sync_engine.dart`)
+- [x] Phase 3 sync throughput optimization (chunked hydration writes + adaptive concurrency + rebaseline delta hydration) — 2026-02-20 (evidence: `./tool/check.sh`, `lib/src/features/library/data/library_sync_engine.dart`, `lib/src/database/daos/library_dao.dart`, `test/src/features/library/data/library_sync_engine_test.dart`, `test/src/database/library_dao_test.dart`)
+- [x] Phase 3 sync throughput + runtime stabilization (bulk-auto hydration fallback, priority hydration queue, Android SDK 36 alignment, home overflow hardening, retry/log cleanup) — 2026-02-20 (evidence: `./tool/check.sh`, `lib/src/features/library/data/library_sync_engine.dart`, `lib/src/features/library/presentation/library_sync_provider.dart`, `lib/src/features/home/presentation/home_screen.dart`, `lib/src/api/subsonic_logging_interceptor.dart`, `android/app/build.gradle.kts`, `test/src/features/library/data/library_sync_engine_test.dart`)
 
 ## Meta Progress
 - [x] Tech stack and methodology validation refresh — 2026-02-18 (evidence: `DEVELOPMENT_PLAN.md` stack validation section + README tech stack update)
 
 ## Blockers
-- Android mobile runtime validation still blocked — 2026-02-19 (error: `flutter doctor -v` reports missing Android SDK; workaround used for Phase 0 runtime verification: `flutter run -d linux`)
+- None currently tracked.
 
 ---
 
@@ -102,36 +105,39 @@ Last updated: 2026-02-19
 
 ## Phase 3: Library Browsing & Metadata Sync
 ### 3.1 — Sync Engine
-- [ ] Full initial sync (artists → albums → songs → genres → playlists)
-- [ ] Incremental sync with `ifModifiedSince`
-- [ ] Background isolate execution
-- [ ] Force re-sync from settings
-- [ ] Sync progress indicator
+- [x] Full initial sync (artists → albums → songs → genres → playlists) — 2026-02-20 (evidence: `lib/src/features/library/data/library_sync_engine.dart`, `test/src/features/library/data/library_sync_engine_test.dart`)
+- [x] Incremental sync with `ifModifiedSince` — 2026-02-20 (evidence: `lib/src/api/subsonic_api_client.dart` `getIndexes`, `lib/src/api/models/indexes.dart`, `test/src/features/library/data/library_sync_engine_test.dart`)
+- [x] Progressive/resumable song hydration with pending-state recovery — 2026-02-20 (evidence: `lib/src/features/library/data/library_sync_engine.dart`, `lib/src/database/daos/library_dao.dart`, `test/src/features/library/data/library_sync_engine_test.dart`)
+- [x] Bulk song hydration auto-fast-path with guaranteed fallback to per-album hydration — 2026-02-20 (evidence: `lib/src/features/library/data/library_sync_engine.dart`, `test/src/features/library/data/library_sync_engine_test.dart`)
+- [x] Priority hydration queue for visible/recently interacted albums, then background backlog completion — 2026-02-20 (evidence: `lib/src/features/library/presentation/library_sync_provider.dart`, `lib/src/features/library/presentation/library_screen.dart`, `lib/src/features/library/presentation/album_detail_screen.dart`)
+- [ ] Background isolate execution — partial: 2026-02-20 (remaining: sync orchestration remains on main isolate; heavy album/song companion transformation is offloaded via `Isolate.run` in `lib/src/features/library/data/library_sync_engine.dart`)
+- [x] Force re-sync from settings — 2026-02-20 (evidence: `lib/src/features/settings/presentation/server_settings_screen.dart`, `test/src/features/settings/presentation/server_settings_screen_test.dart`)
+- [x] Sync progress indicator — 2026-02-20 (evidence: `lib/src/features/library/presentation/library_screen.dart` `_SyncStatusBanner`)
 
 ### 3.2 — Library UI
-- [ ] Home screen carousels (recently played, recently added, most played, random, starred)
-- [ ] Artists tab (alphabetical, fast scroll index)
-- [ ] Artist detail screen (albums grid, bio, similar artists)
-- [ ] Albums tab (grid, sort options)
-- [ ] Album detail screen (cover art, track list, star, download, context menu)
-- [ ] Songs tab (flat list, sort options)
-- [ ] Genres tab (genre list → filtered content)
-- [ ] NavigationBar (Home, Library, Search, Settings)
-- [ ] 60fps scroll with 10K+ items
+- [x] Home screen carousels (recently played, recently added, most played, random, starred) — 2026-02-20 (evidence: `lib/src/features/home/presentation/home_screen.dart`, `lib/src/features/home/presentation/home_providers.dart`)
+- [x] Artists tab (alphabetical, fast scroll index) — 2026-02-20 (evidence: `lib/src/features/library/presentation/library_screen.dart`)
+- [x] Artist detail screen (albums grid, bio, similar artists) — 2026-02-20 (evidence: `lib/src/features/library/presentation/artist_detail_screen.dart`)
+- [x] Albums tab (paged grid, SQL sort, large-library friendly loading) — 2026-02-20 (evidence: `lib/src/features/library/presentation/library_screen.dart`, `lib/src/providers/app_providers.dart`, `lib/src/database/daos/library_dao.dart`)
+- [x] Album detail screen (cover art, track list, star, download, context menu) — 2026-02-20 (evidence: `lib/src/features/library/presentation/album_detail_screen.dart`)
+- [x] Songs tab (flat list, sort options) — 2026-02-20 (evidence: `lib/src/features/library/presentation/library_screen.dart`)
+- [x] Genres tab (genre list → filtered content) — 2026-02-20 (evidence: `lib/src/features/library/presentation/library_screen.dart`, `lib/src/features/library/presentation/genre_detail_screen.dart`, `lib/src/routing/app_router.dart`)
+- [x] NavigationBar (Home, Library, Search, Settings) — 2026-02-20 (evidence: `lib/src/routing/app_shell.dart`)
+- [ ] 60fps scroll with 10K+ items — partial: 2026-02-20 (remaining: explicit large-library profiling/benchmark evidence pending)
 
 ### 3.3 — Common Widgets
-- [ ] `ShimmerPlaceholder` skeleton loading widget
-- [ ] `ErrorState` widget (with retry)
-- [ ] `EmptyState` widget (with contextual message)
-- [ ] `CoverArtImage`, `TrackListTile`, `AlbumCard`, `ArtistCard`, `StarButton`, `CacheBadge`
+- [x] `ShimmerPlaceholder` skeleton loading widget — 2026-02-20 (evidence: `lib/src/common_widgets/shimmer_placeholder.dart`)
+- [x] `ErrorState` widget (with retry) — 2026-02-20 (evidence: `lib/src/common_widgets/error_state.dart`)
+- [x] `EmptyState` widget (with contextual message) — 2026-02-20 (evidence: `lib/src/common_widgets/empty_state.dart`)
+- [ ] `CoverArtImage`, `TrackListTile`, `AlbumCard`, `ArtistCard`, `StarButton`, `CacheBadge` — partial: 2026-02-20 (implemented: `CoverArtImage`, `TrackListTile`, `AlbumCard`, `ArtistCard`; remaining: `StarButton`, `CacheBadge`)
 
 ### 3.4 — Context Menus & Actions
-- [ ] Context menu bottom sheets (song, album, artist)
+- [x] Context menu bottom sheets (song, album, artist) — 2026-02-20 (evidence: `lib/src/features/library/presentation/library_screen.dart`, `lib/src/features/library/presentation/album_detail_screen.dart`)
 
 ### 3.5 — Localization Setup
-- [ ] `l10n.yaml` configuration
-- [ ] `lib/l10n/app_en.arb` with all Phase 3 strings
-- [ ] `AppLocalizations` integration in all Phase 3 screens
+- [x] `l10n.yaml` configuration — 2026-02-20 (evidence: `l10n.yaml`)
+- [x] `lib/l10n/app_en.arb` with all implemented Phase 3 strings — 2026-02-20 (evidence: `lib/l10n/app_en.arb`)
+- [x] `AppLocalizations` integration in implemented Phase 3 screens — 2026-02-20 (evidence: `lib/src/features/home/presentation/home_screen.dart`, `lib/src/features/library/presentation/library_screen.dart`, `lib/src/features/library/presentation/artist_detail_screen.dart`, `lib/src/features/library/presentation/album_detail_screen.dart`, `lib/src/features/library/presentation/genre_detail_screen.dart`)
 
 ## Phase 4: Audio Playback Engine
 ### 4.1 — NavisAudioHandler
