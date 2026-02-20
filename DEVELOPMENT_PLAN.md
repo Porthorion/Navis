@@ -706,7 +706,7 @@ The MiniPlayer is rendered inside the `ShellRoute`'s scaffold, floating above th
 
 ### 3.1 — Sync Engine
 
-**Location**: `lib/src/features/library/data/sync_engine.dart`
+**Location**: `lib/src/features/library/data/library_sync_engine.dart`
 
 The sync engine pulls metadata from the server and stores it in the local drift database.
 
@@ -724,6 +724,7 @@ The sync engine pulls metadata from the server and stores it in the local drift 
 - Update `lastSynced` on completion.
 
 **Sync runs in a background isolate** (drift supports cross-isolate database access) so the UI never janks during sync.
+Implementation note (2026-02-20): Current implementation offloads heavy album/song companion transformation through `Isolate.run`; full orchestration on a dedicated background isolate remains a follow-up optimization.
 
 **Sync triggers**:
 - On app launch (if last sync > configurable threshold, default 1 hour).

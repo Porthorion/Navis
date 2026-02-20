@@ -20,6 +20,11 @@ class AppLogger {
     _logger.w(message);
   }
 
+  /// Logs a low-priority debug message.
+  static void debug(String message) {
+    _logger.t(message);
+  }
+
   /// Logs an error message.
   static void error(String message, [Object? error, StackTrace? stackTrace]) {
     _logger.e(message, error: error, stackTrace: stackTrace);
