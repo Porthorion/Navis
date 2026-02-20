@@ -99,6 +99,62 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsAppearanceTitle => 'Appearance';
 
   @override
+  String get homeTitle => 'Home';
+
+  @override
+  String get homeLoadErrorTitle => 'Could not load section';
+
+  @override
+  String get homeRecentlyPlayedTitle => 'Recently played';
+
+  @override
+  String get homeRecentlyPlayedEmptyTitle => 'No recent plays yet';
+
+  @override
+  String get homeRecentlyPlayedEmptySubtitle =>
+      'Start playback to populate this section.';
+
+  @override
+  String get homeRecentlyAddedTitle => 'Recently added';
+
+  @override
+  String get homeRecentlyAddedEmptyTitle => 'No recently added albums';
+
+  @override
+  String get homeRecentlyAddedEmptySubtitle =>
+      'Pull to refresh to fetch newly added albums.';
+
+  @override
+  String get homeFrequentTitle => 'Most played';
+
+  @override
+  String get homeFrequentEmptyTitle => 'No frequent albums yet';
+
+  @override
+  String get homeFrequentEmptySubtitle =>
+      'Play more tracks to build listening history.';
+
+  @override
+  String get homeRandomTitle => 'Random picks';
+
+  @override
+  String get homeRandomEmptyTitle => 'No random picks available';
+
+  @override
+  String get homeRandomEmptySubtitle =>
+      'Pull to refresh to fetch random albums.';
+
+  @override
+  String get homeStarredTitle => 'Starred tracks';
+
+  @override
+  String get homeStarredEmptyTitle => 'No starred tracks';
+
+  @override
+  String get homeStarredEmptySubtitle =>
+      'Star tracks on your server to see them here.';
+
+  @override
   String get serverSettingsTitle => 'Server Settings';
 
   @override
@@ -159,6 +215,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get serverSettingsSaveSuccess => 'Server settings saved.';
 
   @override
+  String get serverSettingsForceFullSync => 'Force Full Sync';
+
+  @override
+  String get serverSettingsForceFullSyncRunning => 'Sync in progress...';
+
+  @override
+  String get serverSettingsForceFullSyncSuccess =>
+      'Full library sync completed.';
+
+  @override
+  String serverSettingsForceFullSyncFailure(Object message) {
+    return 'Full sync failed: $message';
+  }
+
+  @override
   String get serverSettingsSignOut => 'Sign out';
 
   @override
@@ -186,4 +257,320 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get serverSettingsSignOutError =>
       'Could not complete sign out. Try again.';
+
+  @override
+  String get commonRetry => 'Retry';
+
+  @override
+  String get libraryTitle => 'Library';
+
+  @override
+  String get libraryTabArtists => 'Artists';
+
+  @override
+  String get libraryTabAlbums => 'Albums';
+
+  @override
+  String get libraryTabSongs => 'Songs';
+
+  @override
+  String get libraryTabGenres => 'Genres';
+
+  @override
+  String get librarySyncRunning => 'Syncing library metadata...';
+
+  @override
+  String librarySyncRunningStage(Object stage) {
+    return 'Syncing: $stage';
+  }
+
+  @override
+  String librarySyncRunningWithProgress(int processed, int total) {
+    return 'Syncing library metadata ($processed/$total)';
+  }
+
+  @override
+  String librarySyncLastSynced(Object timestamp) {
+    return 'Last synced: $timestamp';
+  }
+
+  @override
+  String get librarySyncStagePreparing => 'Preparing';
+
+  @override
+  String get librarySyncStageArtists => 'Fetching artists';
+
+  @override
+  String get librarySyncStageAlbums => 'Fetching albums';
+
+  @override
+  String get librarySyncStagePersisting => 'Persisting metadata';
+
+  @override
+  String get librarySyncStageSongs => 'Hydrating songs';
+
+  @override
+  String get librarySyncStageGenres => 'Fetching genres';
+
+  @override
+  String get librarySyncStagePlaylists => 'Fetching playlists';
+
+  @override
+  String get librarySyncStageFinalizing => 'Finalizing';
+
+  @override
+  String get librarySyncFailureFallback => 'Library sync failed.';
+
+  @override
+  String get librarySyncHydratingUnknown =>
+      'Metadata ready. Hydrating songs...';
+
+  @override
+  String librarySyncHydratingProgress(int processed, int total, int pending) {
+    return 'Metadata ready. Hydrating songs ($processed/$total, $pending remaining)';
+  }
+
+  @override
+  String librarySyncHydratingProgressWithRate(
+    int processed,
+    int total,
+    int pending,
+    Object rate,
+  ) {
+    return 'Metadata ready. Hydrating songs ($processed/$total, $pending remaining, $rate albums/s)';
+  }
+
+  @override
+  String get libraryArtistsEmptyTitle => 'No artists found';
+
+  @override
+  String get libraryArtistsEmptySubtitle =>
+      'Run a sync to populate your library.';
+
+  @override
+  String get libraryArtistsIndexAll => 'All';
+
+  @override
+  String get libraryArtistsErrorTitle => 'Could not load artists';
+
+  @override
+  String get libraryAlbumsEmptyTitle => 'No albums found';
+
+  @override
+  String get libraryAlbumsEmptySubtitle =>
+      'Run a sync to populate your library.';
+
+  @override
+  String get libraryAlbumsErrorTitle => 'Could not load albums';
+
+  @override
+  String get libraryAlbumsSortLabel => 'Sort albums by';
+
+  @override
+  String libraryAlbumsPagingProgress(int loaded, int total) {
+    return 'Loaded $loaded of $total albums';
+  }
+
+  @override
+  String get librarySongsEmptyTitle => 'No songs found';
+
+  @override
+  String get librarySongsEmptySubtitle =>
+      'Run a sync to populate your library.';
+
+  @override
+  String get librarySongsErrorTitle => 'Could not load songs';
+
+  @override
+  String get librarySongsSortLabel => 'Sort songs by';
+
+  @override
+  String get libraryGenresEmptyTitle => 'No genres found';
+
+  @override
+  String get libraryGenresEmptySubtitle =>
+      'Run a sync to populate your library.';
+
+  @override
+  String get libraryGenresErrorTitle => 'Could not load genres';
+
+  @override
+  String libraryGenresCount(int albums, int songs) {
+    return '$albums albums • $songs songs';
+  }
+
+  @override
+  String get librarySortNewest => 'Newest';
+
+  @override
+  String get librarySortName => 'Name';
+
+  @override
+  String get librarySortArtist => 'Artist';
+
+  @override
+  String get librarySortArtistAlbum => 'Artist / Album';
+
+  @override
+  String get librarySortTitle => 'Title';
+
+  @override
+  String get librarySortDuration => 'Duration';
+
+  @override
+  String get libraryArtistMenuOpen => 'Open artist';
+
+  @override
+  String get libraryAlbumMenuOpen => 'Open album';
+
+  @override
+  String get librarySongMenuPlayNow => 'Play now';
+
+  @override
+  String get librarySongMenuAddToQueue => 'Add to queue';
+
+  @override
+  String get librarySongMenuOpenAlbum => 'Open album';
+
+  @override
+  String get librarySongMenuOpenArtist => 'Open artist';
+
+  @override
+  String librarySongPlayNowQueued(Object title) {
+    return '\"$title\" queued to play now.';
+  }
+
+  @override
+  String librarySongAddedToQueue(Object title) {
+    return '\"$title\" added to queue.';
+  }
+
+  @override
+  String libraryGenreDetailTitle(Object genre) {
+    return '$genre';
+  }
+
+  @override
+  String get libraryGenreAlbumsTab => 'Albums';
+
+  @override
+  String get libraryGenreSongsTab => 'Songs';
+
+  @override
+  String get libraryGenreAlbumsEmptyTitle => 'No albums in this genre';
+
+  @override
+  String get libraryGenreAlbumsEmptySubtitle => 'Sync to refresh genre albums.';
+
+  @override
+  String get libraryGenreSongsEmptyTitle => 'No songs in this genre';
+
+  @override
+  String get libraryGenreSongsEmptySubtitle => 'Sync to refresh genre songs.';
+
+  @override
+  String get libraryGenreLoadErrorTitle => 'Could not load genre';
+
+  @override
+  String artistCardAlbumCount(int count) {
+    return '$count albums';
+  }
+
+  @override
+  String get artistDetailTitle => 'Artist';
+
+  @override
+  String get artistDetailNotFoundTitle => 'Artist not found';
+
+  @override
+  String get artistDetailNotFoundSubtitle =>
+      'This artist is not available in local data.';
+
+  @override
+  String artistDetailAlbumCount(int count) {
+    return '$count albums';
+  }
+
+  @override
+  String get artistDetailAlbumsEmptyTitle => 'No albums for this artist';
+
+  @override
+  String get artistDetailAlbumsEmptySubtitle =>
+      'Sync your library to load artist albums.';
+
+  @override
+  String get artistDetailAlbumsSection => 'Albums';
+
+  @override
+  String get artistDetailUnknownYear => 'Unknown year';
+
+  @override
+  String get artistDetailBioSection => 'Biography';
+
+  @override
+  String get artistDetailSimilarSection => 'Similar artists';
+
+  @override
+  String get artistDetailAlbumsErrorTitle => 'Could not load artist albums';
+
+  @override
+  String get artistDetailLoadErrorTitle => 'Could not load artist details';
+
+  @override
+  String get albumDetailTitle => 'Album';
+
+  @override
+  String get albumDetailNotFoundTitle => 'Album not found';
+
+  @override
+  String get albumDetailNotFoundSubtitle =>
+      'This album is not available in local data.';
+
+  @override
+  String get albumDetailUnknownArtist => 'Unknown artist';
+
+  @override
+  String albumDetailMeta(Object artist, Object year, int trackCount) {
+    return '$artist • $year • $trackCount tracks';
+  }
+
+  @override
+  String get albumDetailTracksEmptyTitle => 'No tracks for this album';
+
+  @override
+  String get albumDetailTracksEmptySubtitle =>
+      'Sync your library to load album tracks.';
+
+  @override
+  String get albumDetailLoadErrorTitle => 'Could not load album details';
+
+  @override
+  String get albumDetailPlayAction => 'Play';
+
+  @override
+  String get albumDetailShuffleAction => 'Shuffle';
+
+  @override
+  String get albumDetailStarAction => 'Star';
+
+  @override
+  String get albumDetailDownloadAction => 'Download';
+
+  @override
+  String get albumDetailDownloadActionQueued => 'Album queued for download.';
+
+  @override
+  String get albumDetailPlayActionQueued => 'Album queued for playback.';
+
+  @override
+  String get albumDetailShuffleActionQueued => 'Album shuffled into queue.';
+
+  @override
+  String get albumDetailStarSuccess => 'Album starred.';
+
+  @override
+  String get albumDetailUnstarSuccess => 'Album unstarred.';
+
+  @override
+  String get albumDetailStarFailure => 'Could not update star status.';
 }

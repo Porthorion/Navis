@@ -8,6 +8,8 @@ import 'package:navis/src/features/auth/data/sign_out_service.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_connection_provider.dart';
+import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/settings/presentation/server_settings_screen.dart';
 
 class _FakeServerConnectionService extends ServerConnectionService {
@@ -70,6 +72,38 @@ class _TestServerConfigNotifier extends ServerConfigNotifier {
   ServerConfigModel? savedConfigSnapshot() => _savedConfig;
 }
 
+class _StaticLibrarySyncController extends LibrarySyncController {
+  _StaticLibrarySyncController({
+    void Function({required bool forceFull})? onSyncNow,
+  }) : _onSyncNow = onSyncNow;
+
+  final void Function({required bool forceFull})? _onSyncNow;
+
+  @override
+  LibrarySyncState build() => const LibrarySyncState.idle();
+
+  @override
+  Future<LibrarySyncState> syncIfStale({
+    Iterable<String> priorityAlbumIds = const <String>[],
+  }) async {
+    return const LibrarySyncState.idle();
+  }
+
+  @override
+  Future<LibrarySyncState> syncNow({
+    bool forceFull = false,
+    Iterable<String> priorityAlbumIds = const <String>[],
+  }) async {
+    _onSyncNow?.call(forceFull: forceFull);
+    return LibrarySyncState(
+      status: LibrarySyncStatus.succeeded,
+      stage: LibrarySyncStage.completed,
+      completedAt: DateTime.now(),
+      lastSyncedAt: DateTime.now(),
+    );
+  }
+}
+
 void main() {
   const initialConfig = ServerConfigModel(
     name: 'example.com',
@@ -82,6 +116,7 @@ void main() {
   testWidgets('renders current server details', (tester) async {
     final fakeConnection = _FakeServerConnectionService();
     final fakeSignOut = _FakeSignOutService();
+    final fakeSync = _StaticLibrarySyncController();
 
     await tester.pumpWidget(
       ProviderScope(
@@ -91,6 +126,7 @@ void main() {
           ),
           serverConnectionServiceProvider.overrideWithValue(fakeConnection),
           signOutServiceProvider.overrideWithValue(fakeSignOut),
+          librarySyncControllerProvider.overrideWith(() => fakeSync),
         ],
         child: _buildTestApp(),
       ),
@@ -106,6 +142,7 @@ void main() {
   testWidgets('test connection action shows success', (tester) async {
     final fakeConnection = _FakeServerConnectionService();
     final fakeSignOut = _FakeSignOutService();
+    final fakeSync = _StaticLibrarySyncController();
 
     await tester.pumpWidget(
       ProviderScope(
@@ -115,6 +152,7 @@ void main() {
           ),
           serverConnectionServiceProvider.overrideWithValue(fakeConnection),
           signOutServiceProvider.overrideWithValue(fakeSignOut),
+          librarySyncControllerProvider.overrideWith(() => fakeSync),
         ],
         child: _buildTestApp(),
       ),
@@ -131,6 +169,7 @@ void main() {
   testWidgets('save updates server config', (tester) async {
     final fakeConnection = _FakeServerConnectionService();
     final fakeSignOut = _FakeSignOutService();
+    final fakeSync = _StaticLibrarySyncController();
     late _TestServerConfigNotifier notifier;
 
     await tester.pumpWidget(
@@ -141,6 +180,7 @@ void main() {
           ),
           serverConnectionServiceProvider.overrideWithValue(fakeConnection),
           signOutServiceProvider.overrideWithValue(fakeSignOut),
+          librarySyncControllerProvider.overrideWith(() => fakeSync),
         ],
         child: _buildTestApp(),
       ),
@@ -164,6 +204,7 @@ void main() {
   testWidgets('sign out dialog presents both options', (tester) async {
     final fakeConnection = _FakeServerConnectionService();
     final fakeSignOut = _FakeSignOutService();
+    final fakeSync = _StaticLibrarySyncController();
 
     await tester.pumpWidget(
       ProviderScope(
@@ -173,6 +214,7 @@ void main() {
           ),
           serverConnectionServiceProvider.overrideWithValue(fakeConnection),
           signOutServiceProvider.overrideWithValue(fakeSignOut),
+          librarySyncControllerProvider.overrideWith(() => fakeSync),
         ],
         child: _buildTestApp(),
       ),
@@ -185,6 +227,44 @@ void main() {
 
     expect(find.text('Sign out (keep local data)'), findsOneWidget);
     expect(find.text('Sign out and clear local data'), findsOneWidget);
+  });
+
+  testWidgets('force full sync action triggers sync controller', (
+    tester,
+  ) async {
+    final fakeConnection = _FakeServerConnectionService();
+    final fakeSignOut = _FakeSignOutService();
+    var syncNowCalls = 0;
+    bool? lastForceFull;
+    final fakeSync = _StaticLibrarySyncController(
+      onSyncNow: ({required forceFull}) {
+        syncNowCalls++;
+        lastForceFull = forceFull;
+      },
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          serverConfigProvider.overrideWith(
+            () => _TestServerConfigNotifier(initialConfig),
+          ),
+          serverConnectionServiceProvider.overrideWithValue(fakeConnection),
+          signOutServiceProvider.overrideWithValue(fakeSignOut),
+          librarySyncControllerProvider.overrideWith(() => fakeSync),
+        ],
+        child: _buildTestApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Force Full Sync'));
+    await tester.tap(find.text('Force Full Sync'));
+    await tester.pumpAndSettle();
+
+    expect(syncNowCalls, 1);
+    expect(lastForceFull, isTrue);
+    expect(find.text('Full library sync completed.'), findsOneWidget);
   });
 }
 

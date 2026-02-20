@@ -5,6 +5,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
+import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 
 class AppShell extends ConsumerWidget {
   const AppShell({required this.navigationShell, super.key});
@@ -14,6 +15,7 @@ class AppShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
+    ref.watch(librarySyncControllerProvider);
     final isAuthenticated =
         ref.watch(serverConfigStateProvider).asData?.value != null;
     final reachability = ref.watch(serverReachabilityControllerProvider);

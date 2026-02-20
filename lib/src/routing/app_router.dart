@@ -6,6 +6,7 @@ import 'package:navis/src/features/downloads/presentation/downloads_screen.dart'
 import 'package:navis/src/features/home/presentation/home_screen.dart';
 import 'package:navis/src/features/library/presentation/album_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/artist_detail_screen.dart';
+import 'package:navis/src/features/library/presentation/genre_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/library_screen.dart';
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_detail_screen.dart';
@@ -77,6 +78,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     builder: (context, state) {
                       final albumId = state.pathParameters['id']!;
                       return AlbumDetailScreen(albumId: albumId);
+                    },
+                  ),
+                  GoRoute(
+                    path: 'genres/:encodedGenre',
+                    builder: (context, state) {
+                      final encodedGenre =
+                          state.pathParameters['encodedGenre']!;
+                      return GenreDetailScreen(encodedGenre: encodedGenre);
                     },
                   ),
                 ],
