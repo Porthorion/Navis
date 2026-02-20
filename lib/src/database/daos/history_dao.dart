@@ -2,10 +2,11 @@ import 'package:drift/drift.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/play_history_table.dart';
 import 'package:navis/src/database/tables/recent_searches_table.dart';
+import 'package:navis/src/database/tables/songs_table.dart';
 
 part 'history_dao.g.dart';
 
-@DriftAccessor(tables: [PlayHistoryTable, RecentSearchesTable])
+@DriftAccessor(tables: [PlayHistoryTable, RecentSearchesTable, SongsTable])
 class HistoryDao extends DatabaseAccessor<NavisDatabase>
     with _$HistoryDaoMixin {
   HistoryDao(super.db);
@@ -23,6 +24,22 @@ class HistoryDao extends DatabaseAccessor<NavisDatabase>
         songId: songId,
         playedAt: DateTime.now(),
       ),
+    );
+  }
+
+  Stream<List<SongsTableData>> watchRecentlyPlayedSongs({int limit = 20}) {
+    final query =
+        select(playHistoryTable).join([
+            innerJoin(
+              songsTable,
+              songsTable.id.equalsExp(playHistoryTable.songId),
+            ),
+          ])
+          ..orderBy([OrderingTerm.desc(playHistoryTable.playedAt)])
+          ..limit(limit);
+
+    return query.watch().map(
+      (rows) => rows.map((row) => row.readTable(songsTable)).toList(),
     );
   }
 

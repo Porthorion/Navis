@@ -3,11 +3,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/src/app.dart';
+import 'package:navis/src/api/models/models.dart';
+import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/data/sign_out_service.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
+import 'package:navis/src/features/home/presentation/home_providers.dart';
+import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_router.dart';
 
 class _StaticReachabilityController extends ServerReachabilityController {
@@ -56,11 +62,34 @@ class _CallbackSignOutService implements SignOutService {
   }
 }
 
+class _StaticLibrarySyncController extends LibrarySyncController {
+  @override
+  LibrarySyncState build() => const LibrarySyncState.idle();
+
+  @override
+  Future<LibrarySyncState> syncIfStale({
+    Iterable<String> priorityAlbumIds = const <String>[],
+  }) async {
+    return const LibrarySyncState.idle();
+  }
+
+  @override
+  Future<LibrarySyncState> syncNow({
+    bool forceFull = false,
+    Iterable<String> priorityAlbumIds = const <String>[],
+  }) async {
+    return const LibrarySyncState.idle();
+  }
+}
+
 void main() {
   testWidgets('redirects unauthenticated user to /login', (tester) async {
     final container = ProviderContainer(
       overrides: [
         serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
+        librarySyncControllerProvider.overrideWith(
+          _StaticLibrarySyncController.new,
+        ),
       ],
     );
     addTearDown(container.dispose);
@@ -84,6 +113,9 @@ void main() {
       overrides: [
         serverConfigStateProvider.overrideWithValue(
           const AsyncLoading<ServerConfigModel?>(),
+        ),
+        librarySyncControllerProvider.overrideWith(
+          _StaticLibrarySyncController.new,
         ),
       ],
     );
@@ -120,6 +152,19 @@ void main() {
             ),
           ),
         ),
+        librarySyncControllerProvider.overrideWith(
+          _StaticLibrarySyncController.new,
+        ),
+        homeRecentlyPlayedProvider.overrideWithValue(
+          const AsyncData(<SongsTableData>[]),
+        ),
+        homeRecentlyAddedProvider.overrideWithValue(const AsyncData(<Album>[])),
+        homeFrequentAlbumsProvider.overrideWithValue(
+          const AsyncData(<Album>[]),
+        ),
+        homeRandomAlbumsProvider.overrideWithValue(const AsyncData(<Album>[])),
+        homeStarredSongsProvider.overrideWithValue(const AsyncData(<Song>[])),
+        artistInfoProvider.overrideWith((ref, artistId) async => null),
       ],
     );
     addTearDown(container.dispose);
@@ -132,10 +177,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(
-      find.text('Phase 3: discovery feed and personalized carousels.'),
-      findsOneWidget,
-    );
+    expect(find.text('Home'), findsWidgets);
     expect(find.text('MiniPlayer (Phase 5)'), findsOneWidget);
   });
 
@@ -161,6 +203,19 @@ void main() {
             ),
           ),
         ),
+        librarySyncControllerProvider.overrideWith(
+          _StaticLibrarySyncController.new,
+        ),
+        homeRecentlyPlayedProvider.overrideWithValue(
+          const AsyncData(<SongsTableData>[]),
+        ),
+        homeRecentlyAddedProvider.overrideWithValue(const AsyncData(<Album>[])),
+        homeFrequentAlbumsProvider.overrideWithValue(
+          const AsyncData(<Album>[]),
+        ),
+        homeRandomAlbumsProvider.overrideWithValue(const AsyncData(<Album>[])),
+        homeStarredSongsProvider.overrideWithValue(const AsyncData(<Song>[])),
+        artistInfoProvider.overrideWith((ref, artistId) async => null),
       ],
     );
     addTearDown(container.dispose);
@@ -199,6 +254,19 @@ void main() {
             ),
           ),
         ),
+        librarySyncControllerProvider.overrideWith(
+          _StaticLibrarySyncController.new,
+        ),
+        homeRecentlyPlayedProvider.overrideWithValue(
+          const AsyncData(<SongsTableData>[]),
+        ),
+        homeRecentlyAddedProvider.overrideWithValue(const AsyncData(<Album>[])),
+        homeFrequentAlbumsProvider.overrideWithValue(
+          const AsyncData(<Album>[]),
+        ),
+        homeRandomAlbumsProvider.overrideWithValue(const AsyncData(<Album>[])),
+        homeStarredSongsProvider.overrideWithValue(const AsyncData(<Song>[])),
+        artistInfoProvider.overrideWith((ref, artistId) async => null),
       ],
     );
     addTearDown(container.dispose);
@@ -213,12 +281,14 @@ void main() {
 
     final router = container.read(appRouterProvider);
     router.go('/library/artists/artist-42');
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
 
-    expect(find.text('Artist ID: artist-42'), findsOneWidget);
+    expect(find.text('Artist'), findsOneWidget);
 
     router.go('/settings/cache');
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
 
     expect(find.text('Cache Settings'), findsWidgets);
   });
@@ -227,6 +297,9 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
+        librarySyncControllerProvider.overrideWith(
+          _StaticLibrarySyncController.new,
+        ),
       ],
     );
     addTearDown(container.dispose);
@@ -259,6 +332,7 @@ void main() {
     expect(configuredLocations, contains('/library'));
     expect(configuredLocations, contains('/library/artists/:id'));
     expect(configuredLocations, contains('/library/albums/:id'));
+    expect(configuredLocations, contains('/library/genres/:encodedGenre'));
     expect(configuredLocations, contains('/search'));
     expect(configuredLocations, contains('/playlists'));
     expect(configuredLocations, contains('/playlists/:id'));
@@ -302,6 +376,19 @@ void main() {
             await notifier.clear();
           }),
         ),
+        librarySyncControllerProvider.overrideWith(
+          _StaticLibrarySyncController.new,
+        ),
+        homeRecentlyPlayedProvider.overrideWithValue(
+          const AsyncData(<SongsTableData>[]),
+        ),
+        homeRecentlyAddedProvider.overrideWithValue(const AsyncData(<Album>[])),
+        homeFrequentAlbumsProvider.overrideWithValue(
+          const AsyncData(<Album>[]),
+        ),
+        homeRandomAlbumsProvider.overrideWithValue(const AsyncData(<Album>[])),
+        homeStarredSongsProvider.overrideWithValue(const AsyncData(<Song>[])),
+        artistInfoProvider.overrideWith((ref, artistId) async => null),
       ],
     );
     addTearDown(container.dispose);

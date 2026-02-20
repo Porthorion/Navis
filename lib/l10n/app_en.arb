@@ -32,6 +32,23 @@
   "settingsCacheTitle": "Cache",
   "settingsPlaybackTitle": "Playback",
   "settingsAppearanceTitle": "Appearance",
+  "homeTitle": "Home",
+  "homeLoadErrorTitle": "Could not load section",
+  "homeRecentlyPlayedTitle": "Recently played",
+  "homeRecentlyPlayedEmptyTitle": "No recent plays yet",
+  "homeRecentlyPlayedEmptySubtitle": "Start playback to populate this section.",
+  "homeRecentlyAddedTitle": "Recently added",
+  "homeRecentlyAddedEmptyTitle": "No recently added albums",
+  "homeRecentlyAddedEmptySubtitle": "Pull to refresh to fetch newly added albums.",
+  "homeFrequentTitle": "Most played",
+  "homeFrequentEmptyTitle": "No frequent albums yet",
+  "homeFrequentEmptySubtitle": "Play more tracks to build listening history.",
+  "homeRandomTitle": "Random picks",
+  "homeRandomEmptyTitle": "No random picks available",
+  "homeRandomEmptySubtitle": "Pull to refresh to fetch random albums.",
+  "homeStarredTitle": "Starred tracks",
+  "homeStarredEmptyTitle": "No starred tracks",
+  "homeStarredEmptySubtitle": "Star tracks on your server to see them here.",
   "serverSettingsTitle": "Server Settings",
   "serverSettingsLoadError": "Could not load server settings.",
   "serverSettingsNotAuthenticated": "No active server session. Sign in to manage server settings.",
@@ -58,6 +75,15 @@
   "serverSettingsSave": "Save",
   "serverSettingsSaving": "Saving...",
   "serverSettingsSaveSuccess": "Server settings saved.",
+  "serverSettingsForceFullSync": "Force Full Sync",
+  "serverSettingsForceFullSyncRunning": "Sync in progress...",
+  "serverSettingsForceFullSyncSuccess": "Full library sync completed.",
+  "serverSettingsForceFullSyncFailure": "Full sync failed: {message}",
+  "@serverSettingsForceFullSyncFailure": {
+    "placeholders": {
+      "message": {}
+    }
+  },
   "serverSettingsSignOut": "Sign out",
   "serverSettingsSignOutKeepData": "Sign out (keep local data)",
   "serverSettingsSignOutKeepDataSubtitle": "Remove credentials but keep downloaded and cached metadata.",
@@ -65,5 +91,202 @@
   "serverSettingsSignOutWipeDataSubtitle": "Remove credentials and wipe local library, cache, and history metadata.",
   "serverSettingsSignOutSuccess": "Signed out. Local data was preserved.",
   "serverSettingsSignOutWipeSuccess": "Signed out and local data cleared.",
-  "serverSettingsSignOutError": "Could not complete sign out. Try again."
+  "serverSettingsSignOutError": "Could not complete sign out. Try again.",
+  "commonRetry": "Retry",
+  "libraryTitle": "Library",
+  "libraryTabArtists": "Artists",
+  "libraryTabAlbums": "Albums",
+  "libraryTabSongs": "Songs",
+  "libraryTabGenres": "Genres",
+  "librarySyncRunning": "Syncing library metadata...",
+  "librarySyncRunningStage": "Syncing: {stage}",
+  "@librarySyncRunningStage": {
+    "placeholders": {
+      "stage": {}
+    }
+  },
+  "librarySyncRunningWithProgress": "Syncing library metadata ({processed}/{total})",
+  "@librarySyncRunningWithProgress": {
+    "placeholders": {
+      "processed": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "librarySyncLastSynced": "Last synced: {timestamp}",
+  "@librarySyncLastSynced": {
+    "placeholders": {
+      "timestamp": {}
+    }
+  },
+  "librarySyncStagePreparing": "Preparing",
+  "librarySyncStageArtists": "Fetching artists",
+  "librarySyncStageAlbums": "Fetching albums",
+  "librarySyncStagePersisting": "Persisting metadata",
+  "librarySyncStageSongs": "Hydrating songs",
+  "librarySyncStageGenres": "Fetching genres",
+  "librarySyncStagePlaylists": "Fetching playlists",
+  "librarySyncStageFinalizing": "Finalizing",
+  "librarySyncFailureFallback": "Library sync failed.",
+  "librarySyncHydratingUnknown": "Metadata ready. Hydrating songs...",
+  "librarySyncHydratingProgress": "Metadata ready. Hydrating songs ({processed}/{total}, {pending} remaining)",
+  "@librarySyncHydratingProgress": {
+    "placeholders": {
+      "processed": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
+      "pending": {
+        "type": "int"
+      }
+    }
+  },
+  "librarySyncHydratingProgressWithRate": "Metadata ready. Hydrating songs ({processed}/{total}, {pending} remaining, {rate} albums/s)",
+  "@librarySyncHydratingProgressWithRate": {
+    "placeholders": {
+      "processed": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
+      "pending": {
+        "type": "int"
+      },
+      "rate": {}
+    }
+  },
+  "libraryArtistsEmptyTitle": "No artists found",
+  "libraryArtistsEmptySubtitle": "Run a sync to populate your library.",
+  "libraryArtistsIndexAll": "All",
+  "libraryArtistsErrorTitle": "Could not load artists",
+  "libraryAlbumsEmptyTitle": "No albums found",
+  "libraryAlbumsEmptySubtitle": "Run a sync to populate your library.",
+  "libraryAlbumsErrorTitle": "Could not load albums",
+  "libraryAlbumsSortLabel": "Sort albums by",
+  "libraryAlbumsPagingProgress": "Loaded {loaded} of {total} albums",
+  "@libraryAlbumsPagingProgress": {
+    "placeholders": {
+      "loaded": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "librarySongsEmptyTitle": "No songs found",
+  "librarySongsEmptySubtitle": "Run a sync to populate your library.",
+  "librarySongsErrorTitle": "Could not load songs",
+  "librarySongsSortLabel": "Sort songs by",
+  "libraryGenresEmptyTitle": "No genres found",
+  "libraryGenresEmptySubtitle": "Run a sync to populate your library.",
+  "libraryGenresErrorTitle": "Could not load genres",
+  "libraryGenresCount": "{albums} albums • {songs} songs",
+  "@libraryGenresCount": {
+    "placeholders": {
+      "albums": {
+        "type": "int"
+      },
+      "songs": {
+        "type": "int"
+      }
+    }
+  },
+  "librarySortNewest": "Newest",
+  "librarySortName": "Name",
+  "librarySortArtist": "Artist",
+  "librarySortArtistAlbum": "Artist / Album",
+  "librarySortTitle": "Title",
+  "librarySortDuration": "Duration",
+  "libraryArtistMenuOpen": "Open artist",
+  "libraryAlbumMenuOpen": "Open album",
+  "librarySongMenuPlayNow": "Play now",
+  "librarySongMenuAddToQueue": "Add to queue",
+  "librarySongMenuOpenAlbum": "Open album",
+  "librarySongMenuOpenArtist": "Open artist",
+  "librarySongPlayNowQueued": "\"{title}\" queued to play now.",
+  "@librarySongPlayNowQueued": {
+    "placeholders": {
+      "title": {}
+    }
+  },
+  "librarySongAddedToQueue": "\"{title}\" added to queue.",
+  "@librarySongAddedToQueue": {
+    "placeholders": {
+      "title": {}
+    }
+  },
+  "libraryGenreDetailTitle": "{genre}",
+  "@libraryGenreDetailTitle": {
+    "placeholders": {
+      "genre": {}
+    }
+  },
+  "libraryGenreAlbumsTab": "Albums",
+  "libraryGenreSongsTab": "Songs",
+  "libraryGenreAlbumsEmptyTitle": "No albums in this genre",
+  "libraryGenreAlbumsEmptySubtitle": "Sync to refresh genre albums.",
+  "libraryGenreSongsEmptyTitle": "No songs in this genre",
+  "libraryGenreSongsEmptySubtitle": "Sync to refresh genre songs.",
+  "libraryGenreLoadErrorTitle": "Could not load genre",
+  "artistCardAlbumCount": "{count} albums",
+  "@artistCardAlbumCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "artistDetailTitle": "Artist",
+  "artistDetailNotFoundTitle": "Artist not found",
+  "artistDetailNotFoundSubtitle": "This artist is not available in local data.",
+  "artistDetailAlbumCount": "{count} albums",
+  "@artistDetailAlbumCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "artistDetailAlbumsEmptyTitle": "No albums for this artist",
+  "artistDetailAlbumsEmptySubtitle": "Sync your library to load artist albums.",
+  "artistDetailAlbumsSection": "Albums",
+  "artistDetailUnknownYear": "Unknown year",
+  "artistDetailBioSection": "Biography",
+  "artistDetailSimilarSection": "Similar artists",
+  "artistDetailAlbumsErrorTitle": "Could not load artist albums",
+  "artistDetailLoadErrorTitle": "Could not load artist details",
+  "albumDetailTitle": "Album",
+  "albumDetailNotFoundTitle": "Album not found",
+  "albumDetailNotFoundSubtitle": "This album is not available in local data.",
+  "albumDetailUnknownArtist": "Unknown artist",
+  "albumDetailMeta": "{artist} • {year} • {trackCount} tracks",
+  "@albumDetailMeta": {
+    "placeholders": {
+      "artist": {},
+      "year": {},
+      "trackCount": {
+        "type": "int"
+      }
+    }
+  },
+  "albumDetailTracksEmptyTitle": "No tracks for this album",
+  "albumDetailTracksEmptySubtitle": "Sync your library to load album tracks.",
+  "albumDetailLoadErrorTitle": "Could not load album details",
+  "albumDetailPlayAction": "Play",
+  "albumDetailShuffleAction": "Shuffle",
+  "albumDetailStarAction": "Star",
+  "albumDetailDownloadAction": "Download",
+  "albumDetailDownloadActionQueued": "Album queued for download.",
+  "albumDetailPlayActionQueued": "Album queued for playback.",
+  "albumDetailShuffleActionQueued": "Album shuffled into queue.",
+  "albumDetailStarSuccess": "Album starred.",
+  "albumDetailUnstarSuccess": "Album unstarred.",
+  "albumDetailStarFailure": "Could not update star status."
 }

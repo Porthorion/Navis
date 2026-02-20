@@ -29,6 +29,7 @@ environment:
 # the latest version available on pub.dev. To see which dependencies have newer
 # versions available, run `flutter pub outdated`.
 dependencies:
+  cached_network_image: ^3.4.1
   connectivity_plus: ^6.1.5
   crypto: ^3.0.6
   cupertino_icons: ^1.0.8
@@ -37,6 +38,7 @@ dependencies:
   drift_flutter: ^0.2.5
   flutter:
     sdk: flutter
+  flutter_cache_manager: ^3.4.1
   flutter_local_notifications: ^19.4.2
   flutter_localizations:
     sdk: flutter

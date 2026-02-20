@@ -12,6 +12,10 @@ import 'package:navis/src/features/auth/presentation/server_config_provider.dart
 import 'package:navis/src/features/auth/presentation/server_connection_provider.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
+import 'package:navis/src/features/home/presentation/home_providers.dart';
+import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/database/navis_database.dart';
 
 class _StaticReachabilityController extends ServerReachabilityController {
   _StaticReachabilityController(this._state);
@@ -81,12 +85,35 @@ class _TestServerConfigNotifier extends ServerConfigNotifier {
   ServerConfigModel? savedConfigSnapshot() => _savedConfig;
 }
 
+class _StaticLibrarySyncController extends LibrarySyncController {
+  @override
+  LibrarySyncState build() => const LibrarySyncState.idle();
+
+  @override
+  Future<LibrarySyncState> syncIfStale({
+    Iterable<String> priorityAlbumIds = const <String>[],
+  }) async {
+    return const LibrarySyncState.idle();
+  }
+
+  @override
+  Future<LibrarySyncState> syncNow({
+    bool forceFull = false,
+    Iterable<String> priorityAlbumIds = const <String>[],
+  }) async {
+    return const LibrarySyncState.idle();
+  }
+}
+
 void main() {
   testWidgets('renders login form fields and actions', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           serverConfigProvider.overrideWith(_TestServerConfigNotifier.new),
+          librarySyncControllerProvider.overrideWith(
+            _StaticLibrarySyncController.new,
+          ),
         ],
         child: const NavisApp(),
       ),
@@ -108,6 +135,9 @@ void main() {
       ProviderScope(
         overrides: [
           serverConfigProvider.overrideWith(_TestServerConfigNotifier.new),
+          librarySyncControllerProvider.overrideWith(
+            _StaticLibrarySyncController.new,
+          ),
         ],
         child: const NavisApp(),
       ),
@@ -131,6 +161,9 @@ void main() {
         overrides: [
           serverConfigProvider.overrideWith(_TestServerConfigNotifier.new),
           serverConnectionServiceProvider.overrideWithValue(fakeService),
+          librarySyncControllerProvider.overrideWith(
+            _StaticLibrarySyncController.new,
+          ),
         ],
         child: const NavisApp(),
       ),
@@ -179,6 +212,22 @@ void main() {
               ),
             ),
           ),
+          librarySyncControllerProvider.overrideWith(
+            _StaticLibrarySyncController.new,
+          ),
+          homeRecentlyPlayedProvider.overrideWithValue(
+            const AsyncData(<SongsTableData>[]),
+          ),
+          homeRecentlyAddedProvider.overrideWithValue(
+            const AsyncData(<Album>[]),
+          ),
+          homeFrequentAlbumsProvider.overrideWithValue(
+            const AsyncData(<Album>[]),
+          ),
+          homeRandomAlbumsProvider.overrideWithValue(
+            const AsyncData(<Album>[]),
+          ),
+          homeStarredSongsProvider.overrideWithValue(const AsyncData(<Song>[])),
         ],
         child: const NavisApp(),
       ),
@@ -192,10 +241,7 @@ void main() {
     await tester.tap(find.text('Connect'));
     await tester.pumpAndSettle();
 
-    expect(
-      find.text('Phase 3: discovery feed and personalized carousels.'),
-      findsOneWidget,
-    );
+    expect(find.text('Home'), findsWidgets);
     final savedConfig = notifier.savedConfigSnapshot();
     expect(savedConfig, isNotNull);
     expect(savedConfig?.url, 'https://x.test');
@@ -215,6 +261,9 @@ void main() {
         overrides: [
           serverConfigProvider.overrideWith(_TestServerConfigNotifier.new),
           serverConnectionServiceProvider.overrideWithValue(fakeService),
+          librarySyncControllerProvider.overrideWith(
+            _StaticLibrarySyncController.new,
+          ),
         ],
         child: const NavisApp(),
       ),
@@ -253,6 +302,22 @@ void main() {
               ),
             ),
           ),
+          librarySyncControllerProvider.overrideWith(
+            _StaticLibrarySyncController.new,
+          ),
+          homeRecentlyPlayedProvider.overrideWithValue(
+            const AsyncData(<SongsTableData>[]),
+          ),
+          homeRecentlyAddedProvider.overrideWithValue(
+            const AsyncData(<Album>[]),
+          ),
+          homeFrequentAlbumsProvider.overrideWithValue(
+            const AsyncData(<Album>[]),
+          ),
+          homeRandomAlbumsProvider.overrideWithValue(
+            const AsyncData(<Album>[]),
+          ),
+          homeStarredSongsProvider.overrideWithValue(const AsyncData(<Song>[])),
         ],
         child: const NavisApp(),
       ),
