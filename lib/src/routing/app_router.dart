@@ -6,7 +6,6 @@ import 'package:navis/src/features/downloads/presentation/downloads_screen.dart'
 import 'package:navis/src/features/home/presentation/home_screen.dart';
 import 'package:navis/src/features/library/presentation/album_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/artist_detail_screen.dart';
-import 'package:navis/src/features/library/presentation/genre_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/library_screen.dart';
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_detail_screen.dart';
@@ -17,6 +16,7 @@ import 'package:navis/src/features/settings/presentation/cache_settings_screen.d
 import 'package:navis/src/features/settings/presentation/playback_settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/server_settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/settings_screen.dart';
+import 'package:navis/src/features/settings/presentation/sync_settings_screen.dart';
 import 'package:navis/src/routing/app_shell.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -80,14 +80,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                       return AlbumDetailScreen(albumId: albumId);
                     },
                   ),
-                  GoRoute(
-                    path: 'genres/:encodedGenre',
-                    builder: (context, state) {
-                      final encodedGenre =
-                          state.pathParameters['encodedGenre']!;
-                      return GenreDetailScreen(encodedGenre: encodedGenre);
-                    },
-                  ),
                 ],
               ),
             ],
@@ -134,6 +126,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'playback',
                     builder: (context, state) => const PlaybackSettingsScreen(),
+                  ),
+                  GoRoute(
+                    path: 'sync',
+                    builder: (context, state) => const SyncSettingsScreen(),
                   ),
                   GoRoute(
                     path: 'appearance',

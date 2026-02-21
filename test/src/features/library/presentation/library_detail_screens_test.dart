@@ -3,13 +3,24 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/library/presentation/album_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/artist_detail_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import '../../../../helpers/test_database.dart';
 
-Widget _buildApp({required Widget child, required List<dynamic> overrides}) {
+Widget _buildApp({
+  required Widget child,
+  required NavisDatabase database,
+  required List<dynamic> overrides,
+}) {
   return ProviderScope(
-    overrides: overrides.cast(),
+    overrides: [
+      navisDatabaseProvider.overrideWithValue(database),
+      serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
+      subsonicApiProvider.overrideWith((_) => null),
+      ...overrides.cast(),
+    ],
     child: MaterialApp(
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
@@ -20,12 +31,23 @@ Widget _buildApp({required Widget child, required List<dynamic> overrides}) {
 
 void main() {
   group('library detail screens', () {
+    late NavisDatabase database;
+
+    setUp(() {
+      database = createTestDatabase();
+    });
+
+    tearDown(() async {
+      await database.close();
+    });
+
     testWidgets('artist detail renders artist info and local albums', (
       tester,
     ) async {
       await tester.pumpWidget(
         _buildApp(
           child: const ArtistDetailScreen(artistId: 'artist-1'),
+          database: database,
           overrides: [
             artistByIdProvider('artist-1').overrideWithValue(
               const AsyncData(
@@ -63,6 +85,7 @@ void main() {
       await tester.pumpWidget(
         _buildApp(
           child: const AlbumDetailScreen(albumId: 'album-1'),
+          database: database,
           overrides: [
             albumProvider('album-1').overrideWithValue(
               const AsyncData(

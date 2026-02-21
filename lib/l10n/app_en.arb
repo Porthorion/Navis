@@ -1,5 +1,10 @@
 {
   "appName": "Navis",
+  "navHome": "Home",
+  "navLibrary": "Library",
+  "navSearch": "Search",
+  "navPlaylists": "Playlists",
+  "navSettings": "Settings",
   "loginTitle": "Sign in",
   "loginSubtitle": "Connect to your Subsonic or Navidrome server.",
   "loginServerUrlLabel": "Server URL",
@@ -30,8 +35,61 @@
   "settingsServerTitle": "Server",
   "settingsServerSubtitle": "View, test, and update connection settings.",
   "settingsCacheTitle": "Cache",
+  "settingsSyncTitle": "Sync",
+  "settingsSyncSubtitle": "Sync progress, history, and manual controls.",
   "settingsPlaybackTitle": "Playback",
   "settingsAppearanceTitle": "Appearance",
+  "syncSettingsTitle": "Sync Settings",
+  "syncSettingsStatusLabel": "Current sync status",
+  "syncSettingsLastSyncedLabel": "Server last synced",
+  "syncSettingsNeverSynced": "Never synced",
+  "syncSettingsStatusIdle": "Idle",
+  "syncSettingsStatusSucceeded": "Last sync succeeded",
+  "syncSettingsStatusFailed": "Last sync failed",
+  "playbackSettingsLoadError": "Could not load playback settings: {message}",
+  "@playbackSettingsLoadError": {
+    "placeholders": {
+      "message": {}
+    }
+  },
+  "playbackSettingsWifiSectionTitle": "Wi-Fi streaming",
+  "playbackSettingsWifiQualityLabel": "Max bitrate",
+  "playbackSettingsWifiFormatLabel": "Preferred format",
+  "playbackSettingsCellularSectionTitle": "Cellular streaming",
+  "playbackSettingsCellularQualityLabel": "Max bitrate",
+  "playbackSettingsCellularFormatLabel": "Preferred format",
+  "playbackSettingsScrobbleTitle": "Enable scrobbling",
+  "playbackSettingsScrobbleSubtitle": "Send now-playing and listened-track updates to the server.",
+  "playbackSettingsGaplessTitle": "Enable gapless playback",
+  "playbackSettingsGaplessSubtitle": "Preload tracks to reduce gaps between songs.",
+  "playbackSettingsSkipSilenceTitle": "Skip silence when possible",
+  "playbackSettingsSkipSilenceSubtitle": "Automatically skip silent segments on supported platforms.",
+  "playbackSettingsSaveAction": "Save",
+  "playbackSettingsResetAction": "Reset defaults",
+  "playbackSettingsQualityOriginal": "Original quality",
+  "playbackSettingsQualityKbps": "{kbps} kbps",
+  "@playbackSettingsQualityKbps": {
+    "placeholders": {
+      "kbps": {
+        "type": "int"
+      }
+    }
+  },
+  "playbackSettingsFormatOriginal": "Server default",
+  "playbackSettingsSaveSuccess": "Playback settings saved.",
+  "playbackSettingsSaveFailure": "Could not save playback settings: {message}",
+  "@playbackSettingsSaveFailure": {
+    "placeholders": {
+      "message": {}
+    }
+  },
+  "playbackSettingsResetSuccess": "Playback settings reset to defaults.",
+  "playbackSettingsResetFailure": "Could not reset playback settings: {message}",
+  "@playbackSettingsResetFailure": {
+    "placeholders": {
+      "message": {}
+    }
+  },
   "homeTitle": "Home",
   "homeLoadErrorTitle": "Could not load section",
   "homeRecentlyPlayedTitle": "Recently played",
@@ -199,6 +257,7 @@
     }
   },
   "librarySortNewest": "Newest",
+  "librarySortOldest": "Oldest",
   "librarySortName": "Name",
   "librarySortArtist": "Artist",
   "librarySortArtistAlbum": "Artist / Album",
@@ -208,6 +267,7 @@
   "libraryAlbumMenuOpen": "Open album",
   "librarySongMenuPlayNow": "Play now",
   "librarySongMenuAddToQueue": "Add to queue",
+  "librarySongMenuPlayNext": "Play next",
   "librarySongMenuOpenAlbum": "Open album",
   "librarySongMenuOpenArtist": "Open artist",
   "librarySongPlayNowQueued": "\"{title}\" queued to play now.",
@@ -218,6 +278,12 @@
   },
   "librarySongAddedToQueue": "\"{title}\" added to queue.",
   "@librarySongAddedToQueue": {
+    "placeholders": {
+      "title": {}
+    }
+  },
+  "librarySongPlayNextQueued": "\"{title}\" added to play next.",
+  "@librarySongPlayNextQueued": {
     "placeholders": {
       "title": {}
     }
@@ -288,5 +354,19 @@
   "albumDetailShuffleActionQueued": "Album shuffled into queue.",
   "albumDetailStarSuccess": "Album starred.",
   "albumDetailUnstarSuccess": "Album unstarred.",
-  "albumDetailStarFailure": "Could not update star status."
+  "albumDetailStarFailure": "Could not update star status.",
+  "miniPlayerUnknownTrack": "Unknown track",
+  "miniPlayerUnknownArtist": "Unknown artist",
+  "miniPlayerPlay": "Play",
+  "miniPlayerPause": "Pause",
+  "playbackBootstrapLoadingTitle": "Preparing playback",
+  "playbackBootstrapLoadingSubtitle": "Initializing audio services...",
+  "playbackBootstrapFailedTitle": "Playback initialization failed",
+  "playbackBootstrapFailedSubtitle": "Could not initialize playback. Retry to continue.",
+  "playbackBootstrapRetryAction": "Retry playback startup",
+  "playbackUnavailableInitializing": "Playback is still initializing. Try again in a moment.",
+  "playbackUnavailableStartupFailed": "Playback startup failed. Retry from the startup screen.",
+  "playbackUnavailableSource": "Could not resolve an audio source. Check server session and connection.",
+  "playbackUnavailableGeneric": "Playback is unavailable right now.",
+  "playbackActionFailed": "Playback action failed. Please try again."
 }

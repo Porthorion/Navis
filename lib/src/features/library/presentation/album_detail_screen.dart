@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -10,6 +11,7 @@ import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
 class AlbumDetailScreen extends ConsumerStatefulWidget {
@@ -53,84 +55,97 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
           final songs = data.songs;
           final isStarred = _isStarred || details.starred != null;
 
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
-                  child: CoverArtImage(
-                    coverArtId: details.coverArt,
-                    size: 640,
-                    width: 180,
-                    height: 180,
-                    borderRadius: BorderRadius.circular(12),
-                    placeholderIcon: Icons.album_outlined,
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
-                child: Text(
-                  details.name,
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                child: Text(
-                  l10n.albumDetailMeta(
-                    details.artistName ?? l10n.albumDetailUnknownArtist,
-                    details.year?.toString() ?? '-',
-                    songs.length,
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Wrap(
-                  spacing: 8,
+          return CustomScrollView(
+            slivers: <Widget>[
+              SliverToBoxAdapter(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    FilledButton.tonalIcon(
-                      onPressed: songs.isEmpty
-                          ? null
-                          : () => _queueAlbum(songs, shuffle: false),
-                      icon: const Icon(Icons.play_arrow_outlined),
-                      label: Text(l10n.albumDetailPlayAction),
-                    ),
-                    FilledButton.tonalIcon(
-                      onPressed: songs.isEmpty
-                          ? null
-                          : () => _queueAlbum(songs, shuffle: true),
-                      icon: const Icon(Icons.shuffle_outlined),
-                      label: Text(l10n.albumDetailShuffleAction),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: _isStarring
-                          ? null
-                          : () => _toggleStar(isStarred: isStarred),
-                      icon: Icon(
-                        isStarred ? Icons.star : Icons.star_outline,
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+                        child: CoverArtImage(
+                          coverArtId: details.coverArt,
+                          size: 640,
+                          width: 180,
+                          height: 180,
+                          borderRadius: BorderRadius.circular(12),
+                          placeholderIcon: Icons.album_outlined,
+                        ),
                       ),
-                      label: Text(l10n.albumDetailStarAction),
                     ),
-                    OutlinedButton.icon(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(l10n.albumDetailDownloadActionQueued),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+                      child: Text(
+                        details.name,
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                      child: Text(
+                        l10n.albumDetailMeta(
+                          details.artistName ?? l10n.albumDetailUnknownArtist,
+                          details.year?.toString() ?? '-',
+                          songs.length,
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Wrap(
+                        spacing: 8,
+                        children: <Widget>[
+                          FilledButton.tonalIcon(
+                            onPressed: songs.isEmpty
+                                ? null
+                                : () => unawaited(
+                                    _queueAlbum(songs, shuffle: false),
+                                  ),
+                            icon: const Icon(Icons.play_arrow_outlined),
+                            label: Text(l10n.albumDetailPlayAction),
                           ),
-                        );
-                      },
-                      icon: const Icon(Icons.download_outlined),
-                      label: Text(l10n.albumDetailDownloadAction),
+                          FilledButton.tonalIcon(
+                            onPressed: songs.isEmpty
+                                ? null
+                                : () => unawaited(
+                                    _queueAlbum(songs, shuffle: true),
+                                  ),
+                            icon: const Icon(Icons.shuffle_outlined),
+                            label: Text(l10n.albumDetailShuffleAction),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: _isStarring
+                                ? null
+                                : () => _toggleStar(isStarred: isStarred),
+                            icon: Icon(
+                              isStarred ? Icons.star : Icons.star_outline,
+                            ),
+                            label: Text(l10n.albumDetailStarAction),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: () {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    l10n.albumDetailDownloadActionQueued,
+                                  ),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.download_outlined),
+                            label: Text(l10n.albumDetailDownloadAction),
+                          ),
+                        ],
+                      ),
                     ),
+                    const SizedBox(height: 10),
                   ],
                 ),
               ),
-              const SizedBox(height: 10),
               if (songs.isEmpty)
-                Expanded(
+                SliverFillRemaining(
+                  hasScrollBody: false,
                   child: EmptyState(
                     title: l10n.albumDetailTracksEmptyTitle,
                     subtitle: l10n.albumDetailTracksEmptySubtitle,
@@ -138,22 +153,19 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                   ),
                 )
               else
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: songs.length,
-                    itemBuilder: (context, index) {
-                      final song = songs[index];
-                      return TrackListTile(
-                        song: song,
-                        onTap: () => _playNow(song),
-                        onLongPress: () => _showSongActions(song),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.more_vert),
-                          onPressed: () => _showSongActions(song),
-                        ),
-                      );
-                    },
-                  ),
+                SliverList(
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    final song = songs[index];
+                    return TrackListTile(
+                      song: song,
+                      onTap: () => unawaited(_playNow(song)),
+                      onLongPress: () => unawaited(_showSongActions(song)),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.more_vert),
+                        onPressed: () => unawaited(_showSongActions(song)),
+                      ),
+                    );
+                  }, childCount: songs.length),
                 ),
             ],
           );
@@ -168,7 +180,10 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
     );
   }
 
-  void _queueAlbum(List<SongsTableData> songs, {required bool shuffle}) {
+  Future<void> _queueAlbum(
+    List<SongsTableData> songs, {
+    required bool shuffle,
+  }) async {
     if (songs.isEmpty) {
       return;
     }
@@ -177,7 +192,23 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
     if (shuffle) {
       queue.shuffle(Random());
     }
-    ref.read(queueProvider.notifier).replace(queue);
+    try {
+      await ref.read(queueProvider.notifier).replace(queue);
+    } on Object catch (error) {
+      if (!mounted) {
+        return;
+      }
+      final l10n = AppLocalizations.of(context)!;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(
+        SnackBar(content: Text(_playbackErrorMessage(l10n, error))),
+      );
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
     final l10n = AppLocalizations.of(context)!;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -190,8 +221,24 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
     );
   }
 
-  void _playNow(SongsTableData song) {
-    ref.read(queueProvider.notifier).replace(<String>[song.id]);
+  Future<void> _playNow(SongsTableData song) async {
+    try {
+      await ref.read(queueProvider.notifier).replace(<String>[song.id]);
+    } on Object catch (error) {
+      if (!mounted) {
+        return;
+      }
+      final l10n = AppLocalizations.of(context)!;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(
+        SnackBar(content: Text(_playbackErrorMessage(l10n, error))),
+      );
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
     final l10n = AppLocalizations.of(context)!;
     ScaffoldMessenger.of(
       context,
@@ -200,11 +247,37 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
     );
   }
 
-  Future<void> _showSongActions(SongsTableData song) async {
+  Future<void> _playNext(SongsTableData song) async {
+    try {
+      await ref.read(queueProvider.notifier).playNext(song.id);
+    } on Object catch (error) {
+      if (!mounted) {
+        return;
+      }
+      final l10n = AppLocalizations.of(context)!;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(
+        SnackBar(content: Text(_playbackErrorMessage(l10n, error))),
+      );
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
     final l10n = AppLocalizations.of(context)!;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(
+      SnackBar(content: Text(l10n.librarySongPlayNextQueued(song.title))),
+    );
+  }
+
+  Future<void> _showSongActions(SongsTableData song) async {
     await showModalBottomSheet<void>(
       context: context,
       builder: (context) {
+        final l10n = AppLocalizations.of(this.context)!;
         return SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -214,7 +287,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                 title: Text(l10n.librarySongMenuPlayNow),
                 onTap: () {
                   Navigator.of(context).pop();
-                  _playNow(song);
+                  unawaited(_playNow(song));
                 },
               ),
               ListTile(
@@ -222,12 +295,45 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                 title: Text(l10n.librarySongMenuAddToQueue),
                 onTap: () {
                   Navigator.of(context).pop();
-                  ref.read(queueProvider.notifier).add(song.id);
-                  ScaffoldMessenger.of(this.context).showSnackBar(
-                    SnackBar(
-                      content: Text(l10n.librarySongAddedToQueue(song.title)),
-                    ),
+                  unawaited(
+                    () async {
+                      final messenger = ScaffoldMessenger.of(this.context);
+                      final localizations = AppLocalizations.of(this.context)!;
+                      try {
+                        await ref.read(queueProvider.notifier).add(song.id);
+                      } on Object catch (error) {
+                        if (!mounted) {
+                          return;
+                        }
+                        messenger.showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              _playbackErrorMessage(localizations, error),
+                            ),
+                          ),
+                        );
+                        return;
+                      }
+                      if (!mounted) {
+                        return;
+                      }
+                      messenger.showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            localizations.librarySongAddedToQueue(song.title),
+                          ),
+                        ),
+                      );
+                    }(),
                   );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.playlist_add_outlined),
+                title: Text(l10n.librarySongMenuPlayNext),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  unawaited(_playNext(song));
                 },
               ),
               if (song.artistId != null && song.artistId!.isNotEmpty)
@@ -244,6 +350,23 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
         );
       },
     );
+  }
+
+  String _playbackErrorMessage(AppLocalizations l10n, Object error) {
+    if (error is PlaybackUnavailableException) {
+      return switch (error.reason) {
+        PlaybackUnavailableReason.initializing =>
+          l10n.playbackUnavailableInitializing,
+        PlaybackUnavailableReason.startupFailed =>
+          l10n.playbackUnavailableStartupFailed,
+        PlaybackUnavailableReason.unavailable =>
+          l10n.playbackUnavailableGeneric,
+      };
+    }
+    if (error is PlaybackSourceUnavailableException) {
+      return l10n.playbackUnavailableSource;
+    }
+    return l10n.playbackActionFailed;
   }
 
   Future<void> _toggleStar({required bool isStarred}) async {

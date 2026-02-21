@@ -10,8 +10,6 @@ import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_connection_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_url_validation.dart';
-import 'package:navis/src/features/library/domain/library_sync_state.dart';
-import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 
 class ServerSettingsScreen extends ConsumerStatefulWidget {
   const ServerSettingsScreen({super.key});
@@ -56,8 +54,6 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final configAsync = ref.watch(serverConfigStateProvider);
-    final syncState = ref.watch(librarySyncControllerProvider);
-    final isSyncRunning = syncState.isRunning;
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.serverSettingsTitle)),
@@ -199,18 +195,6 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
                         _isSaving
                             ? l10n.serverSettingsSaving
                             : l10n.serverSettingsSave,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      onPressed: (_isBusy || isSyncRunning)
-                          ? null
-                          : _runForceFullSync,
-                      icon: const Icon(Icons.sync),
-                      label: Text(
-                        isSyncRunning
-                            ? l10n.serverSettingsForceFullSyncRunning
-                            : l10n.serverSettingsForceFullSync,
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -408,34 +392,6 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
     }
 
     await _signOut(wipeLocalData: wipeLocalData);
-  }
-
-  Future<void> _runForceFullSync() async {
-    final l10n = AppLocalizations.of(context)!;
-    final result = await ref
-        .read(librarySyncControllerProvider.notifier)
-        .syncNow(forceFull: true);
-    if (!mounted) {
-      return;
-    }
-    final messenger = ScaffoldMessenger.of(context);
-    if (result.status == LibrarySyncStatus.succeeded ||
-        result.status == LibrarySyncStatus.skipped) {
-      messenger.showSnackBar(
-        SnackBar(content: Text(l10n.serverSettingsForceFullSyncSuccess)),
-      );
-      return;
-    }
-
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(
-          l10n.serverSettingsForceFullSyncFailure(
-            result.errorMessage ?? l10n.loginErrorUnknown,
-          ),
-        ),
-      ),
-    );
   }
 
   Future<void> _signOut({required bool wipeLocalData}) async {

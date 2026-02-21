@@ -14,17 +14,12 @@ class _StaticLibrarySyncController extends LibrarySyncController {
   LibrarySyncState build() => const LibrarySyncState.idle();
 
   @override
-  Future<LibrarySyncState> syncIfStale({
-    Iterable<String> priorityAlbumIds = const <String>[],
-  }) async {
+  Future<LibrarySyncState> syncIfStale() async {
     return const LibrarySyncState.idle();
   }
 
   @override
-  Future<LibrarySyncState> syncNow({
-    bool forceFull = false,
-    Iterable<String> priorityAlbumIds = const <String>[],
-  }) async {
+  Future<LibrarySyncState> syncNow({bool forceFull = false}) async {
     return const LibrarySyncState.idle();
   }
 }

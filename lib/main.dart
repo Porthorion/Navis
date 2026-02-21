@@ -13,5 +13,9 @@ Future<void> main() async {
 
   await NotificationBootstrap.initialize();
 
-  runApp(const ProviderScope(child: NavisApp()));
+  runApp(
+    const ProviderScope(
+      child: NavisApp(requirePlaybackBootstrap: true),
+    ),
+  );
 }

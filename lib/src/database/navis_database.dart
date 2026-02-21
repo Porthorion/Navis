@@ -1,13 +1,16 @@
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
+import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/database/daos/cache_dao.dart';
 import 'package:navis/src/database/daos/download_queue_dao.dart';
 import 'package:navis/src/database/daos/history_dao.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/daos/play_queue_dao.dart';
 import 'package:navis/src/database/daos/playlist_dao.dart';
+import 'package:navis/src/database/daos/scrobble_dao.dart';
 import 'package:navis/src/database/daos/server_dao.dart';
 import 'package:navis/src/database/tables/albums_table.dart';
+import 'package:navis/src/database/tables/app_settings_table.dart';
 import 'package:navis/src/database/tables/artists_table.dart';
 import 'package:navis/src/database/tables/cached_tracks_table.dart';
 import 'package:navis/src/database/tables/download_queue_table.dart';
@@ -18,6 +21,7 @@ import 'package:navis/src/database/tables/play_queue_table.dart';
 import 'package:navis/src/database/tables/playlist_songs_table.dart';
 import 'package:navis/src/database/tables/playlists_table.dart';
 import 'package:navis/src/database/tables/recent_searches_table.dart';
+import 'package:navis/src/database/tables/scrobble_queue_table.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/database/tables/server_config_table.dart';
 import 'package:navis/src/database/tables/songs_table.dart';
@@ -27,6 +31,7 @@ part 'navis_database.g.dart';
 @DriftDatabase(
   tables: [
     ServerConfigTable,
+    AppSettingsTable,
     ArtistsTable,
     AlbumsTable,
     SongsTable,
@@ -39,8 +44,10 @@ part 'navis_database.g.dart';
     RecentSearchesTable,
     PlayQueueTable,
     PlayQueueItemsTable,
+    ScrobbleQueueTable,
   ],
   daos: [
+    AppSettingsDao,
     ServerDao,
     LibraryDao,
     PlaylistDao,
@@ -48,6 +55,7 @@ part 'navis_database.g.dart';
     DownloadQueueDao,
     HistoryDao,
     PlayQueueDao,
+    ScrobbleDao,
   ],
 )
 class NavisDatabase extends _$NavisDatabase {
@@ -57,21 +65,24 @@ class NavisDatabase extends _$NavisDatabase {
   static QueryExecutor _openConnection() => driftDatabase(name: 'navis.sqlite');
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (Migrator m) async {
       await m.createAll();
       await _createIndexes();
+      await _ensureAppSettingsDefaults();
     },
     onUpgrade: (Migrator m, int from, int to) async {
       await _runMigrations(m, from, to);
       await _createIndexes();
+      await _ensureAppSettingsDefaults();
     },
     beforeOpen: (details) async {
       await customStatement('PRAGMA foreign_keys = ON');
       await _createIndexes();
+      await _ensureAppSettingsDefaults();
     },
   );
 
@@ -82,9 +93,24 @@ class NavisDatabase extends _$NavisDatabase {
     if (from < 3 && to >= 3) {
       await from2To3(migrator);
     }
+    if (from < 4 && to >= 4) {
+      await from3To4(migrator);
+    }
+    if (from < 5 && to >= 5) {
+      await from4To5(migrator);
+    }
+    if (from < 6 && to >= 6) {
+      await from5To6(migrator);
+    }
+    if (from < 7 && to >= 7) {
+      await from6To7(migrator);
+    }
   }
 
   Future<void> from1To2(Migrator migrator) async {
+    if (await _columnExists('server_config', 'last_full_synced')) {
+      return;
+    }
     await migrator.addColumn(
       serverConfigTable,
       serverConfigTable.lastFullSynced,
@@ -92,11 +118,63 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   Future<void> from2To3(Migrator migrator) async {
-    await migrator.addColumn(
-      albumsTable,
-      albumsTable.songsHydrated,
-    );
+    if (!await _columnExists('albums', 'songs_hydrated')) {
+      await migrator.addColumn(albumsTable, albumsTable.songsHydrated);
+    }
     await backfillAlbumHydrationState();
+  }
+
+  Future<void> from3To4(Migrator migrator) async {
+    if (await _tableExists('app_settings')) {
+      return;
+    }
+    await migrator.createTable(appSettingsTable);
+  }
+
+  Future<void> from4To5(Migrator migrator) async {
+    if (await _tableExists('scrobble_queue')) {
+      return;
+    }
+    await migrator.createTable(scrobbleQueueTable);
+  }
+
+  Future<void> from5To6(Migrator migrator) async {
+    if (!await _columnExists('app_settings', 'gapless_enabled')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.gaplessEnabled,
+      );
+    }
+    if (!await _columnExists('app_settings', 'skip_silence_enabled')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.skipSilenceEnabled,
+      );
+    }
+  }
+
+  Future<void> from6To7(Migrator migrator) async {
+    if (await _columnExists('songs', 'created_at')) {
+      return;
+    }
+    await migrator.addColumn(songsTable, songsTable.createdAt);
+  }
+
+  Future<void> _ensureAppSettingsDefaults() {
+    return into(appSettingsTable).insert(
+      AppSettingsTableCompanion.insert(
+        id: Value(AppSettingsDao.primarySettingsId),
+        wifiMaxBitRate: const Value(null),
+        wifiFormat: const Value(null),
+        cellularMaxBitRate: const Value(AppSettingsDao.defaultCellularBitRate),
+        cellularFormat: const Value(AppSettingsDao.defaultCellularFormat),
+        scrobbleEnabled: const Value(true),
+        gaplessEnabled: const Value(true),
+        skipSilenceEnabled: const Value(false),
+        updatedAt: DateTime.now(),
+      ),
+      mode: InsertMode.insertOrIgnore,
+    );
   }
 
   Future<void> backfillAlbumHydrationState() async {
@@ -134,10 +212,35 @@ class NavisDatabase extends _$NavisDatabase {
       'CREATE INDEX IF NOT EXISTS idx_songs_album_track ON songs(album_id, track);',
     );
     await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_songs_created_at ON songs(created_at DESC, id ASC);',
+    );
+    await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_playlist_songs_order ON playlist_songs(playlist_id, sort_order);',
     );
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_play_queue_items_order ON play_queue_items(queue_id, sort_order);',
     );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_scrobble_queue_due ON scrobble_queue(next_attempt_at, expires_at);',
+    );
+  }
+
+  Future<bool> _tableExists(String tableName) async {
+    final rows = await customSelect(
+      'SELECT 1 AS value FROM sqlite_master '
+      "WHERE type = 'table' AND name = ? LIMIT 1;",
+      variables: <Variable<Object>>[Variable<String>(tableName)],
+    ).get();
+    return rows.isNotEmpty;
+  }
+
+  Future<bool> _columnExists(String tableName, String columnName) async {
+    final rows = await customSelect("PRAGMA table_info('$tableName');").get();
+    for (final row in rows) {
+      if (row.read<String>('name') == columnName) {
+        return true;
+      }
+    }
+    return false;
   }
 }

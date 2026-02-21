@@ -26,6 +26,9 @@ _Song _$SongFromJson(Map<String, dynamic> json) => _Song(
       ? null
       : DateTime.parse(json['starred'] as String),
   playCount: (json['playCount'] as num?)?.toInt(),
+  created: json['created'] == null
+      ? null
+      : DateTime.parse(json['created'] as String),
 );
 
 Map<String, dynamic> _$SongToJson(_Song instance) => <String, dynamic>{
@@ -46,4 +49,5 @@ Map<String, dynamic> _$SongToJson(_Song instance) => <String, dynamic>{
   'coverArt': instance.coverArt,
   'starred': instance.starred?.toIso8601String(),
   'playCount': instance.playCount,
+  'created': instance.created?.toIso8601String(),
 };

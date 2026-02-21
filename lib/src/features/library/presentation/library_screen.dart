@@ -1,4 +1,4 @@
-import 'dart:convert';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,16 +9,14 @@ import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
-import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 enum _AlbumSort { newest, name, artist }
-
-enum _SongSort { artistAlbum, title, duration }
 
 class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
@@ -28,10 +26,17 @@ class LibraryScreen extends ConsumerStatefulWidget {
 }
 
 class _LibraryScreenState extends ConsumerState<LibraryScreen> {
-  String? _selectedArtistLetter;
   _AlbumSort _albumSort = _AlbumSort.newest;
-  _SongSort _songSort = _SongSort.artistAlbum;
   final ScrollController _albumsScrollController = ScrollController();
+  final ItemScrollController _artistsItemScrollController =
+      ItemScrollController();
+  final ItemPositionsListener _artistsItemPositionsListener =
+      ItemPositionsListener.create();
+  List<ArtistsTableData>? _cachedArtists;
+  List<_ArtistListItem> _artistListItems = const <_ArtistListItem>[];
+  Map<String, int> _artistLetterStartIndex = const <String, int>{};
+  String? _activeArtistLetter;
+  bool _isArtistRailScrubbing = false;
   int _loadedAlbumPages = 1;
   String _lastVisibleAlbumSignature = '';
 
@@ -39,6 +44,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   void initState() {
     super.initState();
     _albumsScrollController.addListener(_onAlbumsScroll);
+    _artistsItemPositionsListener.itemPositions.addListener(
+      _onArtistsViewportChanged,
+    );
   }
 
   @override
@@ -46,6 +54,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     _albumsScrollController
       ..removeListener(_onAlbumsScroll)
       ..dispose();
+    _artistsItemPositionsListener.itemPositions.removeListener(
+      _onArtistsViewportChanged,
+    );
     super.dispose();
   }
 
@@ -59,7 +70,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final syncState = ref.watch(librarySyncControllerProvider);
 
     return DefaultTabController(
-      length: 4,
+      length: 2,
       child: Scaffold(
         appBar: AppBar(
           title: Text(l10n.libraryTitle),
@@ -67,8 +78,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             tabs: <Widget>[
               Tab(text: l10n.libraryTabArtists),
               Tab(text: l10n.libraryTabAlbums),
-              Tab(text: l10n.libraryTabSongs),
-              Tab(text: l10n.libraryTabGenres),
             ],
           ),
         ),
@@ -77,11 +86,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             _SyncStatusBanner(syncState: syncState, onRetry: _refreshLibrary),
             Expanded(
               child: TabBarView(
+                physics: _isArtistRailScrubbing
+                    ? const NeverScrollableScrollPhysics()
+                    : const PageScrollPhysics(),
                 children: <Widget>[
                   _buildArtistsTab(context),
                   _buildAlbumsTab(context),
-                  _buildSongsTab(context),
-                  _buildGenresTab(context),
                 ],
               ),
             ),
@@ -112,58 +122,88 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             );
           }
 
-          final grouped = _groupArtistsByInitial(items);
-          final letters = grouped.keys.toList()..sort();
-          final selectedLetter = _selectedArtistLetter;
-          final visibleLetters = selectedLetter == null
-              ? letters
-              : letters.where((letter) => letter == selectedLetter).toList();
+          _ensureArtistListCache(items);
+          final letters = _artistLetterStartIndex.keys.toList(growable: false);
 
-          return ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.only(bottom: 16),
+          return Stack(
             children: <Widget>[
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                child: Row(
-                  children: <Widget>[
-                    ChoiceChip(
-                      label: Text(l10n.libraryArtistsIndexAll),
-                      selected: _selectedArtistLetter == null,
-                      onSelected: (_) =>
-                          setState(() => _selectedArtistLetter = null),
-                    ),
-                    for (final letter in letters) ...<Widget>[
-                      const SizedBox(width: 8),
-                      ChoiceChip(
-                        label: Text(letter),
-                        selected: _selectedArtistLetter == letter,
-                        onSelected: (_) =>
-                            setState(() => _selectedArtistLetter = letter),
+              ScrollablePositionedList.builder(
+                itemCount: _artistListItems.length,
+                itemScrollController: _artistsItemScrollController,
+                itemPositionsListener: _artistsItemPositionsListener,
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.only(bottom: 16, right: 28),
+                itemBuilder: (context, index) {
+                  final item = _artistListItems[index];
+                  if (item.artist == null) {
+                    return Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                      child: Text(
+                        item.letter,
+                        style: Theme.of(context).textTheme.titleMedium,
                       ),
-                    ],
-                  ],
-                ),
-              ),
-              for (final letter in visibleLetters) ...<Widget>[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                  child: Text(
-                    letter,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ),
-                for (final artist in grouped[letter]!)
-                  ArtistCard(
+                    );
+                  }
+                  final artist = item.artist!;
+                  return ArtistCard(
                     artist: artist,
                     onTap: () => context.go('/library/artists/${artist.id}'),
                     onLongPress: () => _showArtistMenu(context, artist),
+                  );
+                },
+              ),
+              Positioned(
+                right: 0,
+                top: 8,
+                bottom: 8,
+                child: _ArtistAlphabetRail(
+                  letters: letters,
+                  activeLetter: _activeArtistLetter,
+                  onLetterSelected: _scrollToArtistLetter,
+                  onInteractionStart: () {
+                    if (_isArtistRailScrubbing) {
+                      return;
+                    }
+                    setState(() => _isArtistRailScrubbing = true);
+                  },
+                  onInteractionEnd: () {
+                    if (!_isArtistRailScrubbing) {
+                      return;
+                    }
+                    setState(() => _isArtistRailScrubbing = false);
+                  },
+                ),
+              ),
+              if (_isArtistRailScrubbing && _activeArtistLetter != null)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: Center(
+                      child: DecoratedBox(
+                        key: const Key('artistAlphabetOverlay'),
+                        decoration: BoxDecoration(
+                          color:
+                              Theme.of(
+                                context,
+                              ).colorScheme.surfaceContainerHigh.withValues(
+                                alpha: 0.92,
+                              ),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 12,
+                          ),
+                          child: Text(
+                            _activeArtistLetter!,
+                            style: Theme.of(context).textTheme.headlineMedium
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-              ],
+                ),
             ],
           );
         },
@@ -413,183 +453,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     };
   }
 
-  Widget _buildSongsTab(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    final songsAsync = ref.watch(songsProvider);
-
-    return RefreshIndicator(
-      onRefresh: _refreshLibrary,
-      child: songsAsync.when(
-        data: (items) {
-          if (items.isEmpty) {
-            return ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              children: <Widget>[
-                EmptyState(
-                  title: l10n.librarySongsEmptyTitle,
-                  subtitle: l10n.librarySongsEmptySubtitle,
-                  icon: Icons.music_note_outlined,
-                ),
-              ],
-            );
-          }
-
-          final songs = [...items];
-          switch (_songSort) {
-            case _SongSort.artistAlbum:
-              songs.sort((a, b) {
-                final byArtist = (a.artistName ?? '').compareTo(
-                  b.artistName ?? '',
-                );
-                if (byArtist != 0) {
-                  return byArtist;
-                }
-                final byAlbum = (a.albumName ?? '').compareTo(
-                  b.albumName ?? '',
-                );
-                if (byAlbum != 0) {
-                  return byAlbum;
-                }
-                return (a.track ?? 0).compareTo(b.track ?? 0);
-              });
-            case _SongSort.title:
-              songs.sort((a, b) => a.title.compareTo(b.title));
-            case _SongSort.duration:
-              songs.sort(
-                (a, b) => (b.duration ?? 0).compareTo(a.duration ?? 0),
-              );
-          }
-
-          return ListView.builder(
-            physics: const AlwaysScrollableScrollPhysics(),
-            itemCount: songs.length + 1,
-            itemBuilder: (context, index) {
-              if (index == 0) {
-                return _SortRow<_SongSort>(
-                  label: l10n.librarySongsSortLabel,
-                  value: _songSort,
-                  items: <DropdownMenuItem<_SongSort>>[
-                    DropdownMenuItem(
-                      value: _SongSort.artistAlbum,
-                      child: Text(l10n.librarySortArtistAlbum),
-                    ),
-                    DropdownMenuItem(
-                      value: _SongSort.title,
-                      child: Text(l10n.librarySortTitle),
-                    ),
-                    DropdownMenuItem(
-                      value: _SongSort.duration,
-                      child: Text(l10n.librarySortDuration),
-                    ),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) {
-                      setState(() => _songSort = value);
-                    }
-                  },
-                );
-              }
-
-              final song = songs[index - 1];
-              return TrackListTile(
-                song: song,
-                onTap: () => _playSongNow(context, song),
-                onLongPress: () => _showSongMenu(context, song),
-                trailing: IconButton(
-                  icon: const Icon(Icons.more_vert),
-                  onPressed: () => _showSongMenu(context, song),
-                ),
-              );
-            },
-          );
-        },
-        loading: () => ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          children: const <Widget>[
-            _LoadingListPlaceholder(),
-            _LoadingListPlaceholder(),
-            _LoadingListPlaceholder(),
-          ],
-        ),
-        error: (error, _) => ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          children: <Widget>[
-            ErrorState(
-              title: l10n.librarySongsErrorTitle,
-              message: error.toString(),
-              onRetry: _refreshLibrary,
-              retryLabel: l10n.commonRetry,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGenresTab(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    final genresAsync = ref.watch(genresProvider);
-
-    return RefreshIndicator(
-      onRefresh: _refreshLibrary,
-      child: genresAsync.when(
-        data: (items) {
-          if (items.isEmpty) {
-            return ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              children: <Widget>[
-                EmptyState(
-                  title: l10n.libraryGenresEmptyTitle,
-                  subtitle: l10n.libraryGenresEmptySubtitle,
-                  icon: Icons.category_outlined,
-                ),
-              ],
-            );
-          }
-
-          return ListView.builder(
-            physics: const AlwaysScrollableScrollPhysics(),
-            itemCount: items.length,
-            itemBuilder: (context, index) {
-              final genre = items[index];
-              final encoded = base64Url.encode(utf8.encode(genre.name));
-              return ListTile(
-                title: Text(genre.name),
-                subtitle: Text(
-                  l10n.libraryGenresCount(
-                    genre.albumCount ?? 0,
-                    genre.songCount ?? 0,
-                  ),
-                ),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => context.go('/library/genres/$encoded'),
-              );
-            },
-          );
-        },
-        loading: () => ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          children: const <Widget>[
-            _LoadingListPlaceholder(),
-            _LoadingListPlaceholder(),
-            _LoadingListPlaceholder(),
-          ],
-        ),
-        error: (error, _) => ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          children: <Widget>[
-            ErrorState(
-              title: l10n.libraryGenresErrorTitle,
-              message: error.toString(),
-              onRetry: _refreshLibrary,
-              retryLabel: l10n.commonRetry,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Map<String, List<ArtistsTableData>> _groupArtistsByInitial(
     List<ArtistsTableData> artists,
   ) {
@@ -607,45 +470,114 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     return grouped;
   }
 
-  Future<void> _showSongMenu(BuildContext context, SongsTableData song) async {
-    final l10n = AppLocalizations.of(context)!;
-    await showModalBottomSheet<void>(
-      context: context,
-      builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              ListTile(
-                leading: const Icon(Icons.play_arrow_outlined),
-                title: Text(l10n.librarySongMenuPlayNow),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  _playSongNow(this.context, song);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.queue_music_outlined),
-                title: Text(l10n.librarySongMenuAddToQueue),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  _addSongToQueue(this.context, song);
-                },
-              ),
-              if (song.albumId != null && song.albumId!.isNotEmpty)
-                ListTile(
-                  leading: const Icon(Icons.album_outlined),
-                  title: Text(l10n.librarySongMenuOpenAlbum),
-                  onTap: () {
-                    Navigator.of(context).pop();
-                    this.context.go('/library/albums/${song.albumId}');
-                  },
-                ),
-            ],
-          ),
-        );
-      },
+  List<_ArtistListItem> _buildArtistListItems(
+    Map<String, List<ArtistsTableData>> grouped,
+    List<String> letters,
+  ) {
+    final items = <_ArtistListItem>[];
+    for (final letter in letters) {
+      items.add(_ArtistListItem.header(letter));
+      for (final artist in grouped[letter] ?? const <ArtistsTableData>[]) {
+        items.add(_ArtistListItem.artist(letter, artist));
+      }
+    }
+    return items;
+  }
+
+  Map<String, int> _buildArtistLetterStartIndex(List<_ArtistListItem> items) {
+    final indexByLetter = <String, int>{};
+    for (var i = 0; i < items.length; i++) {
+      final item = items[i];
+      if (item.artist == null) {
+        final candidateIndex =
+            (i + 1 < items.length && items[i + 1].artist != null) ? i + 1 : i;
+        indexByLetter[item.letter] ??= candidateIndex;
+      }
+    }
+    return indexByLetter;
+  }
+
+  void _ensureArtistListCache(List<ArtistsTableData> artists) {
+    if (identical(_cachedArtists, artists) && _artistListItems.isNotEmpty) {
+      return;
+    }
+    final grouped = _groupArtistsByInitial(artists);
+    final letters = grouped.keys.toList(growable: false)..sort();
+    _artistListItems = _buildArtistListItems(grouped, letters);
+    _artistLetterStartIndex = _buildArtistLetterStartIndex(_artistListItems);
+    if (_artistLetterStartIndex.isEmpty) {
+      _activeArtistLetter = null;
+    } else if (_activeArtistLetter == null ||
+        !_artistLetterStartIndex.containsKey(_activeArtistLetter)) {
+      _activeArtistLetter = _artistLetterStartIndex.keys.first;
+    }
+    _cachedArtists = artists;
+  }
+
+  void _onArtistsViewportChanged() {
+    if (_artistListItems.isEmpty || _isArtistRailScrubbing) {
+      return;
+    }
+    final positions = _artistsItemPositionsListener.itemPositions.value;
+    if (positions.isEmpty) {
+      return;
+    }
+    final visible = positions
+        .where(
+          (position) =>
+              position.itemTrailingEdge > 0 && position.itemLeadingEdge < 1,
+        )
+        .toList(growable: false);
+    if (visible.isEmpty) {
+      return;
+    }
+    final candidates = visible
+        .where((position) => position.itemLeadingEdge >= 0)
+        .toList(growable: false);
+    final targetSet = candidates.isEmpty ? visible : candidates;
+    targetSet.sort((a, b) {
+      final byEdge = a.itemLeadingEdge.compareTo(b.itemLeadingEdge);
+      if (byEdge != 0) {
+        return byEdge;
+      }
+      return a.index.compareTo(b.index);
+    });
+    final topIndex = targetSet.first.index.clamp(
+      0,
+      _artistListItems.length - 1,
     );
+    final topLetter = _artistListItems[topIndex].letter;
+    if (topLetter == _activeArtistLetter || !mounted) {
+      return;
+    }
+    setState(() => _activeArtistLetter = topLetter);
+  }
+
+  void _scrollToArtistLetter(
+    String letter, {
+    required bool animate,
+  }) {
+    if (_activeArtistLetter == letter) {
+      return;
+    }
+    if (mounted) {
+      setState(() => _activeArtistLetter = letter);
+    }
+    final sectionIndex = _artistLetterStartIndex[letter];
+    if (sectionIndex == null || !_artistsItemScrollController.isAttached) {
+      return;
+    }
+    if (animate) {
+      unawaited(
+        _artistsItemScrollController.scrollTo(
+          index: sectionIndex,
+          duration: const Duration(milliseconds: 140),
+          curve: Curves.easeOut,
+        ),
+      );
+      return;
+    }
+    _artistsItemScrollController.jumpTo(index: sectionIndex);
   }
 
   Future<void> _showAlbumMenu(
@@ -702,22 +634,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           ),
         );
       },
-    );
-  }
-
-  void _playSongNow(BuildContext context, SongsTableData song) {
-    ref.read(queueProvider.notifier).replace(<String>[song.id]);
-    final l10n = AppLocalizations.of(context)!;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(l10n.librarySongPlayNowQueued(song.title))),
-    );
-  }
-
-  void _addSongToQueue(BuildContext context, SongsTableData song) {
-    ref.read(queueProvider.notifier).add(song.id);
-    final l10n = AppLocalizations.of(context)!;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(l10n.librarySongAddedToQueue(song.title))),
     );
   }
 }
@@ -785,19 +701,7 @@ class _SyncStatusBanner extends StatelessWidget {
       );
     }
 
-    final timestamp = MaterialLocalizations.of(
-      context,
-    ).formatFullDate(syncState.lastSyncedAt!);
-    return Material(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Text(
-          l10n.librarySyncLastSynced(timestamp),
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-      ),
-    );
+    return const SizedBox.shrink();
   }
 
   String _runningLabel(
@@ -842,6 +746,113 @@ class _SyncStatusBanner extends StatelessWidget {
       _ => l10n.librarySyncRunning,
     };
   }
+}
+
+class _ArtistAlphabetRail extends StatelessWidget {
+  const _ArtistAlphabetRail({
+    required this.letters,
+    required this.activeLetter,
+    required this.onLetterSelected,
+    required this.onInteractionStart,
+    required this.onInteractionEnd,
+  });
+
+  final List<String> letters;
+  final String? activeLetter;
+  final void Function(String letter, {required bool animate}) onLetterSelected;
+  final VoidCallback onInteractionStart;
+  final VoidCallback onInteractionEnd;
+
+  @override
+  Widget build(BuildContext context) {
+    if (letters.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return SizedBox(
+      key: const Key('artistAlphabetRail'),
+      width: 36,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          void selectAtDy(double dy) {
+            if (constraints.maxHeight <= 0) {
+              return;
+            }
+            final normalized = ((dy / constraints.maxHeight) * letters.length)
+                .clamp(0, letters.length - 0.0001);
+            final index = normalized.floor().clamp(
+              0,
+              letters.length - 1,
+            );
+            onLetterSelected(
+              letters[index],
+              animate: false,
+            );
+          }
+
+          return Listener(
+            behavior: HitTestBehavior.opaque,
+            onPointerDown: (details) {
+              onInteractionStart();
+              selectAtDy(details.localPosition.dy);
+            },
+            onPointerMove: (details) => selectAtDy(details.localPosition.dy),
+            onPointerUp: (details) {
+              selectAtDy(details.localPosition.dy);
+              onInteractionEnd();
+            },
+            onPointerCancel: (_) => onInteractionEnd(),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Column(
+                children: letters
+                    .map(
+                      (letter) => Expanded(
+                        child: Center(
+                          child: Text(
+                            letter,
+                            key: letter == activeLetter
+                                ? const Key('artistRailActiveLetter')
+                                : null,
+                            style:
+                                Theme.of(
+                                  context,
+                                ).textTheme.labelSmall?.copyWith(
+                                  color: letter == activeLetter
+                                      ? Theme.of(context).colorScheme.primary
+                                      : null,
+                                  fontWeight: letter == activeLetter
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                ),
+                          ),
+                        ),
+                      ),
+                    )
+                    .toList(growable: false),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+@immutable
+class _ArtistListItem {
+  const _ArtistListItem._({required this.letter, this.artist});
+
+  const _ArtistListItem.header(String letter) : this._(letter: letter);
+
+  const _ArtistListItem.artist(String letter, ArtistsTableData artist)
+    : this._(letter: letter, artist: artist);
+
+  final String letter;
+  final ArtistsTableData? artist;
 }
 
 class _SortRow<T> extends StatelessWidget {

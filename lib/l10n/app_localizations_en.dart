@@ -12,6 +12,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appName => 'Navis';
 
   @override
+  String get navHome => 'Home';
+
+  @override
+  String get navLibrary => 'Library';
+
+  @override
+  String get navSearch => 'Search';
+
+  @override
+  String get navPlaylists => 'Playlists';
+
+  @override
+  String get navSettings => 'Settings';
+
+  @override
   String get loginTitle => 'Sign in';
 
   @override
@@ -93,10 +108,116 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsCacheTitle => 'Cache';
 
   @override
+  String get settingsSyncTitle => 'Sync';
+
+  @override
+  String get settingsSyncSubtitle =>
+      'Sync progress, history, and manual controls.';
+
+  @override
   String get settingsPlaybackTitle => 'Playback';
 
   @override
   String get settingsAppearanceTitle => 'Appearance';
+
+  @override
+  String get syncSettingsTitle => 'Sync Settings';
+
+  @override
+  String get syncSettingsStatusLabel => 'Current sync status';
+
+  @override
+  String get syncSettingsLastSyncedLabel => 'Server last synced';
+
+  @override
+  String get syncSettingsNeverSynced => 'Never synced';
+
+  @override
+  String get syncSettingsStatusIdle => 'Idle';
+
+  @override
+  String get syncSettingsStatusSucceeded => 'Last sync succeeded';
+
+  @override
+  String get syncSettingsStatusFailed => 'Last sync failed';
+
+  @override
+  String playbackSettingsLoadError(Object message) {
+    return 'Could not load playback settings: $message';
+  }
+
+  @override
+  String get playbackSettingsWifiSectionTitle => 'Wi-Fi streaming';
+
+  @override
+  String get playbackSettingsWifiQualityLabel => 'Max bitrate';
+
+  @override
+  String get playbackSettingsWifiFormatLabel => 'Preferred format';
+
+  @override
+  String get playbackSettingsCellularSectionTitle => 'Cellular streaming';
+
+  @override
+  String get playbackSettingsCellularQualityLabel => 'Max bitrate';
+
+  @override
+  String get playbackSettingsCellularFormatLabel => 'Preferred format';
+
+  @override
+  String get playbackSettingsScrobbleTitle => 'Enable scrobbling';
+
+  @override
+  String get playbackSettingsScrobbleSubtitle =>
+      'Send now-playing and listened-track updates to the server.';
+
+  @override
+  String get playbackSettingsGaplessTitle => 'Enable gapless playback';
+
+  @override
+  String get playbackSettingsGaplessSubtitle =>
+      'Preload tracks to reduce gaps between songs.';
+
+  @override
+  String get playbackSettingsSkipSilenceTitle => 'Skip silence when possible';
+
+  @override
+  String get playbackSettingsSkipSilenceSubtitle =>
+      'Automatically skip silent segments on supported platforms.';
+
+  @override
+  String get playbackSettingsSaveAction => 'Save';
+
+  @override
+  String get playbackSettingsResetAction => 'Reset defaults';
+
+  @override
+  String get playbackSettingsQualityOriginal => 'Original quality';
+
+  @override
+  String playbackSettingsQualityKbps(int kbps) {
+    return '$kbps kbps';
+  }
+
+  @override
+  String get playbackSettingsFormatOriginal => 'Server default';
+
+  @override
+  String get playbackSettingsSaveSuccess => 'Playback settings saved.';
+
+  @override
+  String playbackSettingsSaveFailure(Object message) {
+    return 'Could not save playback settings: $message';
+  }
+
+  @override
+  String get playbackSettingsResetSuccess =>
+      'Playback settings reset to defaults.';
+
+  @override
+  String playbackSettingsResetFailure(Object message) {
+    return 'Could not reset playback settings: $message';
+  }
 
   @override
   String get homeTitle => 'Home';
@@ -403,6 +524,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get librarySortNewest => 'Newest';
 
   @override
+  String get librarySortOldest => 'Oldest';
+
+  @override
   String get librarySortName => 'Name';
 
   @override
@@ -430,6 +554,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get librarySongMenuAddToQueue => 'Add to queue';
 
   @override
+  String get librarySongMenuPlayNext => 'Play next';
+
+  @override
   String get librarySongMenuOpenAlbum => 'Open album';
 
   @override
@@ -443,6 +570,11 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String librarySongAddedToQueue(Object title) {
     return '\"$title\" added to queue.';
+  }
+
+  @override
+  String librarySongPlayNextQueued(Object title) {
+    return '\"$title\" added to play next.';
   }
 
   @override
@@ -573,4 +705,52 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get albumDetailStarFailure => 'Could not update star status.';
+
+  @override
+  String get miniPlayerUnknownTrack => 'Unknown track';
+
+  @override
+  String get miniPlayerUnknownArtist => 'Unknown artist';
+
+  @override
+  String get miniPlayerPlay => 'Play';
+
+  @override
+  String get miniPlayerPause => 'Pause';
+
+  @override
+  String get playbackBootstrapLoadingTitle => 'Preparing playback';
+
+  @override
+  String get playbackBootstrapLoadingSubtitle =>
+      'Initializing audio services...';
+
+  @override
+  String get playbackBootstrapFailedTitle => 'Playback initialization failed';
+
+  @override
+  String get playbackBootstrapFailedSubtitle =>
+      'Could not initialize playback. Retry to continue.';
+
+  @override
+  String get playbackBootstrapRetryAction => 'Retry playback startup';
+
+  @override
+  String get playbackUnavailableInitializing =>
+      'Playback is still initializing. Try again in a moment.';
+
+  @override
+  String get playbackUnavailableStartupFailed =>
+      'Playback startup failed. Retry from the startup screen.';
+
+  @override
+  String get playbackUnavailableSource =>
+      'Could not resolve an audio source. Check server session and connection.';
+
+  @override
+  String get playbackUnavailableGeneric => 'Playback is unavailable right now.';
+
+  @override
+  String get playbackActionFailed =>
+      'Playback action failed. Please try again.';
 }

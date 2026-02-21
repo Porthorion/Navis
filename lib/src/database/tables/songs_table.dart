@@ -46,6 +46,8 @@ class SongsTable extends Table {
 
   IntColumn get playCount => integer().nullable()();
 
+  DateTimeColumn get createdAt => dateTime().nullable()();
+
   @override
   Set<Column<Object>> get primaryKey => {id};
 }

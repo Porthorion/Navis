@@ -100,6 +100,36 @@ abstract class AppLocalizations {
   /// **'Navis'**
   String get appName;
 
+  /// No description provided for @navHome.
+  ///
+  /// In en, this message translates to:
+  /// **'Home'**
+  String get navHome;
+
+  /// No description provided for @navLibrary.
+  ///
+  /// In en, this message translates to:
+  /// **'Library'**
+  String get navLibrary;
+
+  /// No description provided for @navSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'Search'**
+  String get navSearch;
+
+  /// No description provided for @navPlaylists.
+  ///
+  /// In en, this message translates to:
+  /// **'Playlists'**
+  String get navPlaylists;
+
+  /// No description provided for @navSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings'**
+  String get navSettings;
+
   /// No description provided for @loginTitle.
   ///
   /// In en, this message translates to:
@@ -250,6 +280,18 @@ abstract class AppLocalizations {
   /// **'Cache'**
   String get settingsCacheTitle;
 
+  /// No description provided for @settingsSyncTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync'**
+  String get settingsSyncTitle;
+
+  /// No description provided for @settingsSyncSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync progress, history, and manual controls.'**
+  String get settingsSyncSubtitle;
+
   /// No description provided for @settingsPlaybackTitle.
   ///
   /// In en, this message translates to:
@@ -261,6 +303,180 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Appearance'**
   String get settingsAppearanceTitle;
+
+  /// No description provided for @syncSettingsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync Settings'**
+  String get syncSettingsTitle;
+
+  /// No description provided for @syncSettingsStatusLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Current sync status'**
+  String get syncSettingsStatusLabel;
+
+  /// No description provided for @syncSettingsLastSyncedLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Server last synced'**
+  String get syncSettingsLastSyncedLabel;
+
+  /// No description provided for @syncSettingsNeverSynced.
+  ///
+  /// In en, this message translates to:
+  /// **'Never synced'**
+  String get syncSettingsNeverSynced;
+
+  /// No description provided for @syncSettingsStatusIdle.
+  ///
+  /// In en, this message translates to:
+  /// **'Idle'**
+  String get syncSettingsStatusIdle;
+
+  /// No description provided for @syncSettingsStatusSucceeded.
+  ///
+  /// In en, this message translates to:
+  /// **'Last sync succeeded'**
+  String get syncSettingsStatusSucceeded;
+
+  /// No description provided for @syncSettingsStatusFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Last sync failed'**
+  String get syncSettingsStatusFailed;
+
+  /// No description provided for @playbackSettingsLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load playback settings: {message}'**
+  String playbackSettingsLoadError(Object message);
+
+  /// No description provided for @playbackSettingsWifiSectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Wi-Fi streaming'**
+  String get playbackSettingsWifiSectionTitle;
+
+  /// No description provided for @playbackSettingsWifiQualityLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Max bitrate'**
+  String get playbackSettingsWifiQualityLabel;
+
+  /// No description provided for @playbackSettingsWifiFormatLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Preferred format'**
+  String get playbackSettingsWifiFormatLabel;
+
+  /// No description provided for @playbackSettingsCellularSectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Cellular streaming'**
+  String get playbackSettingsCellularSectionTitle;
+
+  /// No description provided for @playbackSettingsCellularQualityLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Max bitrate'**
+  String get playbackSettingsCellularQualityLabel;
+
+  /// No description provided for @playbackSettingsCellularFormatLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Preferred format'**
+  String get playbackSettingsCellularFormatLabel;
+
+  /// No description provided for @playbackSettingsScrobbleTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable scrobbling'**
+  String get playbackSettingsScrobbleTitle;
+
+  /// No description provided for @playbackSettingsScrobbleSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Send now-playing and listened-track updates to the server.'**
+  String get playbackSettingsScrobbleSubtitle;
+
+  /// No description provided for @playbackSettingsGaplessTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable gapless playback'**
+  String get playbackSettingsGaplessTitle;
+
+  /// No description provided for @playbackSettingsGaplessSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Preload tracks to reduce gaps between songs.'**
+  String get playbackSettingsGaplessSubtitle;
+
+  /// No description provided for @playbackSettingsSkipSilenceTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip silence when possible'**
+  String get playbackSettingsSkipSilenceTitle;
+
+  /// No description provided for @playbackSettingsSkipSilenceSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatically skip silent segments on supported platforms.'**
+  String get playbackSettingsSkipSilenceSubtitle;
+
+  /// No description provided for @playbackSettingsSaveAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get playbackSettingsSaveAction;
+
+  /// No description provided for @playbackSettingsResetAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset defaults'**
+  String get playbackSettingsResetAction;
+
+  /// No description provided for @playbackSettingsQualityOriginal.
+  ///
+  /// In en, this message translates to:
+  /// **'Original quality'**
+  String get playbackSettingsQualityOriginal;
+
+  /// No description provided for @playbackSettingsQualityKbps.
+  ///
+  /// In en, this message translates to:
+  /// **'{kbps} kbps'**
+  String playbackSettingsQualityKbps(int kbps);
+
+  /// No description provided for @playbackSettingsFormatOriginal.
+  ///
+  /// In en, this message translates to:
+  /// **'Server default'**
+  String get playbackSettingsFormatOriginal;
+
+  /// No description provided for @playbackSettingsSaveSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Playback settings saved.'**
+  String get playbackSettingsSaveSuccess;
+
+  /// No description provided for @playbackSettingsSaveFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save playback settings: {message}'**
+  String playbackSettingsSaveFailure(Object message);
+
+  /// No description provided for @playbackSettingsResetSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Playback settings reset to defaults.'**
+  String get playbackSettingsResetSuccess;
+
+  /// No description provided for @playbackSettingsResetFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not reset playback settings: {message}'**
+  String playbackSettingsResetFailure(Object message);
 
   /// No description provided for @homeTitle.
   ///
@@ -795,6 +1011,12 @@ abstract class AppLocalizations {
   /// **'Newest'**
   String get librarySortNewest;
 
+  /// No description provided for @librarySortOldest.
+  ///
+  /// In en, this message translates to:
+  /// **'Oldest'**
+  String get librarySortOldest;
+
   /// No description provided for @librarySortName.
   ///
   /// In en, this message translates to:
@@ -849,6 +1071,12 @@ abstract class AppLocalizations {
   /// **'Add to queue'**
   String get librarySongMenuAddToQueue;
 
+  /// No description provided for @librarySongMenuPlayNext.
+  ///
+  /// In en, this message translates to:
+  /// **'Play next'**
+  String get librarySongMenuPlayNext;
+
   /// No description provided for @librarySongMenuOpenAlbum.
   ///
   /// In en, this message translates to:
@@ -872,6 +1100,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'\"{title}\" added to queue.'**
   String librarySongAddedToQueue(Object title);
+
+  /// No description provided for @librarySongPlayNextQueued.
+  ///
+  /// In en, this message translates to:
+  /// **'\"{title}\" added to play next.'**
+  String librarySongPlayNextQueued(Object title);
 
   /// No description provided for @libraryGenreDetailTitle.
   ///
@@ -1106,6 +1340,90 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could not update star status.'**
   String get albumDetailStarFailure;
+
+  /// No description provided for @miniPlayerUnknownTrack.
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown track'**
+  String get miniPlayerUnknownTrack;
+
+  /// No description provided for @miniPlayerUnknownArtist.
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown artist'**
+  String get miniPlayerUnknownArtist;
+
+  /// No description provided for @miniPlayerPlay.
+  ///
+  /// In en, this message translates to:
+  /// **'Play'**
+  String get miniPlayerPlay;
+
+  /// No description provided for @miniPlayerPause.
+  ///
+  /// In en, this message translates to:
+  /// **'Pause'**
+  String get miniPlayerPause;
+
+  /// No description provided for @playbackBootstrapLoadingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Preparing playback'**
+  String get playbackBootstrapLoadingTitle;
+
+  /// No description provided for @playbackBootstrapLoadingSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Initializing audio services...'**
+  String get playbackBootstrapLoadingSubtitle;
+
+  /// No description provided for @playbackBootstrapFailedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Playback initialization failed'**
+  String get playbackBootstrapFailedTitle;
+
+  /// No description provided for @playbackBootstrapFailedSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not initialize playback. Retry to continue.'**
+  String get playbackBootstrapFailedSubtitle;
+
+  /// No description provided for @playbackBootstrapRetryAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry playback startup'**
+  String get playbackBootstrapRetryAction;
+
+  /// No description provided for @playbackUnavailableInitializing.
+  ///
+  /// In en, this message translates to:
+  /// **'Playback is still initializing. Try again in a moment.'**
+  String get playbackUnavailableInitializing;
+
+  /// No description provided for @playbackUnavailableStartupFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Playback startup failed. Retry from the startup screen.'**
+  String get playbackUnavailableStartupFailed;
+
+  /// No description provided for @playbackUnavailableSource.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not resolve an audio source. Check server session and connection.'**
+  String get playbackUnavailableSource;
+
+  /// No description provided for @playbackUnavailableGeneric.
+  ///
+  /// In en, this message translates to:
+  /// **'Playback is unavailable right now.'**
+  String get playbackUnavailableGeneric;
+
+  /// No description provided for @playbackActionFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Playback action failed. Please try again.'**
+  String get playbackActionFailed;
 }
 
 class _AppLocalizationsDelegate

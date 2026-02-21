@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
@@ -353,6 +354,73 @@ void main() {
 
       expect(engine.staleCalls, 0);
       expect(engine.nowCalls, 0);
+    });
+
+    test('sync retries on resume when backgrounded failure occurs', () async {
+      final binding = TestWidgetsFlutterBinding.ensureInitialized();
+      binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+
+      var attempt = 0;
+      final engine = _FakeLibrarySyncEngine(
+        ({
+          LibrarySyncProgressCallback? onProgress,
+        }) async {
+          return const LibrarySyncState(
+            status: LibrarySyncStatus.skipped,
+            stage: LibrarySyncStage.completed,
+          );
+        },
+        ({
+          bool forceFull = false,
+          LibrarySyncProgressCallback? onProgress,
+        }) async {
+          attempt++;
+          if (attempt == 1) {
+            return LibrarySyncState(
+              status: LibrarySyncStatus.failed,
+              stage: LibrarySyncStage.fetchingAlbums,
+              errorMessage: 'Transient background failure',
+              completedAt: DateTime.now(),
+            );
+          }
+          return LibrarySyncState(
+            status: LibrarySyncStatus.succeeded,
+            stage: LibrarySyncStage.completed,
+            completedAt: DateTime.now(),
+          );
+        },
+      );
+
+      final container = ProviderContainer(
+        overrides: [
+          serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
+          serverReachabilityControllerProvider.overrideWith(
+            () => _StaticReachabilityController(
+              const ServerReachabilityState(
+                status: ServerReachabilityStatus.checking,
+              ),
+            ),
+          ),
+          librarySyncEngineProvider.overrideWithValue(engine),
+        ],
+      );
+      addTearDown(() async {
+        container.dispose();
+        binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      });
+
+      final future = container
+          .read(librarySyncControllerProvider.notifier)
+          .syncNow();
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(engine.nowCalls, 1);
+
+      binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await future;
+
+      final finalState = container.read(librarySyncControllerProvider);
+      expect(engine.nowCalls, 2);
+      expect(finalState.status, LibrarySyncStatus.succeeded);
     });
   });
 }

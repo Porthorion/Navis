@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:collection';
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
@@ -44,11 +45,30 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   String? _startupSyncDoneFingerprint;
   String? _sessionFingerprint;
   ServerReachabilityStatus? _lastReachabilityStatus;
+  bool _isForeground = true;
+  Completer<void>? _foregroundCompleter;
   final Queue<String> _priorityAlbumIds = Queue<String>();
   static const int _maxPriorityAlbums = 120;
+  late final AppLifecycleListener _lifecycleListener;
 
   @override
   LibrarySyncState build() {
+    final lifecycleState = WidgetsBinding.instance.lifecycleState;
+    _isForeground =
+        lifecycleState == null || lifecycleState == AppLifecycleState.resumed;
+    _lifecycleListener = AppLifecycleListener(
+      onResume: _onAppResumed,
+      onInactive: _onAppBackgrounded,
+      onPause: _onAppBackgrounded,
+      onHide: _onAppBackgrounded,
+      onDetach: _onAppBackgrounded,
+    );
+    ref.onDispose(() {
+      _lifecycleListener.dispose();
+      _foregroundCompleter?.complete();
+      _foregroundCompleter = null;
+    });
+
     final serverConfig = ref.read(serverConfigStateProvider).asData?.value;
     if (serverConfig != null) {
       _sessionFingerprint = _toSessionFingerprint(serverConfig);
@@ -178,16 +198,34 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       return state;
     }
 
-    final result = force
-        ? await engine.syncNow(
-            forceFull: forceFull,
-            priorityAlbumIds: _priorityAlbumIds,
-            onProgress: (progress) => state = progress,
-          )
-        : await engine.syncIfStale(
-            priorityAlbumIds: _priorityAlbumIds,
-            onProgress: (progress) => state = progress,
-          );
+    final result = await _executeSync(
+      engine: engine,
+      force: force,
+      forceFull: forceFull,
+    );
+    if (!ref.mounted) {
+      return result;
+    }
+
+    if (result.status == LibrarySyncStatus.failed && !_isForeground) {
+      await _waitUntilForeground();
+      if (!ref.mounted) {
+        return result;
+      }
+      if (_isForeground) {
+        final resumed = await _executeSync(
+          engine: engine,
+          force: force,
+          forceFull: forceFull,
+        );
+        if (!ref.mounted) {
+          return resumed;
+        }
+        state = resumed;
+        return resumed;
+      }
+    }
+
     state = result;
     return result;
   }
@@ -206,5 +244,51 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     while (_priorityAlbumIds.length > _maxPriorityAlbums) {
       _priorityAlbumIds.removeLast();
     }
+  }
+
+  Future<LibrarySyncState> _executeSync({
+    required LibrarySyncEngine engine,
+    required bool force,
+    required bool forceFull,
+  }) {
+    void updateProgress(LibrarySyncState progress) {
+      if (ref.mounted) {
+        state = progress;
+      }
+    }
+
+    return force
+        ? engine.syncNow(
+            forceFull: forceFull,
+            priorityAlbumIds: _priorityAlbumIds,
+            onProgress: updateProgress,
+          )
+        : engine.syncIfStale(
+            priorityAlbumIds: _priorityAlbumIds,
+            onProgress: updateProgress,
+          );
+  }
+
+  void _onAppBackgrounded() {
+    _isForeground = false;
+    _foregroundCompleter ??= Completer<void>();
+  }
+
+  void _onAppResumed() {
+    final wasForeground = _isForeground;
+    _isForeground = true;
+    _foregroundCompleter?.complete();
+    _foregroundCompleter = null;
+    if (!wasForeground) {
+      _maybeRunStartupSync();
+    }
+  }
+
+  Future<void> _waitUntilForeground() async {
+    if (_isForeground) {
+      return;
+    }
+    final completer = _foregroundCompleter ??= Completer<void>();
+    await completer.future;
   }
 }

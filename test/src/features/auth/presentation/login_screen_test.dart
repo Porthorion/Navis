@@ -15,7 +15,10 @@ import 'package:navis/src/features/auth/presentation/server_reachability_provide
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/providers/app_providers.dart';
+import '../../../../helpers/test_database.dart';
 
 class _StaticReachabilityController extends ServerReachabilityController {
   _StaticReachabilityController(this._state);
@@ -90,32 +93,63 @@ class _StaticLibrarySyncController extends LibrarySyncController {
   LibrarySyncState build() => const LibrarySyncState.idle();
 
   @override
-  Future<LibrarySyncState> syncIfStale({
-    Iterable<String> priorityAlbumIds = const <String>[],
-  }) async {
+  Future<LibrarySyncState> syncIfStale() async {
     return const LibrarySyncState.idle();
   }
 
   @override
-  Future<LibrarySyncState> syncNow({
-    bool forceFull = false,
-    Iterable<String> priorityAlbumIds = const <String>[],
-  }) async {
+  Future<LibrarySyncState> syncNow({bool forceFull = false}) async {
     return const LibrarySyncState.idle();
   }
 }
 
+class _StaticScrobbleDispatchController extends ScrobbleDispatchController {
+  @override
+  int build() => 0;
+}
+
+Widget _buildTestApp({
+  required NavisDatabase database,
+  required List<Object> overrides,
+}) {
+  return ProviderScope(
+    overrides: [
+      navisDatabaseProvider.overrideWithValue(database),
+      scrobbleDispatchControllerProvider.overrideWith(
+        _StaticScrobbleDispatchController.new,
+      ),
+      ...overrides.cast(),
+    ],
+    child: const NavisApp(),
+  );
+}
+
+Future<void> _disposeApp(WidgetTester tester) async {
+  await tester.pumpWidget(const SizedBox.shrink());
+  await tester.pump();
+}
+
 void main() {
+  late NavisDatabase database;
+
+  setUp(() {
+    database = createTestDatabase();
+  });
+
+  tearDown(() async {
+    await database.close();
+  });
+
   testWidgets('renders login form fields and actions', (tester) async {
     await tester.pumpWidget(
-      ProviderScope(
+      _buildTestApp(
+        database: database,
         overrides: [
           serverConfigProvider.overrideWith(_TestServerConfigNotifier.new),
           librarySyncControllerProvider.overrideWith(
             _StaticLibrarySyncController.new,
           ),
         ],
-        child: const NavisApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -126,20 +160,21 @@ void main() {
     expect(find.text('Password'), findsOneWidget);
     expect(find.text('Test connection'), findsOneWidget);
     expect(find.text('Connect'), findsOneWidget);
+    await _disposeApp(tester);
   });
 
   testWidgets('shows validation errors when required fields are empty', (
     tester,
   ) async {
     await tester.pumpWidget(
-      ProviderScope(
+      _buildTestApp(
+        database: database,
         overrides: [
           serverConfigProvider.overrideWith(_TestServerConfigNotifier.new),
           librarySyncControllerProvider.overrideWith(
             _StaticLibrarySyncController.new,
           ),
         ],
-        child: const NavisApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -150,6 +185,7 @@ void main() {
     expect(find.text('Server URL is required.'), findsOneWidget);
     expect(find.text('Username is required.'), findsOneWidget);
     expect(find.text('Password is required.'), findsOneWidget);
+    await _disposeApp(tester);
   });
 
   testWidgets('shows loading state while testing connection', (tester) async {
@@ -157,7 +193,8 @@ void main() {
     final fakeService = _FakeServerConnectionService(completer: completer);
 
     await tester.pumpWidget(
-      ProviderScope(
+      _buildTestApp(
+        database: database,
         overrides: [
           serverConfigProvider.overrideWith(_TestServerConfigNotifier.new),
           serverConnectionServiceProvider.overrideWithValue(fakeService),
@@ -165,7 +202,6 @@ void main() {
             _StaticLibrarySyncController.new,
           ),
         ],
-        child: const NavisApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -190,6 +226,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Connection successful (API 1.16.1).'), findsOneWidget);
+    await _disposeApp(tester);
   });
 
   testWidgets('successful connect saves config and navigates to home', (
@@ -199,7 +236,8 @@ void main() {
     final fakeService = _FakeServerConnectionService();
 
     await tester.pumpWidget(
-      ProviderScope(
+      _buildTestApp(
+        database: database,
         overrides: [
           serverConnectionServiceProvider.overrideWithValue(fakeService),
           serverConfigProvider.overrideWith(
@@ -229,7 +267,6 @@ void main() {
           ),
           homeStarredSongsProvider.overrideWithValue(const AsyncData(<Song>[])),
         ],
-        child: const NavisApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -247,6 +284,7 @@ void main() {
     expect(savedConfig?.url, 'https://x.test');
     expect(savedConfig?.username, 'alice');
     expect(savedConfig?.password, 'secret');
+    await _disposeApp(tester);
   });
 
   testWidgets('connection errors are shown as user-safe message', (
@@ -257,7 +295,8 @@ void main() {
     );
 
     await tester.pumpWidget(
-      ProviderScope(
+      _buildTestApp(
+        database: database,
         overrides: [
           serverConfigProvider.overrideWith(_TestServerConfigNotifier.new),
           serverConnectionServiceProvider.overrideWithValue(fakeService),
@@ -265,7 +304,6 @@ void main() {
             _StaticLibrarySyncController.new,
           ),
         ],
-        child: const NavisApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -280,6 +318,7 @@ void main() {
       find.text('Could not reach server. Check URL and network.'),
       findsOneWidget,
     );
+    await _disposeApp(tester);
   });
 
   testWidgets('allows HTTP server URL and shows insecure transport warning', (
@@ -289,7 +328,8 @@ void main() {
     final fakeService = _FakeServerConnectionService();
 
     await tester.pumpWidget(
-      ProviderScope(
+      _buildTestApp(
+        database: database,
         overrides: [
           serverConnectionServiceProvider.overrideWithValue(fakeService),
           serverConfigProvider.overrideWith(
@@ -319,7 +359,6 @@ void main() {
           ),
           homeStarredSongsProvider.overrideWithValue(const AsyncData(<Song>[])),
         ],
-        child: const NavisApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -332,5 +371,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(notifier.savedConfigSnapshot()?.url, 'http://x.test');
+    await _disposeApp(tester);
   });
 }

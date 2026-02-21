@@ -9,6 +9,8 @@ part 'library_dao.g.dart';
 
 enum AlbumSortOrder { newest, name, artist }
 
+enum SongSortOrder { newest, oldest, name }
+
 @DriftAccessor(tables: [ArtistsTable, AlbumsTable, SongsTable, GenresTable])
 class LibraryDao extends DatabaseAccessor<NavisDatabase>
     with _$LibraryDaoMixin {
@@ -78,13 +80,40 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return query.watch();
   }
 
-  Stream<List<SongsTableData>> watchAllSongs() {
+  Stream<SongsTableData?> watchSongById(String songId) {
     final query = select(songsTable)
-      ..orderBy([
-        (table) => OrderingTerm.asc(table.artistName),
-        (table) => OrderingTerm.asc(table.albumName),
-        (table) => OrderingTerm.asc(table.track),
-      ]);
+      ..where((table) => table.id.equals(songId))
+      ..limit(1);
+    return query.watchSingleOrNull();
+  }
+
+  Stream<List<SongsTableData>> watchAllSongs() {
+    return watchSongsSorted(SongSortOrder.newest);
+  }
+
+  Stream<List<SongsTableData>> watchSongsSorted(SongSortOrder sort) {
+    final query = select(songsTable);
+    switch (sort) {
+      case SongSortOrder.newest:
+        query.orderBy([
+          (table) => OrderingTerm.asc(table.createdAt.isNull()),
+          (table) => OrderingTerm.desc(table.createdAt),
+          (table) => OrderingTerm.asc(table.title),
+          (table) => OrderingTerm.asc(table.id),
+        ]);
+      case SongSortOrder.oldest:
+        query.orderBy([
+          (table) => OrderingTerm.asc(table.createdAt.isNull()),
+          (table) => OrderingTerm.asc(table.createdAt),
+          (table) => OrderingTerm.asc(table.title),
+          (table) => OrderingTerm.asc(table.id),
+        ]);
+      case SongSortOrder.name:
+        query.orderBy([
+          (table) => OrderingTerm.asc(table.title),
+          (table) => OrderingTerm.asc(table.id),
+        ]);
+    }
     return query.watch();
   }
 
@@ -261,6 +290,26 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
 
   Future<List<AlbumsTableData>> getAllAlbums() {
     return select(albumsTable).get();
+  }
+
+  Future<List<SongsTableData>> getSongsByIds(Iterable<String> songIds) async {
+    final ids = songIds.map((id) => id.trim()).where((id) => id.isNotEmpty);
+    final idList = ids.toList(growable: false);
+    if (idList.isEmpty) {
+      return const <SongsTableData>[];
+    }
+
+    final query = select(songsTable)..where((table) => table.id.isIn(idList));
+    final rows = await query.get();
+    final byId = <String, SongsTableData>{for (final row in rows) row.id: row};
+    final ordered = <SongsTableData>[];
+    for (final id in idList) {
+      final song = byId[id];
+      if (song != null) {
+        ordered.add(song);
+      }
+    }
+    return ordered;
   }
 
   Future<Map<String, int?>> getAlbumSongCountsByIds(

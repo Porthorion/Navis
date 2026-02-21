@@ -23,6 +23,7 @@ abstract class Song with _$Song {
     String? coverArt,
     DateTime? starred,
     int? playCount,
+    DateTime? created,
   }) = _Song;
 
   factory Song.fromJson(Map<String, dynamic> json) => _$SongFromJson(json);

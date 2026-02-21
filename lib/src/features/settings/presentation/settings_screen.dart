@@ -26,6 +26,13 @@ class SettingsScreen extends StatelessWidget {
             onTap: () => context.go('/settings/cache'),
           ),
           ListTile(
+            leading: const Icon(Icons.sync_outlined),
+            title: Text(l10n.settingsSyncTitle),
+            subtitle: Text(l10n.settingsSyncSubtitle),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.go('/settings/sync'),
+          ),
+          ListTile(
             leading: const Icon(Icons.graphic_eq_outlined),
             title: Text(l10n.settingsPlaybackTitle),
             trailing: const Icon(Icons.chevron_right),

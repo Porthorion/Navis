@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:audio_service/audio_service.dart';
 import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
@@ -10,6 +11,9 @@ import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
+import 'package:navis/src/features/player/data/navis_audio_handler.dart';
+import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:sqlite3/sqlite3.dart';
@@ -21,6 +25,133 @@ bool get _sqliteAvailable {
     return true;
   } on Object {
     return false;
+  }
+}
+
+class _FakePlaybackHandler implements NavisPlaybackHandler {
+  final StreamController<PlaybackSnapshot> _controller =
+      StreamController<PlaybackSnapshot>.broadcast();
+  PlaybackSnapshot _snapshot = const PlaybackSnapshot.idle();
+
+  @override
+  PlaybackSnapshot get snapshot => _snapshot;
+
+  @override
+  Stream<PlaybackSnapshot> get snapshotStream => _controller.stream;
+
+  @override
+  Future<void> waitUntilReady() async {}
+
+  @override
+  Future<void> addToQueue(List<String> songIds) async {
+    _snapshot = _snapshot.copyWith(
+      queueSongIds: <String>[..._snapshot.queueSongIds, ...songIds],
+    );
+    _controller.add(_snapshot);
+  }
+
+  @override
+  Future<void> clearQueue() async {
+    _snapshot = const PlaybackSnapshot.idle();
+    _controller.add(_snapshot);
+  }
+
+  @override
+  Future<void> pause() async {
+    _snapshot = _snapshot.copyWith(playing: false);
+    _controller.add(_snapshot);
+  }
+
+  @override
+  Future<void> applyRuntimeSettings() async {}
+
+  @override
+  Future<void> playNext(List<String> songIds) async {
+    if (songIds.isEmpty) {
+      return;
+    }
+    final queue = <String>[..._snapshot.queueSongIds];
+    final currentIndex = (_snapshot.currentIndex ?? -1).clamp(-1, queue.length);
+    final insertAt = currentIndex + 1;
+    queue.insertAll(insertAt, songIds);
+    _snapshot = _snapshot.copyWith(queueSongIds: queue);
+    _controller.add(_snapshot);
+  }
+
+  @override
+  Future<void> play() async {
+    _snapshot = _snapshot.copyWith(playing: true);
+    _controller.add(_snapshot);
+  }
+
+  @override
+  Future<void> playFromIndex(int index) async {
+    final currentSongId = index >= 0 && index < _snapshot.queueSongIds.length
+        ? _snapshot.queueSongIds[index]
+        : null;
+    _snapshot = _snapshot.copyWith(
+      currentIndex: index,
+      currentSongId: currentSongId,
+    );
+    _controller.add(_snapshot);
+  }
+
+  @override
+  Future<void> removeAt(int index) async {
+    final queue = <String>[..._snapshot.queueSongIds];
+    if (index < 0 || index >= queue.length) {
+      return;
+    }
+    queue.removeAt(index);
+    _snapshot = _snapshot.copyWith(queueSongIds: queue);
+    _controller.add(_snapshot);
+  }
+
+  @override
+  Future<void> reorderQueue(int oldIndex, int newIndex) async {
+    final queue = <String>[..._snapshot.queueSongIds];
+    if (oldIndex < 0 || oldIndex >= queue.length) {
+      return;
+    }
+    if (newIndex < 0 || newIndex >= queue.length) {
+      return;
+    }
+    if (oldIndex == newIndex) {
+      return;
+    }
+    final moved = queue.removeAt(oldIndex);
+    final adjusted = oldIndex < newIndex ? newIndex - 1 : newIndex;
+    queue.insert(adjusted, moved);
+    _snapshot = _snapshot.copyWith(queueSongIds: queue);
+    _controller.add(_snapshot);
+  }
+
+  @override
+  Future<void> replaceQueue(
+    List<String> songIds, {
+    int startIndex = 0,
+    bool autoPlay = true,
+  }) async {
+    final current = songIds.isEmpty
+        ? null
+        : songIds[startIndex.clamp(0, songIds.length - 1)];
+    _snapshot = PlaybackSnapshot(
+      queueSongIds: List<String>.unmodifiable(songIds),
+      currentSongId: current,
+      currentIndex: songIds.isEmpty ? null : startIndex,
+      playing: autoPlay && songIds.isNotEmpty,
+      processingState: AudioProcessingState.ready,
+      position: Duration.zero,
+      duration: Duration.zero,
+      bufferedPosition: Duration.zero,
+      shuffleMode: AudioServiceShuffleMode.none,
+      repeatMode: AudioServiceRepeatMode.none,
+    );
+    _controller.add(_snapshot);
+  }
+
+  Future<void> dispose() async {
+    await _controller.close();
   }
 }
 
@@ -58,17 +189,51 @@ void main() {
     });
 
     test(
-      'network and streaming quality providers resolve cellular profile',
+      'network and streaming quality providers use persisted settings profiles',
       () async {
         final container = ProviderContainer(
           overrides: [
             networkTypeProvider.overrideWith((_) => NetworkType.cellular),
+            appSettingsProvider.overrideWithValue(
+              const AsyncData(
+                AppSettingsModel(
+                  wifiMaxBitRate: null,
+                  wifiFormat: null,
+                  cellularMaxBitRate: 128,
+                  cellularFormat: 'aac',
+                  scrobbleEnabled: true,
+                  gaplessEnabled: true,
+                  skipSilenceEnabled: false,
+                ),
+              ),
+            ),
           ],
         );
         addTearDown(container.dispose);
 
         expect(container.read(networkTypeProvider), NetworkType.cellular);
-        expect(container.read(activeStreamingQualityProvider).maxBitRate, 320);
+        final quality = container.read(activeStreamingQualityProvider);
+        expect(quality.maxBitRate, 128);
+        expect(quality.format, 'aac');
+      },
+    );
+
+    test(
+      'activeStreamingQualityProvider falls back to defaults when settings unavailable',
+      () async {
+        final container = ProviderContainer(
+          overrides: [
+            networkTypeProvider.overrideWith((_) => NetworkType.cellular),
+            appSettingsProvider.overrideWithValue(
+              const AsyncLoading<AppSettingsModel>(),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        final quality = container.read(activeStreamingQualityProvider);
+        expect(quality.maxBitRate, 192);
+        expect(quality.format, 'mp3');
       },
     );
 
@@ -195,6 +360,132 @@ void main() {
       expect(result.albums, isEmpty);
       expect(result.songs, isEmpty);
     });
+
+    test('queueProvider delegates to playback-backed handler', () async {
+      final handler = _FakePlaybackHandler();
+      final container = ProviderContainer(
+        overrides: [
+          audioHandlerProvider.overrideWithValue(handler),
+        ],
+      );
+      addTearDown(() async {
+        container.dispose();
+        await handler.dispose();
+      });
+
+      await container.read(queueProvider.notifier).replace(<String>['song-1']);
+      expect(handler.snapshot.queueSongIds, <String>['song-1']);
+
+      await container.read(queueProvider.notifier).add('song-2');
+      expect(handler.snapshot.queueSongIds, <String>['song-1', 'song-2']);
+
+      await container.read(queueProvider.notifier).playNext('song-3');
+      expect(
+        handler.snapshot.queueSongIds,
+        <String>['song-1', 'song-3', 'song-2'],
+      );
+
+      await container.read(queueProvider.notifier).reorder(2, 1);
+      expect(
+        handler.snapshot.queueSongIds,
+        <String>['song-1', 'song-2', 'song-3'],
+      );
+
+      await container.read(queueProvider.notifier).clear();
+      expect(handler.snapshot.queueSongIds, isEmpty);
+    });
+
+    test(
+      'queueProvider throws explicit unavailable error when handler missing',
+      () async {
+        final container = ProviderContainer();
+        addTearDown(container.dispose);
+
+        await expectLater(
+          container.read(queueProvider.notifier).replace(<String>['song-1']),
+          throwsA(
+            isA<PlaybackUnavailableException>().having(
+              (error) => error.reason,
+              'reason',
+              PlaybackUnavailableReason.initializing,
+            ),
+          ),
+        );
+      },
+    );
+
+    test(
+      'audio bootstrap transitions to ready when handler initialization succeeds',
+      () async {
+        final handler = _FakePlaybackHandler();
+        final container = ProviderContainer(
+          overrides: [
+            audioHandlerInitializerProvider.overrideWithValue(() async {
+              return handler;
+            }),
+          ],
+        );
+        addTearDown(() async {
+          container.dispose();
+          await handler.dispose();
+        });
+
+        await container.read(audioBootstrapControllerProvider.notifier).retry();
+        final bootstrap = container.read(audioBootstrapControllerProvider);
+
+        expect(bootstrap.status, AudioBootstrapStatus.ready);
+        expect(bootstrap.handler, same(handler));
+        expect(container.read(audioHandlerStateProvider), same(handler));
+      },
+    );
+
+    test(
+      'audio bootstrap timeout sets failed state and ignores stale completion',
+      () async {
+        final staleCompleter = Completer<NavisPlaybackHandler>();
+        final staleHandler = _FakePlaybackHandler();
+        final nextHandler = _FakePlaybackHandler();
+        var attempt = 0;
+
+        final container = ProviderContainer(
+          overrides: [
+            audioBootstrapTimeoutProvider.overrideWith(
+              (_) => const Duration(milliseconds: 20),
+            ),
+            audioHandlerInitializerProvider.overrideWithValue(() {
+              attempt += 1;
+              if (attempt == 1) {
+                return staleCompleter.future;
+              }
+              return Future<NavisPlaybackHandler>.value(nextHandler);
+            }),
+          ],
+        );
+        addTearDown(() async {
+          container.dispose();
+          await staleHandler.dispose();
+          await nextHandler.dispose();
+        });
+
+        await container.read(audioBootstrapControllerProvider.notifier).retry();
+        expect(
+          container.read(audioBootstrapControllerProvider).status,
+          AudioBootstrapStatus.failed,
+        );
+
+        staleCompleter.complete(staleHandler);
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+        expect(
+          container.read(audioBootstrapControllerProvider).status,
+          AudioBootstrapStatus.failed,
+        );
+
+        await container.read(audioBootstrapControllerProvider.notifier).retry();
+        final bootstrap = container.read(audioBootstrapControllerProvider);
+        expect(bootstrap.status, AudioBootstrapStatus.ready);
+        expect(bootstrap.handler, same(nextHandler));
+      },
+    );
 
     test(
       'albumProvider emits updated songs when hydration writes new rows',
