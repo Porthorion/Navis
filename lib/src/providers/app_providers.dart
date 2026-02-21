@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/api/models/models.dart';
@@ -8,7 +10,16 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
+import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
+import 'package:navis/src/features/player/data/navis_audio_handler.dart';
+import 'package:navis/src/features/player/data/playback_source_resolver.dart';
+import 'package:navis/src/features/player/data/scrobble_service.dart';
+import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:navis/src/features/settings/data/settings_repository.dart';
+import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/connectivity.dart';
+import 'package:path_provider/path_provider.dart';
 
 final navisDatabaseProvider = Provider<NavisDatabase>((ref) {
   final database = NavisDatabase();
@@ -29,24 +40,51 @@ final networkTypeProvider = Provider<NetworkType>((ref) {
 });
 
 class StreamingQuality {
-  const StreamingQuality({required this.label, this.maxBitRate});
+  const StreamingQuality({
+    required this.label,
+    this.maxBitRate,
+    this.format,
+  });
 
   final String label;
   final int? maxBitRate;
+  final String? format;
 }
+
+final settingsRepositoryProvider = Provider<SettingsRepository>((ref) {
+  final database = ref.watch(navisDatabaseProvider);
+  return SettingsRepository(database.appSettingsDao);
+});
+
+final appSettingsProvider = StreamProvider<AppSettingsModel>((ref) {
+  final repository = ref.watch(settingsRepositoryProvider);
+  return repository.watchSettings();
+});
 
 final activeStreamingQualityProvider = Provider<StreamingQuality>((ref) {
   final networkType = ref.watch(networkTypeProvider);
-  return switch (networkType) {
-    NetworkType.wifi => const StreamingQuality(label: 'wifi-original'),
-    NetworkType.cellular => const StreamingQuality(
-      label: 'cellular-320k',
-      maxBitRate: 320,
-    ),
-    NetworkType.offline || NetworkType.other => const StreamingQuality(
-      label: 'auto-original',
-    ),
-  };
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+
+  final isWifi = networkType == NetworkType.wifi;
+  final bitRate = isWifi
+      ? settings.wifiMaxBitRate
+      : settings.cellularMaxBitRate;
+  final format = isWifi ? settings.wifiFormat : settings.cellularFormat;
+  final profilePrefix = isWifi ? 'wifi' : 'nonwifi';
+
+  if (bitRate == null && (format == null || format.trim().isEmpty)) {
+    return StreamingQuality(label: '$profilePrefix-original');
+  }
+
+  final normalizedFormat = format?.trim();
+  return StreamingQuality(
+    label:
+        '$profilePrefix-${bitRate ?? 'orig'}-${normalizedFormat ?? 'original'}',
+    maxBitRate: bitRate,
+    format: normalizedFormat,
+  );
 });
 
 final subsonicApiProvider = Provider<SubsonicApiClient?>((ref) {
@@ -76,6 +114,229 @@ final subsonicApiProvider = Provider<SubsonicApiClient?>((ref) {
     },
   );
 });
+
+final scrobbleServiceProvider = Provider<ScrobbleService>((ref) {
+  final database = ref.watch(navisDatabaseProvider);
+  final service = DriftScrobbleService(
+    dao: database.scrobbleDao,
+    readApiClient: () => ref.read(subsonicApiProvider),
+    readScrobbleEnabled: () =>
+        ref.read(appSettingsProvider).asData?.value.scrobbleEnabled ?? true,
+    readReachable: () => ref.read(networkTypeProvider) != NetworkType.offline,
+  );
+  service.start();
+  ref.onDispose(() {
+    unawaited(service.dispose());
+  });
+  return service;
+});
+
+typedef AudioHandlerInitializer = Future<NavisPlaybackHandler> Function();
+
+final audioBootstrapTimeoutProvider = Provider<Duration>((_) {
+  return const Duration(seconds: 5);
+});
+
+final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
+  ref,
+) {
+  return () async {
+    final database = ref.read(navisDatabaseProvider);
+    final handler = await initNavisAudioHandler(
+      libraryDao: database.libraryDao,
+      playQueueDao: database.playQueueDao,
+      sourceResolver: PlaybackSourceResolver(
+        cacheDao: database.cacheDao,
+        rollingCacheManager: ref.read(rollingCacheManagerProvider),
+        readApiClient: () => ref.read(subsonicApiProvider),
+        readStreamingQuality: () => ref.read(activeStreamingQualityProvider),
+        readRollingCacheDirectory: getTemporaryDirectory,
+      ),
+      rollingCacheManager: ref.read(rollingCacheManagerProvider),
+      rollingCacheBudgetBytes: ref.read(rollingCacheBudgetBytesProvider),
+      scrobbleService: ref.read(scrobbleServiceProvider),
+      readRuntimeSettings: () {
+        final settings =
+            ref.read(appSettingsProvider).asData?.value ??
+            const AppSettingsModel.defaults();
+        return PlaybackRuntimeSettings(
+          gaplessEnabled: settings.gaplessEnabled,
+        );
+      },
+    );
+    await handler.waitUntilReady();
+    return handler;
+  };
+});
+
+enum AudioBootstrapStatus { initializing, ready, failed }
+
+enum PlaybackUnavailableReason { initializing, startupFailed, unavailable }
+
+class PlaybackUnavailableException implements Exception {
+  const PlaybackUnavailableException({
+    required this.reason,
+    this.message,
+  });
+
+  final PlaybackUnavailableReason reason;
+  final String? message;
+
+  @override
+  String toString() => message ?? reason.name;
+}
+
+class AudioBootstrapState {
+  const AudioBootstrapState({
+    required this.status,
+    this.handler,
+    this.errorMessage,
+  });
+
+  const AudioBootstrapState.initializing()
+    : status = AudioBootstrapStatus.initializing,
+      handler = null,
+      errorMessage = null;
+
+  const AudioBootstrapState.ready(NavisPlaybackHandler readyHandler)
+    : status = AudioBootstrapStatus.ready,
+      handler = readyHandler,
+      errorMessage = null;
+
+  const AudioBootstrapState.failed(String failureMessage)
+    : status = AudioBootstrapStatus.failed,
+      handler = null,
+      errorMessage = failureMessage;
+
+  final AudioBootstrapStatus status;
+  final NavisPlaybackHandler? handler;
+  final String? errorMessage;
+
+  bool get isReady => status == AudioBootstrapStatus.ready && handler != null;
+}
+
+class AudioBootstrapController extends Notifier<AudioBootstrapState> {
+  Future<void>? _inFlight;
+  bool _didAttempt = false;
+  int _attemptEpoch = 0;
+  int _activeAttempt = 0;
+
+  @override
+  AudioBootstrapState build() => const AudioBootstrapState.initializing();
+
+  void ensureInitialized() {
+    if (state.isReady) {
+      return;
+    }
+    unawaited(_initialize());
+  }
+
+  Future<void> retry() => _initialize(force: true);
+
+  Future<void> _initialize({bool force = false}) {
+    if (_inFlight != null && !force) {
+      return _inFlight!;
+    }
+    if (_didAttempt && !force && state.status == AudioBootstrapStatus.failed) {
+      return Future<void>.value();
+    }
+
+    final completer = Completer<void>();
+    final attemptId = ++_attemptEpoch;
+    _activeAttempt = attemptId;
+    _inFlight = completer.future;
+    _didAttempt = true;
+    state = const AudioBootstrapState.initializing();
+    final audioHandlerState = ref.read<AudioHandlerStateController>(
+      audioHandlerStateProvider.notifier,
+    );
+    audioHandlerState.state = null;
+    unawaited(
+      () async {
+        final stopwatch = Stopwatch()..start();
+        final timeout = ref.read(audioBootstrapTimeoutProvider);
+        final initializeHandler = ref.read(audioHandlerInitializerProvider);
+        var timedOutOrFailed = false;
+        try {
+          AppLogger.info('Audio bootstrap start (attempt=$attemptId).');
+          final initFuture = initializeHandler();
+          unawaited(
+            initFuture.then((handler) {
+              if (timedOutOrFailed || _activeAttempt != attemptId) {
+                return _disposePlaybackHandler(handler);
+              }
+            }),
+          );
+
+          final audioHandler = await initFuture.timeout(timeout);
+          if (_activeAttempt != attemptId) {
+            await _disposePlaybackHandler(audioHandler);
+            if (!completer.isCompleted) {
+              completer.complete();
+            }
+            return;
+          }
+
+          final audioHandlerState = ref.read<AudioHandlerStateController>(
+            audioHandlerStateProvider.notifier,
+          );
+          audioHandlerState.state = audioHandler;
+          state = AudioBootstrapState.ready(audioHandler);
+          AppLogger.info(
+            'Audio bootstrap ready in ${stopwatch.elapsedMilliseconds}ms '
+            '(attempt=$attemptId).',
+          );
+          if (!completer.isCompleted) {
+            completer.complete();
+          }
+        } on Object catch (error, stackTrace) {
+          timedOutOrFailed = true;
+          if (_activeAttempt != attemptId) {
+            if (!completer.isCompleted) {
+              completer.complete();
+            }
+            return;
+          }
+          final message = error is TimeoutException
+              ? 'Playback initialization timed out after ${timeout.inSeconds}s.'
+              : 'Playback initialization failed.';
+          AppLogger.error(message, error, stackTrace);
+          final audioHandlerState = ref.read<AudioHandlerStateController>(
+            audioHandlerStateProvider.notifier,
+          );
+          audioHandlerState.state = null;
+          state = AudioBootstrapState.failed(message);
+          if (!completer.isCompleted) {
+            completer.complete();
+          }
+        } finally {
+          stopwatch.stop();
+          if (_activeAttempt == attemptId) {
+            _inFlight = null;
+          }
+        }
+      }(),
+    );
+    return completer.future;
+  }
+
+  Future<void> _disposePlaybackHandler(NavisPlaybackHandler handler) async {
+    if (handler is NavisAudioHandler) {
+      try {
+        await handler.disposeHandler();
+      } on Object catch (error, stackTrace) {
+        AppLogger.warning(
+          'Failed to dispose stale playback handler: $error\n$stackTrace',
+        );
+      }
+    }
+  }
+}
+
+final audioBootstrapControllerProvider =
+    NotifierProvider<AudioBootstrapController, AudioBootstrapState>(
+      AudioBootstrapController.new,
+    );
 
 class AlbumWithSongs {
   const AlbumWithSongs({required this.album, required this.songs});
@@ -151,7 +412,24 @@ final albumListProvider = StreamProvider.family<List<AlbumsTableData>, String>((
 
 final songsProvider = StreamProvider<List<SongsTableData>>((ref) {
   final dao = ref.watch(navisDatabaseProvider).libraryDao;
-  return dao.watchAllSongs();
+  return dao.watchSongsSorted(SongSortOrder.newest);
+});
+
+final songsBySortProvider =
+    StreamProvider.family<List<SongsTableData>, SongSortOrder>((
+      ref,
+      sort,
+    ) {
+      final dao = ref.watch(navisDatabaseProvider).libraryDao;
+      return dao.watchSongsSorted(sort);
+    });
+
+final songByIdProvider = StreamProvider.family<SongsTableData?, String>((
+  ref,
+  songId,
+) {
+  final dao = ref.watch(navisDatabaseProvider).libraryDao;
+  return dao.watchSongById(songId);
 });
 
 final genresProvider = StreamProvider<List<GenresTableData>>((ref) {
@@ -193,23 +471,126 @@ final searchResultsProvider = FutureProvider.family<SearchResult3, String>((
   return api.search3(query: query);
 });
 
-final playerStateProvider = Provider<String>((_) => 'idle');
+class AudioHandlerStateController extends Notifier<NavisPlaybackHandler?> {
+  @override
+  NavisPlaybackHandler? build() => null;
+}
+
+final audioHandlerStateProvider =
+    NotifierProvider<AudioHandlerStateController, NavisPlaybackHandler?>(
+      AudioHandlerStateController.new,
+    );
+
+final audioHandlerProvider = Provider<NavisPlaybackHandler?>((ref) {
+  return ref.watch(audioHandlerStateProvider);
+});
+
+final rollingCacheBudgetBytesProvider = Provider<int>(
+  (_) => 2 * 1024 * 1024 * 1024,
+);
+
+final rollingCacheManagerProvider = Provider<RollingCacheManager>((ref) {
+  final cacheDao = ref.watch(navisDatabaseProvider).cacheDao;
+  return DriftRollingCacheManager(cacheDao: cacheDao);
+});
+
+final playbackSnapshotProvider = StreamProvider<PlaybackSnapshot>((ref) async* {
+  final handler = ref.watch(audioHandlerProvider);
+  if (handler == null) {
+    yield const PlaybackSnapshot.idle();
+    return;
+  }
+  yield handler.snapshot;
+  yield* handler.snapshotStream;
+});
+
+final playerStateProvider = Provider<PlaybackSnapshot>((ref) {
+  final snapshot = ref.watch(playbackSnapshotProvider).asData?.value;
+  return snapshot ?? const PlaybackSnapshot.idle();
+});
+
+final currentQueueSongIdProvider = Provider<String?>((ref) {
+  return ref.watch(playerStateProvider).currentSongId;
+});
 
 class QueueController extends Notifier<List<String>> {
   @override
-  List<String> build() => const <String>[];
+  List<String> build() {
+    final snapshot = ref.watch(playbackSnapshotProvider).asData?.value;
+    final ids = snapshot?.queueSongIds ?? const <String>[];
+    return List<String>.unmodifiable(ids);
+  }
 
-  void replace(List<String> ids) => state = List<String>.unmodifiable(ids);
+  Future<void> replace(
+    List<String> ids, {
+    int startIndex = 0,
+    bool autoPlay = true,
+  }) async {
+    final handler = _requireHandler();
+    await handler.replaceQueue(
+      ids,
+      startIndex: startIndex,
+      autoPlay: autoPlay,
+    );
+  }
 
-  void add(String id) =>
-      state = List<String>.unmodifiable(<String>[...state, id]);
+  Future<void> add(String id) async {
+    if (id.trim().isEmpty) {
+      return;
+    }
+    final handler = _requireHandler();
+    await handler.addToQueue(<String>[id]);
+  }
 
-  void clear() => state = const <String>[];
+  Future<void> playNext(String id) async {
+    if (id.trim().isEmpty) {
+      return;
+    }
+    final handler = _requireHandler();
+    await handler.playNext(<String>[id]);
+  }
+
+  Future<void> reorder(int oldIndex, int newIndex) async {
+    final handler = _requireHandler();
+    await handler.reorderQueue(oldIndex, newIndex);
+  }
+
+  Future<void> clear() async {
+    final handler = _requireHandler();
+    await handler.clearQueue();
+  }
+
+  NavisPlaybackHandler _requireHandler() {
+    final handler = ref.read(audioHandlerProvider);
+    if (handler != null) {
+      return handler;
+    }
+    final bootstrap = ref.read(audioBootstrapControllerProvider);
+    final reason = switch (bootstrap.status) {
+      AudioBootstrapStatus.initializing =>
+        PlaybackUnavailableReason.initializing,
+      AudioBootstrapStatus.failed => PlaybackUnavailableReason.startupFailed,
+      AudioBootstrapStatus.ready => PlaybackUnavailableReason.unavailable,
+    };
+    throw PlaybackUnavailableException(
+      reason: reason,
+      message: bootstrap.errorMessage,
+    );
+  }
 }
 
 final queueProvider = NotifierProvider<QueueController, List<String>>(
   QueueController.new,
 );
+
+final playNextProvider = Provider<Future<void> Function(String)>((ref) {
+  return (songId) => ref.read(queueProvider.notifier).playNext(songId);
+});
+
+final reorderQueueProvider = Provider<Future<void> Function(int, int)>((ref) {
+  return (oldIndex, newIndex) =>
+      ref.read(queueProvider.notifier).reorder(oldIndex, newIndex);
+});
 
 final lyricsProvider = FutureProvider.family<LyricsList, String>((
   ref,

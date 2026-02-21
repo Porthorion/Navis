@@ -23,16 +23,15 @@ class ServerConnectionProbeResult {
   }
 }
 
-class ServerConnectionService {
+// ignore: one_member_abstracts, reason: Shared interface for production and test server connection probing.
+abstract class ServerConnectionService {
   const ServerConnectionService();
 
   Future<ServerConnectionProbeResult> probe({
     required String url,
     required String username,
     required String password,
-  }) {
-    throw UnimplementedError();
-  }
+  });
 }
 
 class SubsonicServerConnectionService extends ServerConnectionService {

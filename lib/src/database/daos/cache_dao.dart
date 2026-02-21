@@ -24,6 +24,52 @@ class CacheDao extends DatabaseAccessor<NavisDatabase> with _$CacheDaoMixin {
     return query.get();
   }
 
+  Future<CachedTracksTableData?> getCachedTrack(String songId) {
+    final query = select(cachedTracksTable)
+      ..where((table) => table.songId.equals(songId))
+      ..limit(1);
+    return query.getSingleOrNull();
+  }
+
+  Future<int> getRollingTotalBytes() async {
+    final aggregate = cachedTracksTable.fileSize.sum();
+    final query = selectOnly(cachedTracksTable)
+      ..where(cachedTracksTable.cacheType.equals(CacheType.rolling.name))
+      ..addColumns(<Expression<Object>>[aggregate]);
+    final row = await query.getSingleOrNull();
+    return row?.read(aggregate) ?? 0;
+  }
+
+  Future<List<CachedTracksTableData>> getRollingEntriesOrderedByLastAccessed({
+    int? limit,
+  }) {
+    final query = select(cachedTracksTable)
+      ..where((table) => table.cacheType.equals(CacheType.rolling.name))
+      ..orderBy([(table) => OrderingTerm.asc(table.lastAccessedAt)]);
+    if (limit != null) {
+      query.limit(limit);
+    }
+    return query.get();
+  }
+
+  Future<void> deleteCachedTracksBySongIds(Iterable<String> songIds) async {
+    final ids = songIds.where((id) => id.trim().isNotEmpty).toList();
+    if (ids.isEmpty) {
+      return;
+    }
+    await (delete(
+      cachedTracksTable,
+    )..where((table) => table.songId.isIn(ids))).go();
+  }
+
+  Future<void> touchTrack(String songId) async {
+    await (update(
+      cachedTracksTable,
+    )..where((table) => table.songId.equals(songId))).write(
+      CachedTracksTableCompanion(lastAccessedAt: Value(DateTime.now())),
+    );
+  }
+
   Future<void> updateCacheType(String songId, CacheType cacheType) {
     return (update(
       cachedTracksTable,

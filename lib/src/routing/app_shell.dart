@@ -5,7 +5,10 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
+import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
+import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/providers/app_providers.dart';
 
 class AppShell extends ConsumerWidget {
   const AppShell({required this.navigationShell, super.key});
@@ -16,12 +19,19 @@ class AppShell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     ref.watch(librarySyncControllerProvider);
+    ref.watch(scrobbleDispatchControllerProvider);
     final isAuthenticated =
         ref.watch(serverConfigStateProvider).asData?.value != null;
     final reachability = ref.watch(serverReachabilityControllerProvider);
     final showOfflineBanner =
         isAuthenticated &&
         reachability.status == ServerReachabilityStatus.offline;
+    final playback = ref.watch(playerStateProvider);
+    final currentSongId = playback.currentSongId;
+    final currentSongAsync = currentSongId == null
+        ? const AsyncValue.data(null)
+        : ref.watch(songByIdProvider(currentSongId));
+    final showMiniPlayer = playback.queueSongIds.isNotEmpty;
 
     return Scaffold(
       body: Column(
@@ -54,15 +64,12 @@ class AppShell extends ConsumerWidget {
               ),
             ),
           Expanded(child: navigationShell),
-          InkWell(
-            onTap: () => context.go('/now-playing'),
-            child: Container(
-              width: double.infinity,
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              child: const Text('MiniPlayer (Phase 5)'),
+          if (showMiniPlayer)
+            _MiniPlayerStrip(
+              playback: playback,
+              songTitle: currentSongAsync.asData?.value?.title,
+              songArtist: currentSongAsync.asData?.value?.artistName,
             ),
-          ),
         ],
       ),
       bottomNavigationBar: NavigationBar(
@@ -73,22 +80,82 @@ class AppShell extends ConsumerWidget {
             initialLocation: index == navigationShell.currentIndex,
           );
         },
-        destinations: const <NavigationDestination>[
-          NavigationDestination(icon: Icon(Icons.home_outlined), label: 'Home'),
+        destinations: <NavigationDestination>[
           NavigationDestination(
-            icon: Icon(Icons.library_music_outlined),
-            label: 'Library',
-          ),
-          NavigationDestination(icon: Icon(Icons.search), label: 'Search'),
-          NavigationDestination(
-            icon: Icon(Icons.queue_music_outlined),
-            label: 'Playlists',
+            icon: const Icon(Icons.home_outlined),
+            label: l10n.navHome,
           ),
           NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            label: 'Settings',
+            icon: const Icon(Icons.library_music_outlined),
+            label: l10n.navLibrary,
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.search),
+            label: l10n.navSearch,
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.queue_music_outlined),
+            label: l10n.navPlaylists,
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.settings_outlined),
+            label: l10n.navSettings,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _MiniPlayerStrip extends ConsumerWidget {
+  const _MiniPlayerStrip({
+    required this.playback,
+    this.songTitle,
+    this.songArtist,
+  });
+
+  final PlaybackSnapshot playback;
+  final String? songTitle;
+  final String? songArtist;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final handler = ref.watch(audioHandlerProvider);
+    final isPlaying = playback.playing;
+
+    return Material(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: ListTile(
+        dense: true,
+        onTap: () => context.go('/now-playing'),
+        title: Text(
+          (songTitle == null || songTitle!.trim().isEmpty)
+              ? l10n.miniPlayerUnknownTrack
+              : songTitle!,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: Text(
+          (songArtist == null || songArtist!.trim().isEmpty)
+              ? l10n.miniPlayerUnknownArtist
+              : songArtist!,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        trailing: IconButton(
+          tooltip: isPlaying ? l10n.miniPlayerPause : l10n.miniPlayerPlay,
+          onPressed: handler == null
+              ? null
+              : () async {
+                  if (isPlaying) {
+                    await handler.pause();
+                  } else {
+                    await handler.play();
+                  }
+                },
+          icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow),
+        ),
       ),
     );
   }

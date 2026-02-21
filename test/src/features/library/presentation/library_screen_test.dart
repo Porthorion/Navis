@@ -9,6 +9,7 @@ import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_screen.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 class _FakeLibrarySyncController extends LibrarySyncController {
   _FakeLibrarySyncController(this._initialState, {this.onSyncNow});
@@ -20,21 +21,16 @@ class _FakeLibrarySyncController extends LibrarySyncController {
   LibrarySyncState build() => _initialState;
 
   @override
-  Future<LibrarySyncState> syncIfStale({
-    Iterable<String> priorityAlbumIds = const <String>[],
-  }) async => _initialState;
+  Future<LibrarySyncState> syncIfStale() async => _initialState;
 
   @override
-  Future<LibrarySyncState> syncNow({
-    bool forceFull = false,
-    Iterable<String> priorityAlbumIds = const <String>[],
-  }) async {
+  Future<LibrarySyncState> syncNow({bool forceFull = false}) async {
     onSyncNow?.call();
     return _initialState;
   }
 }
 
-Widget _buildLibraryScreen({required List<dynamic> overrides}) {
+Widget _buildLibraryScreen({required List<Object?> overrides}) {
   return ProviderScope(
     overrides: overrides.cast(),
     child: MaterialApp(
@@ -47,7 +43,7 @@ Widget _buildLibraryScreen({required List<dynamic> overrides}) {
 
 void main() {
   group('LibraryScreen', () {
-    testWidgets('renders four tabs and switches between local data lists', (
+    testWidgets('renders two tabs and switches between local data lists', (
       tester,
     ) async {
       var syncNowCalls = 0;
@@ -82,21 +78,6 @@ void main() {
                 ],
               ),
             ),
-            songsProvider.overrideWithValue(
-              const AsyncData(<SongsTableData>[
-                SongsTableData(
-                  id: 'song-1',
-                  title: 'Song 1',
-                  albumName: 'Album 1',
-                  artistName: 'Artist 1',
-                ),
-              ]),
-            ),
-            genresProvider.overrideWithValue(
-              const AsyncData(<GenresTableData>[
-                GenresTableData(name: 'Rock', albumCount: 1, songCount: 1),
-              ]),
-            ),
           ],
         ),
       );
@@ -104,21 +85,13 @@ void main() {
 
       expect(find.text('Artists'), findsOneWidget);
       expect(find.text('Albums'), findsOneWidget);
-      expect(find.text('Songs'), findsOneWidget);
-      expect(find.text('Genres'), findsOneWidget);
+      expect(find.text('Songs'), findsNothing);
+      expect(find.text('Genres'), findsNothing);
       expect(find.text('Artist 1'), findsOneWidget);
 
       await tester.tap(find.text('Albums'));
       await tester.pumpAndSettle();
       expect(find.text('Album 1'), findsOneWidget);
-
-      await tester.tap(find.text('Songs'));
-      await tester.pumpAndSettle();
-      expect(find.text('Song 1'), findsOneWidget);
-
-      await tester.tap(find.text('Genres'));
-      await tester.pumpAndSettle();
-      expect(find.text('Rock'), findsOneWidget);
       expect(syncNowCalls, 0);
     });
 
@@ -136,12 +109,6 @@ void main() {
             pagedAlbumsProvider.overrideWith(
               (ref, request) => Stream.value(const <AlbumsTableData>[]),
             ),
-            songsProvider.overrideWithValue(
-              const AsyncData(<SongsTableData>[]),
-            ),
-            genresProvider.overrideWithValue(
-              const AsyncData(<GenresTableData>[]),
-            ),
           ],
         ),
       );
@@ -153,14 +120,6 @@ void main() {
       await tester.tap(find.text('Albums'));
       await tester.pumpAndSettle();
       expect(find.text('No albums found'), findsOneWidget);
-
-      await tester.tap(find.text('Songs'));
-      await tester.pumpAndSettle();
-      expect(find.text('No songs found'), findsOneWidget);
-
-      await tester.tap(find.text('Genres'));
-      await tester.pumpAndSettle();
-      expect(find.text('No genres found'), findsOneWidget);
     });
 
     testWidgets('shows error state and retry action triggers syncNow', (
@@ -186,11 +145,8 @@ void main() {
             pagedAlbumsProvider.overrideWith(
               (ref, request) => Stream.value(const <AlbumsTableData>[]),
             ),
-            songsProvider.overrideWithValue(
-              const AsyncData(<SongsTableData>[]),
-            ),
-            genresProvider.overrideWithValue(
-              const AsyncData(<GenresTableData>[]),
+            songsBySortProvider.overrideWith(
+              (ref, sort) => Stream.value(const <SongsTableData>[]),
             ),
           ],
         ),
@@ -230,11 +186,8 @@ void main() {
             pagedAlbumsProvider.overrideWith(
               (ref, request) => Stream.value(const <AlbumsTableData>[]),
             ),
-            songsProvider.overrideWithValue(
-              const AsyncData(<SongsTableData>[]),
-            ),
-            genresProvider.overrideWithValue(
-              const AsyncData(<GenresTableData>[]),
+            songsBySortProvider.overrideWith(
+              (ref, sort) => Stream.value(const <SongsTableData>[]),
             ),
           ],
         ),
@@ -275,11 +228,8 @@ void main() {
             pagedAlbumsProvider.overrideWith(
               (ref, request) => Stream.value(const <AlbumsTableData>[]),
             ),
-            songsProvider.overrideWithValue(
-              const AsyncData(<SongsTableData>[]),
-            ),
-            genresProvider.overrideWithValue(
-              const AsyncData(<GenresTableData>[]),
+            songsBySortProvider.overrideWith(
+              (ref, sort) => Stream.value(const <SongsTableData>[]),
             ),
           ],
         ),
@@ -292,6 +242,223 @@ void main() {
         ),
         findsOneWidget,
       );
+    });
+
+    testWidgets('artist alphabet rail drag jumps to later sections', (
+      tester,
+    ) async {
+      final artists = <ArtistsTableData>[
+        for (var i = 0; i < 26; i++)
+          ArtistsTableData(
+            id: 'artist-$i',
+            name: '${String.fromCharCode(65 + i)} Artist',
+            albumCount: 1,
+          ),
+      ];
+
+      await tester.pumpWidget(
+        _buildLibraryScreen(
+          overrides: [
+            librarySyncControllerProvider.overrideWith(
+              () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+            ),
+            artistsProvider.overrideWithValue(AsyncData(artists)),
+            albumCountProvider.overrideWithValue(const AsyncData(0)),
+            pagedAlbumsProvider.overrideWith(
+              (ref, request) => Stream.value(const <AlbumsTableData>[]),
+            ),
+            songsBySortProvider.overrideWith(
+              (ref, sort) => Stream.value(const <SongsTableData>[]),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final rail = find.byKey(const Key('artistAlphabetRail'));
+      final railTopLeft = tester.getTopLeft(rail);
+      final railSize = tester.getSize(rail);
+      final railCenterX = railTopLeft.dx + (railSize.width / 2);
+      final start = Offset(railCenterX, railTopLeft.dy + 4);
+      final end = Offset(
+        railCenterX,
+        railTopLeft.dy + railSize.height - 4,
+      );
+
+      final gesture = await tester.startGesture(start);
+      await gesture.moveTo(end);
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      final jumpedToLateSection =
+          find.text('X Artist').evaluate().isNotEmpty ||
+          find.text('Y Artist').evaluate().isNotEmpty ||
+          find.text('Z Artist').evaluate().isNotEmpty;
+      expect(jumpedToLateSection, isTrue);
+    });
+
+    testWidgets('artist alphabet rail shows scrub overlay while dragging', (
+      tester,
+    ) async {
+      final artists = <ArtistsTableData>[
+        for (var i = 0; i < 10; i++)
+          ArtistsTableData(
+            id: 'artist-$i',
+            name: '${String.fromCharCode(65 + i)} Artist',
+            albumCount: 1,
+          ),
+      ];
+
+      await tester.pumpWidget(
+        _buildLibraryScreen(
+          overrides: [
+            librarySyncControllerProvider.overrideWith(
+              () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+            ),
+            artistsProvider.overrideWithValue(AsyncData(artists)),
+            albumCountProvider.overrideWithValue(const AsyncData(0)),
+            pagedAlbumsProvider.overrideWith(
+              (ref, request) => Stream.value(const <AlbumsTableData>[]),
+            ),
+            songsBySortProvider.overrideWith(
+              (ref, sort) => Stream.value(const <SongsTableData>[]),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final rail = find.byKey(const Key('artistAlphabetRail'));
+      final railTopLeft = tester.getTopLeft(rail);
+      final railSize = tester.getSize(rail);
+      final railCenterX = railTopLeft.dx + (railSize.width / 2);
+      final start = Offset(railCenterX, railTopLeft.dy + 4);
+
+      final gesture = await tester.startGesture(start);
+      await tester.pump();
+      expect(find.byKey(const Key('artistAlphabetOverlay')), findsOneWidget);
+
+      await gesture.moveBy(const Offset(0, 80));
+      await tester.pump();
+      expect(find.byKey(const Key('artistAlphabetOverlay')), findsOneWidget);
+
+      await gesture.up();
+      await tester.pump();
+      expect(find.byKey(const Key('artistAlphabetOverlay')), findsNothing);
+    });
+
+    testWidgets('artist alphabet rail only shows available artist initials', (
+      tester,
+    ) async {
+      final artists = <ArtistsTableData>[
+        const ArtistsTableData(id: 'artist-a', name: 'A Artist', albumCount: 1),
+        const ArtistsTableData(id: 'artist-m', name: 'M Artist', albumCount: 1),
+      ];
+
+      await tester.pumpWidget(
+        _buildLibraryScreen(
+          overrides: [
+            librarySyncControllerProvider.overrideWith(
+              () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+            ),
+            artistsProvider.overrideWithValue(AsyncData(artists)),
+            albumCountProvider.overrideWithValue(const AsyncData(0)),
+            pagedAlbumsProvider.overrideWith(
+              (ref, request) => Stream.value(const <AlbumsTableData>[]),
+            ),
+            songsBySortProvider.overrideWith(
+              (ref, sort) => Stream.value(const <SongsTableData>[]),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('A'), findsWidgets);
+      expect(find.text('M'), findsWidgets);
+      expect(find.text('B'), findsNothing);
+    });
+
+    testWidgets('manual artist scroll updates active rail letter', (
+      tester,
+    ) async {
+      final artists = <ArtistsTableData>[
+        for (var i = 0; i < 26; i++)
+          ArtistsTableData(
+            id: 'artist-$i',
+            name: '${String.fromCharCode(65 + i)} Artist',
+            albumCount: 1,
+          ),
+      ];
+
+      await tester.pumpWidget(
+        _buildLibraryScreen(
+          overrides: [
+            librarySyncControllerProvider.overrideWith(
+              () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+            ),
+            artistsProvider.overrideWithValue(AsyncData(artists)),
+            albumCountProvider.overrideWithValue(const AsyncData(0)),
+            pagedAlbumsProvider.overrideWith(
+              (ref, request) => Stream.value(const <AlbumsTableData>[]),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.drag(
+        find.byType(ScrollablePositionedList),
+        const Offset(0, -900),
+      );
+      await tester.pumpAndSettle();
+
+      final active = tester.widget<Text>(
+        find.byKey(const Key('artistRailActiveLetter')),
+      );
+      expect(active.data, isNot('A'));
+    });
+
+    testWidgets('tapping an artist rail letter jumps to its section', (
+      tester,
+    ) async {
+      final artists = <ArtistsTableData>[
+        for (var i = 0; i < 26; i++)
+          ArtistsTableData(
+            id: 'artist-$i',
+            name: '${String.fromCharCode(65 + i)} Artist',
+            albumCount: 1,
+          ),
+      ];
+
+      await tester.pumpWidget(
+        _buildLibraryScreen(
+          overrides: [
+            librarySyncControllerProvider.overrideWith(
+              () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+            ),
+            artistsProvider.overrideWithValue(AsyncData(artists)),
+            albumCountProvider.overrideWithValue(const AsyncData(0)),
+            pagedAlbumsProvider.overrideWith(
+              (ref, request) => Stream.value(const <AlbumsTableData>[]),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final rail = find.byKey(const Key('artistAlphabetRail'));
+      final railM = find.descendant(of: rail, matching: find.text('M'));
+      expect(railM, findsOneWidget);
+
+      await tester.tap(railM);
+      await tester.pumpAndSettle();
+
+      final active = tester.widget<Text>(
+        find.byKey(const Key('artistRailActiveLetter')),
+      );
+      expect(active.data, 'M');
+      expect(find.text('M Artist'), findsWidgets);
     });
   });
 }

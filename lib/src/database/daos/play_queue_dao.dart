@@ -21,6 +21,13 @@ class PlayQueueDao extends DatabaseAccessor<NavisDatabase>
     return query.watchSingleOrNull();
   }
 
+  Future<PlayQueueTableData?> getQueueState() {
+    final query = select(playQueueTable)
+      ..where((table) => table.id.equals(primaryQueueId))
+      ..limit(1);
+    return query.getSingleOrNull();
+  }
+
   Stream<List<SongsTableData>> watchQueueItems() {
     final query =
         select(songsTable).join([
@@ -33,6 +40,22 @@ class PlayQueueDao extends DatabaseAccessor<NavisDatabase>
           ..orderBy([OrderingTerm.asc(playQueueItemsTable.sortOrder)]);
 
     return query.watch().map(
+      (rows) => rows.map((row) => row.readTable(songsTable)).toList(),
+    );
+  }
+
+  Future<List<SongsTableData>> getQueueItems() {
+    final query =
+        select(songsTable).join([
+            innerJoin(
+              playQueueItemsTable,
+              playQueueItemsTable.songId.equalsExp(songsTable.id),
+            ),
+          ])
+          ..where(playQueueItemsTable.queueId.equals(primaryQueueId))
+          ..orderBy([OrderingTerm.asc(playQueueItemsTable.sortOrder)]);
+
+    return query.get().then(
       (rows) => rows.map((row) => row.readTable(songsTable)).toList(),
     );
   }
@@ -75,6 +98,24 @@ class PlayQueueDao extends DatabaseAccessor<NavisDatabase>
         });
       }
     });
+  }
+
+  Future<void> savePlaybackState({
+    int? currentIndex,
+    ShuffleMode shuffleMode = ShuffleMode.off,
+    RepeatMode repeatMode = RepeatMode.off,
+    int positionMs = 0,
+  }) {
+    return into(playQueueTable).insertOnConflictUpdate(
+      PlayQueueTableCompanion.insert(
+        id: Value(primaryQueueId),
+        currentIndex: Value(currentIndex),
+        shuffleMode: Value(shuffleMode),
+        repeatMode: Value(repeatMode),
+        positionMs: Value(positionMs),
+        updatedAt: DateTime.now(),
+      ),
+    );
   }
 
   Future<void> clearQueue() async {

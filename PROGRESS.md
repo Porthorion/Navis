@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-02-20
+Last updated: 2026-02-21
 
 ---
 
@@ -19,6 +19,11 @@ Last updated: 2026-02-20
 - [x] Phase 3 stabilization increment (albums paging + cover art + resumable song hydration) — 2026-02-20 (evidence: `./tool/check.sh`, `lib/src/features/library/presentation/library_screen.dart`, `lib/src/common_widgets/cover_art_image.dart`, `lib/src/features/library/data/library_sync_engine.dart`)
 - [x] Phase 3 sync throughput optimization (chunked hydration writes + adaptive concurrency + rebaseline delta hydration) — 2026-02-20 (evidence: `./tool/check.sh`, `lib/src/features/library/data/library_sync_engine.dart`, `lib/src/database/daos/library_dao.dart`, `test/src/features/library/data/library_sync_engine_test.dart`, `test/src/database/library_dao_test.dart`)
 - [x] Phase 3 sync throughput + runtime stabilization (bulk-auto hydration fallback, priority hydration queue, Android SDK 36 alignment, home overflow hardening, retry/log cleanup) — 2026-02-20 (evidence: `./tool/check.sh`, `lib/src/features/library/data/library_sync_engine.dart`, `lib/src/features/library/presentation/library_sync_provider.dart`, `lib/src/features/home/presentation/home_screen.dart`, `lib/src/api/subsonic_logging_interceptor.dart`, `android/app/build.gradle.kts`, `test/src/features/library/data/library_sync_engine_test.dart`)
+- [x] Phase 4 playback core increment 1 (audio handler bootstrap, playback-backed queue operations, local-file-first source resolver, mini-player strip, queue restore paused on launch) — 2026-02-20 (evidence: `./tool/check.sh`, `lib/src/features/player/data/navis_audio_handler.dart`, `lib/src/features/player/data/playback_source_resolver.dart`, `lib/src/providers/app_providers.dart`, `lib/main.dart`, `lib/src/routing/app_shell.dart`, `test/src/features/player/data/playback_source_resolver_test.dart`)
+- [x] Phase 4 increment 2 (Android runtime hardening, `LockCachingAudioSource` rolling cache path, queue `playNext`/`reorderQueue`) — 2026-02-20 (evidence: `./tool/check.sh`, `lib/src/features/cache/data/rolling_cache_manager.dart`, `lib/src/features/player/data/playback_source_resolver.dart`, `lib/src/features/player/data/navis_audio_handler.dart`, `lib/src/providers/app_providers.dart`, `docs/troubleshooting.md`, `test/src/features/cache/data/rolling_cache_manager_test.dart`)
+- [x] Phase 4 increment 3 (playback settings persistence/UI + durable scrobble queue with retry/expiry + settings-driven streaming profiles) — 2026-02-20 (evidence: `./tool/check.sh`, `lib/src/features/settings/presentation/playback_settings_screen.dart`, `lib/src/features/player/data/scrobble_service.dart`, `lib/src/database/daos/scrobble_dao.dart`, `lib/src/database/daos/app_settings_dao.dart`, `test/src/features/player/data/scrobble_service_test.dart`, `test/src/features/settings/presentation/playback_settings_screen_test.dart`)
+- [x] Phase 4 increment 4 (playback reliability startup gate, strict handler-backed queue actions, persisted gapless/skip-silence settings, and audio-session interruption/noisy handling) — 2026-02-20 (evidence: `./tool/check.sh`, `lib/src/app.dart`, `lib/src/providers/app_providers.dart`, `lib/src/features/player/data/navis_audio_handler.dart`, `lib/src/features/settings/presentation/playback_settings_screen.dart`, `test/widget_test.dart`, `test/src/providers/app_providers_test.dart`, `test/src/database/migrations/navis_migration_test.dart`)
+- [x] Phase 4 pre-Phase-5 hardening (bootstrap attempt guarding, queue persistence write-split, migration-path coverage, test DB isolation for routing, and reliability-focused check gates) — 2026-02-21 (evidence: `./tool/check.sh`, `lib/src/providers/app_providers.dart`, `lib/src/features/player/data/navis_audio_handler.dart`, `lib/src/database/daos/play_queue_dao.dart`, `test/src/routing/app_router_test.dart`, `test/src/database/migrations/navis_migration_test.dart`, `tool/check.sh`)
 
 ## Meta Progress
 - [x] Tech stack and methodology validation refresh — 2026-02-18 (evidence: `DEVELOPMENT_PLAN.md` stack validation section + README tech stack update)
@@ -120,8 +125,9 @@ Last updated: 2026-02-20
 - [x] Artist detail screen (albums grid, bio, similar artists) — 2026-02-20 (evidence: `lib/src/features/library/presentation/artist_detail_screen.dart`)
 - [x] Albums tab (paged grid, SQL sort, large-library friendly loading) — 2026-02-20 (evidence: `lib/src/features/library/presentation/library_screen.dart`, `lib/src/providers/app_providers.dart`, `lib/src/database/daos/library_dao.dart`)
 - [x] Album detail screen (cover art, track list, star, download, context menu) — 2026-02-20 (evidence: `lib/src/features/library/presentation/album_detail_screen.dart`)
-- [x] Songs tab (flat list, sort options) — 2026-02-20 (evidence: `lib/src/features/library/presentation/library_screen.dart`)
-- [x] Genres tab (genre list → filtered content) — 2026-02-20 (evidence: `lib/src/features/library/presentation/library_screen.dart`, `lib/src/features/library/presentation/genre_detail_screen.dart`, `lib/src/routing/app_router.dart`)
+- [x] Library top-level tabs realigned to Artists + Albums only (songs/genres removed from main Library navigation) — 2026-02-21 (evidence: `lib/src/features/library/presentation/library_screen.dart`, `lib/src/routing/app_router.dart`, `test/src/features/library/presentation/library_screen_test.dart`)
+- [ ] Radio page in Library (Subsonic radio stations with ICY metadata + AzuraCast compatibility) — deferred: 2026-02-21 (remaining: implement `/library/radio` screen, station playback UX, and server compatibility matrix tests)
+- [ ] Settings toggle to show/hide Radio page — deferred: 2026-02-21 (remaining: add persisted app setting + routing/tab visibility wiring)
 - [x] NavigationBar (Home, Library, Search, Settings) — 2026-02-20 (evidence: `lib/src/routing/app_shell.dart`)
 - [ ] 60fps scroll with 10K+ items — partial: 2026-02-20 (remaining: explicit large-library profiling/benchmark evidence pending)
 
@@ -141,34 +147,36 @@ Last updated: 2026-02-20
 
 ## Phase 4: Audio Playback Engine
 ### 4.1 — NavisAudioHandler
-- [ ] `BaseAudioHandler` extension with `just_audio`
-- [ ] `ConcatenatingAudioSource` queue management
-- [ ] Source resolution (permanent cache → rolling cache → `LockCachingAudioSource`)
-- [ ] `LockCachingAudioSource` → `RollingCacheManager.registerTrack()` integration
-- [ ] Network-aware quality selection (Wi-Fi vs cellular)
-- [ ] Queue operations (play, skip, reorder, clear, replace, playNext, addToQueue)
-- [ ] Shuffle + repeat modes
-- [ ] Scrobbling (now playing + submission at threshold)
-- [ ] Lock screen and notification controls
-- [ ] Audio focus / interruption handling (`audio_session`)
+- [x] `BaseAudioHandler` extension with `just_audio` — 2026-02-20 (evidence: `lib/src/features/player/data/navis_audio_handler.dart`, `pubspec.yaml`)
+- [x] Queue-backed playback source list management — 2026-02-20 (evidence: `lib/src/features/player/data/navis_audio_handler.dart`, `lib/src/providers/app_providers.dart`)
+- [x] Source resolution (permanent cache → rolling cache → `LockCachingAudioSource`) — 2026-02-20 (evidence: `lib/src/features/player/data/playback_source_resolver.dart`, `lib/src/features/cache/data/rolling_cache_manager.dart`)
+- [x] `LockCachingAudioSource` → `RollingCacheManager.registerTrack()` integration — 2026-02-20 (evidence: `lib/src/features/player/data/navis_audio_handler.dart`, `lib/src/features/cache/data/rolling_cache_manager.dart`, `test/src/features/cache/data/rolling_cache_manager_test.dart`)
+- [x] Network-aware quality selection (Wi-Fi vs cellular) — 2026-02-20 (evidence: `lib/src/features/player/data/playback_source_resolver.dart`, `lib/src/providers/app_providers.dart` `activeStreamingQualityProvider`)
+- [x] Queue operations (play, skip, reorder, clear, replace, playNext, addToQueue) — 2026-02-20 (evidence: `lib/src/features/player/data/navis_audio_handler.dart`, `lib/src/providers/app_providers.dart`, `test/src/providers/app_providers_test.dart`)
+- [x] Shuffle + repeat modes — 2026-02-20 (evidence: `NavisAudioHandler.setShuffleMode`, `NavisAudioHandler.setRepeatMode`, persisted queue modes in `play_queue`)
+- [x] Scrobbling (now playing + submission at threshold) — 2026-02-20 (evidence: `lib/src/features/player/data/navis_audio_handler.dart`, `lib/src/features/player/data/scrobble_service.dart`, `lib/src/database/tables/scrobble_queue_table.dart`, `test/src/features/player/data/scrobble_service_test.dart`)
+- [x] Lock screen and notification controls — 2026-02-20 (evidence: `audio_service` init in `lib/src/features/player/data/navis_audio_handler.dart`, startup bootstrap in `lib/main.dart`, `android/app/src/main/kotlin/com/navis/app/navis/MainActivity.kt`)
+- [x] Audio focus / interruption handling (`audio_session`) — 2026-02-20 (evidence: `AudioSessionConfiguration.music()` in `lib/src/features/player/data/navis_audio_handler.dart`)
+- [x] Startup playback reliability gate (blocking retry flow until handler init succeeds) — 2026-02-20 (evidence: `lib/src/app.dart`, `lib/src/providers/app_providers.dart`, `test/widget_test.dart`)
 
 ### 4.2 — Play Queue Persistence
-- [ ] Save queue on every track change
-- [ ] Periodic position persistence (every 10–15s)
-- [ ] Restore queue on app launch
+- [x] Save queue on every track change — 2026-02-20 (evidence: `_persistQueueState` wiring in `lib/src/features/player/data/navis_audio_handler.dart`)
+- [x] Periodic position persistence (every 10–15s) — 2026-02-20 (evidence: 15s timer in `lib/src/features/player/data/navis_audio_handler.dart`)
+- [x] Restore queue on app launch — 2026-02-20 (evidence: `_restoreQueueFromDisk` in `lib/src/features/player/data/navis_audio_handler.dart`; startup bootstrap in `lib/main.dart`)
 - [ ] Cross-device sync via `savePlayQueue` / `getPlayQueue` (optional)
 
 ### 4.3 — Streaming Quality
-- [ ] Wi-Fi quality profile
-- [ ] Cellular quality profile
-- [ ] Live network type switching
-- [ ] No-transcode default (original quality)
+- [x] Wi-Fi quality profile — 2026-02-20 (evidence: `lib/src/features/settings/presentation/playback_settings_screen.dart`, `lib/src/providers/app_providers.dart`)
+- [x] Cellular quality profile — 2026-02-20 (evidence: `lib/src/features/settings/presentation/playback_settings_screen.dart`, `lib/src/providers/app_providers.dart`)
+- [x] Live network type switching — 2026-02-20 (evidence: `lib/src/providers/app_providers.dart` `networkTypeProvider` + `activeStreamingQualityProvider`)
+- [x] No-transcode default (original quality) — 2026-02-20 (evidence: `AppSettingsModel.defaults()` in `lib/src/features/settings/domain/app_settings.dart`, streaming resolver in `lib/src/features/player/data/playback_source_resolver.dart`)
 
 ### 4.4 — Audio Quality Details
 - [ ] Verify native codec support (FLAC, ALAC, MP3, AAC, Opus, Vorbis)
 - [ ] Android equalizer (`AndroidEqualizer`) — gated behind platform check
 - [ ] Android loudness enhancer (`AndroidLoudnessEnhancer`)
 - [ ] ReplayGain volume normalization (from server metadata)
+- [x] Skip silence toggle wired to runtime playback settings — 2026-02-20 (evidence: `lib/src/features/settings/presentation/playback_settings_screen.dart`, `lib/src/features/player/data/navis_audio_handler.dart`, `test/src/features/settings/presentation/playback_settings_screen_test.dart`)
 
 ## Phase 5: Now Playing & Lyrics
 ### 5.1 — Mini Player
@@ -217,10 +225,10 @@ Last updated: 2026-02-20
 
 ## Phase 8: Offline & Cache Management
 ### 8.1 — Rolling Cache
-- [ ] `RollingCacheManager` with configurable max size
-- [ ] LRU eviction by `lastAccessedAt`
-- [ ] File tracking in `cached_tracks` (`cacheType = rolling`)
-- [ ] Integration with `LockCachingAudioSource` file paths
+- [ ] `RollingCacheManager` with configurable max size — partial: 2026-02-20 (implemented: fixed 2 GB budget provider + manager APIs; remaining: user-configurable settings UI)
+- [x] LRU eviction by `lastAccessedAt` — 2026-02-20 (evidence: `lib/src/features/cache/data/rolling_cache_manager.dart`, `test/src/features/cache/data/rolling_cache_manager_test.dart`)
+- [x] File tracking in `cached_tracks` (`cacheType = rolling`) — 2026-02-20 (evidence: `lib/src/features/cache/data/rolling_cache_manager.dart`, `lib/src/database/daos/cache_dao.dart`)
+- [x] Integration with `LockCachingAudioSource` file paths — 2026-02-20 (evidence: `lib/src/features/player/data/playback_source_resolver.dart`, `lib/src/features/player/data/navis_audio_handler.dart`)
 
 ### 8.2 — Permanent Cache
 - [ ] Quality choice dialog on pin (Original / 320 / 192 / 128 / default)
@@ -254,7 +262,7 @@ Last updated: 2026-02-20
 
 ## Phase 9: Settings
 - [ ] Server section (display, test, sign out)
-- [ ] Playback — streaming quality (Wi-Fi / cellular profiles)
+- [x] Playback — streaming quality (Wi-Fi / cellular profiles) — 2026-02-20 (evidence: `/settings/playback` in `lib/src/features/settings/presentation/playback_settings_screen.dart`, persistence in `lib/src/database/daos/app_settings_dao.dart`)
 - [ ] Playback — general (gapless, ReplayGain, skip silence, scrobble, resume, queue sync)
 - [ ] Audio section (equalizer, loudness enhancer — Android only)
 - [ ] Downloads & cache (default quality, Wi-Fi only, concurrency, rolling/permanent/cover art stats, clear buttons)

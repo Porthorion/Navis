@@ -751,7 +751,7 @@ Each carousel card shows cover art + album name + artist name. Tap → album det
 
 #### Library Screen (`/library`)
 
-Tabbed interface with tabs: **Artists**, **Albums**, **Songs**, **Genres**.
+Tabbed interface with tabs: **Artists**, **Albums**.
 
 **Artists tab**:
 - Alphabetically sorted list with section headers (A, B, C...) and a fast scroll index on the right edge.
@@ -764,15 +764,11 @@ Tabbed interface with tabs: **Artists**, **Albums**, **Songs**, **Genres**.
 - Each card: cover art, album name, artist name, year.
 - Tap → Album detail.
 
-**Songs tab**:
-- Flat list of all tracks, sorted alphabetically by default.
-- Sort options: Title, Artist, Album, Duration.
-- Each row: track title, artist, album name, duration, overflow menu.
-- Tap → play immediately and queue remaining songs.
-
-**Genres tab**:
-- List of genres with song/album counts.
-- Tap → filtered album/song list for that genre.
+**Radio tab (deferred, not in current scope)**:
+- Planned future tab populated from server radio stations (`getInternetRadioStations` / `getInternetRadioStation` compatible behavior).
+- Must remain compatible with ICY metadata updates and AzuraCast stations.
+- Planned settings toggle under Settings to hide/show the Radio page.
+- Library songs browsing is intentionally removed from the top-level Library tabs in favor of Artists/Albums-first navigation.
 
 #### Artist Detail Screen (`/library/artists/:id`)
 
@@ -1514,7 +1510,7 @@ Global verification rule for every phase completion:
 | 0 | `flutter run` launches a blank app. `build_runner build` succeeds. `dart format --set-exit-if-changed .`, `flutter analyze`, `dart run custom_lint`, and `flutter test` all pass. Directory structure in place. Notification channels created on Android. Logger outputs to console in debug mode. `POST_NOTIFICATIONS` permission request flow works on Android 13+ emulator. |
 | 1 | Unit tests pass for `SubsonicApiClient` (mock HTTP). Drift DAO tests pass (in-memory DB). `ping()` succeeds against a real Navidrome server. Freezed models serialize/deserialize correctly. Dio retry interceptor retries on timeout (unit test with mock). Play queue DAO reads/writes correctly. Database migration from v1 to current version tested. |
 | 2 | Login flow works end-to-end. Credentials survive app kill + relaunch (auto-login). Sign out clears everything. Offline banner appears when server is unreachable. |
-| 3 | Library populates after sync. Album detail loads from local DB instantly. Pull-to-refresh triggers re-sync. Artists/Albums/Songs/Genres tabs work. Home screen carousels populate. Context menus function on all items. 10K+ library scrolls at 60fps. |
+| 3 | Library populates after sync. Album detail loads from local DB instantly. Pull-to-refresh triggers re-sync. Artists/Albums tabs work. Home screen carousels populate. Context menus function on all items. 10K+ library scrolls at 60fps. |
 | 4 | Streams music from Navidrome. Background audio continues with screen off. Lock screen controls work. Notification shows track info + controls. Gapless playback between consecutive tracks. Scrobble appears in Navidrome play history. Queue persists across app restarts. Playback position saved periodically (kill app mid-track, relaunch, confirm position is near where it was). Network type change triggers correct quality profile on next track. |
 | 5 | Now Playing screen renders correctly. Mini Player visible and interactive. Synced lyrics auto-scroll on a Navidrome server with lyrics support. Unsynced lyrics display. Seek-by-tap on lyric lines works. Cover art ↔ lyrics toggle works. Sleep timer counts down and stops playback. |
 | 6 | Search returns results from server. No result caching. Recent searches stored and displayed. Tap results navigate correctly. Pagination works for large result sets. |

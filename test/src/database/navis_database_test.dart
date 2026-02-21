@@ -124,6 +124,43 @@ void main() {
   );
 
   test(
+    'play queue state updates without rewriting queue items',
+    () async {
+      await database
+          .into(database.songsTable)
+          .insert(SongsTableCompanion.insert(id: 's1', title: 'Song 1'));
+      await database
+          .into(database.songsTable)
+          .insert(SongsTableCompanion.insert(id: 's2', title: 'Song 2'));
+
+      await database.playQueueDao.saveQueue(
+        currentIndex: 0,
+        songIds: const <String>['s1', 's2'],
+        shuffleMode: ShuffleMode.off,
+        repeatMode: RepeatMode.off,
+        positionMs: 1000,
+      );
+
+      await database.playQueueDao.savePlaybackState(
+        currentIndex: 1,
+        shuffleMode: ShuffleMode.all,
+        repeatMode: RepeatMode.one,
+        positionMs: 9200,
+      );
+
+      final state = await database.playQueueDao.getQueueState();
+      final items = await database.playQueueDao.getQueueItems();
+
+      expect(state?.currentIndex, 1);
+      expect(state?.positionMs, 9200);
+      expect(state?.shuffleMode, ShuffleMode.all);
+      expect(state?.repeatMode, RepeatMode.one);
+      expect(items.map((song) => song.id).toList(), <String>['s1', 's2']);
+    },
+    skip: !_sqliteAvailable,
+  );
+
+  test(
     'albums paging returns SQL-sorted deterministic page',
     () async {
       await database.libraryDao.replaceAlbums(

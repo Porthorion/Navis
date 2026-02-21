@@ -288,6 +288,87 @@ void main() {
     );
 
     test(
+      'fast-path metadata sync emits incremental album discovery progress',
+      () async {
+        await saveSession();
+        api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
+        api.fastPathPages[0] = const <Album>[
+          Album(
+            id: 'album-1',
+            name: 'Album 1',
+            artist: 'Artist 1',
+            artistId: 'artist-1',
+          ),
+          Album(
+            id: 'album-2',
+            name: 'Album 2',
+            artist: 'Artist 1',
+            artistId: 'artist-1',
+          ),
+        ];
+        api.fastPathPages[2] = const <Album>[
+          Album(
+            id: 'album-3',
+            name: 'Album 3',
+            artist: 'Artist 1',
+            artistId: 'artist-1',
+          ),
+        ];
+        api.albumDetails['album-1'] = const Album(
+          id: 'album-1',
+          name: 'Album 1',
+          artist: 'Artist 1',
+          artistId: 'artist-1',
+          songs: <Song>[],
+        );
+        api.albumDetails['album-2'] = const Album(
+          id: 'album-2',
+          name: 'Album 2',
+          artist: 'Artist 1',
+          artistId: 'artist-1',
+          songs: <Song>[],
+        );
+        api.albumDetails['album-3'] = const Album(
+          id: 'album-3',
+          name: 'Album 3',
+          artist: 'Artist 1',
+          artistId: 'artist-1',
+          songs: <Song>[],
+        );
+
+        final localEngine = DriftLibrarySyncEngine(
+          api: api,
+          database: database,
+          serverConfigRepository: serverConfigRepository,
+          fallbackArtistConcurrency: 1,
+          wifiAlbumConcurrency: 1,
+          cellularAlbumConcurrency: 1,
+          otherAlbumConcurrency: 1,
+          fastPathPageSize: 2,
+          writeChunkSize: 4,
+          isolateThreshold: 1000,
+        );
+
+        final progress = <LibrarySyncState>[];
+        await localEngine.syncNow(
+          forceFull: true,
+          onProgress: progress.add,
+        );
+
+        final albumStageProgress = progress
+            .where((state) => state.stage == LibrarySyncStage.fetchingAlbums)
+            .where((state) => state.processed != null && state.total != null)
+            .toList(growable: false);
+
+        expect(albumStageProgress.length, greaterThanOrEqualTo(2));
+        expect(albumStageProgress.first.processed, 2);
+        expect(albumStageProgress.last.processed, 3);
+        expect(albumStageProgress.last.total, 3);
+      },
+      skip: !_sqliteAvailable,
+    );
+
+    test(
       'fast-path fallback uses per-artist expansion when endpoint is unsupported',
       () async {
         await saveSession();
@@ -357,6 +438,81 @@ void main() {
           isEmpty,
         );
         expect(songs.length, 9);
+      },
+      skip: !_sqliteAvailable,
+    );
+
+    test(
+      'bulk song fast path emits incremental hydration progress updates',
+      () async {
+        await saveSession();
+        api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
+        api.fastPathPages[0] = List<Album>.generate(
+          9,
+          (index) => Album(
+            id: 'album-${index + 1}',
+            name: 'Album ${index + 1}',
+            artistId: 'artist-1',
+            artist: 'Artist 1',
+            songCount: 1,
+          ),
+        );
+        api.bulkSongPages[0] = List<Song>.generate(
+          3,
+          (index) => Song(
+            id: 'song-${index + 1}',
+            title: 'Song ${index + 1}',
+            albumId: 'album-${index + 1}',
+            artistId: 'artist-1',
+          ),
+        );
+        api.bulkSongPages[3] = List<Song>.generate(
+          3,
+          (index) => Song(
+            id: 'song-${index + 4}',
+            title: 'Song ${index + 4}',
+            albumId: 'album-${index + 4}',
+            artistId: 'artist-1',
+          ),
+        );
+        api.bulkSongPages[6] = List<Song>.generate(
+          3,
+          (index) => Song(
+            id: 'song-${index + 7}',
+            title: 'Song ${index + 7}',
+            albumId: 'album-${index + 7}',
+            artistId: 'artist-1',
+          ),
+        );
+
+        final bulkEngine = DriftLibrarySyncEngine(
+          api: api,
+          database: database,
+          serverConfigRepository: serverConfigRepository,
+          fallbackArtistConcurrency: 1,
+          wifiAlbumConcurrency: 1,
+          cellularAlbumConcurrency: 1,
+          otherAlbumConcurrency: 1,
+          bulkSearchPageSize: 3,
+          writeChunkSize: 4,
+          isolateThreshold: 1000,
+        );
+
+        final progress = <LibrarySyncState>[];
+        await bulkEngine.syncNow(
+          forceFull: true,
+          onProgress: progress.add,
+        );
+
+        final hydrationProgress = progress
+            .where((state) => state.stage == LibrarySyncStage.fetchingSongs)
+            .where((state) => state.processed != null)
+            .map((state) => state.processed!)
+            .toList(growable: false);
+
+        expect(hydrationProgress, isNotEmpty);
+        expect(hydrationProgress.any((count) => count > 0), isTrue);
+        expect(hydrationProgress.last, greaterThanOrEqualTo(9));
       },
       skip: !_sqliteAvailable,
     );

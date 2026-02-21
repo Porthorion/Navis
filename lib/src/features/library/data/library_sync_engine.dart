@@ -417,8 +417,8 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     current = _withMetrics(
       current.copyWith(
         stage: LibrarySyncStage.fetchingAlbums,
-        processed: 0,
-        total: artists.length,
+        clearProcessed: true,
+        clearTotal: true,
       ),
       metrics,
     );
@@ -426,8 +426,31 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
 
     List<Album> albums;
     try {
-      albums = await _discoverAlbumsFastPath(metrics: metrics);
+      albums = await _discoverAlbumsFastPath(
+        metrics: metrics,
+        onPageProgress: ({required discoveredCount, required hasMorePages}) {
+          final totalEstimate = hasMorePages
+              ? discoveredCount + fastPathPageSize
+              : discoveredCount;
+          current = _withMetrics(
+            current.copyWith(
+              processed: discoveredCount,
+              total: totalEstimate,
+            ),
+            metrics,
+          );
+          onProgress?.call(current);
+        },
+      );
     } on Object {
+      current = _withMetrics(
+        current.copyWith(
+          processed: 0,
+          total: artists.length,
+        ),
+        metrics,
+      );
+      onProgress?.call(current);
       final artistDetails = await _mapConcurrent<Artist, Artist>(
         artists,
         _artistConcurrency,
@@ -530,8 +553,8 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     current = _withMetrics(
       current.copyWith(
         stage: LibrarySyncStage.fetchingAlbums,
-        processed: 0,
-        total: artists.length,
+        clearProcessed: true,
+        clearTotal: true,
       ),
       metrics,
     );
@@ -539,8 +562,31 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
 
     List<Album> albums;
     try {
-      albums = await _discoverAlbumsFastPath(metrics: metrics);
+      albums = await _discoverAlbumsFastPath(
+        metrics: metrics,
+        onPageProgress: ({required discoveredCount, required hasMorePages}) {
+          final totalEstimate = hasMorePages
+              ? discoveredCount + fastPathPageSize
+              : discoveredCount;
+          current = _withMetrics(
+            current.copyWith(
+              processed: discoveredCount,
+              total: totalEstimate,
+            ),
+            metrics,
+          );
+          onProgress?.call(current);
+        },
+      );
     } on Object {
+      current = _withMetrics(
+        current.copyWith(
+          processed: 0,
+          total: artists.length,
+        ),
+        metrics,
+      );
+      onProgress?.call(current);
       final artistDetails = await _mapConcurrent<Artist, Artist>(
         artists,
         _artistConcurrency,
@@ -1084,6 +1130,25 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     String? lastPageSignature;
     final importedSongCountsByAlbum = <String, int>{};
 
+    Future<void> markHydrated(Iterable<String> albumIds) async {
+      final ids = albumIds.toSet().toList(growable: false);
+      if (ids.isEmpty) {
+        return;
+      }
+      await _database.libraryDao.markAlbumsSongsHydratedByIds(ids);
+      metrics.addDbWriteBatch();
+      await onHydratedChunk(ids);
+    }
+
+    await markHydrated(
+      _collectHydratedAlbumIds(
+        candidateAlbumIds: pendingAlbumIds,
+        pendingAlbumIds: pendingAlbumIds,
+        expectedSongCounts: expectedSongCounts,
+        importedSongCountsByAlbum: importedSongCountsByAlbum,
+      ),
+    );
+
     while (pendingAlbumIds.isNotEmpty) {
       pageCount++;
       if (pageCount > bulkSearchMaxPages) {
@@ -1137,6 +1202,14 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
         }
         await _database.libraryDao.upsertSongs(chunkSongs);
         metrics.addDbWriteBatch();
+        await markHydrated(
+          _collectHydratedAlbumIds(
+            candidateAlbumIds: rawSongsByAlbum.keys,
+            pendingAlbumIds: pendingAlbumIds,
+            expectedSongCounts: expectedSongCounts,
+            importedSongCountsByAlbum: importedSongCountsByAlbum,
+          ),
+        );
       }
 
       if (songs.length < bulkSearchPageSize) {
@@ -1149,32 +1222,50 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       return;
     }
 
-    final hydratedAlbumIds = <String>[];
-    for (final albumId in pendingAlbumIds) {
+    await markHydrated(
+      _collectHydratedAlbumIds(
+        candidateAlbumIds: pendingAlbumIds,
+        pendingAlbumIds: pendingAlbumIds,
+        expectedSongCounts: expectedSongCounts,
+        importedSongCountsByAlbum: importedSongCountsByAlbum,
+      ),
+    );
+  }
+
+  List<String> _collectHydratedAlbumIds({
+    required Iterable<String> candidateAlbumIds,
+    required Set<String> pendingAlbumIds,
+    required Map<String, int?> expectedSongCounts,
+    required Map<String, int> importedSongCountsByAlbum,
+  }) {
+    final hydrated = <String>[];
+    for (final albumId in candidateAlbumIds) {
+      if (!pendingAlbumIds.contains(albumId)) {
+        continue;
+      }
       final expected = expectedSongCounts[albumId];
       if (expected == null) {
         continue;
       }
       if (expected <= 0) {
-        hydratedAlbumIds.add(albumId);
+        hydrated.add(albumId);
         continue;
       }
       final imported = importedSongCountsByAlbum[albumId] ?? 0;
       if (imported >= expected) {
-        hydratedAlbumIds.add(albumId);
+        hydrated.add(albumId);
       }
     }
-    if (hydratedAlbumIds.isEmpty) {
-      return;
-    }
-
-    await _database.libraryDao.markAlbumsSongsHydratedByIds(hydratedAlbumIds);
-    metrics.addDbWriteBatch();
-    await onHydratedChunk(hydratedAlbumIds);
+    return hydrated;
   }
 
   Future<List<Album>> _discoverAlbumsFastPath({
     required _SyncRunMetrics metrics,
+    void Function({
+      required int discoveredCount,
+      required bool hasMorePages,
+    })?
+    onPageProgress,
   }) async {
     final byId = <String, Album>{};
     var offset = 0;
@@ -1198,7 +1289,13 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
         byId[album.id] = album;
       }
 
-      if (page.length < fastPathPageSize) {
+      final hasMorePages = page.length >= fastPathPageSize;
+      onPageProgress?.call(
+        discoveredCount: byId.length,
+        hasMorePages: hasMorePages,
+      );
+
+      if (!hasMorePages) {
         break;
       }
       offset += fastPathPageSize;
@@ -1465,6 +1562,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
             coverArt: Value(row.coverArt),
             starred: Value(row.starred),
             playCount: Value(row.playCount),
+            createdAt: Value(row.createdAt),
           ),
         )
         .toList(growable: false);
@@ -1712,6 +1810,7 @@ class _SongRow {
     this.coverArt,
     this.starred,
     this.playCount,
+    this.createdAt,
   });
 
   final String id;
@@ -1730,6 +1829,7 @@ class _SongRow {
   final String? coverArt;
   final DateTime? starred;
   final int? playCount;
+  final DateTime? createdAt;
 }
 
 Future<List<_AlbumRow>> _parseAlbumRowsInIsolate(
@@ -1784,6 +1884,7 @@ List<_SongRow> _songRowsFromJson(List<Map<String, dynamic>> payload) {
           coverArt: json['coverArt'] as String?,
           starred: _parseIsoDate(json['starred'] as String?),
           playCount: json['playCount'] as int?,
+          createdAt: _parseIsoDate(json['created'] as String?),
         ),
       )
       .toList(growable: false);

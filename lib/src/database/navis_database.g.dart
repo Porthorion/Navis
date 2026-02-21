@@ -522,6 +522,598 @@ class ServerConfigTableCompanion
   }
 }
 
+class $AppSettingsTableTable extends AppSettingsTable
+    with TableInfo<$AppSettingsTableTable, AppSettingsTableData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AppSettingsTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _wifiMaxBitRateMeta = const VerificationMeta(
+    'wifiMaxBitRate',
+  );
+  @override
+  late final GeneratedColumn<int> wifiMaxBitRate = GeneratedColumn<int>(
+    'wifi_max_bit_rate',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _wifiFormatMeta = const VerificationMeta(
+    'wifiFormat',
+  );
+  @override
+  late final GeneratedColumn<String> wifiFormat = GeneratedColumn<String>(
+    'wifi_format',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _cellularMaxBitRateMeta =
+      const VerificationMeta('cellularMaxBitRate');
+  @override
+  late final GeneratedColumn<int> cellularMaxBitRate = GeneratedColumn<int>(
+    'cellular_max_bit_rate',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _cellularFormatMeta = const VerificationMeta(
+    'cellularFormat',
+  );
+  @override
+  late final GeneratedColumn<String> cellularFormat = GeneratedColumn<String>(
+    'cellular_format',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _scrobbleEnabledMeta = const VerificationMeta(
+    'scrobbleEnabled',
+  );
+  @override
+  late final GeneratedColumn<bool> scrobbleEnabled = GeneratedColumn<bool>(
+    'scrobble_enabled',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("scrobble_enabled" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _gaplessEnabledMeta = const VerificationMeta(
+    'gaplessEnabled',
+  );
+  @override
+  late final GeneratedColumn<bool> gaplessEnabled = GeneratedColumn<bool>(
+    'gapless_enabled',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("gapless_enabled" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _skipSilenceEnabledMeta =
+      const VerificationMeta('skipSilenceEnabled');
+  @override
+  late final GeneratedColumn<bool> skipSilenceEnabled = GeneratedColumn<bool>(
+    'skip_silence_enabled',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("skip_silence_enabled" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    wifiMaxBitRate,
+    wifiFormat,
+    cellularMaxBitRate,
+    cellularFormat,
+    scrobbleEnabled,
+    gaplessEnabled,
+    skipSilenceEnabled,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'app_settings';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AppSettingsTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('wifi_max_bit_rate')) {
+      context.handle(
+        _wifiMaxBitRateMeta,
+        wifiMaxBitRate.isAcceptableOrUnknown(
+          data['wifi_max_bit_rate']!,
+          _wifiMaxBitRateMeta,
+        ),
+      );
+    }
+    if (data.containsKey('wifi_format')) {
+      context.handle(
+        _wifiFormatMeta,
+        wifiFormat.isAcceptableOrUnknown(data['wifi_format']!, _wifiFormatMeta),
+      );
+    }
+    if (data.containsKey('cellular_max_bit_rate')) {
+      context.handle(
+        _cellularMaxBitRateMeta,
+        cellularMaxBitRate.isAcceptableOrUnknown(
+          data['cellular_max_bit_rate']!,
+          _cellularMaxBitRateMeta,
+        ),
+      );
+    }
+    if (data.containsKey('cellular_format')) {
+      context.handle(
+        _cellularFormatMeta,
+        cellularFormat.isAcceptableOrUnknown(
+          data['cellular_format']!,
+          _cellularFormatMeta,
+        ),
+      );
+    }
+    if (data.containsKey('scrobble_enabled')) {
+      context.handle(
+        _scrobbleEnabledMeta,
+        scrobbleEnabled.isAcceptableOrUnknown(
+          data['scrobble_enabled']!,
+          _scrobbleEnabledMeta,
+        ),
+      );
+    }
+    if (data.containsKey('gapless_enabled')) {
+      context.handle(
+        _gaplessEnabledMeta,
+        gaplessEnabled.isAcceptableOrUnknown(
+          data['gapless_enabled']!,
+          _gaplessEnabledMeta,
+        ),
+      );
+    }
+    if (data.containsKey('skip_silence_enabled')) {
+      context.handle(
+        _skipSilenceEnabledMeta,
+        skipSilenceEnabled.isAcceptableOrUnknown(
+          data['skip_silence_enabled']!,
+          _skipSilenceEnabledMeta,
+        ),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  AppSettingsTableData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AppSettingsTableData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      wifiMaxBitRate: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}wifi_max_bit_rate'],
+      ),
+      wifiFormat: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}wifi_format'],
+      ),
+      cellularMaxBitRate: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}cellular_max_bit_rate'],
+      ),
+      cellularFormat: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cellular_format'],
+      ),
+      scrobbleEnabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}scrobble_enabled'],
+      )!,
+      gaplessEnabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}gapless_enabled'],
+      )!,
+      skipSilenceEnabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}skip_silence_enabled'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $AppSettingsTableTable createAlias(String alias) {
+    return $AppSettingsTableTable(attachedDatabase, alias);
+  }
+}
+
+class AppSettingsTableData extends DataClass
+    implements Insertable<AppSettingsTableData> {
+  final int id;
+  final int? wifiMaxBitRate;
+  final String? wifiFormat;
+  final int? cellularMaxBitRate;
+  final String? cellularFormat;
+  final bool scrobbleEnabled;
+  final bool gaplessEnabled;
+  final bool skipSilenceEnabled;
+  final DateTime updatedAt;
+  const AppSettingsTableData({
+    required this.id,
+    this.wifiMaxBitRate,
+    this.wifiFormat,
+    this.cellularMaxBitRate,
+    this.cellularFormat,
+    required this.scrobbleEnabled,
+    required this.gaplessEnabled,
+    required this.skipSilenceEnabled,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    if (!nullToAbsent || wifiMaxBitRate != null) {
+      map['wifi_max_bit_rate'] = Variable<int>(wifiMaxBitRate);
+    }
+    if (!nullToAbsent || wifiFormat != null) {
+      map['wifi_format'] = Variable<String>(wifiFormat);
+    }
+    if (!nullToAbsent || cellularMaxBitRate != null) {
+      map['cellular_max_bit_rate'] = Variable<int>(cellularMaxBitRate);
+    }
+    if (!nullToAbsent || cellularFormat != null) {
+      map['cellular_format'] = Variable<String>(cellularFormat);
+    }
+    map['scrobble_enabled'] = Variable<bool>(scrobbleEnabled);
+    map['gapless_enabled'] = Variable<bool>(gaplessEnabled);
+    map['skip_silence_enabled'] = Variable<bool>(skipSilenceEnabled);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  AppSettingsTableCompanion toCompanion(bool nullToAbsent) {
+    return AppSettingsTableCompanion(
+      id: Value(id),
+      wifiMaxBitRate: wifiMaxBitRate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(wifiMaxBitRate),
+      wifiFormat: wifiFormat == null && nullToAbsent
+          ? const Value.absent()
+          : Value(wifiFormat),
+      cellularMaxBitRate: cellularMaxBitRate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(cellularMaxBitRate),
+      cellularFormat: cellularFormat == null && nullToAbsent
+          ? const Value.absent()
+          : Value(cellularFormat),
+      scrobbleEnabled: Value(scrobbleEnabled),
+      gaplessEnabled: Value(gaplessEnabled),
+      skipSilenceEnabled: Value(skipSilenceEnabled),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory AppSettingsTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AppSettingsTableData(
+      id: serializer.fromJson<int>(json['id']),
+      wifiMaxBitRate: serializer.fromJson<int?>(json['wifiMaxBitRate']),
+      wifiFormat: serializer.fromJson<String?>(json['wifiFormat']),
+      cellularMaxBitRate: serializer.fromJson<int?>(json['cellularMaxBitRate']),
+      cellularFormat: serializer.fromJson<String?>(json['cellularFormat']),
+      scrobbleEnabled: serializer.fromJson<bool>(json['scrobbleEnabled']),
+      gaplessEnabled: serializer.fromJson<bool>(json['gaplessEnabled']),
+      skipSilenceEnabled: serializer.fromJson<bool>(json['skipSilenceEnabled']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'wifiMaxBitRate': serializer.toJson<int?>(wifiMaxBitRate),
+      'wifiFormat': serializer.toJson<String?>(wifiFormat),
+      'cellularMaxBitRate': serializer.toJson<int?>(cellularMaxBitRate),
+      'cellularFormat': serializer.toJson<String?>(cellularFormat),
+      'scrobbleEnabled': serializer.toJson<bool>(scrobbleEnabled),
+      'gaplessEnabled': serializer.toJson<bool>(gaplessEnabled),
+      'skipSilenceEnabled': serializer.toJson<bool>(skipSilenceEnabled),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  AppSettingsTableData copyWith({
+    int? id,
+    Value<int?> wifiMaxBitRate = const Value.absent(),
+    Value<String?> wifiFormat = const Value.absent(),
+    Value<int?> cellularMaxBitRate = const Value.absent(),
+    Value<String?> cellularFormat = const Value.absent(),
+    bool? scrobbleEnabled,
+    bool? gaplessEnabled,
+    bool? skipSilenceEnabled,
+    DateTime? updatedAt,
+  }) => AppSettingsTableData(
+    id: id ?? this.id,
+    wifiMaxBitRate: wifiMaxBitRate.present
+        ? wifiMaxBitRate.value
+        : this.wifiMaxBitRate,
+    wifiFormat: wifiFormat.present ? wifiFormat.value : this.wifiFormat,
+    cellularMaxBitRate: cellularMaxBitRate.present
+        ? cellularMaxBitRate.value
+        : this.cellularMaxBitRate,
+    cellularFormat: cellularFormat.present
+        ? cellularFormat.value
+        : this.cellularFormat,
+    scrobbleEnabled: scrobbleEnabled ?? this.scrobbleEnabled,
+    gaplessEnabled: gaplessEnabled ?? this.gaplessEnabled,
+    skipSilenceEnabled: skipSilenceEnabled ?? this.skipSilenceEnabled,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  AppSettingsTableData copyWithCompanion(AppSettingsTableCompanion data) {
+    return AppSettingsTableData(
+      id: data.id.present ? data.id.value : this.id,
+      wifiMaxBitRate: data.wifiMaxBitRate.present
+          ? data.wifiMaxBitRate.value
+          : this.wifiMaxBitRate,
+      wifiFormat: data.wifiFormat.present
+          ? data.wifiFormat.value
+          : this.wifiFormat,
+      cellularMaxBitRate: data.cellularMaxBitRate.present
+          ? data.cellularMaxBitRate.value
+          : this.cellularMaxBitRate,
+      cellularFormat: data.cellularFormat.present
+          ? data.cellularFormat.value
+          : this.cellularFormat,
+      scrobbleEnabled: data.scrobbleEnabled.present
+          ? data.scrobbleEnabled.value
+          : this.scrobbleEnabled,
+      gaplessEnabled: data.gaplessEnabled.present
+          ? data.gaplessEnabled.value
+          : this.gaplessEnabled,
+      skipSilenceEnabled: data.skipSilenceEnabled.present
+          ? data.skipSilenceEnabled.value
+          : this.skipSilenceEnabled,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AppSettingsTableData(')
+          ..write('id: $id, ')
+          ..write('wifiMaxBitRate: $wifiMaxBitRate, ')
+          ..write('wifiFormat: $wifiFormat, ')
+          ..write('cellularMaxBitRate: $cellularMaxBitRate, ')
+          ..write('cellularFormat: $cellularFormat, ')
+          ..write('scrobbleEnabled: $scrobbleEnabled, ')
+          ..write('gaplessEnabled: $gaplessEnabled, ')
+          ..write('skipSilenceEnabled: $skipSilenceEnabled, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    wifiMaxBitRate,
+    wifiFormat,
+    cellularMaxBitRate,
+    cellularFormat,
+    scrobbleEnabled,
+    gaplessEnabled,
+    skipSilenceEnabled,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AppSettingsTableData &&
+          other.id == this.id &&
+          other.wifiMaxBitRate == this.wifiMaxBitRate &&
+          other.wifiFormat == this.wifiFormat &&
+          other.cellularMaxBitRate == this.cellularMaxBitRate &&
+          other.cellularFormat == this.cellularFormat &&
+          other.scrobbleEnabled == this.scrobbleEnabled &&
+          other.gaplessEnabled == this.gaplessEnabled &&
+          other.skipSilenceEnabled == this.skipSilenceEnabled &&
+          other.updatedAt == this.updatedAt);
+}
+
+class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
+  final Value<int> id;
+  final Value<int?> wifiMaxBitRate;
+  final Value<String?> wifiFormat;
+  final Value<int?> cellularMaxBitRate;
+  final Value<String?> cellularFormat;
+  final Value<bool> scrobbleEnabled;
+  final Value<bool> gaplessEnabled;
+  final Value<bool> skipSilenceEnabled;
+  final Value<DateTime> updatedAt;
+  const AppSettingsTableCompanion({
+    this.id = const Value.absent(),
+    this.wifiMaxBitRate = const Value.absent(),
+    this.wifiFormat = const Value.absent(),
+    this.cellularMaxBitRate = const Value.absent(),
+    this.cellularFormat = const Value.absent(),
+    this.scrobbleEnabled = const Value.absent(),
+    this.gaplessEnabled = const Value.absent(),
+    this.skipSilenceEnabled = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  });
+  AppSettingsTableCompanion.insert({
+    this.id = const Value.absent(),
+    this.wifiMaxBitRate = const Value.absent(),
+    this.wifiFormat = const Value.absent(),
+    this.cellularMaxBitRate = const Value.absent(),
+    this.cellularFormat = const Value.absent(),
+    this.scrobbleEnabled = const Value.absent(),
+    this.gaplessEnabled = const Value.absent(),
+    this.skipSilenceEnabled = const Value.absent(),
+    required DateTime updatedAt,
+  }) : updatedAt = Value(updatedAt);
+  static Insertable<AppSettingsTableData> custom({
+    Expression<int>? id,
+    Expression<int>? wifiMaxBitRate,
+    Expression<String>? wifiFormat,
+    Expression<int>? cellularMaxBitRate,
+    Expression<String>? cellularFormat,
+    Expression<bool>? scrobbleEnabled,
+    Expression<bool>? gaplessEnabled,
+    Expression<bool>? skipSilenceEnabled,
+    Expression<DateTime>? updatedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (wifiMaxBitRate != null) 'wifi_max_bit_rate': wifiMaxBitRate,
+      if (wifiFormat != null) 'wifi_format': wifiFormat,
+      if (cellularMaxBitRate != null)
+        'cellular_max_bit_rate': cellularMaxBitRate,
+      if (cellularFormat != null) 'cellular_format': cellularFormat,
+      if (scrobbleEnabled != null) 'scrobble_enabled': scrobbleEnabled,
+      if (gaplessEnabled != null) 'gapless_enabled': gaplessEnabled,
+      if (skipSilenceEnabled != null)
+        'skip_silence_enabled': skipSilenceEnabled,
+      if (updatedAt != null) 'updated_at': updatedAt,
+    });
+  }
+
+  AppSettingsTableCompanion copyWith({
+    Value<int>? id,
+    Value<int?>? wifiMaxBitRate,
+    Value<String?>? wifiFormat,
+    Value<int?>? cellularMaxBitRate,
+    Value<String?>? cellularFormat,
+    Value<bool>? scrobbleEnabled,
+    Value<bool>? gaplessEnabled,
+    Value<bool>? skipSilenceEnabled,
+    Value<DateTime>? updatedAt,
+  }) {
+    return AppSettingsTableCompanion(
+      id: id ?? this.id,
+      wifiMaxBitRate: wifiMaxBitRate ?? this.wifiMaxBitRate,
+      wifiFormat: wifiFormat ?? this.wifiFormat,
+      cellularMaxBitRate: cellularMaxBitRate ?? this.cellularMaxBitRate,
+      cellularFormat: cellularFormat ?? this.cellularFormat,
+      scrobbleEnabled: scrobbleEnabled ?? this.scrobbleEnabled,
+      gaplessEnabled: gaplessEnabled ?? this.gaplessEnabled,
+      skipSilenceEnabled: skipSilenceEnabled ?? this.skipSilenceEnabled,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (wifiMaxBitRate.present) {
+      map['wifi_max_bit_rate'] = Variable<int>(wifiMaxBitRate.value);
+    }
+    if (wifiFormat.present) {
+      map['wifi_format'] = Variable<String>(wifiFormat.value);
+    }
+    if (cellularMaxBitRate.present) {
+      map['cellular_max_bit_rate'] = Variable<int>(cellularMaxBitRate.value);
+    }
+    if (cellularFormat.present) {
+      map['cellular_format'] = Variable<String>(cellularFormat.value);
+    }
+    if (scrobbleEnabled.present) {
+      map['scrobble_enabled'] = Variable<bool>(scrobbleEnabled.value);
+    }
+    if (gaplessEnabled.present) {
+      map['gapless_enabled'] = Variable<bool>(gaplessEnabled.value);
+    }
+    if (skipSilenceEnabled.present) {
+      map['skip_silence_enabled'] = Variable<bool>(skipSilenceEnabled.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AppSettingsTableCompanion(')
+          ..write('id: $id, ')
+          ..write('wifiMaxBitRate: $wifiMaxBitRate, ')
+          ..write('wifiFormat: $wifiFormat, ')
+          ..write('cellularMaxBitRate: $cellularMaxBitRate, ')
+          ..write('cellularFormat: $cellularFormat, ')
+          ..write('scrobbleEnabled: $scrobbleEnabled, ')
+          ..write('gaplessEnabled: $gaplessEnabled, ')
+          ..write('skipSilenceEnabled: $skipSilenceEnabled, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $ArtistsTableTable extends ArtistsTable
     with TableInfo<$ArtistsTableTable, ArtistsTableData> {
   @override
@@ -1782,6 +2374,17 @@ class $SongsTableTable extends SongsTable
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1800,6 +2403,7 @@ class $SongsTableTable extends SongsTable
     coverArt,
     starred,
     playCount,
+    createdAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1913,6 +2517,12 @@ class $SongsTableTable extends SongsTable
         playCount.isAcceptableOrUnknown(data['play_count']!, _playCountMeta),
       );
     }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
     return context;
   }
 
@@ -1986,6 +2596,10 @@ class $SongsTableTable extends SongsTable
         DriftSqlType.int,
         data['${effectivePrefix}play_count'],
       ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      ),
     );
   }
 
@@ -2012,6 +2626,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
   final String? coverArt;
   final DateTime? starred;
   final int? playCount;
+  final DateTime? createdAt;
   const SongsTableData({
     required this.id,
     required this.title,
@@ -2029,6 +2644,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     this.coverArt,
     this.starred,
     this.playCount,
+    this.createdAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2077,6 +2693,9 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     if (!nullToAbsent || playCount != null) {
       map['play_count'] = Variable<int>(playCount);
     }
+    if (!nullToAbsent || createdAt != null) {
+      map['created_at'] = Variable<DateTime>(createdAt);
+    }
     return map;
   }
 
@@ -2124,6 +2743,9 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       playCount: playCount == null && nullToAbsent
           ? const Value.absent()
           : Value(playCount),
+      createdAt: createdAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(createdAt),
     );
   }
 
@@ -2149,6 +2771,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       coverArt: serializer.fromJson<String?>(json['coverArt']),
       starred: serializer.fromJson<DateTime?>(json['starred']),
       playCount: serializer.fromJson<int?>(json['playCount']),
+      createdAt: serializer.fromJson<DateTime?>(json['createdAt']),
     );
   }
   @override
@@ -2171,6 +2794,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       'coverArt': serializer.toJson<String?>(coverArt),
       'starred': serializer.toJson<DateTime?>(starred),
       'playCount': serializer.toJson<int?>(playCount),
+      'createdAt': serializer.toJson<DateTime?>(createdAt),
     };
   }
 
@@ -2191,6 +2815,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     Value<String?> coverArt = const Value.absent(),
     Value<DateTime?> starred = const Value.absent(),
     Value<int?> playCount = const Value.absent(),
+    Value<DateTime?> createdAt = const Value.absent(),
   }) => SongsTableData(
     id: id ?? this.id,
     title: title ?? this.title,
@@ -2208,6 +2833,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     coverArt: coverArt.present ? coverArt.value : this.coverArt,
     starred: starred.present ? starred.value : this.starred,
     playCount: playCount.present ? playCount.value : this.playCount,
+    createdAt: createdAt.present ? createdAt.value : this.createdAt,
   );
   SongsTableData copyWithCompanion(SongsTableCompanion data) {
     return SongsTableData(
@@ -2233,6 +2859,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       coverArt: data.coverArt.present ? data.coverArt.value : this.coverArt,
       starred: data.starred.present ? data.starred.value : this.starred,
       playCount: data.playCount.present ? data.playCount.value : this.playCount,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
     );
   }
 
@@ -2254,7 +2881,8 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
           ..write('size: $size, ')
           ..write('coverArt: $coverArt, ')
           ..write('starred: $starred, ')
-          ..write('playCount: $playCount')
+          ..write('playCount: $playCount, ')
+          ..write('createdAt: $createdAt')
           ..write(')'))
         .toString();
   }
@@ -2277,6 +2905,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     coverArt,
     starred,
     playCount,
+    createdAt,
   );
   @override
   bool operator ==(Object other) =>
@@ -2297,7 +2926,8 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
           other.size == this.size &&
           other.coverArt == this.coverArt &&
           other.starred == this.starred &&
-          other.playCount == this.playCount);
+          other.playCount == this.playCount &&
+          other.createdAt == this.createdAt);
 }
 
 class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
@@ -2317,6 +2947,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
   final Value<String?> coverArt;
   final Value<DateTime?> starred;
   final Value<int?> playCount;
+  final Value<DateTime?> createdAt;
   final Value<int> rowid;
   const SongsTableCompanion({
     this.id = const Value.absent(),
@@ -2335,6 +2966,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     this.coverArt = const Value.absent(),
     this.starred = const Value.absent(),
     this.playCount = const Value.absent(),
+    this.createdAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   SongsTableCompanion.insert({
@@ -2354,6 +2986,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     this.coverArt = const Value.absent(),
     this.starred = const Value.absent(),
     this.playCount = const Value.absent(),
+    this.createdAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        title = Value(title);
@@ -2374,6 +3007,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     Expression<String>? coverArt,
     Expression<DateTime>? starred,
     Expression<int>? playCount,
+    Expression<DateTime>? createdAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -2393,6 +3027,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
       if (coverArt != null) 'cover_art': coverArt,
       if (starred != null) 'starred': starred,
       if (playCount != null) 'play_count': playCount,
+      if (createdAt != null) 'created_at': createdAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -2414,6 +3049,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     Value<String?>? coverArt,
     Value<DateTime?>? starred,
     Value<int?>? playCount,
+    Value<DateTime?>? createdAt,
     Value<int>? rowid,
   }) {
     return SongsTableCompanion(
@@ -2433,6 +3069,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
       coverArt: coverArt ?? this.coverArt,
       starred: starred ?? this.starred,
       playCount: playCount ?? this.playCount,
+      createdAt: createdAt ?? this.createdAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2488,6 +3125,9 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     if (playCount.present) {
       map['play_count'] = Variable<int>(playCount.value);
     }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -2513,6 +3153,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
           ..write('coverArt: $coverArt, ')
           ..write('starred: $starred, ')
           ..write('playCount: $playCount, ')
+          ..write('createdAt: $createdAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -5885,11 +6526,583 @@ class PlayQueueItemsTableCompanion
   }
 }
 
+class $ScrobbleQueueTableTable extends ScrobbleQueueTable
+    with TableInfo<$ScrobbleQueueTableTable, ScrobbleQueueTableData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ScrobbleQueueTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _songIdMeta = const VerificationMeta('songId');
+  @override
+  late final GeneratedColumn<String> songId = GeneratedColumn<String>(
+    'song_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES songs (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _submissionMeta = const VerificationMeta(
+    'submission',
+  );
+  @override
+  late final GeneratedColumn<bool> submission = GeneratedColumn<bool>(
+    'submission',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("submission" IN (0, 1))',
+    ),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nextAttemptAtMeta = const VerificationMeta(
+    'nextAttemptAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> nextAttemptAt =
+      GeneratedColumn<DateTime>(
+        'next_attempt_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _attemptsMeta = const VerificationMeta(
+    'attempts',
+  );
+  @override
+  late final GeneratedColumn<int> attempts = GeneratedColumn<int>(
+    'attempts',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _expiresAtMeta = const VerificationMeta(
+    'expiresAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> expiresAt = GeneratedColumn<DateTime>(
+    'expires_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sessionKeyMeta = const VerificationMeta(
+    'sessionKey',
+  );
+  @override
+  late final GeneratedColumn<String> sessionKey = GeneratedColumn<String>(
+    'session_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _lastErrorMeta = const VerificationMeta(
+    'lastError',
+  );
+  @override
+  late final GeneratedColumn<String> lastError = GeneratedColumn<String>(
+    'last_error',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    songId,
+    submission,
+    createdAt,
+    nextAttemptAt,
+    attempts,
+    expiresAt,
+    sessionKey,
+    lastError,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'scrobble_queue';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ScrobbleQueueTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('song_id')) {
+      context.handle(
+        _songIdMeta,
+        songId.isAcceptableOrUnknown(data['song_id']!, _songIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_songIdMeta);
+    }
+    if (data.containsKey('submission')) {
+      context.handle(
+        _submissionMeta,
+        submission.isAcceptableOrUnknown(data['submission']!, _submissionMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_submissionMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('next_attempt_at')) {
+      context.handle(
+        _nextAttemptAtMeta,
+        nextAttemptAt.isAcceptableOrUnknown(
+          data['next_attempt_at']!,
+          _nextAttemptAtMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_nextAttemptAtMeta);
+    }
+    if (data.containsKey('attempts')) {
+      context.handle(
+        _attemptsMeta,
+        attempts.isAcceptableOrUnknown(data['attempts']!, _attemptsMeta),
+      );
+    }
+    if (data.containsKey('expires_at')) {
+      context.handle(
+        _expiresAtMeta,
+        expiresAt.isAcceptableOrUnknown(data['expires_at']!, _expiresAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_expiresAtMeta);
+    }
+    if (data.containsKey('session_key')) {
+      context.handle(
+        _sessionKeyMeta,
+        sessionKey.isAcceptableOrUnknown(data['session_key']!, _sessionKeyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sessionKeyMeta);
+    }
+    if (data.containsKey('last_error')) {
+      context.handle(
+        _lastErrorMeta,
+        lastError.isAcceptableOrUnknown(data['last_error']!, _lastErrorMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {songId, submission, sessionKey},
+  ];
+  @override
+  ScrobbleQueueTableData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ScrobbleQueueTableData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      songId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}song_id'],
+      )!,
+      submission: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}submission'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      nextAttemptAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}next_attempt_at'],
+      )!,
+      attempts: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}attempts'],
+      )!,
+      expiresAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}expires_at'],
+      )!,
+      sessionKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}session_key'],
+      )!,
+      lastError: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_error'],
+      ),
+    );
+  }
+
+  @override
+  $ScrobbleQueueTableTable createAlias(String alias) {
+    return $ScrobbleQueueTableTable(attachedDatabase, alias);
+  }
+}
+
+class ScrobbleQueueTableData extends DataClass
+    implements Insertable<ScrobbleQueueTableData> {
+  final int id;
+  final String songId;
+  final bool submission;
+  final DateTime createdAt;
+  final DateTime nextAttemptAt;
+  final int attempts;
+  final DateTime expiresAt;
+  final String sessionKey;
+  final String? lastError;
+  const ScrobbleQueueTableData({
+    required this.id,
+    required this.songId,
+    required this.submission,
+    required this.createdAt,
+    required this.nextAttemptAt,
+    required this.attempts,
+    required this.expiresAt,
+    required this.sessionKey,
+    this.lastError,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['song_id'] = Variable<String>(songId);
+    map['submission'] = Variable<bool>(submission);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['next_attempt_at'] = Variable<DateTime>(nextAttemptAt);
+    map['attempts'] = Variable<int>(attempts);
+    map['expires_at'] = Variable<DateTime>(expiresAt);
+    map['session_key'] = Variable<String>(sessionKey);
+    if (!nullToAbsent || lastError != null) {
+      map['last_error'] = Variable<String>(lastError);
+    }
+    return map;
+  }
+
+  ScrobbleQueueTableCompanion toCompanion(bool nullToAbsent) {
+    return ScrobbleQueueTableCompanion(
+      id: Value(id),
+      songId: Value(songId),
+      submission: Value(submission),
+      createdAt: Value(createdAt),
+      nextAttemptAt: Value(nextAttemptAt),
+      attempts: Value(attempts),
+      expiresAt: Value(expiresAt),
+      sessionKey: Value(sessionKey),
+      lastError: lastError == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastError),
+    );
+  }
+
+  factory ScrobbleQueueTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ScrobbleQueueTableData(
+      id: serializer.fromJson<int>(json['id']),
+      songId: serializer.fromJson<String>(json['songId']),
+      submission: serializer.fromJson<bool>(json['submission']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      nextAttemptAt: serializer.fromJson<DateTime>(json['nextAttemptAt']),
+      attempts: serializer.fromJson<int>(json['attempts']),
+      expiresAt: serializer.fromJson<DateTime>(json['expiresAt']),
+      sessionKey: serializer.fromJson<String>(json['sessionKey']),
+      lastError: serializer.fromJson<String?>(json['lastError']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'songId': serializer.toJson<String>(songId),
+      'submission': serializer.toJson<bool>(submission),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'nextAttemptAt': serializer.toJson<DateTime>(nextAttemptAt),
+      'attempts': serializer.toJson<int>(attempts),
+      'expiresAt': serializer.toJson<DateTime>(expiresAt),
+      'sessionKey': serializer.toJson<String>(sessionKey),
+      'lastError': serializer.toJson<String?>(lastError),
+    };
+  }
+
+  ScrobbleQueueTableData copyWith({
+    int? id,
+    String? songId,
+    bool? submission,
+    DateTime? createdAt,
+    DateTime? nextAttemptAt,
+    int? attempts,
+    DateTime? expiresAt,
+    String? sessionKey,
+    Value<String?> lastError = const Value.absent(),
+  }) => ScrobbleQueueTableData(
+    id: id ?? this.id,
+    songId: songId ?? this.songId,
+    submission: submission ?? this.submission,
+    createdAt: createdAt ?? this.createdAt,
+    nextAttemptAt: nextAttemptAt ?? this.nextAttemptAt,
+    attempts: attempts ?? this.attempts,
+    expiresAt: expiresAt ?? this.expiresAt,
+    sessionKey: sessionKey ?? this.sessionKey,
+    lastError: lastError.present ? lastError.value : this.lastError,
+  );
+  ScrobbleQueueTableData copyWithCompanion(ScrobbleQueueTableCompanion data) {
+    return ScrobbleQueueTableData(
+      id: data.id.present ? data.id.value : this.id,
+      songId: data.songId.present ? data.songId.value : this.songId,
+      submission: data.submission.present
+          ? data.submission.value
+          : this.submission,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      nextAttemptAt: data.nextAttemptAt.present
+          ? data.nextAttemptAt.value
+          : this.nextAttemptAt,
+      attempts: data.attempts.present ? data.attempts.value : this.attempts,
+      expiresAt: data.expiresAt.present ? data.expiresAt.value : this.expiresAt,
+      sessionKey: data.sessionKey.present
+          ? data.sessionKey.value
+          : this.sessionKey,
+      lastError: data.lastError.present ? data.lastError.value : this.lastError,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ScrobbleQueueTableData(')
+          ..write('id: $id, ')
+          ..write('songId: $songId, ')
+          ..write('submission: $submission, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('nextAttemptAt: $nextAttemptAt, ')
+          ..write('attempts: $attempts, ')
+          ..write('expiresAt: $expiresAt, ')
+          ..write('sessionKey: $sessionKey, ')
+          ..write('lastError: $lastError')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    songId,
+    submission,
+    createdAt,
+    nextAttemptAt,
+    attempts,
+    expiresAt,
+    sessionKey,
+    lastError,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ScrobbleQueueTableData &&
+          other.id == this.id &&
+          other.songId == this.songId &&
+          other.submission == this.submission &&
+          other.createdAt == this.createdAt &&
+          other.nextAttemptAt == this.nextAttemptAt &&
+          other.attempts == this.attempts &&
+          other.expiresAt == this.expiresAt &&
+          other.sessionKey == this.sessionKey &&
+          other.lastError == this.lastError);
+}
+
+class ScrobbleQueueTableCompanion
+    extends UpdateCompanion<ScrobbleQueueTableData> {
+  final Value<int> id;
+  final Value<String> songId;
+  final Value<bool> submission;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> nextAttemptAt;
+  final Value<int> attempts;
+  final Value<DateTime> expiresAt;
+  final Value<String> sessionKey;
+  final Value<String?> lastError;
+  const ScrobbleQueueTableCompanion({
+    this.id = const Value.absent(),
+    this.songId = const Value.absent(),
+    this.submission = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.nextAttemptAt = const Value.absent(),
+    this.attempts = const Value.absent(),
+    this.expiresAt = const Value.absent(),
+    this.sessionKey = const Value.absent(),
+    this.lastError = const Value.absent(),
+  });
+  ScrobbleQueueTableCompanion.insert({
+    this.id = const Value.absent(),
+    required String songId,
+    required bool submission,
+    required DateTime createdAt,
+    required DateTime nextAttemptAt,
+    this.attempts = const Value.absent(),
+    required DateTime expiresAt,
+    required String sessionKey,
+    this.lastError = const Value.absent(),
+  }) : songId = Value(songId),
+       submission = Value(submission),
+       createdAt = Value(createdAt),
+       nextAttemptAt = Value(nextAttemptAt),
+       expiresAt = Value(expiresAt),
+       sessionKey = Value(sessionKey);
+  static Insertable<ScrobbleQueueTableData> custom({
+    Expression<int>? id,
+    Expression<String>? songId,
+    Expression<bool>? submission,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? nextAttemptAt,
+    Expression<int>? attempts,
+    Expression<DateTime>? expiresAt,
+    Expression<String>? sessionKey,
+    Expression<String>? lastError,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (songId != null) 'song_id': songId,
+      if (submission != null) 'submission': submission,
+      if (createdAt != null) 'created_at': createdAt,
+      if (nextAttemptAt != null) 'next_attempt_at': nextAttemptAt,
+      if (attempts != null) 'attempts': attempts,
+      if (expiresAt != null) 'expires_at': expiresAt,
+      if (sessionKey != null) 'session_key': sessionKey,
+      if (lastError != null) 'last_error': lastError,
+    });
+  }
+
+  ScrobbleQueueTableCompanion copyWith({
+    Value<int>? id,
+    Value<String>? songId,
+    Value<bool>? submission,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? nextAttemptAt,
+    Value<int>? attempts,
+    Value<DateTime>? expiresAt,
+    Value<String>? sessionKey,
+    Value<String?>? lastError,
+  }) {
+    return ScrobbleQueueTableCompanion(
+      id: id ?? this.id,
+      songId: songId ?? this.songId,
+      submission: submission ?? this.submission,
+      createdAt: createdAt ?? this.createdAt,
+      nextAttemptAt: nextAttemptAt ?? this.nextAttemptAt,
+      attempts: attempts ?? this.attempts,
+      expiresAt: expiresAt ?? this.expiresAt,
+      sessionKey: sessionKey ?? this.sessionKey,
+      lastError: lastError ?? this.lastError,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (songId.present) {
+      map['song_id'] = Variable<String>(songId.value);
+    }
+    if (submission.present) {
+      map['submission'] = Variable<bool>(submission.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (nextAttemptAt.present) {
+      map['next_attempt_at'] = Variable<DateTime>(nextAttemptAt.value);
+    }
+    if (attempts.present) {
+      map['attempts'] = Variable<int>(attempts.value);
+    }
+    if (expiresAt.present) {
+      map['expires_at'] = Variable<DateTime>(expiresAt.value);
+    }
+    if (sessionKey.present) {
+      map['session_key'] = Variable<String>(sessionKey.value);
+    }
+    if (lastError.present) {
+      map['last_error'] = Variable<String>(lastError.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ScrobbleQueueTableCompanion(')
+          ..write('id: $id, ')
+          ..write('songId: $songId, ')
+          ..write('submission: $submission, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('nextAttemptAt: $nextAttemptAt, ')
+          ..write('attempts: $attempts, ')
+          ..write('expiresAt: $expiresAt, ')
+          ..write('sessionKey: $sessionKey, ')
+          ..write('lastError: $lastError')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$NavisDatabase extends GeneratedDatabase {
   _$NavisDatabase(QueryExecutor e) : super(e);
   $NavisDatabaseManager get managers => $NavisDatabaseManager(this);
   late final $ServerConfigTableTable serverConfigTable =
       $ServerConfigTableTable(this);
+  late final $AppSettingsTableTable appSettingsTable = $AppSettingsTableTable(
+    this,
+  );
   late final $ArtistsTableTable artistsTable = $ArtistsTableTable(this);
   late final $AlbumsTableTable albumsTable = $AlbumsTableTable(this);
   late final $SongsTableTable songsTable = $SongsTableTable(this);
@@ -5909,6 +7122,11 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
   late final $PlayQueueTableTable playQueueTable = $PlayQueueTableTable(this);
   late final $PlayQueueItemsTableTable playQueueItemsTable =
       $PlayQueueItemsTableTable(this);
+  late final $ScrobbleQueueTableTable scrobbleQueueTable =
+      $ScrobbleQueueTableTable(this);
+  late final AppSettingsDao appSettingsDao = AppSettingsDao(
+    this as NavisDatabase,
+  );
   late final ServerDao serverDao = ServerDao(this as NavisDatabase);
   late final LibraryDao libraryDao = LibraryDao(this as NavisDatabase);
   late final PlaylistDao playlistDao = PlaylistDao(this as NavisDatabase);
@@ -5918,12 +7136,14 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
   );
   late final HistoryDao historyDao = HistoryDao(this as NavisDatabase);
   late final PlayQueueDao playQueueDao = PlayQueueDao(this as NavisDatabase);
+  late final ScrobbleDao scrobbleDao = ScrobbleDao(this as NavisDatabase);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     serverConfigTable,
+    appSettingsTable,
     artistsTable,
     albumsTable,
     songsTable,
@@ -5936,6 +7156,7 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
     recentSearchesTable,
     playQueueTable,
     playQueueItemsTable,
+    scrobbleQueueTable,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -6022,6 +7243,13 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('play_queue_items', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'songs',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('scrobble_queue', kind: UpdateKind.delete)],
     ),
   ]);
 }
@@ -6296,6 +7524,300 @@ typedef $$ServerConfigTableTableProcessedTableManager =
         >,
       ),
       ServerConfigTableData,
+      PrefetchHooks Function()
+    >;
+typedef $$AppSettingsTableTableCreateCompanionBuilder =
+    AppSettingsTableCompanion Function({
+      Value<int> id,
+      Value<int?> wifiMaxBitRate,
+      Value<String?> wifiFormat,
+      Value<int?> cellularMaxBitRate,
+      Value<String?> cellularFormat,
+      Value<bool> scrobbleEnabled,
+      Value<bool> gaplessEnabled,
+      Value<bool> skipSilenceEnabled,
+      required DateTime updatedAt,
+    });
+typedef $$AppSettingsTableTableUpdateCompanionBuilder =
+    AppSettingsTableCompanion Function({
+      Value<int> id,
+      Value<int?> wifiMaxBitRate,
+      Value<String?> wifiFormat,
+      Value<int?> cellularMaxBitRate,
+      Value<String?> cellularFormat,
+      Value<bool> scrobbleEnabled,
+      Value<bool> gaplessEnabled,
+      Value<bool> skipSilenceEnabled,
+      Value<DateTime> updatedAt,
+    });
+
+class $$AppSettingsTableTableFilterComposer
+    extends Composer<_$NavisDatabase, $AppSettingsTableTable> {
+  $$AppSettingsTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get wifiMaxBitRate => $composableBuilder(
+    column: $table.wifiMaxBitRate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get wifiFormat => $composableBuilder(
+    column: $table.wifiFormat,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get cellularMaxBitRate => $composableBuilder(
+    column: $table.cellularMaxBitRate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get cellularFormat => $composableBuilder(
+    column: $table.cellularFormat,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get scrobbleEnabled => $composableBuilder(
+    column: $table.scrobbleEnabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get gaplessEnabled => $composableBuilder(
+    column: $table.gaplessEnabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get skipSilenceEnabled => $composableBuilder(
+    column: $table.skipSilenceEnabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$AppSettingsTableTableOrderingComposer
+    extends Composer<_$NavisDatabase, $AppSettingsTableTable> {
+  $$AppSettingsTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get wifiMaxBitRate => $composableBuilder(
+    column: $table.wifiMaxBitRate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get wifiFormat => $composableBuilder(
+    column: $table.wifiFormat,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get cellularMaxBitRate => $composableBuilder(
+    column: $table.cellularMaxBitRate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get cellularFormat => $composableBuilder(
+    column: $table.cellularFormat,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get scrobbleEnabled => $composableBuilder(
+    column: $table.scrobbleEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get gaplessEnabled => $composableBuilder(
+    column: $table.gaplessEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get skipSilenceEnabled => $composableBuilder(
+    column: $table.skipSilenceEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$AppSettingsTableTableAnnotationComposer
+    extends Composer<_$NavisDatabase, $AppSettingsTableTable> {
+  $$AppSettingsTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get wifiMaxBitRate => $composableBuilder(
+    column: $table.wifiMaxBitRate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get wifiFormat => $composableBuilder(
+    column: $table.wifiFormat,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get cellularMaxBitRate => $composableBuilder(
+    column: $table.cellularMaxBitRate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get cellularFormat => $composableBuilder(
+    column: $table.cellularFormat,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get scrobbleEnabled => $composableBuilder(
+    column: $table.scrobbleEnabled,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get gaplessEnabled => $composableBuilder(
+    column: $table.gaplessEnabled,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get skipSilenceEnabled => $composableBuilder(
+    column: $table.skipSilenceEnabled,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$AppSettingsTableTableTableManager
+    extends
+        RootTableManager<
+          _$NavisDatabase,
+          $AppSettingsTableTable,
+          AppSettingsTableData,
+          $$AppSettingsTableTableFilterComposer,
+          $$AppSettingsTableTableOrderingComposer,
+          $$AppSettingsTableTableAnnotationComposer,
+          $$AppSettingsTableTableCreateCompanionBuilder,
+          $$AppSettingsTableTableUpdateCompanionBuilder,
+          (
+            AppSettingsTableData,
+            BaseReferences<
+              _$NavisDatabase,
+              $AppSettingsTableTable,
+              AppSettingsTableData
+            >,
+          ),
+          AppSettingsTableData,
+          PrefetchHooks Function()
+        > {
+  $$AppSettingsTableTableTableManager(
+    _$NavisDatabase db,
+    $AppSettingsTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AppSettingsTableTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AppSettingsTableTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$AppSettingsTableTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int?> wifiMaxBitRate = const Value.absent(),
+                Value<String?> wifiFormat = const Value.absent(),
+                Value<int?> cellularMaxBitRate = const Value.absent(),
+                Value<String?> cellularFormat = const Value.absent(),
+                Value<bool> scrobbleEnabled = const Value.absent(),
+                Value<bool> gaplessEnabled = const Value.absent(),
+                Value<bool> skipSilenceEnabled = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+              }) => AppSettingsTableCompanion(
+                id: id,
+                wifiMaxBitRate: wifiMaxBitRate,
+                wifiFormat: wifiFormat,
+                cellularMaxBitRate: cellularMaxBitRate,
+                cellularFormat: cellularFormat,
+                scrobbleEnabled: scrobbleEnabled,
+                gaplessEnabled: gaplessEnabled,
+                skipSilenceEnabled: skipSilenceEnabled,
+                updatedAt: updatedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int?> wifiMaxBitRate = const Value.absent(),
+                Value<String?> wifiFormat = const Value.absent(),
+                Value<int?> cellularMaxBitRate = const Value.absent(),
+                Value<String?> cellularFormat = const Value.absent(),
+                Value<bool> scrobbleEnabled = const Value.absent(),
+                Value<bool> gaplessEnabled = const Value.absent(),
+                Value<bool> skipSilenceEnabled = const Value.absent(),
+                required DateTime updatedAt,
+              }) => AppSettingsTableCompanion.insert(
+                id: id,
+                wifiMaxBitRate: wifiMaxBitRate,
+                wifiFormat: wifiFormat,
+                cellularMaxBitRate: cellularMaxBitRate,
+                cellularFormat: cellularFormat,
+                scrobbleEnabled: scrobbleEnabled,
+                gaplessEnabled: gaplessEnabled,
+                skipSilenceEnabled: skipSilenceEnabled,
+                updatedAt: updatedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$AppSettingsTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NavisDatabase,
+      $AppSettingsTableTable,
+      AppSettingsTableData,
+      $$AppSettingsTableTableFilterComposer,
+      $$AppSettingsTableTableOrderingComposer,
+      $$AppSettingsTableTableAnnotationComposer,
+      $$AppSettingsTableTableCreateCompanionBuilder,
+      $$AppSettingsTableTableUpdateCompanionBuilder,
+      (
+        AppSettingsTableData,
+        BaseReferences<
+          _$NavisDatabase,
+          $AppSettingsTableTable,
+          AppSettingsTableData
+        >,
+      ),
+      AppSettingsTableData,
       PrefetchHooks Function()
     >;
 typedef $$ArtistsTableTableCreateCompanionBuilder =
@@ -7382,6 +8904,7 @@ typedef $$SongsTableTableCreateCompanionBuilder =
       Value<String?> coverArt,
       Value<DateTime?> starred,
       Value<int?> playCount,
+      Value<DateTime?> createdAt,
       Value<int> rowid,
     });
 typedef $$SongsTableTableUpdateCompanionBuilder =
@@ -7402,6 +8925,7 @@ typedef $$SongsTableTableUpdateCompanionBuilder =
       Value<String?> coverArt,
       Value<DateTime?> starred,
       Value<int?> playCount,
+      Value<DateTime?> createdAt,
       Value<int> rowid,
     });
 
@@ -7578,6 +9102,33 @@ final class $$SongsTableTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<
+    $ScrobbleQueueTableTable,
+    List<ScrobbleQueueTableData>
+  >
+  _scrobbleQueueTableRefsTable(_$NavisDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.scrobbleQueueTable,
+        aliasName: $_aliasNameGenerator(
+          db.songsTable.id,
+          db.scrobbleQueueTable.songId,
+        ),
+      );
+
+  $$ScrobbleQueueTableTableProcessedTableManager get scrobbleQueueTableRefs {
+    final manager = $$ScrobbleQueueTableTableTableManager(
+      $_db,
+      $_db.scrobbleQueueTable,
+    ).filter((f) => f.songId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _scrobbleQueueTableRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$SongsTableTableFilterComposer
@@ -7656,6 +9207,11 @@ class $$SongsTableTableFilterComposer
 
   ColumnFilters<int> get playCount => $composableBuilder(
     column: $table.playCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -7829,6 +9385,31 @@ class $$SongsTableTableFilterComposer
     );
     return f(composer);
   }
+
+  Expression<bool> scrobbleQueueTableRefs(
+    Expression<bool> Function($$ScrobbleQueueTableTableFilterComposer f) f,
+  ) {
+    final $$ScrobbleQueueTableTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.scrobbleQueueTable,
+      getReferencedColumn: (t) => t.songId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ScrobbleQueueTableTableFilterComposer(
+            $db: $db,
+            $table: $db.scrobbleQueueTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$SongsTableTableOrderingComposer
@@ -7907,6 +9488,11 @@ class $$SongsTableTableOrderingComposer
 
   ColumnOrderings<int> get playCount => $composableBuilder(
     column: $table.playCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -8013,6 +9599,9 @@ class $$SongsTableTableAnnotationComposer
 
   GeneratedColumn<int> get playCount =>
       $composableBuilder(column: $table.playCount, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
 
   $$AlbumsTableTableAnnotationComposer get albumId {
     final $$AlbumsTableTableAnnotationComposer composer = $composerBuilder(
@@ -8188,6 +9777,32 @@ class $$SongsTableTableAnnotationComposer
         );
     return f(composer);
   }
+
+  Expression<T> scrobbleQueueTableRefs<T extends Object>(
+    Expression<T> Function($$ScrobbleQueueTableTableAnnotationComposer a) f,
+  ) {
+    final $$ScrobbleQueueTableTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.scrobbleQueueTable,
+          getReferencedColumn: (t) => t.songId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ScrobbleQueueTableTableAnnotationComposer(
+                $db: $db,
+                $table: $db.scrobbleQueueTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$SongsTableTableTableManager
@@ -8211,6 +9826,7 @@ class $$SongsTableTableTableManager
             bool downloadQueueTableRefs,
             bool playHistoryTableRefs,
             bool playQueueItemsTableRefs,
+            bool scrobbleQueueTableRefs,
           })
         > {
   $$SongsTableTableTableManager(_$NavisDatabase db, $SongsTableTable table)
@@ -8242,6 +9858,7 @@ class $$SongsTableTableTableManager
                 Value<String?> coverArt = const Value.absent(),
                 Value<DateTime?> starred = const Value.absent(),
                 Value<int?> playCount = const Value.absent(),
+                Value<DateTime?> createdAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SongsTableCompanion(
                 id: id,
@@ -8260,6 +9877,7 @@ class $$SongsTableTableTableManager
                 coverArt: coverArt,
                 starred: starred,
                 playCount: playCount,
+                createdAt: createdAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -8280,6 +9898,7 @@ class $$SongsTableTableTableManager
                 Value<String?> coverArt = const Value.absent(),
                 Value<DateTime?> starred = const Value.absent(),
                 Value<int?> playCount = const Value.absent(),
+                Value<DateTime?> createdAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SongsTableCompanion.insert(
                 id: id,
@@ -8298,6 +9917,7 @@ class $$SongsTableTableTableManager
                 coverArt: coverArt,
                 starred: starred,
                 playCount: playCount,
+                createdAt: createdAt,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -8317,6 +9937,7 @@ class $$SongsTableTableTableManager
                 downloadQueueTableRefs = false,
                 playHistoryTableRefs = false,
                 playQueueItemsTableRefs = false,
+                scrobbleQueueTableRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -8326,6 +9947,7 @@ class $$SongsTableTableTableManager
                     if (downloadQueueTableRefs) db.downloadQueueTable,
                     if (playHistoryTableRefs) db.playHistoryTable,
                     if (playQueueItemsTableRefs) db.playQueueItemsTable,
+                    if (scrobbleQueueTableRefs) db.scrobbleQueueTable,
                   ],
                   addJoins:
                       <
@@ -8481,6 +10103,27 @@ class $$SongsTableTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (scrobbleQueueTableRefs)
+                        await $_getPrefetchedData<
+                          SongsTableData,
+                          $SongsTableTable,
+                          ScrobbleQueueTableData
+                        >(
+                          currentTable: table,
+                          referencedTable: $$SongsTableTableReferences
+                              ._scrobbleQueueTableRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$SongsTableTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).scrobbleQueueTableRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.songId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -8509,6 +10152,7 @@ typedef $$SongsTableTableProcessedTableManager =
         bool downloadQueueTableRefs,
         bool playHistoryTableRefs,
         bool playQueueItemsTableRefs,
+        bool scrobbleQueueTableRefs,
       })
     >;
 typedef $$GenresTableTableCreateCompanionBuilder =
@@ -11744,12 +13388,425 @@ typedef $$PlayQueueItemsTableTableProcessedTableManager =
       PlayQueueItemsTableData,
       PrefetchHooks Function({bool queueId, bool songId})
     >;
+typedef $$ScrobbleQueueTableTableCreateCompanionBuilder =
+    ScrobbleQueueTableCompanion Function({
+      Value<int> id,
+      required String songId,
+      required bool submission,
+      required DateTime createdAt,
+      required DateTime nextAttemptAt,
+      Value<int> attempts,
+      required DateTime expiresAt,
+      required String sessionKey,
+      Value<String?> lastError,
+    });
+typedef $$ScrobbleQueueTableTableUpdateCompanionBuilder =
+    ScrobbleQueueTableCompanion Function({
+      Value<int> id,
+      Value<String> songId,
+      Value<bool> submission,
+      Value<DateTime> createdAt,
+      Value<DateTime> nextAttemptAt,
+      Value<int> attempts,
+      Value<DateTime> expiresAt,
+      Value<String> sessionKey,
+      Value<String?> lastError,
+    });
+
+final class $$ScrobbleQueueTableTableReferences
+    extends
+        BaseReferences<
+          _$NavisDatabase,
+          $ScrobbleQueueTableTable,
+          ScrobbleQueueTableData
+        > {
+  $$ScrobbleQueueTableTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $SongsTableTable _songIdTable(_$NavisDatabase db) =>
+      db.songsTable.createAlias(
+        $_aliasNameGenerator(db.scrobbleQueueTable.songId, db.songsTable.id),
+      );
+
+  $$SongsTableTableProcessedTableManager get songId {
+    final $_column = $_itemColumn<String>('song_id')!;
+
+    final manager = $$SongsTableTableTableManager(
+      $_db,
+      $_db.songsTable,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_songIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$ScrobbleQueueTableTableFilterComposer
+    extends Composer<_$NavisDatabase, $ScrobbleQueueTableTable> {
+  $$ScrobbleQueueTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get submission => $composableBuilder(
+    column: $table.submission,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get nextAttemptAt => $composableBuilder(
+    column: $table.nextAttemptAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get attempts => $composableBuilder(
+    column: $table.attempts,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get expiresAt => $composableBuilder(
+    column: $table.expiresAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sessionKey => $composableBuilder(
+    column: $table.sessionKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastError => $composableBuilder(
+    column: $table.lastError,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$SongsTableTableFilterComposer get songId {
+    final $$SongsTableTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.songId,
+      referencedTable: $db.songsTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SongsTableTableFilterComposer(
+            $db: $db,
+            $table: $db.songsTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ScrobbleQueueTableTableOrderingComposer
+    extends Composer<_$NavisDatabase, $ScrobbleQueueTableTable> {
+  $$ScrobbleQueueTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get submission => $composableBuilder(
+    column: $table.submission,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get nextAttemptAt => $composableBuilder(
+    column: $table.nextAttemptAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get attempts => $composableBuilder(
+    column: $table.attempts,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get expiresAt => $composableBuilder(
+    column: $table.expiresAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sessionKey => $composableBuilder(
+    column: $table.sessionKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastError => $composableBuilder(
+    column: $table.lastError,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$SongsTableTableOrderingComposer get songId {
+    final $$SongsTableTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.songId,
+      referencedTable: $db.songsTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SongsTableTableOrderingComposer(
+            $db: $db,
+            $table: $db.songsTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ScrobbleQueueTableTableAnnotationComposer
+    extends Composer<_$NavisDatabase, $ScrobbleQueueTableTable> {
+  $$ScrobbleQueueTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<bool> get submission => $composableBuilder(
+    column: $table.submission,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get nextAttemptAt => $composableBuilder(
+    column: $table.nextAttemptAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get attempts =>
+      $composableBuilder(column: $table.attempts, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get expiresAt =>
+      $composableBuilder(column: $table.expiresAt, builder: (column) => column);
+
+  GeneratedColumn<String> get sessionKey => $composableBuilder(
+    column: $table.sessionKey,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lastError =>
+      $composableBuilder(column: $table.lastError, builder: (column) => column);
+
+  $$SongsTableTableAnnotationComposer get songId {
+    final $$SongsTableTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.songId,
+      referencedTable: $db.songsTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SongsTableTableAnnotationComposer(
+            $db: $db,
+            $table: $db.songsTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ScrobbleQueueTableTableTableManager
+    extends
+        RootTableManager<
+          _$NavisDatabase,
+          $ScrobbleQueueTableTable,
+          ScrobbleQueueTableData,
+          $$ScrobbleQueueTableTableFilterComposer,
+          $$ScrobbleQueueTableTableOrderingComposer,
+          $$ScrobbleQueueTableTableAnnotationComposer,
+          $$ScrobbleQueueTableTableCreateCompanionBuilder,
+          $$ScrobbleQueueTableTableUpdateCompanionBuilder,
+          (ScrobbleQueueTableData, $$ScrobbleQueueTableTableReferences),
+          ScrobbleQueueTableData,
+          PrefetchHooks Function({bool songId})
+        > {
+  $$ScrobbleQueueTableTableTableManager(
+    _$NavisDatabase db,
+    $ScrobbleQueueTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ScrobbleQueueTableTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ScrobbleQueueTableTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ScrobbleQueueTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> songId = const Value.absent(),
+                Value<bool> submission = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> nextAttemptAt = const Value.absent(),
+                Value<int> attempts = const Value.absent(),
+                Value<DateTime> expiresAt = const Value.absent(),
+                Value<String> sessionKey = const Value.absent(),
+                Value<String?> lastError = const Value.absent(),
+              }) => ScrobbleQueueTableCompanion(
+                id: id,
+                songId: songId,
+                submission: submission,
+                createdAt: createdAt,
+                nextAttemptAt: nextAttemptAt,
+                attempts: attempts,
+                expiresAt: expiresAt,
+                sessionKey: sessionKey,
+                lastError: lastError,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String songId,
+                required bool submission,
+                required DateTime createdAt,
+                required DateTime nextAttemptAt,
+                Value<int> attempts = const Value.absent(),
+                required DateTime expiresAt,
+                required String sessionKey,
+                Value<String?> lastError = const Value.absent(),
+              }) => ScrobbleQueueTableCompanion.insert(
+                id: id,
+                songId: songId,
+                submission: submission,
+                createdAt: createdAt,
+                nextAttemptAt: nextAttemptAt,
+                attempts: attempts,
+                expiresAt: expiresAt,
+                sessionKey: sessionKey,
+                lastError: lastError,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$ScrobbleQueueTableTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({songId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (songId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.songId,
+                                referencedTable:
+                                    $$ScrobbleQueueTableTableReferences
+                                        ._songIdTable(db),
+                                referencedColumn:
+                                    $$ScrobbleQueueTableTableReferences
+                                        ._songIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$ScrobbleQueueTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NavisDatabase,
+      $ScrobbleQueueTableTable,
+      ScrobbleQueueTableData,
+      $$ScrobbleQueueTableTableFilterComposer,
+      $$ScrobbleQueueTableTableOrderingComposer,
+      $$ScrobbleQueueTableTableAnnotationComposer,
+      $$ScrobbleQueueTableTableCreateCompanionBuilder,
+      $$ScrobbleQueueTableTableUpdateCompanionBuilder,
+      (ScrobbleQueueTableData, $$ScrobbleQueueTableTableReferences),
+      ScrobbleQueueTableData,
+      PrefetchHooks Function({bool songId})
+    >;
 
 class $NavisDatabaseManager {
   final _$NavisDatabase _db;
   $NavisDatabaseManager(this._db);
   $$ServerConfigTableTableTableManager get serverConfigTable =>
       $$ServerConfigTableTableTableManager(_db, _db.serverConfigTable);
+  $$AppSettingsTableTableTableManager get appSettingsTable =>
+      $$AppSettingsTableTableTableManager(_db, _db.appSettingsTable);
   $$ArtistsTableTableTableManager get artistsTable =>
       $$ArtistsTableTableTableManager(_db, _db.artistsTable);
   $$AlbumsTableTableTableManager get albumsTable =>
@@ -11774,4 +13831,6 @@ class $NavisDatabaseManager {
       $$PlayQueueTableTableTableManager(_db, _db.playQueueTable);
   $$PlayQueueItemsTableTableTableManager get playQueueItemsTable =>
       $$PlayQueueItemsTableTableTableManager(_db, _db.playQueueItemsTable);
+  $$ScrobbleQueueTableTableTableManager get scrobbleQueueTable =>
+      $$ScrobbleQueueTableTableTableManager(_db, _db.scrobbleQueueTable);
 }

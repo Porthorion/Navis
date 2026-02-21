@@ -13,8 +13,11 @@ import 'package:navis/src/features/auth/presentation/server_reachability_provide
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_router.dart';
+import 'package:riverpod/src/framework.dart' show Override;
+import '../../helpers/test_database.dart';
 
 class _StaticReachabilityController extends ServerReachabilityController {
   _StaticReachabilityController(this._state);
@@ -67,24 +70,38 @@ class _StaticLibrarySyncController extends LibrarySyncController {
   LibrarySyncState build() => const LibrarySyncState.idle();
 
   @override
-  Future<LibrarySyncState> syncIfStale({
-    Iterable<String> priorityAlbumIds = const <String>[],
-  }) async {
+  Future<LibrarySyncState> syncIfStale() async {
     return const LibrarySyncState.idle();
   }
 
   @override
-  Future<LibrarySyncState> syncNow({
-    bool forceFull = false,
-    Iterable<String> priorityAlbumIds = const <String>[],
-  }) async {
+  Future<LibrarySyncState> syncNow({bool forceFull = false}) async {
     return const LibrarySyncState.idle();
   }
 }
 
+class _NoopScrobbleDispatchController extends ScrobbleDispatchController {
+  @override
+  int build() => 0;
+}
+
+ProviderContainer _createContainerWithDatabase({
+  List<Override> overrides = const <Override>[],
+}) {
+  final database = createTestDatabase();
+  final container = ProviderContainer(
+    overrides: withTestDatabase(database, overrides: overrides),
+  );
+  addTearDown(() async {
+    container.dispose();
+    await database.close();
+  });
+  return container;
+}
+
 void main() {
   testWidgets('redirects unauthenticated user to /login', (tester) async {
-    final container = ProviderContainer(
+    final container = _createContainerWithDatabase(
       overrides: [
         serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
         librarySyncControllerProvider.overrideWith(
@@ -92,7 +109,6 @@ void main() {
         ),
       ],
     );
-    addTearDown(container.dispose);
 
     await tester.pumpWidget(
       UncontrolledProviderScope(
@@ -109,7 +125,7 @@ void main() {
   });
 
   testWidgets('stays on login while auth state is loading', (tester) async {
-    final container = ProviderContainer(
+    final container = _createContainerWithDatabase(
       overrides: [
         serverConfigStateProvider.overrideWithValue(
           const AsyncLoading<ServerConfigModel?>(),
@@ -119,7 +135,6 @@ void main() {
         ),
       ],
     );
-    addTearDown(container.dispose);
 
     await tester.pumpWidget(
       UncontrolledProviderScope(
@@ -133,7 +148,7 @@ void main() {
   });
 
   testWidgets('shows home shell when authenticated', (tester) async {
-    final container = ProviderContainer(
+    final container = _createContainerWithDatabase(
       overrides: [
         serverConfigStateProvider.overrideWithValue(
           const AsyncData(
@@ -165,9 +180,11 @@ void main() {
         homeRandomAlbumsProvider.overrideWithValue(const AsyncData(<Album>[])),
         homeStarredSongsProvider.overrideWithValue(const AsyncData(<Song>[])),
         artistInfoProvider.overrideWith((ref, artistId) async => null),
+        scrobbleDispatchControllerProvider.overrideWith(
+          _NoopScrobbleDispatchController.new,
+        ),
       ],
     );
-    addTearDown(container.dispose);
 
     await tester.pumpWidget(
       UncontrolledProviderScope(
@@ -178,13 +195,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Home'), findsWidgets);
-    expect(find.text('MiniPlayer (Phase 5)'), findsOneWidget);
+    expect(find.text('Unknown track'), findsNothing);
   });
 
   testWidgets('shows offline banner when reachability is offline', (
     tester,
   ) async {
-    final container = ProviderContainer(
+    final container = _createContainerWithDatabase(
       overrides: [
         serverConfigStateProvider.overrideWithValue(
           const AsyncData(
@@ -218,7 +235,6 @@ void main() {
         artistInfoProvider.overrideWith((ref, artistId) async => null),
       ],
     );
-    addTearDown(container.dispose);
 
     await tester.pumpWidget(
       UncontrolledProviderScope(
@@ -235,7 +251,7 @@ void main() {
   });
 
   testWidgets('supports route params for detail pages', (tester) async {
-    final container = ProviderContainer(
+    final container = _createContainerWithDatabase(
       overrides: [
         serverConfigStateProvider.overrideWithValue(
           const AsyncData(
@@ -269,7 +285,6 @@ void main() {
         artistInfoProvider.overrideWith((ref, artistId) async => null),
       ],
     );
-    addTearDown(container.dispose);
 
     await tester.pumpWidget(
       UncontrolledProviderScope(
@@ -294,7 +309,7 @@ void main() {
   });
 
   testWidgets('contains all expected route paths', (tester) async {
-    final container = ProviderContainer(
+    final container = _createContainerWithDatabase(
       overrides: [
         serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
         librarySyncControllerProvider.overrideWith(
@@ -302,7 +317,6 @@ void main() {
         ),
       ],
     );
-    addTearDown(container.dispose);
 
     final router = container.read(appRouterProvider);
 
@@ -332,13 +346,13 @@ void main() {
     expect(configuredLocations, contains('/library'));
     expect(configuredLocations, contains('/library/artists/:id'));
     expect(configuredLocations, contains('/library/albums/:id'));
-    expect(configuredLocations, contains('/library/genres/:encodedGenre'));
     expect(configuredLocations, contains('/search'));
     expect(configuredLocations, contains('/playlists'));
     expect(configuredLocations, contains('/playlists/:id'));
     expect(configuredLocations, contains('/settings'));
     expect(configuredLocations, contains('/settings/server'));
     expect(configuredLocations, contains('/settings/cache'));
+    expect(configuredLocations, contains('/settings/sync'));
     expect(configuredLocations, contains('/settings/playback'));
     expect(configuredLocations, contains('/settings/appearance'));
     expect(configuredLocations, contains('/downloads'));
@@ -352,7 +366,7 @@ void main() {
   ) async {
     late _TestServerConfigNotifier notifier;
 
-    final container = ProviderContainer(
+    final container = _createContainerWithDatabase(
       overrides: [
         serverConfigProvider.overrideWith(
           () => notifier = _TestServerConfigNotifier(
@@ -391,7 +405,6 @@ void main() {
         artistInfoProvider.overrideWith((ref, artistId) async => null),
       ],
     );
-    addTearDown(container.dispose);
 
     await tester.pumpWidget(
       UncontrolledProviderScope(
