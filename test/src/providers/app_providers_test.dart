@@ -204,6 +204,11 @@ void main() {
                   scrobbleEnabled: true,
                   gaplessEnabled: true,
                   skipSilenceEnabled: false,
+                  showRadioPage: true,
+                  equalizerEnabled: false,
+                  equalizerBandGains: <double>[],
+                  loudnessEnabled: false,
+                  loudnessTargetGainDb: 0,
                 ),
               ),
             ),
@@ -440,7 +445,42 @@ void main() {
     );
 
     test(
-      'audio bootstrap timeout sets failed state and ignores stale completion',
+      'audio bootstrap timeout can recover when initialization completes late',
+      () async {
+        final delayedCompleter = Completer<NavisPlaybackHandler>();
+        final delayedHandler = _FakePlaybackHandler();
+
+        final container = ProviderContainer(
+          overrides: [
+            audioBootstrapTimeoutProvider.overrideWith(
+              (_) => const Duration(milliseconds: 20),
+            ),
+            audioHandlerInitializerProvider.overrideWithValue(
+              () => delayedCompleter.future,
+            ),
+          ],
+        );
+        addTearDown(() async {
+          container.dispose();
+          await delayedHandler.dispose();
+        });
+
+        await container.read(audioBootstrapControllerProvider.notifier).retry();
+        expect(
+          container.read(audioBootstrapControllerProvider).status,
+          AudioBootstrapStatus.failed,
+        );
+
+        delayedCompleter.complete(delayedHandler);
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+        final recovered = container.read(audioBootstrapControllerProvider);
+        expect(recovered.status, AudioBootstrapStatus.ready);
+        expect(recovered.handler, same(delayedHandler));
+      },
+    );
+
+    test(
+      'audio bootstrap ignores stale completion after a newer retry succeeds',
       () async {
         final staleCompleter = Completer<NavisPlaybackHandler>();
         final staleHandler = _FakePlaybackHandler();
@@ -473,17 +513,18 @@ void main() {
           AudioBootstrapStatus.failed,
         );
 
-        staleCompleter.complete(staleHandler);
-        await Future<void>.delayed(const Duration(milliseconds: 30));
-        expect(
-          container.read(audioBootstrapControllerProvider).status,
-          AudioBootstrapStatus.failed,
-        );
-
         await container.read(audioBootstrapControllerProvider.notifier).retry();
         final bootstrap = container.read(audioBootstrapControllerProvider);
         expect(bootstrap.status, AudioBootstrapStatus.ready);
         expect(bootstrap.handler, same(nextHandler));
+
+        staleCompleter.complete(staleHandler);
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+        final afterStaleCompletion = container.read(
+          audioBootstrapControllerProvider,
+        );
+        expect(afterStaleCompletion.status, AudioBootstrapStatus.ready);
+        expect(afterStaleCompletion.handler, same(nextHandler));
       },
     );
 

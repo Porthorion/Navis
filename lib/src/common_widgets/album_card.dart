@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/star_button.dart';
 import 'package:navis/src/database/navis_database.dart';
 
 class AlbumCard extends StatelessWidget {
@@ -35,6 +36,14 @@ class AlbumCard extends StatelessWidget {
         subtitle: Text(
           '${album.artistName ?? l10n.albumDetailUnknownArtist}$year',
         ),
+        trailing: album.starred == null
+            ? null
+            : StarButton(
+                isStarred: true,
+                compact: true,
+                onPressed: null,
+                tooltip: l10n.albumDetailStarAction,
+              ),
         onTap: onTap,
         onLongPress: onLongPress,
       ),

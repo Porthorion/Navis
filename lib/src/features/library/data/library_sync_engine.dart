@@ -919,6 +919,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
 
     var processed = 0;
     var pendingRemaining = pending;
+    final observedBulkAlbumIds = <String>{};
     final hydrationStopwatch = Stopwatch()..start();
     final concurrencyController = _AdaptiveHydrationConcurrency(
       initial: _albumConcurrency,
@@ -950,6 +951,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       for (final albumId in hydratedAlbumIds) {
         pendingAlbumIds.remove(albumId);
         prioritized.remove(albumId);
+        observedBulkAlbumIds.remove(albumId);
       }
       final throughput = _hydrationThroughput(
         hydratedAlbums: processed,
@@ -965,6 +967,35 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
           hydratedAlbums: processed,
           pendingHydrationCount: pendingRemaining < 0 ? 0 : pendingRemaining,
           hydrationThroughputAlbumsPerSecond: throughput,
+        ),
+        metrics,
+      );
+      onProgress?.call(current);
+    }
+
+    void publishBulkObservedProgress(Iterable<String> albumIds) {
+      var changed = false;
+      for (final albumId in albumIds) {
+        if (!pendingAlbumIds.contains(albumId)) {
+          continue;
+        }
+        changed = observedBulkAlbumIds.add(albumId) || changed;
+      }
+      if (!changed) {
+        return;
+      }
+      final displayProcessed = (processed + observedBulkAlbumIds.length).clamp(
+        0,
+        pending,
+      );
+      current = _withMetrics(
+        current.copyWith(
+          metadataReady: true,
+          isHydrating: true,
+          processed: displayProcessed,
+          total: pending,
+          hydratedAlbums: processed,
+          pendingHydrationCount: pending - displayProcessed,
         ),
         metrics,
       );
@@ -989,6 +1020,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
           validArtistIds: validArtistIds,
           metrics: metrics,
           onHydratedChunk: publishProgress,
+          onObservedChunk: publishBulkObservedProgress,
         );
       } on Object catch (error, stackTrace) {
         AppLogger.debug(
@@ -1124,6 +1156,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     required _SyncRunMetrics metrics,
     required Future<void> Function(Iterable<String> hydratedAlbumIds)
     onHydratedChunk,
+    required void Function(Iterable<String> observedAlbumIds) onObservedChunk,
   }) async {
     var offset = 0;
     var pageCount = 0;
@@ -1186,6 +1219,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       }
 
       if (rawSongsByAlbum.isNotEmpty) {
+        onObservedChunk(rawSongsByAlbum.keys);
         final chunkSongs = <SongsTableCompanion>[];
         for (final entry in rawSongsByAlbum.entries) {
           final companions = await _toSongCompanions(

@@ -61,6 +61,13 @@ final appSettingsProvider = StreamProvider<AppSettingsModel>((ref) {
   return repository.watchSettings();
 });
 
+final showRadioPageProvider = Provider<bool>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.showRadioPage;
+});
+
 final activeStreamingQualityProvider = Provider<StreamingQuality>((ref) {
   final networkType = ref.watch(networkTypeProvider);
   final settings =
@@ -161,6 +168,10 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
             const AppSettingsModel.defaults();
         return PlaybackRuntimeSettings(
           gaplessEnabled: settings.gaplessEnabled,
+          equalizerEnabled: settings.equalizerEnabled,
+          equalizerBandGains: settings.equalizerBandGains,
+          loudnessEnabled: settings.loudnessEnabled,
+          loudnessTargetGainDb: settings.loudnessTargetGainDb,
         );
       },
     );
@@ -256,47 +267,78 @@ class AudioBootstrapController extends Notifier<AudioBootstrapState> {
         final stopwatch = Stopwatch()..start();
         final timeout = ref.read(audioBootstrapTimeoutProvider);
         final initializeHandler = ref.read(audioHandlerInitializerProvider);
-        var timedOutOrFailed = false;
-        try {
-          AppLogger.info('Audio bootstrap start (attempt=$attemptId).');
-          final initFuture = initializeHandler();
-          unawaited(
-            initFuture.then((handler) {
-              if (timedOutOrFailed || _activeAttempt != attemptId) {
-                return _disposePlaybackHandler(handler);
-              }
-            }),
-          );
+        var timedOut = false;
 
-          final audioHandler = await initFuture.timeout(timeout);
+        Future<void> promoteReady(
+          NavisPlaybackHandler audioHandler, {
+          required bool recoveredFromTimeout,
+        }) async {
           if (_activeAttempt != attemptId) {
-            await _disposePlaybackHandler(audioHandler);
-            if (!completer.isCompleted) {
-              completer.complete();
-            }
             return;
           }
-
           final audioHandlerState = ref.read<AudioHandlerStateController>(
             audioHandlerStateProvider.notifier,
           );
           audioHandlerState.state = audioHandler;
           state = AudioBootstrapState.ready(audioHandler);
-          AppLogger.info(
-            'Audio bootstrap ready in ${stopwatch.elapsedMilliseconds}ms '
-            '(attempt=$attemptId).',
-          );
+          final elapsedMs = stopwatch.elapsedMilliseconds;
+          if (recoveredFromTimeout) {
+            AppLogger.info(
+              'Audio bootstrap recovered after timeout in ${elapsedMs}ms '
+              '(attempt=$attemptId).',
+            );
+          } else {
+            AppLogger.info(
+              'Audio bootstrap ready in ${elapsedMs}ms '
+              '(attempt=$attemptId).',
+            );
+          }
           if (!completer.isCompleted) {
             completer.complete();
           }
-        } on Object catch (error, stackTrace) {
-          timedOutOrFailed = true;
+        }
+
+        try {
+          AppLogger.info('Audio bootstrap start (attempt=$attemptId).');
+          final initFuture = initializeHandler();
+          unawaited(
+            initFuture.then<void>(
+              (handler) async {
+                if (_activeAttempt != attemptId || !timedOut) {
+                  return;
+                }
+                await promoteReady(handler, recoveredFromTimeout: true);
+              },
+              onError: (Object error, StackTrace stackTrace) {
+                if (_activeAttempt != attemptId || !timedOut) {
+                  return;
+                }
+                AppLogger.error(
+                  'Audio bootstrap asynchronous completion failed after timeout '
+                  '(attempt=$attemptId).',
+                  error,
+                  stackTrace,
+                );
+              },
+            ),
+          );
+
+          final audioHandler = await initFuture.timeout(timeout);
           if (_activeAttempt != attemptId) {
             if (!completer.isCompleted) {
               completer.complete();
             }
             return;
           }
+          await promoteReady(audioHandler, recoveredFromTimeout: false);
+        } on Object catch (error, stackTrace) {
+          if (_activeAttempt != attemptId) {
+            if (!completer.isCompleted) {
+              completer.complete();
+            }
+            return;
+          }
+          timedOut = error is TimeoutException;
           final message = error is TimeoutException
               ? 'Playback initialization timed out after ${timeout.inSeconds}s.'
               : 'Playback initialization failed.';
@@ -318,18 +360,6 @@ class AudioBootstrapController extends Notifier<AudioBootstrapState> {
       }(),
     );
     return completer.future;
-  }
-
-  Future<void> _disposePlaybackHandler(NavisPlaybackHandler handler) async {
-    if (handler is NavisAudioHandler) {
-      try {
-        await handler.disposeHandler();
-      } on Object catch (error, stackTrace) {
-        AppLogger.warning(
-          'Failed to dispose stale playback handler: $error\n$stackTrace',
-        );
-      }
-    }
   }
 }
 
@@ -454,6 +484,16 @@ final songsByGenreProvider =
       final dao = ref.watch(navisDatabaseProvider).libraryDao;
       return dao.watchSongsByGenre(genre);
     });
+
+final radioStationsProvider = FutureProvider<List<InternetRadioStation>>((
+  ref,
+) async {
+  final api = ref.watch(subsonicApiProvider);
+  if (api == null) {
+    return const <InternetRadioStation>[];
+  }
+  return api.getInternetRadioStations();
+});
 
 final searchResultsProvider = FutureProvider.family<SearchResult3, String>((
   ref,
@@ -666,13 +706,11 @@ final permanentCacheStatsProvider = StreamProvider<CacheStats>((ref) {
   });
 });
 
-final savePlayQueueProvider = Provider<Future<void> Function(List<String>)>((
-  ref,
-) {
-  final dao = ref.watch(navisDatabaseProvider).playQueueDao;
-  return (songIds) async {
-    await dao.saveQueue(songIds: songIds);
-  };
+final cachedSongIdsProvider = StreamProvider<Set<String>>((ref) {
+  final dao = ref.watch(navisDatabaseProvider).cacheDao;
+  return dao.watchCachedTracks().map(
+    (tracks) => tracks.map((track) => track.songId).toSet(),
+  );
 });
 
 final connectivityHintProvider = Provider<String>((ref) {

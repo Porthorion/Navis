@@ -624,6 +624,73 @@ class $AppSettingsTableTable extends AppSettingsTable
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _showRadioPageMeta = const VerificationMeta(
+    'showRadioPage',
+  );
+  @override
+  late final GeneratedColumn<bool> showRadioPage = GeneratedColumn<bool>(
+    'show_radio_page',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("show_radio_page" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _equalizerEnabledMeta = const VerificationMeta(
+    'equalizerEnabled',
+  );
+  @override
+  late final GeneratedColumn<bool> equalizerEnabled = GeneratedColumn<bool>(
+    'equalizer_enabled',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("equalizer_enabled" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _equalizerBandGainsMeta =
+      const VerificationMeta('equalizerBandGains');
+  @override
+  late final GeneratedColumn<String> equalizerBandGains =
+      GeneratedColumn<String>(
+        'equalizer_band_gains',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _loudnessEnabledMeta = const VerificationMeta(
+    'loudnessEnabled',
+  );
+  @override
+  late final GeneratedColumn<bool> loudnessEnabled = GeneratedColumn<bool>(
+    'loudness_enabled',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("loudness_enabled" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _loudnessTargetGainDbMeta =
+      const VerificationMeta('loudnessTargetGainDb');
+  @override
+  late final GeneratedColumn<double> loudnessTargetGainDb =
+      GeneratedColumn<double>(
+        'loudness_target_gain_db',
+        aliasedName,
+        true,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _updatedAtMeta = const VerificationMeta(
     'updatedAt',
   );
@@ -645,6 +712,11 @@ class $AppSettingsTableTable extends AppSettingsTable
     scrobbleEnabled,
     gaplessEnabled,
     skipSilenceEnabled,
+    showRadioPage,
+    equalizerEnabled,
+    equalizerBandGains,
+    loudnessEnabled,
+    loudnessTargetGainDb,
     updatedAt,
   ];
   @override
@@ -722,6 +794,51 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
       );
     }
+    if (data.containsKey('show_radio_page')) {
+      context.handle(
+        _showRadioPageMeta,
+        showRadioPage.isAcceptableOrUnknown(
+          data['show_radio_page']!,
+          _showRadioPageMeta,
+        ),
+      );
+    }
+    if (data.containsKey('equalizer_enabled')) {
+      context.handle(
+        _equalizerEnabledMeta,
+        equalizerEnabled.isAcceptableOrUnknown(
+          data['equalizer_enabled']!,
+          _equalizerEnabledMeta,
+        ),
+      );
+    }
+    if (data.containsKey('equalizer_band_gains')) {
+      context.handle(
+        _equalizerBandGainsMeta,
+        equalizerBandGains.isAcceptableOrUnknown(
+          data['equalizer_band_gains']!,
+          _equalizerBandGainsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('loudness_enabled')) {
+      context.handle(
+        _loudnessEnabledMeta,
+        loudnessEnabled.isAcceptableOrUnknown(
+          data['loudness_enabled']!,
+          _loudnessEnabledMeta,
+        ),
+      );
+    }
+    if (data.containsKey('loudness_target_gain_db')) {
+      context.handle(
+        _loudnessTargetGainDbMeta,
+        loudnessTargetGainDb.isAcceptableOrUnknown(
+          data['loudness_target_gain_db']!,
+          _loudnessTargetGainDbMeta,
+        ),
+      );
+    }
     if (data.containsKey('updated_at')) {
       context.handle(
         _updatedAtMeta,
@@ -771,6 +888,26 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.bool,
         data['${effectivePrefix}skip_silence_enabled'],
       )!,
+      showRadioPage: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}show_radio_page'],
+      )!,
+      equalizerEnabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}equalizer_enabled'],
+      )!,
+      equalizerBandGains: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}equalizer_band_gains'],
+      ),
+      loudnessEnabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}loudness_enabled'],
+      )!,
+      loudnessTargetGainDb: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}loudness_target_gain_db'],
+      ),
       updatedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
@@ -794,6 +931,11 @@ class AppSettingsTableData extends DataClass
   final bool scrobbleEnabled;
   final bool gaplessEnabled;
   final bool skipSilenceEnabled;
+  final bool showRadioPage;
+  final bool equalizerEnabled;
+  final String? equalizerBandGains;
+  final bool loudnessEnabled;
+  final double? loudnessTargetGainDb;
   final DateTime updatedAt;
   const AppSettingsTableData({
     required this.id,
@@ -804,6 +946,11 @@ class AppSettingsTableData extends DataClass
     required this.scrobbleEnabled,
     required this.gaplessEnabled,
     required this.skipSilenceEnabled,
+    required this.showRadioPage,
+    required this.equalizerEnabled,
+    this.equalizerBandGains,
+    required this.loudnessEnabled,
+    this.loudnessTargetGainDb,
     required this.updatedAt,
   });
   @override
@@ -825,6 +972,15 @@ class AppSettingsTableData extends DataClass
     map['scrobble_enabled'] = Variable<bool>(scrobbleEnabled);
     map['gapless_enabled'] = Variable<bool>(gaplessEnabled);
     map['skip_silence_enabled'] = Variable<bool>(skipSilenceEnabled);
+    map['show_radio_page'] = Variable<bool>(showRadioPage);
+    map['equalizer_enabled'] = Variable<bool>(equalizerEnabled);
+    if (!nullToAbsent || equalizerBandGains != null) {
+      map['equalizer_band_gains'] = Variable<String>(equalizerBandGains);
+    }
+    map['loudness_enabled'] = Variable<bool>(loudnessEnabled);
+    if (!nullToAbsent || loudnessTargetGainDb != null) {
+      map['loudness_target_gain_db'] = Variable<double>(loudnessTargetGainDb);
+    }
     map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
   }
@@ -847,6 +1003,15 @@ class AppSettingsTableData extends DataClass
       scrobbleEnabled: Value(scrobbleEnabled),
       gaplessEnabled: Value(gaplessEnabled),
       skipSilenceEnabled: Value(skipSilenceEnabled),
+      showRadioPage: Value(showRadioPage),
+      equalizerEnabled: Value(equalizerEnabled),
+      equalizerBandGains: equalizerBandGains == null && nullToAbsent
+          ? const Value.absent()
+          : Value(equalizerBandGains),
+      loudnessEnabled: Value(loudnessEnabled),
+      loudnessTargetGainDb: loudnessTargetGainDb == null && nullToAbsent
+          ? const Value.absent()
+          : Value(loudnessTargetGainDb),
       updatedAt: Value(updatedAt),
     );
   }
@@ -865,6 +1030,15 @@ class AppSettingsTableData extends DataClass
       scrobbleEnabled: serializer.fromJson<bool>(json['scrobbleEnabled']),
       gaplessEnabled: serializer.fromJson<bool>(json['gaplessEnabled']),
       skipSilenceEnabled: serializer.fromJson<bool>(json['skipSilenceEnabled']),
+      showRadioPage: serializer.fromJson<bool>(json['showRadioPage']),
+      equalizerEnabled: serializer.fromJson<bool>(json['equalizerEnabled']),
+      equalizerBandGains: serializer.fromJson<String?>(
+        json['equalizerBandGains'],
+      ),
+      loudnessEnabled: serializer.fromJson<bool>(json['loudnessEnabled']),
+      loudnessTargetGainDb: serializer.fromJson<double?>(
+        json['loudnessTargetGainDb'],
+      ),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
   }
@@ -880,6 +1054,11 @@ class AppSettingsTableData extends DataClass
       'scrobbleEnabled': serializer.toJson<bool>(scrobbleEnabled),
       'gaplessEnabled': serializer.toJson<bool>(gaplessEnabled),
       'skipSilenceEnabled': serializer.toJson<bool>(skipSilenceEnabled),
+      'showRadioPage': serializer.toJson<bool>(showRadioPage),
+      'equalizerEnabled': serializer.toJson<bool>(equalizerEnabled),
+      'equalizerBandGains': serializer.toJson<String?>(equalizerBandGains),
+      'loudnessEnabled': serializer.toJson<bool>(loudnessEnabled),
+      'loudnessTargetGainDb': serializer.toJson<double?>(loudnessTargetGainDb),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
   }
@@ -893,6 +1072,11 @@ class AppSettingsTableData extends DataClass
     bool? scrobbleEnabled,
     bool? gaplessEnabled,
     bool? skipSilenceEnabled,
+    bool? showRadioPage,
+    bool? equalizerEnabled,
+    Value<String?> equalizerBandGains = const Value.absent(),
+    bool? loudnessEnabled,
+    Value<double?> loudnessTargetGainDb = const Value.absent(),
     DateTime? updatedAt,
   }) => AppSettingsTableData(
     id: id ?? this.id,
@@ -909,6 +1093,15 @@ class AppSettingsTableData extends DataClass
     scrobbleEnabled: scrobbleEnabled ?? this.scrobbleEnabled,
     gaplessEnabled: gaplessEnabled ?? this.gaplessEnabled,
     skipSilenceEnabled: skipSilenceEnabled ?? this.skipSilenceEnabled,
+    showRadioPage: showRadioPage ?? this.showRadioPage,
+    equalizerEnabled: equalizerEnabled ?? this.equalizerEnabled,
+    equalizerBandGains: equalizerBandGains.present
+        ? equalizerBandGains.value
+        : this.equalizerBandGains,
+    loudnessEnabled: loudnessEnabled ?? this.loudnessEnabled,
+    loudnessTargetGainDb: loudnessTargetGainDb.present
+        ? loudnessTargetGainDb.value
+        : this.loudnessTargetGainDb,
     updatedAt: updatedAt ?? this.updatedAt,
   );
   AppSettingsTableData copyWithCompanion(AppSettingsTableCompanion data) {
@@ -935,6 +1128,21 @@ class AppSettingsTableData extends DataClass
       skipSilenceEnabled: data.skipSilenceEnabled.present
           ? data.skipSilenceEnabled.value
           : this.skipSilenceEnabled,
+      showRadioPage: data.showRadioPage.present
+          ? data.showRadioPage.value
+          : this.showRadioPage,
+      equalizerEnabled: data.equalizerEnabled.present
+          ? data.equalizerEnabled.value
+          : this.equalizerEnabled,
+      equalizerBandGains: data.equalizerBandGains.present
+          ? data.equalizerBandGains.value
+          : this.equalizerBandGains,
+      loudnessEnabled: data.loudnessEnabled.present
+          ? data.loudnessEnabled.value
+          : this.loudnessEnabled,
+      loudnessTargetGainDb: data.loudnessTargetGainDb.present
+          ? data.loudnessTargetGainDb.value
+          : this.loudnessTargetGainDb,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
   }
@@ -950,6 +1158,11 @@ class AppSettingsTableData extends DataClass
           ..write('scrobbleEnabled: $scrobbleEnabled, ')
           ..write('gaplessEnabled: $gaplessEnabled, ')
           ..write('skipSilenceEnabled: $skipSilenceEnabled, ')
+          ..write('showRadioPage: $showRadioPage, ')
+          ..write('equalizerEnabled: $equalizerEnabled, ')
+          ..write('equalizerBandGains: $equalizerBandGains, ')
+          ..write('loudnessEnabled: $loudnessEnabled, ')
+          ..write('loudnessTargetGainDb: $loudnessTargetGainDb, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
@@ -965,6 +1178,11 @@ class AppSettingsTableData extends DataClass
     scrobbleEnabled,
     gaplessEnabled,
     skipSilenceEnabled,
+    showRadioPage,
+    equalizerEnabled,
+    equalizerBandGains,
+    loudnessEnabled,
+    loudnessTargetGainDb,
     updatedAt,
   );
   @override
@@ -979,6 +1197,11 @@ class AppSettingsTableData extends DataClass
           other.scrobbleEnabled == this.scrobbleEnabled &&
           other.gaplessEnabled == this.gaplessEnabled &&
           other.skipSilenceEnabled == this.skipSilenceEnabled &&
+          other.showRadioPage == this.showRadioPage &&
+          other.equalizerEnabled == this.equalizerEnabled &&
+          other.equalizerBandGains == this.equalizerBandGains &&
+          other.loudnessEnabled == this.loudnessEnabled &&
+          other.loudnessTargetGainDb == this.loudnessTargetGainDb &&
           other.updatedAt == this.updatedAt);
 }
 
@@ -991,6 +1214,11 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<bool> scrobbleEnabled;
   final Value<bool> gaplessEnabled;
   final Value<bool> skipSilenceEnabled;
+  final Value<bool> showRadioPage;
+  final Value<bool> equalizerEnabled;
+  final Value<String?> equalizerBandGains;
+  final Value<bool> loudnessEnabled;
+  final Value<double?> loudnessTargetGainDb;
   final Value<DateTime> updatedAt;
   const AppSettingsTableCompanion({
     this.id = const Value.absent(),
@@ -1001,6 +1229,11 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.scrobbleEnabled = const Value.absent(),
     this.gaplessEnabled = const Value.absent(),
     this.skipSilenceEnabled = const Value.absent(),
+    this.showRadioPage = const Value.absent(),
+    this.equalizerEnabled = const Value.absent(),
+    this.equalizerBandGains = const Value.absent(),
+    this.loudnessEnabled = const Value.absent(),
+    this.loudnessTargetGainDb = const Value.absent(),
     this.updatedAt = const Value.absent(),
   });
   AppSettingsTableCompanion.insert({
@@ -1012,6 +1245,11 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.scrobbleEnabled = const Value.absent(),
     this.gaplessEnabled = const Value.absent(),
     this.skipSilenceEnabled = const Value.absent(),
+    this.showRadioPage = const Value.absent(),
+    this.equalizerEnabled = const Value.absent(),
+    this.equalizerBandGains = const Value.absent(),
+    this.loudnessEnabled = const Value.absent(),
+    this.loudnessTargetGainDb = const Value.absent(),
     required DateTime updatedAt,
   }) : updatedAt = Value(updatedAt);
   static Insertable<AppSettingsTableData> custom({
@@ -1023,6 +1261,11 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<bool>? scrobbleEnabled,
     Expression<bool>? gaplessEnabled,
     Expression<bool>? skipSilenceEnabled,
+    Expression<bool>? showRadioPage,
+    Expression<bool>? equalizerEnabled,
+    Expression<String>? equalizerBandGains,
+    Expression<bool>? loudnessEnabled,
+    Expression<double>? loudnessTargetGainDb,
     Expression<DateTime>? updatedAt,
   }) {
     return RawValuesInsertable({
@@ -1036,6 +1279,13 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       if (gaplessEnabled != null) 'gapless_enabled': gaplessEnabled,
       if (skipSilenceEnabled != null)
         'skip_silence_enabled': skipSilenceEnabled,
+      if (showRadioPage != null) 'show_radio_page': showRadioPage,
+      if (equalizerEnabled != null) 'equalizer_enabled': equalizerEnabled,
+      if (equalizerBandGains != null)
+        'equalizer_band_gains': equalizerBandGains,
+      if (loudnessEnabled != null) 'loudness_enabled': loudnessEnabled,
+      if (loudnessTargetGainDb != null)
+        'loudness_target_gain_db': loudnessTargetGainDb,
       if (updatedAt != null) 'updated_at': updatedAt,
     });
   }
@@ -1049,6 +1299,11 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<bool>? scrobbleEnabled,
     Value<bool>? gaplessEnabled,
     Value<bool>? skipSilenceEnabled,
+    Value<bool>? showRadioPage,
+    Value<bool>? equalizerEnabled,
+    Value<String?>? equalizerBandGains,
+    Value<bool>? loudnessEnabled,
+    Value<double?>? loudnessTargetGainDb,
     Value<DateTime>? updatedAt,
   }) {
     return AppSettingsTableCompanion(
@@ -1060,6 +1315,11 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       scrobbleEnabled: scrobbleEnabled ?? this.scrobbleEnabled,
       gaplessEnabled: gaplessEnabled ?? this.gaplessEnabled,
       skipSilenceEnabled: skipSilenceEnabled ?? this.skipSilenceEnabled,
+      showRadioPage: showRadioPage ?? this.showRadioPage,
+      equalizerEnabled: equalizerEnabled ?? this.equalizerEnabled,
+      equalizerBandGains: equalizerBandGains ?? this.equalizerBandGains,
+      loudnessEnabled: loudnessEnabled ?? this.loudnessEnabled,
+      loudnessTargetGainDb: loudnessTargetGainDb ?? this.loudnessTargetGainDb,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
@@ -1091,6 +1351,23 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     if (skipSilenceEnabled.present) {
       map['skip_silence_enabled'] = Variable<bool>(skipSilenceEnabled.value);
     }
+    if (showRadioPage.present) {
+      map['show_radio_page'] = Variable<bool>(showRadioPage.value);
+    }
+    if (equalizerEnabled.present) {
+      map['equalizer_enabled'] = Variable<bool>(equalizerEnabled.value);
+    }
+    if (equalizerBandGains.present) {
+      map['equalizer_band_gains'] = Variable<String>(equalizerBandGains.value);
+    }
+    if (loudnessEnabled.present) {
+      map['loudness_enabled'] = Variable<bool>(loudnessEnabled.value);
+    }
+    if (loudnessTargetGainDb.present) {
+      map['loudness_target_gain_db'] = Variable<double>(
+        loudnessTargetGainDb.value,
+      );
+    }
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
@@ -1108,6 +1385,11 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('scrobbleEnabled: $scrobbleEnabled, ')
           ..write('gaplessEnabled: $gaplessEnabled, ')
           ..write('skipSilenceEnabled: $skipSilenceEnabled, ')
+          ..write('showRadioPage: $showRadioPage, ')
+          ..write('equalizerEnabled: $equalizerEnabled, ')
+          ..write('equalizerBandGains: $equalizerBandGains, ')
+          ..write('loudnessEnabled: $loudnessEnabled, ')
+          ..write('loudnessTargetGainDb: $loudnessTargetGainDb, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
@@ -7536,6 +7818,11 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<bool> scrobbleEnabled,
       Value<bool> gaplessEnabled,
       Value<bool> skipSilenceEnabled,
+      Value<bool> showRadioPage,
+      Value<bool> equalizerEnabled,
+      Value<String?> equalizerBandGains,
+      Value<bool> loudnessEnabled,
+      Value<double?> loudnessTargetGainDb,
       required DateTime updatedAt,
     });
 typedef $$AppSettingsTableTableUpdateCompanionBuilder =
@@ -7548,6 +7835,11 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<bool> scrobbleEnabled,
       Value<bool> gaplessEnabled,
       Value<bool> skipSilenceEnabled,
+      Value<bool> showRadioPage,
+      Value<bool> equalizerEnabled,
+      Value<String?> equalizerBandGains,
+      Value<bool> loudnessEnabled,
+      Value<double?> loudnessTargetGainDb,
       Value<DateTime> updatedAt,
     });
 
@@ -7597,6 +7889,31 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<bool> get skipSilenceEnabled => $composableBuilder(
     column: $table.skipSilenceEnabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get showRadioPage => $composableBuilder(
+    column: $table.showRadioPage,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get equalizerEnabled => $composableBuilder(
+    column: $table.equalizerEnabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get equalizerBandGains => $composableBuilder(
+    column: $table.equalizerBandGains,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get loudnessEnabled => $composableBuilder(
+    column: $table.loudnessEnabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get loudnessTargetGainDb => $composableBuilder(
+    column: $table.loudnessTargetGainDb,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -7655,6 +7972,31 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get showRadioPage => $composableBuilder(
+    column: $table.showRadioPage,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get equalizerEnabled => $composableBuilder(
+    column: $table.equalizerEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get equalizerBandGains => $composableBuilder(
+    column: $table.equalizerBandGains,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get loudnessEnabled => $composableBuilder(
+    column: $table.loudnessEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get loudnessTargetGainDb => $composableBuilder(
+    column: $table.loudnessTargetGainDb,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
@@ -7708,6 +8050,31 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get showRadioPage => $composableBuilder(
+    column: $table.showRadioPage,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get equalizerEnabled => $composableBuilder(
+    column: $table.equalizerEnabled,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get equalizerBandGains => $composableBuilder(
+    column: $table.equalizerBandGains,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get loudnessEnabled => $composableBuilder(
+    column: $table.loudnessEnabled,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get loudnessTargetGainDb => $composableBuilder(
+    column: $table.loudnessTargetGainDb,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 }
@@ -7757,6 +8124,11 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> scrobbleEnabled = const Value.absent(),
                 Value<bool> gaplessEnabled = const Value.absent(),
                 Value<bool> skipSilenceEnabled = const Value.absent(),
+                Value<bool> showRadioPage = const Value.absent(),
+                Value<bool> equalizerEnabled = const Value.absent(),
+                Value<String?> equalizerBandGains = const Value.absent(),
+                Value<bool> loudnessEnabled = const Value.absent(),
+                Value<double?> loudnessTargetGainDb = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
               }) => AppSettingsTableCompanion(
                 id: id,
@@ -7767,6 +8139,11 @@ class $$AppSettingsTableTableTableManager
                 scrobbleEnabled: scrobbleEnabled,
                 gaplessEnabled: gaplessEnabled,
                 skipSilenceEnabled: skipSilenceEnabled,
+                showRadioPage: showRadioPage,
+                equalizerEnabled: equalizerEnabled,
+                equalizerBandGains: equalizerBandGains,
+                loudnessEnabled: loudnessEnabled,
+                loudnessTargetGainDb: loudnessTargetGainDb,
                 updatedAt: updatedAt,
               ),
           createCompanionCallback:
@@ -7779,6 +8156,11 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> scrobbleEnabled = const Value.absent(),
                 Value<bool> gaplessEnabled = const Value.absent(),
                 Value<bool> skipSilenceEnabled = const Value.absent(),
+                Value<bool> showRadioPage = const Value.absent(),
+                Value<bool> equalizerEnabled = const Value.absent(),
+                Value<String?> equalizerBandGains = const Value.absent(),
+                Value<bool> loudnessEnabled = const Value.absent(),
+                Value<double?> loudnessTargetGainDb = const Value.absent(),
                 required DateTime updatedAt,
               }) => AppSettingsTableCompanion.insert(
                 id: id,
@@ -7789,6 +8171,11 @@ class $$AppSettingsTableTableTableManager
                 scrobbleEnabled: scrobbleEnabled,
                 gaplessEnabled: gaplessEnabled,
                 skipSilenceEnabled: skipSilenceEnabled,
+                showRadioPage: showRadioPage,
+                equalizerEnabled: equalizerEnabled,
+                equalizerBandGains: equalizerBandGains,
+                loudnessEnabled: loudnessEnabled,
+                loudnessTargetGainDb: loudnessTargetGainDb,
                 updatedAt: updatedAt,
               ),
           withReferenceMapper: (p0) => p0

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
+import 'package:navis/src/common_widgets/cache_badge.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
@@ -10,6 +11,7 @@ import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/providers/app_providers.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -17,6 +19,8 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
+    final cachedSongIds = ref.watch(cachedSongIdsProvider).asData?.value;
+
     return Scaffold(
       appBar: AppBar(title: Text(l10n.homeTitle)),
       body: RefreshIndicator(
@@ -37,6 +41,7 @@ class HomeScreen extends ConsumerWidget {
               isEmpty: (items) => items.isEmpty,
               builder: (context, songs) => _SongCarousel(
                 songs: songs,
+                cachedSongIds: cachedSongIds ?? const <String>{},
                 onTap: (song) {
                   final albumId = song.albumId;
                   if (albumId != null && albumId.isNotEmpty) {
@@ -196,9 +201,14 @@ class _AlbumCarousel extends StatelessWidget {
 }
 
 class _SongCarousel extends StatelessWidget {
-  const _SongCarousel({required this.songs, required this.onTap});
+  const _SongCarousel({
+    required this.songs,
+    required this.cachedSongIds,
+    required this.onTap,
+  });
 
   final List<SongsTableData> songs;
+  final Set<String> cachedSongIds;
   final void Function(SongsTableData song) onTap;
 
   @override
@@ -218,6 +228,7 @@ class _SongCarousel extends StatelessWidget {
             subtitle: song.artistName ?? l10n.albumDetailUnknownArtist,
             coverArtId: song.coverArt,
             icon: Icons.music_note_outlined,
+            badge: cachedSongIds.contains(song.id) ? const CacheBadge() : null,
             onTap: () => onTap(song),
           );
         },
@@ -264,6 +275,7 @@ class _HomeCard extends StatelessWidget {
     required this.icon,
     required this.onTap,
     this.coverArtId,
+    this.badge,
   });
 
   final String title;
@@ -271,6 +283,7 @@ class _HomeCard extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
   final String? coverArtId;
+  final Widget? badge;
 
   @override
   Widget build(BuildContext context) {
@@ -299,6 +312,10 @@ class _HomeCard extends StatelessWidget {
                       placeholderIcon: icon,
                     ),
                     const SizedBox(height: 8),
+                    if (badge != null) ...<Widget>[
+                      badge!,
+                      const SizedBox(height: 6),
+                    ],
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,

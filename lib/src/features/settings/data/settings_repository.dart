@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
@@ -27,6 +29,11 @@ class SettingsRepository {
       scrobbleEnabled: settings.scrobbleEnabled,
       gaplessEnabled: settings.gaplessEnabled,
       skipSilenceEnabled: settings.skipSilenceEnabled,
+      showRadioPage: settings.showRadioPage,
+      equalizerEnabled: settings.equalizerEnabled,
+      equalizerBandGains: _encodeBandGains(settings.equalizerBandGains),
+      loudnessEnabled: settings.loudnessEnabled,
+      loudnessTargetGainDb: settings.loudnessTargetGainDb,
     );
   }
 
@@ -44,6 +51,36 @@ class SettingsRepository {
       scrobbleEnabled: row.scrobbleEnabled,
       gaplessEnabled: row.gaplessEnabled,
       skipSilenceEnabled: row.skipSilenceEnabled,
+      showRadioPage: row.showRadioPage,
+      equalizerEnabled: row.equalizerEnabled,
+      equalizerBandGains: _decodeBandGains(row.equalizerBandGains),
+      loudnessEnabled: row.loudnessEnabled,
+      loudnessTargetGainDb: row.loudnessTargetGainDb ?? 0,
     );
+  }
+
+  String? _encodeBandGains(List<double> values) {
+    if (values.isEmpty) {
+      return null;
+    }
+    return jsonEncode(values);
+  }
+
+  List<double> _decodeBandGains(String? raw) {
+    if (raw == null || raw.trim().isEmpty) {
+      return const <double>[];
+    }
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) {
+        return const <double>[];
+      }
+      return decoded
+          .map((value) => value is num ? value.toDouble() : null)
+          .whereType<double>()
+          .toList(growable: false);
+    } on FormatException {
+      return const <double>[];
+    }
   }
 }

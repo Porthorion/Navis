@@ -46,7 +46,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   String? _sessionFingerprint;
   ServerReachabilityStatus? _lastReachabilityStatus;
   bool _isForeground = true;
-  Completer<void>? _foregroundCompleter;
   final Queue<String> _priorityAlbumIds = Queue<String>();
   static const int _maxPriorityAlbums = 120;
   late final AppLifecycleListener _lifecycleListener;
@@ -65,8 +64,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     );
     ref.onDispose(() {
       _lifecycleListener.dispose();
-      _foregroundCompleter?.complete();
-      _foregroundCompleter = null;
     });
 
     final serverConfig = ref.read(serverConfigStateProvider).asData?.value;
@@ -207,25 +204,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       return result;
     }
 
-    if (result.status == LibrarySyncStatus.failed && !_isForeground) {
-      await _waitUntilForeground();
-      if (!ref.mounted) {
-        return result;
-      }
-      if (_isForeground) {
-        final resumed = await _executeSync(
-          engine: engine,
-          force: force,
-          forceFull: forceFull,
-        );
-        if (!ref.mounted) {
-          return resumed;
-        }
-        state = resumed;
-        return resumed;
-      }
-    }
-
     state = result;
     return result;
   }
@@ -271,24 +249,13 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
 
   void _onAppBackgrounded() {
     _isForeground = false;
-    _foregroundCompleter ??= Completer<void>();
   }
 
   void _onAppResumed() {
     final wasForeground = _isForeground;
     _isForeground = true;
-    _foregroundCompleter?.complete();
-    _foregroundCompleter = null;
     if (!wasForeground) {
       _maybeRunStartupSync();
     }
-  }
-
-  Future<void> _waitUntilForeground() async {
-    if (_isForeground) {
-      return;
-    }
-    final completer = _foregroundCompleter ??= Completer<void>();
-    await completer.future;
   }
 }

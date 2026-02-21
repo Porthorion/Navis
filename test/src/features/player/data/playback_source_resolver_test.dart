@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:just_audio/just_audio.dart';
@@ -172,6 +173,194 @@ void main() {
       },
       skip: !_sqliteAvailable,
     );
+
+    test(
+      'codec matrix resolves expected source wiring for major formats',
+      () async {
+        const cases =
+            <
+              ({
+                String id,
+                String suffix,
+                String contentType,
+                String expectedExtension,
+              })
+            >[
+              (
+                id: 'codec-flac',
+                suffix: 'flac',
+                contentType: 'audio/flac',
+                expectedExtension: '.flac',
+              ),
+              (
+                id: 'codec-alac',
+                suffix: 'm4a',
+                contentType: 'audio/alac',
+                expectedExtension: '.m4a',
+              ),
+              (
+                id: 'codec-mp3',
+                suffix: 'mp3',
+                contentType: 'audio/mpeg',
+                expectedExtension: '.mp3',
+              ),
+              (
+                id: 'codec-aac',
+                suffix: 'aac',
+                contentType: 'audio/aac',
+                expectedExtension: '.aac',
+              ),
+              (
+                id: 'codec-opus',
+                suffix: 'opus',
+                contentType: 'audio/opus',
+                expectedExtension: '.opus',
+              ),
+              (
+                id: 'codec-vorbis',
+                suffix: 'ogg',
+                contentType: 'audio/vorbis',
+                expectedExtension: '.ogg',
+              ),
+            ];
+
+        final resolver = PlaybackSourceResolver(
+          cacheDao: database.cacheDao,
+          rollingCacheManager: DriftRollingCacheManager(
+            cacheDao: database.cacheDao,
+          ),
+          readApiClient: () => apiClient,
+          readStreamingQuality: () => const StreamingQuality(label: 'wifi'),
+          readRollingCacheDirectory: () async => rollingDir,
+        );
+
+        for (final testCase in cases) {
+          final song = await _insertSong(
+            database,
+            id: testCase.id,
+            title: testCase.id,
+            suffix: testCase.suffix,
+            contentType: testCase.contentType,
+          );
+
+          final lockCached = await resolver.resolveForSong(song);
+          expect(lockCached.kind, PlaybackSourceKind.lockCachedStream);
+          expect(
+            p.extension(lockCached.cachedFilePath!),
+            testCase.expectedExtension,
+          );
+
+          final direct = await resolver.resolveForSong(
+            song,
+            preferLockCaching: false,
+          );
+          expect(direct.kind, PlaybackSourceKind.directStream);
+          expect(direct.uri?.path, '/rest/stream.view');
+          expect(direct.uri?.queryParameters['id'], testCase.id);
+        }
+      },
+      skip: !_sqliteAvailable,
+    );
+
+    test(
+      'codec matrix prefers local file source for major formats when cache exists',
+      () async {
+        const cases =
+            <
+              ({
+                String id,
+                String suffix,
+                String contentType,
+                String expectedExtension,
+              })
+            >[
+              (
+                id: 'codec-local-flac',
+                suffix: 'flac',
+                contentType: 'audio/flac',
+                expectedExtension: '.flac',
+              ),
+              (
+                id: 'codec-local-alac',
+                suffix: 'm4a',
+                contentType: 'audio/alac',
+                expectedExtension: '.m4a',
+              ),
+              (
+                id: 'codec-local-mp3',
+                suffix: 'mp3',
+                contentType: 'audio/mpeg',
+                expectedExtension: '.mp3',
+              ),
+              (
+                id: 'codec-local-aac',
+                suffix: 'aac',
+                contentType: 'audio/aac',
+                expectedExtension: '.aac',
+              ),
+              (
+                id: 'codec-local-opus',
+                suffix: 'opus',
+                contentType: 'audio/opus',
+                expectedExtension: '.opus',
+              ),
+              (
+                id: 'codec-local-vorbis',
+                suffix: 'ogg',
+                contentType: 'audio/vorbis',
+                expectedExtension: '.ogg',
+              ),
+            ];
+
+        final resolver = PlaybackSourceResolver(
+          cacheDao: database.cacheDao,
+          rollingCacheManager: DriftRollingCacheManager(
+            cacheDao: database.cacheDao,
+          ),
+          readApiClient: () => apiClient,
+          readStreamingQuality: () => const StreamingQuality(label: 'wifi'),
+          readRollingCacheDirectory: () async => rollingDir,
+        );
+
+        for (final testCase in cases) {
+          final song = await _insertSong(
+            database,
+            id: testCase.id,
+            title: testCase.id,
+            suffix: testCase.suffix,
+            contentType: testCase.contentType,
+          );
+          final localFile = File(
+            p.join(
+              rollingDir.path,
+              '${testCase.id}${testCase.expectedExtension}',
+            ),
+          );
+          await localFile.writeAsBytes(const <int>[1, 2, 3, 4]);
+          await database.cacheDao.upsertCachedTrack(
+            CachedTracksTableCompanion.insert(
+              songId: song.id,
+              filePath: localFile.path,
+              fileSize: 4,
+              format: testCase.suffix,
+              cacheType: CacheType.permanent,
+              downloadStatus: DownloadStatus.complete,
+              lastAccessedAt: DateTime.now().subtract(const Duration(days: 1)),
+            ),
+          );
+
+          final resolved = await resolver.resolveForSong(song);
+          expect(resolved.kind, PlaybackSourceKind.file);
+          expect(resolved.cachedFilePath, localFile.path);
+          expect(
+            p.extension(resolved.cachedFilePath!),
+            testCase.expectedExtension,
+          );
+          expect(resolved.uri?.scheme, 'file');
+        }
+      },
+      skip: !_sqliteAvailable,
+    );
   });
 }
 
@@ -179,12 +368,16 @@ Future<SongsTableData> _insertSong(
   NavisDatabase database, {
   required String id,
   required String title,
+  String? suffix,
+  String? contentType,
 }) async {
   await database.libraryDao.upsertSongs(
     <SongsTableCompanion>[
       SongsTableCompanion.insert(
         id: id,
         title: title,
+        suffix: Value(suffix),
+        contentType: Value(contentType),
       ),
     ],
   );

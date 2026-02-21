@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -30,9 +31,18 @@ class _FakeLibrarySyncController extends LibrarySyncController {
   }
 }
 
+class _ShowRadioToggle extends Notifier<bool> {
+  @override
+  bool build() => true;
+}
+
 Widget _buildLibraryScreen({required List<Object?> overrides}) {
+  final mergedOverrides = <Object?>[
+    showRadioPageProvider.overrideWithValue(false),
+    ...overrides,
+  ];
   return ProviderScope(
-    overrides: overrides.cast(),
+    overrides: mergedOverrides.cast(),
     child: MaterialApp(
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
@@ -460,5 +470,92 @@ void main() {
       expect(active.data, 'M');
       expect(find.text('M Artist'), findsWidgets);
     });
+
+    testWidgets('shows radio tab when enabled by settings', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            showRadioPageProvider.overrideWithValue(true),
+            librarySyncControllerProvider.overrideWith(
+              () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+            ),
+            artistsProvider.overrideWithValue(
+              const AsyncData(<ArtistsTableData>[]),
+            ),
+            albumCountProvider.overrideWithValue(const AsyncData(0)),
+            pagedAlbumsProvider.overrideWith(
+              (ref, request) => Stream.value(const <AlbumsTableData>[]),
+            ),
+            radioStationsProvider.overrideWith(
+              (ref) async => const <InternetRadioStation>[],
+            ),
+          ],
+          child: MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const LibraryScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Radio'), findsOneWidget);
+    });
+
+    testWidgets(
+      'removing radio tab while selected clamps tab index without crashing',
+      (tester) async {
+        final showRadioToggleProvider =
+            NotifierProvider<_ShowRadioToggle, bool>(
+              _ShowRadioToggle.new,
+            );
+        final container = ProviderContainer(
+          overrides: [
+            showRadioPageProvider.overrideWith(
+              (ref) => ref.watch(showRadioToggleProvider),
+            ),
+            librarySyncControllerProvider.overrideWith(
+              () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+            ),
+            artistsProvider.overrideWithValue(
+              const AsyncData(<ArtistsTableData>[]),
+            ),
+            albumCountProvider.overrideWithValue(const AsyncData(0)),
+            pagedAlbumsProvider.overrideWith(
+              (ref, request) => Stream.value(const <AlbumsTableData>[]),
+            ),
+            radioStationsProvider.overrideWith(
+              (ref) async => const <InternetRadioStation>[],
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: MaterialApp(
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: const LibraryScreen(),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Radio'), findsOneWidget);
+
+        await tester.tap(find.text('Radio'));
+        await tester.pumpAndSettle();
+
+        container.read(showRadioToggleProvider.notifier).state = false;
+        await tester.pump();
+        await tester.pumpAndSettle();
+
+        expect(find.text('Radio'), findsNothing);
+        expect(find.text('Artists'), findsOneWidget);
+        expect(find.text('Albums'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
   });
 }

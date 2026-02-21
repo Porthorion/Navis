@@ -3,6 +3,7 @@
   "navHome": "Home",
   "navLibrary": "Library",
   "navSearch": "Search",
+  "navRadio": "Radio",
   "navPlaylists": "Playlists",
   "navSettings": "Settings",
   "loginTitle": "Sign in",
@@ -62,6 +63,21 @@
   "playbackSettingsScrobbleSubtitle": "Send now-playing and listened-track updates to the server.",
   "playbackSettingsGaplessTitle": "Enable gapless playback",
   "playbackSettingsGaplessSubtitle": "Preload tracks to reduce gaps between songs.",
+  "playbackSettingsShowRadioPageTitle": "Show Radio page",
+  "playbackSettingsShowRadioPageSubtitle": "Display the Radio tab in bottom navigation.",
+  "playbackSettingsAndroidDspSectionTitle": "Android audio effects",
+  "playbackSettingsEqualizerTitle": "Enable equalizer",
+  "playbackSettingsEqualizerSubtitle": "Adjust frequency bands for Android playback.",
+  "playbackSettingsEqualizerBandLabel": "Band {index}",
+  "@playbackSettingsEqualizerBandLabel": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
+  },
+  "playbackSettingsLoudnessTitle": "Enable loudness enhancer",
+  "playbackSettingsLoudnessSubtitle": "Apply target gain in dB on Android playback.",
   "playbackSettingsSkipSilenceTitle": "Skip silence when possible",
   "playbackSettingsSkipSilenceSubtitle": "Automatically skip silent segments on supported platforms.",
   "playbackSettingsSaveAction": "Save",
@@ -107,6 +123,11 @@
   "homeStarredTitle": "Starred tracks",
   "homeStarredEmptyTitle": "No starred tracks",
   "homeStarredEmptySubtitle": "Star tracks on your server to see them here.",
+  "radioTitle": "Radio",
+  "radioEmptyTitle": "No radio stations found",
+  "radioEmptySubtitle": "Add internet radio stations on your server to see them here.",
+  "radioLoadErrorTitle": "Could not load radio stations",
+  "radioUnsupportedMessage": "This server does not expose internet radio station endpoints.",
   "serverSettingsTitle": "Server Settings",
   "serverSettingsLoadError": "Could not load server settings.",
   "serverSettingsNotAuthenticated": "No active server session. Sign in to manage server settings.",
@@ -355,6 +376,7 @@
   "albumDetailStarSuccess": "Album starred.",
   "albumDetailUnstarSuccess": "Album unstarred.",
   "albumDetailStarFailure": "Could not update star status.",
+  "cacheBadgeLabel": "Cached",
   "miniPlayerUnknownTrack": "Unknown track",
   "miniPlayerUnknownArtist": "Unknown artist",
   "miniPlayerPlay": "Play",

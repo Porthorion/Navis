@@ -24,6 +24,7 @@ Last updated: 2026-02-21
 - [x] Phase 4 increment 3 (playback settings persistence/UI + durable scrobble queue with retry/expiry + settings-driven streaming profiles) — 2026-02-20 (evidence: `./tool/check.sh`, `lib/src/features/settings/presentation/playback_settings_screen.dart`, `lib/src/features/player/data/scrobble_service.dart`, `lib/src/database/daos/scrobble_dao.dart`, `lib/src/database/daos/app_settings_dao.dart`, `test/src/features/player/data/scrobble_service_test.dart`, `test/src/features/settings/presentation/playback_settings_screen_test.dart`)
 - [x] Phase 4 increment 4 (playback reliability startup gate, strict handler-backed queue actions, persisted gapless/skip-silence settings, and audio-session interruption/noisy handling) — 2026-02-20 (evidence: `./tool/check.sh`, `lib/src/app.dart`, `lib/src/providers/app_providers.dart`, `lib/src/features/player/data/navis_audio_handler.dart`, `lib/src/features/settings/presentation/playback_settings_screen.dart`, `test/widget_test.dart`, `test/src/providers/app_providers_test.dart`, `test/src/database/migrations/navis_migration_test.dart`)
 - [x] Phase 4 pre-Phase-5 hardening (bootstrap attempt guarding, queue persistence write-split, migration-path coverage, test DB isolation for routing, and reliability-focused check gates) — 2026-02-21 (evidence: `./tool/check.sh`, `lib/src/providers/app_providers.dart`, `lib/src/features/player/data/navis_audio_handler.dart`, `lib/src/database/daos/play_queue_dao.dart`, `test/src/routing/app_router_test.dart`, `test/src/database/migrations/navis_migration_test.dart`, `tool/check.sh`)
+- [ ] Phase 4.4 codec verification closeout — partial: 2026-02-21 (implemented: deterministic codec matrix tests + critical gate coverage + runtime evidence runbook; remaining: complete real-device matrix rows in `docs/troubleshooting.md`)
 
 ## Meta Progress
 - [x] Tech stack and methodology validation refresh — 2026-02-18 (evidence: `DEVELOPMENT_PLAN.md` stack validation section + README tech stack update)
@@ -126,16 +127,16 @@ Last updated: 2026-02-21
 - [x] Albums tab (paged grid, SQL sort, large-library friendly loading) — 2026-02-20 (evidence: `lib/src/features/library/presentation/library_screen.dart`, `lib/src/providers/app_providers.dart`, `lib/src/database/daos/library_dao.dart`)
 - [x] Album detail screen (cover art, track list, star, download, context menu) — 2026-02-20 (evidence: `lib/src/features/library/presentation/album_detail_screen.dart`)
 - [x] Library top-level tabs realigned to Artists + Albums only (songs/genres removed from main Library navigation) — 2026-02-21 (evidence: `lib/src/features/library/presentation/library_screen.dart`, `lib/src/routing/app_router.dart`, `test/src/features/library/presentation/library_screen_test.dart`)
-- [ ] Radio page in Library (Subsonic radio stations with ICY metadata + AzuraCast compatibility) — deferred: 2026-02-21 (remaining: implement `/library/radio` screen, station playback UX, and server compatibility matrix tests)
-- [ ] Settings toggle to show/hide Radio page — deferred: 2026-02-21 (remaining: add persisted app setting + routing/tab visibility wiring)
-- [x] NavigationBar (Home, Library, Search, Settings) — 2026-02-20 (evidence: `lib/src/routing/app_shell.dart`)
+- [x] Radio foundation (Library tab station list/provider + graceful unsupported handling) — 2026-02-21 (evidence: `lib/src/features/library/presentation/radio_screen.dart`, `lib/src/features/library/presentation/library_screen.dart`, `lib/src/providers/app_providers.dart`)
+- [x] Settings toggle to show/hide Radio page — 2026-02-21 (evidence: `lib/src/database/tables/app_settings_table.dart`, `lib/src/features/settings/presentation/playback_settings_screen.dart`, `lib/src/routing/app_shell.dart`)
+- [x] NavigationBar realigned to app core destinations only (Home, Library, Search, Playlists, Settings) with Radio hosted inside Library tabs — 2026-02-21 (evidence: `lib/src/routing/app_shell.dart`, `lib/src/features/library/presentation/library_screen.dart`)
 - [ ] 60fps scroll with 10K+ items — partial: 2026-02-20 (remaining: explicit large-library profiling/benchmark evidence pending)
 
 ### 3.3 — Common Widgets
 - [x] `ShimmerPlaceholder` skeleton loading widget — 2026-02-20 (evidence: `lib/src/common_widgets/shimmer_placeholder.dart`)
 - [x] `ErrorState` widget (with retry) — 2026-02-20 (evidence: `lib/src/common_widgets/error_state.dart`)
 - [x] `EmptyState` widget (with contextual message) — 2026-02-20 (evidence: `lib/src/common_widgets/empty_state.dart`)
-- [ ] `CoverArtImage`, `TrackListTile`, `AlbumCard`, `ArtistCard`, `StarButton`, `CacheBadge` — partial: 2026-02-20 (implemented: `CoverArtImage`, `TrackListTile`, `AlbumCard`, `ArtistCard`; remaining: `StarButton`, `CacheBadge`)
+- [x] `CoverArtImage`, `TrackListTile`, `AlbumCard`, `ArtistCard`, `StarButton`, `CacheBadge` — 2026-02-21 (evidence: `lib/src/common_widgets/*.dart`, integrations in `lib/src/features/library/presentation/album_detail_screen.dart`, `lib/src/features/home/presentation/home_screen.dart`)
 
 ### 3.4 — Context Menus & Actions
 - [x] Context menu bottom sheets (song, album, artist) — 2026-02-20 (evidence: `lib/src/features/library/presentation/library_screen.dart`, `lib/src/features/library/presentation/album_detail_screen.dart`)
@@ -158,12 +159,14 @@ Last updated: 2026-02-21
 - [x] Lock screen and notification controls — 2026-02-20 (evidence: `audio_service` init in `lib/src/features/player/data/navis_audio_handler.dart`, startup bootstrap in `lib/main.dart`, `android/app/src/main/kotlin/com/navis/app/navis/MainActivity.kt`)
 - [x] Audio focus / interruption handling (`audio_session`) — 2026-02-20 (evidence: `AudioSessionConfiguration.music()` in `lib/src/features/player/data/navis_audio_handler.dart`)
 - [x] Startup playback reliability gate (blocking retry flow until handler init succeeds) — 2026-02-20 (evidence: `lib/src/app.dart`, `lib/src/providers/app_providers.dart`, `test/widget_test.dart`)
+- [x] Bootstrap timeout hardening with late-success recovery and stale-attempt protection — 2026-02-21 (evidence: `lib/src/providers/app_providers.dart`, `test/src/providers/app_providers_test.dart`)
+- [x] DSP non-fatal fallback hardening (queue apply retries with DSP degradation + plain-player recovery path) — 2026-02-21 (evidence: `lib/src/features/player/data/navis_audio_handler.dart`)
 
 ### 4.2 — Play Queue Persistence
 - [x] Save queue on every track change — 2026-02-20 (evidence: `_persistQueueState` wiring in `lib/src/features/player/data/navis_audio_handler.dart`)
 - [x] Periodic position persistence (every 10–15s) — 2026-02-20 (evidence: 15s timer in `lib/src/features/player/data/navis_audio_handler.dart`)
 - [x] Restore queue on app launch — 2026-02-20 (evidence: `_restoreQueueFromDisk` in `lib/src/features/player/data/navis_audio_handler.dart`; startup bootstrap in `lib/main.dart`)
-- [ ] Cross-device sync via `savePlayQueue` / `getPlayQueue` (optional)
+- [x] Cross-device queue sync removed from product scope (local queue persistence only) — 2026-02-21 (evidence: `lib/src/api/subsonic_api_client.dart`, `lib/src/providers/app_providers.dart`, `DEVELOPMENT_PLAN.md`)
 
 ### 4.3 — Streaming Quality
 - [x] Wi-Fi quality profile — 2026-02-20 (evidence: `lib/src/features/settings/presentation/playback_settings_screen.dart`, `lib/src/providers/app_providers.dart`)
@@ -172,11 +175,11 @@ Last updated: 2026-02-21
 - [x] No-transcode default (original quality) — 2026-02-20 (evidence: `AppSettingsModel.defaults()` in `lib/src/features/settings/domain/app_settings.dart`, streaming resolver in `lib/src/features/player/data/playback_source_resolver.dart`)
 
 ### 4.4 — Audio Quality Details
-- [ ] Verify native codec support (FLAC, ALAC, MP3, AAC, Opus, Vorbis)
-- [ ] Android equalizer (`AndroidEqualizer`) — gated behind platform check
-- [ ] Android loudness enhancer (`AndroidLoudnessEnhancer`)
-- [ ] ReplayGain volume normalization (from server metadata)
-- [x] Skip silence toggle wired to runtime playback settings — 2026-02-20 (evidence: `lib/src/features/settings/presentation/playback_settings_screen.dart`, `lib/src/features/player/data/navis_audio_handler.dart`, `test/src/features/settings/presentation/playback_settings_screen_test.dart`)
+- [ ] Verify native codec support (FLAC, ALAC, MP3, AAC, Opus, Vorbis) — partial: 2026-02-21 (implemented: resolver matrix across file/lock-cached/direct paths + handler fallback decision tests + critical gate wiring; remaining: record completed real-device evidence matrix rows)
+- [x] Android equalizer (`AndroidEqualizer`) — 2026-02-21 (evidence: `lib/src/features/player/data/navis_audio_handler.dart`, `lib/src/features/settings/presentation/playback_settings_screen.dart`)
+- [x] Android loudness enhancer (`AndroidLoudnessEnhancer`) — 2026-02-21 (evidence: `lib/src/features/player/data/navis_audio_handler.dart`, `lib/src/features/settings/presentation/playback_settings_screen.dart`)
+- [ ] ReplayGain volume normalization (deferred post-Phase-5)
+- [x] Skip-silence option removed from runtime behavior (compatibility field retained only in DB/settings model) — 2026-02-21 (evidence: `lib/src/features/player/data/navis_audio_handler.dart`, `lib/src/features/settings/presentation/playback_settings_screen.dart`, `lib/src/features/settings/domain/app_settings.dart`)
 
 ## Phase 5: Now Playing & Lyrics
 ### 5.1 — Mini Player
@@ -263,8 +266,8 @@ Last updated: 2026-02-21
 ## Phase 9: Settings
 - [ ] Server section (display, test, sign out)
 - [x] Playback — streaming quality (Wi-Fi / cellular profiles) — 2026-02-20 (evidence: `/settings/playback` in `lib/src/features/settings/presentation/playback_settings_screen.dart`, persistence in `lib/src/database/daos/app_settings_dao.dart`)
-- [ ] Playback — general (gapless, ReplayGain, skip silence, scrobble, resume, queue sync)
-- [ ] Audio section (equalizer, loudness enhancer — Android only)
+- [ ] Playback — general (ReplayGain deferred post-Phase-5, resume UX polish pending)
+- [x] Audio section (equalizer, loudness enhancer — Android only) — 2026-02-21 (evidence: `lib/src/features/player/data/navis_audio_handler.dart`, `lib/src/features/settings/presentation/playback_settings_screen.dart`)
 - [ ] Downloads & cache (default quality, Wi-Fi only, concurrency, rolling/permanent/cover art stats, clear buttons)
 - [ ] Appearance — theme mode (Light / Dark / OLED / System) — partial: 2026-02-19 (implemented: app defaults to Dark Mode; remaining: settings UI selector including Light Mode toggle and full persisted mode controls)
 - [ ] Appearance — color scheme (Dynamic / Preset / Custom seed) — partial: 2026-02-19 (remaining: mode-aware palette selections for light and dark families + full appearance UI)

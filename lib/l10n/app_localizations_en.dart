@@ -21,6 +21,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get navSearch => 'Search';
 
   @override
+  String get navRadio => 'Radio';
+
+  @override
   String get navPlaylists => 'Playlists';
 
   @override
@@ -179,6 +182,35 @@ class AppLocalizationsEn extends AppLocalizations {
       'Preload tracks to reduce gaps between songs.';
 
   @override
+  String get playbackSettingsShowRadioPageTitle => 'Show Radio page';
+
+  @override
+  String get playbackSettingsShowRadioPageSubtitle =>
+      'Display the Radio tab in bottom navigation.';
+
+  @override
+  String get playbackSettingsAndroidDspSectionTitle => 'Android audio effects';
+
+  @override
+  String get playbackSettingsEqualizerTitle => 'Enable equalizer';
+
+  @override
+  String get playbackSettingsEqualizerSubtitle =>
+      'Adjust frequency bands for Android playback.';
+
+  @override
+  String playbackSettingsEqualizerBandLabel(int index) {
+    return 'Band $index';
+  }
+
+  @override
+  String get playbackSettingsLoudnessTitle => 'Enable loudness enhancer';
+
+  @override
+  String get playbackSettingsLoudnessSubtitle =>
+      'Apply target gain in dB on Android playback.';
+
+  @override
   String get playbackSettingsSkipSilenceTitle => 'Skip silence when possible';
 
   @override
@@ -274,6 +306,23 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get homeStarredEmptySubtitle =>
       'Star tracks on your server to see them here.';
+
+  @override
+  String get radioTitle => 'Radio';
+
+  @override
+  String get radioEmptyTitle => 'No radio stations found';
+
+  @override
+  String get radioEmptySubtitle =>
+      'Add internet radio stations on your server to see them here.';
+
+  @override
+  String get radioLoadErrorTitle => 'Could not load radio stations';
+
+  @override
+  String get radioUnsupportedMessage =>
+      'This server does not expose internet radio station endpoints.';
 
   @override
   String get serverSettingsTitle => 'Server Settings';
@@ -705,6 +754,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get albumDetailStarFailure => 'Could not update star status.';
+
+  @override
+  String get cacheBadgeLabel => 'Cached';
 
   @override
   String get miniPlayerUnknownTrack => 'Unknown track';

@@ -332,16 +332,19 @@ void main() {
                     }),
                   ),
                 );
-              case '/rest/getPlayQueue.view':
+              case '/rest/getInternetRadioStations.view':
                 handler.resolve(
                   Response<dynamic>(
                     requestOptions: options,
                     statusCode: 200,
                     data: ok(<String, dynamic>{
-                      'playQueue': <String, dynamic>{
-                        'current': 's1',
-                        'entry': <Map<String, dynamic>>[
-                          <String, dynamic>{'id': 's1', 'title': 'Song 1'},
+                      'internetRadioStations': <String, dynamic>{
+                        'internetRadioStation': <Map<String, dynamic>>[
+                          <String, dynamic>{
+                            'id': 'r1',
+                            'name': 'Station 1',
+                            'streamUrl': 'https://radio.example.com/stream',
+                          },
                         ],
                       },
                     }),
@@ -372,7 +375,7 @@ void main() {
       final search = await client.search3(query: 'q');
       final playlists = await client.getPlaylists();
       final lyrics = await client.getLyricsBySongId('s1');
-      final queue = await client.getPlayQueue();
+      final stations = await client.getInternetRadioStations();
       await client.star('s1');
 
       expect(artists.first.id, 'a1');
@@ -380,7 +383,7 @@ void main() {
       expect(search.songs.first.id, 's1');
       expect(playlists.first.id, 'p1');
       expect(lyrics.structuredLyrics.first.line.first.value, 'line');
-      expect(queue.current, 's1');
+      expect(stations.single.id, 'r1');
     });
 
     test('forwards cancel token', () async {

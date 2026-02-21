@@ -25,6 +25,11 @@ void main() {
       scrobbleEnabled: true,
       gaplessEnabled: true,
       skipSilenceEnabled: false,
+      showRadioPage: true,
+      equalizerEnabled: false,
+      equalizerBandGains: <double>[],
+      loudnessEnabled: false,
+      loudnessTargetGainDb: 0,
     );
 
     setUp(() {
@@ -51,6 +56,7 @@ void main() {
       expect(find.text('Cellular streaming'), findsOneWidget);
       expect(find.text('Enable scrobbling'), findsOneWidget);
       expect(find.text('Enable gapless playback'), findsOneWidget);
+      expect(find.text('Show Radio page'), findsOneWidget);
       expect(find.text('Skip silence when possible'), findsNothing);
       expect(find.text('Save'), findsOneWidget);
       expect(find.text('Reset defaults'), findsOneWidget);
@@ -87,9 +93,30 @@ void main() {
       await tester.tap(find.text('OPUS').last);
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byType(SwitchListTile).first);
+      final scrobbleToggle = find.widgetWithText(
+        SwitchListTile,
+        'Enable scrobbling',
+      );
+      final gaplessToggle = find.widgetWithText(
+        SwitchListTile,
+        'Enable gapless playback',
+      );
+      final radioToggle = find.widgetWithText(
+        SwitchListTile,
+        'Show Radio page',
+      );
+
+      await tester.ensureVisible(scrobbleToggle);
       await tester.pumpAndSettle();
-      await tester.tap(find.byType(SwitchListTile).last);
+      await tester.tap(scrobbleToggle);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(gaplessToggle);
+      await tester.pumpAndSettle();
+      await tester.tap(gaplessToggle);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(radioToggle);
+      await tester.pumpAndSettle();
+      await tester.tap(radioToggle);
       await tester.pumpAndSettle();
 
       await tester.ensureVisible(find.text('Save'));
@@ -104,6 +131,7 @@ void main() {
       expect(savedModel!.scrobbleEnabled, isFalse);
       expect(savedModel!.gaplessEnabled, isFalse);
       expect(savedModel!.skipSilenceEnabled, isFalse);
+      expect(savedModel!.showRadioPage, isFalse);
       expect(find.text('Playback settings saved.'), findsOneWidget);
 
       await tester.pump(const Duration(seconds: 4));

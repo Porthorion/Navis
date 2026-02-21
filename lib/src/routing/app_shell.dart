@@ -32,6 +32,17 @@ class AppShell extends ConsumerWidget {
         ? const AsyncValue.data(null)
         : ref.watch(songByIdProvider(currentSongId));
     final showMiniPlayer = playback.queueSongIds.isNotEmpty;
+    final visibleBranchIndices = <int>[
+      _homeBranchIndex,
+      _libraryBranchIndex,
+      _searchBranchIndex,
+      _playlistsBranchIndex,
+      _settingsBranchIndex,
+    ];
+    final selectedVisibleIndex = visibleBranchIndices.indexOf(
+      navigationShell.currentIndex,
+    );
+    final selectedIndex = selectedVisibleIndex >= 0 ? selectedVisibleIndex : 0;
 
     return Scaffold(
       body: Column(
@@ -73,11 +84,12 @@ class AppShell extends ConsumerWidget {
         ],
       ),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: navigationShell.currentIndex,
+        selectedIndex: selectedIndex,
         onDestinationSelected: (index) {
+          final branchIndex = visibleBranchIndices[index];
           navigationShell.goBranch(
-            index,
-            initialLocation: index == navigationShell.currentIndex,
+            branchIndex,
+            initialLocation: branchIndex == navigationShell.currentIndex,
           );
         },
         destinations: <NavigationDestination>[
@@ -106,6 +118,12 @@ class AppShell extends ConsumerWidget {
     );
   }
 }
+
+const int _homeBranchIndex = 0;
+const int _libraryBranchIndex = 1;
+const int _searchBranchIndex = 2;
+const int _playlistsBranchIndex = 3;
+const int _settingsBranchIndex = 4;
 
 class _MiniPlayerStrip extends ConsumerWidget {
   const _MiniPlayerStrip({

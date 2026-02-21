@@ -35,6 +35,11 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     required bool scrobbleEnabled,
     required bool gaplessEnabled,
     required bool skipSilenceEnabled,
+    required bool showRadioPage,
+    required bool equalizerEnabled,
+    String? equalizerBandGains,
+    required bool loudnessEnabled,
+    double? loudnessTargetGainDb,
   }) {
     return into(appSettingsTable).insertOnConflictUpdate(
       AppSettingsTableCompanion.insert(
@@ -46,6 +51,11 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         scrobbleEnabled: Value(scrobbleEnabled),
         gaplessEnabled: Value(gaplessEnabled),
         skipSilenceEnabled: Value(skipSilenceEnabled),
+        showRadioPage: Value(showRadioPage),
+        equalizerEnabled: Value(equalizerEnabled),
+        equalizerBandGains: Value(equalizerBandGains),
+        loudnessEnabled: Value(loudnessEnabled),
+        loudnessTargetGainDb: Value(loudnessTargetGainDb),
         updatedAt: DateTime.now(),
       ),
     );
@@ -60,6 +70,11 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       scrobbleEnabled: true,
       gaplessEnabled: true,
       skipSilenceEnabled: false,
+      showRadioPage: true,
+      equalizerEnabled: false,
+      equalizerBandGains: null,
+      loudnessEnabled: false,
+      loudnessTargetGainDb: 0,
     );
   }
 }

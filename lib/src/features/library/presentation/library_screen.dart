@@ -9,9 +9,11 @@ import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
+import 'package:navis/src/common_widgets/star_button.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/features/library/presentation/radio_screen.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
@@ -25,7 +27,8 @@ class LibraryScreen extends ConsumerStatefulWidget {
   ConsumerState<LibraryScreen> createState() => _LibraryScreenState();
 }
 
-class _LibraryScreenState extends ConsumerState<LibraryScreen> {
+class _LibraryScreenState extends ConsumerState<LibraryScreen>
+    with TickerProviderStateMixin {
   _AlbumSort _albumSort = _AlbumSort.newest;
   final ScrollController _albumsScrollController = ScrollController();
   final ItemScrollController _artistsItemScrollController =
@@ -39,6 +42,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   bool _isArtistRailScrubbing = false;
   int _loadedAlbumPages = 1;
   String _lastVisibleAlbumSignature = '';
+  TabController? _tabController;
 
   @override
   void initState() {
@@ -51,6 +55,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   @override
   void dispose() {
+    _tabController?.dispose();
     _albumsScrollController
       ..removeListener(_onAlbumsScroll)
       ..dispose();
@@ -68,37 +73,61 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final syncState = ref.watch(librarySyncControllerProvider);
-
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(l10n.libraryTitle),
-          bottom: TabBar(
-            tabs: <Widget>[
-              Tab(text: l10n.libraryTabArtists),
-              Tab(text: l10n.libraryTabAlbums),
-            ],
-          ),
-        ),
-        body: Column(
-          children: <Widget>[
-            _SyncStatusBanner(syncState: syncState, onRetry: _refreshLibrary),
-            Expanded(
-              child: TabBarView(
-                physics: _isArtistRailScrubbing
-                    ? const NeverScrollableScrollPhysics()
-                    : const PageScrollPhysics(),
-                children: <Widget>[
-                  _buildArtistsTab(context),
-                  _buildAlbumsTab(context),
-                ],
-              ),
-            ),
+    final showRadioTab = ref.watch(showRadioPageProvider);
+    final tabCount = showRadioTab ? 3 : 2;
+    final tabController = _ensureTabController(tabCount);
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(l10n.libraryTitle),
+        bottom: TabBar(
+          controller: tabController,
+          tabs: <Widget>[
+            Tab(text: l10n.libraryTabArtists),
+            Tab(text: l10n.libraryTabAlbums),
+            if (showRadioTab) Tab(text: l10n.navRadio),
           ],
         ),
       ),
+      body: Column(
+        children: <Widget>[
+          _SyncStatusBanner(syncState: syncState, onRetry: _refreshLibrary),
+          Expanded(
+            child: TabBarView(
+              controller: tabController,
+              physics: _isArtistRailScrubbing
+                  ? const NeverScrollableScrollPhysics()
+                  : const PageScrollPhysics(),
+              children: <Widget>[
+                _buildArtistsTab(context),
+                _buildAlbumsTab(context),
+                if (showRadioTab) const RadioTabContent(),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
+  }
+
+  TabController _ensureTabController(int tabCount) {
+    final existing = _tabController;
+    if (existing == null) {
+      final created = TabController(length: tabCount, vsync: this);
+      _tabController = created;
+      return created;
+    }
+    if (existing.length == tabCount) {
+      return existing;
+    }
+    final nextIndex = existing.index.clamp(0, tabCount - 1);
+    existing.dispose();
+    final replaced = TabController(
+      length: tabCount,
+      vsync: this,
+      initialIndex: nextIndex,
+    );
+    _tabController = replaced;
+    return replaced;
   }
 
   Widget _buildArtistsTab(BuildContext context) {
@@ -332,11 +361,26 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                                   placeholderIcon: Icons.album_outlined,
                                 ),
                                 const SizedBox(height: 8),
-                                Text(
-                                  album.name,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.titleSmall,
+                                Row(
+                                  children: <Widget>[
+                                    Expanded(
+                                      child: Text(
+                                        album.name,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.titleSmall,
+                                      ),
+                                    ),
+                                    if (album.starred != null)
+                                      StarButton(
+                                        isStarred: true,
+                                        compact: true,
+                                        onPressed: null,
+                                        tooltip: l10n.albumDetailStarAction,
+                                      ),
+                                  ],
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
@@ -489,9 +533,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     for (var i = 0; i < items.length; i++) {
       final item = items[i];
       if (item.artist == null) {
-        final candidateIndex =
-            (i + 1 < items.length && items[i + 1].artist != null) ? i + 1 : i;
-        indexByLetter[item.letter] ??= candidateIndex;
+        indexByLetter[item.letter] ??= i;
       }
     }
     return indexByLetter;
