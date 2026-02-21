@@ -631,7 +631,7 @@ Uses `go_router` with a `ShellRoute` for the main app scaffold (bottom Navigatio
 |---|---|---|
 | `/login` | Login screen | Shown if no server configured |
 | `/` | Home | Discovery feed — redirect target after login |
-| `/library` | Library | Tabbed: Artists, Albums (+ optional Radio tab) |
+| `/library` | Library | Tabbed: Albums (default), Artists (+ optional Radio tab) |
 | `/library/artists/:id` | Artist detail | Albums grid + bio |
 | `/library/albums/:id` | Album detail | Track list, cover art, actions |
 | `/search` | Search | Live API search |
@@ -751,18 +751,20 @@ Each carousel card shows cover art + album name + artist name. Tap → album det
 
 #### Library Screen (`/library`)
 
-Tabbed interface with tabs: **Artists**, **Albums**, and optional **Radio** (controlled by settings).
+Tabbed interface with tabs: **Albums** (default first tab), **Artists**, and optional **Radio** (controlled by settings).
 
-**Artists tab**:
-- Alphabetically sorted list with section headers (A, B, C...) and a fast scroll index on the right edge.
-- Each artist row: artist image (or placeholder), name, album count.
-- Tap → Artist detail.
+Rationale: Albums is the most frequently used browse surface for large libraries, so Library opens on Albums while Artists remains one swipe away.
 
 **Albums tab**:
 - Grid of album covers (2-3 columns depending on screen width).
 - Sort options (dropdown): Newest, Name, Artist.
 - Each card: cover art, album name, artist name, year.
 - Tap → Album detail.
+
+**Artists tab**:
+- Alphabetically sorted list with section headers (A, B, C...) and a fast scroll index on the right edge.
+- Each artist row: artist image (or placeholder), name, album count.
+- Tap → Artist detail.
 
 **Radio tab (foundation in scope, full UX deferred)**:
 - Populated from server radio stations (`getInternetRadioStations` compatible behavior).
@@ -1271,6 +1273,22 @@ Use the `animations` package (Material Design motion system) for all page-level 
 - Page transitions: `SharedAxisTransition` (horizontal axis for peer navigation like tab switches, vertical axis for parent-child like list → detail). `FadeThroughTransition` for top-level destination changes (bottom nav tabs). `OpenContainer` for list items that expand into detail screens (optional, for a premium feel).
 - Skeleton loading placeholders (shimmer) while data loads, not spinners. The `ShimmerPlaceholder` widget is built in Phase 3 — Phase 10 audits that it's used consistently everywhere.
 - Pull-to-refresh with Material 3 refresh indicator.
+
+### UI/UX Polish Track (Pre-Phase-5 Attention)
+
+- Album art presentation pass:
+  - Improve visual treatment of cover art cards (consistent crop behavior, corner radius, shadow depth, spacing rhythm, and text contrast overlays where needed).
+  - Add progressive image loading polish (placeholder -> image fade-in, reduced layout shift).
+  - Ensure visual consistency between Home carousels, Albums grid, Album detail hero, and mini-player artwork.
+- Interaction polish:
+  - Add optimistic UI for star/unstar and queue/cache actions with rollback on failure.
+  - Standardize success/failure feedback timing to avoid jittery snackbars and repeated status flashes.
+- Motion polish:
+  - Add intentional micro-transitions for list-to-detail navigation and queue mutations.
+  - Keep transitions snappy and deterministic (no long spring tails on routine actions).
+- Design-system consistency:
+  - Normalize spacing, typography hierarchy, icon sizing, and hit targets across Home, Library, Search, and Settings.
+  - Audit all reusable tiles/cards so visual behavior is uniform in loading/error/empty/data states.
 
 ### Performance
 

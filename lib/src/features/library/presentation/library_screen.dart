@@ -82,8 +82,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         bottom: TabBar(
           controller: tabController,
           tabs: <Widget>[
-            Tab(text: l10n.libraryTabArtists),
             Tab(text: l10n.libraryTabAlbums),
+            Tab(text: l10n.libraryTabArtists),
             if (showRadioTab) Tab(text: l10n.navRadio),
           ],
         ),
@@ -98,8 +98,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                   ? const NeverScrollableScrollPhysics()
                   : const PageScrollPhysics(),
               children: <Widget>[
-                _buildArtistsTab(context),
                 _buildAlbumsTab(context),
+                _buildArtistsTab(context),
                 if (showRadioTab) const RadioTabContent(),
               ],
             ),
