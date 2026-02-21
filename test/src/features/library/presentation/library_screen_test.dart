@@ -51,6 +51,14 @@ Widget _buildLibraryScreen({required List<Object?> overrides}) {
   );
 }
 
+Future<void> _switchToArtistsTab(WidgetTester tester) async {
+  if (find.byType(ScrollablePositionedList).evaluate().isNotEmpty) {
+    return;
+  }
+  await tester.tap(find.text('Artists'));
+  await tester.pumpAndSettle();
+}
+
 void main() {
   group('LibraryScreen', () {
     testWidgets('renders two tabs and switches between local data lists', (
@@ -97,11 +105,11 @@ void main() {
       expect(find.text('Albums'), findsOneWidget);
       expect(find.text('Songs'), findsNothing);
       expect(find.text('Genres'), findsNothing);
-      expect(find.text('Artist 1'), findsOneWidget);
-
-      await tester.tap(find.text('Albums'));
-      await tester.pumpAndSettle();
       expect(find.text('Album 1'), findsOneWidget);
+
+      await tester.tap(find.text('Artists'));
+      await tester.pumpAndSettle();
+      expect(find.text('Artist 1'), findsOneWidget);
       expect(syncNowCalls, 0);
     });
 
@@ -125,11 +133,11 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(EmptyState), findsOneWidget);
-      expect(find.text('No artists found'), findsOneWidget);
-
-      await tester.tap(find.text('Albums'));
-      await tester.pumpAndSettle();
       expect(find.text('No albums found'), findsOneWidget);
+
+      await tester.tap(find.text('Artists'));
+      await tester.pumpAndSettle();
+      expect(find.text('No artists found'), findsOneWidget);
     });
 
     testWidgets('shows error state and retry action triggers syncNow', (
@@ -163,6 +171,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      await _switchToArtistsTab(tester);
       expect(find.byType(ErrorState), findsOneWidget);
       expect(find.text('Could not load artists'), findsOneWidget);
 
@@ -284,6 +293,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      await _switchToArtistsTab(tester);
 
       final rail = find.byKey(const Key('artistAlphabetRail'));
       final railTopLeft = tester.getTopLeft(rail);
@@ -337,6 +347,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      await _switchToArtistsTab(tester);
 
       final rail = find.byKey(const Key('artistAlphabetRail'));
       final railTopLeft = tester.getTopLeft(rail);
@@ -383,6 +394,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      await _switchToArtistsTab(tester);
 
       expect(find.text('A'), findsWidgets);
       expect(find.text('M'), findsWidgets);
@@ -416,6 +428,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      await _switchToArtistsTab(tester);
 
       await tester.drag(
         find.byType(ScrollablePositionedList),
@@ -456,6 +469,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      await _switchToArtistsTab(tester);
 
       final rail = find.byKey(const Key('artistAlphabetRail'));
       final railM = find.descendant(of: rail, matching: find.text('M'));
