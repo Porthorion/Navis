@@ -98,8 +98,8 @@ The selected stack is a strong and current fit for this app's requirements: larg
 | Dart SDK (minimum supported) | **>= 3.8.0** | Compatibility floor for package constraints and language features used in the codebase |
 | Dart SDK (active development baseline) | **3.10.x** | Paired with Flutter 3.41.x stable |
 | Android `minSdkVersion` | **24** (Android 7.0) | Required by `audio_service`. Covers 95%+ of active devices. |
-| Android `compileSdkVersion` | **35** (Android 15) | Required for edge-to-edge enforcement and latest platform APIs |
-| Android `targetSdkVersion` | **35** | Meets current Play policy baseline. Re-check Play requirements before each release cut. |
+| Android `compileSdkVersion` | **36** (Android 16) | Required by current Android plugin stack and latest platform APIs |
+| Android `targetSdkVersion` | **36** | Meets current Play policy baseline. Re-check Play requirements before each release cut. |
 | iOS deployment target | **16.0** | Keep this under explicit review. Only raise when dependency requirements or product needs require it. |
 
 Pin Flutter SDK version in the project using an `.fvmrc` or `pubspec.yaml` environment constraint:
@@ -389,7 +389,7 @@ lib/
 │   │   │   └── presentation/             # Tabs, grids, detail screens
 │   │   ├── player/
 │   │   │   ├── data/                     # NavisAudioHandler, PlaybackCacheManager
-│   │   │   ├── domain/                   # PlayQueue, PlayerState
+│   │   │   ├── domain/                   # PlaybackSnapshot, PlayerState
 │   │   │   └── presentation/             # NowPlaying, MiniPlayer, Queue, Lyrics
 │   │   ├── search/
 │   │   │   ├── data/                     # SearchRepository
@@ -461,7 +461,7 @@ drift_schemas/                             # Exported drift schemas for migratio
   - Permissions: `INTERNET`, `WAKE_LOCK`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK`, `POST_NOTIFICATIONS` (required on Android 13+ / API 33+ for download progress and completion notifications from `flutter_local_notifications`).
   - Do **not** enable global `android:usesCleartextTraffic="true"` by default.
   - Use `android:networkSecurityConfig="@xml/network_security_config"` and allow cleartext only where required (e.g., localhost proxy and explicitly approved insecure self-hosted endpoints).
-  - `compileSdkVersion` 35, `targetSdkVersion` 35, `minSdkVersion` 24 (Android 7.0) — required by `audio_service`, covers 95%+ of devices. Re-check target/compile SDK against Play policy before every release.
+  - `compileSdkVersion` 36, `targetSdkVersion` 36, `minSdkVersion` 24 (Android 7.0) — required by current Android plugin stack and `audio_service`, covers 95%+ of devices. Re-check target/compile SDK against Play policy before every release.
   - Enable Java 8 desugaring for `flutter_local_notifications`.
   - Enable `android:enableOnBackInvokedCallback="true"` on `<application>` for predictive back gesture support (Android 13+).
 - [ ] Configure edge-to-edge display for Android 15+:
@@ -522,7 +522,7 @@ The API client wraps all communication with the Subsonic/OpenSubsonic server. Ev
 | Media | `streamUrl(id, maxBitRate?, format?)` (builds URL, does not fetch), `downloadUrl(id)`, `getCoverArtUrl(id, size?)` |
 | Lyrics | `getLyricsBySongId(id)` (OpenSubsonic), `getLyrics(artist?, title?)` (legacy fallback) |
 | Annotation | `star(id)`, `unstar(id)`, `setRating(id, rating)`, `scrobble(id, submission?)` |
-| Play queue | `getPlayQueue()`, `savePlayQueue(ids, current, position)` |
+| Radio | `getInternetRadioStations()` |
 
 **Server capabilities**:
 - On login, call `getOpenSubsonicExtensions()`. Store the result as a `ServerCapabilities` model.
@@ -543,7 +543,7 @@ The API client wraps all communication with the Subsonic/OpenSubsonic server. Ev
 
 **Freezed API models**:
 - `SubsonicResponse<T>` — generic wrapper with status and optional error.
-- `Artist`, `ArtistInfo`, `Album`, `AlbumInfo`, `Song`, `Genre`, `Playlist`, `SearchResult3`, `LyricsList`, `StructuredLyrics`, `LyricLine`, `PlayQueue`, `ServerCapabilities`.
+- `Artist`, `ArtistInfo`, `Album`, `AlbumInfo`, `Song`, `Genre`, `Playlist`, `SearchResult3`, `LyricsList`, `StructuredLyrics`, `LyricLine`, `InternetRadioStation`, `ServerCapabilities`.
 - Each model has `fromJson` factory for deserialization from the Subsonic JSON response.
 
 ### 1.2 — Local Database
@@ -631,7 +631,7 @@ Uses `go_router` with a `ShellRoute` for the main app scaffold (bottom Navigatio
 |---|---|---|
 | `/login` | Login screen | Shown if no server configured |
 | `/` | Home | Discovery feed — redirect target after login |
-| `/library` | Library | Tabbed: Artists, Albums, Songs, Genres |
+| `/library` | Library | Tabbed: Artists, Albums (+ optional Radio tab) |
 | `/library/artists/:id` | Artist detail | Albums grid + bio |
 | `/library/albums/:id` | Album detail | Track list, cover art, actions |
 | `/search` | Search | Live API search |
@@ -729,13 +729,13 @@ Implementation note (2026-02-20): Current implementation offloads heavy album/so
 **Sync triggers**:
 - On app launch (if last sync > configurable threshold, default 1 hour).
 - Pull-to-refresh on any library screen.
-- Manual "Force Full Sync" button in Settings.
+- Manual "Force Full Sync" button in Sync Settings (`/settings/sync`).
 
 **Sync progress**: Show a subtle progress indicator (linear progress bar at top of library screens) during initial sync. Don't block the UI — whatever has been synced so far is immediately browsable.
 
 ### 3.2 — Library UI
 
-**NavigationBar** (bottom): Home, Library, Search, Settings — four tabs for the main shell.
+**NavigationBar** (bottom): Home, Library, Search, Playlists, Settings.
 
 #### Home Screen (`/`)
 
@@ -751,7 +751,7 @@ Each carousel card shows cover art + album name + artist name. Tap → album det
 
 #### Library Screen (`/library`)
 
-Tabbed interface with tabs: **Artists**, **Albums**.
+Tabbed interface with tabs: **Artists**, **Albums**, and optional **Radio** (controlled by settings).
 
 **Artists tab**:
 - Alphabetically sorted list with section headers (A, B, C...) and a fast scroll index on the right edge.
@@ -760,14 +760,14 @@ Tabbed interface with tabs: **Artists**, **Albums**.
 
 **Albums tab**:
 - Grid of album covers (2-3 columns depending on screen width).
-- Sort options (dropdown or chips): Name, Artist, Year, Recently Added.
+- Sort options (dropdown): Newest, Name, Artist.
 - Each card: cover art, album name, artist name, year.
 - Tap → Album detail.
 
-**Radio tab (deferred, not in current scope)**:
-- Planned future tab populated from server radio stations (`getInternetRadioStations` / `getInternetRadioStation` compatible behavior).
+**Radio tab (foundation in scope, full UX deferred)**:
+- Populated from server radio stations (`getInternetRadioStations` compatible behavior).
 - Must remain compatible with ICY metadata updates and AzuraCast stations.
-- Planned settings toggle under Settings to hide/show the Radio page.
+- Settings toggle under Playback settings can hide/show the Radio tab.
 - Library songs browsing is intentionally removed from the top-level Library tabs in favor of Artists/Albums-first navigation.
 
 #### Artist Detail Screen (`/library/artists/:id`)
@@ -885,7 +885,7 @@ Extends `audio_service`'s `BaseAudioHandler` with `QueueHandler` and `SeekHandle
 - On every track change, save the current queue, current track index, and playback position to the local drift `play_queue` and `play_queue_items` tables.
 - **Periodic position persistence**: Save the current playback position every 10–15 seconds to the `play_queue` table (update `positionMs` and `updatedAt`). This ensures that if the app is killed by the OS mid-track, the user can resume close to where they left off — not from the start of the track.
 - On app launch, restore the queue and offer to resume (or auto-resume based on a setting).
-- Optionally sync with the server via `savePlayQueue()` / `getPlayQueue()` for cross-device continuity (if server supports it).
+- Cross-device queue sync is intentionally out of product scope; queue persistence remains local-only.
 
 **Audio focus** (via `audio_session`):
 - Duck volume when receiving transient interruptions (navigation prompts, notifications).
@@ -894,11 +894,11 @@ Extends `audio_service`'s `BaseAudioHandler` with `QueueHandler` and `SeekHandle
 
 ### 4.2 — Play Queue Persistence
 
-While the queue data model and save triggers are implemented in 4.1, the restoration and cross-device sync logic is a distinct deliverable:
+While the queue data model and save triggers are implemented in 4.1, restoration behavior remains a distinct deliverable:
 
 - Restore queue on app launch from drift `play_queue` + `play_queue_items`.
 - Resume playback position from `positionMs` — seek to saved position.
-- Cross-device sync via `savePlayQueue()` / `getPlayQueue()` (gated behind a settings toggle, default off).
+- Queue state remains local-only (`play_queue` + `play_queue_items`) and restores on launch.
 
 ### 4.3 — Streaming Quality
 
@@ -914,17 +914,20 @@ The `NavisAudioHandler` observes the current network type via `connectivity_plus
 
 `just_audio` decodes FLAC, ALAC, MP3, AAC, Opus, Vorbis natively on both Android and iOS. No custom codec work needed.
 
+Implementation status note (2026-02-21):
+- Deterministic codec-path verification is now covered in automated tests (`playback_source_resolver_test.dart` matrix for file/lock-cached/direct and `navis_audio_handler_test.dart` fallback semantics).
+- `tool/check.sh` includes codec-critical tests in the critical reliability stage.
+- Real-device runtime verification remains required per `docs/troubleshooting.md` matrix runbook before Phase 5 sign-off.
+
 **Android-only features** (conditionally exposed in settings):
 - Equalizer via `just_audio`'s `AndroidEqualizer` — user-adjustable frequency bands.
 - Loudness enhancer via `AndroidLoudnessEnhancer`.
-- Skip silence detection.
+- Skip-silence is intentionally not exposed for music playback.
 
 These are gated behind platform checks and hidden on iOS.
 
 **ReplayGain** (volume normalization):
-- If the server provides ReplayGain tags in track metadata, respect them.
-- `just_audio` supports volume adjustment per source — apply ReplayGain offset as a volume multiplier.
-- Setting to enable/disable volume normalization.
+- Deferred to post-Phase-5. Current Phase 4 closure excludes ReplayGain due server metadata variability and validation risk.
 
 ---
 
@@ -1197,11 +1200,10 @@ Split into Wi-Fi and Non-Wi-Fi (cellular / mobile data) profiles. The app detect
 
 **Playback — General**
 - Gapless playback: on/off (on by default).
-- ReplayGain / volume normalization: off / track / album.
-- Skip silence: on/off (Android only).
+- ReplayGain / volume normalization: deferred post-Phase-5.
 - Scrobble to server: on/off, threshold slider (50–90%).
 - Resume on launch: on/off — whether to auto-restore the last play queue.
-- Cross-device play queue sync: on/off — sync queue with server via `savePlayQueue` / `getPlayQueue`.
+- Show Radio page: on/off (default on).
 
 **Audio** (Android only section, hidden on iOS)
 - Equalizer: toggle + frequency band sliders.

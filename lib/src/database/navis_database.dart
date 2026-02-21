@@ -65,7 +65,7 @@ class NavisDatabase extends _$NavisDatabase {
   static QueryExecutor _openConnection() => driftDatabase(name: 'navis.sqlite');
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -104,6 +104,9 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 7 && to >= 7) {
       await from6To7(migrator);
+    }
+    if (from < 8 && to >= 8) {
+      await from7To8(migrator);
     }
   }
 
@@ -160,6 +163,39 @@ class NavisDatabase extends _$NavisDatabase {
     await migrator.addColumn(songsTable, songsTable.createdAt);
   }
 
+  Future<void> from7To8(Migrator migrator) async {
+    if (!await _columnExists('app_settings', 'show_radio_page')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.showRadioPage,
+      );
+    }
+    if (!await _columnExists('app_settings', 'equalizer_enabled')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.equalizerEnabled,
+      );
+    }
+    if (!await _columnExists('app_settings', 'equalizer_band_gains')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.equalizerBandGains,
+      );
+    }
+    if (!await _columnExists('app_settings', 'loudness_enabled')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.loudnessEnabled,
+      );
+    }
+    if (!await _columnExists('app_settings', 'loudness_target_gain_db')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.loudnessTargetGainDb,
+      );
+    }
+  }
+
   Future<void> _ensureAppSettingsDefaults() {
     return into(appSettingsTable).insert(
       AppSettingsTableCompanion.insert(
@@ -171,6 +207,11 @@ class NavisDatabase extends _$NavisDatabase {
         scrobbleEnabled: const Value(true),
         gaplessEnabled: const Value(true),
         skipSilenceEnabled: const Value(false),
+        showRadioPage: const Value(true),
+        equalizerEnabled: const Value(false),
+        equalizerBandGains: const Value(null),
+        loudnessEnabled: const Value(false),
+        loudnessTargetGainDb: const Value(0),
         updatedAt: DateTime.now(),
       ),
       mode: InsertMode.insertOrIgnore,

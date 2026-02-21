@@ -5,9 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/cache_badge.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
+import 'package:navis/src/common_widgets/star_button.dart';
 import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
@@ -39,6 +41,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final album = ref.watch(albumProvider(widget.albumId));
+    final cachedSongIds = ref.watch(cachedSongIdsProvider).asData?.value;
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.albumDetailTitle)),
@@ -114,14 +117,12 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                             icon: const Icon(Icons.shuffle_outlined),
                             label: Text(l10n.albumDetailShuffleAction),
                           ),
-                          OutlinedButton.icon(
+                          StarButton(
+                            isStarred: isStarred,
                             onPressed: _isStarring
                                 ? null
                                 : () => _toggleStar(isStarred: isStarred),
-                            icon: Icon(
-                              isStarred ? Icons.star : Icons.star_outline,
-                            ),
-                            label: Text(l10n.albumDetailStarAction),
+                            label: l10n.albumDetailStarAction,
                           ),
                           OutlinedButton.icon(
                             onPressed: () {
@@ -160,9 +161,19 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                       song: song,
                       onTap: () => unawaited(_playNow(song)),
                       onLongPress: () => unawaited(_showSongActions(song)),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.more_vert),
-                        onPressed: () => unawaited(_showSongActions(song)),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          if (cachedSongIds?.contains(song.id) ?? false)
+                            const Padding(
+                              padding: EdgeInsets.only(right: 8),
+                              child: CacheBadge(),
+                            ),
+                          IconButton(
+                            icon: const Icon(Icons.more_vert),
+                            onPressed: () => unawaited(_showSongActions(song)),
+                          ),
+                        ],
                       ),
                     );
                   }, childCount: songs.length),

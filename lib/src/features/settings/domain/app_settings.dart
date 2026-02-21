@@ -11,6 +11,11 @@ class AppSettingsModel {
     required this.scrobbleEnabled,
     required this.gaplessEnabled,
     required this.skipSilenceEnabled,
+    required this.showRadioPage,
+    required this.equalizerEnabled,
+    required this.equalizerBandGains,
+    required this.loudnessEnabled,
+    required this.loudnessTargetGainDb,
   });
 
   const AppSettingsModel.defaults()
@@ -20,7 +25,12 @@ class AppSettingsModel {
       cellularFormat = AppSettingsDao.defaultCellularFormat,
       scrobbleEnabled = true,
       gaplessEnabled = true,
-      skipSilenceEnabled = false;
+      skipSilenceEnabled = false,
+      showRadioPage = true,
+      equalizerEnabled = false,
+      equalizerBandGains = const <double>[],
+      loudnessEnabled = false,
+      loudnessTargetGainDb = 0;
 
   final int? wifiMaxBitRate;
   final String? wifiFormat;
@@ -31,6 +41,11 @@ class AppSettingsModel {
   // Compatibility-only persisted field retained to keep schema upgrades safe.
   // Runtime playback behavior intentionally does not consume this setting.
   final bool skipSilenceEnabled;
+  final bool showRadioPage;
+  final bool equalizerEnabled;
+  final List<double> equalizerBandGains;
+  final bool loudnessEnabled;
+  final double loudnessTargetGainDb;
 
   AppSettingsModel copyWith({
     int? wifiMaxBitRate,
@@ -40,6 +55,11 @@ class AppSettingsModel {
     bool? scrobbleEnabled,
     bool? gaplessEnabled,
     bool? skipSilenceEnabled,
+    bool? showRadioPage,
+    bool? equalizerEnabled,
+    List<double>? equalizerBandGains,
+    bool? loudnessEnabled,
+    double? loudnessTargetGainDb,
     bool clearWifiBitRate = false,
     bool clearWifiFormat = false,
     bool clearCellularBitRate = false,
@@ -59,6 +79,12 @@ class AppSettingsModel {
       scrobbleEnabled: scrobbleEnabled ?? this.scrobbleEnabled,
       gaplessEnabled: gaplessEnabled ?? this.gaplessEnabled,
       skipSilenceEnabled: skipSilenceEnabled ?? this.skipSilenceEnabled,
+      showRadioPage: showRadioPage ?? this.showRadioPage,
+      equalizerEnabled: equalizerEnabled ?? this.equalizerEnabled,
+      equalizerBandGains:
+          equalizerBandGains ?? List<double>.from(this.equalizerBandGains),
+      loudnessEnabled: loudnessEnabled ?? this.loudnessEnabled,
+      loudnessTargetGainDb: loudnessTargetGainDb ?? this.loudnessTargetGainDb,
     );
   }
 }

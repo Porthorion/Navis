@@ -509,29 +509,39 @@ class SubsonicApiClient {
     );
   }
 
-  Future<PlayQueue> getPlayQueue({CancelToken? cancelToken}) async {
-    final root = await _readRoot(
-      '/rest/getPlayQueue.view',
-      cancelToken: cancelToken,
-    );
-    return PlayQueue.fromJson(_asMap(root['playQueue']));
-  }
-
-  Future<void> savePlayQueue({
-    required List<String> ids,
-    String? current,
-    Duration? position,
+  Future<List<InternetRadioStation>> getInternetRadioStations({
     CancelToken? cancelToken,
   }) async {
-    await _readRoot(
-      '/rest/savePlayQueue.view',
-      query: {
-        'id': ids,
-        if (current != null) 'current': current,
-        if (position != null) 'position': position.inMilliseconds,
-      },
+    final root = await _readRoot(
+      '/rest/getInternetRadioStations.view',
       cancelToken: cancelToken,
     );
+    return _asMapList(
+          _asMap(root['internetRadioStations'])['internetRadioStation'],
+        )
+        .map((json) {
+          final id = (json['id'] as String?)?.trim();
+          final name = (json['name'] as String?)?.trim();
+          final streamUrl =
+              (json['streamUrl'] as String?)?.trim() ??
+              (json['url'] as String?)?.trim();
+          if (id == null ||
+              id.isEmpty ||
+              name == null ||
+              name.isEmpty ||
+              streamUrl == null ||
+              streamUrl.isEmpty) {
+            return null;
+          }
+          return InternetRadioStation(
+            id: id,
+            name: name,
+            streamUrl: streamUrl,
+            homePageUrl: (json['homePageUrl'] as String?)?.trim(),
+          );
+        })
+        .whereType<InternetRadioStation>()
+        .toList(growable: false);
   }
 
   Future<Map<String, dynamic>> _readRoot(

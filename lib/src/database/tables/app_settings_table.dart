@@ -23,6 +23,18 @@ class AppSettingsTable extends Table {
   BoolColumn get skipSilenceEnabled =>
       boolean().withDefault(const Constant(false))();
 
+  BoolColumn get showRadioPage => boolean().withDefault(const Constant(true))();
+
+  BoolColumn get equalizerEnabled =>
+      boolean().withDefault(const Constant(false))();
+
+  TextColumn get equalizerBandGains => text().nullable()();
+
+  BoolColumn get loudnessEnabled =>
+      boolean().withDefault(const Constant(false))();
+
+  RealColumn get loudnessTargetGainDb => real().nullable()();
+
   DateTimeColumn get updatedAt => dateTime()();
 
   @override

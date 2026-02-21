@@ -53,7 +53,7 @@ Symptom from `flutter doctor -v`:
 
 Fix:
 1. Install Android Studio.
-2. Install Android SDK command-line tools and platform SDK 35.
+2. Install Android SDK command-line tools and platform SDK 36.
 3. Configure Flutter SDK path:
 
 ```bash
@@ -115,6 +115,36 @@ flutter run -d sdk
 If playback still fails, capture full startup logs and verify that the app prints:
 - `Audio handler initialized successfully.`
 
+## Codec verification matrix (release checklist)
+
+Run this protocol on at least one Android device before release:
+
+1. Clean install:
+```bash
+flutter clean
+flutter pub get
+adb uninstall com.navis.app.navis
+flutter run -d <device>
+```
+2. First playback: play one track per codec from Library.
+3. Restore playback: kill app, relaunch, verify restored queue track plays.
+4. Background playback: lock screen / background app and verify playback continuity.
+5. Confirm resolver logs report selected source kind for each track:
+   - `file`
+   - `lockCachedStream`
+   - `directStream` (fallback path)
+
+Use this evidence table per validation run:
+
+| Date (UTC) | Server variant | Device | Codec/container | Source kind selected | Playback result | Fallback behavior | Notes |
+|---|---|---|---|---|---|---|---|
+| YYYY-MM-DD | Subsonic/OpenSubsonic/AzuraCast | device model + Android version | FLAC/ALAC/MP3/AAC/Opus/Vorbis | `file` / `lockCachedStream` / `directStream` | pass/fail | none / lock->direct / DSP-degraded | optional |
+
+For failures, always capture:
+1. Song id and codec/container.
+2. Resolver source kind transitions (`file`, `lockCachedStream`, `directStream`).
+3. Full player error stack from logs.
+
 ## Playback diagnostics matrix
 
 Use this quick matrix to classify failures:
@@ -125,13 +155,22 @@ Use this quick matrix to classify failures:
   - run `flutter clean && flutter pub get`
   - reinstall app (`adb uninstall com.navis.app.navis`)
   - rerun `flutter run -d <device>`
+ - Note:
+   - bootstrap now has late-success recovery; if initialization completes shortly after timeout, logs include `Audio bootstrap recovered after timeout`.
 2. Source fallback failure:
 - Symptoms: queue restore/play action fails around lock-cached source setup.
 - Expected: resolver should fall back from lock-cached stream to direct stream.
 - Checks:
   - inspect logs for source kind transitions (`lockCachedStream -> directStream`)
   - verify authenticated session is present and stream URL resolves.
-3. Local cache proxy policy failure:
+3. Android DSP initialization failure:
+- Symptoms: `Cannot initialize effect engine ... Equalizer ... Error: -3`.
+- Expected:
+  - playback should degrade to non-DSP mode for the current session and continue.
+- Checks:
+  - inspect logs for `Disabling DSP pipeline for this session` / `plain player` retry.
+  - disable equalizer/loudness in `/settings/playback` if device effects remain unavailable.
+4. Local cache proxy policy failure:
 - Symptoms: `Cleartext HTTP traffic ... 127.0.0.1 not permitted`.
 - Checks:
   - confirm `/Users/khalifaalzarooni/Documents/forgejo_projects/Navis/android/app/src/main/res/xml/network_security_config.xml` allows loopback only (`127.0.0.1`, `localhost`).

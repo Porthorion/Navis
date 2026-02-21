@@ -75,7 +75,13 @@ assert_no_blocking_warnings "${tmp_log_dir}/migration.log"
 run_step_capture \
   "critical reliability tests (expanded)" \
   "${tmp_log_dir}/critical.log" \
-  flutter test test/src/routing/app_router_test.dart test/src/providers/app_providers_test.dart -r expanded
+  flutter test \
+  test/src/routing/app_router_test.dart \
+  test/src/providers/app_providers_test.dart \
+  test/src/features/player/data/playback_source_resolver_test.dart \
+  test/src/features/player/data/navis_audio_handler_test.dart \
+  test/src/features/library/presentation/library_sync_provider_test.dart \
+  -r expanded
 assert_no_blocking_warnings "${tmp_log_dir}/critical.log"
 
 run_step_capture \

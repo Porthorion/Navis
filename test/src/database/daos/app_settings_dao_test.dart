@@ -37,6 +37,11 @@ void main() {
           scrobbleEnabled: false,
           gaplessEnabled: false,
           skipSilenceEnabled: true,
+          showRadioPage: false,
+          equalizerEnabled: true,
+          equalizerBandGains: '[1,2,3,4,5]',
+          loudnessEnabled: true,
+          loudnessTargetGainDb: 8,
         );
 
         final first = await database.appSettingsDao.getSettings();
@@ -49,6 +54,11 @@ void main() {
         expect(first.scrobbleEnabled, isFalse);
         expect(first.gaplessEnabled, isFalse);
         expect(first.skipSilenceEnabled, isTrue);
+        expect(first.showRadioPage, isFalse);
+        expect(first.equalizerEnabled, isTrue);
+        expect(first.equalizerBandGains, '[1,2,3,4,5]');
+        expect(first.loudnessEnabled, isTrue);
+        expect(first.loudnessTargetGainDb, 8);
 
         await database.appSettingsDao.saveSettings(
           wifiMaxBitRate: null,
@@ -58,6 +68,11 @@ void main() {
           scrobbleEnabled: true,
           gaplessEnabled: true,
           skipSilenceEnabled: false,
+          showRadioPage: true,
+          equalizerEnabled: false,
+          equalizerBandGains: null,
+          loudnessEnabled: false,
+          loudnessTargetGainDb: 0,
         );
 
         final second = await database.appSettingsDao.getSettings();
@@ -70,6 +85,11 @@ void main() {
         expect(second.scrobbleEnabled, isTrue);
         expect(second.gaplessEnabled, isTrue);
         expect(second.skipSilenceEnabled, isFalse);
+        expect(second.showRadioPage, isTrue);
+        expect(second.equalizerEnabled, isFalse);
+        expect(second.equalizerBandGains, isNull);
+        expect(second.loudnessEnabled, isFalse);
+        expect(second.loudnessTargetGainDb, 0);
       },
       skip: !_sqliteAvailable,
     );
@@ -83,6 +103,11 @@ void main() {
         scrobbleEnabled: false,
         gaplessEnabled: false,
         skipSilenceEnabled: true,
+        showRadioPage: false,
+        equalizerEnabled: true,
+        equalizerBandGains: '[3,2,1]',
+        loudnessEnabled: true,
+        loudnessTargetGainDb: 6,
       );
 
       await database.appSettingsDao.resetDefaults();
@@ -99,6 +124,11 @@ void main() {
       expect(settings.scrobbleEnabled, isTrue);
       expect(settings.gaplessEnabled, isTrue);
       expect(settings.skipSilenceEnabled, isFalse);
+      expect(settings.showRadioPage, isTrue);
+      expect(settings.equalizerEnabled, isFalse);
+      expect(settings.equalizerBandGains, isNull);
+      expect(settings.loudnessEnabled, isFalse);
+      expect(settings.loudnessTargetGainDb, 0);
     }, skip: !_sqliteAvailable);
   });
 }

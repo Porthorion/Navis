@@ -118,6 +118,12 @@ abstract class AppLocalizations {
   /// **'Search'**
   String get navSearch;
 
+  /// No description provided for @navRadio.
+  ///
+  /// In en, this message translates to:
+  /// **'Radio'**
+  String get navRadio;
+
   /// No description provided for @navPlaylists.
   ///
   /// In en, this message translates to:
@@ -412,6 +418,54 @@ abstract class AppLocalizations {
   /// **'Preload tracks to reduce gaps between songs.'**
   String get playbackSettingsGaplessSubtitle;
 
+  /// No description provided for @playbackSettingsShowRadioPageTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Radio page'**
+  String get playbackSettingsShowRadioPageTitle;
+
+  /// No description provided for @playbackSettingsShowRadioPageSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Display the Radio tab in bottom navigation.'**
+  String get playbackSettingsShowRadioPageSubtitle;
+
+  /// No description provided for @playbackSettingsAndroidDspSectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Android audio effects'**
+  String get playbackSettingsAndroidDspSectionTitle;
+
+  /// No description provided for @playbackSettingsEqualizerTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable equalizer'**
+  String get playbackSettingsEqualizerTitle;
+
+  /// No description provided for @playbackSettingsEqualizerSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Adjust frequency bands for Android playback.'**
+  String get playbackSettingsEqualizerSubtitle;
+
+  /// No description provided for @playbackSettingsEqualizerBandLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Band {index}'**
+  String playbackSettingsEqualizerBandLabel(int index);
+
+  /// No description provided for @playbackSettingsLoudnessTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable loudness enhancer'**
+  String get playbackSettingsLoudnessTitle;
+
+  /// No description provided for @playbackSettingsLoudnessSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply target gain in dB on Android playback.'**
+  String get playbackSettingsLoudnessSubtitle;
+
   /// No description provided for @playbackSettingsSkipSilenceTitle.
   ///
   /// In en, this message translates to:
@@ -579,6 +633,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Star tracks on your server to see them here.'**
   String get homeStarredEmptySubtitle;
+
+  /// No description provided for @radioTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Radio'**
+  String get radioTitle;
+
+  /// No description provided for @radioEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No radio stations found'**
+  String get radioEmptyTitle;
+
+  /// No description provided for @radioEmptySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Add internet radio stations on your server to see them here.'**
+  String get radioEmptySubtitle;
+
+  /// No description provided for @radioLoadErrorTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load radio stations'**
+  String get radioLoadErrorTitle;
+
+  /// No description provided for @radioUnsupportedMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'This server does not expose internet radio station endpoints.'**
+  String get radioUnsupportedMessage;
 
   /// No description provided for @serverSettingsTitle.
   ///
@@ -1340,6 +1424,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could not update star status.'**
   String get albumDetailStarFailure;
+
+  /// No description provided for @cacheBadgeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cached'**
+  String get cacheBadgeLabel;
 
   /// No description provided for @miniPlayerUnknownTrack.
   ///

@@ -29,6 +29,14 @@ Widget _buildApp({
   );
 }
 
+Future<void> _disposeApp(WidgetTester tester) async {
+  await tester.pumpWidget(const SizedBox.shrink());
+  // Drift stream disposal can schedule microtask/zero-delay timers; flush them.
+  await tester.pump();
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 1));
+}
+
 void main() {
   group('library detail screens', () {
     late NavisDatabase database;
@@ -77,6 +85,7 @@ void main() {
       expect(find.text('Artist 1'), findsOneWidget);
       expect(find.text('1 albums'), findsOneWidget);
       expect(find.text('Album 1'), findsOneWidget);
+      await _disposeApp(tester);
     });
 
     testWidgets('album detail renders album info and local track list', (
@@ -112,6 +121,7 @@ void main() {
       expect(find.text('Album 1'), findsOneWidget);
       expect(find.text('Song 1'), findsOneWidget);
       expect(find.textContaining('Artist 1'), findsOneWidget);
+      await _disposeApp(tester);
     });
   });
 }

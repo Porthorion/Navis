@@ -126,7 +126,10 @@ Widget _buildTestApp({
 
 Future<void> _disposeApp(WidgetTester tester) async {
   await tester.pumpWidget(const SizedBox.shrink());
+  // Drift stream disposal can schedule microtask/zero-delay timers; flush them.
   await tester.pump();
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 1));
 }
 
 void main() {

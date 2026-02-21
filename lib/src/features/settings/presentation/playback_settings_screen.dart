@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -37,8 +38,16 @@ class _PlaybackSettingsScreenState
   String? _cellularFormat;
   bool _scrobbleEnabled = true;
   bool _gaplessEnabled = true;
+  bool _showRadioPage = true;
+  bool _equalizerEnabled = false;
+  List<double> _equalizerBandGains = List<double>.filled(5, 0);
+  bool _loudnessEnabled = false;
+  double _loudnessTargetGainDb = 0;
   bool _didHydrateForm = false;
   bool _isSaving = false;
+
+  bool get _supportsAndroidDsp =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
   @override
   Widget build(BuildContext context) {
@@ -180,6 +189,82 @@ class _PlaybackSettingsScreenState
                 title: Text(l10n.playbackSettingsGaplessTitle),
                 subtitle: Text(l10n.playbackSettingsGaplessSubtitle),
               ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: _showRadioPage,
+                onChanged: _isSaving
+                    ? null
+                    : (value) => setState(() => _showRadioPage = value),
+                title: Text(l10n.playbackSettingsShowRadioPageTitle),
+                subtitle: Text(l10n.playbackSettingsShowRadioPageSubtitle),
+              ),
+              if (_supportsAndroidDsp) ...<Widget>[
+                const SizedBox(height: 24),
+                Text(
+                  l10n.playbackSettingsAndroidDspSectionTitle,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 12),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: _equalizerEnabled,
+                  onChanged: _isSaving
+                      ? null
+                      : (value) => setState(() => _equalizerEnabled = value),
+                  title: Text(l10n.playbackSettingsEqualizerTitle),
+                  subtitle: Text(l10n.playbackSettingsEqualizerSubtitle),
+                ),
+                if (_equalizerEnabled)
+                  ...List<Widget>.generate(_equalizerBandGains.length, (
+                    index,
+                  ) {
+                    final value = _equalizerBandGains[index];
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          l10n.playbackSettingsEqualizerBandLabel(index + 1),
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                        Slider(
+                          value: value.clamp(-12, 12),
+                          min: -12,
+                          max: 12,
+                          divisions: 24,
+                          label: value.toStringAsFixed(1),
+                          onChanged: _isSaving
+                              ? null
+                              : (nextValue) {
+                                  setState(() {
+                                    _equalizerBandGains[index] = nextValue;
+                                  });
+                                },
+                        ),
+                      ],
+                    );
+                  }),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: _loudnessEnabled,
+                  onChanged: _isSaving
+                      ? null
+                      : (value) => setState(() => _loudnessEnabled = value),
+                  title: Text(l10n.playbackSettingsLoudnessTitle),
+                  subtitle: Text(l10n.playbackSettingsLoudnessSubtitle),
+                ),
+                if (_loudnessEnabled)
+                  Slider(
+                    value: _loudnessTargetGainDb.clamp(0, 20),
+                    min: 0,
+                    max: 20,
+                    divisions: 20,
+                    label: _loudnessTargetGainDb.toStringAsFixed(0),
+                    onChanged: _isSaving
+                        ? null
+                        : (value) =>
+                              setState(() => _loudnessTargetGainDb = value),
+                  ),
+              ],
               const SizedBox(height: 20),
               Row(
                 children: <Widget>[
@@ -222,6 +307,11 @@ class _PlaybackSettingsScreenState
     _cellularFormat = settings.cellularFormat;
     _scrobbleEnabled = settings.scrobbleEnabled;
     _gaplessEnabled = settings.gaplessEnabled;
+    _showRadioPage = settings.showRadioPage;
+    _equalizerEnabled = settings.equalizerEnabled;
+    _equalizerBandGains = _normalizeBandGains(settings.equalizerBandGains);
+    _loudnessEnabled = settings.loudnessEnabled;
+    _loudnessTargetGainDb = settings.loudnessTargetGainDb;
   }
 
   Future<void> _save() async {
@@ -240,6 +330,11 @@ class _PlaybackSettingsScreenState
         scrobbleEnabled: _scrobbleEnabled,
         gaplessEnabled: _gaplessEnabled,
         skipSilenceEnabled: false,
+        showRadioPage: _showRadioPage,
+        equalizerEnabled: _equalizerEnabled,
+        equalizerBandGains: _normalizeBandGains(_equalizerBandGains),
+        loudnessEnabled: _loudnessEnabled,
+        loudnessTargetGainDb: _loudnessTargetGainDb,
       );
       await ref.read(settingsRepositoryProvider).saveSettings(settings);
       final handler = ref.read(audioHandlerProvider);
@@ -310,5 +405,15 @@ class _PlaybackSettingsScreenState
       return null;
     }
     return trimmed.toLowerCase();
+  }
+
+  List<double> _normalizeBandGains(List<double> values) {
+    if (values.length >= 5) {
+      return values.take(5).toList(growable: false);
+    }
+    return <double>[
+      ...values,
+      ...List<double>.filled(5 - values.length, 0),
+    ];
   }
 }

@@ -356,7 +356,7 @@ void main() {
       expect(engine.nowCalls, 0);
     });
 
-    test('sync retries on resume when backgrounded failure occurs', () async {
+    test('sync does not auto-retry on resume after failure', () async {
       final binding = TestWidgetsFlutterBinding.ensureInitialized();
       binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
 
@@ -419,8 +419,8 @@ void main() {
       await future;
 
       final finalState = container.read(librarySyncControllerProvider);
-      expect(engine.nowCalls, 2);
-      expect(finalState.status, LibrarySyncStatus.succeeded);
+      expect(engine.nowCalls, 1);
+      expect(finalState.status, LibrarySyncStatus.failed);
     });
   });
 }
