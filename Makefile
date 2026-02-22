@@ -40,4 +40,6 @@ phase1-closeout:
 	./tool/phase1_closeout.sh
 
 phase4-codec-closeout:
-	./tool/phase4_codec_closeout.sh
+	@echo "Usage: make phase4-codec-closeout DEVICE_ID=<adb-device-id> [SERVER_VARIANT=OpenSubsonic]"
+	@test -n "$(DEVICE_ID)" || (echo "Error: DEVICE_ID is required" && exit 1)
+	./tool/phase4_codec_closeout.sh $(DEVICE_ID) $(SERVER_VARIANT)

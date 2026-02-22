@@ -59,7 +59,7 @@ Before opening Phase 5 implementation, run the codec close-out preflight and the
 
 ```bash
 ./tool/phase4_codec_closeout.sh <device-id> [server-variant]
-# or: make phase4-codec-closeout NAVIS_CODEC_DEVICE_ID=<device-id>
+# or: make phase4-codec-closeout DEVICE_ID=<device-id> [SERVER_VARIANT=OpenSubsonic]
 ```
 
 Environment alternatives:
