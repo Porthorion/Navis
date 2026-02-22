@@ -131,7 +131,7 @@ class PlaybackSourceResolver {
 
     final streamUri = _buildStreamUri(
       api: api,
-      songId: song.id,
+      song: song,
       quality: quality,
     );
     if (!preferLockCaching) {
@@ -222,14 +222,55 @@ class PlaybackSourceResolver {
 
   Uri _buildStreamUri({
     required SubsonicApiClient api,
-    required String songId,
+    required SongsTableData song,
     required StreamingQuality quality,
   }) {
+    final requestedFormat = _canonicalAudioFormat(quality.format);
+    final sourceFormat = _inferSourceFormat(song);
+    final requestedBitRate = quality.maxBitRate;
+    final sourceBitRate = song.bitRate;
+
+    final shouldRequestFormat =
+        requestedFormat != null &&
+        (sourceFormat == null || sourceFormat != requestedFormat);
+    final shouldRequestBitRate =
+        requestedBitRate != null &&
+        (sourceBitRate == null || sourceBitRate > requestedBitRate);
+
     return api.streamUrl(
-      id: songId,
-      maxBitRate: quality.maxBitRate,
-      format: quality.format,
+      id: song.id,
+      maxBitRate: shouldRequestBitRate ? requestedBitRate : null,
+      format: shouldRequestFormat ? requestedFormat : null,
     );
+  }
+
+  String? _inferSourceFormat(SongsTableData song) {
+    final suffixFormat = _canonicalAudioFormat(song.suffix);
+    if (suffixFormat != null) {
+      return suffixFormat;
+    }
+
+    final contentType = song.contentType?.trim() ?? '';
+    if (!contentType.contains('/')) {
+      return null;
+    }
+    final subtype = contentType.split('/').last;
+    return _canonicalAudioFormat(subtype);
+  }
+
+  String? _canonicalAudioFormat(String? value) {
+    final normalized = value?.trim().toLowerCase();
+    if (normalized == null || normalized.isEmpty) {
+      return null;
+    }
+
+    return switch (normalized) {
+      'mpeg' || 'mpga' => 'mp3',
+      'x-flac' => 'flac',
+      'x-wav' || 'wave' => 'wav',
+      'x-aac' || 'aacp' => 'aac',
+      _ => normalized,
+    };
   }
 
   String _songFileExtension(SongsTableData song, StreamingQuality quality) {

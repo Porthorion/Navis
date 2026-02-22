@@ -506,6 +506,82 @@ void main() {
       },
       skip: !_sqliteAvailable,
     );
+
+    test(
+      'omits transcode parameters when source already satisfies profile',
+      () async {
+        final song = await _insertSong(
+          database,
+          id: 'song-no-transcode-needed',
+          title: 'Song No Transcode',
+          suffix: 'mp3',
+          contentType: 'audio/mpeg',
+          bitRate: 192,
+        );
+
+        final resolver = PlaybackSourceResolver(
+          cacheDao: database.cacheDao,
+          rollingCacheManager: DriftRollingCacheManager(
+            cacheDao: database.cacheDao,
+          ),
+          readApiClient: () => apiClient,
+          readStreamingQuality: () => const StreamingQuality(
+            label: 'wifi-320-mp3',
+            maxBitRate: 320,
+            format: 'mp3',
+          ),
+          readRollingCacheDirectory: () async => rollingDir,
+        );
+
+        final resolved = await resolver.resolveForSong(
+          song,
+          preferLockCaching: false,
+        );
+
+        expect(resolved.kind, PlaybackSourceKind.directStream);
+        expect(resolved.uri?.queryParameters.containsKey('maxBitRate'), isFalse);
+        expect(resolved.uri?.queryParameters.containsKey('format'), isFalse);
+      },
+      skip: !_sqliteAvailable,
+    );
+
+    test(
+      'keeps transcode parameters when bitrate or format requires conversion',
+      () async {
+        final song = await _insertSong(
+          database,
+          id: 'song-transcode-needed',
+          title: 'Song Needs Transcode',
+          suffix: 'flac',
+          contentType: 'audio/flac',
+          bitRate: 900,
+        );
+
+        final resolver = PlaybackSourceResolver(
+          cacheDao: database.cacheDao,
+          rollingCacheManager: DriftRollingCacheManager(
+            cacheDao: database.cacheDao,
+          ),
+          readApiClient: () => apiClient,
+          readStreamingQuality: () => const StreamingQuality(
+            label: 'wifi-192-mp3',
+            maxBitRate: 192,
+            format: 'mp3',
+          ),
+          readRollingCacheDirectory: () async => rollingDir,
+        );
+
+        final resolved = await resolver.resolveForSong(
+          song,
+          preferLockCaching: false,
+        );
+
+        expect(resolved.kind, PlaybackSourceKind.directStream);
+        expect(resolved.uri?.queryParameters['maxBitRate'], '192');
+        expect(resolved.uri?.queryParameters['format'], 'mp3');
+      },
+      skip: !_sqliteAvailable,
+    );
   });
 }
 
@@ -515,12 +591,14 @@ Future<SongsTableData> _insertSong(
   required String title,
   String? suffix,
   String? contentType,
+  int? bitRate,
 }) async {
   await database.libraryDao.upsertSongs(
     <SongsTableCompanion>[
       SongsTableCompanion.insert(
         id: id,
         title: title,
+        bitRate: Value(bitRate),
         suffix: Value(suffix),
         contentType: Value(contentType),
       ),

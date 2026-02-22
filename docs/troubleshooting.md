@@ -139,6 +139,22 @@ Use this evidence table per validation run:
 | Date (UTC) | Server variant | Device | Codec/container | Source kind selected | Playback result | Fallback behavior | Notes |
 |---|---|---|---|---|---|---|---|
 | YYYY-MM-DD | Subsonic/OpenSubsonic/AzuraCast | device model + Android version | FLAC/ALAC/MP3/AAC/Opus/Vorbis | `file` / `lockCachedStream` / `directStream` | pass/fail | none / lock->direct / DSP-degraded | optional |
+| 2026-02-23 | OpenSubsonic | SM-S928B (Android 16) | FLAC | `lockCachedStream` | pass | none observed | from `codec_runtime_raw.log` (`Playback source resolved`, `format=original`) |
+| 2026-02-23 | OpenSubsonic | SM-S928B (Android 16) | AAC | `lockCachedStream` | pass | none observed | from `codec_runtime_raw.log` (`Playback source resolved`, `format=aac`, `maxBitRate=320`) |
+| 2026-02-23 | OpenSubsonic | SM-S928B (Android 16) | MP3 | `lockCachedStream` | pass | none observed | from `codec_runtime_raw.log` (`Playback source resolved`, `format=mp3`, `maxBitRate=320`) |
+
+Provisional closeout decision (2026-02-23):
+- Accepted to proceed toward Phase 5 based on automated preflight + FLAC/AAC/MP3 runtime evidence.
+- Remaining caveat: capture Opus runtime row when sample is available.
+- Vorbis is currently unavailable in the active library/server catalog, so no runtime row was captured.
+
+Latest automated preflight evidence (tests + metadata template generation):
+
+| Date (UTC) | Server variant | Device | Scope | Result | Evidence |
+|---|---|---|---|---|---|
+| 2026-02-22 | OpenSubsonic | SM-S928B (Android 16) | `make phase4-codec-closeout DEVICE_ID=R5CX14TVQEE SERVER_VARIANT=OpenSubsonic` | pass | `playback_source_resolver_test.dart` + `navis_audio_handler_test.dart` executed; codec row templates generated |
+
+Note: automated preflight does not replace runtime codec validation; fill the matrix rows above after executing physical-device playback checks.
 
 For failures, always capture:
 1. Song id and codec/container.

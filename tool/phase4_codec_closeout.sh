@@ -40,7 +40,7 @@ run_test_and_require_execution() {
     exit 1
   fi
 
-  if rg -q "All tests skipped\\." "${output_file}"; then
+  if has_all_tests_skipped "${output_file}"; then
     rm -f "${output_file}"
     echo "[phase4-codec-closeout] Test did not execute (all skipped): ${test_path}" >&2
     exit 1
@@ -51,7 +51,16 @@ run_test_and_require_execution() {
 
 require_cmd flutter
 require_cmd adb
-require_cmd rg
+
+has_all_tests_skipped() {
+  local output_file="$1"
+  if command -v rg >/dev/null 2>&1; then
+    rg -q "All tests skipped\\." "${output_file}"
+    return
+  fi
+
+  grep -q "All tests skipped\." "${output_file}"
+}
 
 adb -s "${device_id}" get-state >/dev/null
 
