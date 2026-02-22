@@ -7,6 +7,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/database/daos/cache_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/app_logger.dart';
@@ -91,13 +92,17 @@ class PlaybackSourceResolver {
     SongsTableData song, {
     bool preferLockCaching = true,
   }) async {
+    final quality = _readStreamingQuality();
     final cachedTrack = await _cacheDao.getCachedTrack(song.id);
-    if (cachedTrack != null) {
+    if (cachedTrack != null && _shouldUseCachedTrack(cachedTrack, quality)) {
       final file = File(cachedTrack.filePath);
       if (file.existsSync()) {
         AppLogger.debug(
           'Playback source resolved: song=${song.id} '
-          'kind=${PlaybackSourceKind.file.name} path=${cachedTrack.filePath}',
+          'kind=${PlaybackSourceKind.file.name} path=${cachedTrack.filePath} '
+          'qualityLabel=${quality.label} '
+          'maxBitRate=${quality.maxBitRate?.toString() ?? 'original'} '
+          'format=${quality.format ?? 'original'}',
         );
         await _rollingCacheManager.touchTrack(song.id);
         return ResolvedPlaybackSource.file(
@@ -108,6 +113,15 @@ class PlaybackSourceResolver {
       }
     }
 
+    if (cachedTrack != null && !_shouldUseCachedTrack(cachedTrack, quality)) {
+      AppLogger.debug(
+        'Skipping cached source for song=${song.id} due to active '
+        'streaming quality profile. cacheType=${cachedTrack.cacheType.name} '
+        'cacheFormat=${cachedTrack.format} requestedFormat=${quality.format} '
+        'requestedBitRate=${quality.maxBitRate}',
+      );
+    }
+
     final api = _readApiClient();
     if (api == null) {
       throw const PlaybackSourceUnavailableException(
@@ -115,7 +129,6 @@ class PlaybackSourceResolver {
       );
     }
 
-    final quality = _readStreamingQuality();
     final streamUri = _buildStreamUri(
       api: api,
       songId: song.id,
@@ -124,7 +137,11 @@ class PlaybackSourceResolver {
     if (!preferLockCaching) {
       AppLogger.debug(
         'Playback source resolved: song=${song.id} '
-        'kind=${PlaybackSourceKind.directStream.name} fallback=prefer_lock_disabled',
+        'kind=${PlaybackSourceKind.directStream.name} '
+        'fallback=prefer_lock_disabled '
+        'qualityLabel=${quality.label} '
+        'maxBitRate=${quality.maxBitRate?.toString() ?? 'original'} '
+        'format=${quality.format ?? 'original'}',
       );
       return ResolvedPlaybackSource.directStream(
         songId: song.id,
@@ -146,7 +163,10 @@ class PlaybackSourceResolver {
       AppLogger.debug(
         'Playback source resolved: song=${song.id} '
         'kind=${PlaybackSourceKind.lockCachedStream.name} '
-        'cache=${cacheFile.path}',
+        'cache=${cacheFile.path} '
+        'qualityLabel=${quality.label} '
+        'maxBitRate=${quality.maxBitRate?.toString() ?? 'original'} '
+        'format=${quality.format ?? 'original'}',
       );
       return ResolvedPlaybackSource.lockCachedStream(
         songId: song.id,
@@ -195,7 +215,7 @@ class PlaybackSourceResolver {
     final digest = sha1
         .convert(utf8.encode('${song.id}::$qualitySignature'))
         .toString();
-    final extension = _songFileExtension(song);
+    final extension = _songFileExtension(song, quality);
 
     return File(p.join(rollingDir.path, '${song.id}_$digest.$extension'));
   }
@@ -212,7 +232,12 @@ class PlaybackSourceResolver {
     );
   }
 
-  String _songFileExtension(SongsTableData song) {
+  String _songFileExtension(SongsTableData song, StreamingQuality quality) {
+    final requestedFormat = quality.format?.trim();
+    if (requestedFormat != null && requestedFormat.isNotEmpty) {
+      return requestedFormat;
+    }
+
     final suffix = song.suffix?.trim();
     if (suffix != null && suffix.isNotEmpty) {
       return suffix;
@@ -227,5 +252,54 @@ class PlaybackSourceResolver {
     }
 
     return 'bin';
+  }
+
+  bool _shouldUseCachedTrack(
+    CachedTracksTableData cachedTrack,
+    StreamingQuality quality,
+  ) {
+    final requestedFormat = quality.format?.trim().toLowerCase();
+    final hasRequestedFormat =
+        requestedFormat != null && requestedFormat.isNotEmpty;
+    final requestedBitRate = quality.maxBitRate;
+    final hasRequestedBitRate = requestedBitRate != null;
+    final wantsTranscoding = hasRequestedFormat || hasRequestedBitRate;
+    final cachedFormat = cachedTrack.format.trim().toLowerCase();
+    final cachedBitRate = cachedTrack.bitRate;
+
+    if (!wantsTranscoding) {
+      return true;
+    }
+
+    if (cachedTrack.cacheType == CacheType.permanent) {
+      return true;
+    }
+
+    if (hasRequestedFormat && cachedFormat != requestedFormat) {
+      return _isLosslessFormat(cachedFormat) &&
+          !_isLosslessFormat(requestedFormat);
+    }
+
+    if (hasRequestedBitRate && cachedBitRate != null) {
+      if (cachedBitRate >= requestedBitRate) {
+        return true;
+      }
+    }
+
+    if (hasRequestedFormat) {
+      return cachedFormat == requestedFormat;
+    }
+
+    return false;
+  }
+
+  bool _isLosslessFormat(String? format) {
+    if (format == null || format.trim().isEmpty) {
+      return false;
+    }
+    return switch (format.trim().toLowerCase()) {
+      'flac' || 'alac' || 'wav' || 'aiff' || 'ape' || 'dsf' || 'dff' => true,
+      _ => false,
+    };
   }
 }

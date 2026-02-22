@@ -7,6 +7,7 @@ import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/daos/play_queue_dao.dart';
@@ -105,12 +106,83 @@ bool navisShouldRetryQueueApplyWithDirectSources({
   return usedLockCaching || isDspFailure;
 }
 
+@visibleForTesting
+const List<int> navisNotificationCompactActionIndices = <int>[0, 1, 2];
+
+@visibleForTesting
+List<MediaControl> navisNotificationControls({required bool isPlaying}) {
+  return <MediaControl>[
+    MediaControl.skipToPrevious,
+    if (isPlaying) MediaControl.pause else MediaControl.play,
+    MediaControl.skipToNext,
+  ];
+}
+
+@visibleForTesting
+Duration navisSanitizeSeekPosition(Duration position) {
+  if (position < Duration.zero) {
+    return Duration.zero;
+  }
+  return position;
+}
+
+typedef NavisPersistSafely = Future<void> Function(
+  Future<void> Function() persistOperation, {
+  required String context,
+});
+
+@visibleForTesting
+Future<void> navisPersistSafely(
+  Future<void> Function() persistOperation, {
+  required String context,
+  required void Function(String message) logWarning,
+}) async {
+  try {
+    await persistOperation();
+  } on Object catch (error, stackTrace) {
+    logWarning(
+      'Playback state persistence failed during $context. '
+      '$error\n$stackTrace',
+    );
+  }
+}
+
+@visibleForTesting
+Future<void> navisRunTransportWithPersistence({
+  required Future<void> Function() transportOperation,
+  required Future<void> Function() persistOperation,
+  required NavisPersistSafely persistSafely,
+  required String persistenceContext,
+}) async {
+  await transportOperation();
+  await persistSafely(persistOperation, context: persistenceContext);
+}
+
+@visibleForTesting
+bool navisCanSkipQueueItem({
+  required int queueLength,
+  required int? currentIndex,
+  required bool forward,
+}) {
+  if (queueLength <= 0 || currentIndex == null) {
+    return false;
+  }
+  if (currentIndex < 0 || currentIndex >= queueLength) {
+    return false;
+  }
+  if (forward) {
+    return currentIndex < queueLength - 1;
+  }
+  return currentIndex > 0;
+}
+
 Future<NavisAudioHandler>? _audioServiceInitFuture;
 
 Future<NavisAudioHandler> initNavisAudioHandler({
   required LibraryDao libraryDao,
   required PlayQueueDao playQueueDao,
   required PlaybackSourceResolver sourceResolver,
+  required SubsonicApiClient? Function() readApiClient,
   required RollingCacheManager rollingCacheManager,
   required int rollingCacheBudgetBytes,
   required ScrobbleService scrobbleService,
@@ -126,6 +198,7 @@ Future<NavisAudioHandler> initNavisAudioHandler({
       libraryDao: libraryDao,
       playQueueDao: playQueueDao,
       sourceResolver: sourceResolver,
+      readApiClient: readApiClient,
       rollingCacheManager: rollingCacheManager,
       rollingCacheBudgetBytes: rollingCacheBudgetBytes,
       scrobbleService: scrobbleService,
@@ -160,6 +233,7 @@ class NavisAudioHandler extends BaseAudioHandler
     required LibraryDao libraryDao,
     required PlayQueueDao playQueueDao,
     required PlaybackSourceResolver sourceResolver,
+    required SubsonicApiClient? Function() readApiClient,
     required RollingCacheManager rollingCacheManager,
     required int rollingCacheBudgetBytes,
     required ScrobbleService scrobbleService,
@@ -168,6 +242,7 @@ class NavisAudioHandler extends BaseAudioHandler
   }) : _libraryDao = libraryDao,
        _playQueueDao = playQueueDao,
        _sourceResolver = sourceResolver,
+      _readApiClient = readApiClient,
        _rollingCacheManager = rollingCacheManager,
        _rollingCacheBudgetBytes = rollingCacheBudgetBytes,
        _scrobbleService = scrobbleService,
@@ -187,7 +262,9 @@ class NavisAudioHandler extends BaseAudioHandler
     _wirePlayerListeners();
     _positionPersistTimer = Timer.periodic(
       const Duration(seconds: 15),
-      (_) => unawaited(_persistPosition()),
+      (_) => unawaited(
+        _persistSafely(_persistPosition, context: 'periodic position timer'),
+      ),
     );
     _ready = _initialize();
   }
@@ -195,6 +272,7 @@ class NavisAudioHandler extends BaseAudioHandler
   final LibraryDao _libraryDao;
   final PlayQueueDao _playQueueDao;
   final PlaybackSourceResolver _sourceResolver;
+  final SubsonicApiClient? Function() _readApiClient;
   final RollingCacheManager _rollingCacheManager;
   final int _rollingCacheBudgetBytes;
   final ScrobbleService _scrobbleService;
@@ -384,17 +462,32 @@ class NavisAudioHandler extends BaseAudioHandler
       mediaItem.add(item);
       _updateScrobbleSession(item);
       _emitSnapshot();
-      unawaited(_persistQueueState(includePosition: false));
+      unawaited(
+        _persistSafely(
+          () => _persistQueueState(includePosition: false),
+          context: 'current index update',
+        ),
+      );
     });
 
     _shuffleModeSubscription = _player.shuffleModeEnabledStream.listen((_) {
       _broadcastPlaybackState();
-      unawaited(_persistQueueState(includePosition: false));
+      unawaited(
+        _persistSafely(
+          () => _persistQueueState(includePosition: false),
+          context: 'shuffle mode stream update',
+        ),
+      );
     });
 
     _loopModeSubscription = _player.loopModeStream.listen((_) {
       _broadcastPlaybackState();
-      unawaited(_persistQueueState(includePosition: false));
+      unawaited(
+        _persistSafely(
+          () => _persistQueueState(includePosition: false),
+          context: 'loop mode stream update',
+        ),
+      );
     });
   }
 
@@ -477,6 +570,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   void _observeLockCachingSource({
     required SongsTableData song,
+    required ResolvedPlaybackSource resolvedSource,
     // ignore: experimental_member_use, reason: LockCachingAudioSource is the intended just_audio cache primitive for rolling cache playback.
     required LockCachingAudioSource source,
     required String cacheFilePath,
@@ -494,7 +588,11 @@ class NavisAudioHandler extends BaseAudioHandler
         _cacheProgressSubscriptions.remove(cacheFilePath);
         unawaited(subscription.cancel());
         unawaited(
-          _registerRollingCacheTrack(song: song, cacheFilePath: cacheFilePath),
+          _registerRollingCacheTrack(
+            song: song,
+            resolvedSource: resolvedSource,
+            cacheFilePath: cacheFilePath,
+          ),
         );
       },
       onError: (Object error, StackTrace stackTrace) {
@@ -512,6 +610,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   Future<void> _registerRollingCacheTrack({
     required SongsTableData song,
+    required ResolvedPlaybackSource resolvedSource,
     required String cacheFilePath,
   }) async {
     final file = File(cacheFilePath);
@@ -519,12 +618,23 @@ class NavisAudioHandler extends BaseAudioHandler
       return;
     }
 
+    final resolvedFormat =
+        resolvedSource.uri?.queryParameters['format']?.trim().toLowerCase();
+    final fallbackFormat =
+        song.suffix?.trim().toLowerCase() ??
+        song.contentType?.split('/').last.trim().toLowerCase();
+    final resolvedBitRate = int.tryParse(
+      resolvedSource.uri?.queryParameters['maxBitRate'] ?? '',
+    );
+
     try {
       await _rollingCacheManager.registerTrack(
         songId: song.id,
         filePath: cacheFilePath,
-        format: song.suffix ?? song.contentType,
-        bitRate: song.bitRate,
+        format: (resolvedFormat?.isNotEmpty ?? false)
+            ? resolvedFormat
+            : fallbackFormat,
+        bitRate: resolvedBitRate,
       );
       await _rollingCacheManager.enforceBudget(
         maxBytes: _rollingCacheBudgetBytes,
@@ -645,6 +755,7 @@ class NavisAudioHandler extends BaseAudioHandler
           entry.source.cachedFilePath != null) {
         _observeLockCachingSource(
           song: entry.song,
+          resolvedSource: entry.source,
           source: entry.source.lockCachingAudioSource!,
           cacheFilePath: entry.source.cachedFilePath!,
         );
@@ -652,7 +763,10 @@ class NavisAudioHandler extends BaseAudioHandler
     }
 
     if (persist) {
-      await _persistQueueState(includeQueueItems: true);
+      await _persistSafely(
+        () => _persistQueueState(includeQueueItems: true),
+        context: 'queue replacement',
+      );
     }
 
     _broadcastPlaybackState();
@@ -702,6 +816,7 @@ class NavisAudioHandler extends BaseAudioHandler
           'sourceKind': source.kind.name,
           'localSource': source.isLocal,
           'cachedFilePath': source.cachedFilePath,
+          'liked': song.starred != null,
         },
       );
       prepared.add(
@@ -939,7 +1054,7 @@ class NavisAudioHandler extends BaseAudioHandler
       }
       await _player.seek(Duration.zero, index: index);
       await _player.play();
-      await _persistQueueState();
+      await _persistSafely(_persistQueueState, context: 'play from index');
     });
   }
 
@@ -1041,15 +1156,23 @@ class NavisAudioHandler extends BaseAudioHandler
   @override
   Future<void> play() async {
     await _ready;
-    await _player.play();
-    await _persistQueueState(includePosition: false);
+    await navisRunTransportWithPersistence(
+      transportOperation: _player.play,
+      persistOperation: () => _persistQueueState(includePosition: false),
+      persistSafely: _persistSafely,
+      persistenceContext: 'play',
+    );
   }
 
   @override
   Future<void> pause() async {
     await _ready;
-    await _player.pause();
-    await _persistPosition();
+    await navisRunTransportWithPersistence(
+      transportOperation: _player.pause,
+      persistOperation: _persistPosition,
+      persistSafely: _persistSafely,
+      persistenceContext: 'pause',
+    );
   }
 
   @override
@@ -1100,22 +1223,51 @@ class NavisAudioHandler extends BaseAudioHandler
   @override
   Future<void> seek(Duration position) async {
     await _ready;
-    await _player.seek(position);
-    await _persistPosition();
+    final sanitizedPosition = navisSanitizeSeekPosition(position);
+    await navisRunTransportWithPersistence(
+      transportOperation: () => _player.seek(sanitizedPosition),
+      persistOperation: _persistPosition,
+      persistSafely: _persistSafely,
+      persistenceContext: 'seek',
+    );
   }
 
   @override
   Future<void> skipToNext() async {
     await _ready;
-    await _player.seekToNext();
-    await _persistQueueState();
+    if (
+        !navisCanSkipQueueItem(
+          queueLength: _queueItems.length,
+          currentIndex: _player.currentIndex,
+          forward: true,
+        )) {
+      return;
+    }
+    await navisRunTransportWithPersistence(
+      transportOperation: _player.seekToNext,
+      persistOperation: _persistQueueState,
+      persistSafely: _persistSafely,
+      persistenceContext: 'skip next',
+    );
   }
 
   @override
   Future<void> skipToPrevious() async {
     await _ready;
-    await _player.seekToPrevious();
-    await _persistQueueState();
+    if (
+        !navisCanSkipQueueItem(
+          queueLength: _queueItems.length,
+          currentIndex: _player.currentIndex,
+          forward: false,
+        )) {
+      return;
+    }
+    await navisRunTransportWithPersistence(
+      transportOperation: _player.seekToPrevious,
+      persistOperation: _persistQueueState,
+      persistSafely: _persistSafely,
+      persistenceContext: 'skip previous',
+    );
   }
 
   @override
@@ -1126,7 +1278,10 @@ class NavisAudioHandler extends BaseAudioHandler
     if (enabled) {
       await _player.shuffle();
     }
-    await _persistQueueState(includePosition: false);
+    await _persistSafely(
+      () => _persistQueueState(includePosition: false),
+      context: 'set shuffle mode',
+    );
     _broadcastPlaybackState();
     _emitSnapshot();
   }
@@ -1141,16 +1296,30 @@ class NavisAudioHandler extends BaseAudioHandler
       AudioServiceRepeatMode.none => LoopMode.off,
     };
     await _player.setLoopMode(loopMode);
-    await _persistQueueState(includePosition: false);
+    await _persistSafely(
+      () => _persistQueueState(includePosition: false),
+      context: 'set repeat mode',
+    );
     _broadcastPlaybackState();
     _emitSnapshot();
   }
 
   @override
   Future<void> stop() async {
-    await _persistPosition();
+    await _persistSafely(_persistPosition, context: 'stop');
     await _player.stop();
     await super.stop();
+  }
+
+  Future<void> _persistSafely(
+    Future<void> Function() persistOperation, {
+    required String context,
+  }) async {
+    await navisPersistSafely(
+      persistOperation,
+      context: context,
+      logWarning: AppLogger.warning,
+    );
   }
 
   Future<void> _persistPosition() {
@@ -1200,18 +1369,13 @@ class NavisAudioHandler extends BaseAudioHandler
 
   void _broadcastPlaybackState() {
     final state = playbackState.value.copyWith(
-      controls: <MediaControl>[
-        MediaControl.skipToPrevious,
-        if (_player.playing) MediaControl.pause else MediaControl.play,
-        MediaControl.stop,
-        MediaControl.skipToNext,
-      ],
+      controls: navisNotificationControls(isPlaying: _player.playing),
       systemActions: const <MediaAction>{
         MediaAction.seek,
         MediaAction.seekForward,
         MediaAction.seekBackward,
       },
-      androidCompactActionIndices: const <int>[0, 1, 3],
+      androidCompactActionIndices: navisNotificationCompactActionIndices,
       processingState: _mapProcessingState(_player.processingState),
       playing: _player.playing,
       updatePosition: _player.position,
@@ -1355,7 +1519,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> onTaskRemoved() async {
-    await _persistPosition();
+    await _persistSafely(_persistPosition, context: 'task removed');
     await super.onTaskRemoved();
   }
 
@@ -1369,7 +1533,47 @@ class NavisAudioHandler extends BaseAudioHandler
     if (name == 'clearQueue') {
       return clearQueue();
     }
+    if (name == 'toggleShuffle') {
+      final targetMode = _player.shuffleModeEnabled
+          ? AudioServiceShuffleMode.none
+          : AudioServiceShuffleMode.all;
+      return setShuffleMode(targetMode);
+    }
+    if (name == 'toggleLike') {
+      return _runSerialized(_toggleCurrentSongLike);
+    }
     return super.customAction(name, extras);
+  }
+
+  Future<void> _toggleCurrentSongLike() async {
+    await _ready;
+    final index = _player.currentIndex;
+    if (index == null || index < 0 || index >= _queueItems.length) {
+      return;
+    }
+
+    final api = _readApiClient();
+    if (api == null) {
+      return;
+    }
+
+    final current = _queueItems[index];
+    final extras = <String, Object?>{...?current.extras};
+    final isLiked = extras['liked'] as bool? ?? false;
+
+    if (isLiked) {
+      await api.unstar(current.id);
+    } else {
+      await api.star(current.id);
+    }
+
+    extras['liked'] = !isLiked;
+    final updated = current.copyWith(extras: extras);
+    _queueItems[index] = updated;
+    queue.add(List<MediaItem>.unmodifiable(_queueItems));
+    mediaItem.add(updated);
+    _broadcastPlaybackState();
+    _emitSnapshot();
   }
 
   Future<void> disposeHandler() async {
@@ -1381,7 +1585,7 @@ class NavisAudioHandler extends BaseAudioHandler
       await subscription.cancel();
     }
     _cacheProgressSubscriptions.clear();
-    await _persistPosition();
+    await _persistSafely(_persistPosition, context: 'dispose handler');
     await _player.dispose();
     await _snapshotController.close();
   }

@@ -159,6 +159,7 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
         readStreamingQuality: () => ref.read(activeStreamingQualityProvider),
         readRollingCacheDirectory: getTemporaryDirectory,
       ),
+      readApiClient: () => ref.read(subsonicApiProvider),
       rollingCacheManager: ref.read(rollingCacheManagerProvider),
       rollingCacheBudgetBytes: ref.read(rollingCacheBudgetBytesProvider),
       scrobbleService: ref.read(scrobbleServiceProvider),
@@ -567,27 +568,35 @@ class QueueController extends Notifier<List<String>> {
     bool autoPlay = true,
   }) async {
     final handler = _requireHandler();
+    final normalized = _normalizeSongIds(ids);
+    if (normalized.isEmpty) {
+      await handler.clearQueue();
+      return;
+    }
+    final normalizedStartIndex = startIndex.clamp(0, normalized.length - 1);
     await handler.replaceQueue(
-      ids,
-      startIndex: startIndex,
+      normalized,
+      startIndex: normalizedStartIndex,
       autoPlay: autoPlay,
     );
   }
 
   Future<void> add(String id) async {
-    if (id.trim().isEmpty) {
+    final normalizedId = id.trim();
+    if (normalizedId.isEmpty) {
       return;
     }
     final handler = _requireHandler();
-    await handler.addToQueue(<String>[id]);
+    await handler.addToQueue(<String>[normalizedId]);
   }
 
   Future<void> playNext(String id) async {
-    if (id.trim().isEmpty) {
+    final normalizedId = id.trim();
+    if (normalizedId.isEmpty) {
       return;
     }
     final handler = _requireHandler();
-    await handler.playNext(<String>[id]);
+    await handler.playNext(<String>[normalizedId]);
   }
 
   Future<void> reorder(int oldIndex, int newIndex) async {
@@ -598,6 +607,13 @@ class QueueController extends Notifier<List<String>> {
   Future<void> clear() async {
     final handler = _requireHandler();
     await handler.clearQueue();
+  }
+
+  List<String> _normalizeSongIds(Iterable<String> ids) {
+    return ids
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toList(growable: false);
   }
 
   NavisPlaybackHandler _requireHandler() {

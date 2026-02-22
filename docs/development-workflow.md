@@ -53,6 +53,29 @@ This gate ensures:
 - migration tests execute (not skipped)
 - real-server `ping()` + `getOpenSubsonicExtensions()` smoke succeeds
 
+## Phase 4 Codec Close-Out Gate
+
+Before opening Phase 5 implementation, run the codec close-out preflight and then complete the runtime matrix on a physical Android device:
+
+```bash
+./tool/phase4_codec_closeout.sh <device-id> [server-variant]
+# or: make phase4-codec-closeout NAVIS_CODEC_DEVICE_ID=<device-id>
+```
+
+Environment alternatives:
+
+```bash
+export NAVIS_CODEC_DEVICE_ID="<device-id>"
+export NAVIS_CODEC_SERVER_VARIANT="OpenSubsonic"
+./tool/phase4_codec_closeout.sh
+```
+
+This gate ensures:
+- codec-critical tests execute (not skipped)
+- device metadata is captured for evidence rows
+- matrix row templates are generated for FLAC/ALAC/MP3/AAC/Opus/Vorbis
+- release checklist protocol in `docs/troubleshooting.md` is followed end-to-end
+
 ## Optional Pre-commit Hook
 
 Enable local guardrails:

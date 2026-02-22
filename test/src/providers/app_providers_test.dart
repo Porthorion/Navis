@@ -381,10 +381,10 @@ void main() {
       await container.read(queueProvider.notifier).replace(<String>['song-1']);
       expect(handler.snapshot.queueSongIds, <String>['song-1']);
 
-      await container.read(queueProvider.notifier).add('song-2');
+      await container.read(queueProvider.notifier).add(' song-2 ');
       expect(handler.snapshot.queueSongIds, <String>['song-1', 'song-2']);
 
-      await container.read(queueProvider.notifier).playNext('song-3');
+      await container.read(queueProvider.notifier).playNext(' song-3 ');
       expect(
         handler.snapshot.queueSongIds,
         <String>['song-1', 'song-3', 'song-2'],
@@ -398,6 +398,60 @@ void main() {
 
       await container.read(queueProvider.notifier).clear();
       expect(handler.snapshot.queueSongIds, isEmpty);
+    });
+
+    test('queueProvider normalizes replace IDs and clamps start index', () async {
+      final handler = _FakePlaybackHandler();
+      final container = ProviderContainer(
+        overrides: [
+          audioHandlerProvider.overrideWithValue(handler),
+        ],
+      );
+      addTearDown(() async {
+        container.dispose();
+        await handler.dispose();
+      });
+
+      await container.read(
+        queueProvider.notifier,
+      ).replace(<String>['  ', ' song-1 ', '', 'song-2  '], startIndex: 99);
+
+      expect(handler.snapshot.queueSongIds, <String>['song-1', 'song-2']);
+      expect(handler.snapshot.currentIndex, 1);
+      expect(handler.snapshot.currentSongId, 'song-2');
+
+      await container
+          .read(queueProvider.notifier)
+          .replace(<String>['   ', ''], startIndex: 0);
+      expect(handler.snapshot.queueSongIds, isEmpty);
+
+      await container.read(
+        queueProvider.notifier,
+      ).replace(<String>[' song-4 '], startIndex: -5);
+      expect(handler.snapshot.queueSongIds, <String>['song-4']);
+      expect(handler.snapshot.currentIndex, 0);
+      expect(handler.snapshot.currentSongId, 'song-4');
+    });
+
+    test('queueProvider ignores blank add and playNext input', () async {
+      final handler = _FakePlaybackHandler();
+      final container = ProviderContainer(
+        overrides: [
+          audioHandlerProvider.overrideWithValue(handler),
+        ],
+      );
+      addTearDown(() async {
+        container.dispose();
+        await handler.dispose();
+      });
+
+      await container
+          .read(queueProvider.notifier)
+          .replace(<String>['song-1'], startIndex: 0);
+      await container.read(queueProvider.notifier).add('   ');
+      await container.read(queueProvider.notifier).playNext('   ');
+
+      expect(handler.snapshot.queueSongIds, <String>['song-1']);
     });
 
     test(

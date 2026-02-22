@@ -1,13 +1,71 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
+import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/library/presentation/album_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/artist_detail_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import '../../../../helpers/test_database.dart';
+
+class _DelayedReplaceHandler implements NavisPlaybackHandler {
+  _DelayedReplaceHandler({required Completer<void> gate}) : _gate = gate;
+
+  final Completer<void> _gate;
+  int replaceCalls = 0;
+
+  @override
+  PlaybackSnapshot get snapshot => const PlaybackSnapshot.idle();
+
+  @override
+  Stream<PlaybackSnapshot> get snapshotStream =>
+      const Stream<PlaybackSnapshot>.empty();
+
+  @override
+  Future<void> waitUntilReady() async {}
+
+  @override
+  Future<void> replaceQueue(
+    List<String> songIds, {
+    int startIndex = 0,
+    bool autoPlay = true,
+  }) async {
+    replaceCalls += 1;
+    await _gate.future;
+  }
+
+  @override
+  Future<void> addToQueue(List<String> songIds) async {}
+
+  @override
+  Future<void> playNext(List<String> songIds) async {}
+
+  @override
+  Future<void> playFromIndex(int index) async {}
+
+  @override
+  Future<void> removeAt(int index) async {}
+
+  @override
+  Future<void> reorderQueue(int oldIndex, int newIndex) async {}
+
+  @override
+  Future<void> clearQueue() async {}
+
+  @override
+  Future<void> play() async {}
+
+  @override
+  Future<void> pause() async {}
+
+  @override
+  Future<void> applyRuntimeSettings() async {}
+}
 
 Widget _buildApp({
   required Widget child,
@@ -121,6 +179,58 @@ void main() {
       expect(find.text('Album 1'), findsOneWidget);
       expect(find.text('Song 1'), findsOneWidget);
       expect(find.textContaining('Artist 1'), findsOneWidget);
+      await _disposeApp(tester);
+    });
+
+    testWidgets('album play-now ignores rapid repeated taps while in flight', (
+      tester,
+    ) async {
+      final gate = Completer<void>();
+      final handler = _DelayedReplaceHandler(gate: gate);
+
+      await tester.pumpWidget(
+        _buildApp(
+          child: const AlbumDetailScreen(albumId: 'album-rapid'),
+          database: database,
+          overrides: [
+            audioHandlerProvider.overrideWithValue(handler),
+            albumProvider('album-rapid').overrideWithValue(
+              const AsyncData(
+                AlbumWithSongs(
+                  album: AlbumsTableData(
+                    id: 'album-rapid',
+                    name: 'Rapid Album',
+                    artistName: 'Artist Rapid',
+                    year: 2025,
+                    songsHydrated: true,
+                  ),
+                  songs: <SongsTableData>[
+                    SongsTableData(
+                      id: 'song-rapid-1',
+                      title: 'Rapid Song',
+                      track: 1,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final songTile = find.text('Rapid Song');
+      expect(songTile, findsOneWidget);
+
+      await tester.tap(songTile);
+      await tester.pump();
+      await tester.tap(songTile);
+      await tester.pump();
+
+      expect(handler.replaceCalls, 1);
+
+      gate.complete();
+      await tester.pumpAndSettle();
       await _disposeApp(tester);
     });
   });
