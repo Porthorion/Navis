@@ -139,41 +139,60 @@ class _MiniPlayerStrip extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
-    final handler = ref.watch(audioHandlerProvider);
     final isPlaying = playback.playing;
 
     return Material(
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      child: ListTile(
-        dense: true,
-        onTap: () => context.go('/now-playing'),
-        title: Text(
-          (songTitle == null || songTitle!.trim().isEmpty)
-              ? l10n.miniPlayerUnknownTrack
-              : songTitle!,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        subtitle: Text(
-          (songArtist == null || songArtist!.trim().isEmpty)
-              ? l10n.miniPlayerUnknownArtist
-              : songArtist!,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        trailing: IconButton(
-          tooltip: isPlaying ? l10n.miniPlayerPause : l10n.miniPlayerPlay,
-          onPressed: handler == null
-              ? null
-              : () async {
-                  if (isPlaying) {
-                    await handler.pause();
-                  } else {
-                    await handler.play();
-                  }
-                },
-          icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow),
-        ),
+      child: Row(
+        children: <Widget>[
+          Expanded(
+            child: InkWell(
+              onTap: () => context.go('/now-playing'),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Text(
+                      (songTitle == null || songTitle!.trim().isEmpty)
+                          ? l10n.miniPlayerUnknownTrack
+                          : songTitle!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      (songArtist == null || songArtist!.trim().isEmpty)
+                          ? l10n.miniPlayerUnknownArtist
+                          : songArtist!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: isPlaying ? l10n.miniPlayerPause : l10n.miniPlayerPlay,
+            onPressed: () async {
+              final handler = ref.read(audioHandlerProvider);
+              if (handler == null) {
+                return;
+              }
+              if (isPlaying) {
+                await handler.pause();
+              } else {
+                await handler.play();
+              }
+            },
+            icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow),
+          ),
+        ],
       ),
     );
   }

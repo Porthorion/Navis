@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
-import 'package:navis/src/common_widgets/cache_badge.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
@@ -28,6 +27,7 @@ class AlbumDetailScreen extends ConsumerStatefulWidget {
 class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
   bool _isStarred = false;
   bool _isStarring = false;
+  bool _isQueueActionInFlight = false;
 
   @override
   void initState() {
@@ -41,7 +41,6 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final album = ref.watch(albumProvider(widget.albumId));
-    final cachedSongIds = ref.watch(cachedSongIdsProvider).asData?.value;
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.albumDetailTitle)),
@@ -100,7 +99,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                         spacing: 8,
                         children: <Widget>[
                           FilledButton.tonalIcon(
-                            onPressed: songs.isEmpty
+                            onPressed: songs.isEmpty || _isQueueActionInFlight
                                 ? null
                                 : () => unawaited(
                                     _queueAlbum(songs, shuffle: false),
@@ -109,7 +108,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                             label: Text(l10n.albumDetailPlayAction),
                           ),
                           FilledButton.tonalIcon(
-                            onPressed: songs.isEmpty
+                            onPressed: songs.isEmpty || _isQueueActionInFlight
                                 ? null
                                 : () => unawaited(
                                     _queueAlbum(songs, shuffle: true),
@@ -159,19 +158,20 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                     final song = songs[index];
                     return TrackListTile(
                       song: song,
-                      onTap: () => unawaited(_playNow(song)),
-                      onLongPress: () => unawaited(_showSongActions(song)),
+                      onTap: _isQueueActionInFlight
+                          ? null
+                          : () => unawaited(_playNow(song)),
+                      onLongPress: _isQueueActionInFlight
+                          ? null
+                          : () => unawaited(_showSongActions(song)),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: <Widget>[
-                          if (cachedSongIds?.contains(song.id) ?? false)
-                            const Padding(
-                              padding: EdgeInsets.only(right: 8),
-                              child: CacheBadge(),
-                            ),
                           IconButton(
                             icon: const Icon(Icons.more_vert),
-                            onPressed: () => unawaited(_showSongActions(song)),
+                            onPressed: _isQueueActionInFlight
+                                ? null
+                                : () => unawaited(_showSongActions(song)),
                           ),
                         ],
                       ),
@@ -195,7 +195,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
     List<SongsTableData> songs, {
     required bool shuffle,
   }) async {
-    if (songs.isEmpty) {
+    if (songs.isEmpty || _isQueueActionInFlight) {
       return;
     }
 
@@ -203,85 +203,31 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
     if (shuffle) {
       queue.shuffle(Random());
     }
-    try {
+    await _runQueueAction(() async {
       await ref.read(queueProvider.notifier).replace(queue);
-    } on Object catch (error) {
-      if (!mounted) {
-        return;
-      }
-      final l10n = AppLocalizations.of(context)!;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        SnackBar(content: Text(_playbackErrorMessage(l10n, error))),
-      );
-      return;
-    }
-    if (!mounted) {
-      return;
-    }
-    final l10n = AppLocalizations.of(context)!;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          shuffle
-              ? l10n.albumDetailShuffleActionQueued
-              : l10n.albumDetailPlayActionQueued,
-        ),
-      ),
-    );
+    });
   }
 
   Future<void> _playNow(SongsTableData song) async {
-    try {
-      await ref.read(queueProvider.notifier).replace(<String>[song.id]);
-    } on Object catch (error) {
-      if (!mounted) {
-        return;
-      }
-      final l10n = AppLocalizations.of(context)!;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        SnackBar(content: Text(_playbackErrorMessage(l10n, error))),
-      );
+    if (_isQueueActionInFlight) {
       return;
     }
-    if (!mounted) {
-      return;
-    }
-    final l10n = AppLocalizations.of(context)!;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(
-      SnackBar(content: Text(l10n.librarySongPlayNowQueued(song.title))),
-    );
+
+    await _runQueueAction(() async {
+      await ref
+          .read(queueProvider.notifier)
+          .replace(<String>[song.id], startIndex: 0, autoPlay: true);
+    });
   }
 
   Future<void> _playNext(SongsTableData song) async {
-    try {
+    if (_isQueueActionInFlight) {
+      return;
+    }
+
+    await _runQueueAction(() async {
       await ref.read(queueProvider.notifier).playNext(song.id);
-    } on Object catch (error) {
-      if (!mounted) {
-        return;
-      }
-      final l10n = AppLocalizations.of(context)!;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        SnackBar(content: Text(_playbackErrorMessage(l10n, error))),
-      );
-      return;
-    }
-    if (!mounted) {
-      return;
-    }
-    final l10n = AppLocalizations.of(context)!;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(
-      SnackBar(content: Text(l10n.librarySongPlayNextQueued(song.title))),
-    );
+    });
   }
 
   Future<void> _showSongActions(SongsTableData song) async {
@@ -328,13 +274,6 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                       if (!mounted) {
                         return;
                       }
-                      messenger.showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            localizations.librarySongAddedToQueue(song.title),
-                          ),
-                        ),
-                      );
                     }(),
                   );
                 },
@@ -378,6 +317,31 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
       return l10n.playbackUnavailableSource;
     }
     return l10n.playbackActionFailed;
+  }
+
+  Future<void> _runQueueAction(Future<void> Function() action) async {
+    if (_isQueueActionInFlight) {
+      return;
+    }
+
+    setState(() => _isQueueActionInFlight = true);
+    try {
+      await action();
+    } on Object catch (error) {
+      if (!mounted) {
+        return;
+      }
+      final l10n = AppLocalizations.of(context)!;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(
+        SnackBar(content: Text(_playbackErrorMessage(l10n, error))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isQueueActionInFlight = false);
+      }
+    }
   }
 
   Future<void> _toggleStar({required bool isStarred}) async {

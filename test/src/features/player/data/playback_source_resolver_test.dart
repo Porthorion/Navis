@@ -361,6 +361,151 @@ void main() {
       },
       skip: !_sqliteAvailable,
     );
+
+    test(
+      'prefers higher-quality cached file over lower transcoding profile',
+      () async {
+        final song = await _insertSong(
+          database,
+          id: 'song-hq-cache',
+          title: 'Song HQ',
+          suffix: 'flac',
+          contentType: 'audio/flac',
+        );
+        final localFile = File(p.join(rollingDir.path, 'song-hq-cache.flac'));
+        await localFile.writeAsBytes(const <int>[9, 8, 7, 6]);
+
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: song.id,
+            filePath: localFile.path,
+            fileSize: 4,
+            format: 'flac',
+            bitRate: const Value(900),
+            cacheType: CacheType.rolling,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
+
+        final resolver = PlaybackSourceResolver(
+          cacheDao: database.cacheDao,
+          rollingCacheManager: DriftRollingCacheManager(
+            cacheDao: database.cacheDao,
+          ),
+          readApiClient: () => apiClient,
+          readStreamingQuality: () => const StreamingQuality(
+            label: 'wifi-192-mp3',
+            maxBitRate: 192,
+            format: 'mp3',
+          ),
+          readRollingCacheDirectory: () async => rollingDir,
+        );
+
+        final resolved = await resolver.resolveForSong(song);
+
+        expect(resolved.kind, PlaybackSourceKind.file);
+        expect(resolved.cachedFilePath, localFile.path);
+      },
+      skip: !_sqliteAvailable,
+    );
+
+    test(
+      'does not use mismatched lossy rolling cache for transcode format',
+      () async {
+        final song = await _insertSong(
+          database,
+          id: 'song-lossy-mismatch',
+          title: 'Song Mismatch',
+          suffix: 'aac',
+          contentType: 'audio/aac',
+        );
+        final localFile = File(p.join(rollingDir.path, 'song-lossy-mismatch.aac'));
+        await localFile.writeAsBytes(const <int>[5, 5, 5]);
+
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: song.id,
+            filePath: localFile.path,
+            fileSize: 3,
+            format: 'aac',
+            bitRate: const Value(256),
+            cacheType: CacheType.rolling,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
+
+        final resolver = PlaybackSourceResolver(
+          cacheDao: database.cacheDao,
+          rollingCacheManager: DriftRollingCacheManager(
+            cacheDao: database.cacheDao,
+          ),
+          readApiClient: () => apiClient,
+          readStreamingQuality: () => const StreamingQuality(
+            label: 'wifi-192-mp3',
+            maxBitRate: 192,
+            format: 'mp3',
+          ),
+          readRollingCacheDirectory: () async => rollingDir,
+        );
+
+        final resolved = await resolver.resolveForSong(song);
+
+        expect(resolved.kind, isNot(PlaybackSourceKind.file));
+      },
+      skip: !_sqliteAvailable,
+    );
+
+    test(
+      'uses same-format rolling cache when bitrate satisfies request',
+      () async {
+        final song = await _insertSong(
+          database,
+          id: 'song-same-format-bitrate',
+          title: 'Song Same Format',
+          suffix: 'mp3',
+          contentType: 'audio/mpeg',
+        );
+        final localFile = File(
+          p.join(rollingDir.path, 'song-same-format-bitrate.mp3'),
+        );
+        await localFile.writeAsBytes(const <int>[1, 3, 3, 7]);
+
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: song.id,
+            filePath: localFile.path,
+            fileSize: 4,
+            format: 'mp3',
+            bitRate: const Value(320),
+            cacheType: CacheType.rolling,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
+
+        final resolver = PlaybackSourceResolver(
+          cacheDao: database.cacheDao,
+          rollingCacheManager: DriftRollingCacheManager(
+            cacheDao: database.cacheDao,
+          ),
+          readApiClient: () => apiClient,
+          readStreamingQuality: () => const StreamingQuality(
+            label: 'wifi-192-mp3',
+            maxBitRate: 192,
+            format: 'mp3',
+          ),
+          readRollingCacheDirectory: () async => rollingDir,
+        );
+
+        final resolved = await resolver.resolveForSong(song);
+
+        expect(resolved.kind, PlaybackSourceKind.file);
+        expect(resolved.cachedFilePath, localFile.path);
+      },
+      skip: !_sqliteAvailable,
+    );
   });
 }
 

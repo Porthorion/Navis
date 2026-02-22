@@ -1,4 +1,4 @@
-.PHONY: bootstrap check gen gen-watch test test-coverage lint format format-check release outdated phase1-closeout
+.PHONY: bootstrap check gen gen-watch test test-coverage lint format format-check release outdated phase1-closeout phase4-codec-closeout
 
 bootstrap:
 	./tool/bootstrap.sh
@@ -38,3 +38,6 @@ outdated:
 
 phase1-closeout:
 	./tool/phase1_closeout.sh
+
+phase4-codec-closeout:
+	./tool/phase4_codec_closeout.sh
