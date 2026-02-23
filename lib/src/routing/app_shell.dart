@@ -57,61 +57,86 @@ class AppShell extends ConsumerWidget {
         }
       },
       child: Scaffold(
-        body: Column(
-          children: <Widget>[
-            if (showOfflineBanner)
-              Material(
-                color: Theme.of(context).colorScheme.errorContainer,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  child: Row(
-                    children: <Widget>[
-                      Icon(
-                        Icons.cloud_off_outlined,
-                        color: Theme.of(context).colorScheme.onErrorContainer,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          l10n.serverOfflineBanner,
-                          style: TextStyle(
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onErrorContainer,
+        body: LayoutBuilder(
+          builder: (context, constraints) {
+            final bodyHeight = constraints.maxHeight;
+
+            return Stack(
+              children: <Widget>[
+                Column(
+                  children: <Widget>[
+                    if (showOfflineBanner)
+                      Material(
+                        color: Theme.of(context).colorScheme.errorContainer,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          child: Row(
+                            children: <Widget>[
+                              Icon(
+                                Icons.cloud_off_outlined,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onErrorContainer,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  l10n.serverOfflineBanner,
+                                  style: TextStyle(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onErrorContainer,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
-                    ],
+                    Expanded(child: navigationShell),
+                    if (showPlayer && !isExpanded)
+                      SizedBox(
+                        height: ExpandablePlayerSheet.miniPlayerHeight,
+                      ),
+                  ],
+                ),
+                if (showPlayer)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: ExpandablePlayerSheet(
+                      maxHeight: bodyHeight,
+                      isExpanded: isExpanded,
+                      onExpand: () => ref
+                          .read(playerSheetExpandedProvider.notifier)
+                          .expand(),
+                      onCollapse: () => ref
+                          .read(playerSheetExpandedProvider.notifier)
+                          .collapse(),
+                      miniPlayer: _MiniPlayerStrip(
+                        playback: playback,
+                        songTitle: currentSongAsync.asData?.value?.title,
+                        songArtist: currentSongAsync.asData?.value?.artistName,
+                        coverArtId: currentSongAsync.asData?.value?.coverArt,
+                        onTap: () => ref
+                            .read(playerSheetExpandedProvider.notifier)
+                            .expand(),
+                      ),
+                      fullPlayer: NowPlayingScreen(
+                        onCollapse: () => ref
+                            .read(playerSheetExpandedProvider.notifier)
+                            .collapse(),
+                        onOpenQueue: () => context.push('/queue'),
+                      ),
+                    ),
                   ),
-                ),
-              ),
-            Expanded(child: navigationShell),
-            if (showPlayer)
-              ExpandablePlayerSheet(
-                isExpanded: isExpanded,
-                onExpand: () =>
-                    ref.read(playerSheetExpandedProvider.notifier).expand(),
-                onCollapse: () =>
-                    ref.read(playerSheetExpandedProvider.notifier).collapse(),
-                onSwipeUpFullPlayer: () => context.go('/queue'),
-                miniPlayer: _MiniPlayerStrip(
-                  playback: playback,
-                  songTitle: currentSongAsync.asData?.value?.title,
-                  songArtist: currentSongAsync.asData?.value?.artistName,
-                  coverArtId: currentSongAsync.asData?.value?.coverArt,
-                  onTap: () =>
-                      ref.read(playerSheetExpandedProvider.notifier).expand(),
-                ),
-                fullPlayer: NowPlayingScreen(
-                  onCollapse: () =>
-                      ref.read(playerSheetExpandedProvider.notifier).collapse(),
-                  onOpenQueue: () => context.go('/queue'),
-                ),
-              ),
-          ],
+              ],
+            );
+          },
         ),
         bottomNavigationBar: showPlayer && isExpanded
             ? null

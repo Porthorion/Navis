@@ -37,29 +37,19 @@ class NowPlayingScreen extends ConsumerWidget {
         : ref.watch(songByIdProvider(currentSongId));
     final song = songAsync.asData?.value;
 
-    return GestureDetector(
-      onVerticalDragEnd: (details) {
-        final velocity = details.primaryVelocity ?? 0;
-        if (velocity > 300 && onCollapse != null) {
-          onCollapse!();
-        } else if (velocity < -300 && onOpenQueue != null) {
-          onOpenQueue!();
-        }
-      },
-      child: Material(
-        color: Theme.of(context).colorScheme.surface,
-        child: SafeArea(
-          child: Column(
-            children: <Widget>[
-              _NowPlayingAppBar(song: song, onCollapse: onCollapse),
-              Expanded(
-                child: _NowPlayingBody(
-                  playback: playback,
-                  song: song,
-                ),
+    return Material(
+      color: Theme.of(context).colorScheme.surface,
+      child: SafeArea(
+        child: Column(
+          children: <Widget>[
+            _NowPlayingAppBar(song: song, onCollapse: onCollapse),
+            Expanded(
+              child: _NowPlayingBody(
+                playback: playback,
+                song: song,
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -528,7 +518,7 @@ class _ActionRow extends ConsumerWidget {
         IconButton(
           icon: const Icon(Icons.queue_music),
           tooltip: l10n.nowPlayingQueue,
-          onPressed: () => context.go('/queue'),
+          onPressed: () => context.push('/queue'),
         ),
       ],
     );
