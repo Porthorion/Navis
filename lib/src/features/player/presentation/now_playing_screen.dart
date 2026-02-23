@@ -22,11 +22,9 @@ class NowPlayingScreen extends ConsumerWidget {
   const NowPlayingScreen({
     super.key,
     this.onCollapse,
-    this.onOpenQueue,
   });
 
   final VoidCallback? onCollapse;
-  final VoidCallback? onOpenQueue;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -271,7 +269,9 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
 
   @override
   Widget build(BuildContext context) {
-    final position = widget.playback.position;
+    final position =
+        ref.watch(playbackPositionProvider).asData?.value ??
+        widget.playback.position;
     final duration = widget.playback.duration;
     final durationMs = duration.inMilliseconds;
     final positionMs = position.inMilliseconds;

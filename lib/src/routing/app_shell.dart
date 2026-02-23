@@ -130,7 +130,6 @@ class AppShell extends ConsumerWidget {
                         onCollapse: () => ref
                             .read(playerSheetExpandedProvider.notifier)
                             .collapse(),
-                        onOpenQueue: () => context.push('/queue'),
                       ),
                     ),
                   ),
