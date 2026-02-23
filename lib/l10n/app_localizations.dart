@@ -1784,6 +1784,216 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Add to queue'**
   String get searchAddToQueue;
+
+  /// No description provided for @playlistsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Playlists'**
+  String get playlistsTitle;
+
+  /// No description provided for @playlistsEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No playlists yet'**
+  String get playlistsEmpty;
+
+  /// No description provided for @playlistsEmptySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Create a playlist to get started.'**
+  String get playlistsEmptySubtitle;
+
+  /// No description provided for @playlistsLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to load playlists'**
+  String get playlistsLoadError;
+
+  /// No description provided for @playlistsSongCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{No songs} =1{1 song} other{{count} songs}}'**
+  String playlistsSongCount(int count);
+
+  /// No description provided for @playlistsCreateAction.
+  ///
+  /// In en, this message translates to:
+  /// **'New playlist'**
+  String get playlistsCreateAction;
+
+  /// No description provided for @playlistsCreateTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Create playlist'**
+  String get playlistsCreateTitle;
+
+  /// No description provided for @playlistsCreateNameLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Playlist name'**
+  String get playlistsCreateNameLabel;
+
+  /// No description provided for @playlistsCreateSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Playlist created'**
+  String get playlistsCreateSuccess;
+
+  /// No description provided for @playlistsCreateFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to create playlist'**
+  String get playlistsCreateFailed;
+
+  /// No description provided for @playlistsDeleteConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete playlist?'**
+  String get playlistsDeleteConfirmTitle;
+
+  /// No description provided for @playlistsDeleteConfirmMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'This will permanently delete \"{name}\".'**
+  String playlistsDeleteConfirmMessage(String name);
+
+  /// No description provided for @playlistsDeleteSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Playlist deleted'**
+  String get playlistsDeleteSuccess;
+
+  /// No description provided for @playlistsDeleteFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to delete playlist'**
+  String get playlistsDeleteFailed;
+
+  /// No description provided for @playlistsRenameTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Rename playlist'**
+  String get playlistsRenameTitle;
+
+  /// No description provided for @playlistsRenameLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'New name'**
+  String get playlistsRenameLabel;
+
+  /// No description provided for @playlistsRenameSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Playlist renamed'**
+  String get playlistsRenameSuccess;
+
+  /// No description provided for @playlistsRenameFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to rename playlist'**
+  String get playlistsRenameFailed;
+
+  /// No description provided for @playlistDetailTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Playlist'**
+  String get playlistDetailTitle;
+
+  /// No description provided for @playlistDetailPlayAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Play'**
+  String get playlistDetailPlayAction;
+
+  /// No description provided for @playlistDetailShuffleAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Shuffle'**
+  String get playlistDetailShuffleAction;
+
+  /// No description provided for @playlistDetailMeta.
+  ///
+  /// In en, this message translates to:
+  /// **'{owner} · {count, plural, =0{No songs} =1{1 song} other{{count} songs}}'**
+  String playlistDetailMeta(String owner, int count);
+
+  /// No description provided for @playlistDetailNotFound.
+  ///
+  /// In en, this message translates to:
+  /// **'Playlist not found'**
+  String get playlistDetailNotFound;
+
+  /// No description provided for @playlistDetailNotFoundSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'It may have been deleted.'**
+  String get playlistDetailNotFoundSubtitle;
+
+  /// No description provided for @playlistDetailLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to load playlist'**
+  String get playlistDetailLoadError;
+
+  /// No description provided for @playlistDetailEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No tracks'**
+  String get playlistDetailEmptyTitle;
+
+  /// No description provided for @playlistDetailEmptySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Add songs from the library.'**
+  String get playlistDetailEmptySubtitle;
+
+  /// No description provided for @playlistDetailRemoveTrack.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove from playlist'**
+  String get playlistDetailRemoveTrack;
+
+  /// No description provided for @playlistDetailTrackRemoved.
+  ///
+  /// In en, this message translates to:
+  /// **'Track removed'**
+  String get playlistDetailTrackRemoved;
+
+  /// No description provided for @playlistDetailTrackRemoveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to remove track'**
+  String get playlistDetailTrackRemoveFailed;
+
+  /// No description provided for @addToPlaylistTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Add to playlist'**
+  String get addToPlaylistTitle;
+
+  /// No description provided for @addToPlaylistSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Added to \"{name}\"'**
+  String addToPlaylistSuccess(String name);
+
+  /// No description provided for @addToPlaylistFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to add to playlist'**
+  String get addToPlaylistFailed;
+
+  /// No description provided for @addToPlaylistNewPlaylist.
+  ///
+  /// In en, this message translates to:
+  /// **'New playlist'**
+  String get addToPlaylistNewPlaylist;
+
+  /// No description provided for @librarySongMenuAddToPlaylist.
+  ///
+  /// In en, this message translates to:
+  /// **'Add to playlist'**
+  String get librarySongMenuAddToPlaylist;
 }
 
 class _AppLocalizationsDelegate

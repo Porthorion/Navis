@@ -8,6 +8,7 @@ import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
+import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
@@ -481,6 +482,18 @@ class _SongResultsSection extends ConsumerWidget {
                   context.push('/library/artists/${song.artistId}');
                 },
               ),
+            ListTile(
+              leading: const Icon(Icons.playlist_add),
+              title: Text(l10n.librarySongMenuAddToPlaylist),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                showAddToPlaylistSheet(
+                  context,
+                  ref,
+                  [song.id],
+                );
+              },
+            ),
           ],
         ),
       ),
