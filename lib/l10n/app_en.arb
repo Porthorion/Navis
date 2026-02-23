@@ -585,5 +585,9 @@
   "downloadsRemoveAction": "Remove download",
   "downloadsCancelAction": "Cancel download",
   "downloadsClearCompleted": "Clear completed",
-  "downloadsRetryFailed": "Retry failed"
+  "downloadsRetryFailed": "Retry failed",
+
+  "libraryDownloadedOnlyFilter": "Downloaded",
+  "libraryDownloadedOnlyEmpty": "No downloaded content",
+  "libraryDownloadedOnlyEmptySubtitle": "Download albums or tracks to see them here."
 }

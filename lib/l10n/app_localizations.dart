@@ -2234,6 +2234,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Retry failed'**
   String get downloadsRetryFailed;
+
+  /// No description provided for @libraryDownloadedOnlyFilter.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloaded'**
+  String get libraryDownloadedOnlyFilter;
+
+  /// No description provided for @libraryDownloadedOnlyEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No downloaded content'**
+  String get libraryDownloadedOnlyEmpty;
+
+  /// No description provided for @libraryDownloadedOnlyEmptySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Download albums or tracks to see them here.'**
+  String get libraryDownloadedOnlyEmptySubtitle;
 }
 
 class _AppLocalizationsDelegate
