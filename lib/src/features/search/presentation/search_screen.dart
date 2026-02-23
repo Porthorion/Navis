@@ -314,7 +314,7 @@ class _ArtistResultsSection extends StatelessWidget {
             subtitle: artist.albumCount != null
                 ? Text(l10n.searchAlbumCount(artist.albumCount!))
                 : null,
-            onTap: () => context.go('/library/artists/${artist.id}'),
+            onTap: () => context.push('/library/artists/${artist.id}'),
           ),
         ),
       ],
@@ -358,7 +358,7 @@ class _AlbumResultsSection extends StatelessWidget {
             ),
             title: Text(album.name),
             subtitle: Text(album.artist ?? ''),
-            onTap: () => context.go('/library/albums/${album.id}'),
+            onTap: () => context.push('/library/albums/${album.id}'),
           ),
         ),
       ],
@@ -469,7 +469,7 @@ class _SongResultsSection extends ConsumerWidget {
                 title: Text(l10n.nowPlayingGoToAlbum),
                 onTap: () {
                   Navigator.of(sheetContext).pop();
-                  context.go('/library/albums/${song.albumId}');
+                  context.push('/library/albums/${song.albumId}');
                 },
               ),
             if (song.artistId != null)
@@ -478,7 +478,7 @@ class _SongResultsSection extends ConsumerWidget {
                 title: Text(l10n.nowPlayingGoToArtist),
                 onTap: () {
                   Navigator.of(sheetContext).pop();
-                  context.go('/library/artists/${song.artistId}');
+                  context.push('/library/artists/${song.artistId}');
                 },
               ),
           ],
