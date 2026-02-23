@@ -3,13 +3,13 @@ import 'dart:async';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/lyrics_display_widget.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/navigation_service.dart';
 
 String _formatDuration(Duration d) {
   final totalSeconds = d.inSeconds;
@@ -107,7 +107,7 @@ class _NowPlayingAppBar extends ConsumerWidget {
                 title: Text(l10n.nowPlayingGoToAlbum),
                 onTap: () {
                   Navigator.of(sheetContext).pop();
-                  context.push('/library/albums/${song.albumId}');
+                  NavService.goToAlbum(context, ref, song.albumId!);
                 },
               ),
             if (song?.artistId != null && song!.artistId!.isNotEmpty)
@@ -116,7 +116,7 @@ class _NowPlayingAppBar extends ConsumerWidget {
                 title: Text(l10n.nowPlayingGoToArtist),
                 onTap: () {
                   Navigator.of(sheetContext).pop();
-                  context.push('/library/artists/${song.artistId}');
+                  NavService.goToArtist(context, ref, song.artistId!);
                 },
               ),
           ],
@@ -156,30 +156,30 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
         padding: const EdgeInsets.symmetric(horizontal: 24),
         child: Column(
           children: <Widget>[
-          const SizedBox(height: 8),
-          Expanded(
-            child: Center(
-              child: _showLyrics && playback.currentSongId != null
-                  ? _InlineLyrics(
-                      songId: playback.currentSongId!,
-                    )
-                  : _CoverArt(coverArtId: song?.coverArt),
+            const SizedBox(height: 8),
+            Expanded(
+              child: Center(
+                child: _showLyrics && playback.currentSongId != null
+                    ? _InlineLyrics(
+                        songId: playback.currentSongId!,
+                      )
+                    : _CoverArt(coverArtId: song?.coverArt),
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          _TrackInfo(title: title, artist: artist, album: album),
-          const SizedBox(height: 16),
-          _SeekBar(playback: playback),
-          const SizedBox(height: 8),
-          _TransportControls(playback: playback),
-          const SizedBox(height: 8),
-          _ActionRow(
-            songId: playback.currentSongId,
-            showLyrics: _showLyrics,
-            onLyricsToggle: () => setState(() => _showLyrics = !_showLyrics),
-          ),
-          const SizedBox(height: 8),
-        ],
+            const SizedBox(height: 16),
+            _TrackInfo(title: title, artist: artist, album: album),
+            const SizedBox(height: 16),
+            _SeekBar(playback: playback),
+            const SizedBox(height: 8),
+            _TransportControls(playback: playback),
+            const SizedBox(height: 8),
+            _ActionRow(
+              songId: playback.currentSongId,
+              showLyrics: _showLyrics,
+              onLyricsToggle: () => setState(() => _showLyrics = !_showLyrics),
+            ),
+            const SizedBox(height: 8),
+          ],
         ),
       ),
     );
@@ -520,7 +520,7 @@ class _ActionRow extends ConsumerWidget {
         IconButton(
           icon: const Icon(Icons.queue_music),
           tooltip: l10n.nowPlayingQueue,
-          onPressed: () => context.push('/queue'),
+          onPressed: () => NavService.showQueue(context),
         ),
       ],
     );

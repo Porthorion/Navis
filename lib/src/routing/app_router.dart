@@ -2,12 +2,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/src/features/auth/presentation/login_screen.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
-import 'package:navis/src/features/downloads/presentation/downloads_screen.dart';
 import 'package:navis/src/features/home/presentation/home_screen.dart';
 import 'package:navis/src/features/library/presentation/album_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/artist_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/library_screen.dart';
-import 'package:navis/src/features/player/presentation/queue_screen.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_detail_screen.dart';
 import 'package:navis/src/features/playlists/presentation/playlists_screen.dart';
 import 'package:navis/src/features/search/presentation/search_screen.dart';
@@ -141,14 +139,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             ],
           ),
         ],
-      ),
-      GoRoute(
-        path: '/downloads',
-        builder: (context, state) => const DownloadsScreen(),
-      ),
-      GoRoute(
-        path: '/queue',
-        builder: (context, state) => const QueueScreen(),
       ),
     ],
   );

@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
@@ -11,6 +10,7 @@ import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/navigation_service.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -273,7 +273,7 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-class _ArtistResultsSection extends StatelessWidget {
+class _ArtistResultsSection extends ConsumerWidget {
   const _ArtistResultsSection({
     required this.artists,
     required this.expanded,
@@ -285,7 +285,7 @@ class _ArtistResultsSection extends StatelessWidget {
   final VoidCallback onToggleExpanded;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final visible = expanded ? artists : artists.take(5).toList();
 
@@ -315,7 +315,7 @@ class _ArtistResultsSection extends StatelessWidget {
             subtitle: artist.albumCount != null
                 ? Text(l10n.searchAlbumCount(artist.albumCount!))
                 : null,
-            onTap: () => context.push('/library/artists/${artist.id}'),
+            onTap: () => NavService.goToArtist(context, ref, artist.id),
           ),
         ),
       ],
@@ -323,7 +323,7 @@ class _ArtistResultsSection extends StatelessWidget {
   }
 }
 
-class _AlbumResultsSection extends StatelessWidget {
+class _AlbumResultsSection extends ConsumerWidget {
   const _AlbumResultsSection({
     required this.albums,
     required this.expanded,
@@ -335,7 +335,7 @@ class _AlbumResultsSection extends StatelessWidget {
   final VoidCallback onToggleExpanded;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final visible = expanded ? albums : albums.take(5).toList();
 
@@ -359,7 +359,7 @@ class _AlbumResultsSection extends StatelessWidget {
             ),
             title: Text(album.name),
             subtitle: Text(album.artist ?? ''),
-            onTap: () => context.push('/library/albums/${album.id}'),
+            onTap: () => NavService.goToAlbum(context, ref, album.id),
           ),
         ),
       ],
@@ -470,7 +470,7 @@ class _SongResultsSection extends ConsumerWidget {
                 title: Text(l10n.nowPlayingGoToAlbum),
                 onTap: () {
                   Navigator.of(sheetContext).pop();
-                  context.push('/library/albums/${song.albumId}');
+                  NavService.goToAlbum(context, ref, song.albumId!);
                 },
               ),
             if (song.artistId != null)
@@ -479,7 +479,7 @@ class _SongResultsSection extends ConsumerWidget {
                 title: Text(l10n.nowPlayingGoToArtist),
                 onTap: () {
                   Navigator.of(sheetContext).pop();
-                  context.push('/library/artists/${song.artistId}');
+                  NavService.goToArtist(context, ref, song.artistId!);
                 },
               ),
             ListTile(

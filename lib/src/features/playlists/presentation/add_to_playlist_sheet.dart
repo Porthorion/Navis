@@ -79,10 +79,9 @@ class _AddToPlaylistSheet extends ConsumerWidget {
                   child: Text(
                     l10n.playlistsEmpty,
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withValues(alpha: 0.6),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.6),
                     ),
                   ),
                 );
@@ -120,8 +119,7 @@ class _AddToPlaylistSheet extends ConsumerWidget {
                 },
               );
             },
-            loading: () =>
-                const Center(child: CircularProgressIndicator()),
+            loading: () => const Center(child: CircularProgressIndicator()),
             error: (_, _) => Center(child: Text(l10n.playlistsLoadError)),
           ),
         ),
@@ -141,9 +139,7 @@ class _AddToPlaylistSheet extends ConsumerWidget {
     if (api == null) return;
 
     unawaited(
-      api
-          .updatePlaylist(id: playlistId, songIdsToAdd: songIds)
-          .then((_) {
+      api.updatePlaylist(id: playlistId, songIdsToAdd: songIds).then((_) {
         ref.invalidate(playlistDetailSyncProvider(playlistId));
         ref.invalidate(playlistSyncProvider);
       }),
@@ -206,20 +202,23 @@ class _AddToPlaylistSheet extends ConsumerWidget {
     if (api == null) return;
 
     unawaited(
-      api.createPlaylist(name, songIds: songIds).then((_) {
-        ref.invalidate(playlistSyncProvider);
-        if (parentContext.mounted) {
-          ScaffoldMessenger.of(parentContext).showSnackBar(
-            SnackBar(content: Text(l10n.playlistsCreateSuccess)),
-          );
-        }
-      }).catchError((_) {
-        if (parentContext.mounted) {
-          ScaffoldMessenger.of(parentContext).showSnackBar(
-            SnackBar(content: Text(l10n.playlistsCreateFailed)),
-          );
-        }
-      }),
+      api
+          .createPlaylist(name, songIds: songIds)
+          .then((_) {
+            ref.invalidate(playlistSyncProvider);
+            if (parentContext.mounted) {
+              ScaffoldMessenger.of(parentContext).showSnackBar(
+                SnackBar(content: Text(l10n.playlistsCreateSuccess)),
+              );
+            }
+          })
+          .catchError((_) {
+            if (parentContext.mounted) {
+              ScaffoldMessenger.of(parentContext).showSnackBar(
+                SnackBar(content: Text(l10n.playlistsCreateFailed)),
+              );
+            }
+          }),
     );
   }
 }

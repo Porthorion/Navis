@@ -13,6 +13,7 @@ import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/navigation_service.dart';
 
 class AppShell extends ConsumerWidget {
   const AppShell({required this.navigationShell, super.key});
@@ -50,11 +51,16 @@ class AppShell extends ConsumerWidget {
     final selectedIndex = selectedVisibleIndex >= 0 ? selectedVisibleIndex : 0;
 
     return PopScope(
-      canPop: !isExpanded,
+      canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && isExpanded) {
-          ref.read(playerSheetExpandedProvider.notifier).collapse();
-        }
+        if (didPop) return;
+        NavService.handleSystemBack(
+          ref: ref,
+          context: context,
+          isPlayerExpanded: isExpanded,
+          navigationShell: navigationShell,
+          homeBranchIndex: _homeBranchIndex,
+        );
       },
       child: Scaffold(
         body: LayoutBuilder(

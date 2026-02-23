@@ -355,8 +355,9 @@ void main() {
     expect(configuredLocations, contains('/settings/sync'));
     expect(configuredLocations, contains('/settings/playback'));
     expect(configuredLocations, contains('/settings/appearance'));
-    expect(configuredLocations, contains('/downloads'));
-    expect(configuredLocations, contains('/queue'));
+
+    // /queue is now a modal sheet (NavService.showQueue), not a GoRouter route.
+    // /downloads will be re-added in Phase 8.
 
     await tester.pumpWidget(const SizedBox.shrink());
   });

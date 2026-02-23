@@ -3,7 +3,6 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
@@ -14,6 +13,7 @@ import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/navigation_service.dart';
 
 class PlaylistDetailScreen extends ConsumerStatefulWidget {
   const PlaylistDetailScreen({required this.playlistId, super.key});
@@ -93,8 +93,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     return RefreshIndicator(
       onRefresh: () async {
         ref.invalidate(playlistDetailSyncProvider(widget.playlistId));
-        await ref
-            .read(playlistDetailSyncProvider(widget.playlistId).future);
+        await ref.read(playlistDetailSyncProvider(widget.playlistId).future);
       },
       child: CustomScrollView(
         slivers: [
@@ -184,8 +183,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                       padding: const EdgeInsets.only(right: 16),
                       child: Icon(
                         Icons.delete_outline,
-                        color:
-                            Theme.of(context).colorScheme.onErrorContainer,
+                        color: Theme.of(context).colorScheme.onErrorContainer,
                       ),
                     ),
                     confirmDismiss: (_) async {
@@ -333,7 +331,16 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                 title: Text(l10n.librarySongMenuOpenArtist),
                 onTap: () {
                   Navigator.of(sheetContext).pop();
-                  context.push('/library/artists/${song.artistId}');
+                  NavService.goToArtist(context, ref, song.artistId!);
+                },
+              ),
+            if (song.albumId != null && song.albumId!.isNotEmpty)
+              ListTile(
+                leading: const Icon(Icons.album_outlined),
+                title: Text(l10n.nowPlayingGoToAlbum),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  NavService.goToAlbum(context, ref, song.albumId!);
                 },
               ),
           ],

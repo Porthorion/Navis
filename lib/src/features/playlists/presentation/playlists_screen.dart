@@ -126,18 +126,21 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
     if (api == null) return;
 
     unawaited(
-      api.createPlaylist(name).then((_) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.playlistsCreateSuccess)),
-        );
-        ref.invalidate(playlistSyncProvider);
-      }).catchError((_) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.playlistsCreateFailed)),
-        );
-      }),
+      api
+          .createPlaylist(name)
+          .then((_) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(l10n.playlistsCreateSuccess)),
+            );
+            ref.invalidate(playlistSyncProvider);
+          })
+          .catchError((_) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(l10n.playlistsCreateFailed)),
+            );
+          }),
     );
   }
 
@@ -232,18 +235,21 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
     if (api == null) return;
 
     unawaited(
-      api.updatePlaylist(id: playlistId, name: newName).then((_) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.playlistsRenameSuccess)),
-        );
-        ref.invalidate(playlistSyncProvider);
-      }).catchError((_) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.playlistsRenameFailed)),
-        );
-      }),
+      api
+          .updatePlaylist(id: playlistId, name: newName)
+          .then((_) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(l10n.playlistsRenameSuccess)),
+            );
+            ref.invalidate(playlistSyncProvider);
+          })
+          .catchError((_) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(l10n.playlistsRenameFailed)),
+            );
+          }),
     );
   }
 
@@ -283,18 +289,21 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
     if (api == null) return;
 
     unawaited(
-      api.deletePlaylist(playlistId).then((_) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.playlistsDeleteSuccess)),
-        );
-        ref.invalidate(playlistSyncProvider);
-      }).catchError((_) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.playlistsDeleteFailed)),
-        );
-      }),
+      api
+          .deletePlaylist(playlistId)
+          .then((_) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(l10n.playlistsDeleteSuccess)),
+            );
+            ref.invalidate(playlistSyncProvider);
+          })
+          .catchError((_) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(l10n.playlistsDeleteFailed)),
+            );
+          }),
     );
   }
 }
