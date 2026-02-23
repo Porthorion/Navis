@@ -80,6 +80,9 @@ class _DelayedReplaceHandler implements NavisPlaybackHandler {
   Future<void> setRepeatMode(AudioServiceRepeatMode repeatMode) async {}
 
   @override
+  Future<void> setVolume(double volume) async {}
+
+  @override
   Future<void> applyRuntimeSettings() async {}
 }
 

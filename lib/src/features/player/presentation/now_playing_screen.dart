@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/lyrics_display_widget.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/sleep_timer_provider.dart';
@@ -216,7 +217,7 @@ class _NowPlayingAppBar extends ConsumerWidget {
   }
 }
 
-class _NowPlayingBody extends StatelessWidget {
+class _NowPlayingBody extends ConsumerStatefulWidget {
   const _NowPlayingBody({
     required this.playback,
     this.song,
@@ -226,8 +227,17 @@ class _NowPlayingBody extends StatelessWidget {
   final SongsTableData? song;
 
   @override
+  ConsumerState<_NowPlayingBody> createState() => _NowPlayingBodyState();
+}
+
+class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
+  bool _showLyrics = false;
+
+  @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final song = widget.song;
+    final playback = widget.playback;
     final title = song?.title ?? l10n.nowPlayingUnknownTrack;
     final artist = song?.artistName ?? l10n.nowPlayingUnknownArtist;
     final album = song?.albumName ?? l10n.nowPlayingUnknownAlbum;
@@ -237,7 +247,16 @@ class _NowPlayingBody extends StatelessWidget {
       child: Column(
         children: <Widget>[
           const Spacer(flex: 1),
-          _CoverArt(coverArtId: song?.coverArt),
+          if (_showLyrics && playback.currentSongId != null)
+            Expanded(
+              flex: 4,
+              child: _InlineLyrics(
+                songId: playback.currentSongId!,
+                position: playback.position,
+              ),
+            )
+          else
+            _CoverArt(coverArtId: song?.coverArt),
           const SizedBox(height: 32),
           _TrackInfo(title: title, artist: artist, album: album),
           const SizedBox(height: 24),
@@ -245,7 +264,11 @@ class _NowPlayingBody extends StatelessWidget {
           const SizedBox(height: 8),
           _TransportControls(playback: playback),
           const SizedBox(height: 16),
-          _ActionRow(songId: playback.currentSongId),
+          _ActionRow(
+            songId: playback.currentSongId,
+            showLyrics: _showLyrics,
+            onLyricsToggle: () => setState(() => _showLyrics = !_showLyrics),
+          ),
           const Spacer(flex: 1),
         ],
       ),
@@ -509,10 +532,55 @@ class _TransportControls extends ConsumerWidget {
   }
 }
 
+class _InlineLyrics extends ConsumerWidget {
+  const _InlineLyrics({
+    required this.songId,
+    required this.position,
+  });
+
+  final String songId;
+  final Duration position;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final lyricsAsync = ref.watch(lyricsProvider(songId));
+
+    return lyricsAsync.when(
+      data: (lyrics) => LyricsDisplayWidget(
+        lyrics: lyrics,
+        currentPosition: position,
+        onSeek: (seekPosition) {
+          final handler = ref.read(audioHandlerProvider);
+          handler?.seek(seekPosition);
+        },
+      ),
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (_, _) => Center(
+        child: Text(
+          l10n.lyricsNoneAvailable,
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: Theme.of(context)
+                    .colorScheme
+                    .onSurface
+                    .withValues(alpha: 0.6),
+              ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ActionRow extends ConsumerWidget {
-  const _ActionRow({this.songId});
+  const _ActionRow({
+    this.songId,
+    this.showLyrics = false,
+    this.onLyricsToggle,
+  });
 
   final String? songId;
+  final bool showLyrics;
+  final VoidCallback? onLyricsToggle;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -531,11 +599,14 @@ class _ActionRow extends ConsumerWidget {
                 },
         ),
         IconButton(
-          icon: const Icon(Icons.lyrics_outlined),
+          icon: Icon(
+            showLyrics ? Icons.lyrics : Icons.lyrics_outlined,
+            color: showLyrics
+                ? Theme.of(context).colorScheme.primary
+                : null,
+          ),
           tooltip: l10n.nowPlayingLyrics,
-          onPressed: songId == null
-              ? null
-              : () => context.go('/now-playing/lyrics'),
+          onPressed: songId == null ? null : onLyricsToggle,
         ),
         IconButton(
           icon: const Icon(Icons.queue_music),

@@ -4,7 +4,8 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
-import 'package:navis/src/providers/app_providers.dart' show songByIdProvider;
+import 'package:navis/src/providers/app_providers.dart'
+    show songByIdProvider, subsonicApiProvider;
 
 class QueueScreen extends ConsumerWidget {
   const QueueScreen({super.key});
@@ -19,6 +20,16 @@ class QueueScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Text(l10n.queueTitle),
         actions: [
+          if (queueIds.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.playlist_add),
+              tooltip: l10n.queueSaveAsPlaylist,
+              onPressed: () => _showSaveAsPlaylistDialog(
+                context,
+                ref,
+                queueIds,
+              ),
+            ),
           if (queueIds.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.clear_all),
@@ -80,6 +91,77 @@ class QueueScreen extends ConsumerWidget {
               },
             ),
     );
+  }
+
+  void _showSaveAsPlaylistDialog(
+    BuildContext context,
+    WidgetRef ref,
+    List<String> queueIds,
+  ) {
+    final l10n = AppLocalizations.of(context)!;
+    final controller = TextEditingController();
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.queueSaveAsPlaylist),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: InputDecoration(
+            labelText: l10n.queueSaveAsPlaylistName,
+          ),
+          onSubmitted: (_) => _savePlaylist(
+            dialogContext,
+            context,
+            ref,
+            controller.text.trim(),
+            queueIds,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(l10n.cancelAction),
+          ),
+          FilledButton(
+            onPressed: () => _savePlaylist(
+              dialogContext,
+              context,
+              ref,
+              controller.text.trim(),
+              queueIds,
+            ),
+            child: Text(l10n.queueSaveAsPlaylist),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _savePlaylist(
+    BuildContext dialogContext,
+    BuildContext parentContext,
+    WidgetRef ref,
+    String name,
+    List<String> queueIds,
+  ) {
+    if (name.isEmpty) {
+      return;
+    }
+    Navigator.of(dialogContext).pop();
+    final api = ref.read(subsonicApiProvider);
+    if (api == null) {
+      return;
+    }
+    final l10n = AppLocalizations.of(parentContext)!;
+    api.createPlaylist(name, songIds: queueIds).then((_) {
+      if (parentContext.mounted) {
+        ScaffoldMessenger.of(parentContext).showSnackBar(
+          SnackBar(content: Text(l10n.queueSaveAsPlaylistSaved)),
+        );
+      }
+    });
   }
 }
 
