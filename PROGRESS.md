@@ -267,7 +267,7 @@ Last updated: 2026-02-23
 ### 8.4 — Offline Mode
 - [x] "Downloaded Only" toggle in library — 2026-02-23 (evidence: `lib/src/features/library/presentation/library_screen.dart` FilterChip, `downloadedContentIdsProvider`)
 - [ ] Rolling cache items shown with temporary badge
-- [x] "Promote to permanent" (no re-download if same quality) — 2026-02-23 (evidence: `download_service.dart` `promoteToPermament` method)
+- [x] "Promote to permanent" (no re-download if same quality) — 2026-02-23 (evidence: `download_service.dart` `promoteToPermanent` method)
 - [ ] "Download in original quality" (re-download from server)
 - [x] Offline banner when server unreachable — 2026-02-19 (evidence: pre-existing `app_shell.dart`)
 

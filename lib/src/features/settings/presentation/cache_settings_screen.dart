@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/utils/format_utils.dart';
 
 class CacheSettingsScreen extends ConsumerStatefulWidget {
   const CacheSettingsScreen({super.key});
@@ -154,25 +155,17 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
     final db = ref.read(navisDatabaseProvider);
     final cacheDao = db.cacheDao;
 
-    // Fetch tracks of the given type.
-    final tracks = await cacheDao.getCachedTracks();
-    final filtered = tracks.where((t) => t.cacheType == type).toList();
+    // Fetch only tracks of the given type (avoids loading all tracks).
+    final filtered = await cacheDao.watchCachedTracksByType(type).first;
 
     // Delete files.
     for (final track in filtered) {
-      final paths = <String>[
-        track.filePath,
-        '${track.filePath}.part',
-        '${track.filePath}.mime',
-      ];
-      for (final path in paths) {
-        final file = File(path);
-        if (file.existsSync()) {
-          try {
-            file.deleteSync();
-          } on FileSystemException {
-            // best-effort
-          }
+      for (final suffix in <String>['', '.part', '.mime']) {
+        try {
+          final file = File('${track.filePath}$suffix');
+          if (file.existsSync()) file.deleteSync();
+        } on FileSystemException {
+          // best-effort
         }
       }
     }
@@ -194,16 +187,6 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
   // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------
-
-  String _formatBytes(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    final kb = bytes / 1024;
-    if (kb < 1024) return '${kb.toStringAsFixed(1)} KB';
-    final mb = kb / 1024;
-    if (mb < 1024) return '${mb.toStringAsFixed(1)} MB';
-    final gb = mb / 1024;
-    return '${gb.toStringAsFixed(2)} GB';
-  }
 
   String _budgetLabel(int mb, AppLocalizations l10n) {
     final gb = mb / 1024;
@@ -242,7 +225,7 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
                     usedBytes: stats.totalBytes,
                     budgetBytes: budgetBytes,
                     trackCount: stats.trackCount,
-                    formatBytes: _formatBytes,
+                    formatBytes: formatBytes,
                     l10n: l10n,
                     isRolling: true,
                   ),
@@ -297,7 +280,7 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
                     usedBytes: stats.totalBytes,
                     budgetBytes: null,
                     trackCount: stats.trackCount,
-                    formatBytes: _formatBytes,
+                    formatBytes: formatBytes,
                     l10n: l10n,
                     isRolling: false,
                   ),

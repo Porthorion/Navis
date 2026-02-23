@@ -1238,6 +1238,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get downloadsRetryFailed => 'Retry failed';
 
   @override
+  String get downloadsStatusFailed => 'Failed';
+
+  @override
+  String get downloadsRetryAllFailed => 'Retry all failed';
+
+  @override
+  String get downloadsErrorLoadingQueue => 'Could not load download queue.';
+
+  @override
   String get libraryDownloadedOnlyFilter => 'Downloaded';
 
   @override

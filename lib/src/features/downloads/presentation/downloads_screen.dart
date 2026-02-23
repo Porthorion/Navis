@@ -8,6 +8,7 @@ import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/utils/format_utils.dart';
 
 class DownloadsScreen extends ConsumerWidget {
   const DownloadsScreen({super.key});
@@ -68,7 +69,22 @@ class _QueueTab extends ConsumerWidget {
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (_, _) => const SizedBox.shrink(),
+      error: (error, _) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              const Icon(Icons.error_outline, size: 48),
+              const SizedBox(height: 12),
+              Text(
+                l10n.downloadsErrorLoadingQueue,
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -121,7 +137,7 @@ class _QueueItemTile extends ConsumerWidget {
             ),
           if (isFailed)
             Text(
-              'Failed',
+              l10n.downloadsStatusFailed,
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
         ],
@@ -145,7 +161,7 @@ class _QueueItemTile extends ConsumerWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Downloaded tab — shows permanently cached tracks
+// Downloaded tab — shows permanently cached tracks (uses Riverpod)
 // ---------------------------------------------------------------------------
 
 class _DownloadedTab extends ConsumerWidget {
@@ -154,15 +170,10 @@ class _DownloadedTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
-    final cacheDao = ref.watch(navisDatabaseProvider).cacheDao;
+    final tracksAsync = ref.watch(permanentCachedTracksProvider);
 
-    return StreamBuilder<List<CachedTracksTableData>>(
-      stream: cacheDao.watchCachedTracks(),
-      builder: (context, snapshot) {
-        final tracks = (snapshot.data ?? <CachedTracksTableData>[])
-            .where((t) => t.cacheType == CacheType.permanent)
-            .toList();
-
+    return tracksAsync.when(
+      data: (tracks) {
         if (tracks.isEmpty) {
           return EmptyState(
             title: l10n.downloadsDownloadedEmpty,
@@ -179,6 +190,23 @@ class _DownloadedTab extends ConsumerWidget {
           },
         );
       },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (_, _) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              const Icon(Icons.error_outline, size: 48),
+              const SizedBox(height: 12),
+              Text(
+                l10n.downloadsErrorLoadingQueue,
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -187,14 +215,6 @@ class _DownloadedTrackTile extends ConsumerWidget {
   const _DownloadedTrackTile({required this.track});
 
   final CachedTracksTableData track;
-
-  String _formatBytes(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    final kb = bytes / 1024;
-    if (kb < 1024) return '${kb.toStringAsFixed(1)} KB';
-    final mb = kb / 1024;
-    return '${mb.toStringAsFixed(1)} MB';
-  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -225,7 +245,7 @@ class _DownloadedTrackTile extends ConsumerWidget {
       ),
       title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text(
-        '$artist · ${track.format.toUpperCase()} · ${_formatBytes(track.fileSize)}',
+        '$artist · ${track.format.toUpperCase()} · ${formatBytes(track.fileSize)}',
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
@@ -234,16 +254,7 @@ class _DownloadedTrackTile extends ConsumerWidget {
         tooltip: l10n.downloadsRemoveAction,
         onPressed: () async {
           // Delete files.
-          for (final suffix in <String>['', '.part', '.mime']) {
-            final f = File('${track.filePath}$suffix');
-            if (f.existsSync()) {
-              try {
-                f.deleteSync();
-              } on FileSystemException {
-                // best-effort
-              }
-            }
-          }
+          _deleteFileWithSuffixes(track.filePath);
           await ref
               .read(navisDatabaseProvider)
               .cacheDao
@@ -251,5 +262,17 @@ class _DownloadedTrackTile extends ConsumerWidget {
         },
       ),
     );
+  }
+
+  /// Best-effort file + sidecar deletion.
+  void _deleteFileWithSuffixes(String filePath) {
+    for (final suffix in <String>['', '.part', '.mime']) {
+      try {
+        final f = File('$filePath$suffix');
+        if (f.existsSync()) f.deleteSync();
+      } on FileSystemException {
+        // best-effort
+      }
+    }
   }
 }

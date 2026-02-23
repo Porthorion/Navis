@@ -2235,6 +2235,24 @@ abstract class AppLocalizations {
   /// **'Retry failed'**
   String get downloadsRetryFailed;
 
+  /// No description provided for @downloadsStatusFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed'**
+  String get downloadsStatusFailed;
+
+  /// No description provided for @downloadsRetryAllFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry all failed'**
+  String get downloadsRetryAllFailed;
+
+  /// No description provided for @downloadsErrorLoadingQueue.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load download queue.'**
+  String get downloadsErrorLoadingQueue;
+
   /// No description provided for @libraryDownloadedOnlyFilter.
   ///
   /// In en, this message translates to:
