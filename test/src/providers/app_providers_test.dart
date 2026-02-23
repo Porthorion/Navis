@@ -6,7 +6,6 @@ import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -149,6 +148,40 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
       shuffleMode: AudioServiceShuffleMode.none,
       repeatMode: AudioServiceRepeatMode.none,
     );
+    _controller.add(_snapshot);
+  }
+
+  @override
+  Future<void> seek(Duration position) async {
+    _snapshot = _snapshot.copyWith(position: position);
+    _controller.add(_snapshot);
+  }
+
+  @override
+  Future<void> skipToNext() async {
+    final idx = (_snapshot.currentIndex ?? -1) + 1;
+    if (idx < _snapshot.queueSongIds.length) {
+      await playFromIndex(idx);
+    }
+  }
+
+  @override
+  Future<void> skipToPrevious() async {
+    final idx = (_snapshot.currentIndex ?? 1) - 1;
+    if (idx >= 0) {
+      await playFromIndex(idx);
+    }
+  }
+
+  @override
+  Future<void> setShuffleMode(AudioServiceShuffleMode shuffleMode) async {
+    _snapshot = _snapshot.copyWith(shuffleMode: shuffleMode);
+    _controller.add(_snapshot);
+  }
+
+  @override
+  Future<void> setRepeatMode(AudioServiceRepeatMode repeatMode) async {
+    _snapshot = _snapshot.copyWith(repeatMode: repeatMode);
     _controller.add(_snapshot);
   }
 

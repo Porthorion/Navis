@@ -1,14 +1,548 @@
-import 'package:flutter/material.dart';
-import 'package:navis/src/common_widgets/placeholder_screen.dart';
+import 'dart:async';
 
-class NowPlayingScreen extends StatelessWidget {
+import 'package:audio_service/audio_service.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:navis/src/features/player/presentation/sleep_timer_provider.dart';
+import 'package:navis/src/providers/app_providers.dart';
+
+String _formatDuration(Duration d) {
+  final totalSeconds = d.inSeconds;
+  final minutes = totalSeconds ~/ 60;
+  final seconds = totalSeconds % 60;
+  return '$minutes:${seconds.toString().padLeft(2, '0')}';
+}
+
+class NowPlayingScreen extends ConsumerWidget {
   const NowPlayingScreen({super.key});
 
   @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final playback = ref.watch(playerStateProvider);
+    final currentSongId = playback.currentSongId;
+    final songAsync = currentSongId == null
+        ? const AsyncValue<SongsTableData?>.data(null)
+        : ref.watch(songByIdProvider(currentSongId));
+    final song = songAsync.asData?.value;
+
+    return Scaffold(
+      body: SafeArea(
+        child: Column(
+          children: <Widget>[
+            _NowPlayingAppBar(song: song),
+            Expanded(
+              child: _NowPlayingBody(
+                playback: playback,
+                song: song,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NowPlayingAppBar extends ConsumerWidget {
+  const _NowPlayingAppBar({this.song});
+
+  final SongsTableData? song;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final sleepTimer = ref.watch(sleepTimerProvider);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      child: Row(
+        children: <Widget>[
+          IconButton(
+            icon: const Icon(Icons.keyboard_arrow_down),
+            onPressed: () => Navigator.of(context).maybePop(),
+          ),
+          Expanded(
+            child: sleepTimer.isActive
+                ? Text(
+                    l10n.sleepTimerActive(
+                      _formatDuration(sleepTimer.remaining),
+                    ),
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                  )
+                : Text(
+                    l10n.nowPlayingTitle,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.more_vert),
+            tooltip: l10n.nowPlayingMore,
+            onPressed: () => _showOverflowMenu(context, ref, song),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showOverflowMenu(
+    BuildContext context,
+    WidgetRef ref,
+    SongsTableData? song,
+  ) {
+    final l10n = AppLocalizations.of(context)!;
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            ListTile(
+              leading: const Icon(Icons.bedtime_outlined),
+              title: Text(l10n.nowPlayingSleepTimer),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                _showSleepTimerSheet(context, ref);
+              },
+            ),
+            if (song?.albumId != null && song!.albumId!.isNotEmpty)
+              ListTile(
+                leading: const Icon(Icons.album_outlined),
+                title: Text(l10n.nowPlayingGoToAlbum),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  context.go('/library/albums/${song.albumId}');
+                },
+              ),
+            if (song?.artistId != null && song!.artistId!.isNotEmpty)
+              ListTile(
+                leading: const Icon(Icons.person_outline),
+                title: Text(l10n.nowPlayingGoToArtist),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  context.go('/library/artists/${song.artistId}');
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showSleepTimerSheet(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final sleepTimer = ref.read(sleepTimerProvider);
+
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                l10n.sleepTimerTitle,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            if (sleepTimer.isActive)
+              ListTile(
+                leading: const Icon(Icons.cancel_outlined),
+                title: Text(l10n.sleepTimerOff),
+                onTap: () {
+                  ref.read(sleepTimerProvider.notifier).cancel();
+                  Navigator.of(sheetContext).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(l10n.sleepTimerCancelled)),
+                  );
+                },
+              ),
+            ListTile(
+              title: Text(l10n.sleepTimer15Min),
+              onTap: () {
+                ref
+                    .read(sleepTimerProvider.notifier)
+                    .setDuration(const Duration(minutes: 15));
+                Navigator.of(sheetContext).pop();
+              },
+            ),
+            ListTile(
+              title: Text(l10n.sleepTimer30Min),
+              onTap: () {
+                ref
+                    .read(sleepTimerProvider.notifier)
+                    .setDuration(const Duration(minutes: 30));
+                Navigator.of(sheetContext).pop();
+              },
+            ),
+            ListTile(
+              title: Text(l10n.sleepTimer45Min),
+              onTap: () {
+                ref
+                    .read(sleepTimerProvider.notifier)
+                    .setDuration(const Duration(minutes: 45));
+                Navigator.of(sheetContext).pop();
+              },
+            ),
+            ListTile(
+              title: Text(l10n.sleepTimer60Min),
+              onTap: () {
+                ref
+                    .read(sleepTimerProvider.notifier)
+                    .setDuration(const Duration(minutes: 60));
+                Navigator.of(sheetContext).pop();
+              },
+            ),
+            ListTile(
+              title: Text(l10n.sleepTimerEndOfTrack),
+              onTap: () {
+                ref.read(sleepTimerProvider.notifier).setEndOfTrack();
+                Navigator.of(sheetContext).pop();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NowPlayingBody extends StatelessWidget {
+  const _NowPlayingBody({
+    required this.playback,
+    this.song,
+  });
+
+  final PlaybackSnapshot playback;
+  final SongsTableData? song;
+
+  @override
   Widget build(BuildContext context) {
-    return const PlaceholderScreen(
-      title: 'Now Playing',
-      subtitle: 'Phase 5: full-screen player and lyrics.',
+    final l10n = AppLocalizations.of(context)!;
+    final title = song?.title ?? l10n.nowPlayingUnknownTrack;
+    final artist = song?.artistName ?? l10n.nowPlayingUnknownArtist;
+    final album = song?.albumName ?? l10n.nowPlayingUnknownAlbum;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(
+        children: <Widget>[
+          const Spacer(flex: 1),
+          _CoverArt(coverArtId: song?.coverArt),
+          const SizedBox(height: 32),
+          _TrackInfo(title: title, artist: artist, album: album),
+          const SizedBox(height: 24),
+          _SeekBar(playback: playback),
+          const SizedBox(height: 8),
+          _TransportControls(playback: playback),
+          const SizedBox(height: 16),
+          _ActionRow(songId: playback.currentSongId),
+          const Spacer(flex: 1),
+        ],
+      ),
+    );
+  }
+}
+
+class _CoverArt extends StatelessWidget {
+  const _CoverArt({this.coverArtId});
+
+  final String? coverArtId;
+
+  @override
+  Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final artSize = screenWidth - 48;
+    final clampedSize = artSize.clamp(200.0, 400.0);
+
+    return CoverArtImage(
+      coverArtId: coverArtId,
+      size: 640,
+      width: clampedSize,
+      height: clampedSize,
+      borderRadius: BorderRadius.circular(12),
+      placeholderIcon: Icons.music_note_outlined,
+    );
+  }
+}
+
+class _TrackInfo extends StatelessWidget {
+  const _TrackInfo({
+    required this.title,
+    required this.artist,
+    required this.album,
+  });
+
+  final String title;
+  final String artist;
+  final String album;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: <Widget>[
+        Text(
+          title,
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          artist,
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 2),
+        Text(
+          album,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+}
+
+class _SeekBar extends ConsumerStatefulWidget {
+  const _SeekBar({required this.playback});
+
+  final PlaybackSnapshot playback;
+
+  @override
+  ConsumerState<_SeekBar> createState() => _SeekBarState();
+}
+
+class _SeekBarState extends ConsumerState<_SeekBar> {
+  double? _draggingValue;
+
+  @override
+  Widget build(BuildContext context) {
+    final position = widget.playback.position;
+    final duration = widget.playback.duration;
+    final durationMs = duration.inMilliseconds;
+    final positionMs = position.inMilliseconds;
+
+    final sliderValue = _draggingValue ??
+        (durationMs > 0 ? positionMs.toDouble().clamp(0, durationMs.toDouble()) : 0.0);
+    final sliderMax = durationMs > 0 ? durationMs.toDouble() : 1.0;
+
+    return Column(
+      children: <Widget>[
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            trackHeight: 4,
+            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+            overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+          ),
+          child: Slider(
+            value: sliderValue.clamp(0, sliderMax),
+            max: sliderMax,
+            onChanged: (value) {
+              setState(() => _draggingValue = value);
+            },
+            onChangeEnd: (value) {
+              setState(() => _draggingValue = null);
+              final handler = ref.read(audioHandlerProvider);
+              unawaited(
+                handler?.seek(Duration(milliseconds: value.round())),
+              );
+            },
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: <Widget>[
+              Text(
+                _formatDuration(
+                  _draggingValue != null
+                      ? Duration(milliseconds: _draggingValue!.round())
+                      : position,
+                ),
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              Text(
+                _formatDuration(duration),
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TransportControls extends ConsumerWidget {
+  const _TransportControls({required this.playback});
+
+  final PlaybackSnapshot playback;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final isPlaying = playback.playing;
+    final shuffleOn =
+        playback.shuffleMode == AudioServiceShuffleMode.all;
+    final repeatMode = playback.repeatMode;
+
+    String repeatTooltip;
+    IconData repeatIcon;
+    switch (repeatMode) {
+      case AudioServiceRepeatMode.one:
+        repeatTooltip = l10n.nowPlayingRepeatOne;
+        repeatIcon = Icons.repeat_one;
+      case AudioServiceRepeatMode.all:
+      case AudioServiceRepeatMode.group:
+        repeatTooltip = l10n.nowPlayingRepeatAll;
+        repeatIcon = Icons.repeat;
+      case AudioServiceRepeatMode.none:
+        repeatTooltip = l10n.nowPlayingRepeatOff;
+        repeatIcon = Icons.repeat;
+    }
+
+    final isRepeatActive =
+        repeatMode != AudioServiceRepeatMode.none;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: <Widget>[
+        IconButton(
+          icon: Icon(
+            Icons.shuffle,
+            color: shuffleOn
+                ? Theme.of(context).colorScheme.primary
+                : null,
+          ),
+          tooltip: shuffleOn
+              ? l10n.nowPlayingShuffle
+              : l10n.nowPlayingShuffleOff,
+          onPressed: () {
+            final handler = ref.read(audioHandlerProvider);
+            final next = shuffleOn
+                ? AudioServiceShuffleMode.none
+                : AudioServiceShuffleMode.all;
+            unawaited(handler?.setShuffleMode(next));
+          },
+        ),
+        const SizedBox(width: 8),
+        IconButton(
+          icon: const Icon(Icons.skip_previous, size: 32),
+          tooltip: l10n.nowPlayingPrevious,
+          onPressed: () {
+            final handler = ref.read(audioHandlerProvider);
+            unawaited(handler?.skipToPrevious());
+          },
+        ),
+        const SizedBox(width: 8),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            shape: const CircleBorder(),
+            padding: const EdgeInsets.all(16),
+          ),
+          onPressed: () {
+            final handler = ref.read(audioHandlerProvider);
+            if (isPlaying) {
+              unawaited(handler?.pause());
+            } else {
+              unawaited(handler?.play());
+            }
+          },
+          child: Icon(
+            isPlaying ? Icons.pause : Icons.play_arrow,
+            size: 36,
+          ),
+        ),
+        const SizedBox(width: 8),
+        IconButton(
+          icon: const Icon(Icons.skip_next, size: 32),
+          tooltip: l10n.nowPlayingNext,
+          onPressed: () {
+            final handler = ref.read(audioHandlerProvider);
+            unawaited(handler?.skipToNext());
+          },
+        ),
+        const SizedBox(width: 8),
+        IconButton(
+          icon: Icon(
+            repeatIcon,
+            color: isRepeatActive
+                ? Theme.of(context).colorScheme.primary
+                : null,
+          ),
+          tooltip: repeatTooltip,
+          onPressed: () {
+            final handler = ref.read(audioHandlerProvider);
+            final next = switch (repeatMode) {
+              AudioServiceRepeatMode.none => AudioServiceRepeatMode.all,
+              AudioServiceRepeatMode.all => AudioServiceRepeatMode.one,
+              AudioServiceRepeatMode.one => AudioServiceRepeatMode.none,
+              AudioServiceRepeatMode.group => AudioServiceRepeatMode.none,
+            };
+            unawaited(handler?.setRepeatMode(next));
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _ActionRow extends ConsumerWidget {
+  const _ActionRow({this.songId});
+
+  final String? songId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: <Widget>[
+        IconButton(
+          icon: const Icon(Icons.star_border_outlined),
+          tooltip: l10n.nowPlayingStar,
+          onPressed: songId == null
+              ? null
+              : () {
+                  // Star/unstar will be wired in a later increment
+                },
+        ),
+        IconButton(
+          icon: const Icon(Icons.lyrics_outlined),
+          tooltip: l10n.nowPlayingLyrics,
+          onPressed: songId == null
+              ? null
+              : () => context.go('/now-playing/lyrics'),
+        ),
+        IconButton(
+          icon: const Icon(Icons.queue_music),
+          tooltip: l10n.nowPlayingQueue,
+          onPressed: () => context.go('/queue'),
+        ),
+      ],
     );
   }
 }

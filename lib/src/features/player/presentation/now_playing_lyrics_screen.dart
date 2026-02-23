@@ -1,0 +1,77 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/lyrics_display_widget.dart';
+import 'package:navis/src/providers/app_providers.dart';
+
+class NowPlayingLyricsScreen extends ConsumerWidget {
+  const NowPlayingLyricsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final playback = ref.watch(playerStateProvider);
+    final songId = playback.currentSongId;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(l10n.lyricsTitle),
+      ),
+      body: songId == null
+          ? Center(
+              child: Text(
+                l10n.lyricsNoneAvailable,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withValues(alpha: 0.6),
+                    ),
+              ),
+            )
+          : _LyricsContent(
+              songId: songId,
+              position: playback.position,
+            ),
+    );
+  }
+}
+
+class _LyricsContent extends ConsumerWidget {
+  const _LyricsContent({
+    required this.songId,
+    required this.position,
+  });
+
+  final String songId;
+  final Duration position;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final lyricsAsync = ref.watch(lyricsProvider(songId));
+
+    return lyricsAsync.when(
+      data: (lyrics) => LyricsDisplayWidget(
+        lyrics: lyrics,
+        currentPosition: position,
+        onSeek: (seekPosition) {
+          final handler = ref.read(audioHandlerProvider);
+          handler?.seek(seekPosition);
+        },
+      ),
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (_, _) => Center(
+        child: Text(
+          l10n.lyricsNoneAvailable,
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: Theme.of(context)
+                    .colorScheme
+                    .onSurface
+                    .withValues(alpha: 0.6),
+              ),
+        ),
+      ),
+    );
+  }
+}

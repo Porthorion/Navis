@@ -397,5 +397,47 @@
   "queueClearConfirmMessage": "This will remove all tracks from the queue.",
   "queueEmptyTitle": "Queue is empty",
   "queueEmptySubtitle": "Add tracks to start playing.",
-  "cancelAction": "Cancel"
+  "cancelAction": "Cancel",
+  "nowPlayingTitle": "Now Playing",
+  "nowPlayingUnknownTrack": "Unknown track",
+  "nowPlayingUnknownArtist": "Unknown artist",
+  "nowPlayingUnknownAlbum": "Unknown album",
+  "nowPlayingShuffle": "Shuffle",
+  "nowPlayingShuffleOff": "Shuffle off",
+  "nowPlayingPrevious": "Previous",
+  "nowPlayingPlay": "Play",
+  "nowPlayingPause": "Pause",
+  "nowPlayingNext": "Next",
+  "nowPlayingRepeatOff": "Repeat off",
+  "nowPlayingRepeatAll": "Repeat all",
+  "nowPlayingRepeatOne": "Repeat one",
+  "nowPlayingStar": "Star",
+  "nowPlayingLyrics": "Lyrics",
+  "nowPlayingQueue": "Queue",
+  "nowPlayingMore": "More options",
+  "nowPlayingGoToAlbum": "Go to album",
+  "nowPlayingGoToArtist": "Go to artist",
+  "nowPlayingSleepTimer": "Sleep timer",
+  "nowPlayingAudioQuality": "Audio quality",
+  "lyricsTitle": "Lyrics",
+  "lyricsNoneAvailable": "No lyrics available",
+  "sleepTimerTitle": "Sleep timer",
+  "sleepTimerOff": "Off",
+  "sleepTimer15Min": "15 minutes",
+  "sleepTimer30Min": "30 minutes",
+  "sleepTimer45Min": "45 minutes",
+  "sleepTimer60Min": "1 hour",
+  "sleepTimerEndOfTrack": "End of current track",
+  "sleepTimerActive": "Sleep in {remaining}",
+  "@sleepTimerActive": {
+    "placeholders": {
+      "remaining": {
+        "type": "String"
+      }
+    }
+  },
+  "sleepTimerCancelled": "Sleep timer cancelled",
+  "queueSaveAsPlaylist": "Save as playlist",
+  "queueSaveAsPlaylistName": "Playlist name",
+  "queueSaveAsPlaylistSaved": "Playlist saved"
 }

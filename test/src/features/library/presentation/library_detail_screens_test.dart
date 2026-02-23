@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -62,6 +63,21 @@ class _DelayedReplaceHandler implements NavisPlaybackHandler {
 
   @override
   Future<void> pause() async {}
+
+  @override
+  Future<void> seek(Duration position) async {}
+
+  @override
+  Future<void> skipToNext() async {}
+
+  @override
+  Future<void> skipToPrevious() async {}
+
+  @override
+  Future<void> setShuffleMode(AudioServiceShuffleMode shuffleMode) async {}
+
+  @override
+  Future<void> setRepeatMode(AudioServiceRepeatMode repeatMode) async {}
 
   @override
   Future<void> applyRuntimeSettings() async {}
