@@ -175,6 +175,30 @@ class _NowPlayingBody extends ConsumerStatefulWidget {
 class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
   bool _showLyrics = false;
 
+  void _togglePlayPause() {
+    final handler = ref.read(audioHandlerProvider);
+    if (handler == null) return;
+    if (widget.playback.playing) {
+      unawaited(handler.pause());
+    } else {
+      unawaited(handler.play());
+    }
+  }
+
+  void _handleHorizontalSwipe(DragEndDetails details) {
+    final velocity = details.primaryVelocity ?? 0;
+    if (velocity.abs() < 300) return;
+    final handler = ref.read(audioHandlerProvider);
+    if (handler == null) return;
+    if (velocity < 0) {
+      // Swipe left → next track
+      unawaited(handler.skipToNext());
+    } else {
+      // Swipe right → previous track
+      unawaited(handler.skipToPrevious());
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -196,7 +220,11 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
                     ? _InlineLyrics(
                         songId: playback.currentSongId!,
                       )
-                    : _CoverArt(coverArtId: song?.coverArt),
+                    : GestureDetector(
+                        onTap: _togglePlayPause,
+                        onHorizontalDragEnd: _handleHorizontalSwipe,
+                        child: _CoverArt(coverArtId: song?.coverArt),
+                      ),
               ),
             ),
             const SizedBox(height: 16),

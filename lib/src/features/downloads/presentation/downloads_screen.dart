@@ -17,7 +17,7 @@ class DownloadsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: Scaffold(
         appBar: AppBar(
           title: Text(l10n.downloadsTitle),
@@ -25,6 +25,7 @@ class DownloadsScreen extends ConsumerWidget {
             tabs: <Widget>[
               Tab(text: l10n.downloadsTabQueue),
               Tab(text: l10n.downloadsTabDownloaded),
+              Tab(text: l10n.downloadsTabSettings),
             ],
           ),
         ),
@@ -32,6 +33,7 @@ class DownloadsScreen extends ConsumerWidget {
           children: <Widget>[
             _QueueTab(),
             _DownloadedTab(),
+            _DownloadSettingsTab(),
           ],
         ),
       ),
@@ -304,5 +306,125 @@ class _DownloadedTrackTile extends ConsumerWidget {
         // best-effort
       }
     }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Download Settings tab
+// ---------------------------------------------------------------------------
+
+class _DownloadSettingsTab extends ConsumerStatefulWidget {
+  const _DownloadSettingsTab();
+
+  @override
+  ConsumerState<_DownloadSettingsTab> createState() =>
+      _DownloadSettingsTabState();
+}
+
+class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
+  bool _clearing = false;
+
+  Future<void> _clearDownloads() async {
+    final l10n = AppLocalizations.of(context)!;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.cacheSettingsClearPermanent),
+        content: Text(l10n.cacheSettingsClearPermanentConfirm),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(l10n.cancelAction),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(l10n.cacheSettingsClearPermanent),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+
+    setState(() => _clearing = true);
+    try {
+      final db = ref.read(navisDatabaseProvider);
+      final tracks = await db.cacheDao
+          .watchCachedTracksByType(CacheType.permanent)
+          .first;
+      for (final track in tracks) {
+        for (final suffix in <String>['', '.part', '.mime']) {
+          try {
+            final f = File('${track.filePath}$suffix');
+            if (f.existsSync()) f.deleteSync();
+          } on FileSystemException {
+            // best-effort
+          }
+        }
+      }
+      if (tracks.isNotEmpty) {
+        await db.cacheDao
+            .deleteCachedTracksBySongIds(tracks.map((t) => t.songId));
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+          ..clearSnackBars()
+          ..showSnackBar(
+            SnackBar(content: Text(l10n.cacheSettingsClearSuccess)),
+          );
+      }
+    } finally {
+      if (mounted) setState(() => _clearing = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final permanentStats = ref.watch(permanentCacheStatsProvider);
+
+    if (_clearing) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    return ListView(
+      children: <Widget>[
+        SwitchListTile(
+          title: Text(l10n.cacheSettingsWifiOnlyDownloads),
+          subtitle: Text(l10n.cacheSettingsWifiOnlyDownloadsSub),
+          value: ref.watch(wifiOnlyDownloadsProvider),
+          onChanged: (value) {
+            final dao = ref.read(navisDatabaseProvider).appSettingsDao;
+            dao.updateWifiOnlyDownloads(enabled: value);
+          },
+        ),
+        const Divider(),
+        permanentStats.when(
+          data: (stats) => Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  formatBytes(stats.totalBytes),
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  l10n.cacheSettingsPermanentTrackCount(stats.trackCount),
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (_, _) => const SizedBox.shrink(),
+        ),
+        ListTile(
+          leading: const Icon(Icons.delete_outline),
+          title: Text(l10n.cacheSettingsClearPermanent),
+          onTap: _clearDownloads,
+        ),
+      ],
+    );
   }
 }

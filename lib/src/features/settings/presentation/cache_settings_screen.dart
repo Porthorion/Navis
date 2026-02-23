@@ -65,16 +65,16 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
     final l10n = AppLocalizations.of(context)!;
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: Text(l10n.cacheSettingsClearRolling),
         content: Text(l10n.cacheSettingsClearRollingConfirm),
         actions: <Widget>[
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(dialogContext, false),
             child: Text(l10n.cancelAction),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(dialogContext, true),
             child: Text(l10n.cacheSettingsClearRolling),
           ),
         ],
@@ -91,50 +91,20 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
     }
   }
 
-  Future<void> _clearPermanentCache() async {
-    final l10n = AppLocalizations.of(context)!;
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text(l10n.cacheSettingsClearPermanent),
-        content: Text(l10n.cacheSettingsClearPermanentConfirm),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(l10n.cancelAction),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(l10n.cacheSettingsClearPermanent),
-          ),
-        ],
-      ),
-    );
-    if (confirm != true || !mounted) return;
-
-    setState(() => _clearing = true);
-    try {
-      await _clearCacheByType(CacheType.permanent);
-      if (mounted) _showClearedSnackBar();
-    } finally {
-      if (mounted) setState(() => _clearing = false);
-    }
-  }
-
   Future<void> _clearCoverArtCache() async {
     final l10n = AppLocalizations.of(context)!;
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: Text(l10n.cacheSettingsClearCoverArt),
         content: Text(l10n.cacheSettingsClearCoverArtConfirm),
         actions: <Widget>[
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(dialogContext, false),
             child: Text(l10n.cancelAction),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(dialogContext, true),
             child: Text(l10n.cacheSettingsClearCoverArt),
           ),
         ],
@@ -201,7 +171,6 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final rollingStats = ref.watch(rollingCacheStatsProvider);
-    final permanentStats = ref.watch(permanentCacheStatsProvider);
     final budgetBytes = ref.watch(rollingCacheBudgetBytesProvider);
 
     return Scaffold(
@@ -270,37 +239,6 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
                   leading: const Icon(Icons.delete_outline),
                   title: Text(l10n.cacheSettingsClearRolling),
                   onTap: _clearRollingCache,
-                ),
-                const Divider(),
-
-                // ---- Permanent / downloaded tracks section ----
-                _SectionHeader(title: l10n.cacheSettingsPermanentSection),
-                SwitchListTile(
-                  title: Text(l10n.cacheSettingsWifiOnlyDownloads),
-                  subtitle: Text(l10n.cacheSettingsWifiOnlyDownloadsSub),
-                  value: ref.watch(wifiOnlyDownloadsProvider),
-                  onChanged: (value) {
-                    final dao = ref.read(navisDatabaseProvider).appSettingsDao;
-                    dao.updateWifiOnlyDownloads(enabled: value);
-                  },
-                ),
-                permanentStats.when(
-                  data: (stats) => _CacheStatsCard(
-                    usedBytes: stats.totalBytes,
-                    budgetBytes: null,
-                    trackCount: stats.trackCount,
-                    formatBytes: formatBytes,
-                    l10n: l10n,
-                    isRolling: false,
-                  ),
-                  loading: () =>
-                      const Center(child: CircularProgressIndicator()),
-                  error: (_, _) => const SizedBox.shrink(),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.delete_outline),
-                  title: Text(l10n.cacheSettingsClearPermanent),
-                  onTap: _clearPermanentCache,
                 ),
                 const Divider(),
 

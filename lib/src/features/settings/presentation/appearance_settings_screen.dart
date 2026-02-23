@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -12,6 +15,8 @@ class AppearanceSettingsScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
     final currentMode = ref.watch(themeModeProvider);
     final currentSeed = ref.watch(colorSchemeSeedProvider);
+    final customPresetsAsync = ref.watch(customColorPresetsProvider);
+    final customPresets = customPresetsAsync.asData?.value ?? <int>[];
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -57,9 +62,52 @@ class AppearanceSettingsScreen extends ConsumerWidget {
           ),
           _ColorSchemeGrid(
             currentSeed: currentSeed,
+            customPresets: customPresets,
             onSelected: (int? seed) async {
               final db = ref.read(navisDatabaseProvider);
               await db.appSettingsDao.updateColorSchemeSeed(seed);
+            },
+            onCustomColorPicked: (int colorValue) async {
+              final db = ref.read(navisDatabaseProvider);
+              await db.appSettingsDao.updateColorSchemeSeed(colorValue);
+            },
+            onSavePreset: (int colorValue) async {
+              final db = ref.read(navisDatabaseProvider);
+              final updated = List<int>.from(customPresets);
+              if (!updated.contains(colorValue)) {
+                updated.add(colorValue);
+              }
+              await db.appSettingsDao
+                  .updateCustomColorPresets(jsonEncode(updated));
+              if (context.mounted) {
+                ScaffoldMessenger.of(context)
+                  ..clearSnackBars()
+                  ..showSnackBar(
+                    SnackBar(
+                      content: Text(l10n.appearanceColorPresetSaved),
+                    ),
+                  );
+              }
+            },
+            onDeletePreset: (int colorValue) async {
+              final db = ref.read(navisDatabaseProvider);
+              final updated = List<int>.from(customPresets)
+                ..remove(colorValue);
+              await db.appSettingsDao.updateCustomColorPresets(
+                updated.isEmpty ? null : jsonEncode(updated),
+              );
+              if (currentSeed == colorValue) {
+                await db.appSettingsDao.updateColorSchemeSeed(null);
+              }
+              if (context.mounted) {
+                ScaffoldMessenger.of(context)
+                  ..clearSnackBars()
+                  ..showSnackBar(
+                    SnackBar(
+                      content: Text(l10n.appearanceColorPresetDeleted),
+                    ),
+                  );
+              }
             },
           ),
         ],
@@ -112,11 +160,19 @@ class _ThemeModeSelector extends StatelessWidget {
 class _ColorSchemeGrid extends StatelessWidget {
   const _ColorSchemeGrid({
     required this.currentSeed,
+    required this.customPresets,
     required this.onSelected,
+    required this.onCustomColorPicked,
+    required this.onSavePreset,
+    required this.onDeletePreset,
   });
 
   final int? currentSeed;
+  final List<int> customPresets;
   final ValueChanged<int?> onSelected;
+  final ValueChanged<int> onCustomColorPicked;
+  final ValueChanged<int> onSavePreset;
+  final ValueChanged<int> onDeletePreset;
 
   @override
   Widget build(BuildContext context) {
@@ -147,6 +203,33 @@ class _ColorSchemeGrid extends StatelessWidget {
                 onTap: () => onSelected(preset.color.toARGB32()),
                 theme: theme,
               ),
+          // Custom presets (long-press to delete)
+          for (final colorValue in customPresets)
+            _ColorChip(
+              color: Color(colorValue),
+              label: l10n.appearanceColorCustom,
+              isSelected: currentSeed == colorValue,
+              onTap: () => onSelected(colorValue),
+              onLongPress: () => onDeletePreset(colorValue),
+              theme: theme,
+              showDeleteHint: true,
+            ),
+          // Rainbow / custom picker chip
+          _RainbowChip(
+            theme: theme,
+            label: l10n.appearanceColorCustom,
+            onTap: () async {
+              final result = await showDialog<_ColorPickerResult>(
+                context: context,
+                builder: (_) => const _ColorPickerDialog(),
+              );
+              if (result == null) return;
+              onCustomColorPicked(result.colorValue);
+              if (result.saveAsPreset) {
+                onSavePreset(result.colorValue);
+              }
+            },
+          ),
         ],
       ),
     );
@@ -160,21 +243,26 @@ class _ColorChip extends StatelessWidget {
     required this.isSelected,
     required this.onTap,
     required this.theme,
+    this.onLongPress,
+    this.showDeleteHint = false,
   });
 
   final Color color;
   final String label;
   final bool isSelected;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
   final ThemeData theme;
+  final bool showDeleteHint;
 
   @override
   Widget build(BuildContext context) {
     const size = 52.0;
     return Tooltip(
-      message: label,
+      message: showDeleteHint ? '$label (long-press to delete)' : label,
       child: GestureDetector(
         onTap: onTap,
+        onLongPress: onLongPress,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           width: size,
@@ -210,6 +298,203 @@ class _ColorChip extends StatelessWidget {
               : null,
         ),
       ),
+    );
+  }
+}
+
+class _RainbowChip extends StatelessWidget {
+  const _RainbowChip({
+    required this.theme,
+    required this.label,
+    required this.onTap,
+  });
+
+  final ThemeData theme;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    const size = 52.0;
+    return Tooltip(
+      message: label,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: size,
+          height: size,
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: SweepGradient(
+              colors: <Color>[
+                Colors.red,
+                Colors.orange,
+                Colors.yellow,
+                Colors.green,
+                Colors.cyan,
+                Colors.blue,
+                Colors.purple,
+                Colors.red,
+              ],
+            ),
+          ),
+          child: const Icon(Icons.add, color: Colors.white, size: 24),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Color picker dialog
+// ---------------------------------------------------------------------------
+
+class _ColorPickerResult {
+  const _ColorPickerResult({
+    required this.colorValue,
+    required this.saveAsPreset,
+  });
+  final int colorValue;
+  final bool saveAsPreset;
+}
+
+class _ColorPickerDialog extends StatefulWidget {
+  const _ColorPickerDialog();
+
+  @override
+  State<_ColorPickerDialog> createState() => _ColorPickerDialogState();
+}
+
+class _ColorPickerDialogState extends State<_ColorPickerDialog> {
+  double _hue = 0;
+  double _saturation = 1;
+  double _value = 1;
+
+  Color get _currentColor =>
+      HSVColor.fromAHSV(1, _hue, _saturation, _value).toColor();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+
+    return AlertDialog(
+      title: Text(l10n.appearanceColorPickerTitle),
+      content: SizedBox(
+        width: 300,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            // Color preview
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: _currentColor,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: theme.colorScheme.outline,
+                  width: 2,
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            // Hue slider with rainbow gradient
+            _HueSlider(
+              hue: _hue,
+              onChanged: (value) => setState(() => _hue = value),
+            ),
+            const SizedBox(height: 12),
+            // Saturation slider
+            Row(
+              children: <Widget>[
+                const Icon(Icons.water_drop_outlined, size: 18),
+                Expanded(
+                  child: Slider(
+                    value: _saturation,
+                    onChanged: (value) =>
+                        setState(() => _saturation = value),
+                  ),
+                ),
+              ],
+            ),
+            // Brightness slider
+            Row(
+              children: <Widget>[
+                const Icon(Icons.brightness_6_outlined, size: 18),
+                Expanded(
+                  child: Slider(
+                    value: _value,
+                    onChanged: (value) => setState(() => _value = value),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(l10n.cancelAction),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(
+            context,
+            _ColorPickerResult(
+              colorValue: _currentColor.toARGB32(),
+              saveAsPreset: true,
+            ),
+          ),
+          child: Text(l10n.appearanceColorPickerSave),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(
+            context,
+            _ColorPickerResult(
+              colorValue: _currentColor.toARGB32(),
+              saveAsPreset: false,
+            ),
+          ),
+          child: Text(l10n.appearanceColorPickerApply),
+        ),
+      ],
+    );
+  }
+}
+
+class _HueSlider extends StatelessWidget {
+  const _HueSlider({
+    required this.hue,
+    required this.onChanged,
+  });
+
+  final double hue;
+  final ValueChanged<double> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: <Widget>[
+        Container(
+          height: 24,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            gradient: LinearGradient(
+              colors: List<Color>.generate(
+                360 ~/ 10 + 1,
+                (i) =>
+                    HSVColor.fromAHSV(1, min(i * 10.0, 359), 1, 1).toColor(),
+              ),
+            ),
+          ),
+        ),
+        Slider(
+          value: hue,
+          max: 359,
+          onChanged: onChanged,
+        ),
+      ],
     );
   }
 }

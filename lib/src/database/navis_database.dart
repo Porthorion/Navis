@@ -65,7 +65,7 @@ class NavisDatabase extends _$NavisDatabase {
   static QueryExecutor _openConnection() => driftDatabase(name: 'navis.sqlite');
 
   @override
-  int get schemaVersion => 11;
+  int get schemaVersion => 12;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -116,6 +116,9 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 11 && to >= 11) {
       await from10To11(migrator);
+    }
+    if (from < 12 && to >= 12) {
+      await from11To12(migrator);
     }
   }
 
@@ -234,6 +237,15 @@ class NavisDatabase extends _$NavisDatabase {
       await migrator.addColumn(
         appSettingsTable,
         appSettingsTable.colorSchemeSeed,
+      );
+    }
+  }
+
+  Future<void> from11To12(Migrator migrator) async {
+    if (!await _columnExists('app_settings', 'custom_color_presets')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.customColorPresets,
       );
     }
   }

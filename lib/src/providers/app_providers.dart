@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -745,6 +746,20 @@ final colorSchemeSeedProvider = Provider<int?>((ref) {
       ref.watch(appSettingsProvider).asData?.value ??
       const AppSettingsModel.defaults();
   return settings.colorSchemeSeed;
+});
+
+/// Custom color presets stored as a JSON list of ARGB32 ints.
+final customColorPresetsProvider = StreamProvider<List<int>>((ref) {
+  final dao = ref.watch(navisDatabaseProvider).appSettingsDao;
+  return dao.watchCustomColorPresets().map((json) {
+    if (json == null || json.trim().isEmpty) return <int>[];
+    try {
+      final decoded = (jsonDecode(json) as List).cast<int>();
+      return decoded;
+    } on Object {
+      return <int>[];
+    }
+  });
 });
 
 Future<void> seedDefaultServerConfig(Ref ref) async {
