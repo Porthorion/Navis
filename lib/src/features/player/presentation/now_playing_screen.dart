@@ -163,7 +163,6 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
               child: _showLyrics && playback.currentSongId != null
                   ? _InlineLyrics(
                       songId: playback.currentSongId!,
-                      position: playback.position,
                     )
                   : _CoverArt(coverArtId: song?.coverArt),
             ),
@@ -445,16 +444,17 @@ class _TransportControls extends ConsumerWidget {
 class _InlineLyrics extends ConsumerWidget {
   const _InlineLyrics({
     required this.songId,
-    required this.position,
   });
 
   final String songId;
-  final Duration position;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final lyricsAsync = ref.watch(lyricsProvider(songId));
+    final position =
+        ref.watch(playbackPositionProvider).asData?.value ??
+        ref.watch(playerStateProvider).position;
 
     return lyricsAsync.when(
       data: (lyrics) => LyricsDisplayWidget(

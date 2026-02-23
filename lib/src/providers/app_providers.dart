@@ -550,6 +550,14 @@ final playerStateProvider = Provider<PlaybackSnapshot>((ref) {
   return snapshot ?? const PlaybackSnapshot.idle();
 });
 
+final playbackPositionProvider = StreamProvider<Duration>((ref) {
+  final handler = ref.watch(audioHandlerProvider);
+  if (handler == null) {
+    return Stream<Duration>.value(Duration.zero);
+  }
+  return handler.positionStream;
+});
+
 final lyricsProvider = FutureProvider.family<LyricsList, String>((
   ref,
   songId,

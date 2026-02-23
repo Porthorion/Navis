@@ -21,6 +21,7 @@ import 'package:navis/src/utils/app_logger.dart';
 abstract class NavisPlaybackHandler {
   PlaybackSnapshot get snapshot;
   Stream<PlaybackSnapshot> get snapshotStream;
+  Stream<Duration> get positionStream;
   Future<void> waitUntilReady();
 
   Future<void> replaceQueue(
@@ -321,6 +322,12 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Stream<PlaybackSnapshot> get snapshotStream => _snapshotController.stream;
+
+  @override
+  Stream<Duration> get positionStream => _player.createPositionStream(
+    minPeriod: const Duration(milliseconds: 100),
+    maxPeriod: const Duration(milliseconds: 200),
+  );
 
   @override
   Future<void> waitUntilReady() => _ready;
