@@ -16,6 +16,7 @@ class AppSettingsModel {
     required this.equalizerBandGains,
     required this.loudnessEnabled,
     required this.loudnessTargetGainDb,
+    required this.wifiOnlyDownloads,
   });
 
   const AppSettingsModel.defaults()
@@ -30,7 +31,8 @@ class AppSettingsModel {
       equalizerEnabled = false,
       equalizerBandGains = const <double>[],
       loudnessEnabled = false,
-      loudnessTargetGainDb = 0;
+      loudnessTargetGainDb = 0,
+      wifiOnlyDownloads = false;
 
   final int? wifiMaxBitRate;
   final String? wifiFormat;
@@ -46,6 +48,7 @@ class AppSettingsModel {
   final List<double> equalizerBandGains;
   final bool loudnessEnabled;
   final double loudnessTargetGainDb;
+  final bool wifiOnlyDownloads;
 
   AppSettingsModel copyWith({
     int? wifiMaxBitRate,
@@ -60,6 +63,7 @@ class AppSettingsModel {
     List<double>? equalizerBandGains,
     bool? loudnessEnabled,
     double? loudnessTargetGainDb,
+    bool? wifiOnlyDownloads,
     bool clearWifiBitRate = false,
     bool clearWifiFormat = false,
     bool clearCellularBitRate = false,
@@ -85,6 +89,7 @@ class AppSettingsModel {
           equalizerBandGains ?? List<double>.from(this.equalizerBandGains),
       loudnessEnabled: loudnessEnabled ?? this.loudnessEnabled,
       loudnessTargetGainDb: loudnessTargetGainDb ?? this.loudnessTargetGainDb,
+      wifiOnlyDownloads: wifiOnlyDownloads ?? this.wifiOnlyDownloads,
     );
   }
 }

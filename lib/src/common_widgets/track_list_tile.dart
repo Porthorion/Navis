@@ -8,12 +8,14 @@ class TrackListTile extends StatelessWidget {
     this.onTap,
     this.onLongPress,
     this.trailing,
+    this.badge,
   });
 
   final SongsTableData song;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
   final Widget? trailing;
+  final Widget? badge;
 
   @override
   Widget build(BuildContext context) {
@@ -26,7 +28,18 @@ class TrackListTile extends StatelessWidget {
     return ListTile(
       leading: song.track == null ? null : Text('${song.track}'),
       title: Text(song.title),
-      subtitle: subtitle.isEmpty ? null : Text(subtitle),
+      subtitle: subtitle.isEmpty && badge == null
+          ? null
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                if (subtitle.isNotEmpty) Text(subtitle),
+                if (badge != null) ...[
+                  const SizedBox(height: 2),
+                  badge!,
+                ],
+              ],
+            ),
       trailing: trailing ?? Text(_formatDuration(song.duration)),
       onTap: onTap,
       onLongPress: onLongPress,

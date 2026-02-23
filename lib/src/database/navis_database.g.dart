@@ -702,6 +702,21 @@ class $AppSettingsTableTable extends AppSettingsTable
     requiredDuringInsert: false,
     defaultValue: const Constant(2048),
   );
+  static const VerificationMeta _wifiOnlyDownloadsMeta = const VerificationMeta(
+    'wifiOnlyDownloads',
+  );
+  @override
+  late final GeneratedColumn<bool> wifiOnlyDownloads = GeneratedColumn<bool>(
+    'wifi_only_downloads',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("wifi_only_downloads" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _updatedAtMeta = const VerificationMeta(
     'updatedAt',
   );
@@ -729,6 +744,7 @@ class $AppSettingsTableTable extends AppSettingsTable
     loudnessEnabled,
     loudnessTargetGainDb,
     rollingCacheBudgetMb,
+    wifiOnlyDownloads,
     updatedAt,
   ];
   @override
@@ -860,6 +876,15 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
       );
     }
+    if (data.containsKey('wifi_only_downloads')) {
+      context.handle(
+        _wifiOnlyDownloadsMeta,
+        wifiOnlyDownloads.isAcceptableOrUnknown(
+          data['wifi_only_downloads']!,
+          _wifiOnlyDownloadsMeta,
+        ),
+      );
+    }
     if (data.containsKey('updated_at')) {
       context.handle(
         _updatedAtMeta,
@@ -933,6 +958,10 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.int,
         data['${effectivePrefix}rolling_cache_budget_mb'],
       )!,
+      wifiOnlyDownloads: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}wifi_only_downloads'],
+      )!,
       updatedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
@@ -964,6 +993,9 @@ class AppSettingsTableData extends DataClass
 
   /// Rolling cache budget in megabytes. Default 2048 (2 GB).
   final int rollingCacheBudgetMb;
+
+  /// When true, downloads only proceed on Wi-Fi / Ethernet.
+  final bool wifiOnlyDownloads;
   final DateTime updatedAt;
   const AppSettingsTableData({
     required this.id,
@@ -980,6 +1012,7 @@ class AppSettingsTableData extends DataClass
     required this.loudnessEnabled,
     this.loudnessTargetGainDb,
     required this.rollingCacheBudgetMb,
+    required this.wifiOnlyDownloads,
     required this.updatedAt,
   });
   @override
@@ -1011,6 +1044,7 @@ class AppSettingsTableData extends DataClass
       map['loudness_target_gain_db'] = Variable<double>(loudnessTargetGainDb);
     }
     map['rolling_cache_budget_mb'] = Variable<int>(rollingCacheBudgetMb);
+    map['wifi_only_downloads'] = Variable<bool>(wifiOnlyDownloads);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
   }
@@ -1043,6 +1077,7 @@ class AppSettingsTableData extends DataClass
           ? const Value.absent()
           : Value(loudnessTargetGainDb),
       rollingCacheBudgetMb: Value(rollingCacheBudgetMb),
+      wifiOnlyDownloads: Value(wifiOnlyDownloads),
       updatedAt: Value(updatedAt),
     );
   }
@@ -1073,6 +1108,7 @@ class AppSettingsTableData extends DataClass
       rollingCacheBudgetMb: serializer.fromJson<int>(
         json['rollingCacheBudgetMb'],
       ),
+      wifiOnlyDownloads: serializer.fromJson<bool>(json['wifiOnlyDownloads']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
   }
@@ -1094,6 +1130,7 @@ class AppSettingsTableData extends DataClass
       'loudnessEnabled': serializer.toJson<bool>(loudnessEnabled),
       'loudnessTargetGainDb': serializer.toJson<double?>(loudnessTargetGainDb),
       'rollingCacheBudgetMb': serializer.toJson<int>(rollingCacheBudgetMb),
+      'wifiOnlyDownloads': serializer.toJson<bool>(wifiOnlyDownloads),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
   }
@@ -1113,6 +1150,7 @@ class AppSettingsTableData extends DataClass
     bool? loudnessEnabled,
     Value<double?> loudnessTargetGainDb = const Value.absent(),
     int? rollingCacheBudgetMb,
+    bool? wifiOnlyDownloads,
     DateTime? updatedAt,
   }) => AppSettingsTableData(
     id: id ?? this.id,
@@ -1139,6 +1177,7 @@ class AppSettingsTableData extends DataClass
         ? loudnessTargetGainDb.value
         : this.loudnessTargetGainDb,
     rollingCacheBudgetMb: rollingCacheBudgetMb ?? this.rollingCacheBudgetMb,
+    wifiOnlyDownloads: wifiOnlyDownloads ?? this.wifiOnlyDownloads,
     updatedAt: updatedAt ?? this.updatedAt,
   );
   AppSettingsTableData copyWithCompanion(AppSettingsTableCompanion data) {
@@ -1183,6 +1222,9 @@ class AppSettingsTableData extends DataClass
       rollingCacheBudgetMb: data.rollingCacheBudgetMb.present
           ? data.rollingCacheBudgetMb.value
           : this.rollingCacheBudgetMb,
+      wifiOnlyDownloads: data.wifiOnlyDownloads.present
+          ? data.wifiOnlyDownloads.value
+          : this.wifiOnlyDownloads,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
   }
@@ -1204,6 +1246,7 @@ class AppSettingsTableData extends DataClass
           ..write('loudnessEnabled: $loudnessEnabled, ')
           ..write('loudnessTargetGainDb: $loudnessTargetGainDb, ')
           ..write('rollingCacheBudgetMb: $rollingCacheBudgetMb, ')
+          ..write('wifiOnlyDownloads: $wifiOnlyDownloads, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
@@ -1225,6 +1268,7 @@ class AppSettingsTableData extends DataClass
     loudnessEnabled,
     loudnessTargetGainDb,
     rollingCacheBudgetMb,
+    wifiOnlyDownloads,
     updatedAt,
   );
   @override
@@ -1245,6 +1289,7 @@ class AppSettingsTableData extends DataClass
           other.loudnessEnabled == this.loudnessEnabled &&
           other.loudnessTargetGainDb == this.loudnessTargetGainDb &&
           other.rollingCacheBudgetMb == this.rollingCacheBudgetMb &&
+          other.wifiOnlyDownloads == this.wifiOnlyDownloads &&
           other.updatedAt == this.updatedAt);
 }
 
@@ -1263,6 +1308,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<bool> loudnessEnabled;
   final Value<double?> loudnessTargetGainDb;
   final Value<int> rollingCacheBudgetMb;
+  final Value<bool> wifiOnlyDownloads;
   final Value<DateTime> updatedAt;
   const AppSettingsTableCompanion({
     this.id = const Value.absent(),
@@ -1279,6 +1325,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.loudnessEnabled = const Value.absent(),
     this.loudnessTargetGainDb = const Value.absent(),
     this.rollingCacheBudgetMb = const Value.absent(),
+    this.wifiOnlyDownloads = const Value.absent(),
     this.updatedAt = const Value.absent(),
   });
   AppSettingsTableCompanion.insert({
@@ -1296,6 +1343,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.loudnessEnabled = const Value.absent(),
     this.loudnessTargetGainDb = const Value.absent(),
     this.rollingCacheBudgetMb = const Value.absent(),
+    this.wifiOnlyDownloads = const Value.absent(),
     required DateTime updatedAt,
   }) : updatedAt = Value(updatedAt);
   static Insertable<AppSettingsTableData> custom({
@@ -1313,6 +1361,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<bool>? loudnessEnabled,
     Expression<double>? loudnessTargetGainDb,
     Expression<int>? rollingCacheBudgetMb,
+    Expression<bool>? wifiOnlyDownloads,
     Expression<DateTime>? updatedAt,
   }) {
     return RawValuesInsertable({
@@ -1335,6 +1384,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         'loudness_target_gain_db': loudnessTargetGainDb,
       if (rollingCacheBudgetMb != null)
         'rolling_cache_budget_mb': rollingCacheBudgetMb,
+      if (wifiOnlyDownloads != null) 'wifi_only_downloads': wifiOnlyDownloads,
       if (updatedAt != null) 'updated_at': updatedAt,
     });
   }
@@ -1354,6 +1404,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<bool>? loudnessEnabled,
     Value<double?>? loudnessTargetGainDb,
     Value<int>? rollingCacheBudgetMb,
+    Value<bool>? wifiOnlyDownloads,
     Value<DateTime>? updatedAt,
   }) {
     return AppSettingsTableCompanion(
@@ -1371,6 +1422,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       loudnessEnabled: loudnessEnabled ?? this.loudnessEnabled,
       loudnessTargetGainDb: loudnessTargetGainDb ?? this.loudnessTargetGainDb,
       rollingCacheBudgetMb: rollingCacheBudgetMb ?? this.rollingCacheBudgetMb,
+      wifiOnlyDownloads: wifiOnlyDownloads ?? this.wifiOnlyDownloads,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
@@ -1424,6 +1476,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         rollingCacheBudgetMb.value,
       );
     }
+    if (wifiOnlyDownloads.present) {
+      map['wifi_only_downloads'] = Variable<bool>(wifiOnlyDownloads.value);
+    }
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
@@ -1447,6 +1502,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('loudnessEnabled: $loudnessEnabled, ')
           ..write('loudnessTargetGainDb: $loudnessTargetGainDb, ')
           ..write('rollingCacheBudgetMb: $rollingCacheBudgetMb, ')
+          ..write('wifiOnlyDownloads: $wifiOnlyDownloads, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
@@ -7881,6 +7937,7 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<bool> loudnessEnabled,
       Value<double?> loudnessTargetGainDb,
       Value<int> rollingCacheBudgetMb,
+      Value<bool> wifiOnlyDownloads,
       required DateTime updatedAt,
     });
 typedef $$AppSettingsTableTableUpdateCompanionBuilder =
@@ -7899,6 +7956,7 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<bool> loudnessEnabled,
       Value<double?> loudnessTargetGainDb,
       Value<int> rollingCacheBudgetMb,
+      Value<bool> wifiOnlyDownloads,
       Value<DateTime> updatedAt,
     });
 
@@ -7978,6 +8036,11 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<int> get rollingCacheBudgetMb => $composableBuilder(
     column: $table.rollingCacheBudgetMb,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get wifiOnlyDownloads => $composableBuilder(
+    column: $table.wifiOnlyDownloads,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -8066,6 +8129,11 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get wifiOnlyDownloads => $composableBuilder(
+    column: $table.wifiOnlyDownloads,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
@@ -8149,6 +8217,11 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get wifiOnlyDownloads => $composableBuilder(
+    column: $table.wifiOnlyDownloads,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 }
@@ -8204,6 +8277,7 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> loudnessEnabled = const Value.absent(),
                 Value<double?> loudnessTargetGainDb = const Value.absent(),
                 Value<int> rollingCacheBudgetMb = const Value.absent(),
+                Value<bool> wifiOnlyDownloads = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
               }) => AppSettingsTableCompanion(
                 id: id,
@@ -8220,6 +8294,7 @@ class $$AppSettingsTableTableTableManager
                 loudnessEnabled: loudnessEnabled,
                 loudnessTargetGainDb: loudnessTargetGainDb,
                 rollingCacheBudgetMb: rollingCacheBudgetMb,
+                wifiOnlyDownloads: wifiOnlyDownloads,
                 updatedAt: updatedAt,
               ),
           createCompanionCallback:
@@ -8238,6 +8313,7 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> loudnessEnabled = const Value.absent(),
                 Value<double?> loudnessTargetGainDb = const Value.absent(),
                 Value<int> rollingCacheBudgetMb = const Value.absent(),
+                Value<bool> wifiOnlyDownloads = const Value.absent(),
                 required DateTime updatedAt,
               }) => AppSettingsTableCompanion.insert(
                 id: id,
@@ -8254,6 +8330,7 @@ class $$AppSettingsTableTableTableManager
                 loudnessEnabled: loudnessEnabled,
                 loudnessTargetGainDb: loudnessTargetGainDb,
                 rollingCacheBudgetMb: rollingCacheBudgetMb,
+                wifiOnlyDownloads: wifiOnlyDownloads,
                 updatedAt: updatedAt,
               ),
           withReferenceMapper: (p0) => p0

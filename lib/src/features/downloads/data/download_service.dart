@@ -25,17 +25,23 @@ class DownloadService {
     required DownloadQueueDao downloadQueueDao,
     required LibraryDao libraryDao,
     required SubsonicApiClient? Function() readApiClient,
+    required bool Function() readWifiOnly,
+    required bool Function() readIsWifi,
     Dio? dio,
   })  : _cacheDao = cacheDao,
         _downloadQueueDao = downloadQueueDao,
         _libraryDao = libraryDao,
         _readApiClient = readApiClient,
+        _readWifiOnly = readWifiOnly,
+        _readIsWifi = readIsWifi,
         _dio = dio ?? Dio();
 
   final CacheDao _cacheDao;
   final DownloadQueueDao _downloadQueueDao;
   final LibraryDao _libraryDao;
   final SubsonicApiClient? Function() _readApiClient;
+  final bool Function() _readWifiOnly;
+  final bool Function() _readIsWifi;
   final Dio _dio;
 
   StreamSubscription<List<DownloadQueueTableData>>? _queueSubscription;
@@ -188,6 +194,13 @@ class DownloadService {
 
   Future<void> _processNext() async {
     if (_processing) return;
+
+    // Respect Wi-Fi-only setting.
+    if (_readWifiOnly() && !_readIsWifi()) {
+      AppLogger.debug('DownloadService: Wi-Fi-only mode, skipping processing');
+      return;
+    }
+
     _processing = true;
 
     try {

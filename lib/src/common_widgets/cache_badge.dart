@@ -1,15 +1,46 @@
 import 'package:flutter/material.dart';
 import 'package:navis/l10n/app_localizations.dart';
 
+/// Visual variants for the cache badge.
+enum CacheBadgeType {
+  /// Permanently downloaded track.
+  downloaded,
+
+  /// Temporarily cached (rolling cache) track.
+  cached,
+}
+
 class CacheBadge extends StatelessWidget {
-  const CacheBadge({super.key});
+  const CacheBadge({
+    super.key,
+    this.type = CacheBadgeType.downloaded,
+  });
+
+  final CacheBadgeType type;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+
+    final (icon, label, bgColor, fgColor) = switch (type) {
+      CacheBadgeType.downloaded => (
+          Icons.download_done_outlined,
+          l10n.cacheBadgeDownloaded,
+          theme.colorScheme.secondaryContainer,
+          theme.colorScheme.onSecondaryContainer,
+        ),
+      CacheBadgeType.cached => (
+          Icons.schedule_outlined,
+          l10n.cacheBadgeCached,
+          theme.colorScheme.tertiaryContainer,
+          theme.colorScheme.onTertiaryContainer,
+        ),
+    };
+
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.secondaryContainer,
+        color: bgColor,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Padding(
@@ -17,16 +48,12 @@ class CacheBadge extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            Icon(
-              Icons.download_done_outlined,
-              size: 12,
-              color: Theme.of(context).colorScheme.onSecondaryContainer,
-            ),
+            Icon(icon, size: 12, color: fgColor),
             const SizedBox(width: 4),
             Text(
-              l10n.cacheBadgeLabel,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSecondaryContainer,
+              label,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: fgColor,
                 fontWeight: FontWeight.w600,
               ),
             ),

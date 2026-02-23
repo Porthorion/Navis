@@ -7,6 +7,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
+import 'package:navis/src/common_widgets/song_cache_badge.dart';
 import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
@@ -76,7 +77,10 @@ class GenreDetailScreen extends ConsumerWidget {
                 return ListView.builder(
                   itemCount: items.length,
                   itemBuilder: (context, index) {
-                    return TrackListTile(song: items[index]);
+                    return TrackListTile(
+                      song: items[index],
+                      badge: SongCacheBadge(songId: items[index].id),
+                    );
                   },
                 );
               },

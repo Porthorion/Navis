@@ -1255,4 +1255,17 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get libraryDownloadedOnlyEmptySubtitle =>
       'Download albums or tracks to see them here.';
+
+  @override
+  String get cacheSettingsWifiOnlyDownloads => 'Download on Wi-Fi only';
+
+  @override
+  String get cacheSettingsWifiOnlyDownloadsSub =>
+      'Pause downloads when not connected to Wi-Fi.';
+
+  @override
+  String get cacheBadgeDownloaded => 'Downloaded';
+
+  @override
+  String get cacheBadgeCached => 'Cached';
 }

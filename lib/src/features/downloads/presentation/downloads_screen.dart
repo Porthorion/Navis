@@ -60,12 +60,42 @@ class _QueueTab extends ConsumerWidget {
             icon: Icons.download_outlined,
           );
         }
-        return ListView.builder(
-          itemCount: items.length,
-          itemBuilder: (context, index) {
-            final item = items[index];
-            return _QueueItemTile(item: item);
-          },
+
+        final hasFailed = items.any(
+          (i) => i.status == DownloadStatus.failed,
+        );
+
+        return Column(
+          children: <Widget>[
+            if (hasFailed)
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.tonalIcon(
+                    onPressed: () {
+                      final dao =
+                          ref.read(navisDatabaseProvider).downloadQueueDao;
+                      dao.retryAllFailed();
+                    },
+                    icon: const Icon(Icons.refresh),
+                    label: Text(l10n.downloadsRetryAllFailed),
+                  ),
+                ),
+              ),
+            Expanded(
+              child: ListView.builder(
+                itemCount: items.length,
+                itemBuilder: (context, index) {
+                  final item = items[index];
+                  return _QueueItemTile(item: item);
+                },
+              ),
+            ),
+          ],
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),

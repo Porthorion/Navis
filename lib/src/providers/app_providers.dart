@@ -661,6 +661,15 @@ final cachedSongIdsProvider = StreamProvider<Set<String>>((ref) {
   );
 });
 
+/// Maps songId → CacheType for all cached tracks (rolling + permanent).
+final cachedSongTypesProvider =
+    StreamProvider<Map<String, CacheType>>((ref) {
+  final dao = ref.watch(navisDatabaseProvider).cacheDao;
+  return dao.watchCachedTracks().map(
+    (tracks) => {for (final t in tracks) t.songId: t.cacheType},
+  );
+});
+
 /// Provides the set of album IDs and artist IDs that have permanently cached
 /// (downloaded) tracks, for powering "Downloaded Only" library filters.
 final downloadedContentIdsProvider =
@@ -697,6 +706,9 @@ final downloadServiceProvider = Provider<DownloadService>((ref) {
     downloadQueueDao: db.downloadQueueDao,
     libraryDao: db.libraryDao,
     readApiClient: () => ref.read(subsonicApiProvider),
+    readWifiOnly: () =>
+        ref.read(appSettingsProvider).asData?.value.wifiOnlyDownloads ?? false,
+    readIsWifi: () => ref.read(networkTypeProvider) == NetworkType.wifi,
   );
   // Service.start() is async but we fire-and-forget here — the subscription
   // inside start() processes the queue independently.
@@ -709,6 +721,14 @@ final downloadServiceProvider = Provider<DownloadService>((ref) {
 final connectivityHintProvider = Provider<String>((ref) {
   final network = ref.watch(networkTypeProvider);
   return network.name;
+});
+
+/// Whether downloads should only proceed on Wi-Fi.
+final wifiOnlyDownloadsProvider = Provider<bool>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.wifiOnlyDownloads;
 });
 
 Future<void> seedDefaultServerConfig(Ref ref) async {

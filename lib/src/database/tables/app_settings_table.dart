@@ -38,7 +38,9 @@ class AppSettingsTable extends Table {
   /// Rolling cache budget in megabytes. Default 2048 (2 GB).
   IntColumn get rollingCacheBudgetMb =>
       integer().withDefault(const Constant(2048))();
-
+  /// When true, downloads only proceed on Wi-Fi / Ethernet.
+  BoolColumn get wifiOnlyDownloads =>
+      boolean().withDefault(const Constant(false))();
   DateTimeColumn get updatedAt => dateTime()();
 
   @override

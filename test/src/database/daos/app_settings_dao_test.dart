@@ -42,6 +42,7 @@ void main() {
           equalizerBandGains: '[1,2,3,4,5]',
           loudnessEnabled: true,
           loudnessTargetGainDb: 8,
+          wifiOnlyDownloads: false,
         );
 
         final first = await database.appSettingsDao.getSettings();
@@ -73,6 +74,7 @@ void main() {
           equalizerBandGains: null,
           loudnessEnabled: false,
           loudnessTargetGainDb: 0,
+          wifiOnlyDownloads: false,
         );
 
         final second = await database.appSettingsDao.getSettings();
@@ -108,6 +110,7 @@ void main() {
         equalizerBandGains: '[3,2,1]',
         loudnessEnabled: true,
         loudnessTargetGainDb: 6,
+        wifiOnlyDownloads: true,
       );
 
       await database.appSettingsDao.resetDefaults();

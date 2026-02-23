@@ -592,5 +592,11 @@
 
   "libraryDownloadedOnlyFilter": "Downloaded",
   "libraryDownloadedOnlyEmpty": "No downloaded content",
-  "libraryDownloadedOnlyEmptySubtitle": "Download albums or tracks to see them here."
+  "libraryDownloadedOnlyEmptySubtitle": "Download albums or tracks to see them here.",
+
+  "cacheSettingsWifiOnlyDownloads": "Download on Wi-Fi only",
+  "cacheSettingsWifiOnlyDownloadsSub": "Pause downloads when not connected to Wi-Fi.",
+
+  "cacheBadgeDownloaded": "Downloaded",
+  "cacheBadgeCached": "Cached"
 }
