@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:navis/src/api/models/models.dart';
 
@@ -24,11 +26,21 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
   final Map<int, GlobalKey> _lineKeys = <int, GlobalKey>{};
   int? _currentLineIndex;
   bool _autoScroll = true;
+  Timer? _autoScrollReengageTimer;
+  static const _autoScrollReengageDelay = Duration(seconds: 5);
+  bool _initialScrollDone = false;
 
   @override
   void initState() {
     super.initState();
     _updateCurrentLine();
+    // Perform an initial scroll to the current position after first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _currentLineIndex != null) {
+        _scrollToLine(_currentLineIndex!);
+        _initialScrollDone = true;
+      }
+    });
   }
 
   @override
@@ -36,11 +48,18 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
     super.didUpdateWidget(oldWidget);
     if (widget.currentPosition != oldWidget.currentPosition) {
       _updateCurrentLine();
+      // If this is the first meaningful position update (e.g. song resumed),
+      // ensure we scroll to the correct line even if autoScroll is on
+      if (!_initialScrollDone && _currentLineIndex != null) {
+        _scrollToLine(_currentLineIndex!);
+        _initialScrollDone = true;
+      }
     }
   }
 
   @override
   void dispose() {
+    _autoScrollReengageTimer?.cancel();
     _scrollController.dispose();
     super.dispose();
   }
@@ -101,6 +120,20 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
     });
   }
 
+  void _startAutoScrollReengageTimer() {
+    _autoScrollReengageTimer?.cancel();
+    _autoScrollReengageTimer = Timer(_autoScrollReengageDelay, () {
+      if (!mounted) return;
+      setState(() {
+        _autoScroll = true;
+      });
+      // Immediately scroll to the current line on re-engage
+      if (_currentLineIndex != null) {
+        _scrollToLine(_currentLineIndex!);
+      }
+    });
+  }
+
   GlobalKey _keyForLine(int index) {
     return _lineKeys.putIfAbsent(index, GlobalKey.new);
   }
@@ -145,9 +178,17 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
       onNotification: (notification) {
         if (notification is ScrollStartNotification) {
           if (notification.dragDetails != null) {
+            // User started a manual scroll – disable auto-scroll
+            _autoScrollReengageTimer?.cancel();
             setState(() {
               _autoScroll = false;
             });
+          }
+        } else if (notification is ScrollEndNotification) {
+          // When the user lifts their finger, start a timer to
+          // re-engage auto-scroll after a period of inactivity.
+          if (!_autoScroll) {
+            _startAutoScrollReengageTimer();
           }
         }
         return false;
@@ -197,6 +238,7 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
               right: 16,
               child: FloatingActionButton.small(
                 onPressed: () {
+                  _autoScrollReengageTimer?.cancel();
                   setState(() {
                     _autoScroll = true;
                   });
