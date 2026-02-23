@@ -1236,4 +1236,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get downloadsRetryFailed => 'Retry failed';
+
+  @override
+  String get libraryDownloadedOnlyFilter => 'Downloaded';
+
+  @override
+  String get libraryDownloadedOnlyEmpty => 'No downloaded content';
+
+  @override
+  String get libraryDownloadedOnlyEmptySubtitle =>
+      'Download albums or tracks to see them here.';
 }

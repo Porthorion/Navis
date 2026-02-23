@@ -30,6 +30,7 @@ class LibraryScreen extends ConsumerStatefulWidget {
 class _LibraryScreenState extends ConsumerState<LibraryScreen>
     with TickerProviderStateMixin {
   _AlbumSort _albumSort = _AlbumSort.newest;
+  bool _downloadedOnly = false;
   final ScrollController _albumsScrollController = ScrollController();
   final ItemScrollController _artistsItemScrollController =
       ItemScrollController();
@@ -133,25 +134,38 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   Widget _buildArtistsTab(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final artists = ref.watch(artistsProvider);
+    // Watch downloaded content IDs so filter updates reactively.
+    if (_downloadedOnly) {
+      ref.watch(downloadedContentIdsProvider);
+    }
 
     return RefreshIndicator(
       onRefresh: _refreshLibrary,
       child: artists.when(
         data: (items) {
-          if (items.isEmpty) {
+          final filteredItems = _downloadedOnly
+              ? _filterDownloadedArtists(items)
+              : items;
+          if (filteredItems.isEmpty) {
             return ListView(
               physics: const AlwaysScrollableScrollPhysics(),
               children: <Widget>[
                 EmptyState(
-                  title: l10n.libraryArtistsEmptyTitle,
-                  subtitle: l10n.libraryArtistsEmptySubtitle,
-                  icon: Icons.person_outline,
+                  title: _downloadedOnly
+                      ? l10n.libraryDownloadedOnlyEmpty
+                      : l10n.libraryArtistsEmptyTitle,
+                  subtitle: _downloadedOnly
+                      ? l10n.libraryDownloadedOnlyEmptySubtitle
+                      : l10n.libraryArtistsEmptySubtitle,
+                  icon: _downloadedOnly
+                      ? Icons.download_done_outlined
+                      : Icons.person_outline,
                 ),
               ],
             );
           }
 
-          _ensureArtistListCache(items);
+          _ensureArtistListCache(filteredItems);
           final letters = _artistLetterStartIndex.keys.toList(growable: false);
 
           return Stack(
@@ -264,6 +278,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     final pageSize = ref.watch(albumPageSizeProvider);
     final totalAlbumsAsync = ref.watch(albumCountProvider);
     final limit = pageSize * _loadedAlbumPages;
+    // Watch downloaded content IDs so filter updates reactively.
+    if (_downloadedOnly) {
+      ref.watch(downloadedContentIdsProvider);
+    }
     final albumsAsync = ref.watch(
       pagedAlbumsProvider(
         (
@@ -277,18 +295,24 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       onRefresh: _refreshLibrary,
       child: albumsAsync.when(
         data: (items) {
-          _reportVisibleAlbumPriority(items);
-          final totalAlbums = totalAlbumsAsync.asData?.value ?? items.length;
-          final hasMore = items.length < totalAlbums;
+          // Apply "Downloaded Only" filter if active.
+          final filteredItems = _downloadedOnly
+              ? _filterDownloadedAlbums(items)
+              : items;
+          _reportVisibleAlbumPriority(filteredItems);
+          final totalAlbums = _downloadedOnly
+              ? filteredItems.length
+              : (totalAlbumsAsync.asData?.value ?? items.length);
+          final hasMore = !_downloadedOnly && items.length < totalAlbums;
           return CustomScrollView(
             controller: _albumsScrollController,
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: <Widget>[
               SliverToBoxAdapter(
-                child: _SortRow<_AlbumSort>(
-                  label: l10n.libraryAlbumsSortLabel,
-                  value: _albumSort,
-                  items: <DropdownMenuItem<_AlbumSort>>[
+                child: _SortFilterRow<_AlbumSort>(
+                  sortLabel: l10n.libraryAlbumsSortLabel,
+                  sortValue: _albumSort,
+                  sortItems: <DropdownMenuItem<_AlbumSort>>[
                     DropdownMenuItem(
                       value: _AlbumSort.newest,
                       child: Text(l10n.librarySortNewest),
@@ -302,7 +326,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                       child: Text(l10n.librarySortArtist),
                     ),
                   ],
-                  onChanged: (value) {
+                  onSortChanged: (value) {
                     if (value != null) {
                       setState(() {
                         _albumSort = value;
@@ -313,15 +337,25 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                       }
                     }
                   },
+                  downloadedOnly: _downloadedOnly,
+                  onDownloadedOnlyChanged: (value) {
+                    setState(() => _downloadedOnly = value);
+                  },
                 ),
               ),
-              if (items.isEmpty)
+              if (filteredItems.isEmpty)
                 SliverFillRemaining(
                   hasScrollBody: false,
                   child: EmptyState(
-                    title: l10n.libraryAlbumsEmptyTitle,
-                    subtitle: l10n.libraryAlbumsEmptySubtitle,
-                    icon: Icons.album_outlined,
+                    title: _downloadedOnly
+                        ? l10n.libraryDownloadedOnlyEmpty
+                        : l10n.libraryAlbumsEmptyTitle,
+                    subtitle: _downloadedOnly
+                        ? l10n.libraryDownloadedOnlyEmptySubtitle
+                        : l10n.libraryAlbumsEmptySubtitle,
+                    icon: _downloadedOnly
+                        ? Icons.download_done_outlined
+                        : Icons.album_outlined,
                   ),
                 )
               else
@@ -336,7 +370,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                           mainAxisSpacing: 8,
                         ),
                     delegate: SliverChildBuilderDelegate((context, index) {
-                      final album = items[index];
+                      final album = filteredItems[index];
                       return Card(
                         clipBehavior: Clip.antiAlias,
                         child: InkWell(
@@ -395,7 +429,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                           ),
                         ),
                       );
-                    }, childCount: items.length),
+                    }, childCount: filteredItems.length),
                   ),
                 ),
               if (hasMore)
@@ -495,6 +529,26 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       _AlbumSort.name => AlbumSortOrder.name,
       _AlbumSort.artist => AlbumSortOrder.artist,
     };
+  }
+
+  List<AlbumsTableData> _filterDownloadedAlbums(List<AlbumsTableData> albums) {
+    final contentIds =
+        ref.read(downloadedContentIdsProvider).asData?.value;
+    if (contentIds == null) return const [];
+    return albums
+        .where((album) => contentIds.albumIds.contains(album.id))
+        .toList();
+  }
+
+  List<ArtistsTableData> _filterDownloadedArtists(
+    List<ArtistsTableData> artists,
+  ) {
+    final contentIds =
+        ref.read(downloadedContentIdsProvider).asData?.value;
+    if (contentIds == null) return const [];
+    return artists
+        .where((artist) => contentIds.artistIds.contains(artist.id))
+        .toList();
   }
 
   Map<String, List<ArtistsTableData>> _groupArtistsByInitial(
@@ -897,32 +951,46 @@ class _ArtistListItem {
   final ArtistsTableData? artist;
 }
 
-class _SortRow<T> extends StatelessWidget {
-  const _SortRow({
-    required this.label,
-    required this.value,
-    required this.items,
-    required this.onChanged,
+class _SortFilterRow<T> extends StatelessWidget {
+  const _SortFilterRow({
+    required this.sortLabel,
+    required this.sortValue,
+    required this.sortItems,
+    required this.onSortChanged,
+    required this.downloadedOnly,
+    required this.onDownloadedOnlyChanged,
   });
 
-  final String label;
-  final T value;
-  final List<DropdownMenuItem<T>> items;
-  final ValueChanged<T?> onChanged;
+  final String sortLabel;
+  final T sortValue;
+  final List<DropdownMenuItem<T>> sortItems;
+  final ValueChanged<T?> onSortChanged;
+  final bool downloadedOnly;
+  final ValueChanged<bool> onDownloadedOnlyChanged;
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
       child: Row(
         children: <Widget>[
-          Expanded(
-            child: Text(label, style: Theme.of(context).textTheme.titleSmall),
+          FilterChip(
+            label: Text(l10n.libraryDownloadedOnlyFilter),
+            selected: downloadedOnly,
+            onSelected: onDownloadedOnlyChanged,
+            avatar: Icon(
+              downloadedOnly
+                  ? Icons.download_done
+                  : Icons.download_outlined,
+              size: 18,
+            ),
           ),
+          const Spacer(),
           DropdownButton<T>(
-            value: value,
-            items: items,
-            onChanged: onChanged,
+            value: sortValue,
+            items: sortItems,
+            onChanged: onSortChanged,
           ),
         ],
       ),

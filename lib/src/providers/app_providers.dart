@@ -667,6 +667,30 @@ final cachedSongIdsProvider = StreamProvider<Set<String>>((ref) {
   );
 });
 
+/// Provides the set of album IDs and artist IDs that have permanently cached
+/// (downloaded) tracks, for powering "Downloaded Only" library filters.
+final downloadedContentIdsProvider =
+    StreamProvider<({Set<String> albumIds, Set<String> artistIds})>((ref) {
+  final db = ref.watch(navisDatabaseProvider);
+  return db.cacheDao.watchCachedTracks().asyncMap((tracks) async {
+    final permanentSongIds = tracks
+        .where((t) => t.cacheType == CacheType.permanent)
+        .map((t) => t.songId)
+        .toList();
+    if (permanentSongIds.isEmpty) {
+      return (albumIds: <String>{}, artistIds: <String>{});
+    }
+    final songs = await db.libraryDao.getSongsByIds(permanentSongIds);
+    final albumIds = <String>{};
+    final artistIds = <String>{};
+    for (final song in songs) {
+      if (song.albumId != null) albumIds.add(song.albumId!);
+      if (song.artistId != null) artistIds.add(song.artistId!);
+    }
+    return (albumIds: albumIds, artistIds: artistIds);
+  });
+});
+
 final downloadServiceProvider = Provider<DownloadService>((ref) {
   final db = ref.watch(navisDatabaseProvider);
   final service = DownloadService(
@@ -675,6 +699,7 @@ final downloadServiceProvider = Provider<DownloadService>((ref) {
     libraryDao: db.libraryDao,
     readApiClient: () => ref.read(subsonicApiProvider),
   );
+  service.start();
   ref.onDispose(service.stop);
   return service;
 });

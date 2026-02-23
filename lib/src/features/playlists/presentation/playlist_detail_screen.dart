@@ -9,6 +9,7 @@ import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
@@ -159,6 +160,15 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                               ),
                         icon: const Icon(Icons.shuffle_outlined),
                         label: Text(l10n.playlistDetailShuffleAction),
+                      ),
+                      FilledButton.tonalIcon(
+                        onPressed: songs.isEmpty
+                            ? null
+                            : () => unawaited(
+                                _downloadPlaylist(playlist, songs),
+                              ),
+                        icon: const Icon(Icons.download_outlined),
+                        label: Text(l10n.downloadAction),
                       ),
                     ],
                   ),
@@ -353,6 +363,14 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                 },
               ),
             ListTile(
+              leading: const Icon(Icons.download_outlined),
+              title: Text(l10n.downloadAction),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                unawaited(_downloadSong(song));
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.playlist_add),
               title: Text(l10n.librarySongMenuAddToPlaylist),
               onTap: () {
@@ -363,6 +381,45 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Future<void> _downloadPlaylist(
+    PlaylistsTableData playlist,
+    List<SongsTableData> songs,
+  ) async {
+    final choice = await showDownloadQualitySheet(context);
+    if (choice == null || !mounted) return;
+
+    final service = ref.read(downloadServiceProvider);
+    final songIds = songs.map((s) => s.id).toList(growable: false);
+    final count = await service.enqueuePlaylist(
+      playlist.id,
+      songIds,
+      quality: choice.quality,
+      format: choice.format,
+    );
+    if (!mounted) return;
+    final l10n = AppLocalizations.of(context)!;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(l10n.downloadPlaylistQueued(count))),
+    );
+  }
+
+  Future<void> _downloadSong(SongsTableData song) async {
+    final choice = await showDownloadQualitySheet(context);
+    if (choice == null || !mounted) return;
+
+    final service = ref.read(downloadServiceProvider);
+    await service.enqueueSong(
+      song.id,
+      quality: choice.quality,
+      format: choice.format,
+    );
+    if (!mounted) return;
+    final l10n = AppLocalizations.of(context)!;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(l10n.downloadSongQueued)),
     );
   }
 
