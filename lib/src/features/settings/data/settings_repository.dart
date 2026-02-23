@@ -35,6 +35,8 @@ class SettingsRepository {
       loudnessEnabled: settings.loudnessEnabled,
       loudnessTargetGainDb: settings.loudnessTargetGainDb,
       wifiOnlyDownloads: settings.wifiOnlyDownloads,
+      themeMode: settings.themeMode,
+      colorSchemeSeed: settings.colorSchemeSeed,
     );
   }
 
@@ -58,6 +60,8 @@ class SettingsRepository {
       loudnessEnabled: row.loudnessEnabled,
       loudnessTargetGainDb: row.loudnessTargetGainDb ?? 0,
       wifiOnlyDownloads: row.wifiOnlyDownloads,
+      themeMode: row.themeMode,
+      colorSchemeSeed: row.colorSchemeSeed,
     );
   }
 

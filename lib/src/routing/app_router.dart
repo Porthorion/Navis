@@ -11,6 +11,7 @@ import 'package:navis/src/features/playlists/presentation/playlist_detail_screen
 import 'package:navis/src/features/playlists/presentation/playlists_screen.dart';
 import 'package:navis/src/features/search/presentation/search_screen.dart';
 import 'package:navis/src/features/settings/presentation/appearance_settings_screen.dart';
+import 'package:navis/src/features/settings/presentation/about_screen.dart';
 import 'package:navis/src/features/settings/presentation/cache_settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/playback_settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/server_settings_screen.dart';
@@ -138,6 +139,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     path: 'appearance',
                     builder: (context, state) =>
                         const AppearanceSettingsScreen(),
+                  ),
+                  GoRoute(
+                    path: 'about',
+                    builder: (context, state) => const AboutScreen(),
                   ),
                 ],
               ),

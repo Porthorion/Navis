@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_router.dart';
+import 'package:navis/src/theme/navis_theme.dart';
 
 /// Root application widget for Navis.
 class NavisApp extends ConsumerStatefulWidget {
@@ -62,6 +63,12 @@ class _NavisAppState extends ConsumerState<NavisApp> {
     }
 
     final router = ref.watch(appRouterProvider);
+    final themeModeName = ref.watch(themeModeProvider);
+    final colorSeed = ref.watch(colorSchemeSeedProvider);
+    final seedColor =
+        colorSeed != null ? Color(colorSeed) : Colors.blue;
+    final resolvedThemeMode = resolveThemeMode(themeModeName);
+    final isOled = themeModeName == 'oled';
 
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
@@ -69,17 +76,11 @@ class _NavisAppState extends ConsumerState<NavisApp> {
           AppLocalizations.of(context)?.appName ?? 'Navis',
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-      ),
-      darkTheme: ThemeData(
-        brightness: Brightness.dark,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.blue,
-          brightness: Brightness.dark,
-        ),
-      ),
-      themeMode: ThemeMode.dark,
+      theme: buildLightTheme(seedColor),
+      darkTheme: isOled
+          ? buildOledTheme(seedColor)
+          : buildDarkTheme(seedColor),
+      themeMode: resolvedThemeMode,
       routerConfig: router,
     );
   }

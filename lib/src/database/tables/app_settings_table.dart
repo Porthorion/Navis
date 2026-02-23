@@ -41,6 +41,14 @@ class AppSettingsTable extends Table {
   /// When true, downloads only proceed on Wi-Fi / Ethernet.
   BoolColumn get wifiOnlyDownloads =>
       boolean().withDefault(const Constant(false))();
+
+  /// Theme mode: 'light', 'dark', 'oled', or 'system'. Defaults to 'dark'.
+  TextColumn get themeMode =>
+      text().withDefault(const Constant('dark'))();
+
+  /// Seed color for the app's ColorScheme. Null = dynamic / default blue.
+  IntColumn get colorSchemeSeed => integer().nullable()();
+
   DateTimeColumn get updatedAt => dateTime()();
 
   @override

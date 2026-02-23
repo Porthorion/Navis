@@ -336,6 +336,8 @@ class _PlaybackSettingsScreenState
         loudnessEnabled: _loudnessEnabled,
         loudnessTargetGainDb: _loudnessTargetGainDb,
         wifiOnlyDownloads: ref.read(wifiOnlyDownloadsProvider),
+        themeMode: ref.read(themeModeProvider),
+        colorSchemeSeed: ref.read(colorSchemeSeedProvider),
       );
       await ref.read(settingsRepositoryProvider).saveSettings(settings);
       final handler = ref.read(audioHandlerProvider);

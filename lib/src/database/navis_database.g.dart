@@ -717,6 +717,29 @@ class $AppSettingsTableTable extends AppSettingsTable
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _themeModeMeta = const VerificationMeta(
+    'themeMode',
+  );
+  @override
+  late final GeneratedColumn<String> themeMode = GeneratedColumn<String>(
+    'theme_mode',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('dark'),
+  );
+  static const VerificationMeta _colorSchemeSeedMeta = const VerificationMeta(
+    'colorSchemeSeed',
+  );
+  @override
+  late final GeneratedColumn<int> colorSchemeSeed = GeneratedColumn<int>(
+    'color_scheme_seed',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _updatedAtMeta = const VerificationMeta(
     'updatedAt',
   );
@@ -745,6 +768,8 @@ class $AppSettingsTableTable extends AppSettingsTable
     loudnessTargetGainDb,
     rollingCacheBudgetMb,
     wifiOnlyDownloads,
+    themeMode,
+    colorSchemeSeed,
     updatedAt,
   ];
   @override
@@ -885,6 +910,21 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
       );
     }
+    if (data.containsKey('theme_mode')) {
+      context.handle(
+        _themeModeMeta,
+        themeMode.isAcceptableOrUnknown(data['theme_mode']!, _themeModeMeta),
+      );
+    }
+    if (data.containsKey('color_scheme_seed')) {
+      context.handle(
+        _colorSchemeSeedMeta,
+        colorSchemeSeed.isAcceptableOrUnknown(
+          data['color_scheme_seed']!,
+          _colorSchemeSeedMeta,
+        ),
+      );
+    }
     if (data.containsKey('updated_at')) {
       context.handle(
         _updatedAtMeta,
@@ -962,6 +1002,14 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.bool,
         data['${effectivePrefix}wifi_only_downloads'],
       )!,
+      themeMode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}theme_mode'],
+      )!,
+      colorSchemeSeed: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}color_scheme_seed'],
+      ),
       updatedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
@@ -996,6 +1044,12 @@ class AppSettingsTableData extends DataClass
 
   /// When true, downloads only proceed on Wi-Fi / Ethernet.
   final bool wifiOnlyDownloads;
+
+  /// Theme mode: 'light', 'dark', 'oled', or 'system'. Defaults to 'dark'.
+  final String themeMode;
+
+  /// Seed color for the app's ColorScheme. Null = dynamic / default blue.
+  final int? colorSchemeSeed;
   final DateTime updatedAt;
   const AppSettingsTableData({
     required this.id,
@@ -1013,6 +1067,8 @@ class AppSettingsTableData extends DataClass
     this.loudnessTargetGainDb,
     required this.rollingCacheBudgetMb,
     required this.wifiOnlyDownloads,
+    required this.themeMode,
+    this.colorSchemeSeed,
     required this.updatedAt,
   });
   @override
@@ -1045,6 +1101,10 @@ class AppSettingsTableData extends DataClass
     }
     map['rolling_cache_budget_mb'] = Variable<int>(rollingCacheBudgetMb);
     map['wifi_only_downloads'] = Variable<bool>(wifiOnlyDownloads);
+    map['theme_mode'] = Variable<String>(themeMode);
+    if (!nullToAbsent || colorSchemeSeed != null) {
+      map['color_scheme_seed'] = Variable<int>(colorSchemeSeed);
+    }
     map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
   }
@@ -1078,6 +1138,10 @@ class AppSettingsTableData extends DataClass
           : Value(loudnessTargetGainDb),
       rollingCacheBudgetMb: Value(rollingCacheBudgetMb),
       wifiOnlyDownloads: Value(wifiOnlyDownloads),
+      themeMode: Value(themeMode),
+      colorSchemeSeed: colorSchemeSeed == null && nullToAbsent
+          ? const Value.absent()
+          : Value(colorSchemeSeed),
       updatedAt: Value(updatedAt),
     );
   }
@@ -1109,6 +1173,8 @@ class AppSettingsTableData extends DataClass
         json['rollingCacheBudgetMb'],
       ),
       wifiOnlyDownloads: serializer.fromJson<bool>(json['wifiOnlyDownloads']),
+      themeMode: serializer.fromJson<String>(json['themeMode']),
+      colorSchemeSeed: serializer.fromJson<int?>(json['colorSchemeSeed']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
   }
@@ -1131,6 +1197,8 @@ class AppSettingsTableData extends DataClass
       'loudnessTargetGainDb': serializer.toJson<double?>(loudnessTargetGainDb),
       'rollingCacheBudgetMb': serializer.toJson<int>(rollingCacheBudgetMb),
       'wifiOnlyDownloads': serializer.toJson<bool>(wifiOnlyDownloads),
+      'themeMode': serializer.toJson<String>(themeMode),
+      'colorSchemeSeed': serializer.toJson<int?>(colorSchemeSeed),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
   }
@@ -1151,6 +1219,8 @@ class AppSettingsTableData extends DataClass
     Value<double?> loudnessTargetGainDb = const Value.absent(),
     int? rollingCacheBudgetMb,
     bool? wifiOnlyDownloads,
+    String? themeMode,
+    Value<int?> colorSchemeSeed = const Value.absent(),
     DateTime? updatedAt,
   }) => AppSettingsTableData(
     id: id ?? this.id,
@@ -1178,6 +1248,10 @@ class AppSettingsTableData extends DataClass
         : this.loudnessTargetGainDb,
     rollingCacheBudgetMb: rollingCacheBudgetMb ?? this.rollingCacheBudgetMb,
     wifiOnlyDownloads: wifiOnlyDownloads ?? this.wifiOnlyDownloads,
+    themeMode: themeMode ?? this.themeMode,
+    colorSchemeSeed: colorSchemeSeed.present
+        ? colorSchemeSeed.value
+        : this.colorSchemeSeed,
     updatedAt: updatedAt ?? this.updatedAt,
   );
   AppSettingsTableData copyWithCompanion(AppSettingsTableCompanion data) {
@@ -1225,6 +1299,10 @@ class AppSettingsTableData extends DataClass
       wifiOnlyDownloads: data.wifiOnlyDownloads.present
           ? data.wifiOnlyDownloads.value
           : this.wifiOnlyDownloads,
+      themeMode: data.themeMode.present ? data.themeMode.value : this.themeMode,
+      colorSchemeSeed: data.colorSchemeSeed.present
+          ? data.colorSchemeSeed.value
+          : this.colorSchemeSeed,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
   }
@@ -1247,6 +1325,8 @@ class AppSettingsTableData extends DataClass
           ..write('loudnessTargetGainDb: $loudnessTargetGainDb, ')
           ..write('rollingCacheBudgetMb: $rollingCacheBudgetMb, ')
           ..write('wifiOnlyDownloads: $wifiOnlyDownloads, ')
+          ..write('themeMode: $themeMode, ')
+          ..write('colorSchemeSeed: $colorSchemeSeed, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
@@ -1269,6 +1349,8 @@ class AppSettingsTableData extends DataClass
     loudnessTargetGainDb,
     rollingCacheBudgetMb,
     wifiOnlyDownloads,
+    themeMode,
+    colorSchemeSeed,
     updatedAt,
   );
   @override
@@ -1290,6 +1372,8 @@ class AppSettingsTableData extends DataClass
           other.loudnessTargetGainDb == this.loudnessTargetGainDb &&
           other.rollingCacheBudgetMb == this.rollingCacheBudgetMb &&
           other.wifiOnlyDownloads == this.wifiOnlyDownloads &&
+          other.themeMode == this.themeMode &&
+          other.colorSchemeSeed == this.colorSchemeSeed &&
           other.updatedAt == this.updatedAt);
 }
 
@@ -1309,6 +1393,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<double?> loudnessTargetGainDb;
   final Value<int> rollingCacheBudgetMb;
   final Value<bool> wifiOnlyDownloads;
+  final Value<String> themeMode;
+  final Value<int?> colorSchemeSeed;
   final Value<DateTime> updatedAt;
   const AppSettingsTableCompanion({
     this.id = const Value.absent(),
@@ -1326,6 +1412,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.loudnessTargetGainDb = const Value.absent(),
     this.rollingCacheBudgetMb = const Value.absent(),
     this.wifiOnlyDownloads = const Value.absent(),
+    this.themeMode = const Value.absent(),
+    this.colorSchemeSeed = const Value.absent(),
     this.updatedAt = const Value.absent(),
   });
   AppSettingsTableCompanion.insert({
@@ -1344,6 +1432,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.loudnessTargetGainDb = const Value.absent(),
     this.rollingCacheBudgetMb = const Value.absent(),
     this.wifiOnlyDownloads = const Value.absent(),
+    this.themeMode = const Value.absent(),
+    this.colorSchemeSeed = const Value.absent(),
     required DateTime updatedAt,
   }) : updatedAt = Value(updatedAt);
   static Insertable<AppSettingsTableData> custom({
@@ -1362,6 +1452,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<double>? loudnessTargetGainDb,
     Expression<int>? rollingCacheBudgetMb,
     Expression<bool>? wifiOnlyDownloads,
+    Expression<String>? themeMode,
+    Expression<int>? colorSchemeSeed,
     Expression<DateTime>? updatedAt,
   }) {
     return RawValuesInsertable({
@@ -1385,6 +1477,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       if (rollingCacheBudgetMb != null)
         'rolling_cache_budget_mb': rollingCacheBudgetMb,
       if (wifiOnlyDownloads != null) 'wifi_only_downloads': wifiOnlyDownloads,
+      if (themeMode != null) 'theme_mode': themeMode,
+      if (colorSchemeSeed != null) 'color_scheme_seed': colorSchemeSeed,
       if (updatedAt != null) 'updated_at': updatedAt,
     });
   }
@@ -1405,6 +1499,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<double?>? loudnessTargetGainDb,
     Value<int>? rollingCacheBudgetMb,
     Value<bool>? wifiOnlyDownloads,
+    Value<String>? themeMode,
+    Value<int?>? colorSchemeSeed,
     Value<DateTime>? updatedAt,
   }) {
     return AppSettingsTableCompanion(
@@ -1423,6 +1519,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       loudnessTargetGainDb: loudnessTargetGainDb ?? this.loudnessTargetGainDb,
       rollingCacheBudgetMb: rollingCacheBudgetMb ?? this.rollingCacheBudgetMb,
       wifiOnlyDownloads: wifiOnlyDownloads ?? this.wifiOnlyDownloads,
+      themeMode: themeMode ?? this.themeMode,
+      colorSchemeSeed: colorSchemeSeed ?? this.colorSchemeSeed,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
@@ -1479,6 +1577,12 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     if (wifiOnlyDownloads.present) {
       map['wifi_only_downloads'] = Variable<bool>(wifiOnlyDownloads.value);
     }
+    if (themeMode.present) {
+      map['theme_mode'] = Variable<String>(themeMode.value);
+    }
+    if (colorSchemeSeed.present) {
+      map['color_scheme_seed'] = Variable<int>(colorSchemeSeed.value);
+    }
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
@@ -1503,6 +1607,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('loudnessTargetGainDb: $loudnessTargetGainDb, ')
           ..write('rollingCacheBudgetMb: $rollingCacheBudgetMb, ')
           ..write('wifiOnlyDownloads: $wifiOnlyDownloads, ')
+          ..write('themeMode: $themeMode, ')
+          ..write('colorSchemeSeed: $colorSchemeSeed, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
@@ -7938,6 +8044,8 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<double?> loudnessTargetGainDb,
       Value<int> rollingCacheBudgetMb,
       Value<bool> wifiOnlyDownloads,
+      Value<String> themeMode,
+      Value<int?> colorSchemeSeed,
       required DateTime updatedAt,
     });
 typedef $$AppSettingsTableTableUpdateCompanionBuilder =
@@ -7957,6 +8065,8 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<double?> loudnessTargetGainDb,
       Value<int> rollingCacheBudgetMb,
       Value<bool> wifiOnlyDownloads,
+      Value<String> themeMode,
+      Value<int?> colorSchemeSeed,
       Value<DateTime> updatedAt,
     });
 
@@ -8041,6 +8151,16 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<bool> get wifiOnlyDownloads => $composableBuilder(
     column: $table.wifiOnlyDownloads,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get themeMode => $composableBuilder(
+    column: $table.themeMode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get colorSchemeSeed => $composableBuilder(
+    column: $table.colorSchemeSeed,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -8134,6 +8254,16 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get themeMode => $composableBuilder(
+    column: $table.themeMode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get colorSchemeSeed => $composableBuilder(
+    column: $table.colorSchemeSeed,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
@@ -8222,6 +8352,14 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get themeMode =>
+      $composableBuilder(column: $table.themeMode, builder: (column) => column);
+
+  GeneratedColumn<int> get colorSchemeSeed => $composableBuilder(
+    column: $table.colorSchemeSeed,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 }
@@ -8278,6 +8416,8 @@ class $$AppSettingsTableTableTableManager
                 Value<double?> loudnessTargetGainDb = const Value.absent(),
                 Value<int> rollingCacheBudgetMb = const Value.absent(),
                 Value<bool> wifiOnlyDownloads = const Value.absent(),
+                Value<String> themeMode = const Value.absent(),
+                Value<int?> colorSchemeSeed = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
               }) => AppSettingsTableCompanion(
                 id: id,
@@ -8295,6 +8435,8 @@ class $$AppSettingsTableTableTableManager
                 loudnessTargetGainDb: loudnessTargetGainDb,
                 rollingCacheBudgetMb: rollingCacheBudgetMb,
                 wifiOnlyDownloads: wifiOnlyDownloads,
+                themeMode: themeMode,
+                colorSchemeSeed: colorSchemeSeed,
                 updatedAt: updatedAt,
               ),
           createCompanionCallback:
@@ -8314,6 +8456,8 @@ class $$AppSettingsTableTableTableManager
                 Value<double?> loudnessTargetGainDb = const Value.absent(),
                 Value<int> rollingCacheBudgetMb = const Value.absent(),
                 Value<bool> wifiOnlyDownloads = const Value.absent(),
+                Value<String> themeMode = const Value.absent(),
+                Value<int?> colorSchemeSeed = const Value.absent(),
                 required DateTime updatedAt,
               }) => AppSettingsTableCompanion.insert(
                 id: id,
@@ -8331,6 +8475,8 @@ class $$AppSettingsTableTableTableManager
                 loudnessTargetGainDb: loudnessTargetGainDb,
                 rollingCacheBudgetMb: rollingCacheBudgetMb,
                 wifiOnlyDownloads: wifiOnlyDownloads,
+                themeMode: themeMode,
+                colorSchemeSeed: colorSchemeSeed,
                 updatedAt: updatedAt,
               ),
           withReferenceMapper: (p0) => p0

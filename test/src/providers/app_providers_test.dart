@@ -251,6 +251,8 @@ void main() {
                   loudnessEnabled: false,
                   loudnessTargetGainDb: 0,
                   wifiOnlyDownloads: false,
+                  themeMode: 'dark',
+                  colorSchemeSeed: null,
                 ),
               ),
             ),
