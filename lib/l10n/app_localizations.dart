@@ -1706,6 +1706,84 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Playlist saved'**
   String get queueSaveAsPlaylistSaved;
+
+  /// No description provided for @searchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search artists, albums, songs...'**
+  String get searchHint;
+
+  /// No description provided for @searchRecentTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent searches'**
+  String get searchRecentTitle;
+
+  /// No description provided for @searchClearRecent.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear'**
+  String get searchClearRecent;
+
+  /// No description provided for @searchNoResults.
+  ///
+  /// In en, this message translates to:
+  /// **'No results found'**
+  String get searchNoResults;
+
+  /// No description provided for @searchNoResultsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Try a different search term.'**
+  String get searchNoResultsSubtitle;
+
+  /// No description provided for @searchArtistsSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Artists'**
+  String get searchArtistsSection;
+
+  /// No description provided for @searchAlbumsSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Albums'**
+  String get searchAlbumsSection;
+
+  /// No description provided for @searchSongsSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Songs'**
+  String get searchSongsSection;
+
+  /// No description provided for @searchShowAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Show all'**
+  String get searchShowAll;
+
+  /// No description provided for @searchShowLess.
+  ///
+  /// In en, this message translates to:
+  /// **'Show less'**
+  String get searchShowLess;
+
+  /// No description provided for @searchAlbumCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} albums'**
+  String searchAlbumCount(int count);
+
+  /// No description provided for @searchPlayNext.
+  ///
+  /// In en, this message translates to:
+  /// **'Play next'**
+  String get searchPlayNext;
+
+  /// No description provided for @searchAddToQueue.
+  ///
+  /// In en, this message translates to:
+  /// **'Add to queue'**
+  String get searchAddToQueue;
 }
 
 class _AppLocalizationsDelegate

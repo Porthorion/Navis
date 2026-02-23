@@ -902,4 +902,45 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get queueSaveAsPlaylistSaved => 'Playlist saved';
+
+  @override
+  String get searchHint => 'Search artists, albums, songs...';
+
+  @override
+  String get searchRecentTitle => 'Recent searches';
+
+  @override
+  String get searchClearRecent => 'Clear';
+
+  @override
+  String get searchNoResults => 'No results found';
+
+  @override
+  String get searchNoResultsSubtitle => 'Try a different search term.';
+
+  @override
+  String get searchArtistsSection => 'Artists';
+
+  @override
+  String get searchAlbumsSection => 'Albums';
+
+  @override
+  String get searchSongsSection => 'Songs';
+
+  @override
+  String get searchShowAll => 'Show all';
+
+  @override
+  String get searchShowLess => 'Show less';
+
+  @override
+  String searchAlbumCount(int count) {
+    return '$count albums';
+  }
+
+  @override
+  String get searchPlayNext => 'Play next';
+
+  @override
+  String get searchAddToQueue => 'Add to queue';
 }

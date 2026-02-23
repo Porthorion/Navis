@@ -422,5 +422,26 @@
   "lyricsNoneAvailable": "No lyrics available",
   "queueSaveAsPlaylist": "Save as playlist",
   "queueSaveAsPlaylistName": "Playlist name",
-  "queueSaveAsPlaylistSaved": "Playlist saved"
+  "queueSaveAsPlaylistSaved": "Playlist saved",
+
+  "searchHint": "Search artists, albums, songs...",
+  "searchRecentTitle": "Recent searches",
+  "searchClearRecent": "Clear",
+  "searchNoResults": "No results found",
+  "searchNoResultsSubtitle": "Try a different search term.",
+  "searchArtistsSection": "Artists",
+  "searchAlbumsSection": "Albums",
+  "searchSongsSection": "Songs",
+  "searchShowAll": "Show all",
+  "searchShowLess": "Show less",
+  "searchAlbumCount": "{count} albums",
+  "@searchAlbumCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "searchPlayNext": "Play next",
+  "searchAddToQueue": "Add to queue"
 }

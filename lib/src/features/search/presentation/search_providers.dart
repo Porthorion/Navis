@@ -1,2 +1,1 @@
-export 'package:navis/src/providers/app_providers.dart'
-    show searchResultsProvider;
+export 'package:navis/src/features/search/presentation/search_controller_provider.dart';
