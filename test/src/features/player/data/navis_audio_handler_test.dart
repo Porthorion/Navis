@@ -148,36 +148,43 @@ void main() {
       );
 
       expect(logs, hasLength(1));
-      expect(logs.single, contains('Playback state persistence failed during seek.'));
+      expect(
+        logs.single,
+        contains('Playback state persistence failed during seek.'),
+      );
       expect(logs.single, contains('write failed'));
     });
 
-    test('transport helper remains successful when persistence fails safely', () async {
-      var transportRuns = 0;
-      final logs = <String>[];
+    test(
+      'transport helper remains successful when persistence fails safely',
+      () async {
+        var transportRuns = 0;
+        final logs = <String>[];
 
-      await navisRunTransportWithPersistence(
-        transportOperation: () async {
-          transportRuns += 1;
-        },
-        persistOperation: () async {
-          throw StateError('db unavailable');
-        },
-        persistSafely: (
-          persistOperation, {
-          required context,
-        }) => navisPersistSafely(
-          persistOperation,
-          context: context,
-          logWarning: logs.add,
-        ),
-        persistenceContext: 'play',
-      );
+        await navisRunTransportWithPersistence(
+          transportOperation: () async {
+            transportRuns += 1;
+          },
+          persistOperation: () async {
+            throw StateError('db unavailable');
+          },
+          persistSafely:
+              (
+                persistOperation, {
+                required context,
+              }) => navisPersistSafely(
+                persistOperation,
+                context: context,
+                logWarning: logs.add,
+              ),
+          persistenceContext: 'play',
+        );
 
-      expect(transportRuns, 1);
-      expect(logs, hasLength(1));
-      expect(logs.single, contains('db unavailable'));
-    });
+        expect(transportRuns, 1);
+        expect(logs, hasLength(1));
+        expect(logs.single, contains('db unavailable'));
+      },
+    );
 
     test('queue preload decision respects autoplay and gapless settings', () {
       expect(

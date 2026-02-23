@@ -1514,6 +1514,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Playback action failed. Please try again.'**
   String get playbackActionFailed;
+
+  /// No description provided for @queueTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Queue'**
+  String get queueTitle;
+
+  /// No description provided for @queueClearAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear queue'**
+  String get queueClearAction;
+
+  /// No description provided for @queueClearConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear queue?'**
+  String get queueClearConfirmTitle;
+
+  /// No description provided for @queueClearConfirmMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'This will remove all tracks from the queue.'**
+  String get queueClearConfirmMessage;
+
+  /// No description provided for @queueEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Queue is empty'**
+  String get queueEmptyTitle;
+
+  /// No description provided for @queueEmptySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Add tracks to start playing.'**
+  String get queueEmptySubtitle;
+
+  /// No description provided for @cancelAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get cancelAction;
 }
 
 class _AppLocalizationsDelegate

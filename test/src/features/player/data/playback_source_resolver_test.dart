@@ -420,7 +420,9 @@ void main() {
           suffix: 'aac',
           contentType: 'audio/aac',
         );
-        final localFile = File(p.join(rollingDir.path, 'song-lossy-mismatch.aac'));
+        final localFile = File(
+          p.join(rollingDir.path, 'song-lossy-mismatch.aac'),
+        );
         await localFile.writeAsBytes(const <int>[5, 5, 5]);
 
         await database.cacheDao.upsertCachedTrack(
@@ -539,7 +541,10 @@ void main() {
         );
 
         expect(resolved.kind, PlaybackSourceKind.directStream);
-        expect(resolved.uri?.queryParameters.containsKey('maxBitRate'), isFalse);
+        expect(
+          resolved.uri?.queryParameters.containsKey('maxBitRate'),
+          isFalse,
+        );
         expect(resolved.uri?.queryParameters.containsKey('format'), isFalse);
       },
       skip: !_sqliteAvailable,

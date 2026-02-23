@@ -1,7 +1,9 @@
-export 'package:navis/src/providers/app_providers.dart'
+export 'package:navis/src/features/player/presentation/queue_provider.dart'
     show
-        lyricsProvider,
+        currentQueueSongIdProvider,
         playNextProvider,
-        playerStateProvider,
         queueProvider,
         reorderQueueProvider;
+
+export 'package:navis/src/providers/app_providers.dart'
+    show lyricsProvider, playerStateProvider;
