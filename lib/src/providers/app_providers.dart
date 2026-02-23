@@ -558,7 +558,27 @@ final lyricsProvider = FutureProvider.family<LyricsList, String>((
   if (api == null) {
     return const LyricsList();
   }
-  return api.getLyricsBySongId(songId);
+
+  // Try OpenSubsonic getLyricsBySongId first.
+  try {
+    return await api.getLyricsBySongId(songId);
+  } on Exception {
+    // Extension not supported — fall through to legacy endpoint.
+  }
+
+  // Legacy fallback: getLyrics(artist, title).
+  final dao = ref.read(navisDatabaseProvider).libraryDao;
+  final songs = await dao.getSongsByIds(<String>[songId]);
+  if (songs.isEmpty) {
+    return const LyricsList();
+  }
+  final song = songs.first;
+  final artist = song.artistName;
+  final title = song.title;
+  if (artist == null || title.isEmpty) {
+    return const LyricsList();
+  }
+  return api.getLyrics(artist: artist, title: title);
 });
 
 final artistInfoProvider = FutureProvider.family<ArtistInfo?, String>((

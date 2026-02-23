@@ -42,6 +42,7 @@ abstract class NavisPlaybackHandler {
   Future<void> skipToPrevious();
   Future<void> setShuffleMode(AudioServiceShuffleMode shuffleMode);
   Future<void> setRepeatMode(AudioServiceRepeatMode repeatMode);
+  Future<void> setVolume(double volume);
   Future<void> applyRuntimeSettings();
 }
 
@@ -1307,6 +1308,12 @@ class NavisAudioHandler extends BaseAudioHandler
     );
     _broadcastPlaybackState();
     _emitSnapshot();
+  }
+
+  @override
+  Future<void> setVolume(double volume) async {
+    await _ready;
+    await _player.setVolume(volume.clamp(0.0, 1.0));
   }
 
   @override

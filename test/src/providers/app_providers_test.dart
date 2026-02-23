@@ -185,6 +185,9 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
     _controller.add(_snapshot);
   }
 
+  @override
+  Future<void> setVolume(double volume) async {}
+
   Future<void> dispose() async {
     await _controller.close();
   }
