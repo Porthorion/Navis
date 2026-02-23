@@ -827,4 +827,111 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cancelAction => 'Cancel';
+
+  @override
+  String get nowPlayingTitle => 'Now Playing';
+
+  @override
+  String get nowPlayingUnknownTrack => 'Unknown track';
+
+  @override
+  String get nowPlayingUnknownArtist => 'Unknown artist';
+
+  @override
+  String get nowPlayingUnknownAlbum => 'Unknown album';
+
+  @override
+  String get nowPlayingShuffle => 'Shuffle';
+
+  @override
+  String get nowPlayingShuffleOff => 'Shuffle off';
+
+  @override
+  String get nowPlayingPrevious => 'Previous';
+
+  @override
+  String get nowPlayingPlay => 'Play';
+
+  @override
+  String get nowPlayingPause => 'Pause';
+
+  @override
+  String get nowPlayingNext => 'Next';
+
+  @override
+  String get nowPlayingRepeatOff => 'Repeat off';
+
+  @override
+  String get nowPlayingRepeatAll => 'Repeat all';
+
+  @override
+  String get nowPlayingRepeatOne => 'Repeat one';
+
+  @override
+  String get nowPlayingStar => 'Star';
+
+  @override
+  String get nowPlayingLyrics => 'Lyrics';
+
+  @override
+  String get nowPlayingQueue => 'Queue';
+
+  @override
+  String get nowPlayingMore => 'More options';
+
+  @override
+  String get nowPlayingGoToAlbum => 'Go to album';
+
+  @override
+  String get nowPlayingGoToArtist => 'Go to artist';
+
+  @override
+  String get nowPlayingSleepTimer => 'Sleep timer';
+
+  @override
+  String get nowPlayingAudioQuality => 'Audio quality';
+
+  @override
+  String get lyricsTitle => 'Lyrics';
+
+  @override
+  String get lyricsNoneAvailable => 'No lyrics available';
+
+  @override
+  String get sleepTimerTitle => 'Sleep timer';
+
+  @override
+  String get sleepTimerOff => 'Off';
+
+  @override
+  String get sleepTimer15Min => '15 minutes';
+
+  @override
+  String get sleepTimer30Min => '30 minutes';
+
+  @override
+  String get sleepTimer45Min => '45 minutes';
+
+  @override
+  String get sleepTimer60Min => '1 hour';
+
+  @override
+  String get sleepTimerEndOfTrack => 'End of current track';
+
+  @override
+  String sleepTimerActive(String remaining) {
+    return 'Sleep in $remaining';
+  }
+
+  @override
+  String get sleepTimerCancelled => 'Sleep timer cancelled';
+
+  @override
+  String get queueSaveAsPlaylist => 'Save as playlist';
+
+  @override
+  String get queueSaveAsPlaylistName => 'Playlist name';
+
+  @override
+  String get queueSaveAsPlaylistSaved => 'Playlist saved';
 }

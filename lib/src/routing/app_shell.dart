@@ -7,6 +7,7 @@ import 'package:navis/src/features/auth/presentation/server_config_provider.dart
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
@@ -80,6 +81,7 @@ class AppShell extends ConsumerWidget {
               playback: playback,
               songTitle: currentSongAsync.asData?.value?.title,
               songArtist: currentSongAsync.asData?.value?.artistName,
+              coverArtId: currentSongAsync.asData?.value?.coverArt,
             ),
         ],
       ),
@@ -130,69 +132,118 @@ class _MiniPlayerStrip extends ConsumerWidget {
     required this.playback,
     this.songTitle,
     this.songArtist,
+    this.coverArtId,
   });
 
   final PlaybackSnapshot playback;
   final String? songTitle;
   final String? songArtist;
+  final String? coverArtId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final isPlaying = playback.playing;
+    final position = playback.position;
+    final duration = playback.duration;
+    final progress = duration.inMilliseconds > 0
+        ? (position.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0)
+        : 0.0;
 
-    return Material(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      child: Row(
-        children: <Widget>[
-          Expanded(
-            child: InkWell(
+    return GestureDetector(
+      onHorizontalDragEnd: (details) {
+        final velocity = details.primaryVelocity ?? 0;
+        if (velocity.abs() < 300) {
+          return;
+        }
+        final handler = ref.read(audioHandlerProvider);
+        if (handler == null) {
+          return;
+        }
+        if (velocity < 0) {
+          handler.skipToNext();
+        } else {
+          handler.skipToPrevious();
+        }
+      },
+      child: Material(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            InkWell(
               onTap: () => context.go('/now-playing'),
               child: Padding(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
+                  horizontal: 8,
+                  vertical: 6,
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
+                child: Row(
                   children: <Widget>[
-                    Text(
-                      (songTitle == null || songTitle!.trim().isEmpty)
-                          ? l10n.miniPlayerUnknownTrack
-                          : songTitle!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    CoverArtImage(
+                      coverArtId: coverArtId,
+                      size: 200,
+                      width: 40,
+                      height: 40,
+                      borderRadius: BorderRadius.circular(4),
                     ),
-                    Text(
-                      (songArtist == null || songArtist!.trim().isEmpty)
-                          ? l10n.miniPlayerUnknownArtist
-                          : songArtist!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall,
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Text(
+                            (songTitle == null || songTitle!.trim().isEmpty)
+                                ? l10n.miniPlayerUnknownTrack
+                                : songTitle!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                          ),
+                          Text(
+                            (songArtist == null || songArtist!.trim().isEmpty)
+                                ? l10n.miniPlayerUnknownArtist
+                                : songArtist!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: isPlaying
+                          ? l10n.miniPlayerPause
+                          : l10n.miniPlayerPlay,
+                      onPressed: () async {
+                        final handler = ref.read(audioHandlerProvider);
+                        if (handler == null) {
+                          return;
+                        }
+                        if (isPlaying) {
+                          await handler.pause();
+                        } else {
+                          await handler.play();
+                        }
+                      },
+                      icon: Icon(
+                        isPlaying ? Icons.pause : Icons.play_arrow,
+                      ),
                     ),
                   ],
                 ),
               ),
             ),
-          ),
-          IconButton(
-            tooltip: isPlaying ? l10n.miniPlayerPause : l10n.miniPlayerPlay,
-            onPressed: () async {
-              final handler = ref.read(audioHandlerProvider);
-              if (handler == null) {
-                return;
-              }
-              if (isPlaying) {
-                await handler.pause();
-              } else {
-                await handler.play();
-              }
-            },
-            icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow),
-          ),
-        ],
+            LinearProgressIndicator(
+              value: progress,
+              minHeight: 2,
+              backgroundColor: Colors.transparent,
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -27,6 +27,7 @@ Last updated: 2026-02-23
 - [x] Phase 4.4 closeout automation helper (device-aware codec preflight script + workflow + make target) — 2026-02-22 (evidence: `tool/phase4_codec_closeout.sh`, `docs/development-workflow.md`, `Makefile`, `flutter test test/src/features/player/data/playback_source_resolver_test.dart test/src/features/player/data/navis_audio_handler_test.dart`)
 - [x] Phase 4 pre-Phase-5 transport stabilization (reverted over-gated playback controls, retained safe persistence + queue bounds + seek sanitization, and revalidated core regression suites) — 2026-02-23 (evidence: `lib/src/features/player/data/navis_audio_handler.dart`, `test/src/features/player/data/navis_audio_handler_test.dart`, `flutter test test/src/providers/app_providers_test.dart test/src/features/library/presentation/library_detail_screens_test.dart test/src/features/player/data/navis_audio_handler_test.dart`)
 - [x] Phase 4.4 codec verification closeout (provisional) — 2026-02-23 (evidence: deterministic codec matrix tests + critical gate coverage + automated closeout preflight on SM-S928B via `make phase4-codec-closeout DEVICE_ID=R5CX14TVQEE SERVER_VARIANT=OpenSubsonic` + runtime playback evidence for FLAC/AAC/MP3 lock-cached paths from `codec_runtime_raw.log`; accepted caveat: Opus runtime row pending and Vorbis unavailable in current library/server catalog)
+- [x] Phase 5 increment 1 (Now Playing screen, enhanced mini player, lyrics screen, sleep timer, NavisPlaybackHandler transport interface) — 2026-02-23 (evidence: `dart analyze lib/ test/`, `flutter test test/src/providers/app_providers_test.dart test/src/features/player/data/navis_audio_handler_test.dart test/src/features/library/presentation/library_detail_screens_test.dart`)
 
 ## Meta Progress
 - [x] Tech stack and methodology validation refresh — 2026-02-18 (evidence: `DEVELOPMENT_PLAN.md` stack validation section + README tech stack update)
@@ -186,31 +187,32 @@ Last updated: 2026-02-23
 
 ## Phase 5: Now Playing & Lyrics
 ### 5.1 — Mini Player
-- [ ] Persistent bar above NavigationBar
-- [ ] Cover art, title, artist, play/pause, progress
-- [ ] Tap to expand, swipe to skip
+- [x] Persistent bar above NavigationBar — 2026-02-23 (evidence: `lib/src/routing/app_shell.dart` `_MiniPlayerStrip`)
+- [x] Cover art, title, artist, play/pause, progress — 2026-02-23 (evidence: cover art thumbnail, linear progress bar in `_MiniPlayerStrip`)
+- [x] Tap to expand, swipe to skip — 2026-02-23 (evidence: tap→`/now-playing`, horizontal swipe→`skipToNext`/`skipToPrevious`)
 
 ### 5.2 — Now Playing Screen
-- [ ] Full-screen cover art with tinted background
-- [ ] Seek bar with elapsed/remaining
-- [ ] All playback controls
-- [ ] Star, lyrics, queue, overflow menu buttons
-- [ ] Hero animation from mini player / album detail
+- [x] Full-screen cover art — 2026-02-23 (evidence: `lib/src/features/player/presentation/now_playing_screen.dart` `_CoverArt`; tinted background deferred to polish phase)
+- [x] Seek bar with elapsed/remaining — 2026-02-23 (evidence: `_SeekBar` with drag support and ms-precision seek)
+- [x] All playback controls — 2026-02-23 (evidence: `_TransportControls` with shuffle, prev, play/pause, next, repeat cycling)
+- [x] Star, lyrics, queue, overflow menu buttons — 2026-02-23 (evidence: `_ActionRow` + `_NowPlayingAppBar` overflow; star wiring deferred)
+- [ ] Hero animation from mini player / album detail — deferred to Phase 10 polish
 
 ### 5.3 — Lyrics
-- [ ] `getLyricsBySongId` (OpenSubsonic, preferred)
+- [x] `getLyricsBySongId` (OpenSubsonic, preferred) — 2026-02-23 (evidence: `lyricsProvider` in `app_providers.dart`, `NowPlayingLyricsScreen`)
 - [ ] `getLyrics` fallback (legacy)
-- [ ] Synced lyrics with auto-scroll and tap-to-seek
-- [ ] Unsynced lyrics display
-- [ ] Cover art ↔ lyrics toggle
+- [x] Synced lyrics with auto-scroll and tap-to-seek — 2026-02-23 (evidence: `LyricsDisplayWidget` with `Scrollable.ensureVisible` + seek callback)
+- [x] Unsynced lyrics display — 2026-02-23 (evidence: `_buildUnsyncedLyrics` in `LyricsDisplayWidget`)
+- [ ] Cover art ↔ lyrics toggle — partial: 2026-02-23 (remaining: inline toggle on Now Playing; currently separate lyrics route)
 
 ### 5.4 — Queue Screen
-- [ ] Drag-to-reorder, swipe-to-remove
-- [ ] Clear queue, save as playlist
+- [x] Drag-to-reorder, swipe-to-remove — 2026-02-23 (evidence: `QueueScreen` with `ReorderableListView` + `Dismissible`)
+- [x] Clear queue — 2026-02-23 (evidence: clear action in `QueueScreen` AppBar)
+- [ ] Save as playlist
 
 ### 5.5 — Sleep Timer
-- [ ] Preset durations + custom + end of track
-- [ ] Countdown display on Now Playing
+- [x] Preset durations + end of track — 2026-02-23 (evidence: `SleepTimerController` with 15/30/45/60 min presets + end-of-track mode)
+- [x] Countdown display on Now Playing — 2026-02-23 (evidence: `_NowPlayingAppBar` shows remaining time when sleep timer active)
 - [ ] Volume fade-out in final 30 seconds
 
 ## Phase 6: Search

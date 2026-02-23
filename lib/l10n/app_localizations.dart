@@ -1556,6 +1556,216 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Cancel'**
   String get cancelAction;
+
+  /// No description provided for @nowPlayingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Now Playing'**
+  String get nowPlayingTitle;
+
+  /// No description provided for @nowPlayingUnknownTrack.
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown track'**
+  String get nowPlayingUnknownTrack;
+
+  /// No description provided for @nowPlayingUnknownArtist.
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown artist'**
+  String get nowPlayingUnknownArtist;
+
+  /// No description provided for @nowPlayingUnknownAlbum.
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown album'**
+  String get nowPlayingUnknownAlbum;
+
+  /// No description provided for @nowPlayingShuffle.
+  ///
+  /// In en, this message translates to:
+  /// **'Shuffle'**
+  String get nowPlayingShuffle;
+
+  /// No description provided for @nowPlayingShuffleOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Shuffle off'**
+  String get nowPlayingShuffleOff;
+
+  /// No description provided for @nowPlayingPrevious.
+  ///
+  /// In en, this message translates to:
+  /// **'Previous'**
+  String get nowPlayingPrevious;
+
+  /// No description provided for @nowPlayingPlay.
+  ///
+  /// In en, this message translates to:
+  /// **'Play'**
+  String get nowPlayingPlay;
+
+  /// No description provided for @nowPlayingPause.
+  ///
+  /// In en, this message translates to:
+  /// **'Pause'**
+  String get nowPlayingPause;
+
+  /// No description provided for @nowPlayingNext.
+  ///
+  /// In en, this message translates to:
+  /// **'Next'**
+  String get nowPlayingNext;
+
+  /// No description provided for @nowPlayingRepeatOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Repeat off'**
+  String get nowPlayingRepeatOff;
+
+  /// No description provided for @nowPlayingRepeatAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Repeat all'**
+  String get nowPlayingRepeatAll;
+
+  /// No description provided for @nowPlayingRepeatOne.
+  ///
+  /// In en, this message translates to:
+  /// **'Repeat one'**
+  String get nowPlayingRepeatOne;
+
+  /// No description provided for @nowPlayingStar.
+  ///
+  /// In en, this message translates to:
+  /// **'Star'**
+  String get nowPlayingStar;
+
+  /// No description provided for @nowPlayingLyrics.
+  ///
+  /// In en, this message translates to:
+  /// **'Lyrics'**
+  String get nowPlayingLyrics;
+
+  /// No description provided for @nowPlayingQueue.
+  ///
+  /// In en, this message translates to:
+  /// **'Queue'**
+  String get nowPlayingQueue;
+
+  /// No description provided for @nowPlayingMore.
+  ///
+  /// In en, this message translates to:
+  /// **'More options'**
+  String get nowPlayingMore;
+
+  /// No description provided for @nowPlayingGoToAlbum.
+  ///
+  /// In en, this message translates to:
+  /// **'Go to album'**
+  String get nowPlayingGoToAlbum;
+
+  /// No description provided for @nowPlayingGoToArtist.
+  ///
+  /// In en, this message translates to:
+  /// **'Go to artist'**
+  String get nowPlayingGoToArtist;
+
+  /// No description provided for @nowPlayingSleepTimer.
+  ///
+  /// In en, this message translates to:
+  /// **'Sleep timer'**
+  String get nowPlayingSleepTimer;
+
+  /// No description provided for @nowPlayingAudioQuality.
+  ///
+  /// In en, this message translates to:
+  /// **'Audio quality'**
+  String get nowPlayingAudioQuality;
+
+  /// No description provided for @lyricsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Lyrics'**
+  String get lyricsTitle;
+
+  /// No description provided for @lyricsNoneAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'No lyrics available'**
+  String get lyricsNoneAvailable;
+
+  /// No description provided for @sleepTimerTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Sleep timer'**
+  String get sleepTimerTitle;
+
+  /// No description provided for @sleepTimerOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Off'**
+  String get sleepTimerOff;
+
+  /// No description provided for @sleepTimer15Min.
+  ///
+  /// In en, this message translates to:
+  /// **'15 minutes'**
+  String get sleepTimer15Min;
+
+  /// No description provided for @sleepTimer30Min.
+  ///
+  /// In en, this message translates to:
+  /// **'30 minutes'**
+  String get sleepTimer30Min;
+
+  /// No description provided for @sleepTimer45Min.
+  ///
+  /// In en, this message translates to:
+  /// **'45 minutes'**
+  String get sleepTimer45Min;
+
+  /// No description provided for @sleepTimer60Min.
+  ///
+  /// In en, this message translates to:
+  /// **'1 hour'**
+  String get sleepTimer60Min;
+
+  /// No description provided for @sleepTimerEndOfTrack.
+  ///
+  /// In en, this message translates to:
+  /// **'End of current track'**
+  String get sleepTimerEndOfTrack;
+
+  /// No description provided for @sleepTimerActive.
+  ///
+  /// In en, this message translates to:
+  /// **'Sleep in {remaining}'**
+  String sleepTimerActive(String remaining);
+
+  /// No description provided for @sleepTimerCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'Sleep timer cancelled'**
+  String get sleepTimerCancelled;
+
+  /// No description provided for @queueSaveAsPlaylist.
+  ///
+  /// In en, this message translates to:
+  /// **'Save as playlist'**
+  String get queueSaveAsPlaylist;
+
+  /// No description provided for @queueSaveAsPlaylistName.
+  ///
+  /// In en, this message translates to:
+  /// **'Playlist name'**
+  String get queueSaveAsPlaylistName;
+
+  /// No description provided for @queueSaveAsPlaylistSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Playlist saved'**
+  String get queueSaveAsPlaylistSaved;
 }
 
 class _AppLocalizationsDelegate
