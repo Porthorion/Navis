@@ -11,6 +11,7 @@ import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
+import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/navigation_service.dart';
@@ -59,7 +60,12 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
 
           return songsAsync.when(
             data: (songs) => _buildContent(context, playlist, songs),
-            loading: () => _buildContent(context, playlist, const []),
+            loading: () => _buildContent(
+              context,
+              playlist,
+              const [],
+              isLoading: true,
+            ),
             error: (error, _) => ErrorState(
               title: l10n.playlistDetailLoadError,
               message: error.toString(),
@@ -86,8 +92,9 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
   Widget _buildContent(
     BuildContext context,
     PlaylistsTableData playlist,
-    List<SongsTableData> songs,
-  ) {
+    List<SongsTableData> songs, {
+    bool isLoading = false,
+  }) {
     final l10n = AppLocalizations.of(context)!;
 
     return RefreshIndicator(
@@ -163,11 +170,13 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
           if (songs.isEmpty)
             SliverFillRemaining(
               hasScrollBody: false,
-              child: EmptyState(
-                title: l10n.playlistDetailEmptyTitle,
-                subtitle: l10n.playlistDetailEmptySubtitle,
-                icon: Icons.music_note_outlined,
-              ),
+              child: isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : EmptyState(
+                      title: l10n.playlistDetailEmptyTitle,
+                      subtitle: l10n.playlistDetailEmptySubtitle,
+                      icon: Icons.music_note_outlined,
+                    ),
             )
           else
             SliverList(
@@ -343,6 +352,14 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                   NavService.goToAlbum(context, ref, song.albumId!);
                 },
               ),
+            ListTile(
+              leading: const Icon(Icons.playlist_add),
+              title: Text(l10n.librarySongMenuAddToPlaylist),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                showAddToPlaylistSheet(context, ref, [song.id]);
+              },
+            ),
           ],
         ),
       ),

@@ -139,14 +139,28 @@ class _AddToPlaylistSheet extends ConsumerWidget {
     if (api == null) return;
 
     unawaited(
-      api.updatePlaylist(id: playlistId, songIdsToAdd: songIds).then((_) {
-        ref.invalidate(playlistDetailSyncProvider(playlistId));
-        ref.invalidate(playlistSyncProvider);
-      }),
-    );
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(l10n.addToPlaylistSuccess(playlistName))),
+      api
+          .updatePlaylist(id: playlistId, songIdsToAdd: songIds)
+          .then((_) {
+            ref.invalidate(playlistDetailSyncProvider(playlistId));
+            ref.invalidate(playlistSyncProvider);
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(l10n.addToPlaylistSuccess(playlistName)),
+                ),
+              );
+            }
+          })
+          .catchError((_) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(l10n.playlistDetailTrackRemoveFailed),
+                ),
+              );
+            }
+          }),
     );
   }
 
