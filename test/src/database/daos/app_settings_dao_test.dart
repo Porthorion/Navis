@@ -43,6 +43,8 @@ void main() {
           loudnessEnabled: true,
           loudnessTargetGainDb: 8,
           wifiOnlyDownloads: false,
+          themeMode: 'dark',
+          colorSchemeSeed: null,
         );
 
         final first = await database.appSettingsDao.getSettings();
@@ -75,6 +77,8 @@ void main() {
           loudnessEnabled: false,
           loudnessTargetGainDb: 0,
           wifiOnlyDownloads: false,
+          themeMode: 'dark',
+          colorSchemeSeed: null,
         );
 
         final second = await database.appSettingsDao.getSettings();
@@ -111,6 +115,8 @@ void main() {
         loudnessEnabled: true,
         loudnessTargetGainDb: 6,
         wifiOnlyDownloads: true,
+        themeMode: 'oled',
+        colorSchemeSeed: 4283215696,
       );
 
       await database.appSettingsDao.resetDefaults();

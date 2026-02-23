@@ -51,6 +51,12 @@ class SettingsScreen extends StatelessWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.go('/settings/appearance'),
           ),
+          ListTile(
+            leading: const Icon(Icons.info_outline),
+            title: Text(l10n.aboutTitle),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.go('/settings/about'),
+          ),
         ],
       ),
     );

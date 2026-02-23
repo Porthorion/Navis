@@ -2294,6 +2294,96 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Cached'**
   String get cacheBadgeCached;
+
+  /// No description provided for @appearanceTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Appearance'**
+  String get appearanceTitle;
+
+  /// No description provided for @appearanceThemeModeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Theme mode'**
+  String get appearanceThemeModeLabel;
+
+  /// No description provided for @appearanceThemeLight.
+  ///
+  /// In en, this message translates to:
+  /// **'Light'**
+  String get appearanceThemeLight;
+
+  /// No description provided for @appearanceThemeDark.
+  ///
+  /// In en, this message translates to:
+  /// **'Dark'**
+  String get appearanceThemeDark;
+
+  /// No description provided for @appearanceThemeOled.
+  ///
+  /// In en, this message translates to:
+  /// **'OLED'**
+  String get appearanceThemeOled;
+
+  /// No description provided for @appearanceThemeSystem.
+  ///
+  /// In en, this message translates to:
+  /// **'System'**
+  String get appearanceThemeSystem;
+
+  /// No description provided for @appearanceColorSchemeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Color scheme'**
+  String get appearanceColorSchemeLabel;
+
+  /// No description provided for @appearanceColorSchemeSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a seed color for the app\'s color palette.'**
+  String get appearanceColorSchemeSub;
+
+  /// No description provided for @appearanceColorDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Default'**
+  String get appearanceColorDefault;
+
+  /// No description provided for @aboutTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'About'**
+  String get aboutTitle;
+
+  /// No description provided for @aboutVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'Version'**
+  String get aboutVersion;
+
+  /// No description provided for @aboutLicenses.
+  ///
+  /// In en, this message translates to:
+  /// **'Open-source licenses'**
+  String get aboutLicenses;
+
+  /// No description provided for @aboutLicensesSub.
+  ///
+  /// In en, this message translates to:
+  /// **'View third-party software licenses.'**
+  String get aboutLicensesSub;
+
+  /// No description provided for @aboutSourceCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Source code'**
+  String get aboutSourceCode;
+
+  /// No description provided for @aboutSourceCodeSub.
+  ///
+  /// In en, this message translates to:
+  /// **'View on Forgejo'**
+  String get aboutSourceCodeSub;
 }
 
 class _AppLocalizationsDelegate

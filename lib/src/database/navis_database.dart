@@ -65,7 +65,7 @@ class NavisDatabase extends _$NavisDatabase {
   static QueryExecutor _openConnection() => driftDatabase(name: 'navis.sqlite');
 
   @override
-  int get schemaVersion => 10;
+  int get schemaVersion => 11;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -113,6 +113,9 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 10 && to >= 10) {
       await from9To10(migrator);
+    }
+    if (from < 11 && to >= 11) {
+      await from10To11(migrator);
     }
   }
 
@@ -220,6 +223,21 @@ class NavisDatabase extends _$NavisDatabase {
     }
   }
 
+  Future<void> from10To11(Migrator migrator) async {
+    if (!await _columnExists('app_settings', 'theme_mode')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.themeMode,
+      );
+    }
+    if (!await _columnExists('app_settings', 'color_scheme_seed')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.colorSchemeSeed,
+      );
+    }
+  }
+
   Future<void> _ensureAppSettingsDefaults() {
     return into(appSettingsTable).insert(
       AppSettingsTableCompanion.insert(
@@ -239,6 +257,8 @@ class NavisDatabase extends _$NavisDatabase {
         rollingCacheBudgetMb:
             const Value(AppSettingsDao.defaultRollingCacheBudgetMb),
         wifiOnlyDownloads: const Value(false),
+        themeMode: const Value('dark'),
+        colorSchemeSeed: const Value(null),
         updatedAt: DateTime.now(),
       ),
       mode: InsertMode.insertOrIgnore,

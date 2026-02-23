@@ -731,6 +731,22 @@ final wifiOnlyDownloadsProvider = Provider<bool>((ref) {
   return settings.wifiOnlyDownloads;
 });
 
+/// Current theme mode string ('light', 'dark', 'oled', 'system').
+final themeModeProvider = Provider<String>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.themeMode;
+});
+
+/// Current color scheme seed color value (null = default blue).
+final colorSchemeSeedProvider = Provider<int?>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.colorSchemeSeed;
+});
+
 Future<void> seedDefaultServerConfig(Ref ref) async {
   final notifier = ref.read(serverConfigProvider.notifier);
   await notifier.save(

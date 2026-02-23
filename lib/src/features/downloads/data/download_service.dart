@@ -12,6 +12,7 @@ import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/notifications/download_notifier.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -253,6 +254,7 @@ class DownloadService {
         return;
       }
       final song = songs.first;
+      final songTitle = song.title;
       destFile = await _resolveDownloadFile(song, item);
 
       _activeCancelToken = CancelToken();
@@ -264,6 +266,13 @@ class DownloadService {
           if (total > 0) {
             final progress = (received / total).clamp(0.0, 1.0);
             _downloadQueueDao.updateProgress(item.id, progress);
+            unawaited(
+              DownloadNotifier.showProgress(
+                title: songTitle,
+                received: received,
+                total: total,
+              ),
+            );
           }
         },
       );
@@ -292,6 +301,10 @@ class DownloadService {
 
         // Remove from queue.
         await _downloadQueueDao.remove(item.id);
+        unawaited(DownloadNotifier.dismissProgress());
+        unawaited(
+          DownloadNotifier.showComplete(title: 'Downloaded: $songTitle'),
+        );
         AppLogger.info(
           'DownloadService: Completed download for $songId '
           '(${stat.size} bytes)',
@@ -299,11 +312,16 @@ class DownloadService {
       } else {
         _tryDeleteFile(destFile);
         await _downloadQueueDao.updateStatus(item.id, DownloadStatus.failed);
+        unawaited(DownloadNotifier.dismissProgress());
+        unawaited(
+          DownloadNotifier.showFailed(title: 'Download failed: $songId'),
+        );
         AppLogger.warning(
           'DownloadService: HTTP ${response.statusCode} for $songId',
         );
       }
     } on DioException catch (e) {
+      unawaited(DownloadNotifier.dismissProgress());
       if (e.type == DioExceptionType.cancel) {
         AppLogger.debug('DownloadService: Download cancelled for $songId');
         _tryDeleteFile(destFile);
@@ -312,11 +330,18 @@ class DownloadService {
         AppLogger.warning('DownloadService: Dio error for $songId: $e');
         _tryDeleteFile(destFile);
         await _downloadQueueDao.updateStatus(item.id, DownloadStatus.failed);
+        unawaited(
+          DownloadNotifier.showFailed(title: 'Download failed: $songId'),
+        );
       }
     } on Object catch (e, st) {
       AppLogger.warning('DownloadService: Error for $songId: $e\n$st');
       _tryDeleteFile(destFile);
       await _downloadQueueDao.updateStatus(item.id, DownloadStatus.failed);
+      unawaited(DownloadNotifier.dismissProgress());
+      unawaited(
+        DownloadNotifier.showFailed(title: 'Download failed: $songId'),
+      );
     } finally {
       _activeCancelToken = null;
     }

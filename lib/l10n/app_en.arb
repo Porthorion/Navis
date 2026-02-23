@@ -598,5 +598,22 @@
   "cacheSettingsWifiOnlyDownloadsSub": "Pause downloads when not connected to Wi-Fi.",
 
   "cacheBadgeDownloaded": "Downloaded",
-  "cacheBadgeCached": "Cached"
+  "cacheBadgeCached": "Cached",
+
+  "appearanceTitle": "Appearance",
+  "appearanceThemeModeLabel": "Theme mode",
+  "appearanceThemeLight": "Light",
+  "appearanceThemeDark": "Dark",
+  "appearanceThemeOled": "OLED",
+  "appearanceThemeSystem": "System",
+  "appearanceColorSchemeLabel": "Color scheme",
+  "appearanceColorSchemeSub": "Choose a seed color for the app's color palette.",
+  "appearanceColorDefault": "Default",
+
+  "aboutTitle": "About",
+  "aboutVersion": "Version",
+  "aboutLicenses": "Open-source licenses",
+  "aboutLicensesSub": "View third-party software licenses.",
+  "aboutSourceCode": "Source code",
+  "aboutSourceCodeSub": "View on Forgejo"
 }

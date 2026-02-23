@@ -1268,4 +1268,50 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cacheBadgeCached => 'Cached';
+
+  @override
+  String get appearanceTitle => 'Appearance';
+
+  @override
+  String get appearanceThemeModeLabel => 'Theme mode';
+
+  @override
+  String get appearanceThemeLight => 'Light';
+
+  @override
+  String get appearanceThemeDark => 'Dark';
+
+  @override
+  String get appearanceThemeOled => 'OLED';
+
+  @override
+  String get appearanceThemeSystem => 'System';
+
+  @override
+  String get appearanceColorSchemeLabel => 'Color scheme';
+
+  @override
+  String get appearanceColorSchemeSub =>
+      'Choose a seed color for the app\'s color palette.';
+
+  @override
+  String get appearanceColorDefault => 'Default';
+
+  @override
+  String get aboutTitle => 'About';
+
+  @override
+  String get aboutVersion => 'Version';
+
+  @override
+  String get aboutLicenses => 'Open-source licenses';
+
+  @override
+  String get aboutLicensesSub => 'View third-party software licenses.';
+
+  @override
+  String get aboutSourceCode => 'Source code';
+
+  @override
+  String get aboutSourceCodeSub => 'View on Forgejo';
 }

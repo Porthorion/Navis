@@ -41,6 +41,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     required bool loudnessEnabled,
     double? loudnessTargetGainDb,
     required bool wifiOnlyDownloads,
+    required String themeMode,
+    int? colorSchemeSeed,
   }) {
     return into(appSettingsTable).insertOnConflictUpdate(
       AppSettingsTableCompanion.insert(
@@ -58,6 +60,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         loudnessEnabled: Value(loudnessEnabled),
         loudnessTargetGainDb: Value(loudnessTargetGainDb),
         wifiOnlyDownloads: Value(wifiOnlyDownloads),
+        themeMode: Value(themeMode),
+        colorSchemeSeed: Value(colorSchemeSeed),
         updatedAt: DateTime.now(),
       ),
     );
@@ -78,6 +82,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       loudnessEnabled: false,
       loudnessTargetGainDb: 0,
       wifiOnlyDownloads: false,
+      themeMode: 'dark',
+      colorSchemeSeed: null,
     );
   }
 
@@ -130,5 +136,43 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   /// Stream the Wi-Fi-only downloads setting.
   Stream<bool> watchWifiOnlyDownloads() {
     return watchSettings().map((s) => s?.wifiOnlyDownloads ?? false);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Theme helpers
+  // ---------------------------------------------------------------------------
+
+  /// Targeted update for theme mode.
+  Future<void> updateThemeMode(String mode) {
+    return (update(appSettingsTable)
+          ..where((t) => t.id.equals(primarySettingsId)))
+        .write(
+      AppSettingsTableCompanion(
+        themeMode: Value(mode),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Targeted update for color scheme seed.
+  Future<void> updateColorSchemeSeed(int? seed) {
+    return (update(appSettingsTable)
+          ..where((t) => t.id.equals(primarySettingsId)))
+        .write(
+      AppSettingsTableCompanion(
+        colorSchemeSeed: Value(seed),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Stream the current theme mode.
+  Stream<String> watchThemeMode() {
+    return watchSettings().map((s) => s?.themeMode ?? 'dark');
+  }
+
+  /// Stream the current color scheme seed.
+  Stream<int?> watchColorSchemeSeed() {
+    return watchSettings().map((s) => s?.colorSchemeSeed);
   }
 }

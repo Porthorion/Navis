@@ -17,6 +17,8 @@ class AppSettingsModel {
     required this.loudnessEnabled,
     required this.loudnessTargetGainDb,
     required this.wifiOnlyDownloads,
+    required this.themeMode,
+    required this.colorSchemeSeed,
   });
 
   const AppSettingsModel.defaults()
@@ -32,7 +34,9 @@ class AppSettingsModel {
       equalizerBandGains = const <double>[],
       loudnessEnabled = false,
       loudnessTargetGainDb = 0,
-      wifiOnlyDownloads = false;
+      wifiOnlyDownloads = false,
+      themeMode = 'dark',
+      colorSchemeSeed = null;
 
   final int? wifiMaxBitRate;
   final String? wifiFormat;
@@ -49,6 +53,8 @@ class AppSettingsModel {
   final bool loudnessEnabled;
   final double loudnessTargetGainDb;
   final bool wifiOnlyDownloads;
+  final String themeMode;
+  final int? colorSchemeSeed;
 
   AppSettingsModel copyWith({
     int? wifiMaxBitRate,
@@ -64,10 +70,13 @@ class AppSettingsModel {
     bool? loudnessEnabled,
     double? loudnessTargetGainDb,
     bool? wifiOnlyDownloads,
+    String? themeMode,
+    int? colorSchemeSeed,
     bool clearWifiBitRate = false,
     bool clearWifiFormat = false,
     bool clearCellularBitRate = false,
     bool clearCellularFormat = false,
+    bool clearColorSchemeSeed = false,
   }) {
     return AppSettingsModel(
       wifiMaxBitRate: clearWifiBitRate
@@ -90,6 +99,10 @@ class AppSettingsModel {
       loudnessEnabled: loudnessEnabled ?? this.loudnessEnabled,
       loudnessTargetGainDb: loudnessTargetGainDb ?? this.loudnessTargetGainDb,
       wifiOnlyDownloads: wifiOnlyDownloads ?? this.wifiOnlyDownloads,
+      themeMode: themeMode ?? this.themeMode,
+      colorSchemeSeed: clearColorSchemeSeed
+          ? null
+          : colorSchemeSeed ?? this.colorSchemeSeed,
     );
   }
 }
