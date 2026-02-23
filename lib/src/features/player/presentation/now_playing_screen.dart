@@ -8,6 +8,7 @@ import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/lyrics_display_widget.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 
@@ -117,6 +118,15 @@ class _NowPlayingAppBar extends ConsumerWidget {
                 onTap: () {
                   Navigator.of(sheetContext).pop();
                   NavService.goToArtist(context, ref, song.artistId!);
+                },
+              ),
+            if (song != null)
+              ListTile(
+                leading: const Icon(Icons.playlist_add),
+                title: Text(l10n.librarySongMenuAddToPlaylist),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  showAddToPlaylistSheet(context, ref, [song.id]);
                 },
               ),
           ],

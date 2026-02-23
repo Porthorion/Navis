@@ -33,6 +33,10 @@ final playlistSyncProvider = FutureProvider.autoDispose<void>((ref) async {
       )
       .toList(growable: false);
   await db.playlistDao.upsertPlaylists(companions);
+
+  // Prune locally-cached playlists that no longer exist on the server.
+  final serverIds = playlists.map((p) => p.id).toList(growable: false);
+  await db.playlistDao.deletePlaylistsNotIn(serverIds);
 });
 
 /// Family provider: fetches a single playlist's songs from the server
