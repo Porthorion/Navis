@@ -15,6 +15,16 @@ class CacheDao extends DatabaseAccessor<NavisDatabase> with _$CacheDaoMixin {
     return query.watch();
   }
 
+  /// Watch only tracks of a given [cacheType] (rolling or permanent).
+  Stream<List<CachedTracksTableData>> watchCachedTracksByType(
+    CacheType cacheType,
+  ) {
+    final query = select(cachedTracksTable)
+      ..where((t) => t.cacheType.equalsValue(cacheType))
+      ..orderBy([(t) => OrderingTerm.desc(t.lastAccessedAt)]);
+    return query.watch();
+  }
+
   Future<void> upsertCachedTrack(CachedTracksTableCompanion companion) {
     return into(cachedTracksTable).insertOnConflictUpdate(companion);
   }

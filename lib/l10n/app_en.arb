@@ -586,6 +586,9 @@
   "downloadsCancelAction": "Cancel download",
   "downloadsClearCompleted": "Clear completed",
   "downloadsRetryFailed": "Retry failed",
+  "downloadsStatusFailed": "Failed",
+  "downloadsRetryAllFailed": "Retry all failed",
+  "downloadsErrorLoadingQueue": "Could not load download queue.",
 
   "libraryDownloadedOnlyFilter": "Downloaded",
   "libraryDownloadedOnlyEmpty": "No downloaded content",

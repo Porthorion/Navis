@@ -43,10 +43,14 @@ class DownloadService {
   CancelToken? _activeCancelToken;
 
   /// Start listening to the download queue and automatically process items.
-  void start() {
-    _queueSubscription?.cancel();
+  ///
+  /// Recovers any items stuck in `downloading` status from a previous crash.
+  Future<void> start() async {
+    // Recover items left in 'downloading' from a previous app kill.
+    await _downloadQueueDao.requeueStuckDownloads();
+    await _queueSubscription?.cancel();
     _queueSubscription = _downloadQueueDao.watchQueue().listen((_) {
-      _processNext();
+      unawaited(_processNext());
     });
   }
 
@@ -64,12 +68,30 @@ class DownloadService {
   // ---------------------------------------------------------------------------
 
   /// Enqueue a single song for permanent download.
+  ///
+  /// Skips if the song is already queued or downloading.
   Future<void> enqueueSong(
     String songId, {
     String? quality,
     String? format,
     int priority = 0,
   }) async {
+    // Dedup: skip if already queued or downloading.
+    final existing = await _downloadQueueDao.findBySongId(songId);
+    if (existing != null &&
+        (existing.status == DownloadStatus.queued ||
+            existing.status == DownloadStatus.downloading)) {
+      return;
+    }
+    // Also skip if already permanently cached.
+    final cached = await _cacheDao.getCachedTrack(songId);
+    if (cached != null && cached.cacheType == CacheType.permanent) {
+      return;
+    }
+    // Remove any stale failed entry before re-enqueueing.
+    if (existing != null) {
+      await _downloadQueueDao.remove(existing.id);
+    }
     await _downloadQueueDao.enqueue(
       DownloadQueueTableCompanion.insert(
         songId: Value(songId),
@@ -82,7 +104,7 @@ class DownloadService {
     );
   }
 
-  /// Enqueue all songs for an album.
+  /// Enqueue all songs for an album. Returns the number newly queued.
   Future<int> enqueueAlbum(
     String albumId, {
     String? quality,
@@ -91,18 +113,16 @@ class DownloadService {
     final songs = await _libraryDao.watchSongsByAlbum(albumId).first;
     var count = 0;
     for (final song in songs) {
-      // Skip already-permanently-cached songs.
-      final existing = await _cacheDao.getCachedTrack(song.id);
-      if (existing != null && existing.cacheType == CacheType.permanent) {
-        continue;
-      }
+      final before = await _downloadQueueDao.findBySongId(song.id);
       await enqueueSong(song.id, quality: quality, format: format);
-      count++;
+      // Count only if a new entry was actually added.
+      final after = await _downloadQueueDao.findBySongId(song.id);
+      if (before == null && after != null) count++;
     }
     return count;
   }
 
-  /// Enqueue all songs for a playlist.
+  /// Enqueue all songs for a playlist. Returns the number newly queued.
   Future<int> enqueuePlaylist(
     String playlistId,
     List<String> songIds, {
@@ -111,18 +131,16 @@ class DownloadService {
   }) async {
     var count = 0;
     for (final songId in songIds) {
-      final existing = await _cacheDao.getCachedTrack(songId);
-      if (existing != null && existing.cacheType == CacheType.permanent) {
-        continue;
-      }
+      final before = await _downloadQueueDao.findBySongId(songId);
       await enqueueSong(songId, quality: quality, format: format);
-      count++;
+      final after = await _downloadQueueDao.findBySongId(songId);
+      if (before == null && after != null) count++;
     }
     return count;
   }
 
   /// Promote a rolling-cache track to permanent (no re-download needed).
-  Future<bool> promoteToPermament(String songId) async {
+  Future<bool> promoteToPermanent(String songId) async {
     final track = await _cacheDao.getCachedTrack(songId);
     if (track == null) return false;
     if (track.cacheType == CacheType.permanent) return true;
@@ -130,24 +148,22 @@ class DownloadService {
     final file = File(track.filePath);
     if (!file.existsSync()) return false;
 
-    // Move file to permanent directory.
+    // Copy to permanent directory.
     final permDir = await _permanentDirectory();
     final newPath = p.join(permDir.path, p.basename(track.filePath));
     final destination = File(newPath);
-    if (!destination.existsSync()) {
-      await file.copy(newPath);
+    try {
+      if (!destination.existsSync()) {
+        await file.copy(newPath);
+      }
+    } on FileSystemException catch (e) {
+      AppLogger.warning(
+        'DownloadService: Failed to copy to permanent: $e',
+      );
+      return false;
     }
     // Clean up rolling cache files.
-    for (final suffix in <String>['', '.part', '.mime']) {
-      final f = File('${track.filePath}$suffix');
-      if (f.existsSync()) {
-        try {
-          f.deleteSync();
-        } on FileSystemException {
-          // best-effort
-        }
-      }
-    }
+    _deleteFileWithSuffixes(track.filePath);
 
     await _cacheDao.upsertCachedTrack(
       CachedTracksTableCompanion.insert(
@@ -176,13 +192,10 @@ class DownloadService {
 
     try {
       while (true) {
-        final queue = await _downloadQueueDao.watchQueue().first;
-        final next = queue
-            .where((item) => item.status == DownloadStatus.queued)
-            .toList();
-        if (next.isEmpty) break;
+        final queue = await _downloadQueueDao.getQueuedItems();
+        if (queue.isEmpty) break;
 
-        final item = next.first;
+        final item = queue.first;
         if (item.songId == null) {
           // Malformed entry — remove.
           await _downloadQueueDao.remove(item.id);
@@ -207,26 +220,29 @@ class DownloadService {
     // Mark as downloading.
     await _downloadQueueDao.updateStatus(item.id, DownloadStatus.downloading);
 
-    // Resolve download URL.
-    final downloadUri = _resolveDownloadUri(
-      api: api,
-      songId: songId,
-      quality: item.quality,
-      format: item.format,
-    );
+    // Resolve destination file early so we can clean up on failure.
+    File? destFile;
 
-    // Resolve destination file.
-    final songs = await _libraryDao.getSongsByIds(<String>[songId]);
-    if (songs.isEmpty) {
-      AppLogger.warning('DownloadService: Song $songId not found in library');
-      await _downloadQueueDao.updateStatus(item.id, DownloadStatus.failed);
-      return;
-    }
-    final song = songs.first;
-    final destFile = await _resolveDownloadFile(song, item);
-
-    _activeCancelToken = CancelToken();
     try {
+      // Resolve download URL.
+      final downloadUri = _resolveDownloadUri(
+        api: api,
+        songId: songId,
+        quality: item.quality,
+        format: item.format,
+      );
+
+      // Resolve destination file.
+      final songs = await _libraryDao.getSongsByIds(<String>[songId]);
+      if (songs.isEmpty) {
+        AppLogger.warning('DownloadService: Song $songId not found in library');
+        await _downloadQueueDao.updateStatus(item.id, DownloadStatus.failed);
+        return;
+      }
+      final song = songs.first;
+      destFile = await _resolveDownloadFile(song, item);
+
+      _activeCancelToken = CancelToken();
       final response = await _dio.downloadUri(
         downloadUri,
         destFile.path,
@@ -244,7 +260,7 @@ class DownloadService {
           response.statusCode! < 300) {
         // Register in cached_tracks as permanent.
         final stat = destFile.statSync();
-        final format = _inferFormat(song, item);
+        final format = _resolveFormat(song, item);
 
         await _cacheDao.upsertCachedTrack(
           CachedTracksTableCompanion.insert(
@@ -268,6 +284,7 @@ class DownloadService {
           '(${stat.size} bytes)',
         );
       } else {
+        _tryDeleteFile(destFile);
         await _downloadQueueDao.updateStatus(item.id, DownloadStatus.failed);
         AppLogger.warning(
           'DownloadService: HTTP ${response.statusCode} for $songId',
@@ -276,13 +293,16 @@ class DownloadService {
     } on DioException catch (e) {
       if (e.type == DioExceptionType.cancel) {
         AppLogger.debug('DownloadService: Download cancelled for $songId');
+        _tryDeleteFile(destFile);
         await _downloadQueueDao.updateStatus(item.id, DownloadStatus.queued);
       } else {
         AppLogger.warning('DownloadService: Dio error for $songId: $e');
+        _tryDeleteFile(destFile);
         await _downloadQueueDao.updateStatus(item.id, DownloadStatus.failed);
       }
     } on Object catch (e, st) {
       AppLogger.warning('DownloadService: Error for $songId: $e\n$st');
+      _tryDeleteFile(destFile);
       await _downloadQueueDao.updateStatus(item.id, DownloadStatus.failed);
     } finally {
       _activeCancelToken = null;
@@ -290,7 +310,7 @@ class DownloadService {
   }
 
   // ---------------------------------------------------------------------------
-  // File resolution
+  // File utilities
   // ---------------------------------------------------------------------------
 
   Future<Directory> _permanentDirectory() async {
@@ -310,7 +330,7 @@ class DownloadService {
     final qualitySig = '${item.quality ?? 'original'}-${item.format ?? 'raw'}';
     final digest =
         sha1.convert(utf8.encode('${song.id}::$qualitySig')).toString();
-    final ext = _songFileExtension(song, item);
+    final ext = _resolveFormat(song, item);
     return File(p.join(dir.path, '${song.id}_$digest.$ext'));
   }
 
@@ -333,7 +353,8 @@ class DownloadService {
     );
   }
 
-  String _songFileExtension(SongsTableData song, DownloadQueueTableData item) {
+  /// Resolve the file format/extension for a download item.
+  String _resolveFormat(SongsTableData song, DownloadQueueTableData item) {
     if (item.format != null && item.format!.trim().isNotEmpty) {
       return item.format!.trim();
     }
@@ -342,12 +363,25 @@ class DownloadService {
     return 'bin';
   }
 
-  String _inferFormat(SongsTableData song, DownloadQueueTableData item) {
-    if (item.format != null && item.format!.trim().isNotEmpty) {
-      return item.format!.trim();
+  /// Best-effort delete of a file (e.g., partial download on failure).
+  void _tryDeleteFile(File? file) {
+    if (file == null) return;
+    try {
+      if (file.existsSync()) file.deleteSync();
+    } on FileSystemException {
+      // best-effort
     }
-    final suffix = song.suffix?.trim();
-    if (suffix != null && suffix.isNotEmpty) return suffix;
-    return 'bin';
+  }
+
+  /// Delete a cache file and its side-car files (.part, .mime).
+  void _deleteFileWithSuffixes(String filePath) {
+    for (final suffix in <String>['', '.part', '.mime']) {
+      try {
+        final f = File('$filePath$suffix');
+        if (f.existsSync()) f.deleteSync();
+      } on FileSystemException {
+        // best-effort
+      }
+    }
   }
 }

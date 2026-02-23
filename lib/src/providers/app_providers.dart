@@ -640,23 +640,17 @@ class CacheStats {
 
 final rollingCacheStatsProvider = StreamProvider<CacheStats>((ref) {
   final dao = ref.watch(navisDatabaseProvider).cacheDao;
-  return dao.watchCachedTracks().map((tracks) {
-    final filtered = tracks
-        .where((track) => track.cacheType == CacheType.rolling)
-        .toList();
-    final total = filtered.fold<int>(0, (sum, item) => sum + item.fileSize);
-    return CacheStats(trackCount: filtered.length, totalBytes: total);
+  return dao.watchCachedTracksByType(CacheType.rolling).map((tracks) {
+    final total = tracks.fold<int>(0, (sum, item) => sum + item.fileSize);
+    return CacheStats(trackCount: tracks.length, totalBytes: total);
   });
 });
 
 final permanentCacheStatsProvider = StreamProvider<CacheStats>((ref) {
   final dao = ref.watch(navisDatabaseProvider).cacheDao;
-  return dao.watchCachedTracks().map((tracks) {
-    final filtered = tracks
-        .where((track) => track.cacheType == CacheType.permanent)
-        .toList();
-    final total = filtered.fold<int>(0, (sum, item) => sum + item.fileSize);
-    return CacheStats(trackCount: filtered.length, totalBytes: total);
+  return dao.watchCachedTracksByType(CacheType.permanent).map((tracks) {
+    final total = tracks.fold<int>(0, (sum, item) => sum + item.fileSize);
+    return CacheStats(trackCount: tracks.length, totalBytes: total);
   });
 });
 
@@ -672,11 +666,9 @@ final cachedSongIdsProvider = StreamProvider<Set<String>>((ref) {
 final downloadedContentIdsProvider =
     StreamProvider<({Set<String> albumIds, Set<String> artistIds})>((ref) {
   final db = ref.watch(navisDatabaseProvider);
-  return db.cacheDao.watchCachedTracks().asyncMap((tracks) async {
-    final permanentSongIds = tracks
-        .where((t) => t.cacheType == CacheType.permanent)
-        .map((t) => t.songId)
-        .toList();
+  return db.cacheDao.watchCachedTracksByType(CacheType.permanent).asyncMap(
+      (tracks) async {
+    final permanentSongIds = tracks.map((t) => t.songId).toList();
     if (permanentSongIds.isEmpty) {
       return (albumIds: <String>{}, artistIds: <String>{});
     }
@@ -691,6 +683,13 @@ final downloadedContentIdsProvider =
   });
 });
 
+/// Provides the list of permanently cached tracks.
+final permanentCachedTracksProvider =
+    StreamProvider<List<CachedTracksTableData>>((ref) {
+  final dao = ref.watch(navisDatabaseProvider).cacheDao;
+  return dao.watchCachedTracksByType(CacheType.permanent);
+});
+
 final downloadServiceProvider = Provider<DownloadService>((ref) {
   final db = ref.watch(navisDatabaseProvider);
   final service = DownloadService(
@@ -699,6 +698,9 @@ final downloadServiceProvider = Provider<DownloadService>((ref) {
     libraryDao: db.libraryDao,
     readApiClient: () => ref.read(subsonicApiProvider),
   );
+  // Service.start() is async but we fire-and-forget here — the subscription
+  // inside start() processes the queue independently.
+  // ignore: discarded_futures
   service.start();
   ref.onDispose(service.stop);
   return service;

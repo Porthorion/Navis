@@ -322,6 +322,14 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                   );
                 },
               ),
+              ListTile(
+                leading: const Icon(Icons.download_outlined),
+                title: Text(l10n.downloadAction),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  unawaited(_downloadSong(song));
+                },
+              ),
             ],
           ),
         );
@@ -344,6 +352,23 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
       return l10n.playbackUnavailableSource;
     }
     return l10n.playbackActionFailed;
+  }
+
+  Future<void> _downloadSong(SongsTableData song) async {
+    final choice = await showDownloadQualitySheet(context);
+    if (choice == null || !mounted) return;
+
+    final service = ref.read(downloadServiceProvider);
+    await service.enqueueSong(
+      song.id,
+      quality: choice.quality,
+      format: choice.format,
+    );
+    if (!mounted) return;
+    final l10n = AppLocalizations.of(context)!;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(l10n.downloadSongQueued)),
+    );
   }
 
   Future<void> _runQueueAction(Future<void> Function() action) async {
