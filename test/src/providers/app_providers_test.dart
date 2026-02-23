@@ -6,6 +6,7 @@ import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -13,6 +14,7 @@ import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
@@ -400,38 +402,51 @@ void main() {
       expect(handler.snapshot.queueSongIds, isEmpty);
     });
 
-    test('queueProvider normalizes replace IDs and clamps start index', () async {
-      final handler = _FakePlaybackHandler();
-      final container = ProviderContainer(
-        overrides: [
-          audioHandlerProvider.overrideWithValue(handler),
-        ],
-      );
-      addTearDown(() async {
-        container.dispose();
-        await handler.dispose();
-      });
+    test(
+      'queueProvider normalizes replace IDs and clamps start index',
+      () async {
+        final handler = _FakePlaybackHandler();
+        final container = ProviderContainer(
+          overrides: [
+            audioHandlerProvider.overrideWithValue(handler),
+          ],
+        );
+        addTearDown(() async {
+          container.dispose();
+          await handler.dispose();
+        });
 
-      await container.read(
-        queueProvider.notifier,
-      ).replace(<String>['  ', ' song-1 ', '', 'song-2  '], startIndex: 99);
+        await container
+            .read(
+              queueProvider.notifier,
+            )
+            .replace(<String>[
+              '  ',
+              ' song-1 ',
+              '',
+              'song-2  ',
+            ], startIndex: 99);
 
-      expect(handler.snapshot.queueSongIds, <String>['song-1', 'song-2']);
-      expect(handler.snapshot.currentIndex, 1);
-      expect(handler.snapshot.currentSongId, 'song-2');
+        expect(handler.snapshot.queueSongIds, <String>['song-1', 'song-2']);
+        expect(handler.snapshot.currentIndex, 1);
+        expect(handler.snapshot.currentSongId, 'song-2');
 
-      await container
-          .read(queueProvider.notifier)
-          .replace(<String>['   ', ''], startIndex: 0);
-      expect(handler.snapshot.queueSongIds, isEmpty);
+        await container.read(queueProvider.notifier).replace(<String>[
+          '   ',
+          '',
+        ], startIndex: 0);
+        expect(handler.snapshot.queueSongIds, isEmpty);
 
-      await container.read(
-        queueProvider.notifier,
-      ).replace(<String>[' song-4 '], startIndex: -5);
-      expect(handler.snapshot.queueSongIds, <String>['song-4']);
-      expect(handler.snapshot.currentIndex, 0);
-      expect(handler.snapshot.currentSongId, 'song-4');
-    });
+        await container
+            .read(
+              queueProvider.notifier,
+            )
+            .replace(<String>[' song-4 '], startIndex: -5);
+        expect(handler.snapshot.queueSongIds, <String>['song-4']);
+        expect(handler.snapshot.currentIndex, 0);
+        expect(handler.snapshot.currentSongId, 'song-4');
+      },
+    );
 
     test('queueProvider ignores blank add and playNext input', () async {
       final handler = _FakePlaybackHandler();
@@ -445,9 +460,9 @@ void main() {
         await handler.dispose();
       });
 
-      await container
-          .read(queueProvider.notifier)
-          .replace(<String>['song-1'], startIndex: 0);
+      await container.read(queueProvider.notifier).replace(<String>[
+        'song-1',
+      ], startIndex: 0);
       await container.read(queueProvider.notifier).add('   ');
       await container.read(queueProvider.notifier).playNext('   ');
 

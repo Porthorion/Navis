@@ -126,10 +126,11 @@ Duration navisSanitizeSeekPosition(Duration position) {
   return position;
 }
 
-typedef NavisPersistSafely = Future<void> Function(
-  Future<void> Function() persistOperation, {
-  required String context,
-});
+typedef NavisPersistSafely =
+    Future<void> Function(
+      Future<void> Function() persistOperation, {
+      required String context,
+    });
 
 @visibleForTesting
 Future<void> navisPersistSafely(
@@ -242,7 +243,7 @@ class NavisAudioHandler extends BaseAudioHandler
   }) : _libraryDao = libraryDao,
        _playQueueDao = playQueueDao,
        _sourceResolver = sourceResolver,
-      _readApiClient = readApiClient,
+       _readApiClient = readApiClient,
        _rollingCacheManager = rollingCacheManager,
        _rollingCacheBudgetBytes = rollingCacheBudgetBytes,
        _scrobbleService = scrobbleService,
@@ -618,8 +619,9 @@ class NavisAudioHandler extends BaseAudioHandler
       return;
     }
 
-    final resolvedFormat =
-        resolvedSource.uri?.queryParameters['format']?.trim().toLowerCase();
+    final resolvedFormat = resolvedSource.uri?.queryParameters['format']
+        ?.trim()
+        .toLowerCase();
     final fallbackFormat =
         song.suffix?.trim().toLowerCase() ??
         song.contentType?.split('/').last.trim().toLowerCase();
@@ -1235,12 +1237,11 @@ class NavisAudioHandler extends BaseAudioHandler
   @override
   Future<void> skipToNext() async {
     await _ready;
-    if (
-        !navisCanSkipQueueItem(
-          queueLength: _queueItems.length,
-          currentIndex: _player.currentIndex,
-          forward: true,
-        )) {
+    if (!navisCanSkipQueueItem(
+      queueLength: _queueItems.length,
+      currentIndex: _player.currentIndex,
+      forward: true,
+    )) {
       return;
     }
     await navisRunTransportWithPersistence(
@@ -1254,12 +1255,11 @@ class NavisAudioHandler extends BaseAudioHandler
   @override
   Future<void> skipToPrevious() async {
     await _ready;
-    if (
-        !navisCanSkipQueueItem(
-          queueLength: _queueItems.length,
-          currentIndex: _player.currentIndex,
-          forward: false,
-        )) {
+    if (!navisCanSkipQueueItem(
+      queueLength: _queueItems.length,
+      currentIndex: _player.currentIndex,
+      forward: false,
+    )) {
       return;
     }
     await navisRunTransportWithPersistence(

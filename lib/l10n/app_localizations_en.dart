@@ -805,4 +805,26 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get playbackActionFailed =>
       'Playback action failed. Please try again.';
+
+  @override
+  String get queueTitle => 'Queue';
+
+  @override
+  String get queueClearAction => 'Clear queue';
+
+  @override
+  String get queueClearConfirmTitle => 'Clear queue?';
+
+  @override
+  String get queueClearConfirmMessage =>
+      'This will remove all tracks from the queue.';
+
+  @override
+  String get queueEmptyTitle => 'Queue is empty';
+
+  @override
+  String get queueEmptySubtitle => 'Add tracks to start playing.';
+
+  @override
+  String get cancelAction => 'Cancel';
 }

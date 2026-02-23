@@ -390,5 +390,12 @@
   "playbackUnavailableStartupFailed": "Playback startup failed. Retry from the startup screen.",
   "playbackUnavailableSource": "Could not resolve an audio source. Check server session and connection.",
   "playbackUnavailableGeneric": "Playback is unavailable right now.",
-  "playbackActionFailed": "Playback action failed. Please try again."
+  "playbackActionFailed": "Playback action failed. Please try again.",
+  "queueTitle": "Queue",
+  "queueClearAction": "Clear queue",
+  "queueClearConfirmTitle": "Clear queue?",
+  "queueClearConfirmMessage": "This will remove all tracks from the queue.",
+  "queueEmptyTitle": "Queue is empty",
+  "queueEmptySubtitle": "Add tracks to start playing.",
+  "cancelAction": "Cancel"
 }
