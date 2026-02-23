@@ -9,7 +9,6 @@ import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/lyrics_display_widget.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
-import 'package:navis/src/features/player/presentation/sleep_timer_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
 String _formatDuration(Duration d) {
@@ -20,7 +19,14 @@ String _formatDuration(Duration d) {
 }
 
 class NowPlayingScreen extends ConsumerWidget {
-  const NowPlayingScreen({super.key});
+  const NowPlayingScreen({
+    super.key,
+    this.onCollapse,
+    this.onOpenQueue,
+  });
+
+  final VoidCallback? onCollapse;
+  final VoidCallback? onOpenQueue;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -31,18 +37,29 @@ class NowPlayingScreen extends ConsumerWidget {
         : ref.watch(songByIdProvider(currentSongId));
     final song = songAsync.asData?.value;
 
-    return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: <Widget>[
-            _NowPlayingAppBar(song: song),
-            Expanded(
-              child: _NowPlayingBody(
-                playback: playback,
-                song: song,
+    return GestureDetector(
+      onVerticalDragEnd: (details) {
+        final velocity = details.primaryVelocity ?? 0;
+        if (velocity > 300 && onCollapse != null) {
+          onCollapse!();
+        } else if (velocity < -300 && onOpenQueue != null) {
+          onOpenQueue!();
+        }
+      },
+      child: Material(
+        color: Theme.of(context).colorScheme.surface,
+        child: SafeArea(
+          child: Column(
+            children: <Widget>[
+              _NowPlayingAppBar(song: song, onCollapse: onCollapse),
+              Expanded(
+                child: _NowPlayingBody(
+                  playback: playback,
+                  song: song,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -50,14 +67,14 @@ class NowPlayingScreen extends ConsumerWidget {
 }
 
 class _NowPlayingAppBar extends ConsumerWidget {
-  const _NowPlayingAppBar({this.song});
+  const _NowPlayingAppBar({this.song, this.onCollapse});
 
   final SongsTableData? song;
+  final VoidCallback? onCollapse;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
-    final sleepTimer = ref.watch(sleepTimerProvider);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
@@ -65,24 +82,14 @@ class _NowPlayingAppBar extends ConsumerWidget {
         children: <Widget>[
           IconButton(
             icon: const Icon(Icons.keyboard_arrow_down),
-            onPressed: () => Navigator.of(context).maybePop(),
+            onPressed: onCollapse ?? () => Navigator.of(context).maybePop(),
           ),
           Expanded(
-            child: sleepTimer.isActive
-                ? Text(
-                    l10n.sleepTimerActive(
-                      _formatDuration(sleepTimer.remaining),
-                    ),
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                  )
-                : Text(
-                    l10n.nowPlayingTitle,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.titleSmall,
-                  ),
+            child: Text(
+              l10n.nowPlayingTitle,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
           ),
           IconButton(
             icon: const Icon(Icons.more_vert),
@@ -106,14 +113,6 @@ class _NowPlayingAppBar extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            ListTile(
-              leading: const Icon(Icons.bedtime_outlined),
-              title: Text(l10n.nowPlayingSleepTimer),
-              onTap: () {
-                Navigator.of(sheetContext).pop();
-                _showSleepTimerSheet(context, ref);
-              },
-            ),
             if (song?.albumId != null && song!.albumId!.isNotEmpty)
               ListTile(
                 leading: const Icon(Icons.album_outlined),
@@ -132,84 +131,6 @@ class _NowPlayingAppBar extends ConsumerWidget {
                   context.go('/library/artists/${song.artistId}');
                 },
               ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showSleepTimerSheet(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context)!;
-    final sleepTimer = ref.read(sleepTimerProvider);
-
-    showModalBottomSheet<void>(
-      context: context,
-      builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(
-                l10n.sleepTimerTitle,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-            ),
-            if (sleepTimer.isActive)
-              ListTile(
-                leading: const Icon(Icons.cancel_outlined),
-                title: Text(l10n.sleepTimerOff),
-                onTap: () {
-                  ref.read(sleepTimerProvider.notifier).cancel();
-                  Navigator.of(sheetContext).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(l10n.sleepTimerCancelled)),
-                  );
-                },
-              ),
-            ListTile(
-              title: Text(l10n.sleepTimer15Min),
-              onTap: () {
-                ref
-                    .read(sleepTimerProvider.notifier)
-                    .setDuration(const Duration(minutes: 15));
-                Navigator.of(sheetContext).pop();
-              },
-            ),
-            ListTile(
-              title: Text(l10n.sleepTimer30Min),
-              onTap: () {
-                ref
-                    .read(sleepTimerProvider.notifier)
-                    .setDuration(const Duration(minutes: 30));
-                Navigator.of(sheetContext).pop();
-              },
-            ),
-            ListTile(
-              title: Text(l10n.sleepTimer45Min),
-              onTap: () {
-                ref
-                    .read(sleepTimerProvider.notifier)
-                    .setDuration(const Duration(minutes: 45));
-                Navigator.of(sheetContext).pop();
-              },
-            ),
-            ListTile(
-              title: Text(l10n.sleepTimer60Min),
-              onTap: () {
-                ref
-                    .read(sleepTimerProvider.notifier)
-                    .setDuration(const Duration(minutes: 60));
-                Navigator.of(sheetContext).pop();
-              },
-            ),
-            ListTile(
-              title: Text(l10n.sleepTimerEndOfTrack),
-              onTap: () {
-                ref.read(sleepTimerProvider.notifier).setEndOfTrack();
-                Navigator.of(sheetContext).pop();
-              },
-            ),
           ],
         ),
       ),
@@ -246,30 +167,30 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
         children: <Widget>[
-          const Spacer(flex: 1),
-          if (_showLyrics && playback.currentSongId != null)
-            Expanded(
-              flex: 4,
-              child: _InlineLyrics(
-                songId: playback.currentSongId!,
-                position: playback.position,
-              ),
-            )
-          else
-            _CoverArt(coverArtId: song?.coverArt),
-          const SizedBox(height: 32),
+          const SizedBox(height: 8),
+          Expanded(
+            child: Center(
+              child: _showLyrics && playback.currentSongId != null
+                  ? _InlineLyrics(
+                      songId: playback.currentSongId!,
+                      position: playback.position,
+                    )
+                  : _CoverArt(coverArtId: song?.coverArt),
+            ),
+          ),
+          const SizedBox(height: 16),
           _TrackInfo(title: title, artist: artist, album: album),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
           _SeekBar(playback: playback),
           const SizedBox(height: 8),
           _TransportControls(playback: playback),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
           _ActionRow(
             songId: playback.currentSongId,
             showLyrics: _showLyrics,
             onLyricsToggle: () => setState(() => _showLyrics = !_showLyrics),
           ),
-          const Spacer(flex: 1),
+          const SizedBox(height: 8),
         ],
       ),
     );
@@ -316,8 +237,8 @@ class _TrackInfo extends StatelessWidget {
         Text(
           title,
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+            fontWeight: FontWeight.bold,
+          ),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           textAlign: TextAlign.center,
@@ -326,8 +247,8 @@ class _TrackInfo extends StatelessWidget {
         Text(
           artist,
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           textAlign: TextAlign.center,
@@ -336,8 +257,8 @@ class _TrackInfo extends StatelessWidget {
         Text(
           album,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           textAlign: TextAlign.center,
@@ -366,8 +287,11 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
     final durationMs = duration.inMilliseconds;
     final positionMs = position.inMilliseconds;
 
-    final sliderValue = _draggingValue ??
-        (durationMs > 0 ? positionMs.toDouble().clamp(0, durationMs.toDouble()) : 0.0);
+    final sliderValue =
+        _draggingValue ??
+        (durationMs > 0
+            ? positionMs.toDouble().clamp(0, durationMs.toDouble())
+            : 0.0);
     final sliderMax = durationMs > 0 ? durationMs.toDouble() : 1.0;
 
     return Column(
@@ -427,8 +351,7 @@ class _TransportControls extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final isPlaying = playback.playing;
-    final shuffleOn =
-        playback.shuffleMode == AudioServiceShuffleMode.all;
+    final shuffleOn = playback.shuffleMode == AudioServiceShuffleMode.all;
     final repeatMode = playback.repeatMode;
 
     String repeatTooltip;
@@ -446,8 +369,7 @@ class _TransportControls extends ConsumerWidget {
         repeatIcon = Icons.repeat;
     }
 
-    final isRepeatActive =
-        repeatMode != AudioServiceRepeatMode.none;
+    final isRepeatActive = repeatMode != AudioServiceRepeatMode.none;
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -455,9 +377,7 @@ class _TransportControls extends ConsumerWidget {
         IconButton(
           icon: Icon(
             Icons.shuffle,
-            color: shuffleOn
-                ? Theme.of(context).colorScheme.primary
-                : null,
+            color: shuffleOn ? Theme.of(context).colorScheme.primary : null,
           ),
           tooltip: shuffleOn
               ? l10n.nowPlayingShuffle
@@ -560,11 +480,10 @@ class _InlineLyrics extends ConsumerWidget {
         child: Text(
           l10n.lyricsNoneAvailable,
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: Theme.of(context)
-                    .colorScheme
-                    .onSurface
-                    .withValues(alpha: 0.6),
-              ),
+            color: Theme.of(
+              context,
+            ).colorScheme.onSurface.withValues(alpha: 0.6),
+          ),
         ),
       ),
     );
@@ -590,7 +509,7 @@ class _ActionRow extends ConsumerWidget {
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: <Widget>[
         IconButton(
-          icon: const Icon(Icons.star_border_outlined),
+          icon: const Icon(Icons.favorite_border),
           tooltip: l10n.nowPlayingStar,
           onPressed: songId == null
               ? null
@@ -601,9 +520,7 @@ class _ActionRow extends ConsumerWidget {
         IconButton(
           icon: Icon(
             showLyrics ? Icons.lyrics : Icons.lyrics_outlined,
-            color: showLyrics
-                ? Theme.of(context).colorScheme.primary
-                : null,
+            color: showLyrics ? Theme.of(context).colorScheme.primary : null,
           ),
           tooltip: l10n.nowPlayingLyrics,
           onPressed: songId == null ? null : onLyricsToggle,

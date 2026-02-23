@@ -356,7 +356,7 @@ void main() {
     expect(configuredLocations, contains('/settings/playback'));
     expect(configuredLocations, contains('/settings/appearance'));
     expect(configuredLocations, contains('/downloads'));
-    expect(configuredLocations, contains('/now-playing'));
+    expect(configuredLocations, contains('/queue'));
 
     await tester.pumpWidget(const SizedBox.shrink());
   });

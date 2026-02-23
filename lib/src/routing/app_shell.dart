@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/expandable_player_sheet.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
-import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
-import 'package:navis/src/features/player/domain/playback_snapshot.dart';
-import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
+import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
+import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
 class AppShell extends ConsumerWidget {
@@ -32,7 +35,8 @@ class AppShell extends ConsumerWidget {
     final currentSongAsync = currentSongId == null
         ? const AsyncValue.data(null)
         : ref.watch(songByIdProvider(currentSongId));
-    final showMiniPlayer = playback.queueSongIds.isNotEmpty;
+    final showPlayer = playback.queueSongIds.isNotEmpty;
+    final isExpanded = ref.watch(playerSheetExpandedProvider);
     final visibleBranchIndices = <int>[
       _homeBranchIndex,
       _libraryBranchIndex,
@@ -45,77 +49,105 @@ class AppShell extends ConsumerWidget {
     );
     final selectedIndex = selectedVisibleIndex >= 0 ? selectedVisibleIndex : 0;
 
-    return Scaffold(
-      body: Column(
-        children: <Widget>[
-          if (showOfflineBanner)
-            Material(
-              color: Theme.of(context).colorScheme.errorContainer,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                child: Row(
-                  children: <Widget>[
-                    Icon(
-                      Icons.cloud_off_outlined,
-                      color: Theme.of(context).colorScheme.onErrorContainer,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        l10n.serverOfflineBanner,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.onErrorContainer,
+    return PopScope(
+      canPop: !isExpanded,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && isExpanded) {
+          ref.read(playerSheetExpandedProvider.notifier).collapse();
+        }
+      },
+      child: Scaffold(
+        body: Column(
+          children: <Widget>[
+            if (showOfflineBanner)
+              Material(
+                color: Theme.of(context).colorScheme.errorContainer,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  child: Row(
+                    children: <Widget>[
+                      Icon(
+                        Icons.cloud_off_outlined,
+                        color: Theme.of(context).colorScheme.onErrorContainer,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          l10n.serverOfflineBanner,
+                          style: TextStyle(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onErrorContainer,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-          Expanded(child: navigationShell),
-          if (showMiniPlayer)
-            _MiniPlayerStrip(
-              playback: playback,
-              songTitle: currentSongAsync.asData?.value?.title,
-              songArtist: currentSongAsync.asData?.value?.artistName,
-              coverArtId: currentSongAsync.asData?.value?.coverArt,
-            ),
-        ],
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: selectedIndex,
-        onDestinationSelected: (index) {
-          final branchIndex = visibleBranchIndices[index];
-          navigationShell.goBranch(
-            branchIndex,
-            initialLocation: branchIndex == navigationShell.currentIndex,
-          );
-        },
-        destinations: <NavigationDestination>[
-          NavigationDestination(
-            icon: const Icon(Icons.home_outlined),
-            label: l10n.navHome,
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.library_music_outlined),
-            label: l10n.navLibrary,
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.search),
-            label: l10n.navSearch,
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.queue_music_outlined),
-            label: l10n.navPlaylists,
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.settings_outlined),
-            label: l10n.navSettings,
-          ),
-        ],
+            Expanded(child: navigationShell),
+            if (showPlayer)
+              ExpandablePlayerSheet(
+                isExpanded: isExpanded,
+                onExpand: () =>
+                    ref.read(playerSheetExpandedProvider.notifier).expand(),
+                onCollapse: () =>
+                    ref.read(playerSheetExpandedProvider.notifier).collapse(),
+                onSwipeUpFullPlayer: () => context.go('/queue'),
+                miniPlayer: _MiniPlayerStrip(
+                  playback: playback,
+                  songTitle: currentSongAsync.asData?.value?.title,
+                  songArtist: currentSongAsync.asData?.value?.artistName,
+                  coverArtId: currentSongAsync.asData?.value?.coverArt,
+                  onTap: () =>
+                      ref.read(playerSheetExpandedProvider.notifier).expand(),
+                ),
+                fullPlayer: NowPlayingScreen(
+                  onCollapse: () =>
+                      ref.read(playerSheetExpandedProvider.notifier).collapse(),
+                  onOpenQueue: () => context.go('/queue'),
+                ),
+              ),
+          ],
+        ),
+        bottomNavigationBar: showPlayer && isExpanded
+            ? null
+            : NavigationBar(
+                selectedIndex: selectedIndex,
+                onDestinationSelected: (index) {
+                  final branchIndex = visibleBranchIndices[index];
+                  navigationShell.goBranch(
+                    branchIndex,
+                    initialLocation:
+                        branchIndex == navigationShell.currentIndex,
+                  );
+                },
+                destinations: <NavigationDestination>[
+                  NavigationDestination(
+                    icon: const Icon(Icons.home_outlined),
+                    label: l10n.navHome,
+                  ),
+                  NavigationDestination(
+                    icon: const Icon(Icons.library_music_outlined),
+                    label: l10n.navLibrary,
+                  ),
+                  NavigationDestination(
+                    icon: const Icon(Icons.search),
+                    label: l10n.navSearch,
+                  ),
+                  NavigationDestination(
+                    icon: const Icon(Icons.queue_music_outlined),
+                    label: l10n.navPlaylists,
+                  ),
+                  NavigationDestination(
+                    icon: const Icon(Icons.settings_outlined),
+                    label: l10n.navSettings,
+                  ),
+                ],
+              ),
       ),
     );
   }
@@ -130,12 +162,14 @@ const int _settingsBranchIndex = 4;
 class _MiniPlayerStrip extends ConsumerWidget {
   const _MiniPlayerStrip({
     required this.playback,
+    required this.onTap,
     this.songTitle,
     this.songArtist,
     this.coverArtId,
   });
 
   final PlaybackSnapshot playback;
+  final VoidCallback onTap;
   final String? songTitle;
   final String? songArtist;
   final String? coverArtId;
@@ -172,7 +206,7 @@ class _MiniPlayerStrip extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             InkWell(
-              onTap: () => context.go('/now-playing'),
+              onTap: onTap,
               child: Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 8,
@@ -199,9 +233,8 @@ class _MiniPlayerStrip extends ConsumerWidget {
                                 : songTitle!,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                ),
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(fontWeight: FontWeight.w600),
                           ),
                           Text(
                             (songArtist == null || songArtist!.trim().isEmpty)

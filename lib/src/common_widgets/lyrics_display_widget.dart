@@ -80,20 +80,25 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
   }
 
   void _scrollToLine(int index) {
-    final key = _lineKeys[index];
-    if (key == null) {
-      return;
-    }
-    final currentContext = key.currentContext;
-    if (currentContext == null) {
-      return;
-    }
-    Scrollable.ensureVisible(
-      currentContext,
-      alignment: 0.5,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOut,
-    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      final key = _lineKeys[index];
+      if (key == null) {
+        return;
+      }
+      final currentContext = key.currentContext;
+      if (currentContext == null) {
+        return;
+      }
+      Scrollable.ensureVisible(
+        currentContext,
+        alignment: 0.4,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
+    });
   }
 
   GlobalKey _keyForLine(int index) {
@@ -173,13 +178,12 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       color: isActive
                           ? Theme.of(context).colorScheme.primary
-                          : Color.fromRGBO(
-                              Theme.of(context).colorScheme.onSurface.red,
-                              Theme.of(context).colorScheme.onSurface.green,
-                              Theme.of(context).colorScheme.onSurface.blue,
-                              0.6,
-                            ),
-                      fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                          : Theme.of(
+                              context,
+                            ).colorScheme.onSurface.withValues(alpha: 0.6),
+                      fontWeight: isActive
+                          ? FontWeight.bold
+                          : FontWeight.normal,
                       fontSize: isActive ? 18 : 16,
                     ),
                   ),
@@ -234,13 +238,17 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
           Icon(
             Icons.lyrics_outlined,
             size: 64,
-            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
+            color: Theme.of(
+              context,
+            ).colorScheme.onSurface.withValues(alpha: 0.3),
           ),
           const SizedBox(height: 16),
           Text(
             'No lyrics available',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.6),
             ),
           ),
         ],

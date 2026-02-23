@@ -745,7 +745,7 @@ The home screen is a discovery feed, not just a static landing page. Vertical sc
 - **Recently Added** — `getAlbumList2(type: 'newest')`. Horizontal album card carousel.
 - **Most Played** — `getAlbumList2(type: 'frequent')`. Horizontal carousel.
 - **Random Albums** — `getAlbumList2(type: 'random')`. Refreshes on pull-to-refresh.
-- **Starred** — `getStarred2()`. Shows starred albums/songs.
+- **Liked** — `getStarred2()`. Shows liked albums/songs.
 
 Each carousel card shows cover art + album name + artist name. Tap → album detail.
 
@@ -778,7 +778,7 @@ Rationale: Albums is the most frequently used browse surface for large libraries
 - Bio section: collapsible artist biography text from `getArtistInfo2`.
 - Albums grid: all albums by this artist, sorted by year descending.
 - "Play all" and "Shuffle" buttons.
-- Star/unstar button.
+- Like/unlike button.
 - Similar artists section (from `getArtistInfo2.similarArtist`) — horizontal scrollable row of artist chips/cards.
 
 #### Album Detail Screen (`/library/albums/:id`)
@@ -787,8 +787,8 @@ This is the most important browsing screen. Must load instantly from local cache
 
 - Header: large cover art with a parallax/collapse effect on scroll (SliverAppBar with `flexibleSpace`).
 - Below header: album name, artist name (tappable → artist detail), year, genre, track count, total duration.
-- Action row: Play, Shuffle, Star, Download (pin for offline), overflow menu.
-- Track list: numbered by disc/track, with duration. Each track has a context menu (long-press) with: Play Next, Add to Queue, Add to Playlist, Star, Download, Go to Artist, Go to Album.
+- Action row: Play, Shuffle, Like, Download (pin for offline), overflow menu.
+- Track list: numbered by disc/track, with duration. Each track has a context menu (long-press) with: Play Next, Add to Queue, Add to Playlist, Like, Download, Go to Artist, Go to Album.
 - If album is partially or fully pinned for offline, show a download status indicator.
 - Currently playing track highlighted in the list.
 
@@ -803,7 +803,7 @@ Build the shared widget library used by all subsequent phases. These live in `li
 - `TrackListTile` — standard song row (title, artist, album, duration, overflow menu).
 - `AlbumCard` — grid card (cover art, album name, artist name).
 - `ArtistCard` — list row or card (artist image, name, album count).
-- `StarButton` — animated star/unstar toggle.
+- `StarButton` — animated like/unlike toggle (heart icon).
 - `CacheBadge` — "Cached" / "Downloaded" / "Temporary" indicators.
 
 ### 3.4 — Context Menus & Actions
@@ -816,7 +816,7 @@ Long-press (or trailing icon menu) on any song, album, or artist triggers a bott
 - Add to Playlist...
 - Go to Album
 - Go to Artist
-- Star / Unstar
+- Like / Unlike
 - Download for Offline
 - Share (copy Subsonic link)
 
@@ -825,14 +825,14 @@ Long-press (or trailing icon menu) on any song, album, or artist triggers a bott
 - Shuffle
 - Play Next
 - Add to Queue
-- Star / Unstar
+- Like / Unlike
 - Download for Offline
 - Go to Artist
 
 **Artist context menu**:
 - Play All
 - Shuffle All
-- Star / Unstar
+- Like / Unlike
 
 ### 3.5 — Localization Setup
 
@@ -944,25 +944,33 @@ A compact bar that sits above the `NavigationBar` in the shell scaffold. Always 
 **Layout**: Cover art thumbnail (40x40) | Track title + Artist (marquee / scrolling text if too long) | Play/Pause button | Small linear progress bar along the bottom edge.
 
 **Interactions**:
-- Tap anywhere (except play/pause) → navigate to full Now Playing screen.
+- Tap anywhere (except play/pause) → expand to full Now Playing screen.
+- Swipe up → expand to full Now Playing screen (animated transition).
 - Swipe left/right → skip to next/previous track.
 
 ### 5.2 — Now Playing Screen
 
-Opens as a full-screen route or expanding bottom sheet from the MiniPlayer.
+Embedded as an expanding overlay sheet within the `AppShell`, not a separate route. The `ExpandablePlayerSheet` widget manages the animated transition between mini player and full Now Playing. The bottom navigation bar hides when expanded.
 
 **Layout (top to bottom)**:
-1. Drag handle / down-chevron to dismiss.
-2. Large cover art (takes ~40-50% of screen height). Consider a subtle background blur of the cover art behind the entire screen.
+1. Down-chevron to collapse back to mini player.
+2. Large cover art (fills available space above controls). Lyrics toggle replaces cover art in the same region — no layout shift.
 3. Track title (bold, larger font) — marquee if too long.
-4. Artist name (tappable → artist detail) — album name (tappable → album detail).
+4. Artist name — album name.
 5. Seek bar with elapsed time (left) and remaining time (right). Draggable.
 6. Control row: Shuffle | Previous | Play/Pause (large, prominent) | Next | Repeat mode.
-7. Bottom action row: Star button | Lyrics button | Queue button | Overflow menu (audio quality info, go to album, share).
+7. Bottom action row: Like button (heart icon) | Lyrics button | Queue button | Overflow menu (go to album, go to artist).
+
+**Navigation gestures**:
+- Swipe down on Now Playing → collapse to mini player.
+- Swipe up on Now Playing → open queue screen.
+- Back button / system back → collapse to mini player.
+- Down arrow button → collapse to mini player.
 
 **Animations**:
-- Hero animation for cover art when transitioning from MiniPlayer or album detail.
-- Smooth transition between MiniPlayer and full Now Playing.
+- Smooth crossfade transition between mini player and full Now Playing via `AnimationController`.
+- Mini player fades out while full player fades in during expansion.
+- Bottom navigation bar hides/shows with the expansion state.
 
 ### 5.3 — Lyrics
 
@@ -990,7 +998,7 @@ Lyrics support is a core feature, not an afterthought.
 - Show a subtle message: "No lyrics available" with no further UI clutter.
 
 **Lyrics view toggle**:
-- On Now Playing screen, tapping the lyrics button crossfades between the cover art view and the lyrics view. The cover art shrinks to a small thumbnail in the top corner when lyrics are shown, or the lyrics overlay the cover art with a translucent background.
+- On Now Playing screen, tapping the lyrics button swaps between cover art and lyrics within the same `Expanded` region. The controls below (track info, seek bar, transport, action row) remain in a fixed position — toggling lyrics never shifts any other UI element.
 
 ### 5.4 — Queue Screen
 
@@ -1003,15 +1011,6 @@ Accessible from Now Playing via the queue button. Shows as a bottom sheet or sep
 - "Clear Queue" action.
 - "Save as Playlist" action — prompts for playlist name, calls `createPlaylist`.
 - Each track row: cover art thumbnail, title, artist, duration, drag handle.
-
-### 5.5 — Sleep Timer
-
-Accessible from the Now Playing overflow menu, NOT buried in settings.
-
-- Presets: 15 min, 30 min, 45 min, 1 hour, end of current track.
-- Custom duration picker.
-- Active timer shown as a countdown in the Now Playing screen.
-- Fade out audio over last 30 seconds before sleep.
 
 ---
 
@@ -1328,7 +1327,7 @@ Use the `animations` package (Material Design motion system) for all page-level 
 
 ### Haptic Feedback
 
-- Light haptic on star/unstar.
+- Light haptic on like/unlike.
 - Medium haptic on skip track.
 - Selection haptic on long-press context menu open.
 
@@ -1532,7 +1531,7 @@ Global verification rule for every phase completion:
 | 2 | Login flow works end-to-end. Credentials survive app kill + relaunch (auto-login). Sign out clears everything. Offline banner appears when server is unreachable. |
 | 3 | Library populates after sync. Album detail loads from local DB instantly. Pull-to-refresh triggers re-sync. Artists/Albums tabs work. Home screen carousels populate. Context menus function on all items. 10K+ library scrolls at 60fps. |
 | 4 | Streams music from Navidrome. Background audio continues with screen off. Lock screen controls work. Notification shows track info + controls. Gapless playback between consecutive tracks. Scrobble appears in Navidrome play history. Queue persists across app restarts. Playback position saved periodically (kill app mid-track, relaunch, confirm position is near where it was). Network type change triggers correct quality profile on next track. |
-| 5 | Now Playing screen renders correctly. Mini Player visible and interactive. Synced lyrics auto-scroll on a Navidrome server with lyrics support. Unsynced lyrics display. Seek-by-tap on lyric lines works. Cover art ↔ lyrics toggle works. Sleep timer counts down and stops playback. |
+| 5 | Now Playing screen renders correctly as an expandable sheet from mini player. Mini Player visible and interactive — swipe up expands, swipe down collapses. Synced lyrics auto-scroll on a Navidrome server with lyrics support. Unsynced lyrics display. Seek-by-tap on lyric lines works. Cover art ↔ lyrics toggle works without shifting controls. Back button collapses Now Playing. Swipe up on Now Playing opens queue. |
 | 6 | Search returns results from server. No result caching. Recent searches stored and displayed. Tap results navigate correctly. Pagination works for large result sets. |
 | 7 | Playlists list populates. Create, rename, delete playlists reflected on server. Add/remove/reorder tracks in playlists syncs to server. |
 | 8 | Rolling cache grows as tracks are streamed. LRU eviction respects rolling cache size limit without touching permanent cache. Permanent pin downloads a track in chosen quality via the download queue. Pinned content plays without network. Download queue shows progress, supports pause/cancel/reorder. Wi-Fi-only downloads pause on cellular. "Offline Only" filter shows both rolling (with temporary badge) and permanent cached songs. Promoting a rolling-cached song to permanent works without re-download. Storage stats show rolling cache, permanent cache, and cover art separately. |

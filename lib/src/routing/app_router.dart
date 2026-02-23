@@ -7,8 +7,6 @@ import 'package:navis/src/features/home/presentation/home_screen.dart';
 import 'package:navis/src/features/library/presentation/album_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/artist_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/library_screen.dart';
-import 'package:navis/src/features/player/presentation/now_playing_lyrics_screen.dart';
-import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/src/features/player/presentation/queue_screen.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_detail_screen.dart';
 import 'package:navis/src/features/playlists/presentation/playlists_screen.dart';
@@ -147,16 +145,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/downloads',
         builder: (context, state) => const DownloadsScreen(),
-      ),
-      GoRoute(
-        path: '/now-playing',
-        builder: (context, state) => const NowPlayingScreen(),
-        routes: <RouteBase>[
-          GoRoute(
-            path: 'lyrics',
-            builder: (context, state) => const NowPlayingLyricsScreen(),
-          ),
-        ],
       ),
       GoRoute(
         path: '/queue',

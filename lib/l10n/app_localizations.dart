@@ -619,19 +619,19 @@ abstract class AppLocalizations {
   /// No description provided for @homeStarredTitle.
   ///
   /// In en, this message translates to:
-  /// **'Starred tracks'**
+  /// **'Liked tracks'**
   String get homeStarredTitle;
 
   /// No description provided for @homeStarredEmptyTitle.
   ///
   /// In en, this message translates to:
-  /// **'No starred tracks'**
+  /// **'No liked tracks'**
   String get homeStarredEmptyTitle;
 
   /// No description provided for @homeStarredEmptySubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Star tracks on your server to see them here.'**
+  /// **'Like tracks on your server to see them here.'**
   String get homeStarredEmptySubtitle;
 
   /// No description provided for @radioTitle.
@@ -1380,7 +1380,7 @@ abstract class AppLocalizations {
   /// No description provided for @albumDetailStarAction.
   ///
   /// In en, this message translates to:
-  /// **'Star'**
+  /// **'Like'**
   String get albumDetailStarAction;
 
   /// No description provided for @albumDetailDownloadAction.
@@ -1410,19 +1410,19 @@ abstract class AppLocalizations {
   /// No description provided for @albumDetailStarSuccess.
   ///
   /// In en, this message translates to:
-  /// **'Album starred.'**
+  /// **'Album liked.'**
   String get albumDetailStarSuccess;
 
   /// No description provided for @albumDetailUnstarSuccess.
   ///
   /// In en, this message translates to:
-  /// **'Album unstarred.'**
+  /// **'Album unliked.'**
   String get albumDetailUnstarSuccess;
 
   /// No description provided for @albumDetailStarFailure.
   ///
   /// In en, this message translates to:
-  /// **'Could not update star status.'**
+  /// **'Could not update like status.'**
   String get albumDetailStarFailure;
 
   /// No description provided for @cacheBadgeLabel.
@@ -1638,7 +1638,7 @@ abstract class AppLocalizations {
   /// No description provided for @nowPlayingStar.
   ///
   /// In en, this message translates to:
-  /// **'Star'**
+  /// **'Like'**
   String get nowPlayingStar;
 
   /// No description provided for @nowPlayingLyrics.
@@ -1671,12 +1671,6 @@ abstract class AppLocalizations {
   /// **'Go to artist'**
   String get nowPlayingGoToArtist;
 
-  /// No description provided for @nowPlayingSleepTimer.
-  ///
-  /// In en, this message translates to:
-  /// **'Sleep timer'**
-  String get nowPlayingSleepTimer;
-
   /// No description provided for @nowPlayingAudioQuality.
   ///
   /// In en, this message translates to:
@@ -1694,60 +1688,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No lyrics available'**
   String get lyricsNoneAvailable;
-
-  /// No description provided for @sleepTimerTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Sleep timer'**
-  String get sleepTimerTitle;
-
-  /// No description provided for @sleepTimerOff.
-  ///
-  /// In en, this message translates to:
-  /// **'Off'**
-  String get sleepTimerOff;
-
-  /// No description provided for @sleepTimer15Min.
-  ///
-  /// In en, this message translates to:
-  /// **'15 minutes'**
-  String get sleepTimer15Min;
-
-  /// No description provided for @sleepTimer30Min.
-  ///
-  /// In en, this message translates to:
-  /// **'30 minutes'**
-  String get sleepTimer30Min;
-
-  /// No description provided for @sleepTimer45Min.
-  ///
-  /// In en, this message translates to:
-  /// **'45 minutes'**
-  String get sleepTimer45Min;
-
-  /// No description provided for @sleepTimer60Min.
-  ///
-  /// In en, this message translates to:
-  /// **'1 hour'**
-  String get sleepTimer60Min;
-
-  /// No description provided for @sleepTimerEndOfTrack.
-  ///
-  /// In en, this message translates to:
-  /// **'End of current track'**
-  String get sleepTimerEndOfTrack;
-
-  /// No description provided for @sleepTimerActive.
-  ///
-  /// In en, this message translates to:
-  /// **'Sleep in {remaining}'**
-  String sleepTimerActive(String remaining);
-
-  /// No description provided for @sleepTimerCancelled.
-  ///
-  /// In en, this message translates to:
-  /// **'Sleep timer cancelled'**
-  String get sleepTimerCancelled;
 
   /// No description provided for @queueSaveAsPlaylist.
   ///
