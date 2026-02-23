@@ -1994,6 +1994,114 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Add to playlist'**
   String get librarySongMenuAddToPlaylist;
+
+  /// No description provided for @cacheSettingsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Cache & Storage'**
+  String get cacheSettingsTitle;
+
+  /// No description provided for @cacheSettingsRollingSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Streaming cache'**
+  String get cacheSettingsRollingSection;
+
+  /// No description provided for @cacheSettingsRollingDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Recently streamed tracks are cached automatically. Oldest tracks are evicted when the budget is exceeded.'**
+  String get cacheSettingsRollingDescription;
+
+  /// No description provided for @cacheSettingsRollingBudgetLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cache budget'**
+  String get cacheSettingsRollingBudgetLabel;
+
+  /// No description provided for @cacheSettingsRollingCurrentSize.
+  ///
+  /// In en, this message translates to:
+  /// **'{used} / {budget}'**
+  String cacheSettingsRollingCurrentSize(String used, String budget);
+
+  /// No description provided for @cacheSettingsRollingTrackCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{No cached tracks} =1{1 cached track} other{{count} cached tracks}}'**
+  String cacheSettingsRollingTrackCount(int count);
+
+  /// No description provided for @cacheSettingsClearRolling.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear streaming cache'**
+  String get cacheSettingsClearRolling;
+
+  /// No description provided for @cacheSettingsClearRollingConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear all cached streaming audio? This cannot be undone.'**
+  String get cacheSettingsClearRollingConfirm;
+
+  /// No description provided for @cacheSettingsPermanentSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloaded tracks'**
+  String get cacheSettingsPermanentSection;
+
+  /// No description provided for @cacheSettingsPermanentTrackCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{No downloaded tracks} =1{1 downloaded track} other{{count} downloaded tracks}}'**
+  String cacheSettingsPermanentTrackCount(int count);
+
+  /// No description provided for @cacheSettingsClearPermanent.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove all downloads'**
+  String get cacheSettingsClearPermanent;
+
+  /// No description provided for @cacheSettingsClearPermanentConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove all downloaded tracks? This cannot be undone.'**
+  String get cacheSettingsClearPermanentConfirm;
+
+  /// No description provided for @cacheSettingsClearCoverArt.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear cover art cache'**
+  String get cacheSettingsClearCoverArt;
+
+  /// No description provided for @cacheSettingsClearCoverArtConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear all cached cover art images?'**
+  String get cacheSettingsClearCoverArtConfirm;
+
+  /// No description provided for @cacheSettingsClearSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Cache cleared.'**
+  String get cacheSettingsClearSuccess;
+
+  /// No description provided for @cacheSettingsBudgetSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Cache budget updated.'**
+  String get cacheSettingsBudgetSaved;
+
+  /// No description provided for @cacheSettingsBudgetGb.
+  ///
+  /// In en, this message translates to:
+  /// **'{gb} GB'**
+  String cacheSettingsBudgetGb(String gb);
+
+  /// No description provided for @cacheSettingsUnlimited.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlimited'**
+  String get cacheSettingsUnlimited;
 }
 
 class _AppLocalizationsDelegate

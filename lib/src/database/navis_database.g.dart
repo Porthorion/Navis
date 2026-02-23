@@ -691,6 +691,17 @@ class $AppSettingsTableTable extends AppSettingsTable
         type: DriftSqlType.double,
         requiredDuringInsert: false,
       );
+  static const VerificationMeta _rollingCacheBudgetMbMeta =
+      const VerificationMeta('rollingCacheBudgetMb');
+  @override
+  late final GeneratedColumn<int> rollingCacheBudgetMb = GeneratedColumn<int>(
+    'rolling_cache_budget_mb',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(2048),
+  );
   static const VerificationMeta _updatedAtMeta = const VerificationMeta(
     'updatedAt',
   );
@@ -717,6 +728,7 @@ class $AppSettingsTableTable extends AppSettingsTable
     equalizerBandGains,
     loudnessEnabled,
     loudnessTargetGainDb,
+    rollingCacheBudgetMb,
     updatedAt,
   ];
   @override
@@ -839,6 +851,15 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
       );
     }
+    if (data.containsKey('rolling_cache_budget_mb')) {
+      context.handle(
+        _rollingCacheBudgetMbMeta,
+        rollingCacheBudgetMb.isAcceptableOrUnknown(
+          data['rolling_cache_budget_mb']!,
+          _rollingCacheBudgetMbMeta,
+        ),
+      );
+    }
     if (data.containsKey('updated_at')) {
       context.handle(
         _updatedAtMeta,
@@ -908,6 +929,10 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.double,
         data['${effectivePrefix}loudness_target_gain_db'],
       ),
+      rollingCacheBudgetMb: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}rolling_cache_budget_mb'],
+      )!,
       updatedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
@@ -936,6 +961,9 @@ class AppSettingsTableData extends DataClass
   final String? equalizerBandGains;
   final bool loudnessEnabled;
   final double? loudnessTargetGainDb;
+
+  /// Rolling cache budget in megabytes. Default 2048 (2 GB).
+  final int rollingCacheBudgetMb;
   final DateTime updatedAt;
   const AppSettingsTableData({
     required this.id,
@@ -951,6 +979,7 @@ class AppSettingsTableData extends DataClass
     this.equalizerBandGains,
     required this.loudnessEnabled,
     this.loudnessTargetGainDb,
+    required this.rollingCacheBudgetMb,
     required this.updatedAt,
   });
   @override
@@ -981,6 +1010,7 @@ class AppSettingsTableData extends DataClass
     if (!nullToAbsent || loudnessTargetGainDb != null) {
       map['loudness_target_gain_db'] = Variable<double>(loudnessTargetGainDb);
     }
+    map['rolling_cache_budget_mb'] = Variable<int>(rollingCacheBudgetMb);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
   }
@@ -1012,6 +1042,7 @@ class AppSettingsTableData extends DataClass
       loudnessTargetGainDb: loudnessTargetGainDb == null && nullToAbsent
           ? const Value.absent()
           : Value(loudnessTargetGainDb),
+      rollingCacheBudgetMb: Value(rollingCacheBudgetMb),
       updatedAt: Value(updatedAt),
     );
   }
@@ -1039,6 +1070,9 @@ class AppSettingsTableData extends DataClass
       loudnessTargetGainDb: serializer.fromJson<double?>(
         json['loudnessTargetGainDb'],
       ),
+      rollingCacheBudgetMb: serializer.fromJson<int>(
+        json['rollingCacheBudgetMb'],
+      ),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
   }
@@ -1059,6 +1093,7 @@ class AppSettingsTableData extends DataClass
       'equalizerBandGains': serializer.toJson<String?>(equalizerBandGains),
       'loudnessEnabled': serializer.toJson<bool>(loudnessEnabled),
       'loudnessTargetGainDb': serializer.toJson<double?>(loudnessTargetGainDb),
+      'rollingCacheBudgetMb': serializer.toJson<int>(rollingCacheBudgetMb),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
   }
@@ -1077,6 +1112,7 @@ class AppSettingsTableData extends DataClass
     Value<String?> equalizerBandGains = const Value.absent(),
     bool? loudnessEnabled,
     Value<double?> loudnessTargetGainDb = const Value.absent(),
+    int? rollingCacheBudgetMb,
     DateTime? updatedAt,
   }) => AppSettingsTableData(
     id: id ?? this.id,
@@ -1102,6 +1138,7 @@ class AppSettingsTableData extends DataClass
     loudnessTargetGainDb: loudnessTargetGainDb.present
         ? loudnessTargetGainDb.value
         : this.loudnessTargetGainDb,
+    rollingCacheBudgetMb: rollingCacheBudgetMb ?? this.rollingCacheBudgetMb,
     updatedAt: updatedAt ?? this.updatedAt,
   );
   AppSettingsTableData copyWithCompanion(AppSettingsTableCompanion data) {
@@ -1143,6 +1180,9 @@ class AppSettingsTableData extends DataClass
       loudnessTargetGainDb: data.loudnessTargetGainDb.present
           ? data.loudnessTargetGainDb.value
           : this.loudnessTargetGainDb,
+      rollingCacheBudgetMb: data.rollingCacheBudgetMb.present
+          ? data.rollingCacheBudgetMb.value
+          : this.rollingCacheBudgetMb,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
   }
@@ -1163,6 +1203,7 @@ class AppSettingsTableData extends DataClass
           ..write('equalizerBandGains: $equalizerBandGains, ')
           ..write('loudnessEnabled: $loudnessEnabled, ')
           ..write('loudnessTargetGainDb: $loudnessTargetGainDb, ')
+          ..write('rollingCacheBudgetMb: $rollingCacheBudgetMb, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
@@ -1183,6 +1224,7 @@ class AppSettingsTableData extends DataClass
     equalizerBandGains,
     loudnessEnabled,
     loudnessTargetGainDb,
+    rollingCacheBudgetMb,
     updatedAt,
   );
   @override
@@ -1202,6 +1244,7 @@ class AppSettingsTableData extends DataClass
           other.equalizerBandGains == this.equalizerBandGains &&
           other.loudnessEnabled == this.loudnessEnabled &&
           other.loudnessTargetGainDb == this.loudnessTargetGainDb &&
+          other.rollingCacheBudgetMb == this.rollingCacheBudgetMb &&
           other.updatedAt == this.updatedAt);
 }
 
@@ -1219,6 +1262,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<String?> equalizerBandGains;
   final Value<bool> loudnessEnabled;
   final Value<double?> loudnessTargetGainDb;
+  final Value<int> rollingCacheBudgetMb;
   final Value<DateTime> updatedAt;
   const AppSettingsTableCompanion({
     this.id = const Value.absent(),
@@ -1234,6 +1278,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.equalizerBandGains = const Value.absent(),
     this.loudnessEnabled = const Value.absent(),
     this.loudnessTargetGainDb = const Value.absent(),
+    this.rollingCacheBudgetMb = const Value.absent(),
     this.updatedAt = const Value.absent(),
   });
   AppSettingsTableCompanion.insert({
@@ -1250,6 +1295,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.equalizerBandGains = const Value.absent(),
     this.loudnessEnabled = const Value.absent(),
     this.loudnessTargetGainDb = const Value.absent(),
+    this.rollingCacheBudgetMb = const Value.absent(),
     required DateTime updatedAt,
   }) : updatedAt = Value(updatedAt);
   static Insertable<AppSettingsTableData> custom({
@@ -1266,6 +1312,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<String>? equalizerBandGains,
     Expression<bool>? loudnessEnabled,
     Expression<double>? loudnessTargetGainDb,
+    Expression<int>? rollingCacheBudgetMb,
     Expression<DateTime>? updatedAt,
   }) {
     return RawValuesInsertable({
@@ -1286,6 +1333,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       if (loudnessEnabled != null) 'loudness_enabled': loudnessEnabled,
       if (loudnessTargetGainDb != null)
         'loudness_target_gain_db': loudnessTargetGainDb,
+      if (rollingCacheBudgetMb != null)
+        'rolling_cache_budget_mb': rollingCacheBudgetMb,
       if (updatedAt != null) 'updated_at': updatedAt,
     });
   }
@@ -1304,6 +1353,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<String?>? equalizerBandGains,
     Value<bool>? loudnessEnabled,
     Value<double?>? loudnessTargetGainDb,
+    Value<int>? rollingCacheBudgetMb,
     Value<DateTime>? updatedAt,
   }) {
     return AppSettingsTableCompanion(
@@ -1320,6 +1370,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       equalizerBandGains: equalizerBandGains ?? this.equalizerBandGains,
       loudnessEnabled: loudnessEnabled ?? this.loudnessEnabled,
       loudnessTargetGainDb: loudnessTargetGainDb ?? this.loudnessTargetGainDb,
+      rollingCacheBudgetMb: rollingCacheBudgetMb ?? this.rollingCacheBudgetMb,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
@@ -1368,6 +1419,11 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         loudnessTargetGainDb.value,
       );
     }
+    if (rollingCacheBudgetMb.present) {
+      map['rolling_cache_budget_mb'] = Variable<int>(
+        rollingCacheBudgetMb.value,
+      );
+    }
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
@@ -1390,6 +1446,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('equalizerBandGains: $equalizerBandGains, ')
           ..write('loudnessEnabled: $loudnessEnabled, ')
           ..write('loudnessTargetGainDb: $loudnessTargetGainDb, ')
+          ..write('rollingCacheBudgetMb: $rollingCacheBudgetMb, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
@@ -7823,6 +7880,7 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<String?> equalizerBandGains,
       Value<bool> loudnessEnabled,
       Value<double?> loudnessTargetGainDb,
+      Value<int> rollingCacheBudgetMb,
       required DateTime updatedAt,
     });
 typedef $$AppSettingsTableTableUpdateCompanionBuilder =
@@ -7840,6 +7898,7 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<String?> equalizerBandGains,
       Value<bool> loudnessEnabled,
       Value<double?> loudnessTargetGainDb,
+      Value<int> rollingCacheBudgetMb,
       Value<DateTime> updatedAt,
     });
 
@@ -7914,6 +7973,11 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<double> get loudnessTargetGainDb => $composableBuilder(
     column: $table.loudnessTargetGainDb,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get rollingCacheBudgetMb => $composableBuilder(
+    column: $table.rollingCacheBudgetMb,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -7997,6 +8061,11 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get rollingCacheBudgetMb => $composableBuilder(
+    column: $table.rollingCacheBudgetMb,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
@@ -8075,6 +8144,11 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<int> get rollingCacheBudgetMb => $composableBuilder(
+    column: $table.rollingCacheBudgetMb,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 }
@@ -8129,6 +8203,7 @@ class $$AppSettingsTableTableTableManager
                 Value<String?> equalizerBandGains = const Value.absent(),
                 Value<bool> loudnessEnabled = const Value.absent(),
                 Value<double?> loudnessTargetGainDb = const Value.absent(),
+                Value<int> rollingCacheBudgetMb = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
               }) => AppSettingsTableCompanion(
                 id: id,
@@ -8144,6 +8219,7 @@ class $$AppSettingsTableTableTableManager
                 equalizerBandGains: equalizerBandGains,
                 loudnessEnabled: loudnessEnabled,
                 loudnessTargetGainDb: loudnessTargetGainDb,
+                rollingCacheBudgetMb: rollingCacheBudgetMb,
                 updatedAt: updatedAt,
               ),
           createCompanionCallback:
@@ -8161,6 +8237,7 @@ class $$AppSettingsTableTableTableManager
                 Value<String?> equalizerBandGains = const Value.absent(),
                 Value<bool> loudnessEnabled = const Value.absent(),
                 Value<double?> loudnessTargetGainDb = const Value.absent(),
+                Value<int> rollingCacheBudgetMb = const Value.absent(),
                 required DateTime updatedAt,
               }) => AppSettingsTableCompanion.insert(
                 id: id,
@@ -8176,6 +8253,7 @@ class $$AppSettingsTableTableTableManager
                 equalizerBandGains: equalizerBandGains,
                 loudnessEnabled: loudnessEnabled,
                 loudnessTargetGainDb: loudnessTargetGainDb,
+                rollingCacheBudgetMb: rollingCacheBudgetMb,
                 updatedAt: updatedAt,
               ),
           withReferenceMapper: (p0) => p0

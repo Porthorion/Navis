@@ -65,7 +65,7 @@ class NavisDatabase extends _$NavisDatabase {
   static QueryExecutor _openConnection() => driftDatabase(name: 'navis.sqlite');
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -107,6 +107,9 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 8 && to >= 8) {
       await from7To8(migrator);
+    }
+    if (from < 9 && to >= 9) {
+      await from8To9(migrator);
     }
   }
 
@@ -196,6 +199,15 @@ class NavisDatabase extends _$NavisDatabase {
     }
   }
 
+  Future<void> from8To9(Migrator migrator) async {
+    if (!await _columnExists('app_settings', 'rolling_cache_budget_mb')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.rollingCacheBudgetMb,
+      );
+    }
+  }
+
   Future<void> _ensureAppSettingsDefaults() {
     return into(appSettingsTable).insert(
       AppSettingsTableCompanion.insert(
@@ -212,6 +224,8 @@ class NavisDatabase extends _$NavisDatabase {
         equalizerBandGains: const Value(null),
         loudnessEnabled: const Value(false),
         loudnessTargetGainDb: const Value(0),
+        rollingCacheBudgetMb:
+            const Value(AppSettingsDao.defaultRollingCacheBudgetMb),
         updatedAt: DateTime.now(),
       ),
       mode: InsertMode.insertOrIgnore,

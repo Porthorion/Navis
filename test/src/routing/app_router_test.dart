@@ -305,7 +305,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
 
-    expect(find.text('Cache Settings'), findsWidgets);
+    expect(find.text('Cache & Storage'), findsWidgets);
   });
 
   testWidgets('contains all expected route paths', (tester) async {

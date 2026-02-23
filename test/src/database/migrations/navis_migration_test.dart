@@ -29,8 +29,8 @@ void main() {
           .customSelect('PRAGMA user_version;')
           .getSingle();
 
-      expect(database.schemaVersion, 8);
-      expect(pragmaRow.read<int>('user_version'), 8);
+      expect(database.schemaVersion, 9);
+      expect(pragmaRow.read<int>('user_version'), 9);
     },
     skip: !_sqliteAvailable,
   );
@@ -62,6 +62,10 @@ void main() {
       expect(settings.equalizerBandGains, isNull);
       expect(settings.loudnessEnabled, isFalse);
       expect(settings.loudnessTargetGainDb, 0);
+      expect(
+        settings.rollingCacheBudgetMb,
+        AppSettingsDao.defaultRollingCacheBudgetMb,
+      );
     },
     skip: !_sqliteAvailable,
   );
@@ -216,7 +220,7 @@ void main() {
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 8);
+      expect(versionRow.read<int>('user_version'), 9);
 
       final albums = await migrated.select(migrated.albumsTable).get();
       final albumsById = {for (final album in albums) album.id: album};
@@ -240,6 +244,10 @@ void main() {
       expect(settings.equalizerBandGains, isNull);
       expect(settings.loudnessEnabled, isFalse);
       expect(settings.loudnessTargetGainDb, 0);
+      expect(
+        settings.rollingCacheBudgetMb,
+        AppSettingsDao.defaultRollingCacheBudgetMb,
+      );
     },
     skip: !_sqliteAvailable,
   );

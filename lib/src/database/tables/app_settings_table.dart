@@ -35,6 +35,10 @@ class AppSettingsTable extends Table {
 
   RealColumn get loudnessTargetGainDb => real().nullable()();
 
+  /// Rolling cache budget in megabytes. Default 2048 (2 GB).
+  IntColumn get rollingCacheBudgetMb =>
+      integer().withDefault(const Constant(2048))();
+
   DateTimeColumn get updatedAt => dateTime()();
 
   @override

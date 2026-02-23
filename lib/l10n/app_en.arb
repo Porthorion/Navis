@@ -512,5 +512,45 @@
   },
   "addToPlaylistFailed": "Failed to add to playlist",
   "addToPlaylistNewPlaylist": "New playlist",
-  "librarySongMenuAddToPlaylist": "Add to playlist"
+  "librarySongMenuAddToPlaylist": "Add to playlist",
+
+  "cacheSettingsTitle": "Cache & Storage",
+  "cacheSettingsRollingSection": "Streaming cache",
+  "cacheSettingsRollingDescription": "Recently streamed tracks are cached automatically. Oldest tracks are evicted when the budget is exceeded.",
+  "cacheSettingsRollingBudgetLabel": "Cache budget",
+  "cacheSettingsRollingCurrentSize": "{used} / {budget}",
+  "@cacheSettingsRollingCurrentSize": {
+    "placeholders": {
+      "used": { "type": "String" },
+      "budget": { "type": "String" }
+    }
+  },
+  "cacheSettingsRollingTrackCount": "{count, plural, =0{No cached tracks} =1{1 cached track} other{{count} cached tracks}}",
+  "@cacheSettingsRollingTrackCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "cacheSettingsClearRolling": "Clear streaming cache",
+  "cacheSettingsClearRollingConfirm": "Clear all cached streaming audio? This cannot be undone.",
+  "cacheSettingsPermanentSection": "Downloaded tracks",
+  "cacheSettingsPermanentTrackCount": "{count, plural, =0{No downloaded tracks} =1{1 downloaded track} other{{count} downloaded tracks}}",
+  "@cacheSettingsPermanentTrackCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "cacheSettingsClearPermanent": "Remove all downloads",
+  "cacheSettingsClearPermanentConfirm": "Remove all downloaded tracks? This cannot be undone.",
+  "cacheSettingsClearCoverArt": "Clear cover art cache",
+  "cacheSettingsClearCoverArtConfirm": "Clear all cached cover art images?",
+  "cacheSettingsClearSuccess": "Cache cleared.",
+  "cacheSettingsBudgetSaved": "Cache budget updated.",
+  "cacheSettingsBudgetGb": "{gb} GB",
+  "@cacheSettingsBudgetGb": {
+    "placeholders": {
+      "gb": { "type": "String" }
+    }
+  },
+  "cacheSettingsUnlimited": "Unlimited"
 }

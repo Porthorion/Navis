@@ -77,4 +77,34 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       loudnessTargetGainDb: 0,
     );
   }
+
+  // ---------------------------------------------------------------------------
+  // Cache budget helpers
+  // ---------------------------------------------------------------------------
+
+  static const int defaultRollingCacheBudgetMb = 2048;
+
+  /// Targeted update for rolling cache budget without touching other settings.
+  Future<void> updateRollingCacheBudgetMb(int mb) {
+    return (update(appSettingsTable)
+          ..where((t) => t.id.equals(primarySettingsId)))
+        .write(
+      AppSettingsTableCompanion(
+        rollingCacheBudgetMb: Value(mb),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Stream the rolling cache budget in MB.
+  Stream<int> watchRollingCacheBudgetMb() {
+    return watchSettings()
+        .map((s) => s?.rollingCacheBudgetMb ?? defaultRollingCacheBudgetMb);
+  }
+
+  /// Read current rolling cache budget in MB (one-shot).
+  Future<int> getRollingCacheBudgetMb() async {
+    final s = await getSettings();
+    return s?.rollingCacheBudgetMb ?? defaultRollingCacheBudgetMb;
+  }
 }
