@@ -7,6 +7,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/lyrics_display_widget.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -127,6 +128,28 @@ class _NowPlayingAppBar extends ConsumerWidget {
                 onTap: () {
                   Navigator.of(sheetContext).pop();
                   showAddToPlaylistSheet(context, ref, [song.id]);
+                },
+              ),
+            if (song != null)
+              ListTile(
+                leading: const Icon(Icons.download_outlined),
+                title: Text(l10n.downloadAction),
+                onTap: () async {
+                  Navigator.of(sheetContext).pop();
+                  final choice =
+                      await showDownloadQualitySheet(context);
+                  if (choice == null || !context.mounted) return;
+                  final service = ref.read(downloadServiceProvider);
+                  await service.enqueueSong(
+                    song.id,
+                    quality: choice.quality,
+                    format: choice.format,
+                  );
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(l10n.downloadSongQueued)),
+                    );
+                  }
                 },
               ),
           ],

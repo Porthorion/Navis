@@ -111,6 +111,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsCacheTitle => 'Cache';
 
   @override
+  String get settingsDownloadsSubtitle => 'Manage offline downloads and queue.';
+
+  @override
   String get settingsSyncTitle => 'Sync';
 
   @override
@@ -1150,4 +1153,87 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cacheSettingsUnlimited => 'Unlimited';
+
+  @override
+  String get downloadQualityTitle => 'Download quality';
+
+  @override
+  String get downloadQualityOriginal => 'Original quality';
+
+  @override
+  String get downloadQualityOriginalSub => 'Lossless / as stored on server';
+
+  @override
+  String get downloadQuality320 => '320 kbps MP3';
+
+  @override
+  String get downloadQuality192 => '192 kbps MP3';
+
+  @override
+  String get downloadQuality128 => '128 kbps MP3';
+
+  @override
+  String get downloadAction => 'Download';
+
+  @override
+  String get downloadSongQueued => 'Download queued.';
+
+  @override
+  String downloadAlbumQueued(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count tracks queued for download',
+      one: '1 track queued for download',
+      zero: 'All tracks already downloaded',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String downloadPlaylistQueued(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count tracks queued for download',
+      one: '1 track queued for download',
+      zero: 'All tracks already downloaded',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get downloadsTitle => 'Downloads';
+
+  @override
+  String get downloadsTabQueue => 'Queue';
+
+  @override
+  String get downloadsTabDownloaded => 'Downloaded';
+
+  @override
+  String get downloadsQueueEmpty => 'No pending downloads';
+
+  @override
+  String get downloadsQueueEmptySubtitle =>
+      'Download tracks from albums or playlists for offline listening.';
+
+  @override
+  String get downloadsDownloadedEmpty => 'No downloaded tracks';
+
+  @override
+  String get downloadsDownloadedEmptySubtitle =>
+      'Downloaded tracks will appear here.';
+
+  @override
+  String get downloadsRemoveAction => 'Remove download';
+
+  @override
+  String get downloadsCancelAction => 'Cancel download';
+
+  @override
+  String get downloadsClearCompleted => 'Clear completed';
+
+  @override
+  String get downloadsRetryFailed => 'Retry failed';
 }

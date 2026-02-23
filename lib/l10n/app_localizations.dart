@@ -286,6 +286,12 @@ abstract class AppLocalizations {
   /// **'Cache'**
   String get settingsCacheTitle;
 
+  /// No description provided for @settingsDownloadsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage offline downloads and queue.'**
+  String get settingsDownloadsSubtitle;
+
   /// No description provided for @settingsSyncTitle.
   ///
   /// In en, this message translates to:
@@ -2102,6 +2108,132 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Unlimited'**
   String get cacheSettingsUnlimited;
+
+  /// No description provided for @downloadQualityTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Download quality'**
+  String get downloadQualityTitle;
+
+  /// No description provided for @downloadQualityOriginal.
+  ///
+  /// In en, this message translates to:
+  /// **'Original quality'**
+  String get downloadQualityOriginal;
+
+  /// No description provided for @downloadQualityOriginalSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Lossless / as stored on server'**
+  String get downloadQualityOriginalSub;
+
+  /// No description provided for @downloadQuality320.
+  ///
+  /// In en, this message translates to:
+  /// **'320 kbps MP3'**
+  String get downloadQuality320;
+
+  /// No description provided for @downloadQuality192.
+  ///
+  /// In en, this message translates to:
+  /// **'192 kbps MP3'**
+  String get downloadQuality192;
+
+  /// No description provided for @downloadQuality128.
+  ///
+  /// In en, this message translates to:
+  /// **'128 kbps MP3'**
+  String get downloadQuality128;
+
+  /// No description provided for @downloadAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Download'**
+  String get downloadAction;
+
+  /// No description provided for @downloadSongQueued.
+  ///
+  /// In en, this message translates to:
+  /// **'Download queued.'**
+  String get downloadSongQueued;
+
+  /// No description provided for @downloadAlbumQueued.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{All tracks already downloaded} =1{1 track queued for download} other{{count} tracks queued for download}}'**
+  String downloadAlbumQueued(int count);
+
+  /// No description provided for @downloadPlaylistQueued.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{All tracks already downloaded} =1{1 track queued for download} other{{count} tracks queued for download}}'**
+  String downloadPlaylistQueued(int count);
+
+  /// No description provided for @downloadsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloads'**
+  String get downloadsTitle;
+
+  /// No description provided for @downloadsTabQueue.
+  ///
+  /// In en, this message translates to:
+  /// **'Queue'**
+  String get downloadsTabQueue;
+
+  /// No description provided for @downloadsTabDownloaded.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloaded'**
+  String get downloadsTabDownloaded;
+
+  /// No description provided for @downloadsQueueEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No pending downloads'**
+  String get downloadsQueueEmpty;
+
+  /// No description provided for @downloadsQueueEmptySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Download tracks from albums or playlists for offline listening.'**
+  String get downloadsQueueEmptySubtitle;
+
+  /// No description provided for @downloadsDownloadedEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No downloaded tracks'**
+  String get downloadsDownloadedEmpty;
+
+  /// No description provided for @downloadsDownloadedEmptySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloaded tracks will appear here.'**
+  String get downloadsDownloadedEmptySubtitle;
+
+  /// No description provided for @downloadsRemoveAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove download'**
+  String get downloadsRemoveAction;
+
+  /// No description provided for @downloadsCancelAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel download'**
+  String get downloadsCancelAction;
+
+  /// No description provided for @downloadsClearCompleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear completed'**
+  String get downloadsClearCompleted;
+
+  /// No description provided for @downloadsRetryFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry failed'**
+  String get downloadsRetryFailed;
 }
 
 class _AppLocalizationsDelegate

@@ -11,6 +11,7 @@ import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/star_button.dart';
 import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
@@ -126,14 +127,26 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                             label: l10n.albumDetailStarAction,
                           ),
                           OutlinedButton.icon(
-                            onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    l10n.albumDetailDownloadActionQueued,
-                                  ),
-                                ),
+                            onPressed: () async {
+                              final choice =
+                                  await showDownloadQualitySheet(context);
+                              if (choice == null || !context.mounted) return;
+                              final service =
+                                  ref.read(downloadServiceProvider);
+                              final count = await service.enqueueAlbum(
+                                widget.albumId,
+                                quality: choice.quality,
+                                format: choice.format,
                               );
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      l10n.downloadAlbumQueued(count),
+                                    ),
+                                  ),
+                                );
+                              }
                             },
                             icon: const Icon(Icons.download_outlined),
                             label: Text(l10n.albumDetailDownloadAction),

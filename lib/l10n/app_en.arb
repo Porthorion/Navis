@@ -36,6 +36,7 @@
   "settingsServerTitle": "Server",
   "settingsServerSubtitle": "View, test, and update connection settings.",
   "settingsCacheTitle": "Cache",
+  "settingsDownloadsSubtitle": "Manage offline downloads and queue.",
   "settingsSyncTitle": "Sync",
   "settingsSyncSubtitle": "Sync progress, history, and manual controls.",
   "settingsPlaybackTitle": "Playback",
@@ -552,5 +553,37 @@
       "gb": { "type": "String" }
     }
   },
-  "cacheSettingsUnlimited": "Unlimited"
+  "cacheSettingsUnlimited": "Unlimited",
+
+  "downloadQualityTitle": "Download quality",
+  "downloadQualityOriginal": "Original quality",
+  "downloadQualityOriginalSub": "Lossless / as stored on server",
+  "downloadQuality320": "320 kbps MP3",
+  "downloadQuality192": "192 kbps MP3",
+  "downloadQuality128": "128 kbps MP3",
+  "downloadAction": "Download",
+  "downloadSongQueued": "Download queued.",
+  "downloadAlbumQueued": "{count, plural, =0{All tracks already downloaded} =1{1 track queued for download} other{{count} tracks queued for download}}",
+  "@downloadAlbumQueued": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "downloadPlaylistQueued": "{count, plural, =0{All tracks already downloaded} =1{1 track queued for download} other{{count} tracks queued for download}}",
+  "@downloadPlaylistQueued": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "downloadsTitle": "Downloads",
+  "downloadsTabQueue": "Queue",
+  "downloadsTabDownloaded": "Downloaded",
+  "downloadsQueueEmpty": "No pending downloads",
+  "downloadsQueueEmptySubtitle": "Download tracks from albums or playlists for offline listening.",
+  "downloadsDownloadedEmpty": "No downloaded tracks",
+  "downloadsDownloadedEmptySubtitle": "Downloaded tracks will appear here.",
+  "downloadsRemoveAction": "Remove download",
+  "downloadsCancelAction": "Cancel download",
+  "downloadsClearCompleted": "Clear completed",
+  "downloadsRetryFailed": "Retry failed"
 }
