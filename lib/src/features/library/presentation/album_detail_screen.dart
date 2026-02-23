@@ -14,6 +14,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
+import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
 class AlbumDetailScreen extends ConsumerStatefulWidget {
@@ -296,6 +297,18 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                     this.context.go('/library/artists/${song.artistId}');
                   },
                 ),
+              ListTile(
+                leading: const Icon(Icons.playlist_add),
+                title: Text(l10n.librarySongMenuAddToPlaylist),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  showAddToPlaylistSheet(
+                    this.context,
+                    ref,
+                    [song.id],
+                  );
+                },
+              ),
             ],
           ),
         );

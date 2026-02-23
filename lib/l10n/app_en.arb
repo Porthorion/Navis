@@ -443,5 +443,74 @@
     }
   },
   "searchPlayNext": "Play next",
-  "searchAddToQueue": "Add to queue"
+  "searchAddToQueue": "Add to queue",
+
+  "playlistsTitle": "Playlists",
+  "playlistsEmpty": "No playlists yet",
+  "playlistsEmptySubtitle": "Create a playlist to get started.",
+  "playlistsLoadError": "Failed to load playlists",
+  "playlistsSongCount": "{count, plural, =0{No songs} =1{1 song} other{{count} songs}}",
+  "@playlistsSongCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "playlistsCreateAction": "New playlist",
+  "playlistsCreateTitle": "Create playlist",
+  "playlistsCreateNameLabel": "Playlist name",
+  "playlistsCreateSuccess": "Playlist created",
+  "playlistsCreateFailed": "Failed to create playlist",
+  "playlistsDeleteConfirmTitle": "Delete playlist?",
+  "playlistsDeleteConfirmMessage": "This will permanently delete \"{name}\".",
+  "@playlistsDeleteConfirmMessage": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "playlistsDeleteSuccess": "Playlist deleted",
+  "playlistsDeleteFailed": "Failed to delete playlist",
+  "playlistsRenameTitle": "Rename playlist",
+  "playlistsRenameLabel": "New name",
+  "playlistsRenameSuccess": "Playlist renamed",
+  "playlistsRenameFailed": "Failed to rename playlist",
+
+  "playlistDetailTitle": "Playlist",
+  "playlistDetailPlayAction": "Play",
+  "playlistDetailShuffleAction": "Shuffle",
+  "playlistDetailMeta": "{owner} · {count, plural, =0{No songs} =1{1 song} other{{count} songs}}",
+  "@playlistDetailMeta": {
+    "placeholders": {
+      "owner": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "playlistDetailNotFound": "Playlist not found",
+  "playlistDetailNotFoundSubtitle": "It may have been deleted.",
+  "playlistDetailLoadError": "Failed to load playlist",
+  "playlistDetailEmptyTitle": "No tracks",
+  "playlistDetailEmptySubtitle": "Add songs from the library.",
+  "playlistDetailRemoveTrack": "Remove from playlist",
+  "playlistDetailTrackRemoved": "Track removed",
+  "playlistDetailTrackRemoveFailed": "Failed to remove track",
+
+  "addToPlaylistTitle": "Add to playlist",
+  "addToPlaylistSuccess": "Added to \"{name}\"",
+  "@addToPlaylistSuccess": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "addToPlaylistFailed": "Failed to add to playlist",
+  "addToPlaylistNewPlaylist": "New playlist",
+  "librarySongMenuAddToPlaylist": "Add to playlist"
 }

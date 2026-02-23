@@ -943,4 +943,131 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get searchAddToQueue => 'Add to queue';
+
+  @override
+  String get playlistsTitle => 'Playlists';
+
+  @override
+  String get playlistsEmpty => 'No playlists yet';
+
+  @override
+  String get playlistsEmptySubtitle => 'Create a playlist to get started.';
+
+  @override
+  String get playlistsLoadError => 'Failed to load playlists';
+
+  @override
+  String playlistsSongCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count songs',
+      one: '1 song',
+      zero: 'No songs',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get playlistsCreateAction => 'New playlist';
+
+  @override
+  String get playlistsCreateTitle => 'Create playlist';
+
+  @override
+  String get playlistsCreateNameLabel => 'Playlist name';
+
+  @override
+  String get playlistsCreateSuccess => 'Playlist created';
+
+  @override
+  String get playlistsCreateFailed => 'Failed to create playlist';
+
+  @override
+  String get playlistsDeleteConfirmTitle => 'Delete playlist?';
+
+  @override
+  String playlistsDeleteConfirmMessage(String name) {
+    return 'This will permanently delete \"$name\".';
+  }
+
+  @override
+  String get playlistsDeleteSuccess => 'Playlist deleted';
+
+  @override
+  String get playlistsDeleteFailed => 'Failed to delete playlist';
+
+  @override
+  String get playlistsRenameTitle => 'Rename playlist';
+
+  @override
+  String get playlistsRenameLabel => 'New name';
+
+  @override
+  String get playlistsRenameSuccess => 'Playlist renamed';
+
+  @override
+  String get playlistsRenameFailed => 'Failed to rename playlist';
+
+  @override
+  String get playlistDetailTitle => 'Playlist';
+
+  @override
+  String get playlistDetailPlayAction => 'Play';
+
+  @override
+  String get playlistDetailShuffleAction => 'Shuffle';
+
+  @override
+  String playlistDetailMeta(String owner, int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count songs',
+      one: '1 song',
+      zero: 'No songs',
+    );
+    return '$owner · $_temp0';
+  }
+
+  @override
+  String get playlistDetailNotFound => 'Playlist not found';
+
+  @override
+  String get playlistDetailNotFoundSubtitle => 'It may have been deleted.';
+
+  @override
+  String get playlistDetailLoadError => 'Failed to load playlist';
+
+  @override
+  String get playlistDetailEmptyTitle => 'No tracks';
+
+  @override
+  String get playlistDetailEmptySubtitle => 'Add songs from the library.';
+
+  @override
+  String get playlistDetailRemoveTrack => 'Remove from playlist';
+
+  @override
+  String get playlistDetailTrackRemoved => 'Track removed';
+
+  @override
+  String get playlistDetailTrackRemoveFailed => 'Failed to remove track';
+
+  @override
+  String get addToPlaylistTitle => 'Add to playlist';
+
+  @override
+  String addToPlaylistSuccess(String name) {
+    return 'Added to \"$name\"';
+  }
+
+  @override
+  String get addToPlaylistFailed => 'Failed to add to playlist';
+
+  @override
+  String get addToPlaylistNewPlaylist => 'New playlist';
+
+  @override
+  String get librarySongMenuAddToPlaylist => 'Add to playlist';
 }
