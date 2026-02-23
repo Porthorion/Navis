@@ -151,10 +151,11 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
     final artist = song?.artistName ?? l10n.nowPlayingUnknownArtist;
     final album = song?.albumName ?? l10n.nowPlayingUnknownAlbum;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Column(
-        children: <Widget>[
+    return ClipRect(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Column(
+          children: <Widget>[
           const SizedBox(height: 8),
           Expanded(
             child: Center(
@@ -179,6 +180,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
           ),
           const SizedBox(height: 8),
         ],
+        ),
       ),
     );
   }
