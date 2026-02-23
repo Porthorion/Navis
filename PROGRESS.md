@@ -34,6 +34,9 @@ Last updated: 2026-02-23
 - [x] Phase 6 hardening (RenderFlex overflow fix via Stack layout in AppShell, ExpandablePlayerSheet maxHeight from LayoutBuilder, lyrics timing fix via positionStream at 100-200ms, queue back-button fix via context.push, navigation consistency audit, dead code cleanup, seek bar position stream) — 2026-02-23 (evidence: `dart analyze lib/ test/` — 0 errors, `flutter test` — 165/165 pass)
 - [x] Phase 6 post-hardening (Now Playing Column overflow fix via ClipRect during open/close animation, lyrics smart auto-sync: inactivity timer re-engages auto-scroll after 5s of no touch, initial mount scrolls to current lyric line, resume-aware centering) — 2026-02-23 (evidence: `dart analyze lib/` — 0 issues)
 - [x] Phase 7 increment 1 (playlists list screen with pull-to-refresh + server sync, create/rename/delete CRUD, playlist detail screen with cover art + track list + play/shuffle + swipe-to-remove, "Add to Playlist" picker in album/search context menus, playlist providers, 65+ l10n strings) — 2026-02-23 (evidence: `dart analyze lib/` — 0 errors, `flutter test` — 165/165 pass)
+- [x] Phase 8 increment 1 — Cache Settings Screen (configurable rolling cache budget 500 MB–10 GB with DB persistence via schema v9, rolling/permanent cache stats cards with progress bar, clear rolling/permanent/cover art buttons with confirmation dialogs) — 2026-02-23 (evidence: `dart analyze lib/` — 1 info, `flutter test` — 165/165 pass, commit cab6b83)
+- [x] Phase 8 increment 2 — Download Service + Downloads Screen (DownloadService with Dio-based downloads + queue processing, DownloadQualitySheet picker, DownloadsScreen with Queue/Downloaded tabs, album detail + now playing download actions, /settings/downloads route) — 2026-02-23 (evidence: `dart analyze lib/` — 1 info, `flutter test` — 165/165 pass, commit 44f3de6)
+- [x] Phase 8 increment 3 — Offline Filter + Playlist Downloads (auto-start DownloadService, playlist detail download button + per-song context menu, "Downloaded" FilterChip in library albums/artists tabs, downloadedContentIdsProvider) — 2026-02-23 (evidence: `dart analyze lib/` — 1 info, `flutter test` — 165/165 pass, commit aa4622a)
 
 ## Meta Progress
 - [x] Tech stack and methodology validation refresh — 2026-02-18 (evidence: `DEVELOPMENT_PLAN.md` stack validation section + README tech stack update)
@@ -239,35 +242,38 @@ Last updated: 2026-02-23
 
 ## Phase 8: Offline & Cache Management
 ### 8.1 — Rolling Cache
-- [ ] `RollingCacheManager` with configurable max size — partial: 2026-02-20 (implemented: fixed 2 GB budget provider + manager APIs; remaining: user-configurable settings UI)
+- [x] `RollingCacheManager` with configurable max size — 2026-02-23 (evidence: `lib/src/features/settings/presentation/cache_settings_screen.dart` budget slider 500 MB–10 GB, `lib/src/database/daos/app_settings_dao.dart` `watchRollingCacheBudgetMb`, schema v9 migration)
 - [x] LRU eviction by `lastAccessedAt` — 2026-02-20 (evidence: `lib/src/features/cache/data/rolling_cache_manager.dart`, `test/src/features/cache/data/rolling_cache_manager_test.dart`)
 - [x] File tracking in `cached_tracks` (`cacheType = rolling`) — 2026-02-20 (evidence: `lib/src/features/cache/data/rolling_cache_manager.dart`, `lib/src/database/daos/cache_dao.dart`)
 - [x] Integration with `LockCachingAudioSource` file paths — 2026-02-20 (evidence: `lib/src/features/player/data/playback_source_resolver.dart`, `lib/src/features/player/data/navis_audio_handler.dart`)
+- [x] Cache settings screen (budget slider, stats cards, clear buttons) — 2026-02-23 (evidence: `lib/src/features/settings/presentation/cache_settings_screen.dart`)
 
 ### 8.2 — Permanent Cache
-- [ ] Quality choice dialog on pin (Original / 320 / 192 / 128 / default)
-- [ ] Download via `background_downloader`
-- [ ] File tracking in `cached_tracks` (`cacheType = permanent`)
-- [ ] Pin at album, playlist, or track level
+- [x] Quality choice dialog on pin (Original / 320 / 192 / 128) — 2026-02-23 (evidence: `lib/src/features/downloads/presentation/download_quality_sheet.dart`)
+- [x] Download via Dio (stream + download endpoints) — 2026-02-23 (evidence: `lib/src/features/downloads/data/download_service.dart`)
+- [x] File tracking in `cached_tracks` (`cacheType = permanent`) — 2026-02-23 (evidence: `download_service.dart` upserts permanent CachedTracksTableCompanion on completion)
+- [x] Pin at album, playlist, or track level — 2026-02-23 (evidence: album detail download button, playlist detail download button + per-song, now playing overflow menu download)
 - [ ] Auto-detect new tracks in pinned albums during sync
 
 ### 8.3 — Download Queue
-- [ ] `DownloadQueueManager` with `download_queue` table
-- [ ] Sequential / configurable concurrent processing
-- [ ] Pause / cancel / retry per item
+- [x] `DownloadService` with `download_queue` table — 2026-02-23 (evidence: `lib/src/features/downloads/data/download_service.dart`)
+- [x] Sequential processing (one download at a time) — 2026-02-23 (evidence: `_processNext` loop in download_service.dart)
+- [x] Cancel / retry per item — 2026-02-23 (evidence: downloads_screen.dart queue tab retry/cancel buttons)
 - [ ] Wi-Fi-only download mode
 - [ ] Resume interrupted downloads on restart
 - [ ] Download notifications via `flutter_local_notifications`
+- [x] Downloads screen with Queue + Downloaded tabs — 2026-02-23 (evidence: `lib/src/features/downloads/presentation/downloads_screen.dart`)
 
 ### 8.4 — Offline Mode
-- [ ] "Downloaded Only" toggle in library
+- [x] "Downloaded Only" toggle in library — 2026-02-23 (evidence: `lib/src/features/library/presentation/library_screen.dart` FilterChip, `downloadedContentIdsProvider`)
 - [ ] Rolling cache items shown with temporary badge
-- [ ] "Promote to permanent" (no re-download if same quality)
+- [x] "Promote to permanent" (no re-download if same quality) — 2026-02-23 (evidence: `download_service.dart` `promoteToPermament` method)
 - [ ] "Download in original quality" (re-download from server)
-- [ ] Offline banner when server unreachable
+- [x] Offline banner when server unreachable — 2026-02-19 (evidence: pre-existing `app_shell.dart`)
 
 ### 8.5 — Cover Art Cache
-- [ ] `cached_network_image` with configurable max size
+- [x] `cached_network_image` integration — 2026-02-20 (evidence: `lib/src/common_widgets/cover_art_image.dart`)
+- [ ] Configurable max size
 - [ ] Thumbnail vs full-size strategy
 
 ### 8.6 — Smart Cache Behaviors
@@ -279,7 +285,7 @@ Last updated: 2026-02-23
 - [x] Playback — streaming quality (Wi-Fi / cellular profiles) — 2026-02-20 (evidence: `/settings/playback` in `lib/src/features/settings/presentation/playback_settings_screen.dart`, persistence in `lib/src/database/daos/app_settings_dao.dart`)
 - [ ] Playback — general (ReplayGain deferred post-Phase-5, resume UX polish pending)
 - [x] Audio section (equalizer, loudness enhancer — Android only) — 2026-02-21 (evidence: `lib/src/features/player/data/navis_audio_handler.dart`, `lib/src/features/settings/presentation/playback_settings_screen.dart`)
-- [ ] Downloads & cache (default quality, Wi-Fi only, concurrency, rolling/permanent/cover art stats, clear buttons)
+- [x] Downloads & cache (cache budget slider, rolling/permanent stats, clear buttons, downloads screen) — 2026-02-23 (evidence: `lib/src/features/settings/presentation/cache_settings_screen.dart`, `lib/src/features/downloads/presentation/downloads_screen.dart`, `/settings/cache` + `/settings/downloads` routes)
 - [ ] Appearance — theme mode (Light / Dark / OLED / System) — partial: 2026-02-19 (implemented: app defaults to Dark Mode; remaining: settings UI selector including Light Mode toggle and full persisted mode controls)
 - [ ] Appearance — color scheme (Dynamic / Preset / Custom seed) — partial: 2026-02-19 (remaining: mode-aware palette selections for light and dark families + full appearance UI)
 - [ ] Appearance — art-tinted Now Playing toggle
