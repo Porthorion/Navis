@@ -11,6 +11,7 @@ import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
+import 'package:navis/src/features/downloads/data/download_service.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 import 'package:navis/src/features/player/data/scrobble_service.dart';
@@ -664,6 +665,18 @@ final cachedSongIdsProvider = StreamProvider<Set<String>>((ref) {
   return dao.watchCachedTracks().map(
     (tracks) => tracks.map((track) => track.songId).toSet(),
   );
+});
+
+final downloadServiceProvider = Provider<DownloadService>((ref) {
+  final db = ref.watch(navisDatabaseProvider);
+  final service = DownloadService(
+    cacheDao: db.cacheDao,
+    downloadQueueDao: db.downloadQueueDao,
+    libraryDao: db.libraryDao,
+    readApiClient: () => ref.read(subsonicApiProvider),
+  );
+  ref.onDispose(service.stop);
+  return service;
 });
 
 final connectivityHintProvider = Provider<String>((ref) {
