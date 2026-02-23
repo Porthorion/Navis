@@ -740,6 +740,17 @@ class $AppSettingsTableTable extends AppSettingsTable
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _customColorPresetsMeta =
+      const VerificationMeta('customColorPresets');
+  @override
+  late final GeneratedColumn<String> customColorPresets =
+      GeneratedColumn<String>(
+        'custom_color_presets',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _updatedAtMeta = const VerificationMeta(
     'updatedAt',
   );
@@ -770,6 +781,7 @@ class $AppSettingsTableTable extends AppSettingsTable
     wifiOnlyDownloads,
     themeMode,
     colorSchemeSeed,
+    customColorPresets,
     updatedAt,
   ];
   @override
@@ -925,6 +937,15 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
       );
     }
+    if (data.containsKey('custom_color_presets')) {
+      context.handle(
+        _customColorPresetsMeta,
+        customColorPresets.isAcceptableOrUnknown(
+          data['custom_color_presets']!,
+          _customColorPresetsMeta,
+        ),
+      );
+    }
     if (data.containsKey('updated_at')) {
       context.handle(
         _updatedAtMeta,
@@ -1010,6 +1031,10 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.int,
         data['${effectivePrefix}color_scheme_seed'],
       ),
+      customColorPresets: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}custom_color_presets'],
+      ),
       updatedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
@@ -1050,6 +1075,9 @@ class AppSettingsTableData extends DataClass
 
   /// Seed color for the app's ColorScheme. Null = dynamic / default blue.
   final int? colorSchemeSeed;
+
+  /// JSON-encoded list of custom color presets (ARGB32 ints).
+  final String? customColorPresets;
   final DateTime updatedAt;
   const AppSettingsTableData({
     required this.id,
@@ -1069,6 +1097,7 @@ class AppSettingsTableData extends DataClass
     required this.wifiOnlyDownloads,
     required this.themeMode,
     this.colorSchemeSeed,
+    this.customColorPresets,
     required this.updatedAt,
   });
   @override
@@ -1104,6 +1133,9 @@ class AppSettingsTableData extends DataClass
     map['theme_mode'] = Variable<String>(themeMode);
     if (!nullToAbsent || colorSchemeSeed != null) {
       map['color_scheme_seed'] = Variable<int>(colorSchemeSeed);
+    }
+    if (!nullToAbsent || customColorPresets != null) {
+      map['custom_color_presets'] = Variable<String>(customColorPresets);
     }
     map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
@@ -1142,6 +1174,9 @@ class AppSettingsTableData extends DataClass
       colorSchemeSeed: colorSchemeSeed == null && nullToAbsent
           ? const Value.absent()
           : Value(colorSchemeSeed),
+      customColorPresets: customColorPresets == null && nullToAbsent
+          ? const Value.absent()
+          : Value(customColorPresets),
       updatedAt: Value(updatedAt),
     );
   }
@@ -1175,6 +1210,9 @@ class AppSettingsTableData extends DataClass
       wifiOnlyDownloads: serializer.fromJson<bool>(json['wifiOnlyDownloads']),
       themeMode: serializer.fromJson<String>(json['themeMode']),
       colorSchemeSeed: serializer.fromJson<int?>(json['colorSchemeSeed']),
+      customColorPresets: serializer.fromJson<String?>(
+        json['customColorPresets'],
+      ),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
   }
@@ -1199,6 +1237,7 @@ class AppSettingsTableData extends DataClass
       'wifiOnlyDownloads': serializer.toJson<bool>(wifiOnlyDownloads),
       'themeMode': serializer.toJson<String>(themeMode),
       'colorSchemeSeed': serializer.toJson<int?>(colorSchemeSeed),
+      'customColorPresets': serializer.toJson<String?>(customColorPresets),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
   }
@@ -1221,6 +1260,7 @@ class AppSettingsTableData extends DataClass
     bool? wifiOnlyDownloads,
     String? themeMode,
     Value<int?> colorSchemeSeed = const Value.absent(),
+    Value<String?> customColorPresets = const Value.absent(),
     DateTime? updatedAt,
   }) => AppSettingsTableData(
     id: id ?? this.id,
@@ -1252,6 +1292,9 @@ class AppSettingsTableData extends DataClass
     colorSchemeSeed: colorSchemeSeed.present
         ? colorSchemeSeed.value
         : this.colorSchemeSeed,
+    customColorPresets: customColorPresets.present
+        ? customColorPresets.value
+        : this.customColorPresets,
     updatedAt: updatedAt ?? this.updatedAt,
   );
   AppSettingsTableData copyWithCompanion(AppSettingsTableCompanion data) {
@@ -1303,6 +1346,9 @@ class AppSettingsTableData extends DataClass
       colorSchemeSeed: data.colorSchemeSeed.present
           ? data.colorSchemeSeed.value
           : this.colorSchemeSeed,
+      customColorPresets: data.customColorPresets.present
+          ? data.customColorPresets.value
+          : this.customColorPresets,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
   }
@@ -1327,6 +1373,7 @@ class AppSettingsTableData extends DataClass
           ..write('wifiOnlyDownloads: $wifiOnlyDownloads, ')
           ..write('themeMode: $themeMode, ')
           ..write('colorSchemeSeed: $colorSchemeSeed, ')
+          ..write('customColorPresets: $customColorPresets, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
@@ -1351,6 +1398,7 @@ class AppSettingsTableData extends DataClass
     wifiOnlyDownloads,
     themeMode,
     colorSchemeSeed,
+    customColorPresets,
     updatedAt,
   );
   @override
@@ -1374,6 +1422,7 @@ class AppSettingsTableData extends DataClass
           other.wifiOnlyDownloads == this.wifiOnlyDownloads &&
           other.themeMode == this.themeMode &&
           other.colorSchemeSeed == this.colorSchemeSeed &&
+          other.customColorPresets == this.customColorPresets &&
           other.updatedAt == this.updatedAt);
 }
 
@@ -1395,6 +1444,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<bool> wifiOnlyDownloads;
   final Value<String> themeMode;
   final Value<int?> colorSchemeSeed;
+  final Value<String?> customColorPresets;
   final Value<DateTime> updatedAt;
   const AppSettingsTableCompanion({
     this.id = const Value.absent(),
@@ -1414,6 +1464,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.wifiOnlyDownloads = const Value.absent(),
     this.themeMode = const Value.absent(),
     this.colorSchemeSeed = const Value.absent(),
+    this.customColorPresets = const Value.absent(),
     this.updatedAt = const Value.absent(),
   });
   AppSettingsTableCompanion.insert({
@@ -1434,6 +1485,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.wifiOnlyDownloads = const Value.absent(),
     this.themeMode = const Value.absent(),
     this.colorSchemeSeed = const Value.absent(),
+    this.customColorPresets = const Value.absent(),
     required DateTime updatedAt,
   }) : updatedAt = Value(updatedAt);
   static Insertable<AppSettingsTableData> custom({
@@ -1454,6 +1506,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<bool>? wifiOnlyDownloads,
     Expression<String>? themeMode,
     Expression<int>? colorSchemeSeed,
+    Expression<String>? customColorPresets,
     Expression<DateTime>? updatedAt,
   }) {
     return RawValuesInsertable({
@@ -1479,6 +1532,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       if (wifiOnlyDownloads != null) 'wifi_only_downloads': wifiOnlyDownloads,
       if (themeMode != null) 'theme_mode': themeMode,
       if (colorSchemeSeed != null) 'color_scheme_seed': colorSchemeSeed,
+      if (customColorPresets != null)
+        'custom_color_presets': customColorPresets,
       if (updatedAt != null) 'updated_at': updatedAt,
     });
   }
@@ -1501,6 +1556,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<bool>? wifiOnlyDownloads,
     Value<String>? themeMode,
     Value<int?>? colorSchemeSeed,
+    Value<String?>? customColorPresets,
     Value<DateTime>? updatedAt,
   }) {
     return AppSettingsTableCompanion(
@@ -1521,6 +1577,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       wifiOnlyDownloads: wifiOnlyDownloads ?? this.wifiOnlyDownloads,
       themeMode: themeMode ?? this.themeMode,
       colorSchemeSeed: colorSchemeSeed ?? this.colorSchemeSeed,
+      customColorPresets: customColorPresets ?? this.customColorPresets,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
@@ -1583,6 +1640,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     if (colorSchemeSeed.present) {
       map['color_scheme_seed'] = Variable<int>(colorSchemeSeed.value);
     }
+    if (customColorPresets.present) {
+      map['custom_color_presets'] = Variable<String>(customColorPresets.value);
+    }
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
@@ -1609,6 +1669,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('wifiOnlyDownloads: $wifiOnlyDownloads, ')
           ..write('themeMode: $themeMode, ')
           ..write('colorSchemeSeed: $colorSchemeSeed, ')
+          ..write('customColorPresets: $customColorPresets, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
@@ -8046,6 +8107,7 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<bool> wifiOnlyDownloads,
       Value<String> themeMode,
       Value<int?> colorSchemeSeed,
+      Value<String?> customColorPresets,
       required DateTime updatedAt,
     });
 typedef $$AppSettingsTableTableUpdateCompanionBuilder =
@@ -8067,6 +8129,7 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<bool> wifiOnlyDownloads,
       Value<String> themeMode,
       Value<int?> colorSchemeSeed,
+      Value<String?> customColorPresets,
       Value<DateTime> updatedAt,
     });
 
@@ -8161,6 +8224,11 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<int> get colorSchemeSeed => $composableBuilder(
     column: $table.colorSchemeSeed,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get customColorPresets => $composableBuilder(
+    column: $table.customColorPresets,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -8264,6 +8332,11 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get customColorPresets => $composableBuilder(
+    column: $table.customColorPresets,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
@@ -8360,6 +8433,11 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get customColorPresets => $composableBuilder(
+    column: $table.customColorPresets,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 }
@@ -8418,6 +8496,7 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> wifiOnlyDownloads = const Value.absent(),
                 Value<String> themeMode = const Value.absent(),
                 Value<int?> colorSchemeSeed = const Value.absent(),
+                Value<String?> customColorPresets = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
               }) => AppSettingsTableCompanion(
                 id: id,
@@ -8437,6 +8516,7 @@ class $$AppSettingsTableTableTableManager
                 wifiOnlyDownloads: wifiOnlyDownloads,
                 themeMode: themeMode,
                 colorSchemeSeed: colorSchemeSeed,
+                customColorPresets: customColorPresets,
                 updatedAt: updatedAt,
               ),
           createCompanionCallback:
@@ -8458,6 +8538,7 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> wifiOnlyDownloads = const Value.absent(),
                 Value<String> themeMode = const Value.absent(),
                 Value<int?> colorSchemeSeed = const Value.absent(),
+                Value<String?> customColorPresets = const Value.absent(),
                 required DateTime updatedAt,
               }) => AppSettingsTableCompanion.insert(
                 id: id,
@@ -8477,6 +8558,7 @@ class $$AppSettingsTableTableTableManager
                 wifiOnlyDownloads: wifiOnlyDownloads,
                 themeMode: themeMode,
                 colorSchemeSeed: colorSchemeSeed,
+                customColorPresets: customColorPresets,
                 updatedAt: updatedAt,
               ),
           withReferenceMapper: (p0) => p0

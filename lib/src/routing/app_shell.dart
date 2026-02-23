@@ -123,6 +123,7 @@ class AppShell extends ConsumerWidget {
                       onCollapse: () => ref
                           .read(playerSheetExpandedProvider.notifier)
                           .collapse(),
+                      onSwipeUp: () => NavService.showQueue(context),
                       miniPlayer: _MiniPlayerStrip(
                         playback: playback,
                         songTitle: currentSongAsync.asData?.value?.title,

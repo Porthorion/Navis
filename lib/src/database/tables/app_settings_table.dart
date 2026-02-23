@@ -48,7 +48,8 @@ class AppSettingsTable extends Table {
 
   /// Seed color for the app's ColorScheme. Null = dynamic / default blue.
   IntColumn get colorSchemeSeed => integer().nullable()();
-
+  /// JSON-encoded list of custom color presets (ARGB32 ints).
+  TextColumn get customColorPresets => text().nullable()();
   DateTimeColumn get updatedAt => dateTime()();
 
   @override

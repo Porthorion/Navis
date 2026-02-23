@@ -2175,6 +2175,12 @@ abstract class AppLocalizations {
   /// **'Downloads'**
   String get downloadsTitle;
 
+  /// No description provided for @downloadsTabSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings'**
+  String get downloadsTabSettings;
+
   /// No description provided for @downloadsTabQueue.
   ///
   /// In en, this message translates to:
@@ -2328,7 +2334,7 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceThemeSystem.
   ///
   /// In en, this message translates to:
-  /// **'System'**
+  /// **'Auto'**
   String get appearanceThemeSystem;
 
   /// No description provided for @appearanceColorSchemeLabel.
@@ -2348,6 +2354,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Default'**
   String get appearanceColorDefault;
+
+  /// No description provided for @appearanceColorCustom.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom'**
+  String get appearanceColorCustom;
+
+  /// No description provided for @appearanceColorPickerTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick a custom color'**
+  String get appearanceColorPickerTitle;
+
+  /// No description provided for @appearanceColorPickerSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save as preset'**
+  String get appearanceColorPickerSave;
+
+  /// No description provided for @appearanceColorPickerApply.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply'**
+  String get appearanceColorPickerApply;
+
+  /// No description provided for @appearanceColorPresetSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom preset saved'**
+  String get appearanceColorPresetSaved;
+
+  /// No description provided for @appearanceColorPresetDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom preset deleted'**
+  String get appearanceColorPresetDeleted;
+
+  /// No description provided for @appearanceColorDeletePreset.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete preset'**
+  String get appearanceColorDeletePreset;
 
   /// No description provided for @aboutTitle.
   ///

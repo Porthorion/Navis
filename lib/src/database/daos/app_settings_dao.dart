@@ -175,4 +175,25 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   Stream<int?> watchColorSchemeSeed() {
     return watchSettings().map((s) => s?.colorSchemeSeed);
   }
+
+  // ---------------------------------------------------------------------------
+  // Custom color presets helpers
+  // ---------------------------------------------------------------------------
+
+  /// Targeted update for custom color presets (JSON string of int list).
+  Future<void> updateCustomColorPresets(String? json) {
+    return (update(appSettingsTable)
+          ..where((t) => t.id.equals(primarySettingsId)))
+        .write(
+      AppSettingsTableCompanion(
+        customColorPresets: Value(json),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Stream the custom color presets JSON.
+  Stream<String?> watchCustomColorPresets() {
+    return watchSettings().map((s) => s?.customColorPresets);
+  }
 }

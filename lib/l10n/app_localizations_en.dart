@@ -1206,6 +1206,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get downloadsTitle => 'Downloads';
 
   @override
+  String get downloadsTabSettings => 'Settings';
+
+  @override
   String get downloadsTabQueue => 'Queue';
 
   @override
@@ -1285,7 +1288,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearanceThemeOled => 'OLED';
 
   @override
-  String get appearanceThemeSystem => 'System';
+  String get appearanceThemeSystem => 'Auto';
 
   @override
   String get appearanceColorSchemeLabel => 'Color scheme';
@@ -1296,6 +1299,27 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appearanceColorDefault => 'Default';
+
+  @override
+  String get appearanceColorCustom => 'Custom';
+
+  @override
+  String get appearanceColorPickerTitle => 'Pick a custom color';
+
+  @override
+  String get appearanceColorPickerSave => 'Save as preset';
+
+  @override
+  String get appearanceColorPickerApply => 'Apply';
+
+  @override
+  String get appearanceColorPresetSaved => 'Custom preset saved';
+
+  @override
+  String get appearanceColorPresetDeleted => 'Custom preset deleted';
+
+  @override
+  String get appearanceColorDeletePreset => 'Delete preset';
 
   @override
   String get aboutTitle => 'About';

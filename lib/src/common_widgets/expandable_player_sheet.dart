@@ -8,6 +8,7 @@ class ExpandablePlayerSheet extends StatefulWidget {
     required this.onExpand,
     required this.onCollapse,
     required this.maxHeight,
+    this.onSwipeUp,
     super.key,
   });
 
@@ -17,6 +18,9 @@ class ExpandablePlayerSheet extends StatefulWidget {
   final VoidCallback onExpand;
   final VoidCallback onCollapse;
   final double maxHeight;
+
+  /// Called when the user swipes up while the player is fully expanded.
+  final VoidCallback? onSwipeUp;
 
   static const miniPlayerHeight = 64.0;
 
@@ -161,7 +165,13 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
 
     if (velocity.abs() > 300) {
       if (velocity < 0) {
-        _controller.forward();
+        // Swipe up
+        if (_controller.value >= 0.99 && widget.onSwipeUp != null) {
+          // Already fully expanded — trigger queue overlay.
+          widget.onSwipeUp!();
+        } else {
+          _controller.forward();
+        }
       } else {
         _controller.reverse();
       }
