@@ -5,14 +5,18 @@ class ExpandablePlayerSheet extends StatefulWidget {
     required this.miniPlayer,
     required this.fullPlayer,
     required this.isExpanded,
-    required this.onToggleExpanded,
+    required this.onExpand,
+    required this.onCollapse,
+    this.onSwipeUpFullPlayer,
     super.key,
   });
 
   final Widget miniPlayer;
   final Widget fullPlayer;
   final bool isExpanded;
-  final VoidCallback onToggleExpanded;
+  final VoidCallback onExpand;
+  final VoidCallback onCollapse;
+  final VoidCallback? onSwipeUpFullPlayer;
 
   @override
   State<ExpandablePlayerSheet> createState() => _ExpandablePlayerSheetState();
@@ -20,29 +24,38 @@ class ExpandablePlayerSheet extends StatefulWidget {
 
 class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
     with SingleTickerProviderStateMixin {
+  static const _miniPlayerHeight = 64.0;
+
   late AnimationController _controller;
-  late Animation<double> _heightFactor;
-  late Animation<double> _opacity;
+  late Animation<double> _expandProgress;
+  late Animation<double> _fullPlayerOpacity;
+  late Animation<double> _miniPlayerOpacity;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 350),
       vsync: this,
     );
 
-    _heightFactor = Tween<double>(begin: 0, end: 1).animate(
+    _expandProgress = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+
+    _fullPlayerOpacity = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: Curves.easeInOut,
+        curve: const Interval(0.3, 1, curve: Curves.easeIn),
       ),
     );
 
-    _opacity = Tween<double>(begin: 0, end: 1).animate(
+    _miniPlayerOpacity = Tween<double>(begin: 1, end: 0).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.5, 1, curve: Curves.easeIn),
+        curve: const Interval(0, 0.4, curve: Curves.easeOut),
       ),
     );
 
@@ -58,9 +71,9 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
       return;
     }
     if (status == AnimationStatus.completed && !widget.isExpanded) {
-      widget.onToggleExpanded();
+      widget.onExpand();
     } else if (status == AnimationStatus.dismissed && widget.isExpanded) {
-      widget.onToggleExpanded();
+      widget.onCollapse();
     }
   }
 
@@ -88,49 +101,53 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
-        final isCollapsed = _heightFactor.value < 0.5;
+        final progress = _expandProgress.value;
+        final screenHeight = MediaQuery.of(context).size.height;
+        final height =
+            _miniPlayerHeight + (screenHeight - _miniPlayerHeight) * progress;
 
-        return GestureDetector(
-          onTap: isCollapsed ? widget.onToggleExpanded : null,
-          onVerticalDragUpdate: _handleDragUpdate,
-          onVerticalDragEnd: _handleDragEnd,
+        return SizedBox(
+          height: height,
           child: Material(
             color: Theme.of(context).colorScheme.surface,
-            elevation: 8,
-            child: SizedBox(
-              height: _calculateHeight(context),
-              child: Stack(
-                children: [
-                  if (!isCollapsed)
-                    Positioned.fill(
-                      child: FadeTransition(
-                        opacity: _opacity,
-                        child: widget.fullPlayer,
+            elevation: progress > 0.01 ? 8 : 0,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                // Full player (behind)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    ignoring: progress < 0.5,
+                    child: Opacity(
+                      opacity: _fullPlayerOpacity.value.clamp(0.0, 1.0),
+                      child: widget.fullPlayer,
+                    ),
+                  ),
+                ),
+                // Mini player (in front, fades out)
+                if (progress < 0.7)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: IgnorePointer(
+                      ignoring: progress >= 0.5,
+                      child: Opacity(
+                        opacity: _miniPlayerOpacity.value.clamp(0.0, 1.0),
+                        child: GestureDetector(
+                          onVerticalDragUpdate: _handleDragUpdate,
+                          onVerticalDragEnd: _handleDragEnd,
+                          child: widget.miniPlayer,
+                        ),
                       ),
                     ),
-                  if (isCollapsed)
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      child: widget.miniPlayer,
-                    ),
-                ],
-              ),
+                  ),
+              ],
             ),
           ),
         );
       },
     );
-  }
-
-  double _calculateHeight(BuildContext context) {
-    final screenHeight = MediaQuery.of(context).size.height;
-    final miniPlayerHeight = 64.0;
-    final fullPlayerHeight = screenHeight;
-
-    return miniPlayerHeight +
-        (fullPlayerHeight - miniPlayerHeight) * _heightFactor.value;
   }
 
   void _handleDragUpdate(DragUpdateDetails details) {
@@ -144,10 +161,12 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
   void _handleDragEnd(DragEndDetails details) {
     final velocity = details.primaryVelocity ?? 0;
 
-    if (velocity.abs() > 500) {
+    if (velocity.abs() > 300) {
       if (velocity < 0) {
+        // Swiped up → expand
         _controller.forward();
       } else {
+        // Swiped down → collapse
         _controller.reverse();
       }
     } else {
@@ -157,6 +176,5 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
         _controller.reverse();
       }
     }
-
   }
 }

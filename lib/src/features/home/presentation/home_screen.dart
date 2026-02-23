@@ -252,7 +252,7 @@ class _ServerSongCarousel extends StatelessWidget {
             title: song.title,
             subtitle: song.artist ?? l10n.albumDetailUnknownArtist,
             coverArtId: song.coverArt,
-            icon: Icons.star_outline,
+            icon: Icons.favorite_border,
             onTap: () => onTap(song),
           );
         },

@@ -18,7 +18,7 @@ class StarButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final icon = Icon(isStarred ? Icons.star : Icons.star_outline);
+    final icon = Icon(isStarred ? Icons.favorite : Icons.favorite_border);
     if (compact) {
       return IconButton(
         visualDensity: VisualDensity.compact,

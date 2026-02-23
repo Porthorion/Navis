@@ -298,14 +298,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'Pull to refresh to fetch random albums.';
 
   @override
-  String get homeStarredTitle => 'Starred tracks';
+  String get homeStarredTitle => 'Liked tracks';
 
   @override
-  String get homeStarredEmptyTitle => 'No starred tracks';
+  String get homeStarredEmptyTitle => 'No liked tracks';
 
   @override
   String get homeStarredEmptySubtitle =>
-      'Star tracks on your server to see them here.';
+      'Like tracks on your server to see them here.';
 
   @override
   String get radioTitle => 'Radio';
@@ -732,7 +732,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get albumDetailShuffleAction => 'Shuffle';
 
   @override
-  String get albumDetailStarAction => 'Star';
+  String get albumDetailStarAction => 'Like';
 
   @override
   String get albumDetailDownloadAction => 'Download';
@@ -747,13 +747,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get albumDetailShuffleActionQueued => 'Album shuffled into queue.';
 
   @override
-  String get albumDetailStarSuccess => 'Album starred.';
+  String get albumDetailStarSuccess => 'Album liked.';
 
   @override
-  String get albumDetailUnstarSuccess => 'Album unstarred.';
+  String get albumDetailUnstarSuccess => 'Album unliked.';
 
   @override
-  String get albumDetailStarFailure => 'Could not update star status.';
+  String get albumDetailStarFailure => 'Could not update like status.';
 
   @override
   String get cacheBadgeLabel => 'Cached';
@@ -868,7 +868,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get nowPlayingRepeatOne => 'Repeat one';
 
   @override
-  String get nowPlayingStar => 'Star';
+  String get nowPlayingStar => 'Like';
 
   @override
   String get nowPlayingLyrics => 'Lyrics';
@@ -886,9 +886,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get nowPlayingGoToArtist => 'Go to artist';
 
   @override
-  String get nowPlayingSleepTimer => 'Sleep timer';
-
-  @override
   String get nowPlayingAudioQuality => 'Audio quality';
 
   @override
@@ -896,35 +893,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get lyricsNoneAvailable => 'No lyrics available';
-
-  @override
-  String get sleepTimerTitle => 'Sleep timer';
-
-  @override
-  String get sleepTimerOff => 'Off';
-
-  @override
-  String get sleepTimer15Min => '15 minutes';
-
-  @override
-  String get sleepTimer30Min => '30 minutes';
-
-  @override
-  String get sleepTimer45Min => '45 minutes';
-
-  @override
-  String get sleepTimer60Min => '1 hour';
-
-  @override
-  String get sleepTimerEndOfTrack => 'End of current track';
-
-  @override
-  String sleepTimerActive(String remaining) {
-    return 'Sleep in $remaining';
-  }
-
-  @override
-  String get sleepTimerCancelled => 'Sleep timer cancelled';
 
   @override
   String get queueSaveAsPlaylist => 'Save as playlist';

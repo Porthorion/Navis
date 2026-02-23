@@ -53,7 +53,7 @@ class QueueScreen extends ConsumerWidget {
                   ),
                 );
 
-                if (confirmed == true && context.mounted) {
+                if ((confirmed ?? false) && context.mounted) {
                   await ref.read(queueProvider.notifier).clear();
                 }
               },
