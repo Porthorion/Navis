@@ -7,7 +7,7 @@ class ExpandablePlayerSheet extends StatefulWidget {
     required this.isExpanded,
     required this.onExpand,
     required this.onCollapse,
-    this.onSwipeUpFullPlayer,
+    required this.maxHeight,
     super.key,
   });
 
@@ -16,7 +16,9 @@ class ExpandablePlayerSheet extends StatefulWidget {
   final bool isExpanded;
   final VoidCallback onExpand;
   final VoidCallback onCollapse;
-  final VoidCallback? onSwipeUpFullPlayer;
+  final double maxHeight;
+
+  static const miniPlayerHeight = 64.0;
 
   @override
   State<ExpandablePlayerSheet> createState() => _ExpandablePlayerSheetState();
@@ -24,8 +26,6 @@ class ExpandablePlayerSheet extends StatefulWidget {
 
 class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
     with SingleTickerProviderStateMixin {
-  static const _miniPlayerHeight = 64.0;
-
   late AnimationController _controller;
   late Animation<double> _expandProgress;
   late Animation<double> _fullPlayerOpacity;
@@ -35,7 +35,7 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 350),
+      duration: const Duration(milliseconds: 300),
       vsync: this,
     );
 
@@ -48,14 +48,14 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
     _fullPlayerOpacity = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.3, 1, curve: Curves.easeIn),
+        curve: const Interval(0.2, 0.8, curve: Curves.easeIn),
       ),
     );
 
     _miniPlayerOpacity = Tween<double>(begin: 1, end: 0).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0, 0.4, curve: Curves.easeOut),
+        curve: const Interval(0, 0.3, curve: Curves.easeOut),
       ),
     );
 
@@ -96,53 +96,53 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
     super.dispose();
   }
 
+  double get _maxHeight => widget.maxHeight;
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
         final progress = _expandProgress.value;
-        final screenHeight = MediaQuery.of(context).size.height;
         final height =
-            _miniPlayerHeight + (screenHeight - _miniPlayerHeight) * progress;
+            ExpandablePlayerSheet.miniPlayerHeight +
+            (_maxHeight - ExpandablePlayerSheet.miniPlayerHeight) * progress;
 
         return SizedBox(
           height: height,
           child: Material(
             color: Theme.of(context).colorScheme.surface,
             elevation: progress > 0.01 ? 8 : 0,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                // Full player (behind)
-                Positioned.fill(
-                  child: IgnorePointer(
-                    ignoring: progress < 0.5,
-                    child: Opacity(
-                      opacity: _fullPlayerOpacity.value.clamp(0.0, 1.0),
-                      child: widget.fullPlayer,
+            child: GestureDetector(
+              onVerticalDragUpdate: _handleDragUpdate,
+              onVerticalDragEnd: _handleDragEnd,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      ignoring: progress < 0.5,
+                      child: Opacity(
+                        opacity: _fullPlayerOpacity.value.clamp(0.0, 1.0),
+                        child: widget.fullPlayer,
+                      ),
                     ),
                   ),
-                ),
-                // Mini player (in front, fades out)
-                if (progress < 0.7)
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    child: IgnorePointer(
-                      ignoring: progress >= 0.5,
-                      child: Opacity(
-                        opacity: _miniPlayerOpacity.value.clamp(0.0, 1.0),
-                        child: GestureDetector(
-                          onVerticalDragUpdate: _handleDragUpdate,
-                          onVerticalDragEnd: _handleDragEnd,
+                  if (progress < 0.7)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: IgnorePointer(
+                        ignoring: progress >= 0.5,
+                        child: Opacity(
+                          opacity: _miniPlayerOpacity.value.clamp(0.0, 1.0),
                           child: widget.miniPlayer,
                         ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
         );
@@ -152,9 +152,7 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
 
   void _handleDragUpdate(DragUpdateDetails details) {
     final delta = details.primaryDelta ?? 0;
-    final screenHeight = MediaQuery.of(context).size.height;
-    final change = -delta / screenHeight;
-
+    final change = -delta / _maxHeight;
     _controller.value = (_controller.value + change).clamp(0.0, 1.0);
   }
 
@@ -163,10 +161,8 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
 
     if (velocity.abs() > 300) {
       if (velocity < 0) {
-        // Swiped up → expand
         _controller.forward();
       } else {
-        // Swiped down → collapse
         _controller.reverse();
       }
     } else {
