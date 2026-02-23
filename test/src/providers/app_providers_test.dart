@@ -41,6 +41,9 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
   Stream<PlaybackSnapshot> get snapshotStream => _controller.stream;
 
   @override
+  Stream<Duration> get positionStream => Stream<Duration>.empty();
+
+  @override
   Future<void> waitUntilReady() async {}
 
   @override

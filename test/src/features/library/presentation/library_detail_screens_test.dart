@@ -28,6 +28,9 @@ class _DelayedReplaceHandler implements NavisPlaybackHandler {
       const Stream<PlaybackSnapshot>.empty();
 
   @override
+  Stream<Duration> get positionStream => const Stream<Duration>.empty();
+
+  @override
   Future<void> waitUntilReady() async {}
 
   @override
