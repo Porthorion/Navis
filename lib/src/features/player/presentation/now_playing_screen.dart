@@ -109,7 +109,7 @@ class _NowPlayingAppBar extends ConsumerWidget {
                 title: Text(l10n.nowPlayingGoToAlbum),
                 onTap: () {
                   Navigator.of(sheetContext).pop();
-                  context.go('/library/albums/${song.albumId}');
+                  context.push('/library/albums/${song.albumId}');
                 },
               ),
             if (song?.artistId != null && song!.artistId!.isNotEmpty)
@@ -118,7 +118,7 @@ class _NowPlayingAppBar extends ConsumerWidget {
                 title: Text(l10n.nowPlayingGoToArtist),
                 onTap: () {
                   Navigator.of(sheetContext).pop();
-                  context.go('/library/artists/${song.artistId}');
+                  context.push('/library/artists/${song.artistId}');
                 },
               ),
           ],
