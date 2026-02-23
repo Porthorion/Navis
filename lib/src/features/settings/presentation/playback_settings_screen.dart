@@ -335,6 +335,7 @@ class _PlaybackSettingsScreenState
         equalizerBandGains: _normalizeBandGains(_equalizerBandGains),
         loudnessEnabled: _loudnessEnabled,
         loudnessTargetGainDb: _loudnessTargetGainDb,
+        wifiOnlyDownloads: ref.read(wifiOnlyDownloadsProvider),
       );
       await ref.read(settingsRepositoryProvider).saveSettings(settings);
       final handler = ref.read(audioHandlerProvider);

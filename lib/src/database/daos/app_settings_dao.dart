@@ -40,6 +40,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     String? equalizerBandGains,
     required bool loudnessEnabled,
     double? loudnessTargetGainDb,
+    required bool wifiOnlyDownloads,
   }) {
     return into(appSettingsTable).insertOnConflictUpdate(
       AppSettingsTableCompanion.insert(
@@ -56,6 +57,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         equalizerBandGains: Value(equalizerBandGains),
         loudnessEnabled: Value(loudnessEnabled),
         loudnessTargetGainDb: Value(loudnessTargetGainDb),
+        wifiOnlyDownloads: Value(wifiOnlyDownloads),
         updatedAt: DateTime.now(),
       ),
     );
@@ -75,6 +77,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       equalizerBandGains: null,
       loudnessEnabled: false,
       loudnessTargetGainDb: 0,
+      wifiOnlyDownloads: false,
     );
   }
 
@@ -106,5 +109,26 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   Future<int> getRollingCacheBudgetMb() async {
     final s = await getSettings();
     return s?.rollingCacheBudgetMb ?? defaultRollingCacheBudgetMb;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Wi-Fi-only downloads helpers
+  // ---------------------------------------------------------------------------
+
+  /// Targeted update for the Wi-Fi-only downloads flag.
+  Future<void> updateWifiOnlyDownloads({required bool enabled}) {
+    return (update(appSettingsTable)
+          ..where((t) => t.id.equals(primarySettingsId)))
+        .write(
+      AppSettingsTableCompanion(
+        wifiOnlyDownloads: Value(enabled),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Stream the Wi-Fi-only downloads setting.
+  Stream<bool> watchWifiOnlyDownloads() {
+    return watchSettings().map((s) => s?.wifiOnlyDownloads ?? false);
   }
 }

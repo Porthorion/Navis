@@ -2270,6 +2270,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Download albums or tracks to see them here.'**
   String get libraryDownloadedOnlyEmptySubtitle;
+
+  /// No description provided for @cacheSettingsWifiOnlyDownloads.
+  ///
+  /// In en, this message translates to:
+  /// **'Download on Wi-Fi only'**
+  String get cacheSettingsWifiOnlyDownloads;
+
+  /// No description provided for @cacheSettingsWifiOnlyDownloadsSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Pause downloads when not connected to Wi-Fi.'**
+  String get cacheSettingsWifiOnlyDownloadsSub;
+
+  /// No description provided for @cacheBadgeDownloaded.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloaded'**
+  String get cacheBadgeDownloaded;
+
+  /// No description provided for @cacheBadgeCached.
+  ///
+  /// In en, this message translates to:
+  /// **'Cached'**
+  String get cacheBadgeCached;
 }
 
 class _AppLocalizationsDelegate

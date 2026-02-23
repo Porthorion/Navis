@@ -30,6 +30,7 @@ void main() {
       equalizerBandGains: <double>[],
       loudnessEnabled: false,
       loudnessTargetGainDb: 0,
+      wifiOnlyDownloads: false,
     );
 
     setUp(() {

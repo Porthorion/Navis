@@ -65,7 +65,7 @@ class NavisDatabase extends _$NavisDatabase {
   static QueryExecutor _openConnection() => driftDatabase(name: 'navis.sqlite');
 
   @override
-  int get schemaVersion => 9;
+  int get schemaVersion => 10;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -110,6 +110,9 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 9 && to >= 9) {
       await from8To9(migrator);
+    }
+    if (from < 10 && to >= 10) {
+      await from9To10(migrator);
     }
   }
 
@@ -208,6 +211,15 @@ class NavisDatabase extends _$NavisDatabase {
     }
   }
 
+  Future<void> from9To10(Migrator migrator) async {
+    if (!await _columnExists('app_settings', 'wifi_only_downloads')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.wifiOnlyDownloads,
+      );
+    }
+  }
+
   Future<void> _ensureAppSettingsDefaults() {
     return into(appSettingsTable).insert(
       AppSettingsTableCompanion.insert(
@@ -226,6 +238,7 @@ class NavisDatabase extends _$NavisDatabase {
         loudnessTargetGainDb: const Value(0),
         rollingCacheBudgetMb:
             const Value(AppSettingsDao.defaultRollingCacheBudgetMb),
+        wifiOnlyDownloads: const Value(false),
         updatedAt: DateTime.now(),
       ),
       mode: InsertMode.insertOrIgnore,

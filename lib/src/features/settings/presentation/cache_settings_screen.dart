@@ -275,6 +275,15 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
 
                 // ---- Permanent / downloaded tracks section ----
                 _SectionHeader(title: l10n.cacheSettingsPermanentSection),
+                SwitchListTile(
+                  title: Text(l10n.cacheSettingsWifiOnlyDownloads),
+                  subtitle: Text(l10n.cacheSettingsWifiOnlyDownloadsSub),
+                  value: ref.watch(wifiOnlyDownloadsProvider),
+                  onChanged: (value) {
+                    final dao = ref.read(navisDatabaseProvider).appSettingsDao;
+                    dao.updateWifiOnlyDownloads(enabled: value);
+                  },
+                ),
                 permanentStats.when(
                   data: (stats) => _CacheStatsCard(
                     usedBytes: stats.totalBytes,

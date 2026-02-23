@@ -7,6 +7,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
+import 'package:navis/src/common_widgets/song_cache_badge.dart';
 import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
@@ -189,12 +190,19 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                     ),
             )
           else
-            SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final song = songs[index];
-                  return Dismissible(
-                    key: ValueKey('${widget.playlistId}-${song.id}-$index'),
+            SliverReorderableList(
+              onReorder: (oldIndex, newIndex) =>
+                  unawaited(_reorderTrack(songs, oldIndex, newIndex)),
+              itemCount: songs.length,
+              itemBuilder: (context, index) {
+                final song = songs[index];
+                return ReorderableDragStartListener(
+                  key: ValueKey('${widget.playlistId}-${song.id}-$index'),
+                  index: index,
+                  child: Dismissible(
+                    key: ValueKey(
+                      'dismiss-${widget.playlistId}-${song.id}-$index',
+                    ),
                     direction: DismissDirection.endToStart,
                     background: Container(
                       color: Theme.of(context).colorScheme.errorContainer,
@@ -209,25 +217,37 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                       await _removeTrack(index);
                       return false;
                     },
-                    child: TrackListTile(
-                      song: song,
-                      onTap: _isQueueActionInFlight
-                          ? null
-                          : () => unawaited(_playNow(songs, index)),
-                      onLongPress: _isQueueActionInFlight
-                          ? null
-                          : () => _showSongActions(song, index),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.more_vert),
-                        onPressed: _isQueueActionInFlight
+                    child: Material(
+                      type: MaterialType.transparency,
+                      child: TrackListTile(
+                        song: song,
+                        badge: SongCacheBadge(songId: song.id),
+                        onTap: _isQueueActionInFlight
+                            ? null
+                            : () => unawaited(_playNow(songs, index)),
+                        onLongPress: _isQueueActionInFlight
                             ? null
                             : () => _showSongActions(song, index),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            IconButton(
+                              icon: const Icon(Icons.more_vert),
+                              onPressed: _isQueueActionInFlight
+                                  ? null
+                                  : () => _showSongActions(song, index),
+                            ),
+                            ReorderableDragStartListener(
+                              index: index,
+                              child: const Icon(Icons.drag_handle),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  );
-                },
-                childCount: songs.length,
-              ),
+                  ),
+                );
+              },
             ),
           const SliverPadding(padding: EdgeInsets.only(bottom: 80)),
         ],
@@ -276,6 +296,52 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
       );
     } on Object {
       if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.playlistDetailTrackRemoveFailed)),
+      );
+    }
+  }
+
+  /// Reorder a track within the playlist via the Subsonic API.
+  ///
+  /// Subsonic has no native "move" operation, so this removes all tracks and
+  /// re-adds them in the desired order.
+  Future<void> _reorderTrack(
+    List<SongsTableData> songs,
+    int oldIndex,
+    int newIndex,
+  ) async {
+    if (oldIndex == newIndex) return;
+
+    final api = ref.read(subsonicApiProvider);
+    if (api == null) return;
+
+    // Build the desired order locally.
+    final reordered = songs.map((s) => s.id).toList();
+    final songId = reordered.removeAt(oldIndex);
+    final insertAt = newIndex > oldIndex ? newIndex - 1 : newIndex;
+    reordered.insert(insertAt, songId);
+
+    try {
+      // Step 1: Remove all tracks from the playlist.
+      final allIndices = List<int>.generate(songs.length, (i) => i);
+      await api.updatePlaylist(
+        id: widget.playlistId,
+        songIndexesToRemove: allIndices,
+      );
+
+      // Step 2: Re-add in desired order.
+      await api.updatePlaylist(
+        id: widget.playlistId,
+        songIdsToAdd: reordered,
+      );
+
+      ref.invalidate(playlistDetailSyncProvider(widget.playlistId));
+    } on Object {
+      // Revert UI by re-syncing.
+      ref.invalidate(playlistDetailSyncProvider(widget.playlistId));
+      if (!mounted) return;
+      final l10n = AppLocalizations.of(context)!;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.playlistDetailTrackRemoveFailed)),
       );

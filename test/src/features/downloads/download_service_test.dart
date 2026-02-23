@@ -28,6 +28,8 @@ void main() {
         downloadQueueDao: database.downloadQueueDao,
         libraryDao: database.libraryDao,
         readApiClient: () => null, // No API client — will skip actual HTTP.
+        readWifiOnly: () => false,
+        readIsWifi: () => true,
       );
     });
 

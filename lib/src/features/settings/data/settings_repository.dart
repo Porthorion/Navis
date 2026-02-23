@@ -34,6 +34,7 @@ class SettingsRepository {
       equalizerBandGains: _encodeBandGains(settings.equalizerBandGains),
       loudnessEnabled: settings.loudnessEnabled,
       loudnessTargetGainDb: settings.loudnessTargetGainDb,
+      wifiOnlyDownloads: settings.wifiOnlyDownloads,
     );
   }
 
@@ -56,6 +57,7 @@ class SettingsRepository {
       equalizerBandGains: _decodeBandGains(row.equalizerBandGains),
       loudnessEnabled: row.loudnessEnabled,
       loudnessTargetGainDb: row.loudnessTargetGainDb ?? 0,
+      wifiOnlyDownloads: row.wifiOnlyDownloads,
     );
   }
 

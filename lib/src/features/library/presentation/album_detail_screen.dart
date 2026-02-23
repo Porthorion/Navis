@@ -8,6 +8,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
+import 'package:navis/src/common_widgets/song_cache_badge.dart';
 import 'package:navis/src/common_widgets/star_button.dart';
 import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -173,6 +174,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                     final song = songs[index];
                     return TrackListTile(
                       song: song,
+                      badge: SongCacheBadge(songId: song.id),
                       onTap: _isQueueActionInFlight
                           ? null
                           : () => unawaited(_playNow(song)),
