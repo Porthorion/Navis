@@ -50,9 +50,9 @@ final debouncedSearchProvider = FutureProvider.autoDispose<SearchResult3?>((
 
   return api.search3(
     query: query,
-    artistCount: 5,
-    albumCount: 5,
-    songCount: 10,
+    artistCount: 20,
+    albumCount: 20,
+    songCount: 20,
     cancelToken: cancelToken,
   );
 });
