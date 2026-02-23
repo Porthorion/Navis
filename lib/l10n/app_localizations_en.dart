@@ -1070,4 +1070,84 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get librarySongMenuAddToPlaylist => 'Add to playlist';
+
+  @override
+  String get cacheSettingsTitle => 'Cache & Storage';
+
+  @override
+  String get cacheSettingsRollingSection => 'Streaming cache';
+
+  @override
+  String get cacheSettingsRollingDescription =>
+      'Recently streamed tracks are cached automatically. Oldest tracks are evicted when the budget is exceeded.';
+
+  @override
+  String get cacheSettingsRollingBudgetLabel => 'Cache budget';
+
+  @override
+  String cacheSettingsRollingCurrentSize(String used, String budget) {
+    return '$used / $budget';
+  }
+
+  @override
+  String cacheSettingsRollingTrackCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count cached tracks',
+      one: '1 cached track',
+      zero: 'No cached tracks',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get cacheSettingsClearRolling => 'Clear streaming cache';
+
+  @override
+  String get cacheSettingsClearRollingConfirm =>
+      'Clear all cached streaming audio? This cannot be undone.';
+
+  @override
+  String get cacheSettingsPermanentSection => 'Downloaded tracks';
+
+  @override
+  String cacheSettingsPermanentTrackCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count downloaded tracks',
+      one: '1 downloaded track',
+      zero: 'No downloaded tracks',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get cacheSettingsClearPermanent => 'Remove all downloads';
+
+  @override
+  String get cacheSettingsClearPermanentConfirm =>
+      'Remove all downloaded tracks? This cannot be undone.';
+
+  @override
+  String get cacheSettingsClearCoverArt => 'Clear cover art cache';
+
+  @override
+  String get cacheSettingsClearCoverArtConfirm =>
+      'Clear all cached cover art images?';
+
+  @override
+  String get cacheSettingsClearSuccess => 'Cache cleared.';
+
+  @override
+  String get cacheSettingsBudgetSaved => 'Cache budget updated.';
+
+  @override
+  String cacheSettingsBudgetGb(String gb) {
+    return '$gb GB';
+  }
+
+  @override
+  String get cacheSettingsUnlimited => 'Unlimited';
 }

@@ -526,9 +526,16 @@ final audioHandlerProvider = Provider<NavisPlaybackHandler?>((ref) {
   return ref.watch(audioHandlerStateProvider);
 });
 
-final rollingCacheBudgetBytesProvider = Provider<int>(
-  (_) => 2 * 1024 * 1024 * 1024,
-);
+final _rollingCacheBudgetMbStreamProvider = StreamProvider<int>((ref) {
+  final dao = ref.watch(navisDatabaseProvider).appSettingsDao;
+  return dao.watchRollingCacheBudgetMb();
+});
+
+final rollingCacheBudgetBytesProvider = Provider<int>((ref) {
+  final mb =
+      ref.watch(_rollingCacheBudgetMbStreamProvider).asData?.value ?? 2048;
+  return mb * 1024 * 1024;
+});
 
 final rollingCacheManagerProvider = Provider<RollingCacheManager>((ref) {
   final cacheDao = ref.watch(navisDatabaseProvider).cacheDao;
