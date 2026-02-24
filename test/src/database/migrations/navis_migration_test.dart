@@ -20,8 +20,8 @@ void main() {
           .customSelect('PRAGMA user_version;')
           .getSingle();
 
-      expect(database.schemaVersion, 15);
-      expect(pragmaRow.read<int>('user_version'), 15);
+      expect(database.schemaVersion, 16);
+      expect(pragmaRow.read<int>('user_version'), 16);
     },
     skip: !sqliteAvailable,
   );
@@ -211,12 +211,20 @@ void main() {
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 15);
+      expect(versionRow.read<int>('user_version'), 16);
 
       final albums = await migrated.select(migrated.albumsTable).get();
       final albumsById = {for (final album in albums) album.id: album};
       expect(albumsById['album-with-song']?.songsHydrated, isTrue);
       expect(albumsById['album-without-song']?.songsHydrated, isFalse);
+
+      final albumsInfo = await migrated
+          .customSelect("PRAGMA table_info('albums');")
+          .get();
+      final albumColumns = albumsInfo
+          .map((row) => row.read<String>('name'))
+          .toSet();
+      expect(albumColumns, contains('synced_at'));
 
       final songsInfo = await migrated
           .customSelect("PRAGMA table_info('songs');")

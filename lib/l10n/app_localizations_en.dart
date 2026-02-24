@@ -844,6 +844,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get miniPlayerPause => 'Pause';
 
   @override
+  String get miniPlayerSkipNext => 'Skip to next';
+
+  @override
   String get playbackBootstrapLoadingTitle => 'Preparing playback';
 
   @override

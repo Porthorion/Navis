@@ -261,6 +261,7 @@ class _MiniPlayerStrip extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
     final isPlaying = playback.playing;
     final position = playback.position;
     final duration = playback.duration;
@@ -288,144 +289,189 @@ class _MiniPlayerStrip extends ConsumerWidget {
                 handler.skipToPrevious();
               }
             },
-      child: Material(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            InkWell(
-              onTap: onTap,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 6,
-                ),
-                child: Row(
-                  children: <Widget>[
-                    if (isRadio)
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: radioArtUrl != null && radioArtUrl!.isNotEmpty
-                            ? Image.network(
-                                radioArtUrl!,
-                                width: 40,
-                                height: 40,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, _) => Container(
-                                  width: 40,
-                                  height: 40,
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.primaryContainer,
-                                  child: Icon(
-                                    Icons.radio,
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.onPrimaryContainer,
-                                  ),
-                                ),
-                              )
-                            : Container(
-                                width: 40,
-                                height: 40,
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.primaryContainer,
-                                child: Icon(
-                                  Icons.radio,
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onPrimaryContainer,
-                                ),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border(
+            top: BorderSide(
+              color: cs.outlineVariant.withValues(alpha: 0.5),
+              width: 1,
+            ),
+          ),
+        ),
+        child: Material(
+          color: cs.surfaceContainerHigh,
+          child: InkWell(
+            onTap: onTap,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Padding(
+                  padding: const EdgeInsets.only(
+                    left: 12,
+                    right: 4,
+                    top: 7,
+                    bottom: 6,
+                  ),
+                  child: Row(
+                    children: <Widget>[
+                      // ── Cover art ───────────────────────────────────────────
+                      if (isRadio)
+                        _MiniRadioArt(artUrl: radioArtUrl, colorScheme: cs)
+                      else
+                        CoverArtImage(
+                          coverArtId: coverArtId,
+                          size: 200,
+                          width: 48,
+                          height: 48,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      const SizedBox(width: 12),
+                      // ── Title + artist ──────────────────────────────────────
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            Text(
+                              (songTitle == null || songTitle!.trim().isEmpty)
+                                  ? l10n.miniPlayerUnknownTrack
+                                  : songTitle!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(fontWeight: FontWeight.w600),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              (songArtist == null ||
+                                      songArtist!.trim().isEmpty)
+                                  ? l10n.miniPlayerUnknownArtist
+                                  : songArtist!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(
+                                context,
+                              ).textTheme.bodySmall?.copyWith(
+                                color: cs.onSurface.withValues(alpha: 0.6),
                               ),
-                      )
-                    else
-                      CoverArtImage(
-                        coverArtId: coverArtId,
-                        size: 200,
-                        width: 40,
-                        height: 40,
-                        borderRadius: BorderRadius.circular(4),
+                            ),
+                          ],
+                        ),
                       ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          Text(
-                            (songTitle == null || songTitle!.trim().isEmpty)
-                                ? l10n.miniPlayerUnknownTrack
-                                : songTitle!,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(fontWeight: FontWeight.w600),
-                          ),
-                          Text(
-                            (songArtist == null || songArtist!.trim().isEmpty)
-                                ? l10n.miniPlayerUnknownArtist
-                                : songArtist!,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: isRadio
-                          ? (isPlaying
-                                ? l10n.miniPlayerPause
-                                : l10n.miniPlayerPlay)
-                          : (isPlaying
-                                ? l10n.miniPlayerPause
-                                : l10n.miniPlayerPlay),
-                      onPressed: () async {
-                        final handler = ref.read(audioHandlerProvider);
-                        if (handler == null) {
-                          return;
-                        }
-                        if (isPlaying) {
-                          await handler.pause();
-                        } else {
-                          await handler.play();
-                        }
-                      },
-                      icon: Icon(
-                        isPlaying ? Icons.pause : Icons.play_arrow,
-                      ),
-                    ),
-                    if (isRadio)
+                      // ── Play / Pause ─────────────────────────────────────────
                       IconButton(
-                        tooltip: l10n.radioStopStation,
+                        tooltip: isPlaying
+                            ? l10n.miniPlayerPause
+                            : l10n.miniPlayerPlay,
+                        style: IconButton.styleFrom(
+                          backgroundColor: cs.primaryContainer,
+                          foregroundColor: cs.onPrimaryContainer,
+                          minimumSize: Size.zero,
+                          padding: const EdgeInsets.all(6),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
                         onPressed: () async {
                           final handler = ref.read(audioHandlerProvider);
-                          if (handler == null) return;
-                          await handler.stopRadio();
+                          if (handler == null) {
+                            return;
+                          }
+                          if (isPlaying) {
+                            await handler.pause();
+                          } else {
+                            await handler.play();
+                          }
                         },
-                        icon: const Icon(Icons.stop),
+                        icon: Icon(
+                          isPlaying
+                              ? Icons.pause_rounded
+                              : Icons.play_arrow_rounded,
+                          size: 22,
+                        ),
                       ),
-                  ],
+                      // ── Skip next (song) / Stop (radio) ──────────────────────
+                      if (!isRadio)
+                        IconButton(
+                          tooltip: l10n.miniPlayerSkipNext,
+                          constraints: const BoxConstraints(),
+                          padding: const EdgeInsets.fromLTRB(4, 6, 6, 6),
+                          onPressed: () {
+                            final handler = ref.read(audioHandlerProvider);
+                            if (handler == null) {
+                              return;
+                            }
+                            HapticFeedback.lightImpact();
+                            handler.skipToNext();
+                          },
+                          icon: const Icon(Icons.skip_next_rounded, size: 20),
+                        )
+                      else
+                        IconButton(
+                          tooltip: l10n.radioStopStation,
+                          constraints: const BoxConstraints(),
+                          padding: const EdgeInsets.fromLTRB(4, 6, 6, 6),
+                          onPressed: () async {
+                            final handler = ref.read(audioHandlerProvider);
+                            if (handler == null) {
+                              return;
+                            }
+                            await handler.stopRadio();
+                          },
+                          icon: const Icon(Icons.stop_rounded, size: 20),
+                        ),
+                      const SizedBox(width: 4),
+                    ],
+                  ),
                 ),
-              ),
+                // ── Progress bar ─────────────────────────────────────────────
+                LinearProgressIndicator(
+                  value: isRadio && isPlaying ? null : progress,
+                  minHeight: 3,
+                  color: cs.primary,
+                  backgroundColor: cs.primary.withValues(alpha: 0.12),
+                ),
+              ],
             ),
-            if (isRadio && isPlaying)
-              LinearProgressIndicator(
-                value: 1,
-                minHeight: 2,
-                backgroundColor: Colors.transparent,
-                color: Theme.of(context).colorScheme.primary,
-              )
-            else
-              LinearProgressIndicator(
-                value: progress,
-                minHeight: 2,
-                backgroundColor: Colors.transparent,
-              ),
-          ],
+          ),
         ),
       ),
+    );
+  }
+}
+
+/// Small square cover art for a radio station in the mini player.
+class _MiniRadioArt extends StatelessWidget {
+  const _MiniRadioArt({
+    required this.artUrl,
+    required this.colorScheme,
+  });
+
+  final String? artUrl;
+  final ColorScheme colorScheme;
+
+  @override
+  Widget build(BuildContext context) {
+    final url = artUrl;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: url != null && url.isNotEmpty
+          ? Image.network(
+              url,
+              width: 48,
+              height: 48,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => _placeholder(),
+            )
+          : _placeholder(),
+    );
+  }
+
+  Widget _placeholder() {
+    return Container(
+      width: 48,
+      height: 48,
+      color: colorScheme.primaryContainer,
+      alignment: Alignment.center,
+      child: Icon(Icons.radio, color: colorScheme.onPrimaryContainer),
     );
   }
 }

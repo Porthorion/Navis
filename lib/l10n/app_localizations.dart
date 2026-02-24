@@ -1587,6 +1587,12 @@ abstract class AppLocalizations {
   /// **'Pause'**
   String get miniPlayerPause;
 
+  /// No description provided for @miniPlayerSkipNext.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip to next'**
+  String get miniPlayerSkipNext;
+
   /// No description provided for @playbackBootstrapLoadingTitle.
   ///
   /// In en, this message translates to:
