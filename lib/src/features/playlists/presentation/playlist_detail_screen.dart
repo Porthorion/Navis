@@ -304,8 +304,10 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
 
   /// Reorder a track within the playlist via the Subsonic API.
   ///
-  /// Subsonic has no native "move" operation, so this removes all tracks and
-  /// re-adds them in the desired order.
+  /// Uses `createPlaylist.view?playlistId=…&songId=…` to atomically replace
+  /// the playlist's song list in a single call, avoiding the brittle
+  /// remove-all + re-add pattern that could leave the playlist empty if the
+  /// second request fails.
   Future<void> _reorderTrack(
     List<SongsTableData> songs,
     int oldIndex,
@@ -323,17 +325,9 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     reordered.insert(insertAt, songId);
 
     try {
-      // Step 1: Remove all tracks from the playlist.
-      final allIndices = List<int>.generate(songs.length, (i) => i);
-      await api.updatePlaylist(
-        id: widget.playlistId,
-        songIndexesToRemove: allIndices,
-      );
-
-      // Step 2: Re-add in desired order.
-      await api.updatePlaylist(
-        id: widget.playlistId,
-        songIdsToAdd: reordered,
+      await api.replacePlaylistSongs(
+        playlistId: widget.playlistId,
+        songIds: reordered,
       );
 
       ref.invalidate(playlistDetailSyncProvider(widget.playlistId));

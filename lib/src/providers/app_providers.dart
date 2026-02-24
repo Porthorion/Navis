@@ -154,6 +154,7 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
     final handler = await initNavisAudioHandler(
       libraryDao: database.libraryDao,
       playQueueDao: database.playQueueDao,
+      historyDao: database.historyDao,
       sourceResolver: PlaybackSourceResolver(
         cacheDao: database.cacheDao,
         rollingCacheManager: ref.read(rollingCacheManagerProvider),

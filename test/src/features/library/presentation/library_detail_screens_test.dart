@@ -87,6 +87,9 @@ class _DelayedReplaceHandler implements NavisPlaybackHandler {
 
   @override
   Future<void> applyRuntimeSettings() async {}
+
+  @override
+  Future<void> toggleLike() async {}
 }
 
 Widget _buildApp({
@@ -253,6 +256,69 @@ void main() {
 
       gate.complete();
       await tester.pumpAndSettle();
+      await _disposeApp(tester);
+    });
+
+    testWidgets('artist detail shows star button that reflects starred state', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _buildApp(
+          child: const ArtistDetailScreen(artistId: 'starred-artist'),
+          database: database,
+          overrides: [
+            artistByIdProvider('starred-artist').overrideWithValue(
+              AsyncData(
+                ArtistsTableData(
+                  id: 'starred-artist',
+                  name: 'Starred Artist',
+                  albumCount: 0,
+                  starred: DateTime(2025, 1, 1),
+                ),
+              ),
+            ),
+            albumsByArtistProvider('starred-artist').overrideWithValue(
+              const AsyncData(<AlbumsTableData>[]),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // The star button should exist and show a filled heart (favorite icon).
+      final favoriteIcon = find.byIcon(Icons.favorite);
+      expect(favoriteIcon, findsOneWidget);
+      await _disposeApp(tester);
+    });
+
+    testWidgets('artist detail shows unfilled star for unstarred artist', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _buildApp(
+          child: const ArtistDetailScreen(artistId: 'unstarred-artist'),
+          database: database,
+          overrides: [
+            artistByIdProvider('unstarred-artist').overrideWithValue(
+              const AsyncData(
+                ArtistsTableData(
+                  id: 'unstarred-artist',
+                  name: 'Unstarred Artist',
+                  albumCount: 2,
+                ),
+              ),
+            ),
+            albumsByArtistProvider('unstarred-artist').overrideWithValue(
+              const AsyncData(<AlbumsTableData>[]),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // The star button should exist and show an unfilled heart.
+      final favoriteBorderIcon = find.byIcon(Icons.favorite_border);
+      expect(favoriteBorderIcon, findsOneWidget);
       await _disposeApp(tester);
     });
   });

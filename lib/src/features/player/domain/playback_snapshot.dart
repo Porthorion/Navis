@@ -14,6 +14,7 @@ class PlaybackSnapshot {
     required this.bufferedPosition,
     required this.shuffleMode,
     required this.repeatMode,
+    this.isCurrentSongLiked = false,
   });
 
   const PlaybackSnapshot.idle()
@@ -26,7 +27,8 @@ class PlaybackSnapshot {
       duration = Duration.zero,
       bufferedPosition = Duration.zero,
       shuffleMode = AudioServiceShuffleMode.none,
-      repeatMode = AudioServiceRepeatMode.none;
+      repeatMode = AudioServiceRepeatMode.none,
+      isCurrentSongLiked = false;
 
   final List<String> queueSongIds;
   final String? currentSongId;
@@ -38,6 +40,7 @@ class PlaybackSnapshot {
   final Duration bufferedPosition;
   final AudioServiceShuffleMode shuffleMode;
   final AudioServiceRepeatMode repeatMode;
+  final bool isCurrentSongLiked;
 
   bool get hasQueue => queueSongIds.isNotEmpty;
 
@@ -52,6 +55,7 @@ class PlaybackSnapshot {
     Duration? bufferedPosition,
     AudioServiceShuffleMode? shuffleMode,
     AudioServiceRepeatMode? repeatMode,
+    bool? isCurrentSongLiked,
   }) {
     return PlaybackSnapshot(
       queueSongIds: queueSongIds ?? this.queueSongIds,
@@ -64,6 +68,7 @@ class PlaybackSnapshot {
       bufferedPosition: bufferedPosition ?? this.bufferedPosition,
       shuffleMode: shuffleMode ?? this.shuffleMode,
       repeatMode: repeatMode ?? this.repeatMode,
+      isCurrentSongLiked: isCurrentSongLiked ?? this.isCurrentSongLiked,
     );
   }
 }

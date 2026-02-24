@@ -6,19 +6,56 @@ import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
+import 'package:navis/src/common_widgets/star_button.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
-class ArtistDetailScreen extends ConsumerWidget {
+class ArtistDetailScreen extends ConsumerStatefulWidget {
   const ArtistDetailScreen({required this.artistId, super.key});
 
   final String artistId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ArtistDetailScreen> createState() =>
+      _ArtistDetailScreenState();
+}
+
+class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
+  bool _isStarred = false;
+  bool _isStarring = false;
+
+  Future<void> _toggleStar({required bool isStarred}) async {
+    final api = ref.read(subsonicApiProvider);
+    if (api == null) return;
+    setState(() => _isStarring = true);
+    try {
+      if (isStarred) {
+        await api.unstar(widget.artistId);
+      } else {
+        await api.star(widget.artistId);
+      }
+      if (mounted) setState(() => _isStarred = !isStarred);
+    } on Object catch (error, stackTrace) {
+      debugPrint('Star toggle failed: $error\n$stackTrace');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              AppLocalizations.of(context)!.albumDetailStarFailure,
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isStarring = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final artist = ref.watch(artistByIdProvider(artistId));
-    final albums = ref.watch(albumsByArtistProvider(artistId));
-    final artistInfo = ref.watch(artistInfoProvider(artistId));
+    final artist = ref.watch(artistByIdProvider(widget.artistId));
+    final albums = ref.watch(albumsByArtistProvider(widget.artistId));
+    final artistInfo = ref.watch(artistInfoProvider(widget.artistId));
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.artistDetailTitle)),
@@ -32,14 +69,31 @@ class ArtistDetailScreen extends ConsumerWidget {
             );
           }
 
+          final isStarred =
+              _isStarred || artistData.starred != null;
+
           return ListView(
             padding: const EdgeInsets.only(bottom: 16),
             children: <Widget>[
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-                child: Text(
-                  artistData.name,
-                  style: Theme.of(context).textTheme.headlineSmall,
+                child: Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Text(
+                        artistData.name,
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                    ),
+                    StarButton(
+                      isStarred: isStarred,
+                      onPressed: _isStarring
+                          ? null
+                          : () => _toggleStar(isStarred: isStarred),
+                      compact: true,
+                      tooltip: l10n.albumDetailStarAction,
+                    ),
+                  ],
                 ),
               ),
               Padding(
