@@ -435,34 +435,49 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                                   placeholderIcon: Icons.album_outlined,
                                 ),
                                 const SizedBox(height: 8),
-                                Row(
-                                  children: <Widget>[
-                                    Expanded(
-                                      child: Text(
-                                        album.name,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.titleSmall,
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: <Widget>[
+                                      Row(
+                                        children: <Widget>[
+                                          Expanded(
+                                            child: Text(
+                                              album.name,
+                                              maxLines: 1,
+                                              overflow:
+                                                  TextOverflow.ellipsis,
+                                              style: Theme.of(
+                                                context,
+                                              ).textTheme.titleSmall,
+                                            ),
+                                          ),
+                                          StarButton(
+                                            isStarred:
+                                                album.starred != null,
+                                            compact: true,
+                                            onPressed: () =>
+                                                _toggleAlbumStar(album),
+                                            tooltip:
+                                                l10n.albumDetailStarAction,
+                                          ),
+                                        ],
                                       ),
-                                    ),
-                                    StarButton(
-                                      isStarred: album.starred != null,
-                                      compact: true,
-                                      onPressed: () =>
-                                          _toggleAlbumStar(album),
-                                      tooltip: l10n.albumDetailStarAction,
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  album.artistName ??
-                                      l10n.albumDetailUnknownArtist,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.bodySmall,
+                                      Flexible(
+                                        child: Text(
+                                          album.artistName ??
+                                              l10n
+                                                  .albumDetailUnknownArtist,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ],
                             ),
