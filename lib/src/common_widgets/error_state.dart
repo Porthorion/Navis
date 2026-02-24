@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:navis/l10n/app_localizations.dart';
 
 class ErrorState extends StatelessWidget {
   const ErrorState({
@@ -6,13 +7,13 @@ class ErrorState extends StatelessWidget {
     super.key,
     this.message,
     this.onRetry,
-    this.retryLabel = 'Retry',
+    this.retryLabel,
   });
 
   final String title;
   final String? message;
   final VoidCallback? onRetry;
-  final String retryLabel;
+  final String? retryLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +42,9 @@ class ErrorState extends StatelessWidget {
               const SizedBox(height: 16),
               FilledButton.tonal(
                 onPressed: onRetry,
-                child: Text(retryLabel),
+                child: Text(
+                  retryLabel ?? AppLocalizations.of(context)!.commonRetry,
+                ),
               ),
             ],
           ],

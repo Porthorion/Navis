@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/star_button.dart';
@@ -45,7 +46,12 @@ class AlbumCard extends StatelessWidget {
           tooltip: l10n.albumDetailStarAction,
         ),
         onTap: onTap,
-        onLongPress: onLongPress,
+        onLongPress: onLongPress == null
+            ? null
+            : () {
+                HapticFeedback.mediumImpact();
+                onLongPress!();
+              },
       ),
     );
   }

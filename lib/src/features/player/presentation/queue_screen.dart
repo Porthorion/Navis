@@ -183,6 +183,7 @@ class _QueueItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
     final songAsync = ref.watch(songByIdProvider(songId));
 
     return songAsync.when(
@@ -190,7 +191,7 @@ class _QueueItem extends ConsumerWidget {
         if (song == null) {
           return ListTile(
             key: key,
-            title: const Text('Unknown track'),
+            title: Text(l10n.queueUnknownTrack),
             subtitle: Text('ID: $songId'),
           );
         }
@@ -228,7 +229,7 @@ class _QueueItem extends ConsumerWidget {
                     )
                   : null,
             ),
-            subtitle: Text(song.artistName ?? 'Unknown artist'),
+            subtitle: Text(song.artistName ?? l10n.queueUnknownArtist),
             trailing: ReorderableDragStartListener(
               index: index,
               child: Icon(
@@ -247,11 +248,11 @@ class _QueueItem extends ConsumerWidget {
           height: 48,
           child: Center(child: CircularProgressIndicator()),
         ),
-        title: const Text('Loading...'),
+        title: Text(l10n.commonLoading),
       ),
       error: (error, _) => ListTile(
         key: key,
-        title: const Text('Error loading track'),
+        title: Text(l10n.queueTrackLoadError),
         subtitle: Text(error.toString()),
       ),
     );

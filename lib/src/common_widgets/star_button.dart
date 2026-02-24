@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class StarButton extends StatelessWidget {
   const StarButton({
@@ -19,16 +20,21 @@ class StarButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final icon = Icon(isStarred ? Icons.favorite : Icons.favorite_border);
+    void handlePress() {
+      HapticFeedback.lightImpact();
+      onPressed?.call();
+    }
+
     if (compact) {
       return IconButton(
         visualDensity: VisualDensity.compact,
         tooltip: tooltip,
-        onPressed: onPressed,
+        onPressed: onPressed == null ? null : handlePress,
         icon: icon,
       );
     }
     return OutlinedButton.icon(
-      onPressed: onPressed,
+      onPressed: onPressed == null ? null : handlePress,
       icon: icon,
       label: Text(label ?? ''),
       style: OutlinedButton.styleFrom(

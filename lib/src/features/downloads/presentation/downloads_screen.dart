@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
+import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -102,21 +103,10 @@ class _QueueTab extends ConsumerWidget {
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, _) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              const Icon(Icons.error_outline, size: 48),
-              const SizedBox(height: 12),
-              Text(
-                l10n.downloadsErrorLoadingQueue,
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
+      error: (error, _) => ErrorState(
+        title: l10n.downloadsErrorLoadingQueue,
+        message: error.toString(),
+        onRetry: () => ref.invalidate(downloadQueueProvider),
       ),
     );
   }
@@ -225,21 +215,9 @@ class _DownloadedTab extends ConsumerWidget {
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (_, _) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              const Icon(Icons.error_outline, size: 48),
-              const SizedBox(height: 12),
-              Text(
-                l10n.downloadsErrorLoadingQueue,
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
+      error: (_, _) => ErrorState(
+        title: l10n.downloadsErrorLoadingQueue,
+        onRetry: () => ref.invalidate(permanentCachedTracksProvider),
       ),
     );
   }
@@ -398,7 +376,11 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
             onPressed: () => Navigator.pop(dialogContext, false),
             child: Text(l10n.cancelAction),
           ),
-          TextButton(
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(dialogContext).colorScheme.error,
+              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+            ),
             onPressed: () => Navigator.pop(dialogContext, true),
             child: Text(l10n.cacheSettingsClearPermanent),
           ),

@@ -214,7 +214,8 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                 error: (error, _) => ErrorState(
                   title: l10n.artistDetailAlbumsErrorTitle,
                   message: error.toString(),
-                  retryLabel: l10n.commonRetry,
+                  onRetry: () =>
+                      ref.invalidate(albumsByArtistProvider(widget.artistId)),
                 ),
               ),
             ],
@@ -224,7 +225,7 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
         error: (error, _) => ErrorState(
           title: l10n.artistDetailLoadErrorTitle,
           message: error.toString(),
-          retryLabel: l10n.commonRetry,
+          onRetry: () => ref.invalidate(artistByIdProvider(widget.artistId)),
         ),
       ),
     );

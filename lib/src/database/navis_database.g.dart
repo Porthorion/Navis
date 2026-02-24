@@ -814,7 +814,7 @@ class $AppSettingsTableTable extends AppSettingsTable
     defaultConstraints: GeneratedColumn.constraintIsAlways(
       'CHECK ("art_tinted_now_playing" IN (0, 1))',
     ),
-    defaultValue: const Constant(false),
+    defaultValue: const Constant(true),
   );
   static const VerificationMeta _updatedAtMeta = const VerificationMeta(
     'updatedAt',

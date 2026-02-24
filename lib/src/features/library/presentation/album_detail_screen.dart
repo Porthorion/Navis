@@ -202,7 +202,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
         error: (error, _) => ErrorState(
           title: l10n.albumDetailLoadErrorTitle,
           message: error.toString(),
-          retryLabel: l10n.commonRetry,
+          onRetry: () => ref.invalidate(albumProvider(widget.albumId)),
         ),
       ),
     );

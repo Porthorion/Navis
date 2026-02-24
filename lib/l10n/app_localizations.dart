@@ -1548,7 +1548,7 @@ abstract class AppLocalizations {
   /// No description provided for @playbackBootstrapLoadingSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Initializing audio services...'**
+  /// **'Restoring your listening session…'**
   String get playbackBootstrapLoadingSubtitle;
 
   /// No description provided for @playbackBootstrapFailedTitle.
@@ -1599,11 +1599,35 @@ abstract class AppLocalizations {
   /// **'Playback action failed. Please try again.'**
   String get playbackActionFailed;
 
+  /// No description provided for @commonLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading…'**
+  String get commonLoading;
+
   /// No description provided for @queueTitle.
   ///
   /// In en, this message translates to:
   /// **'Queue'**
   String get queueTitle;
+
+  /// No description provided for @queueUnknownTrack.
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown track'**
+  String get queueUnknownTrack;
+
+  /// No description provided for @queueUnknownArtist.
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown artist'**
+  String get queueUnknownArtist;
+
+  /// No description provided for @queueTrackLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Error loading track'**
+  String get queueTrackLoadError;
 
   /// No description provided for @queueClearAction.
   ///
@@ -2498,6 +2522,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Delete this custom color preset?'**
   String get appearanceColorDeletePresetConfirm;
+
+  /// No description provided for @appearanceLongPressHint.
+  ///
+  /// In en, this message translates to:
+  /// **'{label} (long-press to delete)'**
+  String appearanceLongPressHint(Object label);
 
   /// No description provided for @appearanceArtTintedLabel.
   ///

@@ -62,7 +62,7 @@ class GenreDetailScreen extends ConsumerWidget {
               error: (error, _) => ErrorState(
                 title: l10n.libraryGenreLoadErrorTitle,
                 message: error.toString(),
-                retryLabel: l10n.commonRetry,
+                onRetry: () => ref.invalidate(albumsByGenreProvider(genreName)),
               ),
             ),
             songs.when(
@@ -88,7 +88,7 @@ class GenreDetailScreen extends ConsumerWidget {
               error: (error, _) => ErrorState(
                 title: l10n.libraryGenreLoadErrorTitle,
                 message: error.toString(),
-                retryLabel: l10n.commonRetry,
+                onRetry: () => ref.invalidate(songsByGenreProvider(genreName)),
               ),
             ),
           ],

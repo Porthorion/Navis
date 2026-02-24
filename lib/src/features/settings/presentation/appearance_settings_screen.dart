@@ -291,7 +291,9 @@ class _ColorChip extends StatelessWidget {
   Widget build(BuildContext context) {
     const size = 52.0;
     return Tooltip(
-      message: showDeleteHint ? '$label (long-press to delete)' : label,
+      message: showDeleteHint
+          ? AppLocalizations.of(context)!.appearanceLongPressHint(label)
+          : label,
       child: GestureDetector(
         onTap: onTap,
         onLongPress: onLongPress,

@@ -71,7 +71,6 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
             error: (error, _) => ErrorState(
               title: l10n.playlistDetailLoadError,
               message: error.toString(),
-              retryLabel: 'Retry',
               onRetry: () => ref.invalidate(
                 playlistDetailSyncProvider(widget.playlistId),
               ),
@@ -82,7 +81,6 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
         error: (error, _) => ErrorState(
           title: l10n.playlistDetailLoadError,
           message: error.toString(),
-          retryLabel: 'Retry',
           onRetry: () => ref.invalidate(
             playlistDetailSyncProvider(widget.playlistId),
           ),

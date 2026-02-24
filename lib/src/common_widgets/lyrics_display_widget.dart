@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
 
 enum LyricsDisplayMode { synced, unsynced, none }
@@ -286,7 +287,7 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
           ),
           const SizedBox(height: 16),
           Text(
-            'No lyrics available',
+            AppLocalizations.of(context)!.lyricsNoneAvailable,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               color: Theme.of(
                 context,

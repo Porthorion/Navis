@@ -95,7 +95,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       crossfadeEnabled: false,
       crossfadeDurationSeconds: 5,
       crossfadeType: 'normal',
-      artTintedNowPlaying: false,
+      artTintedNowPlaying: true,
     );
   }
 
@@ -259,6 +259,6 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
 
   /// Stream the art-tinted Now Playing setting.
   Stream<bool> watchArtTintedNowPlaying() {
-    return watchSettings().map((s) => s?.artTintedNowPlaying ?? false);
+    return watchSettings().map((s) => s?.artTintedNowPlaying ?? true);
   }
 }

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
@@ -275,6 +276,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
     if (velocity.abs() < 300) return;
     final handler = ref.read(audioHandlerProvider);
     if (handler == null) return;
+    HapticFeedback.mediumImpact();
     if (velocity < 0) {
       // Swipe left → next track
       unawaited(handler.skipToNext());
@@ -720,6 +722,7 @@ class _TransportControls extends ConsumerWidget {
           icon: const Icon(Icons.skip_previous, size: 32),
           tooltip: l10n.nowPlayingPrevious,
           onPressed: () {
+            HapticFeedback.mediumImpact();
             final handler = ref.read(audioHandlerProvider);
             unawaited(handler?.skipToPrevious());
           },
@@ -748,6 +751,7 @@ class _TransportControls extends ConsumerWidget {
           icon: const Icon(Icons.skip_next, size: 32),
           tooltip: l10n.nowPlayingNext,
           onPressed: () {
+            HapticFeedback.mediumImpact();
             final handler = ref.read(audioHandlerProvider);
             unawaited(handler?.skipToNext());
           },

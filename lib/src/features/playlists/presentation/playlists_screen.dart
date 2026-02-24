@@ -79,7 +79,6 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
           error: (error, _) => ErrorState(
             title: l10n.playlistsLoadError,
             message: error.toString(),
-            retryLabel: 'Retry',
             onRetry: () => ref.invalidate(playlistSyncProvider),
           ),
         ),

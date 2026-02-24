@@ -70,7 +70,7 @@ class AppSettingsTable extends Table {
 
   /// When true, the Now Playing background is tinted with album art colors.
   BoolColumn get artTintedNowPlaying =>
-      boolean().withDefault(const Constant(false))();
+      boolean().withDefault(const Constant(true))();
 
   DateTimeColumn get updatedAt => dateTime()();
 

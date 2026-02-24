@@ -822,7 +822,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get playbackBootstrapLoadingSubtitle =>
-      'Initializing audio services...';
+      'Restoring your listening session…';
 
   @override
   String get playbackBootstrapFailedTitle => 'Playback initialization failed';
@@ -854,7 +854,19 @@ class AppLocalizationsEn extends AppLocalizations {
       'Playback action failed. Please try again.';
 
   @override
+  String get commonLoading => 'Loading…';
+
+  @override
   String get queueTitle => 'Queue';
+
+  @override
+  String get queueUnknownTrack => 'Unknown track';
+
+  @override
+  String get queueUnknownArtist => 'Unknown artist';
+
+  @override
+  String get queueTrackLoadError => 'Error loading track';
 
   @override
   String get queueClearAction => 'Clear queue';
@@ -1379,6 +1391,11 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get appearanceColorDeletePresetConfirm =>
       'Delete this custom color preset?';
+
+  @override
+  String appearanceLongPressHint(Object label) {
+    return '$label (long-press to delete)';
+  }
 
   @override
   String get appearanceArtTintedLabel => 'Art-tinted Now Playing';
