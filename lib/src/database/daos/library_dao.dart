@@ -275,6 +275,27 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     });
   }
 
+  /// Update only the [starred] column for a single album row.
+  Future<void> updateAlbumStarred(String albumId, DateTime? starred) {
+    return (update(albumsTable)..where((t) => t.id.equals(albumId))).write(
+      AlbumsTableCompanion(starred: Value(starred)),
+    );
+  }
+
+  /// Update only the [starred] column for a single artist row.
+  Future<void> updateArtistStarred(String artistId, DateTime? starred) {
+    return (update(artistsTable)..where((t) => t.id.equals(artistId))).write(
+      ArtistsTableCompanion(starred: Value(starred)),
+    );
+  }
+
+  /// Update only the [starred] column for a single song row.
+  Future<void> updateSongStarred(String songId, DateTime? starred) {
+    return (update(songsTable)..where((t) => t.id.equals(songId))).write(
+      SongsTableCompanion(starred: Value(starred)),
+    );
+  }
+
   Future<List<ArtistsTableData>> getAllArtists() {
     return select(artistsTable).get();
   }
@@ -290,6 +311,27 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
 
   Future<List<AlbumsTableData>> getAllAlbums() {
     return select(albumsTable).get();
+  }
+
+  /// Return a map of albumId → set of songIds for the given album IDs.
+  Future<Map<String, Set<String>>> getSongIdsByAlbumIds(
+    Iterable<String> albumIds,
+  ) async {
+    final ids = albumIds
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toList(growable: false);
+    if (ids.isEmpty) return const {};
+    final query = select(songsTable)
+      ..where((t) => t.albumId.isIn(ids));
+    final rows = await query.get();
+    final result = <String, Set<String>>{};
+    for (final row in rows) {
+      final albumId = row.albumId;
+      if (albumId == null) continue;
+      (result[albumId] ??= <String>{}).add(row.id);
+    }
+    return result;
   }
 
   Future<List<SongsTableData>> getSongsByIds(Iterable<String> songIds) async {

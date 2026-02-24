@@ -34,6 +34,12 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
         await api.star(widget.artistId);
       }
       if (mounted) setState(() => _isStarred = !isStarred);
+      // Persist star change to local DB so library views update reactively.
+      final dao = ref.read(navisDatabaseProvider).libraryDao;
+      await dao.updateArtistStarred(
+        widget.artistId,
+        isStarred ? null : DateTime.now(),
+      );
     } on Object catch (error, stackTrace) {
       debugPrint('Star toggle failed: $error\n$stackTrace');
       if (mounted) {

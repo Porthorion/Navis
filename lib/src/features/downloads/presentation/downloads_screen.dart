@@ -293,6 +293,7 @@ class _DownloadedTrackTile extends ConsumerWidget {
               .removeCachedTrack(track.songId);
         },
       ),
+      onLongPress: () => _showTrackMenu(context, ref, track, l10n),
     );
   }
 
@@ -306,6 +307,65 @@ class _DownloadedTrackTile extends ConsumerWidget {
         // best-effort
       }
     }
+  }
+
+  void _showTrackMenu(
+    BuildContext context,
+    WidgetRef ref,
+    CachedTracksTableData track,
+    AppLocalizations l10n,
+  ) {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              ListTile(
+                leading: const Icon(Icons.high_quality_outlined),
+                title: Text(l10n.downloadsRedownloadOriginal),
+                subtitle: Text(l10n.downloadsRedownloadOriginalSub),
+                onTap: () async {
+                  Navigator.of(sheetContext).pop();
+                  // Delete the existing permanent file first.
+                  _deleteFileWithSuffixes(track.filePath);
+                  await ref
+                      .read(navisDatabaseProvider)
+                      .cacheDao
+                      .removeCachedTrack(track.songId);
+                  // Re-enqueue in original quality (no transcode).
+                  final service = ref.read(downloadServiceProvider);
+                  await service.enqueueSong(
+                    track.songId,
+                    forceRedownload: true,
+                  );
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(l10n.downloadsRedownloadQueued),
+                      ),
+                    );
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete_outline),
+                title: Text(l10n.downloadsRemoveAction),
+                onTap: () async {
+                  Navigator.of(sheetContext).pop();
+                  _deleteFileWithSuffixes(track.filePath);
+                  await ref
+                      .read(navisDatabaseProvider)
+                      .cacheDao
+                      .removeCachedTrack(track.songId);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 }
 

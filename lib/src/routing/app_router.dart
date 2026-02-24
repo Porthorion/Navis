@@ -20,17 +20,23 @@ import 'package:navis/src/features/settings/presentation/sync_settings_screen.da
 import 'package:navis/src/routing/app_shell.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
-  final serverConfig = ref.watch(serverConfigStateProvider);
+  // Only watch auth state (logged-in vs not), not the full config which
+  // changes on every sync timestamp update.  Rebuilding GoRouter resets
+  // the location to initialLocation, so we must avoid spurious rebuilds.
+  final isLoggedIn = ref.watch(
+    serverConfigStateProvider.select((cfg) {
+      if (cfg.isLoading) return null; // still loading
+      return cfg.asData?.value != null;
+    }),
+  );
 
   return GoRouter(
     initialLocation: '/login',
     redirect: (context, state) {
       final isLoginRoute = state.matchedLocation == '/login';
-      if (serverConfig.isLoading) {
-        return null;
+      if (isLoggedIn == null) {
+        return null; // still loading
       }
-
-      final isLoggedIn = serverConfig.asData?.value != null;
 
       if (!isLoggedIn && !isLoginRoute) {
         return '/login';

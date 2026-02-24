@@ -1232,6 +1232,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String get downloadsRemoveAction => 'Remove download';
 
   @override
+  String get downloadsRedownloadOriginal => 'Re-download in original quality';
+
+  @override
+  String get downloadsRedownloadOriginalSub =>
+      'Replace with an untranscoded copy from server';
+
+  @override
+  String get downloadsRedownloadQueued =>
+      'Queued for re-download in original quality';
+
+  @override
   String get downloadsCancelAction => 'Cancel download';
 
   @override

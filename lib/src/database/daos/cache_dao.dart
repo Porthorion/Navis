@@ -97,6 +97,15 @@ class CacheDao extends DatabaseAccessor<NavisDatabase> with _$CacheDaoMixin {
     )..where((table) => table.songId.equals(songId))).go();
   }
 
+  /// Get all song IDs that are permanently cached.
+  Future<Set<String>> getPermanentlyCachedSongIds() async {
+    final query = selectOnly(cachedTracksTable)
+      ..where(cachedTracksTable.cacheType.equals(CacheType.permanent.name))
+      ..addColumns([cachedTracksTable.songId]);
+    final rows = await query.get();
+    return rows.map((r) => r.read(cachedTracksTable.songId)!).toSet();
+  }
+
   Future<void> clearCachedTracks() {
     return delete(cachedTracksTable).go();
   }

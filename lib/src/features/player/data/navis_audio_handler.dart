@@ -1455,6 +1455,15 @@ class NavisAudioHandler extends BaseAudioHandler
           sessionKey: sessionKey,
         ),
       );
+
+      // Record in local play history as soon as the track starts playing
+      // so it appears in "Recently Played" without waiting for the full
+      // scrobble submission threshold.
+      unawaited(
+        _historyDao.addPlayHistory(songId).catchError((Object error) {
+          AppLogger.error('Failed to record play history', error);
+        }),
+      );
     }
 
     if (_sentSubmissionScrobble) {
@@ -1477,13 +1486,6 @@ class NavisAudioHandler extends BaseAudioHandler
         songId: songId,
         sessionKey: sessionKey,
       ),
-    );
-
-    // Record in local play history for "Recently Played" UI.
-    unawaited(
-      _historyDao.addPlayHistory(songId).catchError((Object error) {
-        AppLogger.error('Failed to record play history', error);
-      }),
     );
   }
 

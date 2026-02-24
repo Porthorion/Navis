@@ -91,7 +91,9 @@ class CoverArtImage extends ConsumerWidget {
   /// Compute a memory-cache dimension to keep decoded images small in RAM.
   /// Returns null when no useful constraint is available.
   static int? _memCacheSize(double? layoutDimension, int? requestedSize) {
-    if (layoutDimension != null && layoutDimension > 0) {
+    if (layoutDimension != null &&
+        layoutDimension > 0 &&
+        layoutDimension.isFinite) {
       // Use 2× the layout size for crisp Retina display.
       return (layoutDimension * 2).ceil();
     }
