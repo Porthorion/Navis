@@ -5,17 +5,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
-import 'package:sqlite3/sqlite3.dart';
-
-bool get _sqliteAvailable {
-  try {
-    final db = sqlite3.openInMemory();
-    db.dispose();
-    return true;
-  } on Object {
-    return false;
-  }
-}
+import '../../../../helpers/test_database.dart';
 
 class _FakeCredentialStore implements SecureCredentialStore {
   String? password;
@@ -67,7 +57,7 @@ void main() {
       expect(row?.url, 'https://example.com');
       expect(row?.username, 'alice');
       expect(credentials.password, 'secret');
-    }, skip: !_sqliteAvailable);
+    }, skip: !sqliteAvailable);
 
     test(
       'getActiveServer combines drift row with secure password',
@@ -87,7 +77,7 @@ void main() {
         expect(config?.password, 'secret');
         expect(config?.username, 'alice');
       },
-      skip: !_sqliteAvailable,
+      skip: !sqliteAvailable,
     );
 
     test(
@@ -109,7 +99,7 @@ void main() {
         expect(config, isNull);
         expect(rowAfter, isNull);
       },
-      skip: !_sqliteAvailable,
+      skip: !sqliteAvailable,
     );
 
     test('clear removes both drift row and secure password', () async {
@@ -129,7 +119,7 @@ void main() {
       expect(row, isNull);
       expect(credentials.password, isNull);
       expect(credentials.clearCalls, 1);
-    }, skip: !_sqliteAvailable);
+    }, skip: !sqliteAvailable);
 
     test('updateLastSynced updates sync timestamp only', () async {
       await repository.save(
@@ -154,7 +144,7 @@ void main() {
       final difference = after?.lastSynced?.difference(syncedAt);
       expect(difference, isNotNull);
       expect(difference!.inSeconds.abs(), lessThanOrEqualTo(1));
-    }, skip: !_sqliteAvailable);
+    }, skip: !sqliteAvailable);
 
     test(
       'updateSyncTimestamps updates last full sync timestamp',
@@ -185,7 +175,7 @@ void main() {
           lessThanOrEqualTo(1),
         );
       },
-      skip: !_sqliteAvailable,
+      skip: !sqliteAvailable,
     );
   });
 }

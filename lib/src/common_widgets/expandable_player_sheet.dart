@@ -171,15 +171,21 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
           widget.onSwipeUp!();
         } else {
           _controller.forward();
+          // Eagerly mark expanded so the system-back handler knows the sheet
+          // is open even before the animation completes.
+          if (!widget.isExpanded) widget.onExpand();
         }
       } else {
         _controller.reverse();
+        if (widget.isExpanded) widget.onCollapse();
       }
     } else {
       if (_controller.value > 0.5) {
         _controller.forward();
+        if (!widget.isExpanded) widget.onExpand();
       } else {
         _controller.reverse();
+        if (widget.isExpanded) widget.onCollapse();
       }
     }
   }

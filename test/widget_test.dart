@@ -54,6 +54,11 @@ void main() {
 
     final app = tester.widget<MaterialApp>(find.byType(MaterialApp));
     expect(app.themeMode, ThemeMode.dark);
+
+    // Dispose widget tree cleanly so Drift's close-timer fires before the
+    // framework's pending-timer check runs.
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
   });
 
   testWidgets('shows playback bootstrap loading gate when required', (
@@ -80,6 +85,9 @@ void main() {
 
     expect(find.text('Preparing playback'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
   });
 
   testWidgets('shows retry action when playback bootstrap fails', (
@@ -110,5 +118,8 @@ void main() {
     await tester.tap(find.text('Retry playback startup'));
     await tester.pump();
     expect(retried, isTrue);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
   });
 }

@@ -2,17 +2,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
-import 'package:sqlite3/sqlite3.dart';
-
-bool get _sqliteAvailable {
-  try {
-    final db = sqlite3.openInMemory();
-    db.dispose();
-    return true;
-  } on Object {
-    return false;
-  }
-}
+import '../../../helpers/test_database.dart';
 
 void main() {
   group('AppSettingsDao', () {
@@ -97,7 +87,7 @@ void main() {
         expect(second.loudnessEnabled, isFalse);
         expect(second.loudnessTargetGainDb, 0);
       },
-      skip: !_sqliteAvailable,
+      skip: !sqliteAvailable,
     );
 
     test('resetDefaults restores app defaults', () async {
@@ -138,6 +128,6 @@ void main() {
       expect(settings.equalizerBandGains, isNull);
       expect(settings.loudnessEnabled, isFalse);
       expect(settings.loudnessTargetGainDb, 0);
-    }, skip: !_sqliteAvailable);
+    }, skip: !sqliteAvailable);
   });
 }

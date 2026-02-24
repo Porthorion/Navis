@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_sheet.dart';
+import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 
 /// Centralised navigation helpers that guarantee a consistent UX:
 ///
@@ -33,6 +34,19 @@ abstract final class NavService {
   ) {
     _collapsePlayerIfNeeded(ref);
     context.go('/library/artists/$artistId');
+  }
+
+  /// Navigate to the search screen and pre-fill the query.
+  ///
+  /// Useful for radio "search for this artist / song" flows.
+  static void goToSearch(
+    BuildContext context,
+    WidgetRef ref,
+    String query,
+  ) {
+    _collapsePlayerIfNeeded(ref);
+    ref.read(searchQueryProvider.notifier).submit(query);
+    context.go('/search');
   }
 
   // ---------------------------------------------------------------------------

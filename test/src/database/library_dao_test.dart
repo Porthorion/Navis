@@ -2,17 +2,7 @@ import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
-import 'package:sqlite3/sqlite3.dart';
-
-bool get _sqliteAvailable {
-  try {
-    final db = sqlite3.openInMemory();
-    db.dispose();
-    return true;
-  } on Object {
-    return false;
-  }
-}
+import '../../helpers/test_database.dart';
 
 void main() {
   group('LibraryDao', () {
@@ -90,7 +80,7 @@ void main() {
           2,
         );
       },
-      skip: !_sqliteAvailable,
+      skip: !sqliteAvailable,
     );
 
     test(
@@ -120,7 +110,7 @@ void main() {
         expect(byId['album-1']?.songsHydrated, isTrue);
         expect(byId['album-2']?.songsHydrated, isFalse);
       },
-      skip: !_sqliteAvailable,
+      skip: !sqliteAvailable,
     );
   });
 }

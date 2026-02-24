@@ -7,16 +7,7 @@ import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart';
-
-bool get _sqliteAvailable {
-  try {
-    final db = sqlite3.openInMemory();
-    db.dispose();
-    return true;
-  } on Object {
-    return false;
-  }
-}
+import '../../../helpers/test_database.dart';
 
 void main() {
   test(
@@ -32,7 +23,7 @@ void main() {
       expect(database.schemaVersion, 12);
       expect(pragmaRow.read<int>('user_version'), 12);
     },
-    skip: !_sqliteAvailable,
+    skip: !sqliteAvailable,
   );
 
   test(
@@ -67,7 +58,7 @@ void main() {
         AppSettingsDao.defaultRollingCacheBudgetMb,
       );
     },
-    skip: !_sqliteAvailable,
+    skip: !sqliteAvailable,
   );
 
   test(
@@ -97,7 +88,7 @@ void main() {
         }),
       );
     },
-    skip: !_sqliteAvailable,
+    skip: !sqliteAvailable,
   );
 
   test(
@@ -113,7 +104,7 @@ void main() {
 
       expect(columns, contains('created_at'));
     },
-    skip: !_sqliteAvailable,
+    skip: !sqliteAvailable,
   );
 
   test(
@@ -157,7 +148,7 @@ void main() {
       expect(byId['album-with-song']?.songsHydrated, isTrue);
       expect(byId['album-without-song']?.songsHydrated, isFalse);
     },
-    skip: !_sqliteAvailable,
+    skip: !sqliteAvailable,
   );
 
   test(
@@ -249,6 +240,6 @@ void main() {
         AppSettingsDao.defaultRollingCacheBudgetMb,
       );
     },
-    skip: !_sqliteAvailable,
+    skip: !sqliteAvailable,
   );
 }

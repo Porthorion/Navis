@@ -4,17 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
-import 'package:sqlite3/sqlite3.dart';
-
-bool get _sqliteAvailable {
-  try {
-    final db = sqlite3.openInMemory();
-    db.dispose();
-    return true;
-  } on Object {
-    return false;
-  }
-}
+import '../../helpers/test_database.dart';
 
 void main() {
   late NavisDatabase database;
@@ -44,7 +34,7 @@ void main() {
       expect(names, contains('songs'));
       expect(names, contains('play_queue'));
     },
-    skip: !_sqliteAvailable,
+    skip: !sqliteAvailable,
   );
 
   test(
@@ -63,7 +53,7 @@ void main() {
         throwsA(isA<Exception>()),
       );
     },
-    skip: !_sqliteAvailable,
+    skip: !sqliteAvailable,
   );
 
   test(
@@ -86,7 +76,7 @@ void main() {
       expect(artists.single.id, 'a1');
       expect(artists.single.name, 'Artist One');
     },
-    skip: !_sqliteAvailable,
+    skip: !sqliteAvailable,
   );
 
   test(
@@ -120,7 +110,7 @@ void main() {
       expect(state?.positionMs, 4200);
       expect(items.single.id, 's1');
     },
-    skip: !_sqliteAvailable,
+    skip: !sqliteAvailable,
   );
 
   test(
@@ -157,7 +147,7 @@ void main() {
       expect(state?.repeatMode, RepeatMode.one);
       expect(items.map((song) => song.id).toList(), <String>['s1', 's2']);
     },
-    skip: !_sqliteAvailable,
+    skip: !sqliteAvailable,
   );
 
   test(
@@ -190,7 +180,7 @@ void main() {
       expect(page[0].id, 'a-2025-a');
       expect(page[1].id, 'a-2024-a');
     },
-    skip: !_sqliteAvailable,
+    skip: !sqliteAvailable,
   );
 
   test(
@@ -227,6 +217,6 @@ void main() {
       expect(pendingIds, containsAll(<String>{'pending-1', 'pending-2'}));
       expect(pendingIds, isNot(contains('hydrated')));
     },
-    skip: !_sqliteAvailable,
+    skip: !sqliteAvailable,
   );
 }

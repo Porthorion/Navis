@@ -3,17 +3,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
-import 'package:sqlite3/sqlite3.dart';
-
-bool get _sqliteAvailable {
-  try {
-    final db = sqlite3.openInMemory();
-    db.dispose();
-    return true;
-  } on Object {
-    return false;
-  }
-}
+import '../../../helpers/test_database.dart';
 
 void main() {
   group('DownloadQueueDao', () {
@@ -51,7 +41,7 @@ void main() {
         expect(items.first.songId, 'song-1');
         expect(items.first.status, DownloadStatus.queued);
       },
-      skip: _sqliteAvailable ? null : 'sqlite3 not available',
+      skip: sqliteAvailable ? null : 'sqlite3 not available',
     );
 
     test(
@@ -77,7 +67,7 @@ void main() {
         final notFound = await dao.findBySongId('does-not-exist');
         expect(notFound, isNull);
       },
-      skip: _sqliteAvailable ? null : 'sqlite3 not available',
+      skip: sqliteAvailable ? null : 'sqlite3 not available',
     );
 
     test(
@@ -119,7 +109,7 @@ void main() {
         expect(queued, hasLength(2));
         expect(queued.map((i) => i.songId), containsAll(['song-2', 'song-3']));
       },
-      skip: _sqliteAvailable ? null : 'sqlite3 not available',
+      skip: sqliteAvailable ? null : 'sqlite3 not available',
     );
 
     test(
@@ -160,7 +150,7 @@ void main() {
           expect(item.progress, 0);
         }
       },
-      skip: _sqliteAvailable ? null : 'sqlite3 not available',
+      skip: sqliteAvailable ? null : 'sqlite3 not available',
     );
 
     test(
@@ -198,7 +188,7 @@ void main() {
           expect(item.progress, 0);
         }
       },
-      skip: _sqliteAvailable ? null : 'sqlite3 not available',
+      skip: sqliteAvailable ? null : 'sqlite3 not available',
     );
 
     test(
@@ -222,7 +212,7 @@ void main() {
         final items = await dao.watchQueue().first;
         expect(items.first.progress, closeTo(0.75, 0.001));
       },
-      skip: _sqliteAvailable ? null : 'sqlite3 not available',
+      skip: sqliteAvailable ? null : 'sqlite3 not available',
     );
 
     test(
@@ -255,7 +245,7 @@ void main() {
         expect(items, hasLength(1));
         expect(items.first.songId, 'song-2');
       },
-      skip: _sqliteAvailable ? null : 'sqlite3 not available',
+      skip: sqliteAvailable ? null : 'sqlite3 not available',
     );
 
     test(
@@ -287,7 +277,7 @@ void main() {
         final items = await dao.watchQueue().first;
         expect(items, isEmpty);
       },
-      skip: _sqliteAvailable ? null : 'sqlite3 not available',
+      skip: sqliteAvailable ? null : 'sqlite3 not available',
     );
   });
 }

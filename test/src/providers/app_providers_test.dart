@@ -17,17 +17,7 @@ import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
-import 'package:sqlite3/sqlite3.dart';
-
-bool get _sqliteAvailable {
-  try {
-    final db = sqlite3.openInMemory();
-    db.dispose();
-    return true;
-  } on Object {
-    return false;
-  }
-}
+import '../../helpers/test_database.dart';
 
 class _FakePlaybackHandler implements NavisPlaybackHandler {
   final StreamController<PlaybackSnapshot> _controller =
@@ -351,7 +341,7 @@ void main() {
         );
         expect(artists.single.id, 'a1');
       },
-      skip: !_sqliteAvailable,
+      skip: !sqliteAvailable,
     );
 
     test('subsonicApiProvider builds client when server config exists', () {
@@ -738,7 +728,7 @@ void main() {
         expect(emittedCounts, contains(1));
         expect(emittedCounts.last, 2);
       },
-      skip: !_sqliteAvailable,
+      skip: !sqliteAvailable,
     );
   });
 }
