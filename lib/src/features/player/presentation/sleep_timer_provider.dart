@@ -74,8 +74,7 @@ class SleepTimerController extends Notifier<SleepTimerState> {
         _isFading = true;
       }
       if (_isFading) {
-        final fraction =
-            remaining.inSeconds / _fadeDuration.inSeconds;
+        final fraction = remaining.inSeconds / _fadeDuration.inSeconds;
         final handler = ref.read(audioHandlerProvider);
         handler?.setVolume(fraction.clamp(0.0, 1.0));
       }
@@ -110,5 +109,5 @@ class SleepTimerController extends Notifier<SleepTimerState> {
 
 final sleepTimerProvider =
     NotifierProvider<SleepTimerController, SleepTimerState>(
-  SleepTimerController.new,
-);
+      SleepTimerController.new,
+    );

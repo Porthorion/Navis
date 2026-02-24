@@ -76,17 +76,20 @@ class PlaybackSourceResolver {
     required SubsonicApiClient? Function() readApiClient,
     required StreamingQuality Function() readStreamingQuality,
     required Future<Directory> Function() readRollingCacheDirectory,
+    required bool Function() readIsWifi,
   }) : _cacheDao = cacheDao,
        _rollingCacheManager = rollingCacheManager,
        _readApiClient = readApiClient,
        _readStreamingQuality = readStreamingQuality,
-       _readRollingCacheDirectory = readRollingCacheDirectory;
+       _readRollingCacheDirectory = readRollingCacheDirectory,
+       _readIsWifi = readIsWifi;
 
   final CacheDao _cacheDao;
   final RollingCacheManager _rollingCacheManager;
   final SubsonicApiClient? Function() _readApiClient;
   final StreamingQuality Function() _readStreamingQuality;
   final Future<Directory> Function() _readRollingCacheDirectory;
+  final bool Function() _readIsWifi;
 
   Future<ResolvedPlaybackSource> resolveForSong(
     SongsTableData song, {
@@ -309,10 +312,38 @@ class PlaybackSourceResolver {
     final cachedBitRate = cachedTrack.bitRate;
 
     if (!wantsTranscoding) {
+      // No transcoding requested — use cache unless on Wi-Fi with a lower-
+      // quality permanent pin where streaming original would be better.
+      if (cachedTrack.cacheType == CacheType.permanent && _readIsWifi()) {
+        // Permanent pin exists but user wants original (no transcoding).
+        // If the pin was transcoded (has limited bitrate), prefer streaming
+        // for higher quality on Wi-Fi.
+        if (cachedBitRate != null && cachedBitRate > 0) {
+          // The pin has a finite bitrate — it was downloaded as a transcode.
+          // Stream original on Wi-Fi for better quality.
+          AppLogger.debug(
+            'Wi-Fi quality preference: skipping permanent cache '
+            '(${cachedBitRate}kbps $cachedFormat) in favour of original '
+            'quality stream for song=${cachedTrack.songId}',
+          );
+          return false;
+        }
+      }
       return true;
     }
 
     if (cachedTrack.cacheType == CacheType.permanent) {
+      // Even for permanent cache, check if Wi-Fi quality is higher.
+      if (_readIsWifi() && hasRequestedBitRate && cachedBitRate != null) {
+        if (requestedBitRate > cachedBitRate) {
+          AppLogger.debug(
+            'Wi-Fi quality preference: skipping permanent cache '
+            '(${cachedBitRate}kbps) in favour of ${requestedBitRate}kbps '
+            'stream for song=${cachedTrack.songId}',
+          );
+          return false;
+        }
+      }
       return true;
     }
 

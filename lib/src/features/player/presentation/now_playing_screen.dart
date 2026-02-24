@@ -20,7 +20,7 @@ String _formatDuration(Duration d) {
   return '$minutes:${seconds.toString().padLeft(2, '0')}';
 }
 
-class NowPlayingScreen extends ConsumerWidget {
+class NowPlayingScreen extends ConsumerStatefulWidget {
   const NowPlayingScreen({
     super.key,
     this.onCollapse,
@@ -29,41 +29,110 @@ class NowPlayingScreen extends ConsumerWidget {
   final VoidCallback? onCollapse;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<NowPlayingScreen> createState() => _NowPlayingScreenState();
+}
+
+class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
+  /// Dominant color extracted from the current cover art for tinting.
+  Color? _artTintColor;
+
+  /// The cover art ID that [_artTintColor] was extracted from.
+  String? _extractedCoverArtId;
+
+  Future<void> _extractArtColor(String? coverArtId) async {
+    if (coverArtId == _extractedCoverArtId) return;
+    _extractedCoverArtId = coverArtId;
+
+    if (coverArtId == null || coverArtId.trim().isEmpty) {
+      if (mounted) setState(() => _artTintColor = null);
+      return;
+    }
+
+    final api = ref.read(subsonicApiProvider);
+    if (api == null) {
+      if (mounted) setState(() => _artTintColor = null);
+      return;
+    }
+
+    final url = api.getCoverArtUrl(id: coverArtId, size: 64).toString();
+    try {
+      final scheme = await ColorScheme.fromImageProvider(
+        provider: NetworkImage(url),
+        brightness: Theme.of(context).brightness,
+      );
+      if (mounted) setState(() => _artTintColor = scheme.primary);
+    } on Exception {
+      if (mounted) setState(() => _artTintColor = null);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final playback = ref.watch(playerStateProvider);
     final currentSongId = playback.currentSongId;
     final songAsync = currentSongId == null
         ? const AsyncValue<SongsTableData?>.data(null)
         : ref.watch(songByIdProvider(currentSongId));
     final song = songAsync.asData?.value;
+    final artTinted = ref.watch(artTintedNowPlayingProvider);
+
+    // Trigger color extraction when art-tinted mode is on.
+    if (artTinted && !playback.isRadioMode) {
+      // Schedule after build to avoid setState during build.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _extractArtColor(song?.coverArt);
+      });
+    } else if (!artTinted && _artTintColor != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _artTintColor = null);
+      });
+    }
+
+    final surfaceColor = Theme.of(context).colorScheme.surface;
+    final tintColor = artTinted ? _artTintColor : null;
 
     return Material(
-      color: Theme.of(context).colorScheme.surface,
-      child: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            // During the sheet expand/collapse animation the available height
-            // can shrink below the AppBar's natural size causing a RenderFlex
-            // overflow.  Hide everything until there is enough room.
-            if (constraints.maxHeight < 100) {
-              return const SizedBox.shrink();
-            }
-            return Column(
-              children: <Widget>[
-                _NowPlayingAppBar(
-                  song: playback.isRadioMode ? null : song,
-                  onCollapse: onCollapse,
-                  isRadio: playback.isRadioMode,
-                ),
-                Expanded(
-                  child: _NowPlayingBody(
-                    playback: playback,
+      color: surfaceColor,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 600),
+        curve: Curves.easeInOut,
+        decoration: BoxDecoration(
+          gradient: tintColor != null
+              ? LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: <Color>[
+                    tintColor.withValues(alpha: 0.4),
+                    surfaceColor,
+                  ],
+                  stops: const <double>[0.0, 0.7],
+                )
+              : null,
+          color: tintColor == null ? surfaceColor : null,
+        ),
+        child: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxHeight < 100) {
+                return const SizedBox.shrink();
+              }
+              return Column(
+                children: <Widget>[
+                  _NowPlayingAppBar(
                     song: playback.isRadioMode ? null : song,
+                    onCollapse: widget.onCollapse,
+                    isRadio: playback.isRadioMode,
                   ),
-                ),
-              ],
-            );
-          },
+                  Expanded(
+                    child: _NowPlayingBody(
+                      playback: playback,
+                      song: playback.isRadioMode ? null : song,
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );

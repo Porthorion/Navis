@@ -271,6 +271,7 @@ void main() {
                   crossfadeEnabled: false,
                   crossfadeDurationSeconds: 5,
                   crossfadeType: 'normal',
+                  artTintedNowPlaying: false,
                 ),
               ),
             ),

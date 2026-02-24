@@ -40,6 +40,7 @@ class SettingsRepository {
       crossfadeEnabled: settings.crossfadeEnabled,
       crossfadeDurationSeconds: settings.crossfadeDurationSeconds,
       crossfadeType: settings.crossfadeType,
+      artTintedNowPlaying: settings.artTintedNowPlaying,
     );
   }
 
@@ -68,6 +69,7 @@ class SettingsRepository {
       crossfadeEnabled: row.crossfadeEnabled,
       crossfadeDurationSeconds: row.crossfadeDurationSeconds,
       crossfadeType: row.crossfadeType,
+      artTintedNowPlaying: row.artTintedNowPlaying,
     );
   }
 

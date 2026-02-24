@@ -71,6 +71,7 @@ void main() {
           readStreamingQuality: () =>
               const StreamingQuality(label: 'wifi', maxBitRate: 320),
           readRollingCacheDirectory: () async => rollingDir,
+          readIsWifi: () => false,
         );
 
         final resolved = await resolver.resolveForSong(song);
@@ -115,6 +116,7 @@ void main() {
           readStreamingQuality: () =>
               const StreamingQuality(label: 'cellular', maxBitRate: 128),
           readRollingCacheDirectory: () async => rollingDir,
+          readIsWifi: () => false,
         );
 
         final resolved = await resolver.resolveForSong(song);
@@ -153,6 +155,7 @@ void main() {
           readStreamingQuality: () =>
               const StreamingQuality(label: 'wifi', maxBitRate: 320),
           readRollingCacheDirectory: () async => rollingDir,
+          readIsWifi: () => false,
         );
 
         final first = await resolver.resolveForSong(song);
@@ -222,6 +225,7 @@ void main() {
           readApiClient: () => apiClient,
           readStreamingQuality: () => const StreamingQuality(label: 'wifi'),
           readRollingCacheDirectory: () async => rollingDir,
+          readIsWifi: () => false,
         );
 
         for (final testCase in cases) {
@@ -310,6 +314,7 @@ void main() {
           readApiClient: () => apiClient,
           readStreamingQuality: () => const StreamingQuality(label: 'wifi'),
           readRollingCacheDirectory: () async => rollingDir,
+          readIsWifi: () => false,
         );
 
         for (final testCase in cases) {
@@ -390,6 +395,7 @@ void main() {
             format: 'mp3',
           ),
           readRollingCacheDirectory: () async => rollingDir,
+          readIsWifi: () => false,
         );
 
         final resolved = await resolver.resolveForSong(song);
@@ -440,6 +446,7 @@ void main() {
             format: 'mp3',
           ),
           readRollingCacheDirectory: () async => rollingDir,
+          readIsWifi: () => false,
         );
 
         final resolved = await resolver.resolveForSong(song);
@@ -489,6 +496,7 @@ void main() {
             format: 'mp3',
           ),
           readRollingCacheDirectory: () async => rollingDir,
+          readIsWifi: () => false,
         );
 
         final resolved = await resolver.resolveForSong(song);
@@ -523,6 +531,7 @@ void main() {
             format: 'mp3',
           ),
           readRollingCacheDirectory: () async => rollingDir,
+          readIsWifi: () => false,
         );
 
         final resolved = await resolver.resolveForSong(
@@ -564,6 +573,7 @@ void main() {
             format: 'mp3',
           ),
           readRollingCacheDirectory: () async => rollingDir,
+          readIsWifi: () => false,
         );
 
         final resolved = await resolver.resolveForSong(

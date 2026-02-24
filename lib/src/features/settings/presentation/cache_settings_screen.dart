@@ -1,9 +1,9 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/format_utils.dart';
@@ -20,12 +20,19 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
   /// Slider value in megabytes. null = not yet loaded from DB.
   int? _budgetMb;
 
+  /// Cover art cache max objects. null = not yet loaded.
+  int? _coverArtMax;
+
   /// True while a clear operation is in progress.
   bool _clearing = false;
 
   static const int _minBudgetMb = 500;
   static const int _maxBudgetMb = 10240; // 10 GB
   static const int _stepMb = 500;
+
+  static const int _minCoverArt = 500;
+  static const int _maxCoverArt = 20000;
+  static const int _stepCoverArt = 500;
 
   @override
   void initState() {
@@ -36,8 +43,12 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
   Future<void> _loadCurrentBudget() async {
     final dao = ref.read(navisDatabaseProvider).appSettingsDao;
     final mb = await dao.getRollingCacheBudgetMb();
+    final coverArt = await dao.getCoverArtCacheMaxObjects();
     if (mounted) {
-      setState(() => _budgetMb = mb);
+      setState(() {
+        _budgetMb = mb;
+        _coverArtMax = coverArt;
+      });
     }
   }
 
@@ -58,6 +69,19 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
         ..showSnackBar(SnackBar(content: Text(l10n.cacheSettingsBudgetSaved)));
+    }
+  }
+
+  Future<void> _saveCoverArtMax(int maxObjects) async {
+    final dao = ref.read(navisDatabaseProvider).appSettingsDao;
+    await dao.updateCoverArtCacheMaxObjects(maxObjects);
+    if (mounted) {
+      final l10n = AppLocalizations.of(context)!;
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(content: Text(l10n.cacheSettingsCoverArtMaxSaved)),
+        );
     }
   }
 
@@ -114,7 +138,7 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
 
     setState(() => _clearing = true);
     try {
-      await DefaultCacheManager().emptyCache();
+      await defaultCoverArtCacheManager.emptyCache();
       if (mounted) _showClearedSnackBar();
     } finally {
       if (mounted) setState(() => _clearing = false);
@@ -240,6 +264,53 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
                 const Divider(),
 
                 // ---- Cover art cache ----
+                _SectionHeader(title: l10n.cacheSettingsCoverArtSection),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    l10n.cacheSettingsCoverArtDescription,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+                if (_coverArtMax != null) ...[
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    child: Row(
+                      children: <Widget>[
+                        Text(l10n.cacheSettingsCoverArtMaxLabel),
+                        const Spacer(),
+                        Text(
+                          l10n.cacheSettingsCoverArtMaxValue(_coverArtMax!),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Slider(
+                    value: _coverArtMax!.toDouble(),
+                    min: _minCoverArt.toDouble(),
+                    max: _maxCoverArt.toDouble(),
+                    divisions: (_maxCoverArt - _minCoverArt) ~/ _stepCoverArt,
+                    label: l10n.cacheSettingsCoverArtMaxValue(_coverArtMax!),
+                    onChanged: (value) {
+                      setState(() => _coverArtMax = value.round());
+                    },
+                    onChangeEnd: (value) => _saveCoverArtMax(value.round()),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      l10n.cacheSettingsCoverArtRestart,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ],
                 ListTile(
                   leading: const Icon(Icons.image_outlined),
                   title: Text(l10n.cacheSettingsClearCoverArt),

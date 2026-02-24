@@ -97,6 +97,8 @@ class _PlaybackBootstrapGate extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final isFailed = state.status == AudioBootstrapStatus.failed;
 
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
       body: Center(
         child: Padding(
@@ -104,6 +106,20 @@ class _PlaybackBootstrapGate extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
+              Icon(
+                Icons.sailing_rounded,
+                size: 64,
+                color: isFailed ? colorScheme.error : colorScheme.primary,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                l10n.appName,
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.primary,
+                ),
+              ),
+              const SizedBox(height: 24),
               if (!isFailed) const CircularProgressIndicator(),
               if (!isFailed) const SizedBox(height: 16),
               Text(
