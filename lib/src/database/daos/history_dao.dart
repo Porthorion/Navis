@@ -28,6 +28,9 @@ class HistoryDao extends DatabaseAccessor<NavisDatabase>
   }
 
   Stream<List<SongsTableData>> watchRecentlyPlayedSongs({int limit = 20}) {
+    // Over-fetch to compensate for duplicate song entries, then
+    // deduplicate in Dart so each song appears only once (most recent
+    // play wins) and replayed songs are pushed to the front of the list.
     final query =
         select(playHistoryTable).join([
             innerJoin(
@@ -36,11 +39,20 @@ class HistoryDao extends DatabaseAccessor<NavisDatabase>
             ),
           ])
           ..orderBy([OrderingTerm.desc(playHistoryTable.playedAt)])
-          ..limit(limit);
+          ..limit(limit * 5);
 
-    return query.watch().map(
-      (rows) => rows.map((row) => row.readTable(songsTable)).toList(),
-    );
+    return query.watch().map((rows) {
+      final seen = <String>{};
+      final songs = <SongsTableData>[];
+      for (final row in rows) {
+        final song = row.readTable(songsTable);
+        if (seen.add(song.id)) {
+          songs.add(song);
+          if (songs.length >= limit) break;
+        }
+      }
+      return songs;
+    });
   }
 
   Stream<List<RecentSearchesTableData>> watchRecentSearches({int limit = 20}) {
