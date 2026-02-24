@@ -328,6 +328,18 @@ class AppLocalizationsEn extends AppLocalizations {
       'This server does not expose internet radio station endpoints.';
 
   @override
+  String get radioStopStation => 'Stop radio';
+
+  @override
+  String get radioPlaybackError => 'Could not play this radio station.';
+
+  @override
+  String get radioNowPlaying => 'Now playing on radio';
+
+  @override
+  String get radioLive => 'LIVE';
+
+  @override
   String get serverSettingsTitle => 'Server Settings';
 
   @override

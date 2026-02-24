@@ -40,16 +40,30 @@ class NowPlayingScreen extends ConsumerWidget {
     return Material(
       color: Theme.of(context).colorScheme.surface,
       child: SafeArea(
-        child: Column(
-          children: <Widget>[
-            _NowPlayingAppBar(song: song, onCollapse: onCollapse),
-            Expanded(
-              child: _NowPlayingBody(
-                playback: playback,
-                song: song,
-              ),
-            ),
-          ],
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // During the sheet expand/collapse animation the available height
+            // can shrink below the AppBar's natural size causing a RenderFlex
+            // overflow.  Hide everything until there is enough room.
+            if (constraints.maxHeight < 100) {
+              return const SizedBox.shrink();
+            }
+            return Column(
+              children: <Widget>[
+                _NowPlayingAppBar(
+                  song: playback.isRadioMode ? null : song,
+                  onCollapse: onCollapse,
+                  isRadio: playback.isRadioMode,
+                ),
+                Expanded(
+                  child: _NowPlayingBody(
+                    playback: playback,
+                    song: playback.isRadioMode ? null : song,
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -57,10 +71,11 @@ class NowPlayingScreen extends ConsumerWidget {
 }
 
 class _NowPlayingAppBar extends ConsumerWidget {
-  const _NowPlayingAppBar({this.song, this.onCollapse});
+  const _NowPlayingAppBar({this.song, this.onCollapse, this.isRadio = false});
 
   final SongsTableData? song;
   final VoidCallback? onCollapse;
+  final bool isRadio;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -84,7 +99,9 @@ class _NowPlayingAppBar extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.more_vert),
             tooltip: l10n.nowPlayingMore,
-            onPressed: () => _showOverflowMenu(context, ref, song),
+            onPressed: isRadio
+                ? null
+                : () => _showOverflowMenu(context, ref, song),
           ),
         ],
       ),
@@ -204,9 +221,18 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
     final l10n = AppLocalizations.of(context)!;
     final song = widget.song;
     final playback = widget.playback;
-    final title = song?.title ?? l10n.nowPlayingUnknownTrack;
-    final artist = song?.artistName ?? l10n.nowPlayingUnknownArtist;
-    final album = song?.albumName ?? l10n.nowPlayingUnknownAlbum;
+    final isRadio = playback.isRadioMode;
+    final radioMeta = playback.radioStation;
+
+    final title = isRadio
+        ? (radioMeta?.nowPlayingTitle ?? radioMeta?.stationName ?? l10n.radioTitle)
+        : (song?.title ?? l10n.nowPlayingUnknownTrack);
+    final artist = isRadio
+        ? (radioMeta?.nowPlayingArtist ?? radioMeta?.stationName ?? '')
+        : (song?.artistName ?? l10n.nowPlayingUnknownArtist);
+    final album = isRadio
+        ? l10n.radioLive
+        : (song?.albumName ?? l10n.nowPlayingUnknownAlbum);
 
     return ClipRect(
       child: LayoutBuilder(
@@ -226,31 +252,39 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
                 const SizedBox(height: 8),
                 Expanded(
                   child: Center(
-                    child: _showLyrics && playback.currentSongId != null
-                        ? _InlineLyrics(
-                            songId: playback.currentSongId!,
-                          )
-                        : GestureDetector(
-                            onTap: _togglePlayPause,
-                            onHorizontalDragEnd: _handleHorizontalSwipe,
-                            child: _CoverArt(coverArtId: song?.coverArt),
-                          ),
+                    child: isRadio
+                        ? _RadioCoverArt(artUrl: radioMeta?.nowPlayingArtUrl)
+                        : (_showLyrics && playback.currentSongId != null
+                            ? _InlineLyrics(
+                                songId: playback.currentSongId!,
+                              )
+                            : GestureDetector(
+                                onTap: _togglePlayPause,
+                                onHorizontalDragEnd: _handleHorizontalSwipe,
+                                child: _CoverArt(coverArtId: song?.coverArt),
+                              )),
                   ),
                 ),
                 const SizedBox(height: 16),
                 _TrackInfo(title: title, artist: artist, album: album),
                 const SizedBox(height: 16),
-                _SeekBar(playback: playback),
-                const SizedBox(height: 8),
-                _TransportControls(playback: playback),
-                const SizedBox(height: 8),
-                _ActionRow(
-                  songId: playback.currentSongId,
-                  isLiked: playback.isCurrentSongLiked,
-                  showLyrics: _showLyrics,
-                  onLyricsToggle: () =>
-                      setState(() => _showLyrics = !_showLyrics),
+                if (!isRadio) ...[
+                  _SeekBar(playback: playback),
+                  const SizedBox(height: 8),
+                ],
+                _TransportControls(
+                  playback: playback,
+                  isRadio: isRadio,
                 ),
+                const SizedBox(height: 8),
+                if (!isRadio)
+                  _ActionRow(
+                    songId: playback.currentSongId,
+                    isLiked: playback.isCurrentSongLiked,
+                    showLyrics: _showLyrics,
+                    onLyricsToggle: () =>
+                        setState(() => _showLyrics = !_showLyrics),
+                  ),
                 const SizedBox(height: 8),
               ],
             ),
@@ -279,6 +313,50 @@ class _CoverArt extends StatelessWidget {
       height: clampedSize,
       borderRadius: BorderRadius.circular(12),
       placeholderIcon: Icons.music_note_outlined,
+    );
+  }
+}
+
+class _RadioCoverArt extends StatelessWidget {
+  const _RadioCoverArt({this.artUrl});
+
+  final String? artUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final artSize = screenWidth - 48;
+    final clampedSize = artSize.clamp(200.0, 400.0);
+
+    if (artUrl != null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Image.network(
+          artUrl!,
+          width: clampedSize,
+          height: clampedSize,
+          fit: BoxFit.cover,
+          errorBuilder: (_, _, _) => _radioPlaceholder(context, clampedSize),
+        ),
+      );
+    }
+
+    return _radioPlaceholder(context, clampedSize);
+  }
+
+  Widget _radioPlaceholder(BuildContext context, double size) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primaryContainer,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Icon(
+        Icons.radio,
+        size: size * 0.4,
+        color: Theme.of(context).colorScheme.onPrimaryContainer,
+      ),
     );
   }
 }
@@ -409,14 +487,52 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
 }
 
 class _TransportControls extends ConsumerWidget {
-  const _TransportControls({required this.playback});
+  const _TransportControls({required this.playback, this.isRadio = false});
 
   final PlaybackSnapshot playback;
+  final bool isRadio;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final isPlaying = playback.playing;
+
+    if (isRadio) {
+      // Simplified radio transport: just play/pause and stop.
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: <Widget>[
+          FilledButton(
+            style: FilledButton.styleFrom(
+              shape: const CircleBorder(),
+              padding: const EdgeInsets.all(16),
+            ),
+            onPressed: () {
+              final handler = ref.read(audioHandlerProvider);
+              if (isPlaying) {
+                unawaited(handler?.pause());
+              } else {
+                unawaited(handler?.play());
+              }
+            },
+            child: Icon(
+              isPlaying ? Icons.pause : Icons.play_arrow,
+              size: 36,
+            ),
+          ),
+          const SizedBox(width: 16),
+          IconButton(
+            icon: const Icon(Icons.stop, size: 32),
+            tooltip: l10n.radioStopStation,
+            onPressed: () {
+              final handler = ref.read(audioHandlerProvider);
+              unawaited(handler?.stopRadio());
+            },
+          ),
+        ],
+      );
+    }
+
     final shuffleOn = playback.shuffleMode == AudioServiceShuffleMode.all;
     final repeatMode = playback.repeatMode;
 

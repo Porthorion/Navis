@@ -36,7 +36,7 @@ class AppShell extends ConsumerWidget {
     final currentSongAsync = currentSongId == null
         ? const AsyncValue.data(null)
         : ref.watch(songByIdProvider(currentSongId));
-    final showPlayer = playback.queueSongIds.isNotEmpty;
+    final showPlayer = playback.hasActivePlayback;
     final isExpanded = ref.watch(playerSheetExpandedProvider);
     final visibleBranchIndices = <int>[
       _homeBranchIndex,
@@ -126,9 +126,19 @@ class AppShell extends ConsumerWidget {
                       onSwipeUp: () => NavService.showQueue(context),
                       miniPlayer: _MiniPlayerStrip(
                         playback: playback,
-                        songTitle: currentSongAsync.asData?.value?.title,
-                        songArtist: currentSongAsync.asData?.value?.artistName,
-                        coverArtId: currentSongAsync.asData?.value?.coverArt,
+                        songTitle: playback.isRadioMode
+                            ? (playback.radioStation!.nowPlayingTitle ??
+                                playback.radioStation!.stationName)
+                            : currentSongAsync.asData?.value?.title,
+                        songArtist: playback.isRadioMode
+                            ? (playback.radioStation!.nowPlayingArtist ??
+                                playback.radioStation!.stationName)
+                            : currentSongAsync.asData?.value?.artistName,
+                        coverArtId: playback.isRadioMode
+                            ? null
+                            : currentSongAsync.asData?.value?.coverArt,
+                        isRadio: playback.isRadioMode,
+                        radioArtUrl: playback.radioStation?.nowPlayingArtUrl,
                         onTap: () => ref
                             .read(playerSheetExpandedProvider.notifier)
                             .expand(),
@@ -197,6 +207,8 @@ class _MiniPlayerStrip extends ConsumerWidget {
     this.songTitle,
     this.songArtist,
     this.coverArtId,
+    this.isRadio = false,
+    this.radioArtUrl,
   });
 
   final PlaybackSnapshot playback;
@@ -204,6 +216,8 @@ class _MiniPlayerStrip extends ConsumerWidget {
   final String? songTitle;
   final String? songArtist;
   final String? coverArtId;
+  final bool isRadio;
+  final String? radioArtUrl;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -216,21 +230,23 @@ class _MiniPlayerStrip extends ConsumerWidget {
         : 0.0;
 
     return GestureDetector(
-      onHorizontalDragEnd: (details) {
-        final velocity = details.primaryVelocity ?? 0;
-        if (velocity.abs() < 300) {
-          return;
-        }
-        final handler = ref.read(audioHandlerProvider);
-        if (handler == null) {
-          return;
-        }
-        if (velocity < 0) {
-          handler.skipToNext();
-        } else {
-          handler.skipToPrevious();
-        }
-      },
+      onHorizontalDragEnd: isRadio
+          ? null
+          : (details) {
+              final velocity = details.primaryVelocity ?? 0;
+              if (velocity.abs() < 300) {
+                return;
+              }
+              final handler = ref.read(audioHandlerProvider);
+              if (handler == null) {
+                return;
+              }
+              if (velocity < 0) {
+                handler.skipToNext();
+              } else {
+                handler.skipToPrevious();
+              }
+            },
       child: Material(
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
         child: Column(
@@ -245,13 +261,31 @@ class _MiniPlayerStrip extends ConsumerWidget {
                 ),
                 child: Row(
                   children: <Widget>[
-                    CoverArtImage(
-                      coverArtId: coverArtId,
-                      size: 200,
-                      width: 40,
-                      height: 40,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
+                    if (isRadio)
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .primaryContainer,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Icon(
+                          Icons.radio,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onPrimaryContainer,
+                        ),
+                      )
+                    else
+                      CoverArtImage(
+                        coverArtId: coverArtId,
+                        size: 200,
+                        width: 40,
+                        height: 40,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Column(
@@ -279,9 +313,13 @@ class _MiniPlayerStrip extends ConsumerWidget {
                       ),
                     ),
                     IconButton(
-                      tooltip: isPlaying
-                          ? l10n.miniPlayerPause
-                          : l10n.miniPlayerPlay,
+                      tooltip: isRadio
+                          ? (isPlaying
+                              ? l10n.miniPlayerPause
+                              : l10n.miniPlayerPlay)
+                          : (isPlaying
+                              ? l10n.miniPlayerPause
+                              : l10n.miniPlayerPlay),
                       onPressed: () async {
                         final handler = ref.read(audioHandlerProvider);
                         if (handler == null) {
@@ -297,15 +335,28 @@ class _MiniPlayerStrip extends ConsumerWidget {
                         isPlaying ? Icons.pause : Icons.play_arrow,
                       ),
                     ),
+                    if (isRadio)
+                      IconButton(
+                        tooltip: l10n.radioStopStation,
+                        onPressed: () async {
+                          final handler = ref.read(audioHandlerProvider);
+                          if (handler == null) return;
+                          await handler.stopRadio();
+                        },
+                        icon: const Icon(Icons.stop),
+                      ),
                   ],
                 ),
               ),
             ),
-            LinearProgressIndicator(
-              value: progress,
-              minHeight: 2,
-              backgroundColor: Colors.transparent,
-            ),
+            if (isRadio && isPlaying)
+              const LinearProgressIndicator(minHeight: 2)
+            else
+              LinearProgressIndicator(
+                value: progress,
+                minHeight: 2,
+                backgroundColor: Colors.transparent,
+              ),
           ],
         ),
       ),

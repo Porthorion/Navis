@@ -670,6 +670,30 @@ abstract class AppLocalizations {
   /// **'This server does not expose internet radio station endpoints.'**
   String get radioUnsupportedMessage;
 
+  /// No description provided for @radioStopStation.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop radio'**
+  String get radioStopStation;
+
+  /// No description provided for @radioPlaybackError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not play this radio station.'**
+  String get radioPlaybackError;
+
+  /// No description provided for @radioNowPlaying.
+  ///
+  /// In en, this message translates to:
+  /// **'Now playing on radio'**
+  String get radioNowPlaying;
+
+  /// No description provided for @radioLive.
+  ///
+  /// In en, this message translates to:
+  /// **'LIVE'**
+  String get radioLive;
+
   /// No description provided for @serverSettingsTitle.
   ///
   /// In en, this message translates to:

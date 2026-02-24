@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -26,6 +28,7 @@ class RadioTabContent extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final stationsAsync = ref.watch(radioStationsProvider);
+    final activeStationId = ref.watch(currentRadioStationIdProvider);
 
     return RefreshIndicator(
       onRefresh: () async {
@@ -57,14 +60,39 @@ class RadioTabContent extends ConsumerWidget {
             separatorBuilder: (_, _) => const Divider(height: 1),
             itemBuilder: (context, index) {
               final station = stations[index];
+              final isPlaying = activeStationId == station.id;
               return ListTile(
-                leading: const Icon(Icons.radio_outlined),
-                title: Text(station.name),
+                leading: Icon(
+                  isPlaying ? Icons.radio : Icons.radio_outlined,
+                  color: isPlaying
+                      ? Theme.of(context).colorScheme.primary
+                      : null,
+                ),
+                title: Text(
+                  station.name,
+                  style: isPlaying
+                      ? TextStyle(
+                          color: Theme.of(context).colorScheme.primary,
+                          fontWeight: FontWeight.w600,
+                        )
+                      : null,
+                ),
                 subtitle: Text(
                   station.streamUrl,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
+                trailing: isPlaying
+                    ? IconButton(
+                        icon: const Icon(Icons.stop_circle_outlined),
+                        tooltip: l10n.radioStopStation,
+                        onPressed: () {
+                          final handler = ref.read(audioHandlerProvider);
+                          unawaited(handler?.stopRadio());
+                        },
+                      )
+                    : null,
+                onTap: () => _onStationTap(context, ref, station, isPlaying),
               );
             },
           );
@@ -82,6 +110,36 @@ class RadioTabContent extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+
+  void _onStationTap(
+    BuildContext context,
+    WidgetRef ref,
+    dynamic station,
+    bool isPlaying,
+  ) {
+    final handler = ref.read(audioHandlerProvider);
+    if (handler == null) return;
+
+    if (isPlaying) {
+      unawaited(handler.stopRadio());
+      return;
+    }
+
+    unawaited(
+      handler.playRadioStream(
+        stationId: station.id as String,
+        stationName: station.name as String,
+        streamUrl: station.streamUrl as String,
+        homePageUrl: station.homePageUrl as String?,
+      ).catchError((Object error) {
+        if (!context.mounted) return;
+        final l10n = AppLocalizations.of(context)!;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l10n.radioPlaybackError)),
+        );
+      }),
     );
   }
 

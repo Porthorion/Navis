@@ -198,6 +198,24 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
     _controller.add(_snapshot);
   }
 
+  @override
+  Future<void> playRadioStream({
+    required String stationId,
+    required String stationName,
+    required String streamUrl,
+    String? homePageUrl,
+  }) async {}
+
+  @override
+  Future<void> stopRadio() async {}
+
+  @override
+  void updateRadioMetadata({
+    String? title,
+    String? artist,
+    String? artUrl,
+  }) {}
+
   Future<void> dispose() async {
     await _controller.close();
   }
