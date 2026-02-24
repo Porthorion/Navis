@@ -1381,6 +1381,35 @@ class AppLocalizationsEn extends AppLocalizations {
       'Delete this custom color preset?';
 
   @override
+  String get appearanceArtTintedLabel => 'Art-tinted Now Playing';
+
+  @override
+  String get appearanceArtTintedSub =>
+      'Tint the Now Playing background with colours from the album art.';
+
+  @override
+  String get cacheSettingsCoverArtSection => 'Cover art cache';
+
+  @override
+  String get cacheSettingsCoverArtDescription =>
+      'Cached album artwork images. Larger limits reduce network requests but use more storage.';
+
+  @override
+  String get cacheSettingsCoverArtMaxLabel => 'Maximum images';
+
+  @override
+  String cacheSettingsCoverArtMaxValue(int count) {
+    return '$count images';
+  }
+
+  @override
+  String get cacheSettingsCoverArtMaxSaved => 'Cover art cache limit updated.';
+
+  @override
+  String get cacheSettingsCoverArtRestart =>
+      'Changes take effect after restarting the app.';
+
+  @override
   String get aboutTitle => 'About';
 
   @override

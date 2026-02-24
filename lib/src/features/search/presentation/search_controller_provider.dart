@@ -31,8 +31,8 @@ class SearchFocusRequestNotifier extends Notifier<int> {
 
 final searchFocusRequestProvider =
     NotifierProvider<SearchFocusRequestNotifier, int>(
-  SearchFocusRequestNotifier.new,
-);
+      SearchFocusRequestNotifier.new,
+    );
 
 final recentSearchesProvider = StreamProvider<List<RecentSearchesTableData>>((
   ref,

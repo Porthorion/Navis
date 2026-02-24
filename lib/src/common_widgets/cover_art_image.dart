@@ -4,13 +4,23 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
-final _coverArtCacheManager = CacheManager(
-  Config(
-    'navis_cover_art_cache',
-    stalePeriod: const Duration(days: 30),
-    maxNrOfCacheObjects: 5000,
-  ),
-);
+/// Shared cover art cache key used by both the cache manager and clear logic.
+const String coverArtCacheKey = 'navis_cover_art_cache';
+
+/// Creates a [CacheManager] for cover art images. The [maxNrOfCacheObjects]
+/// parameter controls how many images are stored on disk.
+CacheManager createCoverArtCacheManager({int maxNrOfCacheObjects = 5000}) {
+  return CacheManager(
+    Config(
+      coverArtCacheKey,
+      stalePeriod: const Duration(days: 30),
+      maxNrOfCacheObjects: maxNrOfCacheObjects,
+    ),
+  );
+}
+
+/// Module-level default instance — used when the provider isn't available yet.
+final CacheManager defaultCoverArtCacheManager = createCoverArtCacheManager();
 
 class CoverArtImage extends ConsumerWidget {
   const CoverArtImage({
@@ -52,7 +62,7 @@ class CoverArtImage extends ConsumerWidget {
       fit: fit,
       width: width,
       height: height,
-      cacheManager: _coverArtCacheManager,
+      cacheManager: defaultCoverArtCacheManager,
       fadeInDuration: const Duration(milliseconds: 150),
       fadeOutDuration: Duration.zero,
       memCacheWidth: _memCacheSize(width, size),

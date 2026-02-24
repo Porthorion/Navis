@@ -65,7 +65,7 @@ class NavisDatabase extends _$NavisDatabase {
   static QueryExecutor _openConnection() => driftDatabase(name: 'navis.sqlite');
 
   @override
-  int get schemaVersion => 13;
+  int get schemaVersion => 14;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -122,6 +122,9 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 13 && to >= 13) {
       await from12To13(migrator);
+    }
+    if (from < 14 && to >= 14) {
+      await from13To14(migrator);
     }
   }
 
@@ -270,6 +273,21 @@ class NavisDatabase extends _$NavisDatabase {
       await migrator.addColumn(
         appSettingsTable,
         appSettingsTable.crossfadeType,
+      );
+    }
+  }
+
+  Future<void> from13To14(Migrator migrator) async {
+    if (!await _columnExists('app_settings', 'cover_art_cache_max_objects')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.coverArtCacheMaxObjects,
+      );
+    }
+    if (!await _columnExists('app_settings', 'art_tinted_now_playing')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.artTintedNowPlaying,
       );
     }
   }

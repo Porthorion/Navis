@@ -14,5 +14,5 @@ class PlayerSheetController extends Notifier<bool> {
 
 final playerSheetExpandedProvider =
     NotifierProvider<PlayerSheetController, bool>(
-  PlayerSheetController.new,
-);
+      PlayerSheetController.new,
+    );

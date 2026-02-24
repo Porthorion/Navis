@@ -64,6 +64,14 @@ class AppSettingsTable extends Table {
   TextColumn get crossfadeType =>
       text().withDefault(const Constant('normal'))();
 
+  /// Max number of cover art images to keep in the disk cache. Default 5000.
+  IntColumn get coverArtCacheMaxObjects =>
+      integer().withDefault(const Constant(5000))();
+
+  /// When true, the Now Playing background is tinted with album art colors.
+  BoolColumn get artTintedNowPlaying =>
+      boolean().withDefault(const Constant(false))();
+
   DateTimeColumn get updatedAt => dateTime()();
 
   @override

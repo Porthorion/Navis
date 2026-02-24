@@ -128,6 +128,20 @@ class AppearanceSettingsScreen extends ConsumerWidget {
               }
             },
           ),
+          const Divider(height: 32),
+
+          // ── Art-Tinted Now Playing ──────────────────────────────
+          SwitchListTile(
+            title: Text(l10n.appearanceArtTintedLabel),
+            subtitle: Text(l10n.appearanceArtTintedSub),
+            value: ref.watch(artTintedNowPlayingProvider),
+            onChanged: (enabled) async {
+              final db = ref.read(navisDatabaseProvider);
+              await db.appSettingsDao.updateArtTintedNowPlaying(
+                enabled: enabled,
+              );
+            },
+          ),
         ],
       ),
     );

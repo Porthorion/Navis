@@ -161,6 +161,7 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
         readApiClient: () => ref.read(subsonicApiProvider),
         readStreamingQuality: () => ref.read(activeStreamingQualityProvider),
         readRollingCacheDirectory: getTemporaryDirectory,
+        readIsWifi: () => ref.read(networkTypeProvider) == NetworkType.wifi,
       ),
       readApiClient: () => ref.read(subsonicApiProvider),
       rollingCacheManager: ref.read(rollingCacheManagerProvider),
@@ -770,6 +771,14 @@ final colorSchemeSeedProvider = Provider<int?>((ref) {
       ref.watch(appSettingsProvider).asData?.value ??
       const AppSettingsModel.defaults();
   return settings.colorSchemeSeed;
+});
+
+/// Whether the Now Playing screen background should be tinted with album art.
+final artTintedNowPlayingProvider = Provider<bool>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.artTintedNowPlaying;
 });
 
 /// Custom color presets stored as a JSON list of ARGB32 ints.

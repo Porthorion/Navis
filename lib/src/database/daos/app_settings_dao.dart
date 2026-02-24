@@ -46,6 +46,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     required bool crossfadeEnabled,
     required int crossfadeDurationSeconds,
     required String crossfadeType,
+    required bool artTintedNowPlaying,
   }) {
     return into(appSettingsTable).insertOnConflictUpdate(
       AppSettingsTableCompanion.insert(
@@ -68,6 +69,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         crossfadeEnabled: Value(crossfadeEnabled),
         crossfadeDurationSeconds: Value(crossfadeDurationSeconds),
         crossfadeType: Value(crossfadeType),
+        artTintedNowPlaying: Value(artTintedNowPlaying),
         updatedAt: DateTime.now(),
       ),
     );
@@ -93,6 +95,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       crossfadeEnabled: false,
       crossfadeDurationSeconds: 5,
       crossfadeType: 'normal',
+      artTintedNowPlaying: false,
     );
   }
 
@@ -205,5 +208,57 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   /// Stream the custom color presets JSON.
   Stream<String?> watchCustomColorPresets() {
     return watchSettings().map((s) => s?.customColorPresets);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Cover art cache helpers
+  // ---------------------------------------------------------------------------
+
+  static const int defaultCoverArtCacheMaxObjects = 5000;
+
+  /// Targeted update for cover art cache max objects.
+  Future<void> updateCoverArtCacheMaxObjects(int maxObjects) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        coverArtCacheMaxObjects: Value(maxObjects),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Stream the cover art cache max objects setting.
+  Stream<int> watchCoverArtCacheMaxObjects() {
+    return watchSettings().map(
+      (s) => s?.coverArtCacheMaxObjects ?? defaultCoverArtCacheMaxObjects,
+    );
+  }
+
+  /// Read current cover art cache max objects (one-shot).
+  Future<int> getCoverArtCacheMaxObjects() async {
+    final s = await getSettings();
+    return s?.coverArtCacheMaxObjects ?? defaultCoverArtCacheMaxObjects;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Art-tinted Now Playing helpers
+  // ---------------------------------------------------------------------------
+
+  /// Targeted update for art-tinted Now Playing.
+  Future<void> updateArtTintedNowPlaying({required bool enabled}) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        artTintedNowPlaying: Value(enabled),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Stream the art-tinted Now Playing setting.
+  Stream<bool> watchArtTintedNowPlaying() {
+    return watchSettings().map((s) => s?.artTintedNowPlaying ?? false);
   }
 }

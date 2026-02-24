@@ -416,6 +416,7 @@ class _PlaybackSettingsScreenState
         crossfadeEnabled: _crossfadeEnabled,
         crossfadeDurationSeconds: _crossfadeDurationSeconds,
         crossfadeType: _crossfadeType,
+        artTintedNowPlaying: ref.read(artTintedNowPlayingProvider),
       );
       await ref.read(settingsRepositoryProvider).saveSettings(settings);
       final handler = ref.read(audioHandlerProvider);

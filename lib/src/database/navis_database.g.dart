@@ -790,6 +790,32 @@ class $AppSettingsTableTable extends AppSettingsTable
     requiredDuringInsert: false,
     defaultValue: const Constant('normal'),
   );
+  static const VerificationMeta _coverArtCacheMaxObjectsMeta =
+      const VerificationMeta('coverArtCacheMaxObjects');
+  @override
+  late final GeneratedColumn<int> coverArtCacheMaxObjects =
+      GeneratedColumn<int>(
+        'cover_art_cache_max_objects',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(5000),
+      );
+  static const VerificationMeta _artTintedNowPlayingMeta =
+      const VerificationMeta('artTintedNowPlaying');
+  @override
+  late final GeneratedColumn<bool> artTintedNowPlaying = GeneratedColumn<bool>(
+    'art_tinted_now_playing',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("art_tinted_now_playing" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _updatedAtMeta = const VerificationMeta(
     'updatedAt',
   );
@@ -824,6 +850,8 @@ class $AppSettingsTableTable extends AppSettingsTable
     crossfadeEnabled,
     crossfadeDurationSeconds,
     crossfadeType,
+    coverArtCacheMaxObjects,
+    artTintedNowPlaying,
     updatedAt,
   ];
   @override
@@ -1015,6 +1043,24 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
       );
     }
+    if (data.containsKey('cover_art_cache_max_objects')) {
+      context.handle(
+        _coverArtCacheMaxObjectsMeta,
+        coverArtCacheMaxObjects.isAcceptableOrUnknown(
+          data['cover_art_cache_max_objects']!,
+          _coverArtCacheMaxObjectsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('art_tinted_now_playing')) {
+      context.handle(
+        _artTintedNowPlayingMeta,
+        artTintedNowPlaying.isAcceptableOrUnknown(
+          data['art_tinted_now_playing']!,
+          _artTintedNowPlayingMeta,
+        ),
+      );
+    }
     if (data.containsKey('updated_at')) {
       context.handle(
         _updatedAtMeta,
@@ -1116,6 +1162,14 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.string,
         data['${effectivePrefix}crossfade_type'],
       )!,
+      coverArtCacheMaxObjects: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}cover_art_cache_max_objects'],
+      )!,
+      artTintedNowPlaying: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}art_tinted_now_playing'],
+      )!,
       updatedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
@@ -1168,6 +1222,12 @@ class AppSettingsTableData extends DataClass
 
   /// Cross-fade type: 'normal' (always) or 'smart' (different albums only).
   final String crossfadeType;
+
+  /// Max number of cover art images to keep in the disk cache. Default 5000.
+  final int coverArtCacheMaxObjects;
+
+  /// When true, the Now Playing background is tinted with album art colors.
+  final bool artTintedNowPlaying;
   final DateTime updatedAt;
   const AppSettingsTableData({
     required this.id,
@@ -1191,6 +1251,8 @@ class AppSettingsTableData extends DataClass
     required this.crossfadeEnabled,
     required this.crossfadeDurationSeconds,
     required this.crossfadeType,
+    required this.coverArtCacheMaxObjects,
+    required this.artTintedNowPlaying,
     required this.updatedAt,
   });
   @override
@@ -1233,6 +1295,8 @@ class AppSettingsTableData extends DataClass
     map['crossfade_enabled'] = Variable<bool>(crossfadeEnabled);
     map['crossfade_duration_seconds'] = Variable<int>(crossfadeDurationSeconds);
     map['crossfade_type'] = Variable<String>(crossfadeType);
+    map['cover_art_cache_max_objects'] = Variable<int>(coverArtCacheMaxObjects);
+    map['art_tinted_now_playing'] = Variable<bool>(artTintedNowPlaying);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
   }
@@ -1276,6 +1340,8 @@ class AppSettingsTableData extends DataClass
       crossfadeEnabled: Value(crossfadeEnabled),
       crossfadeDurationSeconds: Value(crossfadeDurationSeconds),
       crossfadeType: Value(crossfadeType),
+      coverArtCacheMaxObjects: Value(coverArtCacheMaxObjects),
+      artTintedNowPlaying: Value(artTintedNowPlaying),
       updatedAt: Value(updatedAt),
     );
   }
@@ -1317,6 +1383,12 @@ class AppSettingsTableData extends DataClass
         json['crossfadeDurationSeconds'],
       ),
       crossfadeType: serializer.fromJson<String>(json['crossfadeType']),
+      coverArtCacheMaxObjects: serializer.fromJson<int>(
+        json['coverArtCacheMaxObjects'],
+      ),
+      artTintedNowPlaying: serializer.fromJson<bool>(
+        json['artTintedNowPlaying'],
+      ),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
   }
@@ -1347,6 +1419,10 @@ class AppSettingsTableData extends DataClass
         crossfadeDurationSeconds,
       ),
       'crossfadeType': serializer.toJson<String>(crossfadeType),
+      'coverArtCacheMaxObjects': serializer.toJson<int>(
+        coverArtCacheMaxObjects,
+      ),
+      'artTintedNowPlaying': serializer.toJson<bool>(artTintedNowPlaying),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
   }
@@ -1373,6 +1449,8 @@ class AppSettingsTableData extends DataClass
     bool? crossfadeEnabled,
     int? crossfadeDurationSeconds,
     String? crossfadeType,
+    int? coverArtCacheMaxObjects,
+    bool? artTintedNowPlaying,
     DateTime? updatedAt,
   }) => AppSettingsTableData(
     id: id ?? this.id,
@@ -1411,6 +1489,9 @@ class AppSettingsTableData extends DataClass
     crossfadeDurationSeconds:
         crossfadeDurationSeconds ?? this.crossfadeDurationSeconds,
     crossfadeType: crossfadeType ?? this.crossfadeType,
+    coverArtCacheMaxObjects:
+        coverArtCacheMaxObjects ?? this.coverArtCacheMaxObjects,
+    artTintedNowPlaying: artTintedNowPlaying ?? this.artTintedNowPlaying,
     updatedAt: updatedAt ?? this.updatedAt,
   );
   AppSettingsTableData copyWithCompanion(AppSettingsTableCompanion data) {
@@ -1474,6 +1555,12 @@ class AppSettingsTableData extends DataClass
       crossfadeType: data.crossfadeType.present
           ? data.crossfadeType.value
           : this.crossfadeType,
+      coverArtCacheMaxObjects: data.coverArtCacheMaxObjects.present
+          ? data.coverArtCacheMaxObjects.value
+          : this.coverArtCacheMaxObjects,
+      artTintedNowPlaying: data.artTintedNowPlaying.present
+          ? data.artTintedNowPlaying.value
+          : this.artTintedNowPlaying,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
   }
@@ -1502,6 +1589,8 @@ class AppSettingsTableData extends DataClass
           ..write('crossfadeEnabled: $crossfadeEnabled, ')
           ..write('crossfadeDurationSeconds: $crossfadeDurationSeconds, ')
           ..write('crossfadeType: $crossfadeType, ')
+          ..write('coverArtCacheMaxObjects: $coverArtCacheMaxObjects, ')
+          ..write('artTintedNowPlaying: $artTintedNowPlaying, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
@@ -1530,6 +1619,8 @@ class AppSettingsTableData extends DataClass
     crossfadeEnabled,
     crossfadeDurationSeconds,
     crossfadeType,
+    coverArtCacheMaxObjects,
+    artTintedNowPlaying,
     updatedAt,
   ]);
   @override
@@ -1557,6 +1648,8 @@ class AppSettingsTableData extends DataClass
           other.crossfadeEnabled == this.crossfadeEnabled &&
           other.crossfadeDurationSeconds == this.crossfadeDurationSeconds &&
           other.crossfadeType == this.crossfadeType &&
+          other.coverArtCacheMaxObjects == this.coverArtCacheMaxObjects &&
+          other.artTintedNowPlaying == this.artTintedNowPlaying &&
           other.updatedAt == this.updatedAt);
 }
 
@@ -1582,6 +1675,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<bool> crossfadeEnabled;
   final Value<int> crossfadeDurationSeconds;
   final Value<String> crossfadeType;
+  final Value<int> coverArtCacheMaxObjects;
+  final Value<bool> artTintedNowPlaying;
   final Value<DateTime> updatedAt;
   const AppSettingsTableCompanion({
     this.id = const Value.absent(),
@@ -1605,6 +1700,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.crossfadeEnabled = const Value.absent(),
     this.crossfadeDurationSeconds = const Value.absent(),
     this.crossfadeType = const Value.absent(),
+    this.coverArtCacheMaxObjects = const Value.absent(),
+    this.artTintedNowPlaying = const Value.absent(),
     this.updatedAt = const Value.absent(),
   });
   AppSettingsTableCompanion.insert({
@@ -1629,6 +1726,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.crossfadeEnabled = const Value.absent(),
     this.crossfadeDurationSeconds = const Value.absent(),
     this.crossfadeType = const Value.absent(),
+    this.coverArtCacheMaxObjects = const Value.absent(),
+    this.artTintedNowPlaying = const Value.absent(),
     required DateTime updatedAt,
   }) : updatedAt = Value(updatedAt);
   static Insertable<AppSettingsTableData> custom({
@@ -1653,6 +1752,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<bool>? crossfadeEnabled,
     Expression<int>? crossfadeDurationSeconds,
     Expression<String>? crossfadeType,
+    Expression<int>? coverArtCacheMaxObjects,
+    Expression<bool>? artTintedNowPlaying,
     Expression<DateTime>? updatedAt,
   }) {
     return RawValuesInsertable({
@@ -1684,6 +1785,10 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       if (crossfadeDurationSeconds != null)
         'crossfade_duration_seconds': crossfadeDurationSeconds,
       if (crossfadeType != null) 'crossfade_type': crossfadeType,
+      if (coverArtCacheMaxObjects != null)
+        'cover_art_cache_max_objects': coverArtCacheMaxObjects,
+      if (artTintedNowPlaying != null)
+        'art_tinted_now_playing': artTintedNowPlaying,
       if (updatedAt != null) 'updated_at': updatedAt,
     });
   }
@@ -1710,6 +1815,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<bool>? crossfadeEnabled,
     Value<int>? crossfadeDurationSeconds,
     Value<String>? crossfadeType,
+    Value<int>? coverArtCacheMaxObjects,
+    Value<bool>? artTintedNowPlaying,
     Value<DateTime>? updatedAt,
   }) {
     return AppSettingsTableCompanion(
@@ -1735,6 +1842,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       crossfadeDurationSeconds:
           crossfadeDurationSeconds ?? this.crossfadeDurationSeconds,
       crossfadeType: crossfadeType ?? this.crossfadeType,
+      coverArtCacheMaxObjects:
+          coverArtCacheMaxObjects ?? this.coverArtCacheMaxObjects,
+      artTintedNowPlaying: artTintedNowPlaying ?? this.artTintedNowPlaying,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
@@ -1811,6 +1921,14 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     if (crossfadeType.present) {
       map['crossfade_type'] = Variable<String>(crossfadeType.value);
     }
+    if (coverArtCacheMaxObjects.present) {
+      map['cover_art_cache_max_objects'] = Variable<int>(
+        coverArtCacheMaxObjects.value,
+      );
+    }
+    if (artTintedNowPlaying.present) {
+      map['art_tinted_now_playing'] = Variable<bool>(artTintedNowPlaying.value);
+    }
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
@@ -1841,6 +1959,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('crossfadeEnabled: $crossfadeEnabled, ')
           ..write('crossfadeDurationSeconds: $crossfadeDurationSeconds, ')
           ..write('crossfadeType: $crossfadeType, ')
+          ..write('coverArtCacheMaxObjects: $coverArtCacheMaxObjects, ')
+          ..write('artTintedNowPlaying: $artTintedNowPlaying, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
@@ -8282,6 +8402,8 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<bool> crossfadeEnabled,
       Value<int> crossfadeDurationSeconds,
       Value<String> crossfadeType,
+      Value<int> coverArtCacheMaxObjects,
+      Value<bool> artTintedNowPlaying,
       required DateTime updatedAt,
     });
 typedef $$AppSettingsTableTableUpdateCompanionBuilder =
@@ -8307,6 +8429,8 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<bool> crossfadeEnabled,
       Value<int> crossfadeDurationSeconds,
       Value<String> crossfadeType,
+      Value<int> coverArtCacheMaxObjects,
+      Value<bool> artTintedNowPlaying,
       Value<DateTime> updatedAt,
     });
 
@@ -8421,6 +8545,16 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<String> get crossfadeType => $composableBuilder(
     column: $table.crossfadeType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get coverArtCacheMaxObjects => $composableBuilder(
+    column: $table.coverArtCacheMaxObjects,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get artTintedNowPlaying => $composableBuilder(
+    column: $table.artTintedNowPlaying,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -8544,6 +8678,16 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get coverArtCacheMaxObjects => $composableBuilder(
+    column: $table.coverArtCacheMaxObjects,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get artTintedNowPlaying => $composableBuilder(
+    column: $table.artTintedNowPlaying,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
@@ -8660,6 +8804,16 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<int> get coverArtCacheMaxObjects => $composableBuilder(
+    column: $table.coverArtCacheMaxObjects,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get artTintedNowPlaying => $composableBuilder(
+    column: $table.artTintedNowPlaying,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 }
@@ -8722,6 +8876,8 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> crossfadeEnabled = const Value.absent(),
                 Value<int> crossfadeDurationSeconds = const Value.absent(),
                 Value<String> crossfadeType = const Value.absent(),
+                Value<int> coverArtCacheMaxObjects = const Value.absent(),
+                Value<bool> artTintedNowPlaying = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
               }) => AppSettingsTableCompanion(
                 id: id,
@@ -8745,6 +8901,8 @@ class $$AppSettingsTableTableTableManager
                 crossfadeEnabled: crossfadeEnabled,
                 crossfadeDurationSeconds: crossfadeDurationSeconds,
                 crossfadeType: crossfadeType,
+                coverArtCacheMaxObjects: coverArtCacheMaxObjects,
+                artTintedNowPlaying: artTintedNowPlaying,
                 updatedAt: updatedAt,
               ),
           createCompanionCallback:
@@ -8770,6 +8928,8 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> crossfadeEnabled = const Value.absent(),
                 Value<int> crossfadeDurationSeconds = const Value.absent(),
                 Value<String> crossfadeType = const Value.absent(),
+                Value<int> coverArtCacheMaxObjects = const Value.absent(),
+                Value<bool> artTintedNowPlaying = const Value.absent(),
                 required DateTime updatedAt,
               }) => AppSettingsTableCompanion.insert(
                 id: id,
@@ -8793,6 +8953,8 @@ class $$AppSettingsTableTableTableManager
                 crossfadeEnabled: crossfadeEnabled,
                 crossfadeDurationSeconds: crossfadeDurationSeconds,
                 crossfadeType: crossfadeType,
+                coverArtCacheMaxObjects: coverArtCacheMaxObjects,
+                artTintedNowPlaying: artTintedNowPlaying,
                 updatedAt: updatedAt,
               ),
           withReferenceMapper: (p0) => p0

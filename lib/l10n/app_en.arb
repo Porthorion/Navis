@@ -403,7 +403,7 @@
   "miniPlayerPlay": "Play",
   "miniPlayerPause": "Pause",
   "playbackBootstrapLoadingTitle": "Preparing playback",
-  "playbackBootstrapLoadingSubtitle": "Initializing audio services...",
+  "playbackBootstrapLoadingSubtitle": "Restoring your listening session…",
   "playbackBootstrapFailedTitle": "Playback initialization failed",
   "playbackBootstrapFailedSubtitle": "Could not initialize playback. Retry to continue.",
   "playbackBootstrapRetryAction": "Retry playback startup",
@@ -641,6 +641,21 @@
   "appearanceColorPresetDeleted": "Custom preset deleted",
   "appearanceColorDeletePreset": "Delete preset",
   "appearanceColorDeletePresetConfirm": "Delete this custom color preset?",
+
+  "appearanceArtTintedLabel": "Art-tinted Now Playing",
+  "appearanceArtTintedSub": "Tint the Now Playing background with colours from the album art.",
+
+  "cacheSettingsCoverArtSection": "Cover art cache",
+  "cacheSettingsCoverArtDescription": "Cached album artwork images. Larger limits reduce network requests but use more storage.",
+  "cacheSettingsCoverArtMaxLabel": "Maximum images",
+  "cacheSettingsCoverArtMaxValue": "{count} images",
+  "@cacheSettingsCoverArtMaxValue": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "cacheSettingsCoverArtMaxSaved": "Cover art cache limit updated.",
+  "cacheSettingsCoverArtRestart": "Changes take effect after restarting the app.",
 
   "aboutTitle": "About",
   "aboutVersion": "Version",

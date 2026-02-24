@@ -22,6 +22,7 @@ class AppSettingsModel {
     required this.crossfadeEnabled,
     required this.crossfadeDurationSeconds,
     required this.crossfadeType,
+    required this.artTintedNowPlaying,
   });
 
   const AppSettingsModel.defaults()
@@ -42,7 +43,8 @@ class AppSettingsModel {
       colorSchemeSeed = null,
       crossfadeEnabled = false,
       crossfadeDurationSeconds = 5,
-      crossfadeType = 'normal';
+      crossfadeType = 'normal',
+      artTintedNowPlaying = false;
 
   final int? wifiMaxBitRate;
   final String? wifiFormat;
@@ -64,6 +66,7 @@ class AppSettingsModel {
   final bool crossfadeEnabled;
   final int crossfadeDurationSeconds;
   final String crossfadeType;
+  final bool artTintedNowPlaying;
 
   AppSettingsModel copyWith({
     int? wifiMaxBitRate,
@@ -84,6 +87,7 @@ class AppSettingsModel {
     bool? crossfadeEnabled,
     int? crossfadeDurationSeconds,
     String? crossfadeType,
+    bool? artTintedNowPlaying,
     bool clearWifiBitRate = false,
     bool clearWifiFormat = false,
     bool clearCellularBitRate = false,
@@ -119,6 +123,7 @@ class AppSettingsModel {
       crossfadeDurationSeconds:
           crossfadeDurationSeconds ?? this.crossfadeDurationSeconds,
       crossfadeType: crossfadeType ?? this.crossfadeType,
+      artTintedNowPlaying: artTintedNowPlaying ?? this.artTintedNowPlaying,
     );
   }
 }

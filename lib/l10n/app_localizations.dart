@@ -2499,6 +2499,54 @@ abstract class AppLocalizations {
   /// **'Delete this custom color preset?'**
   String get appearanceColorDeletePresetConfirm;
 
+  /// No description provided for @appearanceArtTintedLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Art-tinted Now Playing'**
+  String get appearanceArtTintedLabel;
+
+  /// No description provided for @appearanceArtTintedSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Tint the Now Playing background with colours from the album art.'**
+  String get appearanceArtTintedSub;
+
+  /// No description provided for @cacheSettingsCoverArtSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Cover art cache'**
+  String get cacheSettingsCoverArtSection;
+
+  /// No description provided for @cacheSettingsCoverArtDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Cached album artwork images. Larger limits reduce network requests but use more storage.'**
+  String get cacheSettingsCoverArtDescription;
+
+  /// No description provided for @cacheSettingsCoverArtMaxLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Maximum images'**
+  String get cacheSettingsCoverArtMaxLabel;
+
+  /// No description provided for @cacheSettingsCoverArtMaxValue.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} images'**
+  String cacheSettingsCoverArtMaxValue(int count);
+
+  /// No description provided for @cacheSettingsCoverArtMaxSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Cover art cache limit updated.'**
+  String get cacheSettingsCoverArtMaxSaved;
+
+  /// No description provided for @cacheSettingsCoverArtRestart.
+  ///
+  /// In en, this message translates to:
+  /// **'Changes take effect after restarting the app.'**
+  String get cacheSettingsCoverArtRestart;
+
   /// No description provided for @aboutTitle.
   ///
   /// In en, this message translates to:
