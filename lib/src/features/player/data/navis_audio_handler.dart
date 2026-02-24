@@ -1187,8 +1187,12 @@ class NavisAudioHandler extends BaseAudioHandler
     queue.add(List<MediaItem>.unmodifiable(_queueItems));
     mediaItem.add(_queueItems[startIndex]);
 
+    // IMPORTANT: Do NOT await _player.play() here.  play() returns a Future
+    // that only completes when playback finishes or is interrupted.  Awaiting
+    // it inside a _runSerialized block would deadlock all subsequent serialized
+    // operations (pause, seek, skip, queue mutations) until the track ends.
     if (autoPlay) {
-      await _player.play();
+      unawaited(_player.play());
     } else {
       await _player.pause();
     }
@@ -1523,30 +1527,28 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   @override
-  Future<void> play() {
-    return _runSerialized(() async {
-      await _ready;
-      await navisRunTransportWithPersistence(
-        transportOperation: _player.play,
-        persistOperation: () => _persistQueueState(includePosition: false),
-        persistSafely: _persistSafely,
-        persistenceContext: 'play',
-      );
-    });
+  Future<void> play() async {
+    await _ready;
+    // play() must NOT go through _runSerialized — _player.play() returns a
+    // Future that blocks until playback finishes/pauses.  Serializing it would
+    // deadlock all subsequent operations (pause, seek, skip, queue changes).
+    unawaited(_player.play());
+    await _persistSafely(
+      () => _persistQueueState(includePosition: false),
+      context: 'play',
+    );
   }
 
   @override
-  Future<void> pause() {
-    return _runSerialized(() async {
-      await _ready;
-      _cancelCrossfade();
-      await navisRunTransportWithPersistence(
-        transportOperation: _player.pause,
-        persistOperation: _persistPosition,
-        persistSafely: _persistSafely,
-        persistenceContext: 'pause',
-      );
-    });
+  Future<void> pause() async {
+    await _ready;
+    _cancelCrossfade();
+    await navisRunTransportWithPersistence(
+      transportOperation: _player.pause,
+      persistOperation: _persistPosition,
+      persistSafely: _persistSafely,
+      persistenceContext: 'pause',
+    );
   }
 
   @override
@@ -1604,60 +1606,54 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   @override
-  Future<void> seek(Duration position) {
-    return _runSerialized(() async {
-      await _ready;
-      _cancelCrossfade();
-      final sanitizedPosition = navisSanitizeSeekPosition(position);
-      await navisRunTransportWithPersistence(
-        transportOperation: () => _player.seek(sanitizedPosition),
-        persistOperation: _persistPosition,
-        persistSafely: _persistSafely,
-        persistenceContext: 'seek',
-      );
-    });
+  Future<void> seek(Duration position) async {
+    await _ready;
+    _cancelCrossfade();
+    final sanitizedPosition = navisSanitizeSeekPosition(position);
+    await navisRunTransportWithPersistence(
+      transportOperation: () => _player.seek(sanitizedPosition),
+      persistOperation: _persistPosition,
+      persistSafely: _persistSafely,
+      persistenceContext: 'seek',
+    );
   }
 
   @override
-  Future<void> skipToNext() {
-    return _runSerialized(() async {
-      await _ready;
-      _cancelCrossfade();
-      if (!navisCanSkipQueueItem(
-        queueLength: _queueItems.length,
-        currentIndex: _player.currentIndex,
-        forward: true,
-      )) {
-        return;
-      }
-      await navisRunTransportWithPersistence(
-        transportOperation: _player.seekToNext,
-        persistOperation: _persistQueueState,
-        persistSafely: _persistSafely,
-        persistenceContext: 'skip next',
-      );
-    });
+  Future<void> skipToNext() async {
+    await _ready;
+    _cancelCrossfade();
+    if (!navisCanSkipQueueItem(
+      queueLength: _queueItems.length,
+      currentIndex: _player.currentIndex,
+      forward: true,
+    )) {
+      return;
+    }
+    await navisRunTransportWithPersistence(
+      transportOperation: _player.seekToNext,
+      persistOperation: _persistQueueState,
+      persistSafely: _persistSafely,
+      persistenceContext: 'skip next',
+    );
   }
 
   @override
-  Future<void> skipToPrevious() {
-    return _runSerialized(() async {
-      await _ready;
-      _cancelCrossfade();
-      if (!navisCanSkipQueueItem(
-        queueLength: _queueItems.length,
-        currentIndex: _player.currentIndex,
-        forward: false,
-      )) {
-        return;
-      }
-      await navisRunTransportWithPersistence(
-        transportOperation: _player.seekToPrevious,
-        persistOperation: _persistQueueState,
-        persistSafely: _persistSafely,
-        persistenceContext: 'skip previous',
-      );
-    });
+  Future<void> skipToPrevious() async {
+    await _ready;
+    _cancelCrossfade();
+    if (!navisCanSkipQueueItem(
+      queueLength: _queueItems.length,
+      currentIndex: _player.currentIndex,
+      forward: false,
+    )) {
+      return;
+    }
+    await navisRunTransportWithPersistence(
+      transportOperation: _player.seekToPrevious,
+      persistOperation: _persistQueueState,
+      persistSafely: _persistSafely,
+      persistenceContext: 'skip previous',
+    );
   }
 
   @override
