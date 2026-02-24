@@ -47,6 +47,7 @@ class HomeScreen extends ConsumerWidget {
               ),
               emptyTitle: l10n.homeRecentlyPlayedEmptyTitle,
               emptySubtitle: l10n.homeRecentlyPlayedEmptySubtitle,
+              onRetry: () => ref.invalidate(homeRecentlyPlayedProvider),
             ),
             _HomeSection<List<Album>>(
               title: l10n.homeRecentlyAddedTitle,
@@ -58,6 +59,7 @@ class HomeScreen extends ConsumerWidget {
               ),
               emptyTitle: l10n.homeRecentlyAddedEmptyTitle,
               emptySubtitle: l10n.homeRecentlyAddedEmptySubtitle,
+              onRetry: () => ref.invalidate(homeRecentlyAddedProvider),
             ),
             _HomeSection<List<Album>>(
               title: l10n.homeFrequentTitle,
@@ -69,6 +71,7 @@ class HomeScreen extends ConsumerWidget {
               ),
               emptyTitle: l10n.homeFrequentEmptyTitle,
               emptySubtitle: l10n.homeFrequentEmptySubtitle,
+              onRetry: () => ref.invalidate(homeFrequentAlbumsProvider),
             ),
             _HomeSection<List<Album>>(
               title: l10n.homeRandomTitle,
@@ -80,6 +83,7 @@ class HomeScreen extends ConsumerWidget {
               ),
               emptyTitle: l10n.homeRandomEmptyTitle,
               emptySubtitle: l10n.homeRandomEmptySubtitle,
+              onRetry: () => ref.invalidate(homeRandomAlbumsProvider),
             ),
             _HomeSection<List<Song>>(
               title: l10n.homeStarredTitle,
@@ -96,6 +100,7 @@ class HomeScreen extends ConsumerWidget {
               ),
               emptyTitle: l10n.homeStarredEmptyTitle,
               emptySubtitle: l10n.homeStarredEmptySubtitle,
+              onRetry: () => ref.invalidate(homeStarredSongsProvider),
             ),
           ],
         ),
@@ -112,6 +117,7 @@ class _HomeSection<T> extends StatelessWidget {
     required this.isEmpty,
     required this.emptyTitle,
     required this.emptySubtitle,
+    this.onRetry,
   });
 
   final String title;
@@ -120,6 +126,7 @@ class _HomeSection<T> extends StatelessWidget {
   final bool Function(T value) isEmpty;
   final String emptyTitle;
   final String emptySubtitle;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -155,7 +162,7 @@ class _HomeSection<T> extends StatelessWidget {
               child: ErrorState(
                 title: l10n.homeLoadErrorTitle,
                 message: error.toString(),
-                retryLabel: l10n.commonRetry,
+                onRetry: onRetry,
               ),
             ),
           ),

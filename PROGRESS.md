@@ -39,6 +39,7 @@ Last updated: 2026-02-28
 - [x] Phase 8 increment 3 — Offline Filter + Playlist Downloads (auto-start DownloadService, playlist detail download button + per-song context menu, "Downloaded" FilterChip in library albums/artists tabs, downloadedContentIdsProvider) — 2026-02-23 (evidence: `dart analyze lib/` — 1 info, `flutter test` — 165/165 pass, commit aa4622a)
 - [x] UX fixes + cross-fade feature — 2026-02-27 (evidence: `flutter analyze` — 2 info, `flutter test` — 190/191 pass, 1 pre-existing flaky)
 - [x] Pre-Phase 10 gap closure (cover art cache config, Wi-Fi quality preference, art-tinted Now Playing, resume UX branding) — 2026-02-28 (evidence: `dart analyze lib/` — 0 errors, `flutter test` — 192/192 pass)
+- [x] Phase 10 increment 1 (art-tinted default ON schema v15, logging & diagnostics, haptic feedback, crash recovery verified, localization audit, error handling UX audit) — 2026-02-28 (evidence: `dart analyze lib/` — 0 errors, `flutter test` — 192/192 pass)
 
 ## Meta Progress
 - [x] Tech stack and methodology validation refresh — 2026-02-18 (evidence: `DEVELOPMENT_PLAN.md` stack validation section + README tech stack update)
@@ -357,6 +358,12 @@ Last updated: 2026-02-28
 - [x] Fixed cover art clear button bug — was using `DefaultCacheManager().emptyCache()` (wrong manager); changed to `defaultCoverArtCacheManager.emptyCache()`
 
 ## Phase 10: Polish & Platform Integration
+
+### Pre-Phase 10 — Art-tinted Default Change — 2026-02-28
+- [x] Database schema v15 — `from14To15` migration sets `art_tinted_now_playing = 1` for existing rows
+- [x] Updated Dart defaults (table, model, DAO) from `false` → `true`
+- [x] Updated all test expectations from `false` → `true`
+
 ### 10.1 — Animations
 - [ ] Hero transitions for cover art (grid → detail → now playing)
 - [ ] Material motion (`SharedAxisTransition`, `FadeThroughTransition`)
@@ -367,9 +374,12 @@ Last updated: 2026-02-28
 - [ ] 60fps scroll with 10K+ library
 - [ ] Provider auto-dispose verification
 
-### 10.3 — Error Handling UX Audit
-- [ ] Consistent snackbar / dialog / banner patterns
-- [ ] Skeleton shimmer used everywhere (audit all screens)
+### 10.3 — Error Handling UX Audit — 2026-02-28
+- [x] Consistent snackbar / dialog / banner patterns — standardized all 3 destructive confirmation dialogs (downloads clear, rolling cache clear, cover art cache clear) to use `FilledButton` with error color scheme instead of plain `TextButton`
+- [x] Added `onRetry` to 6 `ErrorState` usages that were missing retry (artist detail, album detail, genre detail, home sections) — users can now recover from errors everywhere
+- [x] Replaced 2 inline error branches in `downloads_screen.dart` with proper `ErrorState` widget (consistent icon size, retry support)
+- [x] Fixed search error: replaced `EmptyState` with `ErrorState` + retry in search results error branch
+- [ ] Skeleton shimmer used everywhere (audit all screens) — deferred: currently only library and home use shimmer; other screens still use `CircularProgressIndicator`
 
 ### 10.4 — Accessibility
 - [ ] Semantic labels on all interactive elements
@@ -377,31 +387,40 @@ Last updated: 2026-02-28
 - [ ] Screen reader testing
 - [ ] 48x48dp touch targets
 
-### 10.5 — Localization Audit
-- [ ] All screens reviewed for hardcoded strings
-- [ ] Plural forms verified
-- [ ] No string concatenation — ICU message parameters only
+### 10.5 — Localization Audit — 2026-02-28
+- [x] All screens reviewed for hardcoded strings — fixed 19 unique hardcoded strings across 10 files
+- [x] Added 5 new l10n keys: `commonLoading`, `queueUnknownTrack`, `queueUnknownArtist`, `queueTrackLoadError`, `appearanceLongPressHint`
+- [x] Reused existing keys: `lyricsNoneAvailable`, `commonRetry` (via nullable `ErrorState.retryLabel` with l10n fallback)
+- [x] Removed 3 redundant hardcoded `retryLabel: 'Retry'` from playlist screens
+- [ ] Plural forms verified — no new plural issues found; existing plurals use ICU correctly
+- [ ] No string concatenation — appearance tooltip fixed from `'$label (long-press to delete)'` to `l10n.appearanceLongPressHint(label)` ICU parameter
+- [ ] Deferred: color names in `navis_theme.dart` (15 Material color names in `const` list — requires restructure to localize), error messages in Notifiers (no `BuildContext` — requires enum-based approach)
 
 ### 10.6 — Android Platform Integration
 - [ ] Edge-to-edge display verified on Android 15 and Android 16
 - [ ] Predictive back gesture with `PopScope`
 - [ ] `POST_NOTIFICATIONS` runtime permission
 
-### 10.7 — Crash Recovery
-- [ ] Download queue resume on restart
-- [ ] Sync engine idempotency
-- [ ] Play queue restoration after force-kill
+### 10.7 — Crash Recovery — 2026-02-28 (verified)
+- [x] Download queue resume on restart — `DownloadService.start()` calls `requeueStuckDownloads()` at line 57
+- [x] Sync engine idempotency — 8 `upsert*` calls in `library_sync_engine.dart` ensure INSERT-OR-REPLACE semantics
+- [x] Play queue restoration after force-kill — `_restoreQueueFromDisk()` in `navis_audio_handler.dart` (lines 464, 802, 2112)
 
-### 10.8 — Haptic Feedback
-- [ ] Star/unstar, skip, long-press context menu
+### 10.8 — Haptic Feedback — 2026-02-28
+- [x] Star/unstar — `HapticFeedback.lightImpact()` in `StarButton`
+- [x] Skip — `HapticFeedback.mediumImpact()` on skip_previous/skip_next buttons in Now Playing + swipe gesture
+- [x] Long-press context menu — `HapticFeedback.mediumImpact()` on `TrackListTile`, `AlbumCard`, `ArtistCard` longPress
+- [x] Mini player swipe skip — `HapticFeedback.mediumImpact()` on mini player swipe in `AppShell`
 
-### 10.9 — Logging & Diagnostics
-- [ ] Logger integrated in API layer (request URLs + status codes, auth params redacted)
-- [ ] Logger integrated in sync engine (counts, duration, errors)
-- [ ] Logger integrated in audio handler (track transitions, source resolution)
-- [ ] Logger integrated in cache manager (eviction events)
-- [ ] Logger integrated in download queue (progress milestones, failures)
-- [ ] Release builds set log level to `Level.warning`
+### 10.9 — Logging & Diagnostics — 2026-02-28
+- [x] Logger integrated in API layer (request URLs + status codes, auth params redacted) — pre-existing in `SubsonicLoggingInterceptor`
+- [x] Logger integrated in sync engine (counts, duration, errors) — pre-existing in `LibrarySyncEngine`
+- [x] Logger integrated in audio handler (track transitions, source resolution) — pre-existing in `NavisAudioHandler`
+- [x] Logger integrated in cache manager (eviction events) — added `AppLogger.debug()` after eviction in `RollingCacheManager.enforceBudget()`
+- [x] Logger integrated in download queue (progress milestones, failures) — pre-existing in `DownloadService`
+- [x] Release builds set log level to `Level.warning` — configured in `main.dart` (pre-existing)
+- [x] Enhanced: API retry interceptor debug logging (retry attempt + path)
+- [x] Enhanced: Scrobble service info/debug logging (start + flush event count)
 
 ### 10.10 — In-App Update Checker
 - [ ] `UpdateRepository` (Forgejo Releases API)

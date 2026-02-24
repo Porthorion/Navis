@@ -98,6 +98,10 @@ class DriftRollingCacheManager implements RollingCacheManager {
 
     if (evictedIds.isNotEmpty) {
       await _cacheDao.deleteCachedTracksBySongIds(evictedIds);
+      AppLogger.debug(
+        'Rolling cache eviction: removed ${evictedIds.length} track(s), '
+        'freed ${(totalBytes - maxBytes).abs()} bytes',
+      );
     }
   }
 

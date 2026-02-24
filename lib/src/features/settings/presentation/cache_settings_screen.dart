@@ -97,7 +97,11 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
             onPressed: () => Navigator.pop(dialogContext, false),
             child: Text(l10n.cancelAction),
           ),
-          TextButton(
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(dialogContext).colorScheme.error,
+              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+            ),
             onPressed: () => Navigator.pop(dialogContext, true),
             child: Text(l10n.cacheSettingsClearRolling),
           ),
@@ -127,7 +131,11 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
             onPressed: () => Navigator.pop(dialogContext, false),
             child: Text(l10n.cancelAction),
           ),
-          TextButton(
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(dialogContext).colorScheme.error,
+              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+            ),
             onPressed: () => Navigator.pop(dialogContext, true),
             child: Text(l10n.cacheSettingsClearCoverArt),
           ),

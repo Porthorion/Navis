@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:navis/src/utils/app_logger.dart';
 
 /// Retries transient Subsonic request failures with exponential backoff.
 class SubsonicRetryInterceptor extends Interceptor {
@@ -30,6 +31,11 @@ class SubsonicRetryInterceptor extends Interceptor {
 
     while (_shouldRetry(currentError) && attempt < maxRetries) {
       attempt += 1;
+
+      AppLogger.debug(
+        'Retrying ${currentError.requestOptions.path} '
+        '(attempt $attempt/$maxRetries)',
+      );
 
       final updatedExtra = Map<String, dynamic>.from(
         currentError.requestOptions.extra,

@@ -44,7 +44,7 @@ class AppSettingsModel {
       crossfadeEnabled = false,
       crossfadeDurationSeconds = 5,
       crossfadeType = 'normal',
-      artTintedNowPlaying = false;
+      artTintedNowPlaying = true;
 
   final int? wifiMaxBitRate;
   final String? wifiFormat;

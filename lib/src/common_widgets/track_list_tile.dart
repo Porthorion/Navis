@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:navis/src/database/navis_database.dart';
 
 class TrackListTile extends StatelessWidget {
@@ -42,7 +43,12 @@ class TrackListTile extends StatelessWidget {
             ),
       trailing: trailing ?? Text(_formatDuration(song.duration)),
       onTap: onTap,
-      onLongPress: onLongPress,
+      onLongPress: onLongPress == null
+          ? null
+          : () {
+              HapticFeedback.mediumImpact();
+              onLongPress!();
+            },
     );
   }
 }

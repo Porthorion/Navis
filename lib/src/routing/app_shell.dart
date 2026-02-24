@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -280,8 +281,10 @@ class _MiniPlayerStrip extends ConsumerWidget {
                 return;
               }
               if (velocity < 0) {
+                HapticFeedback.mediumImpact();
                 handler.skipToNext();
               } else {
+                HapticFeedback.mediumImpact();
                 handler.skipToPrevious();
               }
             },

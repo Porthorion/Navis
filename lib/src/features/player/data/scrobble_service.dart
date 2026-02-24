@@ -63,6 +63,7 @@ class DriftScrobbleService implements ScrobbleService {
       return;
     }
     _started = true;
+    AppLogger.info('Scrobble service started');
     unawaited(_syncDispatchTimer());
   }
 
@@ -131,6 +132,12 @@ class DriftScrobbleService implements ScrobbleService {
       final now = _now();
       await _dao.pruneExpired(now);
       final events = await _dao.getDueEntries(now);
+
+      if (events.isNotEmpty) {
+        AppLogger.debug(
+          'Scrobble flush: ${events.length} due event(s)',
+        );
+      }
 
       for (final event in events) {
         try {

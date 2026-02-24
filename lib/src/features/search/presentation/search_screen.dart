@@ -6,6 +6,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
+import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
@@ -159,10 +160,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, _) => EmptyState(
+      error: (error, _) => ErrorState(
         title: l10n.searchNoResults,
-        subtitle: error.toString(),
-        icon: Icons.error_outline,
+        message: error.toString(),
+        onRetry: () => ref.invalidate(debouncedSearchProvider),
       ),
     );
   }

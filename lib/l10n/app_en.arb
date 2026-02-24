@@ -412,7 +412,11 @@
   "playbackUnavailableSource": "Could not resolve an audio source. Check server session and connection.",
   "playbackUnavailableGeneric": "Playback is unavailable right now.",
   "playbackActionFailed": "Playback action failed. Please try again.",
+  "commonLoading": "Loading…",
   "queueTitle": "Queue",
+  "queueUnknownTrack": "Unknown track",
+  "queueUnknownArtist": "Unknown artist",
+  "queueTrackLoadError": "Error loading track",
   "queueClearAction": "Clear queue",
   "queueClearConfirmTitle": "Clear queue?",
   "queueClearConfirmMessage": "This will remove all tracks from the queue.",
@@ -641,6 +645,12 @@
   "appearanceColorPresetDeleted": "Custom preset deleted",
   "appearanceColorDeletePreset": "Delete preset",
   "appearanceColorDeletePresetConfirm": "Delete this custom color preset?",
+  "appearanceLongPressHint": "{label} (long-press to delete)",
+  "@appearanceLongPressHint": {
+    "placeholders": {
+      "label": {}
+    }
+  },
 
   "appearanceArtTintedLabel": "Art-tinted Now Playing",
   "appearanceArtTintedSub": "Tint the Now Playing background with colours from the album art.",
