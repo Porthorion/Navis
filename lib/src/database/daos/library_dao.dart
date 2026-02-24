@@ -205,6 +205,12 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         );
       }
     });
+    // Backfill syncedAt for albums that were migrated from schema < v16 and
+    // therefore still have syncedAt = null even after the conflict-preserve
+    // path above.  Only runs once per such row; subsequent upserts are no-ops.
+    await (update(albumsTable)..where((t) => t.syncedAt.isNull())).write(
+      AlbumsTableCompanion(syncedAt: Value(now)),
+    );
   }
 
   Future<void> replaceSongs(List<SongsTableCompanion> songs) async {

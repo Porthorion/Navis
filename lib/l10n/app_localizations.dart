@@ -1224,7 +1224,7 @@ abstract class AppLocalizations {
   /// No description provided for @librarySortNewest.
   ///
   /// In en, this message translates to:
-  /// **'Newest'**
+  /// **'Newest (Year)'**
   String get librarySortNewest;
 
   /// No description provided for @librarySortOldest.

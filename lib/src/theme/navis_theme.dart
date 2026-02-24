@@ -49,6 +49,11 @@ ThemeData buildOledTheme(Color seedColor) {
     colorScheme: baseScheme.copyWith(
       surface: Colors.black,
       onSurface: Colors.white,
+      surfaceContainerLowest: Colors.black,
+      surfaceContainerLow: const Color(0xFF0A0A0A),
+      surfaceContainer: const Color(0xFF0A0A0A),
+      surfaceContainerHigh: const Color(0xFF0A0A0A),
+      surfaceContainerHighest: const Color(0xFF121212),
     ),
     scaffoldBackgroundColor: Colors.black,
     cardColor: const Color(0xFF0A0A0A),

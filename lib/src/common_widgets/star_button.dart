@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-class StarButton extends StatelessWidget {
+class StarButton extends StatefulWidget {
   const StarButton({
     required this.isStarred,
     super.key,
@@ -18,25 +18,75 @@ class StarButton extends StatelessWidget {
   final bool compact;
 
   @override
-  Widget build(BuildContext context) {
-    final icon = Icon(isStarred ? Icons.favorite : Icons.favorite_border);
-    void handlePress() {
-      HapticFeedback.lightImpact();
-      onPressed?.call();
-    }
+  State<StarButton> createState() => _StarButtonState();
+}
 
-    if (compact) {
+class _StarButtonState extends State<StarButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 350),
+    );
+    _scale = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween(begin: 1.0, end: 1.40)
+            .chain(CurveTween(curve: Curves.easeOut)),
+        weight: 40,
+      ),
+      TweenSequenceItem(
+        tween: Tween(begin: 1.40, end: 1.0)
+            .chain(CurveTween(curve: Curves.elasticOut)),
+        weight: 60,
+      ),
+    ]).animate(_controller);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(StarButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isStarred != oldWidget.isStarred) {
+      _controller.forward(from: 0.0);
+    }
+  }
+
+  void _handlePress() {
+    HapticFeedback.lightImpact();
+    widget.onPressed?.call();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = ScaleTransition(
+      scale: _scale,
+      child: Icon(
+        widget.isStarred ? Icons.favorite : Icons.favorite_border,
+      ),
+    );
+
+    if (widget.compact) {
       return IconButton(
         visualDensity: VisualDensity.compact,
-        tooltip: tooltip,
-        onPressed: onPressed == null ? null : handlePress,
+        tooltip: widget.tooltip,
+        onPressed: widget.onPressed == null ? null : _handlePress,
         icon: icon,
       );
     }
     return OutlinedButton.icon(
-      onPressed: onPressed == null ? null : handlePress,
+      onPressed: widget.onPressed == null ? null : _handlePress,
       icon: icon,
-      label: Text(label ?? ''),
+      label: Text(widget.label ?? ''),
       style: OutlinedButton.styleFrom(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       ),

@@ -2202,15 +2202,19 @@ class NavisAudioHandler extends BaseAudioHandler
     String streamUrl,
     String? homePageUrl,
   ) {
-    // Try parsing the stream URL for /listen/{station}/ pattern.
+    // Try parsing the stream URL for /listen/{station}/ or /hls/{station}/
+    // pattern (both are valid Azuracast stream URL formats).
     final uri = Uri.tryParse(streamUrl);
     if (uri != null && uri.pathSegments.length >= 2) {
-      final listenIndex = uri.pathSegments.indexOf('listen');
-      if (listenIndex >= 0 && listenIndex + 1 < uri.pathSegments.length) {
-        final stationName = uri.pathSegments[listenIndex + 1];
-        final baseUrl =
-            '${uri.scheme}://${uri.host}${uri.hasPort ? ':${uri.port}' : ''}';
-        return (baseUrl, stationName);
+      for (final prefix in <String>['listen', 'hls']) {
+        final prefixIndex = uri.pathSegments.indexOf(prefix);
+        if (prefixIndex >= 0 &&
+            prefixIndex + 1 < uri.pathSegments.length) {
+          final stationName = uri.pathSegments[prefixIndex + 1];
+          final baseUrl =
+              '${uri.scheme}://${uri.host}${uri.hasPort ? ':${uri.port}' : ''}';
+          return (baseUrl, stationName);
+        }
       }
     }
 
