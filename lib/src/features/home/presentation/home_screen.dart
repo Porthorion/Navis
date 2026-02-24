@@ -11,6 +11,7 @@ import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/features/player/presentation/queue_provider.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -39,10 +40,10 @@ class HomeScreen extends ConsumerWidget {
               builder: (context, songs) => _SongListSection(
                 songs: songs,
                 onTap: (song) {
-                  final albumId = song.albumId;
-                  if (albumId != null && albumId.isNotEmpty) {
-                    context.go('/library/albums/$albumId');
-                  }
+                  ref
+                      .read(queueProvider.notifier)
+                      .replace([song.id])
+                      .ignore();
                 },
               ),
               emptyTitle: l10n.homeStarredEmptyTitle,
@@ -57,7 +58,7 @@ class HomeScreen extends ConsumerWidget {
               isEmpty: (items) => items.isEmpty,
               builder: (context, albums) => _ServerAlbumCarousel(
                 albums: albums,
-                onTap: (album) => context.go('/library/albums/${album.id}'),
+                onTap: (album) => context.push('/library/albums/${album.id}'),
               ),
               emptyTitle: l10n.homeRecentlyAddedEmptyTitle,
               emptySubtitle: l10n.homeRecentlyAddedEmptySubtitle,
@@ -71,7 +72,7 @@ class HomeScreen extends ConsumerWidget {
               isEmpty: (items) => items.isEmpty,
               builder: (context, albums) => _LocalAlbumCarousel(
                 albums: albums,
-                onTap: (album) => context.go('/library/albums/${album.id}'),
+                onTap: (album) => context.push('/library/albums/${album.id}'),
               ),
               emptyTitle: l10n.homeRecentlyPlayedAlbumsEmptyTitle,
               emptySubtitle: l10n.homeRecentlyPlayedAlbumsEmptySubtitle,
@@ -85,7 +86,7 @@ class HomeScreen extends ConsumerWidget {
               isEmpty: (items) => items.isEmpty,
               builder: (context, albums) => _ServerAlbumCarousel(
                 albums: albums,
-                onTap: (album) => context.go('/library/albums/${album.id}'),
+                onTap: (album) => context.push('/library/albums/${album.id}'),
               ),
               emptyTitle: l10n.homeRandomEmptyTitle,
               emptySubtitle: l10n.homeRandomEmptySubtitle,
@@ -100,10 +101,10 @@ class HomeScreen extends ConsumerWidget {
               builder: (context, songs) => _SongListSection(
                 songs: songs,
                 onTap: (song) {
-                  final albumId = song.albumId;
-                  if (albumId != null && albumId.isNotEmpty) {
-                    context.go('/library/albums/$albumId');
-                  }
+                  ref
+                      .read(queueProvider.notifier)
+                      .replace([song.id])
+                      .ignore();
                 },
               ),
               emptyTitle: l10n.homeMostPlayedTracksEmptyTitle,

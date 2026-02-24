@@ -7,7 +7,7 @@ import 'package:navis/src/database/tables/songs_table.dart';
 
 part 'library_dao.g.dart';
 
-enum AlbumSortOrder { newest, name, artist }
+enum AlbumSortOrder { recentlyAdded, newest, name, artist }
 
 enum SongSortOrder { newest, oldest, name }
 
@@ -177,10 +177,13 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   }
 
   Future<void> replaceAlbums(List<AlbumsTableCompanion> albums) async {
+    final now = DateTime.now();
     await transaction(() async {
       await delete(albumsTable).go();
       await batch((batch) {
-        batch.insertAll(albumsTable, albums);
+        for (final album in albums) {
+          batch.insert(albumsTable, album.copyWith(syncedAt: Value(now)));
+        }
       });
     });
   }
@@ -189,12 +192,16 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     if (albums.isEmpty) {
       return;
     }
+    final now = DateTime.now();
     await batch((batch) {
       for (final album in albums) {
         batch.insert(
           albumsTable,
-          album,
-          mode: InsertMode.insertOrReplace,
+          album.copyWith(syncedAt: Value(now)),
+          onConflict: DoUpdate(
+            (old) => album, // album.syncedAt is absent → preserves existing
+            target: [albumsTable.id],
+          ),
         );
       }
     });
@@ -534,6 +541,16 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   ) {
     final query = select(albumsTable);
     switch (sort) {
+      case AlbumSortOrder.recentlyAdded:
+        query.orderBy([
+          (table) => OrderingTerm(
+            expression: table.syncedAt,
+            mode: OrderingMode.desc,
+            nulls: NullsOrder.last,
+          ),
+          (table) => OrderingTerm.asc(table.name),
+          (table) => OrderingTerm.asc(table.id),
+        ]);
       case AlbumSortOrder.newest:
         query.orderBy([
           (table) => OrderingTerm.desc(table.year),

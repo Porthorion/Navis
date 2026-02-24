@@ -20,7 +20,7 @@ class AboutScreen extends StatelessWidget {
       body: ListView(
         children: <Widget>[
           const SizedBox(height: 24),
-          const Center(child: NavisIcon(size: 72, tintWithAccent: true)),
+          const Center(child: NavisIcon(size: 112, tintWithAccent: true)),
           const SizedBox(height: 12),
           Text(
             'Navis',

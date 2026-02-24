@@ -34,6 +34,10 @@ class AlbumsTable extends Table {
 
   IntColumn get playCount => integer().nullable()();
 
+  /// When this album was first persisted to the local database (synced from
+  /// server).  Used for the "Recently Added" sort order.
+  DateTimeColumn get syncedAt => dateTime().nullable()();
+
   @override
   Set<Column<Object>> get primaryKey => {id};
 }
