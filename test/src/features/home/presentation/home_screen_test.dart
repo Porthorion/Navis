@@ -42,7 +42,7 @@ void main() {
           librarySyncControllerProvider.overrideWith(
             _StaticLibrarySyncController.new,
           ),
-          homeRecentlyPlayedProvider.overrideWithValue(
+          homeLikedSongsProvider.overrideWithValue(
             const AsyncData(<SongsTableData>[
               SongsTableData(
                 id: 'song-1',
@@ -65,13 +65,14 @@ void main() {
               ),
             ]),
           ),
-          homeFrequentAlbumsProvider.overrideWithValue(
-            const AsyncData(<Album>[
-              Album(
+          homeRecentlyPlayedAlbumsProvider.overrideWithValue(
+            const AsyncData(<AlbumsTableData>[
+              AlbumsTableData(
                 id: 'album-2',
-                name: 'Another very long album title for frequent section',
-                artist: 'Overflow Tester',
+                name: 'Another very long album title for recent section',
+                artistName: 'Overflow Tester',
                 coverArt: 'cover-album-2',
+                songsHydrated: false,
               ),
             ]),
           ),
@@ -85,12 +86,12 @@ void main() {
               ),
             ]),
           ),
-          homeStarredSongsProvider.overrideWithValue(
-            const AsyncData(<Song>[
-              Song(
+          homeMostPlayedSongsProvider.overrideWithValue(
+            const AsyncData(<SongsTableData>[
+              SongsTableData(
                 id: 'song-2',
-                title: 'A very long starred song title to stress card layout',
-                artist: 'Overflow Tester',
+                title: 'A very long most-played song title to stress layout',
+                artistName: 'Overflow Tester',
                 coverArt: 'cover-song-2',
               ),
             ]),
@@ -116,6 +117,7 @@ void main() {
 
     expect(find.text('Home'), findsOneWidget);
     expect(find.text('Recently added'), findsOneWidget);
+    expect(find.text('Liked tracks'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

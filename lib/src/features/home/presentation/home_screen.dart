@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
+import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
@@ -24,72 +25,18 @@ class HomeScreen extends ConsumerWidget {
         onRefresh: () async {
           await ref.read(librarySyncControllerProvider.notifier).syncNow();
           ref.invalidate(homeRecentlyAddedProvider);
-          ref.invalidate(homeFrequentAlbumsProvider);
           ref.invalidate(homeRandomAlbumsProvider);
-          ref.invalidate(homeStarredSongsProvider);
         },
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.only(bottom: 24),
           children: <Widget>[
+            // ── 1. Liked Tracks (vertical list, 5 items + See all) ──
             _HomeSection<List<SongsTableData>>(
-              title: l10n.homeRecentlyPlayedTitle,
-              data: ref.watch(homeRecentlyPlayedProvider),
-              isEmpty: (items) => items.isEmpty,
-              builder: (context, songs) => _SongCarousel(
-                songs: songs,
-                onTap: (song) {
-                  final albumId = song.albumId;
-                  if (albumId != null && albumId.isNotEmpty) {
-                    context.go('/library/albums/$albumId');
-                  }
-                },
-              ),
-              emptyTitle: l10n.homeRecentlyPlayedEmptyTitle,
-              emptySubtitle: l10n.homeRecentlyPlayedEmptySubtitle,
-              onRetry: () => ref.invalidate(homeRecentlyPlayedProvider),
-            ),
-            _HomeSection<List<Album>>(
-              title: l10n.homeRecentlyAddedTitle,
-              data: ref.watch(homeRecentlyAddedProvider),
-              isEmpty: (items) => items.isEmpty,
-              builder: (context, albums) => _AlbumCarousel(
-                albums: albums,
-                onTap: (album) => context.go('/library/albums/${album.id}'),
-              ),
-              emptyTitle: l10n.homeRecentlyAddedEmptyTitle,
-              emptySubtitle: l10n.homeRecentlyAddedEmptySubtitle,
-              onRetry: () => ref.invalidate(homeRecentlyAddedProvider),
-            ),
-            _HomeSection<List<Album>>(
-              title: l10n.homeFrequentTitle,
-              data: ref.watch(homeFrequentAlbumsProvider),
-              isEmpty: (items) => items.isEmpty,
-              builder: (context, albums) => _AlbumCarousel(
-                albums: albums,
-                onTap: (album) => context.go('/library/albums/${album.id}'),
-              ),
-              emptyTitle: l10n.homeFrequentEmptyTitle,
-              emptySubtitle: l10n.homeFrequentEmptySubtitle,
-              onRetry: () => ref.invalidate(homeFrequentAlbumsProvider),
-            ),
-            _HomeSection<List<Album>>(
-              title: l10n.homeRandomTitle,
-              data: ref.watch(homeRandomAlbumsProvider),
-              isEmpty: (items) => items.isEmpty,
-              builder: (context, albums) => _AlbumCarousel(
-                albums: albums,
-                onTap: (album) => context.go('/library/albums/${album.id}'),
-              ),
-              emptyTitle: l10n.homeRandomEmptyTitle,
-              emptySubtitle: l10n.homeRandomEmptySubtitle,
-              onRetry: () => ref.invalidate(homeRandomAlbumsProvider),
-            ),
-            _HomeSection<List<Song>>(
               title: l10n.homeStarredTitle,
-              data: ref.watch(homeStarredSongsProvider),
+              data: ref.watch(homeLikedSongsProvider),
               isEmpty: (items) => items.isEmpty,
-              builder: (context, songs) => _ServerSongCarousel(
+              builder: (context, songs) => _SongListSection(
                 songs: songs,
                 onTap: (song) {
                   final albumId = song.albumId;
@@ -100,7 +47,68 @@ class HomeScreen extends ConsumerWidget {
               ),
               emptyTitle: l10n.homeStarredEmptyTitle,
               emptySubtitle: l10n.homeStarredEmptySubtitle,
-              onRetry: () => ref.invalidate(homeStarredSongsProvider),
+              onRetry: () => ref.invalidate(homeLikedSongsProvider),
+            ),
+
+            // ── 2. Recently Added Albums (horizontal card carousel) ──
+            _HomeSection<List<Album>>(
+              title: l10n.homeRecentlyAddedTitle,
+              data: ref.watch(homeRecentlyAddedProvider),
+              isEmpty: (items) => items.isEmpty,
+              builder: (context, albums) => _ServerAlbumCarousel(
+                albums: albums,
+                onTap: (album) => context.go('/library/albums/${album.id}'),
+              ),
+              emptyTitle: l10n.homeRecentlyAddedEmptyTitle,
+              emptySubtitle: l10n.homeRecentlyAddedEmptySubtitle,
+              onRetry: () => ref.invalidate(homeRecentlyAddedProvider),
+            ),
+
+            // ── 3. Recently Played Albums (horizontal card carousel) ──
+            _HomeSection<List<AlbumsTableData>>(
+              title: l10n.homeRecentlyPlayedAlbumsTitle,
+              data: ref.watch(homeRecentlyPlayedAlbumsProvider),
+              isEmpty: (items) => items.isEmpty,
+              builder: (context, albums) => _LocalAlbumCarousel(
+                albums: albums,
+                onTap: (album) => context.go('/library/albums/${album.id}'),
+              ),
+              emptyTitle: l10n.homeRecentlyPlayedAlbumsEmptyTitle,
+              emptySubtitle: l10n.homeRecentlyPlayedAlbumsEmptySubtitle,
+              onRetry: () => ref.invalidate(homeRecentlyPlayedAlbumsProvider),
+            ),
+
+            // ── 4. Random Albums (horizontal card carousel) ──
+            _HomeSection<List<Album>>(
+              title: l10n.homeRandomTitle,
+              data: ref.watch(homeRandomAlbumsProvider),
+              isEmpty: (items) => items.isEmpty,
+              builder: (context, albums) => _ServerAlbumCarousel(
+                albums: albums,
+                onTap: (album) => context.go('/library/albums/${album.id}'),
+              ),
+              emptyTitle: l10n.homeRandomEmptyTitle,
+              emptySubtitle: l10n.homeRandomEmptySubtitle,
+              onRetry: () => ref.invalidate(homeRandomAlbumsProvider),
+            ),
+
+            // ── 5. Most Played Tracks (vertical list) ──
+            _HomeSection<List<SongsTableData>>(
+              title: l10n.homeMostPlayedTracksTitle,
+              data: ref.watch(homeMostPlayedSongsProvider),
+              isEmpty: (items) => items.isEmpty,
+              builder: (context, songs) => _SongListSection(
+                songs: songs,
+                onTap: (song) {
+                  final albumId = song.albumId;
+                  if (albumId != null && albumId.isNotEmpty) {
+                    context.go('/library/albums/$albumId');
+                  }
+                },
+              ),
+              emptyTitle: l10n.homeMostPlayedTracksEmptyTitle,
+              emptySubtitle: l10n.homeMostPlayedTracksEmptySubtitle,
+              onRetry: () => ref.invalidate(homeMostPlayedSongsProvider),
             ),
           ],
         ),
@@ -108,6 +116,10 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Shared section wrapper
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _HomeSection<T> extends StatelessWidget {
   const _HomeSection({
@@ -172,17 +184,21 @@ class _HomeSection<T> extends StatelessWidget {
   }
 }
 
-class _AlbumCarousel extends StatelessWidget {
-  const _AlbumCarousel({required this.albums, required this.onTap});
+// ─────────────────────────────────────────────────────────────────────────────
+// Album carousels (horizontal scroll of square AlbumCards)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Carousel for [Album] objects coming from the server API.
+class _ServerAlbumCarousel extends StatelessWidget {
+  const _ServerAlbumCarousel({required this.albums, required this.onTap});
 
   final List<Album> albums;
   final void Function(Album album) onTap;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
     return SizedBox(
-      height: 172,
+      height: 150,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -190,11 +206,10 @@ class _AlbumCarousel extends StatelessWidget {
         separatorBuilder: (_, _) => const SizedBox(width: 12),
         itemBuilder: (context, index) {
           final album = albums[index];
-          return _HomeCard(
-            title: album.name,
-            subtitle: album.artist ?? l10n.albumDetailUnknownArtist,
+          return _ServerAlbumCard(
+            name: album.name,
+            artist: album.artist,
             coverArtId: album.coverArt,
-            icon: Icons.album_outlined,
             onTap: () => onTap(album),
           );
         },
@@ -203,8 +218,136 @@ class _AlbumCarousel extends StatelessWidget {
   }
 }
 
-class _SongCarousel extends StatelessWidget {
-  const _SongCarousel({
+/// Carousel for [AlbumsTableData] objects from the local database.
+class _LocalAlbumCarousel extends StatelessWidget {
+  const _LocalAlbumCarousel({required this.albums, required this.onTap});
+
+  final List<AlbumsTableData> albums;
+  final void Function(AlbumsTableData album) onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 150,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: albums.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 12),
+        itemBuilder: (context, index) {
+          final album = albums[index];
+          return AlbumCard(
+            album: album,
+            size: AlbumCardSize.compact,
+            onTap: () => onTap(album),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// A small square card for server [Album] objects (same visual as [AlbumCard]
+/// but accepts the API model directly).
+class _ServerAlbumCard extends StatelessWidget {
+  const _ServerAlbumCard({
+    required this.name,
+    this.artist,
+    this.coverArtId,
+    this.onTap,
+  });
+
+  final String name;
+  final String? artist;
+  final String? coverArtId;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 150,
+      child: AspectRatio(
+        aspectRatio: 1,
+        child: Card(
+          clipBehavior: Clip.antiAlias,
+          margin: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: InkWell(
+            onTap: onTap,
+            child: Stack(
+              fit: StackFit.expand,
+              children: <Widget>[
+                CoverArtImage(
+                  coverArtId: coverArtId,
+                  size: 480,
+                  fit: BoxFit.cover,
+                  placeholderIcon: Icons.album_outlined,
+                ),
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: DecoratedBox(
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: <Color>[
+                          Color(0x00000000),
+                          Color(0xCC000000),
+                        ],
+                      ),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(10, 24, 10, 10),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Text(
+                            name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          if (artist != null) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              artist!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Color(0xCCFFFFFF),
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Song list section (vertical list of song tiles)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SongListSection extends StatelessWidget {
+  const _SongListSection({
     required this.songs,
     required this.onTap,
   });
@@ -214,135 +357,45 @@ class _SongCarousel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    return SizedBox(
-      height: 172,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: songs.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 12),
-        itemBuilder: (context, index) {
-          final song = songs[index];
-          return _HomeCard(
-            title: song.title,
-            subtitle: song.artistName ?? l10n.albumDetailUnknownArtist,
-            coverArtId: song.coverArt,
-            icon: Icons.music_note_outlined,
-            onTap: () => onTap(song),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _ServerSongCarousel extends StatelessWidget {
-  const _ServerSongCarousel({required this.songs, required this.onTap});
-
-  final List<Song> songs;
-  final void Function(Song song) onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    return SizedBox(
-      height: 172,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: songs.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 12),
-        itemBuilder: (context, index) {
-          final song = songs[index];
-          return _HomeCard(
-            title: song.title,
-            subtitle: song.artist ?? l10n.albumDetailUnknownArtist,
-            coverArtId: song.coverArt,
-            icon: Icons.favorite_border,
-            onTap: () => onTap(song),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _HomeCard extends StatelessWidget {
-  const _HomeCard({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.onTap,
-    this.coverArtId,
-  });
-
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final VoidCallback onTap;
-  final String? coverArtId;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 170,
-      child: Card(
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final compact = constraints.maxHeight < 136;
-                final imageHeight = compact ? 62.0 : 68.0;
-                final subtitleLines = compact ? 1 : 2;
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    CoverArtImage(
-                      coverArtId: coverArtId,
-                      size: 320,
-                      height: imageHeight,
-                      width: double.infinity,
-                      borderRadius: BorderRadius.circular(8),
-                      placeholderIcon: icon,
-                    ),
-                    const SizedBox(height: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.max,
-                        children: <Widget>[
-                          Text(
-                            title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.titleSmall,
-                          ),
-                          const SizedBox(height: 4),
-                          Flexible(
-                            child: Text(
-                              subtitle,
-                              maxLines: subtitleLines,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                );
-              },
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          for (final song in songs)
+            ListTile(
+              leading: SizedBox(
+                width: 48,
+                height: 48,
+                child: CoverArtImage(
+                  coverArtId: song.coverArt,
+                  size: 160,
+                  borderRadius: BorderRadius.circular(6),
+                  placeholderIcon: Icons.music_note_outlined,
+                ),
+              ),
+              title: Text(
+                song.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              subtitle: Text(
+                song.artistName ?? '',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              dense: true,
+              onTap: () => onTap(song),
             ),
-          ),
-        ),
+        ],
       ),
     );
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Shimmer placeholder for loading state
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _CarouselShimmer extends StatelessWidget {
   const _CarouselShimmer();
@@ -350,7 +403,7 @@ class _CarouselShimmer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 172,
+      height: 150,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -358,27 +411,15 @@ class _CarouselShimmer extends StatelessWidget {
         separatorBuilder: (_, _) => const SizedBox(width: 12),
         itemBuilder: (context, _) {
           return SizedBox(
-            width: 170,
+            width: 150,
             child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const <Widget>[
-                    ShimmerPlaceholder(height: 68),
-                    SizedBox(height: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          ShimmerPlaceholder(height: 16, width: 120),
-                          SizedBox(height: 8),
-                          ShimmerPlaceholder(height: 14, width: 90),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+              clipBehavior: Clip.antiAlias,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const ShimmerPlaceholder(
+                height: 150,
+                width: 150,
               ),
             ),
           );

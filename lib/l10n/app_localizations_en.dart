@@ -343,6 +343,29 @@ class AppLocalizationsEn extends AppLocalizations {
       'Like tracks on your server to see them here.';
 
   @override
+  String get homeSeeAll => 'See all';
+
+  @override
+  String get homeMostPlayedTracksTitle => 'Most played tracks';
+
+  @override
+  String get homeMostPlayedTracksEmptyTitle => 'No play data yet';
+
+  @override
+  String get homeMostPlayedTracksEmptySubtitle =>
+      'Play more music to populate this section.';
+
+  @override
+  String get homeRecentlyPlayedAlbumsTitle => 'Recently played albums';
+
+  @override
+  String get homeRecentlyPlayedAlbumsEmptyTitle => 'No recently played albums';
+
+  @override
+  String get homeRecentlyPlayedAlbumsEmptySubtitle =>
+      'Start listening to populate this section.';
+
+  @override
   String get radioTitle => 'Radio';
 
   @override
@@ -1443,4 +1466,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get aboutSourceCodeSub => 'View on Forgejo';
+
+  @override
+  String get aboutCodename => 'Cape Horn';
 }

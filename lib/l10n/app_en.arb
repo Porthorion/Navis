@@ -140,6 +140,13 @@
   "homeStarredTitle": "Liked tracks",
   "homeStarredEmptyTitle": "No liked tracks",
   "homeStarredEmptySubtitle": "Like tracks on your server to see them here.",
+  "homeSeeAll": "See all",
+  "homeMostPlayedTracksTitle": "Most played tracks",
+  "homeMostPlayedTracksEmptyTitle": "No play data yet",
+  "homeMostPlayedTracksEmptySubtitle": "Play more music to populate this section.",
+  "homeRecentlyPlayedAlbumsTitle": "Recently played albums",
+  "homeRecentlyPlayedAlbumsEmptyTitle": "No recently played albums",
+  "homeRecentlyPlayedAlbumsEmptySubtitle": "Start listening to populate this section.",
   "radioTitle": "Radio",
   "radioEmptyTitle": "No radio stations found",
   "radioEmptySubtitle": "Add internet radio stations on your server to see them here.",
@@ -672,5 +679,6 @@
   "aboutLicenses": "Open-source licenses",
   "aboutLicensesSub": "View third-party software licenses.",
   "aboutSourceCode": "Source code",
-  "aboutSourceCodeSub": "View on Forgejo"
+  "aboutSourceCodeSub": "View on Forgejo",
+  "aboutCodename": "Cape Horn"
 }

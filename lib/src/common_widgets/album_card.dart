@@ -1,57 +1,122 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
-import 'package:navis/src/common_widgets/star_button.dart';
 import 'package:navis/src/database/navis_database.dart';
 
+/// Size presets for [AlbumCard].
+enum AlbumCardSize {
+  /// Compact cards used in home carousels (150 × 150).
+  compact(150),
+
+  /// Larger cards used in the library grid – sized to fill available width.
+  library(double.infinity);
+
+  const AlbumCardSize(this.extent);
+  final double extent;
+}
+
+/// A modern square album card.
+///
+/// Album art fills the entire card.  The title and artist name are overlaid
+/// at the bottom on top of a gradient that fades from transparent to black.
 class AlbumCard extends StatelessWidget {
   const AlbumCard({
     required this.album,
     super.key,
+    this.size = AlbumCardSize.library,
     this.onTap,
     this.onLongPress,
-    this.onStarToggled,
   });
 
   final AlbumsTableData album;
+  final AlbumCardSize size;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
-  final VoidCallback? onStarToggled;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    final year = album.year == null ? '' : ' • ${album.year}';
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: ListTile(
-        leading: AspectRatio(
-          aspectRatio: 1,
-          child: CoverArtImage(
-            coverArtId: album.coverArt,
-            size: 160,
-            borderRadius: const BorderRadius.all(Radius.circular(6)),
-            placeholderIcon: Icons.album_outlined,
+    final cardWidth = size == AlbumCardSize.compact
+        ? size.extent
+        : double.infinity;
+
+    return SizedBox(
+      width: cardWidth,
+      child: AspectRatio(
+        aspectRatio: 1,
+        child: Card(
+          clipBehavior: Clip.antiAlias,
+          margin: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: InkWell(
+            onTap: onTap,
+            onLongPress: onLongPress == null
+                ? null
+                : () {
+                    HapticFeedback.mediumImpact();
+                    onLongPress!();
+                  },
+            child: Stack(
+              fit: StackFit.expand,
+              children: <Widget>[
+                CoverArtImage(
+                  coverArtId: album.coverArt,
+                  size: 480,
+                  fit: BoxFit.cover,
+                  placeholderIcon: Icons.album_outlined,
+                ),
+                // Gradient overlay at the bottom
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: DecoratedBox(
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: <Color>[
+                          Color(0x00000000),
+                          Color(0xCC000000),
+                        ],
+                      ),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(10, 24, 10, 10),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Text(
+                            album.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            album.artistName ?? '',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Color(0xCCFFFFFF),
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-        title: Text(album.name),
-        subtitle: Text(
-          '${album.artistName ?? l10n.albumDetailUnknownArtist}$year',
-        ),
-        trailing: StarButton(
-          isStarred: album.starred != null,
-          compact: true,
-          onPressed: onStarToggled,
-          tooltip: l10n.albumDetailStarAction,
-        ),
-        onTap: onTap,
-        onLongPress: onLongPress == null
-            ? null
-            : () {
-                HapticFeedback.mediumImpact();
-                onLongPress!();
-              },
       ),
     );
   }

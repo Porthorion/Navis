@@ -4,12 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/common_widgets/artist_card.dart';
-import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
-import 'package:navis/src/common_widgets/star_button.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
@@ -404,81 +403,23 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 2,
-                          childAspectRatio: 1.25,
+                          childAspectRatio: 1,
                           crossAxisSpacing: 8,
                           mainAxisSpacing: 8,
                         ),
                     delegate: SliverChildBuilderDelegate((context, index) {
                       final album = filteredItems[index];
-                      return Card(
+                      return AlbumCard(
                         key: ValueKey(album.id),
-                        clipBehavior: Clip.antiAlias,
-                        child: InkWell(
-                          onTap: () {
-                            ref
-                                .read(librarySyncControllerProvider.notifier)
-                                .registerAlbumInteraction(album.id);
-                            context.go('/library/albums/${album.id}');
-                          },
-                          onLongPress: () => _showAlbumMenu(context, album),
-                          child: Padding(
-                            padding: const EdgeInsets.all(10),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: <Widget>[
-                                CoverArtImage(
-                                  coverArtId: album.coverArt,
-                                  size: 320,
-                                  height: 62,
-                                  width: double.infinity,
-                                  borderRadius: BorderRadius.circular(8),
-                                  placeholderIcon: Icons.album_outlined,
-                                ),
-                                const SizedBox(height: 8),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: <Widget>[
-                                      Row(
-                                        children: <Widget>[
-                                          Expanded(
-                                            child: Text(
-                                              album.name,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: Theme.of(
-                                                context,
-                                              ).textTheme.titleSmall,
-                                            ),
-                                          ),
-                                          StarButton(
-                                            isStarred: album.starred != null,
-                                            compact: true,
-                                            onPressed: () =>
-                                                _toggleAlbumStar(album),
-                                            tooltip: l10n.albumDetailStarAction,
-                                          ),
-                                        ],
-                                      ),
-                                      Flexible(
-                                        child: Text(
-                                          album.artistName ??
-                                              l10n.albumDetailUnknownArtist,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: Theme.of(
-                                            context,
-                                          ).textTheme.bodySmall,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
+                        album: album,
+                        size: AlbumCardSize.library,
+                        onTap: () {
+                          ref
+                              .read(librarySyncControllerProvider.notifier)
+                              .registerAlbumInteraction(album.id);
+                          context.go('/library/albums/${album.id}');
+                        },
+                        onLongPress: () => _showAlbumMenu(context, album),
                       );
                     }, childCount: filteredItems.length),
                   ),
@@ -706,6 +647,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     _artistsItemScrollController.jumpTo(index: sectionIndex);
   }
 
+  // Kept for future star action in album context menu.
+  // ignore: unused_element
   Future<void> _toggleAlbumStar(AlbumsTableData album) async {
     final l10n = AppLocalizations.of(context)!;
     final api = ref.read(subsonicApiProvider);
