@@ -90,6 +90,24 @@ class _DelayedReplaceHandler implements NavisPlaybackHandler {
 
   @override
   Future<void> toggleLike() async {}
+
+  @override
+  Future<void> playRadioStream({
+    required String stationId,
+    required String stationName,
+    required String streamUrl,
+    String? homePageUrl,
+  }) async {}
+
+  @override
+  Future<void> stopRadio() async {}
+
+  @override
+  void updateRadioMetadata({
+    String? title,
+    String? artist,
+    String? artUrl,
+  }) {}
 }
 
 Widget _buildApp({

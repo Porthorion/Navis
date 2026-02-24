@@ -560,6 +560,12 @@ final playerStateProvider = Provider<PlaybackSnapshot>((ref) {
   return snapshot ?? const PlaybackSnapshot.idle();
 });
 
+/// The station ID currently playing, or null when not in radio mode.
+final currentRadioStationIdProvider = Provider<String?>((ref) {
+  final snapshot = ref.watch(playerStateProvider);
+  return snapshot.radioStation?.stationId;
+});
+
 final playbackPositionProvider = StreamProvider<Duration>((ref) {
   final handler = ref.watch(audioHandlerProvider);
   if (handler == null) {

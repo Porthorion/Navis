@@ -15,6 +15,7 @@ import 'package:navis/src/database/daos/play_queue_dao.dart';
 import 'package:navis/src/database/tables/schema_enums.dart' as schema;
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
+import 'package:navis/src/features/player/data/radio_metadata_service.dart';
 import 'package:navis/src/features/player/data/scrobble_service.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/utils/app_logger.dart';
@@ -47,6 +48,28 @@ abstract class NavisPlaybackHandler {
   Future<void> setVolume(double volume);
   Future<void> applyRuntimeSettings();
   Future<void> toggleLike();
+
+  /// Start playing a radio stream from the given URL.
+  ///
+  /// Radio playback is independent from the song queue: the existing queue
+  /// is preserved and can be resumed by calling [stopRadio].
+  Future<void> playRadioStream({
+    required String stationId,
+    required String stationName,
+    required String streamUrl,
+    String? homePageUrl,
+  });
+
+  /// Stop radio playback. If there was a song queue before radio was started,
+  /// it remains intact (but paused).
+  Future<void> stopRadio();
+
+  /// Update live metadata for the current radio station (from Azuracast / ICY).
+  void updateRadioMetadata({
+    String? title,
+    String? artist,
+    String? artUrl,
+  });
 }
 
 class PlaybackRuntimeSettings {
@@ -323,6 +346,15 @@ class NavisAudioHandler extends BaseAudioHandler
   String? _activeScrobbleSessionKey;
   bool _sentNowPlayingScrobble = false;
   bool _sentSubmissionScrobble = false;
+
+  /// Non-null while a radio stream is active.
+  RadioStationMetadata? _radioStation;
+
+  /// Manages ICY / Azuracast metadata polling for radio streams.
+  late final RadioMetadataService _radioMetadataService = RadioMetadataService(
+    handler: this,
+    player: _player,
+  );
 
   @override
   PlaybackSnapshot get snapshot => _snapshot;
@@ -998,6 +1030,8 @@ class NavisAudioHandler extends BaseAudioHandler
   }) {
     return _runSerialized(() async {
       await _ready;
+      // Exit radio mode when the user starts playing songs from the library.
+      _radioStation = null;
       await _replaceQueueFromIds(
         songIds,
         startIndex: startIndex,
@@ -1356,6 +1390,10 @@ class NavisAudioHandler extends BaseAudioHandler
     bool includePosition = true,
     bool includeQueueItems = false,
   }) async {
+    // Don't persist radio state into the song queue table.
+    if (_radioStation != null) {
+      return;
+    }
     if (_queueItems.isEmpty) {
       return;
     }
@@ -1434,6 +1472,11 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   void _handleScrobbleSignals() {
+    // Suppress scrobbling during radio playback.
+    if (_radioStation != null) {
+      return;
+    }
+
     final currentItem = _mediaItemForIndex(_player.currentIndex);
     _updateScrobbleSession(currentItem);
 
@@ -1536,9 +1579,11 @@ class NavisAudioHandler extends BaseAudioHandler
     final isLiked =
         currentItem?.extras?['liked'] as bool? ?? false;
     _snapshot = PlaybackSnapshot(
-      queueSongIds: _queueItems.map((item) => item.id).toList(growable: false),
-      currentSongId: currentItem?.id,
-      currentIndex: _player.currentIndex,
+      queueSongIds: _radioStation != null
+          ? const <String>[]
+          : _queueItems.map((item) => item.id).toList(growable: false),
+      currentSongId: _radioStation != null ? null : currentItem?.id,
+      currentIndex: _radioStation != null ? null : _player.currentIndex,
       playing: _player.playing,
       processingState: _mapProcessingState(_player.processingState),
       position: _player.position,
@@ -1548,7 +1593,8 @@ class NavisAudioHandler extends BaseAudioHandler
           ? AudioServiceShuffleMode.all
           : AudioServiceShuffleMode.none,
       repeatMode: _mapRepeatMode(_player.loopMode),
-      isCurrentSongLiked: isLiked,
+      isCurrentSongLiked: _radioStation == null && isLiked,
+      radioStation: _radioStation,
     );
     if (!_snapshotController.isClosed) {
       _snapshotController.add(_snapshot);
@@ -1619,6 +1665,8 @@ class NavisAudioHandler extends BaseAudioHandler
 
   Future<void> disposeHandler() async {
     _positionPersistTimer?.cancel();
+    _radioStation = null;
+    _radioMetadataService.dispose();
     await _interruptionSubscription?.cancel();
     await _becomingNoisySubscription?.cancel();
     await _disposePlayerListeners();
@@ -1629,6 +1677,144 @@ class NavisAudioHandler extends BaseAudioHandler
     await _persistSafely(_persistPosition, context: 'dispose handler');
     await _player.dispose();
     await _snapshotController.close();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Radio stream playback
+  // ---------------------------------------------------------------------------
+
+  @override
+  Future<void> playRadioStream({
+    required String stationId,
+    required String stationName,
+    required String streamUrl,
+    String? homePageUrl,
+  }) {
+    return _runSerialized(() async {
+      await _ready;
+
+      _radioStation = RadioStationMetadata(
+        stationId: stationId,
+        stationName: stationName,
+        streamUrl: streamUrl,
+        homePageUrl: homePageUrl,
+      );
+
+      // Clear the queue items (in memory) so the player doesn't show stale
+      // song-queue data, but do NOT clear the persisted queue — we want to be
+      // able to resume the song queue when the user stops radio.
+      _queueItems.clear();
+      _updateScrobbleSession(null);
+
+      // Set the radio stream as the audio source.
+      final radioMediaItem = MediaItem(
+        id: 'radio:$stationId',
+        title: stationName,
+        artist: stationName,
+        extras: <String, Object?>{
+          'isRadio': true,
+          'streamUrl': streamUrl,
+        },
+      );
+
+      try {
+        await _player.setAudioSource(
+          AudioSource.uri(
+            Uri.parse(streamUrl),
+            tag: radioMediaItem,
+          ),
+        );
+      } on Object catch (error, stackTrace) {
+        AppLogger.error(
+          'Failed to start radio stream: $streamUrl',
+          error,
+          stackTrace,
+        );
+        _radioStation = null;
+        _emitSnapshot();
+        rethrow;
+      }
+
+      queue.add(<MediaItem>[radioMediaItem]);
+      mediaItem.add(radioMediaItem);
+
+      await _player.play();
+      _broadcastPlaybackState();
+      _emitSnapshot();
+
+      // Start metadata listening (ICY headers; Azuracast later via
+      // updateRadioMetadata or service configuration).
+      _radioMetadataService.startListening(stationId: stationId);
+    });
+  }
+
+  @override
+  Future<void> stopRadio() {
+    return _runSerialized(() async {
+      await _ready;
+
+      if (_radioStation == null) {
+        return;
+      }
+
+      _radioStation = null;
+      _radioMetadataService.stop();
+
+      await _player.stop();
+      await _player.setAudioSources(const <AudioSource>[]);
+      queue.add(const <MediaItem>[]);
+      mediaItem.add(null);
+
+      // Attempt to restore the previous song queue so the user can resume
+      // library playback without manual intervention.
+      try {
+        await _restoreQueueFromDisk();
+      } on Object catch (error, stackTrace) {
+        AppLogger.warning(
+          'Queue restore after radio stop failed: $error\n$stackTrace',
+        );
+      }
+
+      _broadcastPlaybackState();
+      _emitSnapshot();
+    });
+  }
+
+  @override
+  void updateRadioMetadata({
+    String? title,
+    String? artist,
+    String? artUrl,
+  }) {
+    final current = _radioStation;
+    if (current == null) {
+      return;
+    }
+
+    _radioStation = RadioStationMetadata(
+      stationId: current.stationId,
+      stationName: current.stationName,
+      streamUrl: current.streamUrl,
+      homePageUrl: current.homePageUrl,
+      nowPlayingTitle: title ?? current.nowPlayingTitle,
+      nowPlayingArtist: artist ?? current.nowPlayingArtist,
+      nowPlayingArtUrl: artUrl ?? current.nowPlayingArtUrl,
+    );
+
+    // Update the MediaItem for lock-screen / notification display.
+    final updatedItem = MediaItem(
+      id: 'radio:${current.stationId}',
+      title: title ?? current.stationName,
+      artist: artist ?? current.stationName,
+      artUri: artUrl != null ? Uri.tryParse(artUrl) : null,
+      extras: <String, Object?>{
+        'isRadio': true,
+        'streamUrl': current.streamUrl,
+      },
+    );
+    mediaItem.add(updatedItem);
+    _broadcastPlaybackState();
+    _emitSnapshot();
   }
 
   Future<void> _replaceQueueFromIds(
