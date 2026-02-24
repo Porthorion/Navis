@@ -106,6 +106,13 @@ class CacheDao extends DatabaseAccessor<NavisDatabase> with _$CacheDaoMixin {
     return rows.map((r) => r.read(cachedTracksTable.songId)!).toSet();
   }
 
+  /// Get all permanent cache entries (for stale-file pruning).
+  Future<List<CachedTracksTableData>> getPermanentEntries() {
+    final query = select(cachedTracksTable)
+      ..where((t) => t.cacheType.equals(CacheType.permanent.name));
+    return query.get();
+  }
+
   Future<void> clearCachedTracks() {
     return delete(cachedTracksTable).go();
   }

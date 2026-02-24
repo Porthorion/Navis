@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:isolate';
 
 import 'package:drift/drift.dart' show Value;
@@ -1409,6 +1410,11 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     }
     if (error is SubsonicGenericException) {
       return error.code == 429 || error.code == 503;
+    }
+    // Treat socket-level and timeout errors as transient so a single slow
+    // response doesn't abort the entire sync.
+    if (error is TimeoutException || error is SocketException) {
+      return true;
     }
     return false;
   }
