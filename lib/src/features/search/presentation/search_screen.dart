@@ -240,7 +240,7 @@ class _SearchBar extends StatelessWidget {
     return TextField(
       controller: controller,
       focusNode: focusNode,
-      autofocus: true,
+      autofocus: false,
       textInputAction: TextInputAction.search,
       decoration: InputDecoration(
         hintText: hint,

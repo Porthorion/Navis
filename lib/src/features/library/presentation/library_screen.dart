@@ -17,7 +17,7 @@ import 'package:navis/src/features/library/presentation/library_sync_provider.da
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
-enum _AlbumSort { newest, name, artist }
+enum _AlbumSort { recentlyAdded, newest, name, artist }
 
 class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
@@ -28,7 +28,7 @@ class LibraryScreen extends ConsumerStatefulWidget {
 
 class _LibraryScreenState extends ConsumerState<LibraryScreen>
     with TickerProviderStateMixin {
-  _AlbumSort _albumSort = _AlbumSort.newest;
+  _AlbumSort _albumSort = _AlbumSort.recentlyAdded;
   bool _downloadedOnly = false;
   final ScrollController _albumsScrollController = ScrollController();
   final ItemScrollController _artistsItemScrollController =
@@ -351,6 +351,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                   sortValue: _albumSort,
                   sortItems: <DropdownMenuItem<_AlbumSort>>[
                     DropdownMenuItem(
+                      value: _AlbumSort.recentlyAdded,
+                      child: Text(l10n.librarySortRecentlyAdded),
+                    ),
+                    DropdownMenuItem(
                       value: _AlbumSort.newest,
                       child: Text(l10n.librarySortNewest),
                     ),
@@ -498,6 +502,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
   AlbumSortOrder _toAlbumSortOrder(_AlbumSort sort) {
     return switch (sort) {
+      _AlbumSort.recentlyAdded => AlbumSortOrder.recentlyAdded,
       _AlbumSort.newest => AlbumSortOrder.newest,
       _AlbumSort.name => AlbumSortOrder.name,
       _AlbumSort.artist => AlbumSortOrder.artist,

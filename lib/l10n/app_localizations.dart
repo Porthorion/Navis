@@ -1215,6 +1215,12 @@ abstract class AppLocalizations {
   /// **'{albums} albums • {songs} songs'**
   String libraryGenresCount(int albums, int songs);
 
+  /// No description provided for @librarySortRecentlyAdded.
+  ///
+  /// In en, this message translates to:
+  /// **'Recently Added'**
+  String get librarySortRecentlyAdded;
+
   /// No description provided for @librarySortNewest.
   ///
   /// In en, this message translates to:

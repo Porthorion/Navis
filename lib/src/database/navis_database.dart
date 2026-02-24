@@ -65,7 +65,7 @@ class NavisDatabase extends _$NavisDatabase {
   static QueryExecutor _openConnection() => driftDatabase(name: 'navis.sqlite');
 
   @override
-  int get schemaVersion => 15;
+  int get schemaVersion => 16;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -128,6 +128,9 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 15 && to >= 15) {
       await from14To15(migrator);
+    }
+    if (from < 16 && to >= 16) {
+      await from15To16(migrator);
     }
   }
 
@@ -302,6 +305,12 @@ class NavisDatabase extends _$NavisDatabase {
       'UPDATE app_settings SET art_tinted_now_playing = 1 '
       'WHERE art_tinted_now_playing = 0;',
     );
+  }
+
+  Future<void> from15To16(Migrator migrator) async {
+    if (!await _columnExists('albums', 'synced_at')) {
+      await migrator.addColumn(albumsTable, albumsTable.syncedAt);
+    }
   }
 
   Future<void> _ensureAppSettingsDefaults() {

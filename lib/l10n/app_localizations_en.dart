@@ -640,7 +640,10 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get librarySortNewest => 'Newest';
+  String get librarySortRecentlyAdded => 'Recently Added';
+
+  @override
+  String get librarySortNewest => 'Newest (Year)';
 
   @override
   String get librarySortOldest => 'Oldest';

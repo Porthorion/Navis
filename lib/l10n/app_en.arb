@@ -305,7 +305,8 @@
       }
     }
   },
-  "librarySortNewest": "Newest",
+  "librarySortRecentlyAdded": "Recently Added",
+  "librarySortNewest": "Newest (Year)",
   "librarySortOldest": "Oldest",
   "librarySortName": "Name",
   "librarySortArtist": "Artist",
