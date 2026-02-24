@@ -446,34 +446,30 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                                             child: Text(
                                               album.name,
                                               maxLines: 1,
-                                              overflow:
-                                                  TextOverflow.ellipsis,
+                                              overflow: TextOverflow.ellipsis,
                                               style: Theme.of(
                                                 context,
                                               ).textTheme.titleSmall,
                                             ),
                                           ),
                                           StarButton(
-                                            isStarred:
-                                                album.starred != null,
+                                            isStarred: album.starred != null,
                                             compact: true,
                                             onPressed: () =>
                                                 _toggleAlbumStar(album),
-                                            tooltip:
-                                                l10n.albumDetailStarAction,
+                                            tooltip: l10n.albumDetailStarAction,
                                           ),
                                         ],
                                       ),
                                       Flexible(
                                         child: Text(
                                           album.artistName ??
-                                              l10n
-                                                  .albumDetailUnknownArtist,
+                                              l10n.albumDetailUnknownArtist,
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .bodySmall,
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.bodySmall,
                                         ),
                                       ),
                                     ],
@@ -568,8 +564,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   }
 
   List<AlbumsTableData> _filterDownloadedAlbums(List<AlbumsTableData> albums) {
-    final contentIds =
-        ref.read(downloadedContentIdsProvider).asData?.value;
+    final contentIds = ref.read(downloadedContentIdsProvider).asData?.value;
     if (contentIds == null) return const [];
     return albums
         .where((album) => contentIds.albumIds.contains(album.id))
@@ -579,8 +574,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   List<ArtistsTableData> _filterDownloadedArtists(
     List<ArtistsTableData> artists,
   ) {
-    final contentIds =
-        ref.read(downloadedContentIdsProvider).asData?.value;
+    final contentIds = ref.read(downloadedContentIdsProvider).asData?.value;
     if (contentIds == null) return const [];
     return artists
         .where((artist) => contentIds.artistIds.contains(artist.id))
@@ -1064,9 +1058,7 @@ class _SortFilterRow<T> extends StatelessWidget {
             selected: downloadedOnly,
             onSelected: onDownloadedOnlyChanged,
             avatar: Icon(
-              downloadedOnly
-                  ? Icons.download_done
-                  : Icons.download_outlined,
+              downloadedOnly ? Icons.download_done : Icons.download_outlined,
               size: 18,
             ),
           ),

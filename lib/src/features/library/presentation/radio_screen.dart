@@ -128,18 +128,20 @@ class RadioTabContent extends ConsumerWidget {
     }
 
     unawaited(
-      handler.playRadioStream(
-        stationId: station.id as String,
-        stationName: station.name as String,
-        streamUrl: station.streamUrl as String,
-        homePageUrl: station.homePageUrl as String?,
-      ).catchError((Object error) {
-        if (!context.mounted) return;
-        final l10n = AppLocalizations.of(context)!;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.radioPlaybackError)),
-        );
-      }),
+      handler
+          .playRadioStream(
+            stationId: station.id as String,
+            stationName: station.name as String,
+            streamUrl: station.streamUrl as String,
+            homePageUrl: station.homePageUrl as String?,
+          )
+          .catchError((Object error) {
+            if (!context.mounted) return;
+            final l10n = AppLocalizations.of(context)!;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(l10n.radioPlaybackError)),
+            );
+          }),
     );
   }
 

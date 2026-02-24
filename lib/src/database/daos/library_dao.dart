@@ -322,8 +322,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         .where((id) => id.isNotEmpty)
         .toList(growable: false);
     if (ids.isEmpty) return const {};
-    final query = select(songsTable)
-      ..where((t) => t.albumId.isIn(ids));
+    final query = select(songsTable)..where((t) => t.albumId.isIn(ids));
     final rows = await query.get();
     final result = <String, Set<String>>{};
     for (final row in rows) {

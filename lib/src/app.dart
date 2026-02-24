@@ -65,8 +65,7 @@ class _NavisAppState extends ConsumerState<NavisApp> {
     final router = ref.watch(appRouterProvider);
     final themeModeName = ref.watch(themeModeProvider);
     final colorSeed = ref.watch(colorSchemeSeedProvider);
-    final seedColor =
-        colorSeed != null ? Color(colorSeed) : Colors.blue;
+    final seedColor = colorSeed != null ? Color(colorSeed) : Colors.blue;
     final resolvedThemeMode = resolveThemeMode(themeModeName);
     final isOled = themeModeName == 'oled';
 
@@ -77,9 +76,7 @@ class _NavisAppState extends ConsumerState<NavisApp> {
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       theme: buildLightTheme(seedColor),
-      darkTheme: isOled
-          ? buildOledTheme(seedColor)
-          : buildDarkTheme(seedColor),
+      darkTheme: isOled ? buildOledTheme(seedColor) : buildDarkTheme(seedColor),
       themeMode: resolvedThemeMode,
       routerConfig: router,
     );

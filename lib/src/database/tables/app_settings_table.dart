@@ -38,16 +38,17 @@ class AppSettingsTable extends Table {
   /// Rolling cache budget in megabytes. Default 2048 (2 GB).
   IntColumn get rollingCacheBudgetMb =>
       integer().withDefault(const Constant(2048))();
+
   /// When true, downloads only proceed on Wi-Fi / Ethernet.
   BoolColumn get wifiOnlyDownloads =>
       boolean().withDefault(const Constant(false))();
 
   /// Theme mode: 'light', 'dark', 'oled', or 'system'. Defaults to 'dark'.
-  TextColumn get themeMode =>
-      text().withDefault(const Constant('dark'))();
+  TextColumn get themeMode => text().withDefault(const Constant('dark'))();
 
   /// Seed color for the app's ColorScheme. Null = dynamic / default blue.
   IntColumn get colorSchemeSeed => integer().nullable()();
+
   /// JSON-encoded list of custom color presets (ARGB32 ints).
   TextColumn get customColorPresets => text().nullable()();
 

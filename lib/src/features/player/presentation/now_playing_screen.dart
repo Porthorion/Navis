@@ -153,8 +153,7 @@ class _NowPlayingAppBar extends ConsumerWidget {
                 title: Text(l10n.downloadAction),
                 onTap: () async {
                   Navigator.of(sheetContext).pop();
-                  final choice =
-                      await showDownloadQualitySheet(context);
+                  final choice = await showDownloadQualitySheet(context);
                   if (choice == null || !context.mounted) return;
                   final service = ref.read(downloadServiceProvider);
                   await service.enqueueSong(
@@ -225,7 +224,9 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
     final radioMeta = playback.radioStation;
 
     final title = isRadio
-        ? (radioMeta?.nowPlayingTitle ?? radioMeta?.stationName ?? l10n.radioTitle)
+        ? (radioMeta?.nowPlayingTitle ??
+              radioMeta?.stationName ??
+              l10n.radioTitle)
         : (song?.title ?? l10n.nowPlayingUnknownTrack);
     final artist = isRadio
         ? (radioMeta?.nowPlayingArtist ?? radioMeta?.stationName ?? '')
@@ -257,14 +258,14 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
                     child: isRadio
                         ? _RadioCoverArt(artUrl: radioMeta?.nowPlayingArtUrl)
                         : (_showLyrics && playback.currentSongId != null
-                            ? _InlineLyrics(
-                                songId: playback.currentSongId!,
-                              )
-                            : GestureDetector(
-                                onTap: _togglePlayPause,
-                                onHorizontalDragEnd: _handleHorizontalSwipe,
-                                child: _CoverArt(coverArtId: song?.coverArt),
-                              )),
+                              ? _InlineLyrics(
+                                  songId: playback.currentSongId!,
+                                )
+                              : GestureDetector(
+                                  onTap: _togglePlayPause,
+                                  onHorizontalDragEnd: _handleHorizontalSwipe,
+                                  child: _CoverArt(coverArtId: song?.coverArt),
+                                )),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -273,24 +274,47 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
                   artist: artist,
                   album: album,
                   onTitleTap: isRadio
-                      ? (radioMeta?.nowPlayingTitle != null && radioMeta!.nowPlayingTitle!.isNotEmpty
-                          ? () => NavService.goToSearch(context, ref, radioMeta.nowPlayingTitle!)
-                          : null)
+                      ? (radioMeta?.nowPlayingTitle != null &&
+                                radioMeta!.nowPlayingTitle!.isNotEmpty
+                            ? () => NavService.goToSearch(
+                                context,
+                                ref,
+                                radioMeta.nowPlayingTitle!,
+                              )
+                            : null)
                       : null,
                   onArtistTap: isRadio
-                      ? (radioMeta?.nowPlayingArtist != null && radioMeta!.nowPlayingArtist!.isNotEmpty
-                          ? () => NavService.goToSearch(context, ref, radioMeta.nowPlayingArtist!)
-                          : null)
+                      ? (radioMeta?.nowPlayingArtist != null &&
+                                radioMeta!.nowPlayingArtist!.isNotEmpty
+                            ? () => NavService.goToSearch(
+                                context,
+                                ref,
+                                radioMeta.nowPlayingArtist!,
+                              )
+                            : null)
                       : (song?.artistId != null && song!.artistId!.isNotEmpty
-                          ? () => NavService.goToArtist(context, ref, song.artistId!)
-                          : (song?.artistName != null && song!.artistName!.isNotEmpty
-                              ? () => NavService.goToSearch(context, ref, song.artistName!)
-                              : null)),
+                            ? () => NavService.goToArtist(
+                                context,
+                                ref,
+                                song.artistId!,
+                              )
+                            : (song?.artistName != null &&
+                                      song!.artistName!.isNotEmpty
+                                  ? () => NavService.goToSearch(
+                                      context,
+                                      ref,
+                                      song.artistName!,
+                                    )
+                                  : null)),
                   onAlbumTap: isRadio
                       ? null
                       : (song?.albumId != null && song!.albumId!.isNotEmpty
-                          ? () => NavService.goToAlbum(context, ref, song.albumId!)
-                          : null),
+                            ? () => NavService.goToAlbum(
+                                context,
+                                ref,
+                                song.albumId!,
+                              )
+                            : null),
                 ),
                 const SizedBox(height: 16),
                 if (!isRadio) ...[

@@ -29,13 +29,13 @@ class DownloadService {
     required bool Function() readWifiOnly,
     required bool Function() readIsWifi,
     Dio? dio,
-  })  : _cacheDao = cacheDao,
-        _downloadQueueDao = downloadQueueDao,
-        _libraryDao = libraryDao,
-        _readApiClient = readApiClient,
-        _readWifiOnly = readWifiOnly,
-        _readIsWifi = readIsWifi,
-        _dio = dio ?? Dio();
+  }) : _cacheDao = cacheDao,
+       _downloadQueueDao = downloadQueueDao,
+       _libraryDao = libraryDao,
+       _readApiClient = readApiClient,
+       _readWifiOnly = readWifiOnly,
+       _readIsWifi = readIsWifi,
+       _dio = dio ?? Dio();
 
   final CacheDao _cacheDao;
   final DownloadQueueDao _downloadQueueDao;
@@ -434,8 +434,9 @@ class DownloadService {
   ) async {
     final dir = await _permanentDirectory();
     final qualitySig = '${item.quality ?? 'original'}-${item.format ?? 'raw'}';
-    final digest =
-        sha1.convert(utf8.encode('${song.id}::$qualitySig')).toString();
+    final digest = sha1
+        .convert(utf8.encode('${song.id}::$qualitySig'))
+        .toString();
     final ext = _resolveFormat(song, item);
     return File(p.join(dir.path, '${song.id}_$digest.$ext'));
   }

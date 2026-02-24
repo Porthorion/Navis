@@ -77,8 +77,9 @@ class AppearanceSettingsScreen extends ConsumerWidget {
               if (!updated.contains(colorValue)) {
                 updated.add(colorValue);
               }
-              await db.appSettingsDao
-                  .updateCustomColorPresets(jsonEncode(updated));
+              await db.appSettingsDao.updateCustomColorPresets(
+                jsonEncode(updated),
+              );
               if (context.mounted) {
                 ScaffoldMessenger.of(context)
                   ..clearSnackBars()
@@ -97,13 +98,11 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                   content: Text(l10n.appearanceColorDeletePresetConfirm),
                   actions: <Widget>[
                     TextButton(
-                      onPressed: () =>
-                          Navigator.pop(dialogContext, false),
+                      onPressed: () => Navigator.pop(dialogContext, false),
                       child: Text(l10n.cancelAction),
                     ),
                     FilledButton(
-                      onPressed: () =>
-                          Navigator.pop(dialogContext, true),
+                      onPressed: () => Navigator.pop(dialogContext, true),
                       child: Text(l10n.appearanceColorDeletePreset),
                     ),
                   ],
@@ -111,8 +110,7 @@ class AppearanceSettingsScreen extends ConsumerWidget {
               );
               if (confirmed != true || !context.mounted) return;
               final db = ref.read(navisDatabaseProvider);
-              final updated = List<int>.from(customPresets)
-                ..remove(colorValue);
+              final updated = List<int>.from(customPresets)..remove(colorValue);
               await db.appSettingsDao.updateCustomColorPresets(
                 updated.isEmpty ? null : jsonEncode(updated),
               );
@@ -309,7 +307,8 @@ class _ColorChip extends StatelessWidget {
           child: isSelected
               ? Icon(
                   Icons.check,
-                  color: ThemeData.estimateBrightnessForColor(color) ==
+                  color:
+                      ThemeData.estimateBrightnessForColor(color) ==
                           Brightness.dark
                       ? Colors.white
                       : Colors.black,
@@ -432,8 +431,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
                 Expanded(
                   child: Slider(
                     value: _saturation,
-                    onChanged: (value) =>
-                        setState(() => _saturation = value),
+                    onChanged: (value) => setState(() => _saturation = value),
                   ),
                 ),
               ],
@@ -503,8 +501,7 @@ class _HueSlider extends StatelessWidget {
             gradient: LinearGradient(
               colors: List<Color>.generate(
                 360 ~/ 10 + 1,
-                (i) =>
-                    HSVColor.fromAHSV(1, min(i * 10.0, 359), 1, 1).toColor(),
+                (i) => HSVColor.fromAHSV(1, min(i * 10.0, 359), 1, 1).toColor(),
               ),
             ),
           ),

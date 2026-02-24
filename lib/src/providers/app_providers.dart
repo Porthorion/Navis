@@ -673,8 +673,7 @@ final cachedSongIdsProvider = StreamProvider<Set<String>>((ref) {
 });
 
 /// Maps songId → CacheType for all cached tracks (rolling + permanent).
-final cachedSongTypesProvider =
-    StreamProvider<Map<String, CacheType>>((ref) {
+final cachedSongTypesProvider = StreamProvider<Map<String, CacheType>>((ref) {
   final dao = ref.watch(navisDatabaseProvider).cacheDao;
   return dao.watchCachedTracks().map(
     (tracks) => {for (final t in tracks) t.songId: t.cacheType},
@@ -691,37 +690,39 @@ final cachedSongTypesProvider =
 /// stored; but the parent album/artist still shows in the filtered view.
 final downloadedContentIdsProvider =
     StreamProvider<({Set<String> albumIds, Set<String> artistIds})>((ref) {
-  final db = ref.watch(navisDatabaseProvider);
+      final db = ref.watch(navisDatabaseProvider);
 
-  final cachedStream = db.cacheDao.watchCachedTracksByType(CacheType.permanent);
+      final cachedStream = db.cacheDao.watchCachedTracksByType(
+        CacheType.permanent,
+      );
 
-  return cachedStream.asyncMap((cachedTracks) async {
-    final songIds = <String>{};
-    for (final t in cachedTracks) {
-      songIds.add(t.songId);
-    }
+      return cachedStream.asyncMap((cachedTracks) async {
+        final songIds = <String>{};
+        for (final t in cachedTracks) {
+          songIds.add(t.songId);
+        }
 
-    if (songIds.isEmpty) {
-      return (albumIds: <String>{}, artistIds: <String>{});
-    }
+        if (songIds.isEmpty) {
+          return (albumIds: <String>{}, artistIds: <String>{});
+        }
 
-    final songs = await db.libraryDao.getSongsByIds(songIds);
-    final albumIds = <String>{};
-    final artistIds = <String>{};
-    for (final song in songs) {
-      if (song.albumId != null) albumIds.add(song.albumId!);
-      if (song.artistId != null) artistIds.add(song.artistId!);
-    }
-    return (albumIds: albumIds, artistIds: artistIds);
-  });
-});
+        final songs = await db.libraryDao.getSongsByIds(songIds);
+        final albumIds = <String>{};
+        final artistIds = <String>{};
+        for (final song in songs) {
+          if (song.albumId != null) albumIds.add(song.albumId!);
+          if (song.artistId != null) artistIds.add(song.artistId!);
+        }
+        return (albumIds: albumIds, artistIds: artistIds);
+      });
+    });
 
 /// Provides the list of permanently cached tracks.
 final permanentCachedTracksProvider =
     StreamProvider<List<CachedTracksTableData>>((ref) {
-  final dao = ref.watch(navisDatabaseProvider).cacheDao;
-  return dao.watchCachedTracksByType(CacheType.permanent);
-});
+      final dao = ref.watch(navisDatabaseProvider).cacheDao;
+      return dao.watchCachedTracksByType(CacheType.permanent);
+    });
 
 final downloadServiceProvider = Provider<DownloadService>((ref) {
   final db = ref.watch(navisDatabaseProvider);

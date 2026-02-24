@@ -162,11 +162,11 @@ class _AppShellState extends ConsumerState<AppShell>
                         playback: playback,
                         songTitle: playback.isRadioMode
                             ? (playback.radioStation!.nowPlayingTitle ??
-                                playback.radioStation!.stationName)
+                                  playback.radioStation!.stationName)
                             : currentSongAsync.asData?.value?.title,
                         songArtist: playback.isRadioMode
                             ? (playback.radioStation!.nowPlayingArtist ??
-                                playback.radioStation!.stationName)
+                                  playback.radioStation!.stationName)
                             : currentSongAsync.asData?.value?.artistName,
                         coverArtId: playback.isRadioMode
                             ? null
@@ -196,9 +196,7 @@ class _AppShellState extends ConsumerState<AppShell>
                   final branchIndex = visibleBranchIndices[index];
                   // Trigger focus request whenever the Search tab is tapped.
                   if (branchIndex == _searchBranchIndex) {
-                    ref
-                        .read(searchFocusRequestProvider.notifier)
-                        .increment();
+                    ref.read(searchFocusRequestProvider.notifier).increment();
                   }
                   navigationShell.goBranch(
                     branchIndex,
@@ -304,8 +302,7 @@ class _MiniPlayerStrip extends ConsumerWidget {
                     if (isRadio)
                       ClipRRect(
                         borderRadius: BorderRadius.circular(4),
-                        child: radioArtUrl != null &&
-                                radioArtUrl!.isNotEmpty
+                        child: radioArtUrl != null && radioArtUrl!.isNotEmpty
                             ? Image.network(
                                 radioArtUrl!,
                                 width: 40,
@@ -314,28 +311,28 @@ class _MiniPlayerStrip extends ConsumerWidget {
                                 errorBuilder: (_, __, _) => Container(
                                   width: 40,
                                   height: 40,
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .primaryContainer,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.primaryContainer,
                                   child: Icon(
                                     Icons.radio,
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onPrimaryContainer,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onPrimaryContainer,
                                   ),
                                 ),
                               )
                             : Container(
                                 width: 40,
                                 height: 40,
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .primaryContainer,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.primaryContainer,
                                 child: Icon(
                                   Icons.radio,
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onPrimaryContainer,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onPrimaryContainer,
                                 ),
                               ),
                       )
@@ -376,11 +373,11 @@ class _MiniPlayerStrip extends ConsumerWidget {
                     IconButton(
                       tooltip: isRadio
                           ? (isPlaying
-                              ? l10n.miniPlayerPause
-                              : l10n.miniPlayerPlay)
+                                ? l10n.miniPlayerPause
+                                : l10n.miniPlayerPlay)
                           : (isPlaying
-                              ? l10n.miniPlayerPause
-                              : l10n.miniPlayerPlay),
+                                ? l10n.miniPlayerPause
+                                : l10n.miniPlayerPlay),
                       onPressed: () async {
                         final handler = ref.read(audioHandlerProvider);
                         if (handler == null) {
