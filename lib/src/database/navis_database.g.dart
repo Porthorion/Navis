@@ -2481,6 +2481,18 @@ class $AlbumsTableTable extends AlbumsTable
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _serverCreatedAtMeta = const VerificationMeta(
+    'serverCreatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> serverCreatedAt =
+      GeneratedColumn<DateTime>(
+        'server_created_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -2496,6 +2508,7 @@ class $AlbumsTableTable extends AlbumsTable
     starred,
     playCount,
     syncedAt,
+    serverCreatedAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -2591,6 +2604,15 @@ class $AlbumsTableTable extends AlbumsTable
         syncedAt.isAcceptableOrUnknown(data['synced_at']!, _syncedAtMeta),
       );
     }
+    if (data.containsKey('server_created_at')) {
+      context.handle(
+        _serverCreatedAtMeta,
+        serverCreatedAt.isAcceptableOrUnknown(
+          data['server_created_at']!,
+          _serverCreatedAtMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -2652,6 +2674,10 @@ class $AlbumsTableTable extends AlbumsTable
         DriftSqlType.dateTime,
         data['${effectivePrefix}synced_at'],
       ),
+      serverCreatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}server_created_at'],
+      ),
     );
   }
 
@@ -2678,6 +2704,11 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
   /// When this album was first persisted to the local database (synced from
   /// server).  Used for the "Recently Added" sort order.
   final DateTime? syncedAt;
+
+  /// When the album was added to the Subsonic server library.
+  /// Populated from the `created` field in `getAlbumList2` responses.
+  /// More accurate than [syncedAt] for "Recently Added" ordering.
+  final DateTime? serverCreatedAt;
   const AlbumsTableData({
     required this.id,
     required this.name,
@@ -2692,6 +2723,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     this.starred,
     this.playCount,
     this.syncedAt,
+    this.serverCreatedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2729,6 +2761,9 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     if (!nullToAbsent || syncedAt != null) {
       map['synced_at'] = Variable<DateTime>(syncedAt);
     }
+    if (!nullToAbsent || serverCreatedAt != null) {
+      map['server_created_at'] = Variable<DateTime>(serverCreatedAt);
+    }
     return map;
   }
 
@@ -2765,6 +2800,9 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       syncedAt: syncedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(syncedAt),
+      serverCreatedAt: serverCreatedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(serverCreatedAt),
     );
   }
 
@@ -2787,6 +2825,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       starred: serializer.fromJson<DateTime?>(json['starred']),
       playCount: serializer.fromJson<int?>(json['playCount']),
       syncedAt: serializer.fromJson<DateTime?>(json['syncedAt']),
+      serverCreatedAt: serializer.fromJson<DateTime?>(json['serverCreatedAt']),
     );
   }
   @override
@@ -2806,6 +2845,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       'starred': serializer.toJson<DateTime?>(starred),
       'playCount': serializer.toJson<int?>(playCount),
       'syncedAt': serializer.toJson<DateTime?>(syncedAt),
+      'serverCreatedAt': serializer.toJson<DateTime?>(serverCreatedAt),
     };
   }
 
@@ -2823,6 +2863,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     Value<DateTime?> starred = const Value.absent(),
     Value<int?> playCount = const Value.absent(),
     Value<DateTime?> syncedAt = const Value.absent(),
+    Value<DateTime?> serverCreatedAt = const Value.absent(),
   }) => AlbumsTableData(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -2837,6 +2878,9 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     starred: starred.present ? starred.value : this.starred,
     playCount: playCount.present ? playCount.value : this.playCount,
     syncedAt: syncedAt.present ? syncedAt.value : this.syncedAt,
+    serverCreatedAt: serverCreatedAt.present
+        ? serverCreatedAt.value
+        : this.serverCreatedAt,
   );
   AlbumsTableData copyWithCompanion(AlbumsTableCompanion data) {
     return AlbumsTableData(
@@ -2857,6 +2901,9 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       starred: data.starred.present ? data.starred.value : this.starred,
       playCount: data.playCount.present ? data.playCount.value : this.playCount,
       syncedAt: data.syncedAt.present ? data.syncedAt.value : this.syncedAt,
+      serverCreatedAt: data.serverCreatedAt.present
+          ? data.serverCreatedAt.value
+          : this.serverCreatedAt,
     );
   }
 
@@ -2875,7 +2922,8 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
           ..write('songsHydrated: $songsHydrated, ')
           ..write('starred: $starred, ')
           ..write('playCount: $playCount, ')
-          ..write('syncedAt: $syncedAt')
+          ..write('syncedAt: $syncedAt, ')
+          ..write('serverCreatedAt: $serverCreatedAt')
           ..write(')'))
         .toString();
   }
@@ -2895,6 +2943,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     starred,
     playCount,
     syncedAt,
+    serverCreatedAt,
   );
   @override
   bool operator ==(Object other) =>
@@ -2912,7 +2961,8 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
           other.songsHydrated == this.songsHydrated &&
           other.starred == this.starred &&
           other.playCount == this.playCount &&
-          other.syncedAt == this.syncedAt);
+          other.syncedAt == this.syncedAt &&
+          other.serverCreatedAt == this.serverCreatedAt);
 }
 
 class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
@@ -2929,6 +2979,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
   final Value<DateTime?> starred;
   final Value<int?> playCount;
   final Value<DateTime?> syncedAt;
+  final Value<DateTime?> serverCreatedAt;
   final Value<int> rowid;
   const AlbumsTableCompanion({
     this.id = const Value.absent(),
@@ -2944,6 +2995,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     this.starred = const Value.absent(),
     this.playCount = const Value.absent(),
     this.syncedAt = const Value.absent(),
+    this.serverCreatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   AlbumsTableCompanion.insert({
@@ -2960,6 +3012,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     this.starred = const Value.absent(),
     this.playCount = const Value.absent(),
     this.syncedAt = const Value.absent(),
+    this.serverCreatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        name = Value(name);
@@ -2977,6 +3030,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     Expression<DateTime>? starred,
     Expression<int>? playCount,
     Expression<DateTime>? syncedAt,
+    Expression<DateTime>? serverCreatedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -2993,6 +3047,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
       if (starred != null) 'starred': starred,
       if (playCount != null) 'play_count': playCount,
       if (syncedAt != null) 'synced_at': syncedAt,
+      if (serverCreatedAt != null) 'server_created_at': serverCreatedAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -3011,6 +3066,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     Value<DateTime?>? starred,
     Value<int?>? playCount,
     Value<DateTime?>? syncedAt,
+    Value<DateTime?>? serverCreatedAt,
     Value<int>? rowid,
   }) {
     return AlbumsTableCompanion(
@@ -3027,6 +3083,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
       starred: starred ?? this.starred,
       playCount: playCount ?? this.playCount,
       syncedAt: syncedAt ?? this.syncedAt,
+      serverCreatedAt: serverCreatedAt ?? this.serverCreatedAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -3073,6 +3130,9 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     if (syncedAt.present) {
       map['synced_at'] = Variable<DateTime>(syncedAt.value);
     }
+    if (serverCreatedAt.present) {
+      map['server_created_at'] = Variable<DateTime>(serverCreatedAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -3095,6 +3155,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
           ..write('starred: $starred, ')
           ..write('playCount: $playCount, ')
           ..write('syncedAt: $syncedAt, ')
+          ..write('serverCreatedAt: $serverCreatedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -9455,6 +9516,7 @@ typedef $$AlbumsTableTableCreateCompanionBuilder =
       Value<DateTime?> starred,
       Value<int?> playCount,
       Value<DateTime?> syncedAt,
+      Value<DateTime?> serverCreatedAt,
       Value<int> rowid,
     });
 typedef $$AlbumsTableTableUpdateCompanionBuilder =
@@ -9472,6 +9534,7 @@ typedef $$AlbumsTableTableUpdateCompanionBuilder =
       Value<DateTime?> starred,
       Value<int?> playCount,
       Value<DateTime?> syncedAt,
+      Value<DateTime?> serverCreatedAt,
       Value<int> rowid,
     });
 
@@ -9611,6 +9674,11 @@ class $$AlbumsTableTableFilterComposer
 
   ColumnFilters<DateTime> get syncedAt => $composableBuilder(
     column: $table.syncedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get serverCreatedAt => $composableBuilder(
+    column: $table.serverCreatedAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -9757,6 +9825,11 @@ class $$AlbumsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<DateTime> get serverCreatedAt => $composableBuilder(
+    column: $table.serverCreatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$ArtistsTableTableOrderingComposer get artistId {
     final $$ArtistsTableTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -9829,6 +9902,11 @@ class $$AlbumsTableTableAnnotationComposer
 
   GeneratedColumn<DateTime> get syncedAt =>
       $composableBuilder(column: $table.syncedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get serverCreatedAt => $composableBuilder(
+    column: $table.serverCreatedAt,
+    builder: (column) => column,
+  );
 
   $$ArtistsTableTableAnnotationComposer get artistId {
     final $$ArtistsTableTableAnnotationComposer composer = $composerBuilder(
@@ -9950,6 +10028,7 @@ class $$AlbumsTableTableTableManager
                 Value<DateTime?> starred = const Value.absent(),
                 Value<int?> playCount = const Value.absent(),
                 Value<DateTime?> syncedAt = const Value.absent(),
+                Value<DateTime?> serverCreatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => AlbumsTableCompanion(
                 id: id,
@@ -9965,6 +10044,7 @@ class $$AlbumsTableTableTableManager
                 starred: starred,
                 playCount: playCount,
                 syncedAt: syncedAt,
+                serverCreatedAt: serverCreatedAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -9982,6 +10062,7 @@ class $$AlbumsTableTableTableManager
                 Value<DateTime?> starred = const Value.absent(),
                 Value<int?> playCount = const Value.absent(),
                 Value<DateTime?> syncedAt = const Value.absent(),
+                Value<DateTime?> serverCreatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => AlbumsTableCompanion.insert(
                 id: id,
@@ -9997,6 +10078,7 @@ class $$AlbumsTableTableTableManager
                 starred: starred,
                 playCount: playCount,
                 syncedAt: syncedAt,
+                serverCreatedAt: serverCreatedAt,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

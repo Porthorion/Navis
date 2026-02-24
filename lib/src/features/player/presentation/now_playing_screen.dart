@@ -67,6 +67,26 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     }
   }
 
+  Future<void> _extractArtColorFromUrl(String? artUrl) async {
+    if (artUrl == _extractedCoverArtId) return;
+    _extractedCoverArtId = artUrl;
+
+    if (artUrl == null || artUrl.trim().isEmpty) {
+      if (mounted) setState(() => _artTintColor = null);
+      return;
+    }
+
+    try {
+      final scheme = await ColorScheme.fromImageProvider(
+        provider: NetworkImage(artUrl),
+        brightness: Theme.of(context).brightness,
+      );
+      if (mounted) setState(() => _artTintColor = scheme.primary);
+    } on Exception {
+      if (mounted) setState(() => _artTintColor = null);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final playback = ref.watch(playerStateProvider);
@@ -78,10 +98,14 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     final artTinted = ref.watch(artTintedNowPlayingProvider);
 
     // Trigger color extraction when art-tinted mode is on.
-    if (artTinted && !playback.isRadioMode) {
+    if (artTinted) {
       // Schedule after build to avoid setState during build.
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _extractArtColor(song?.coverArt);
+        if (playback.isRadioMode) {
+          _extractArtColorFromUrl(playback.radioStation?.nowPlayingArtUrl);
+        } else {
+          _extractArtColor(song?.coverArt);
+        }
       });
     } else if (!artTinted && _artTintColor != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -820,7 +844,7 @@ class _InlineLyrics extends ConsumerWidget {
   }
 }
 
-class _ActionRow extends ConsumerWidget {
+class _ActionRow extends ConsumerStatefulWidget {
   const _ActionRow({
     this.songId,
     this.isLiked = false,
@@ -834,30 +858,70 @@ class _ActionRow extends ConsumerWidget {
   final VoidCallback? onLyricsToggle;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_ActionRow> createState() => _ActionRowState();
+}
+
+class _ActionRowState extends ConsumerState<_ActionRow>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _likeController;
+  late final Animation<double> _likeScale;
+
+  @override
+  void initState() {
+    super.initState();
+    _likeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 350),
+    );
+    _likeScale = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.4), weight: 40),
+      TweenSequenceItem(tween: Tween(begin: 1.4, end: 1.0), weight: 60),
+    ]).animate(CurvedAnimation(parent: _likeController, curve: Curves.easeOut));
+  }
+
+  @override
+  void didUpdateWidget(_ActionRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isLiked != oldWidget.isLiked) {
+      _likeController.forward(from: 0.0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _likeController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: <Widget>[
-        IconButton(
-          icon: Icon(isLiked ? Icons.favorite : Icons.favorite_border),
-          color: isLiked ? Theme.of(context).colorScheme.primary : null,
-          tooltip: l10n.nowPlayingStar,
-          onPressed: songId == null
-              ? null
-              : () {
-                  final handler = ref.read(audioHandlerProvider);
-                  handler?.toggleLike();
-                },
+        ScaleTransition(
+          scale: _likeScale,
+          child: IconButton(
+            icon: Icon(widget.isLiked ? Icons.favorite : Icons.favorite_border),
+            color: widget.isLiked ? Theme.of(context).colorScheme.primary : null,
+            tooltip: l10n.nowPlayingStar,
+            onPressed: widget.songId == null
+                ? null
+                : () {
+                    HapticFeedback.lightImpact();
+                    final handler = ref.read(audioHandlerProvider);
+                    handler?.toggleLike();
+                  },
+          ),
         ),
         IconButton(
           icon: Icon(
-            showLyrics ? Icons.lyrics : Icons.lyrics_outlined,
-            color: showLyrics ? Theme.of(context).colorScheme.primary : null,
+            widget.showLyrics ? Icons.lyrics : Icons.lyrics_outlined,
+            color: widget.showLyrics ? Theme.of(context).colorScheme.primary : null,
           ),
           tooltip: l10n.nowPlayingLyrics,
-          onPressed: songId == null ? null : onLyricsToggle,
+          onPressed: widget.songId == null ? null : widget.onLyricsToggle,
         ),
         IconButton(
           icon: const Icon(Icons.queue_music),

@@ -38,6 +38,11 @@ class AlbumsTable extends Table {
   /// server).  Used for the "Recently Added" sort order.
   DateTimeColumn get syncedAt => dateTime().nullable()();
 
+  /// When the album was added to the Subsonic server library.
+  /// Populated from the `created` field in `getAlbumList2` responses.
+  /// More accurate than [syncedAt] for "Recently Added" ordering.
+  DateTimeColumn get serverCreatedAt => dateTime().nullable()();
+
   @override
   Set<Column<Object>> get primaryKey => {id};
 }

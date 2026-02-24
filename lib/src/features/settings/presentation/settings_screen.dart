@@ -22,6 +22,7 @@ class SettingsScreen extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.folder_copy_outlined),
             title: Text(l10n.settingsCacheTitle),
+            subtitle: Text(l10n.settingsCacheSubtitle),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push('/settings/cache'),
           ),
@@ -42,12 +43,14 @@ class SettingsScreen extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.graphic_eq_outlined),
             title: Text(l10n.settingsPlaybackTitle),
+            subtitle: Text(l10n.settingsPlaybackSubtitle),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push('/settings/playback'),
           ),
           ListTile(
             leading: const Icon(Icons.palette_outlined),
             title: Text(l10n.settingsAppearanceTitle),
+            subtitle: Text(l10n.settingsAppearanceSubtitle),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push('/settings/appearance'),
           ),

@@ -214,7 +214,9 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   // Cover art cache helpers
   // ---------------------------------------------------------------------------
 
-  static const int defaultCoverArtCacheMaxObjects = 5000;
+  /// Default for cover art cache max objects.
+  /// 0 = unlimited (the cache manager will use a very large number internally).
+  static const int defaultCoverArtCacheMaxObjects = 0;
 
   /// Targeted update for cover art cache max objects.
   Future<void> updateCoverArtCacheMaxObjects(int maxObjects) {

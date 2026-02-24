@@ -286,6 +286,12 @@ abstract class AppLocalizations {
   /// **'Cache'**
   String get settingsCacheTitle;
 
+  /// No description provided for @settingsCacheSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage storage for audio, cover art and downloads.'**
+  String get settingsCacheSubtitle;
+
   /// No description provided for @settingsDownloadsSubtitle.
   ///
   /// In en, this message translates to:
@@ -310,11 +316,23 @@ abstract class AppLocalizations {
   /// **'Playback'**
   String get settingsPlaybackTitle;
 
+  /// No description provided for @settingsPlaybackSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Stream quality, gapless, crossfade and equalizer.'**
+  String get settingsPlaybackSubtitle;
+
   /// No description provided for @settingsAppearanceTitle.
   ///
   /// In en, this message translates to:
   /// **'Appearance'**
   String get settingsAppearanceTitle;
+
+  /// No description provided for @settingsAppearanceSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Themes, colors and display preferences.'**
+  String get settingsAppearanceSubtitle;
 
   /// No description provided for @syncSettingsTitle.
   ///
@@ -2630,6 +2648,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Changes take effect after restarting the app.'**
   String get cacheSettingsCoverArtRestart;
+
+  /// No description provided for @cacheSettingsCoverArtUnlimitedLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'No limit'**
+  String get cacheSettingsCoverArtUnlimitedLabel;
+
+  /// No description provided for @cacheSettingsCoverArtUnlimitedSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Store all cover art on disk without restriction.'**
+  String get cacheSettingsCoverArtUnlimitedSubtitle;
 
   /// No description provided for @aboutTitle.
   ///

@@ -1384,6 +1384,29 @@ The app checks for updates against the project's Forgejo Releases API. No app st
 - **Forgejo URL configuration**:
   - The Forgejo instance URL, repo owner, and repo name are compile-time constants in `lib/src/utils/constants.dart`. Not user-configurable — hardcoded to the project's Forgejo repo.
 
+### 10.12 — Instant Mix
+
+**Goal**: Let the user start an on-the-fly radio-style queue seeded by any song, using the OpenSubsonic `getSimilarSongs2` / `getInstantMix` endpoints.
+
+**API**:
+- `GET /rest/getSimilarSongs2?id={songId}&count=50` — returns songs similar to the given track (by Last.fm or Subsonic's built-in similarity engine, depending on server config).
+- `GET /rest/getInstantMix?id={songId}&count=50` — same intent; some servers alias this. Prefer `getSimilarSongs2`; fall back to `getInstantMix` if the former returns an error.
+
+**UX**:
+- Entry points:
+  - Now Playing screen: compass icon button (`Icons.explore`) placed alongside the queue button in `_ActionRow`.
+  - Track context menu (long-press): "Start Instant Mix" menu item.
+- Tapping "Instant Mix" calls the API, inserts the returned songs into the play queue after the current track (replacing any existing auto-queue tail), and immediately starts playing.
+- Show a brief snackbar: "Instant Mix started — N similar tracks queued."
+- If the server does not support the endpoint (404 / `70 Not Found`), show an error snackbar: "Instant Mix not supported by this server."
+
+**Implementation**:
+- `SubsonicApiClient.getSimilarSongs(String songId, {int count = 50}) → Future<List<Song>>` — new method.
+- `AudioHandler.startInstantMix(String songId)` — calls the API, builds a `ConcatenatingAudioSource` tail, and inserts it after the current index.
+- `instantMixProvider` — `@riverpod` future provider (fire-and-forget, exposes loading state for the button spinner).
+- No persistent storage — Instant Mix is ephemeral and lives only in the current queue.
+- The compass button is hidden when no song is currently playing or when the server is not connected.
+
 ---
 
 ## Phase 11: AudioMuse AI Integration

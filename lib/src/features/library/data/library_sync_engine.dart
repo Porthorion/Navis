@@ -1563,6 +1563,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
             songsHydrated: const Value(false),
             starred: Value(row.starred),
             playCount: Value(row.playCount),
+            serverCreatedAt: Value(row.created),
           ),
         )
         .toList(growable: false);
@@ -1817,6 +1818,7 @@ class _AlbumRow {
     this.coverArt,
     this.starred,
     this.playCount,
+    this.created,
   });
 
   final String id;
@@ -1830,6 +1832,8 @@ class _AlbumRow {
   final String? coverArt;
   final DateTime? starred;
   final int? playCount;
+  /// When the album was added to the server library (`created` from the API).
+  final DateTime? created;
 }
 
 class _SongRow {
@@ -1899,6 +1903,7 @@ List<_AlbumRow> _albumRowsFromJson(List<Map<String, dynamic>> payload) {
           coverArt: json['coverArt'] as String?,
           starred: _parseIsoDate(json['starred'] as String?),
           playCount: json['playCount'] as int?,
+          created: _parseIsoDate(json['created'] as String?),
         ),
       )
       .toList(growable: false);
