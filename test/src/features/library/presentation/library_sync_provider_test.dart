@@ -13,8 +13,8 @@ import 'package:navis/src/features/library/presentation/library_sync_provider.da
 
 // Test overrides for @visibleForTesting providers.
 // ignore: invalid_use_of_visible_for_testing_member
-final _disableAutoEnqueue =
-    autoEnqueuePinnedTracksEnabledProvider.overrideWithValue(false);
+final _disableAutoEnqueue = autoEnqueuePinnedTracksEnabledProvider
+    .overrideWithValue(false);
 
 class _StaticReachabilityController extends ServerReachabilityController {
   _StaticReachabilityController(this._state);

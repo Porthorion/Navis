@@ -129,11 +129,11 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                           ),
                           OutlinedButton.icon(
                             onPressed: () async {
-                              final choice =
-                                  await showDownloadQualitySheet(context);
+                              final choice = await showDownloadQualitySheet(
+                                context,
+                              );
                               if (choice == null || !context.mounted) return;
-                              final service =
-                                  ref.read(downloadServiceProvider);
+                              final service = ref.read(downloadServiceProvider);
                               final count = await service.enqueueAlbum(
                                 widget.albumId,
                                 quality: choice.quality,

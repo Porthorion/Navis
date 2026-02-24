@@ -25,17 +25,17 @@ class CacheBadge extends StatelessWidget {
 
     final (icon, label, bgColor, fgColor) = switch (type) {
       CacheBadgeType.downloaded => (
-          Icons.download_done_outlined,
-          l10n.cacheBadgeDownloaded,
-          theme.colorScheme.secondaryContainer,
-          theme.colorScheme.onSecondaryContainer,
-        ),
+        Icons.download_done_outlined,
+        l10n.cacheBadgeDownloaded,
+        theme.colorScheme.secondaryContainer,
+        theme.colorScheme.onSecondaryContainer,
+      ),
       CacheBadgeType.cached => (
-          Icons.schedule_outlined,
-          l10n.cacheBadgeCached,
-          theme.colorScheme.tertiaryContainer,
-          theme.colorScheme.onTertiaryContainer,
-        ),
+        Icons.schedule_outlined,
+        l10n.cacheBadgeCached,
+        theme.colorScheme.tertiaryContainer,
+        theme.colorScheme.onTertiaryContainer,
+      ),
     };
 
     return DecoratedBox(

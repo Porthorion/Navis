@@ -40,8 +40,9 @@ class DownloadNotifier {
 
     // Normalise to 0-1000 range to avoid int overflow with large files.
     const normMax = 1000;
-    final normProgress =
-        total > 0 ? (received * normMax ~/ total).clamp(0, normMax) : 0;
+    final normProgress = total > 0
+        ? (received * normMax ~/ total).clamp(0, normMax)
+        : 0;
 
     final androidDetails = AndroidNotificationDetails(
       'downloads',

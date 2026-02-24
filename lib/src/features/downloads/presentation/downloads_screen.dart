@@ -79,8 +79,9 @@ class _QueueTab extends ConsumerWidget {
                   width: double.infinity,
                   child: FilledButton.tonalIcon(
                     onPressed: () {
-                      final dao =
-                          ref.read(navisDatabaseProvider).downloadQueueDao;
+                      final dao = ref
+                          .read(navisDatabaseProvider)
+                          .downloadQueueDao;
                       dao.retryAllFailed();
                     },
                     icon: const Icon(Icons.refresh),
@@ -130,8 +131,9 @@ class _QueueItemTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final songId = item.songId;
-    final songAsync =
-        songId != null ? ref.watch(songByIdProvider(songId)) : null;
+    final songAsync = songId != null
+        ? ref.watch(songByIdProvider(songId))
+        : null;
     final song = songAsync?.asData?.value;
 
     final title = song?.title ?? songId ?? '—';
@@ -422,8 +424,9 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
         }
       }
       if (tracks.isNotEmpty) {
-        await db.cacheDao
-            .deleteCachedTracksBySongIds(tracks.map((t) => t.songId));
+        await db.cacheDao.deleteCachedTracksBySongIds(
+          tracks.map((t) => t.songId),
+        );
       }
       if (mounted) {
         ScaffoldMessenger.of(context)

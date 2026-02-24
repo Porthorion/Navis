@@ -290,8 +290,9 @@ class NavisDatabase extends _$NavisDatabase {
         equalizerBandGains: const Value(null),
         loudnessEnabled: const Value(false),
         loudnessTargetGainDb: const Value(0),
-        rollingCacheBudgetMb:
-            const Value(AppSettingsDao.defaultRollingCacheBudgetMb),
+        rollingCacheBudgetMb: const Value(
+          AppSettingsDao.defaultRollingCacheBudgetMb,
+        ),
         wifiOnlyDownloads: const Value(false),
         themeMode: const Value('dark'),
         colorSchemeSeed: const Value(null),

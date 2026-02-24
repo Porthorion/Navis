@@ -15,8 +15,7 @@ class ArtistDetailScreen extends ConsumerStatefulWidget {
   final String artistId;
 
   @override
-  ConsumerState<ArtistDetailScreen> createState() =>
-      _ArtistDetailScreenState();
+  ConsumerState<ArtistDetailScreen> createState() => _ArtistDetailScreenState();
 }
 
 class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
@@ -75,8 +74,7 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
             );
           }
 
-          final isStarred =
-              _isStarred || artistData.starred != null;
+          final isStarred = _isStarred || artistData.starred != null;
 
           return ListView(
             padding: const EdgeInsets.only(bottom: 16),

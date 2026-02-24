@@ -300,8 +300,8 @@ class _PlaybackSettingsScreenState
                   onChanged: _isSaving
                       ? null
                       : (value) => setState(
-                            () => _crossfadeDurationSeconds = value.round(),
-                          ),
+                          () => _crossfadeDurationSeconds = value.round(),
+                        ),
                 ),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(

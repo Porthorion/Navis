@@ -142,8 +142,7 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
 
     // Remove DB rows.
     if (filtered.isNotEmpty) {
-      await cacheDao
-          .deleteCachedTracksBySongIds(filtered.map((t) => t.songId));
+      await cacheDao.deleteCachedTracksBySongIds(filtered.map((t) => t.songId));
     }
   }
 
@@ -215,9 +214,7 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
                         const Spacer(),
                         Text(
                           _budgetLabel(_budgetMb!, l10n),
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodyMedium
+                          style: Theme.of(context).textTheme.bodyMedium
                               ?.copyWith(fontWeight: FontWeight.w600),
                         ),
                       ],
@@ -270,9 +267,9 @@ class _SectionHeader extends StatelessWidget {
       child: Text(
         title,
         style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              color: Theme.of(context).colorScheme.primary,
-              fontWeight: FontWeight.w600,
-            ),
+          color: Theme.of(context).colorScheme.primary,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }
@@ -299,8 +296,7 @@ class _CacheStatsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final usedLabel = formatBytes(usedBytes);
-    final budgetLabel =
-        budgetBytes != null ? formatBytes(budgetBytes!) : null;
+    final budgetLabel = budgetBytes != null ? formatBytes(budgetBytes!) : null;
     final progress = budgetBytes != null && budgetBytes! > 0
         ? (usedBytes / budgetBytes!).clamp(0.0, 1.0)
         : 0.0;

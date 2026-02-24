@@ -73,29 +73,27 @@ class DownloadQueueDao extends DatabaseAccessor<NavisDatabase>
   ///
   /// Call on startup to recover from a previous app kill.
   Future<void> requeueStuckDownloads() {
-    return (update(downloadQueueTable)
-          ..where(
-            (t) => t.status.equalsValue(DownloadStatus.downloading),
-          ))
+    return (update(downloadQueueTable)..where(
+          (t) => t.status.equalsValue(DownloadStatus.downloading),
+        ))
         .write(
-      const DownloadQueueTableCompanion(
-        status: Value(DownloadStatus.queued),
-        progress: Value(0),
-      ),
-    );
+          const DownloadQueueTableCompanion(
+            status: Value(DownloadStatus.queued),
+            progress: Value(0),
+          ),
+        );
   }
 
   /// Reset all failed items to `queued` so they can be retried.
   Future<void> retryAllFailed() {
-    return (update(downloadQueueTable)
-          ..where(
-            (t) => t.status.equalsValue(DownloadStatus.failed),
-          ))
+    return (update(downloadQueueTable)..where(
+          (t) => t.status.equalsValue(DownloadStatus.failed),
+        ))
         .write(
-      const DownloadQueueTableCompanion(
-        status: Value(DownloadStatus.queued),
-        progress: Value(0),
-      ),
-    );
+          const DownloadQueueTableCompanion(
+            status: Value(DownloadStatus.queued),
+            progress: Value(0),
+          ),
+        );
   }
 }

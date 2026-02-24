@@ -104,9 +104,9 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
 
   /// Targeted update for rolling cache budget without touching other settings.
   Future<void> updateRollingCacheBudgetMb(int mb) {
-    return (update(appSettingsTable)
-          ..where((t) => t.id.equals(primarySettingsId)))
-        .write(
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
       AppSettingsTableCompanion(
         rollingCacheBudgetMb: Value(mb),
         updatedAt: Value(DateTime.now()),
@@ -116,8 +116,9 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
 
   /// Stream the rolling cache budget in MB.
   Stream<int> watchRollingCacheBudgetMb() {
-    return watchSettings()
-        .map((s) => s?.rollingCacheBudgetMb ?? defaultRollingCacheBudgetMb);
+    return watchSettings().map(
+      (s) => s?.rollingCacheBudgetMb ?? defaultRollingCacheBudgetMb,
+    );
   }
 
   /// Read current rolling cache budget in MB (one-shot).
@@ -132,9 +133,9 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
 
   /// Targeted update for the Wi-Fi-only downloads flag.
   Future<void> updateWifiOnlyDownloads({required bool enabled}) {
-    return (update(appSettingsTable)
-          ..where((t) => t.id.equals(primarySettingsId)))
-        .write(
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
       AppSettingsTableCompanion(
         wifiOnlyDownloads: Value(enabled),
         updatedAt: Value(DateTime.now()),
@@ -153,9 +154,9 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
 
   /// Targeted update for theme mode.
   Future<void> updateThemeMode(String mode) {
-    return (update(appSettingsTable)
-          ..where((t) => t.id.equals(primarySettingsId)))
-        .write(
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
       AppSettingsTableCompanion(
         themeMode: Value(mode),
         updatedAt: Value(DateTime.now()),
@@ -165,9 +166,9 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
 
   /// Targeted update for color scheme seed.
   Future<void> updateColorSchemeSeed(int? seed) {
-    return (update(appSettingsTable)
-          ..where((t) => t.id.equals(primarySettingsId)))
-        .write(
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
       AppSettingsTableCompanion(
         colorSchemeSeed: Value(seed),
         updatedAt: Value(DateTime.now()),
@@ -191,9 +192,9 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
 
   /// Targeted update for custom color presets (JSON string of int list).
   Future<void> updateCustomColorPresets(String? json) {
-    return (update(appSettingsTable)
-          ..where((t) => t.id.equals(primarySettingsId)))
-        .write(
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
       AppSettingsTableCompanion(
         customColorPresets: Value(json),
         updatedAt: Value(DateTime.now()),

@@ -364,6 +364,7 @@ class NavisAudioHandler extends BaseAudioHandler
   Timer? _crossfadeFadeTimer;
   bool _isCrossfading = false;
   StreamSubscription<Duration>? _crossfadePositionSub;
+
   /// The queue index of the track loaded on `_crossfadePlayer`.
   int? _crossfadeTargetIndex;
 
@@ -632,8 +633,7 @@ class NavisAudioHandler extends BaseAudioHandler
     if (_crossfadeType == 'smart') {
       final currentAlbumId =
           _queueItems[_player.currentIndex ?? 0].extras?['albumId'] as String?;
-      final nextAlbumId =
-          _queueItems[nextIndex].extras?['albumId'] as String?;
+      final nextAlbumId = _queueItems[nextIndex].extras?['albumId'] as String?;
       if (currentAlbumId != null &&
           nextAlbumId != null &&
           currentAlbumId == nextAlbumId) {
@@ -708,14 +708,17 @@ class NavisAudioHandler extends BaseAudioHandler
       _crossfadeFadeTimer = Timer.periodic(
         const Duration(milliseconds: 50),
         (timer) {
-          final elapsed =
-              DateTime.now().difference(startTime).inMilliseconds;
+          final elapsed = DateTime.now().difference(startTime).inMilliseconds;
           final progress = (elapsed / fadeDurationMs).clamp(0.0, 1.0);
 
           // If the main player is ducked, respect that by scaling the
           // outgoing volume relative to the duck level.
           final outgoingBase = _isDucked ? _volumeBeforeDuck * 2 / 5 : 1.0;
-          unawaited(_player.setVolume((outgoingBase * (1.0 - progress)).clamp(0.0, 1.0)));
+          unawaited(
+            _player.setVolume(
+              (outgoingBase * (1.0 - progress)).clamp(0.0, 1.0),
+            ),
+          );
           unawaited(cfPlayer.setVolume(progress.clamp(0.0, 1.0)));
 
           if (progress >= 1.0) {
@@ -1446,9 +1449,7 @@ class NavisAudioHandler extends BaseAudioHandler
       queue.add(List<MediaItem>.unmodifiable(_queueItems));
       // Update the mediaItem stream to match whatever is now current.
       final nowIndex = _player.currentIndex;
-      if (nowIndex != null &&
-          nowIndex >= 0 &&
-          nowIndex < _queueItems.length) {
+      if (nowIndex != null && nowIndex >= 0 && nowIndex < _queueItems.length) {
         mediaItem.add(_queueItems[nowIndex]);
       }
 
@@ -1909,8 +1910,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   void _emitSnapshot() {
     final currentItem = _mediaItemForIndex(_player.currentIndex);
-    final isLiked =
-        currentItem?.extras?['liked'] as bool? ?? false;
+    final isLiked = currentItem?.extras?['liked'] as bool? ?? false;
     _snapshot = PlaybackSnapshot(
       queueSongIds: _radioStation != null
           ? const <String>[]
@@ -2208,7 +2208,8 @@ class NavisAudioHandler extends BaseAudioHandler
       final listenIndex = uri.pathSegments.indexOf('listen');
       if (listenIndex >= 0 && listenIndex + 1 < uri.pathSegments.length) {
         final stationName = uri.pathSegments[listenIndex + 1];
-        final baseUrl = '${uri.scheme}://${uri.host}${uri.hasPort ? ':${uri.port}' : ''}';
+        final baseUrl =
+            '${uri.scheme}://${uri.host}${uri.hasPort ? ':${uri.port}' : ''}';
         return (baseUrl, stationName);
       }
     }
@@ -2221,7 +2222,8 @@ class NavisAudioHandler extends BaseAudioHandler
         final segments = homeUri.pathSegments
             .where((s) => s.isNotEmpty)
             .toList();
-        final baseUrl = '${homeUri.scheme}://${homeUri.host}${homeUri.hasPort ? ':${homeUri.port}' : ''}';
+        final baseUrl =
+            '${homeUri.scheme}://${homeUri.host}${homeUri.hasPort ? ':${homeUri.port}' : ''}';
         if (segments.length >= 2 && segments.first == 'public') {
           return (baseUrl, segments[1]);
         }
