@@ -10,11 +10,13 @@ class AlbumCard extends StatelessWidget {
     super.key,
     this.onTap,
     this.onLongPress,
+    this.onStarToggled,
   });
 
   final AlbumsTableData album;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
+  final VoidCallback? onStarToggled;
 
   @override
   Widget build(BuildContext context) {
@@ -36,14 +38,12 @@ class AlbumCard extends StatelessWidget {
         subtitle: Text(
           '${album.artistName ?? l10n.albumDetailUnknownArtist}$year',
         ),
-        trailing: album.starred == null
-            ? null
-            : StarButton(
-                isStarred: true,
-                compact: true,
-                onPressed: null,
-                tooltip: l10n.albumDetailStarAction,
-              ),
+        trailing: StarButton(
+          isStarred: album.starred != null,
+          compact: true,
+          onPressed: onStarToggled,
+          tooltip: l10n.albumDetailStarAction,
+        ),
         onTap: onTap,
         onLongPress: onLongPress,
       ),

@@ -77,11 +77,14 @@ class DownloadService {
   /// Enqueue a single song for permanent download.
   ///
   /// Skips if the song is already queued or downloading.
+  /// When [forceRedownload] is true, re-downloads even if a permanent cache
+  /// entry already exists (e.g., to upgrade to original quality).
   Future<void> enqueueSong(
     String songId, {
     String? quality,
     String? format,
     int priority = 0,
+    bool forceRedownload = false,
   }) async {
     // Dedup: skip if already queued or downloading.
     final existing = await _downloadQueueDao.findBySongId(songId);
@@ -90,10 +93,12 @@ class DownloadService {
             existing.status == DownloadStatus.downloading)) {
       return;
     }
-    // Also skip if already permanently cached.
-    final cached = await _cacheDao.getCachedTrack(songId);
-    if (cached != null && cached.cacheType == CacheType.permanent) {
-      return;
+    // Also skip if already permanently cached (unless force re-download).
+    if (!forceRedownload) {
+      final cached = await _cacheDao.getCachedTrack(songId);
+      if (cached != null && cached.cacheType == CacheType.permanent) {
+        return;
+      }
     }
     // Remove any stale failed entry before re-enqueueing.
     if (existing != null) {

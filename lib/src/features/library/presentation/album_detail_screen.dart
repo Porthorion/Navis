@@ -416,6 +416,15 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
         return;
       }
       setState(() => _isStarred = !isStarred);
+      // Persist star change to local DB so library views update reactively.
+      final dao = ref.read(navisDatabaseProvider).libraryDao;
+      await dao.updateAlbumStarred(
+        widget.albumId,
+        isStarred ? null : DateTime.now(),
+      );
+      if (!mounted) {
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(

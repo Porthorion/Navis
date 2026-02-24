@@ -193,6 +193,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                     artist: artist,
                     onTap: () => context.go('/library/artists/${artist.id}'),
                     onLongPress: () => _showArtistMenu(context, artist),
+                    onStarToggled: () => _toggleArtistStar(artist),
                   );
                 },
               ),
@@ -446,13 +447,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                                         ).textTheme.titleSmall,
                                       ),
                                     ),
-                                    if (album.starred != null)
-                                      StarButton(
-                                        isStarred: true,
-                                        compact: true,
-                                        onPressed: null,
-                                        tooltip: l10n.albumDetailStarAction,
-                                      ),
+                                    StarButton(
+                                      isStarred: album.starred != null,
+                                      compact: true,
+                                      onPressed: () =>
+                                          _toggleAlbumStar(album),
+                                      tooltip: l10n.albumDetailStarAction,
+                                    ),
                                   ],
                                 ),
                                 const SizedBox(height: 4),
@@ -694,6 +695,54 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       return;
     }
     _artistsItemScrollController.jumpTo(index: sectionIndex);
+  }
+
+  Future<void> _toggleAlbumStar(AlbumsTableData album) async {
+    final l10n = AppLocalizations.of(context)!;
+    final api = ref.read(subsonicApiProvider);
+    if (api == null) return;
+    final isStarred = album.starred != null;
+    try {
+      if (isStarred) {
+        await api.unstar(album.id);
+      } else {
+        await api.star(album.id);
+      }
+      final dao = ref.read(navisDatabaseProvider).libraryDao;
+      await dao.updateAlbumStarred(
+        album.id,
+        isStarred ? null : DateTime.now(),
+      );
+    } on Object {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.albumDetailStarFailure)),
+      );
+    }
+  }
+
+  Future<void> _toggleArtistStar(ArtistsTableData artist) async {
+    final l10n = AppLocalizations.of(context)!;
+    final api = ref.read(subsonicApiProvider);
+    if (api == null) return;
+    final isStarred = artist.starred != null;
+    try {
+      if (isStarred) {
+        await api.unstar(artist.id);
+      } else {
+        await api.star(artist.id);
+      }
+      final dao = ref.read(navisDatabaseProvider).libraryDao;
+      await dao.updateArtistStarred(
+        artist.id,
+        isStarred ? null : DateTime.now(),
+      );
+    } on Object {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.albumDetailStarFailure)),
+      );
+    }
   }
 
   Future<void> _showAlbumMenu(

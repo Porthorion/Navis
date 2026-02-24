@@ -2223,6 +2223,24 @@ abstract class AppLocalizations {
   /// **'Remove download'**
   String get downloadsRemoveAction;
 
+  /// No description provided for @downloadsRedownloadOriginal.
+  ///
+  /// In en, this message translates to:
+  /// **'Re-download in original quality'**
+  String get downloadsRedownloadOriginal;
+
+  /// No description provided for @downloadsRedownloadOriginalSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace with an untranscoded copy from server'**
+  String get downloadsRedownloadOriginalSub;
+
+  /// No description provided for @downloadsRedownloadQueued.
+  ///
+  /// In en, this message translates to:
+  /// **'Queued for re-download in original quality'**
+  String get downloadsRedownloadQueued;
+
   /// No description provided for @downloadsCancelAction.
   ///
   /// In en, this message translates to:
