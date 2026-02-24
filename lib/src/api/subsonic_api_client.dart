@@ -396,6 +396,27 @@ class SubsonicApiClient {
     return Playlist(id: id, name: name ?? 'playlist', entries: const <Song>[]);
   }
 
+  /// Atomically replace all songs in an existing playlist via
+  /// `createPlaylist.view?playlistId=…&songId=…`.
+  ///
+  /// Unlike the two-step remove-all + re-add through `updatePlaylist`,
+  /// this is a single API call, so the playlist is never left empty on
+  /// the server if the network drops.
+  Future<void> replacePlaylistSongs({
+    required String playlistId,
+    required List<String> songIds,
+    CancelToken? cancelToken,
+  }) async {
+    await _readRoot(
+      '/rest/createPlaylist.view',
+      query: {
+        'playlistId': playlistId,
+        if (songIds.isNotEmpty) 'songId': songIds,
+      },
+      cancelToken: cancelToken,
+    );
+  }
+
   Future<void> deletePlaylist(String id, {CancelToken? cancelToken}) async {
     await _readRoot(
       '/rest/deletePlaylist.view',

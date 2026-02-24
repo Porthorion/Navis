@@ -246,6 +246,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
                 const SizedBox(height: 8),
                 _ActionRow(
                   songId: playback.currentSongId,
+                  isLiked: playback.isCurrentSongLiked,
                   showLyrics: _showLyrics,
                   onLyricsToggle: () =>
                       setState(() => _showLyrics = !_showLyrics),
@@ -559,11 +560,13 @@ class _InlineLyrics extends ConsumerWidget {
 class _ActionRow extends ConsumerWidget {
   const _ActionRow({
     this.songId,
+    this.isLiked = false,
     this.showLyrics = false,
     this.onLyricsToggle,
   });
 
   final String? songId;
+  final bool isLiked;
   final bool showLyrics;
   final VoidCallback? onLyricsToggle;
 
@@ -575,12 +578,14 @@ class _ActionRow extends ConsumerWidget {
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: <Widget>[
         IconButton(
-          icon: const Icon(Icons.favorite_border),
+          icon: Icon(isLiked ? Icons.favorite : Icons.favorite_border),
+          color: isLiked ? Theme.of(context).colorScheme.primary : null,
           tooltip: l10n.nowPlayingStar,
           onPressed: songId == null
               ? null
               : () {
-                  // Star/unstar will be wired in a later increment
+                  final handler = ref.read(audioHandlerProvider);
+                  handler?.toggleLike();
                 },
         ),
         IconButton(

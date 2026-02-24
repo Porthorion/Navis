@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
+import 'package:navis/src/database/daos/history_dao.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/daos/play_queue_dao.dart';
@@ -45,6 +46,7 @@ abstract class NavisPlaybackHandler {
   Future<void> setRepeatMode(AudioServiceRepeatMode repeatMode);
   Future<void> setVolume(double volume);
   Future<void> applyRuntimeSettings();
+  Future<void> toggleLike();
 }
 
 class PlaybackRuntimeSettings {
@@ -189,6 +191,7 @@ Future<NavisAudioHandler>? _audioServiceInitFuture;
 Future<NavisAudioHandler> initNavisAudioHandler({
   required LibraryDao libraryDao,
   required PlayQueueDao playQueueDao,
+  required HistoryDao historyDao,
   required PlaybackSourceResolver sourceResolver,
   required SubsonicApiClient? Function() readApiClient,
   required RollingCacheManager rollingCacheManager,
@@ -205,6 +208,7 @@ Future<NavisAudioHandler> initNavisAudioHandler({
     builder: () => NavisAudioHandler(
       libraryDao: libraryDao,
       playQueueDao: playQueueDao,
+      historyDao: historyDao,
       sourceResolver: sourceResolver,
       readApiClient: readApiClient,
       rollingCacheManager: rollingCacheManager,
@@ -240,6 +244,7 @@ class NavisAudioHandler extends BaseAudioHandler
   NavisAudioHandler({
     required LibraryDao libraryDao,
     required PlayQueueDao playQueueDao,
+    required HistoryDao historyDao,
     required PlaybackSourceResolver sourceResolver,
     required SubsonicApiClient? Function() readApiClient,
     required RollingCacheManager rollingCacheManager,
@@ -249,6 +254,7 @@ class NavisAudioHandler extends BaseAudioHandler
     AudioPlayer? player,
   }) : _libraryDao = libraryDao,
        _playQueueDao = playQueueDao,
+       _historyDao = historyDao,
        _sourceResolver = sourceResolver,
        _readApiClient = readApiClient,
        _rollingCacheManager = rollingCacheManager,
@@ -279,6 +285,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   final LibraryDao _libraryDao;
   final PlayQueueDao _playQueueDao;
+  final HistoryDao _historyDao;
   final PlaybackSourceResolver _sourceResolver;
   final SubsonicApiClient? Function() _readApiClient;
   final RollingCacheManager _rollingCacheManager;
@@ -1471,6 +1478,13 @@ class NavisAudioHandler extends BaseAudioHandler
         sessionKey: sessionKey,
       ),
     );
+
+    // Record in local play history for "Recently Played" UI.
+    unawaited(
+      _historyDao.addPlayHistory(songId).catchError((Object error) {
+        AppLogger.error('Failed to record play history', error);
+      }),
+    );
   }
 
   void _updateScrobbleSession(MediaItem? currentItem) {
@@ -1517,6 +1531,8 @@ class NavisAudioHandler extends BaseAudioHandler
 
   void _emitSnapshot() {
     final currentItem = _mediaItemForIndex(_player.currentIndex);
+    final isLiked =
+        currentItem?.extras?['liked'] as bool? ?? false;
     _snapshot = PlaybackSnapshot(
       queueSongIds: _queueItems.map((item) => item.id).toList(growable: false),
       currentSongId: currentItem?.id,
@@ -1530,6 +1546,7 @@ class NavisAudioHandler extends BaseAudioHandler
           ? AudioServiceShuffleMode.all
           : AudioServiceShuffleMode.none,
       repeatMode: _mapRepeatMode(_player.loopMode),
+      isCurrentSongLiked: isLiked,
     );
     if (!_snapshotController.isClosed) {
       _snapshotController.add(_snapshot);
@@ -1559,10 +1576,13 @@ class NavisAudioHandler extends BaseAudioHandler
       return setShuffleMode(targetMode);
     }
     if (name == 'toggleLike') {
-      return _runSerialized(_toggleCurrentSongLike);
+      return toggleLike();
     }
     return super.customAction(name, extras);
   }
+
+  @override
+  Future<void> toggleLike() => _runSerialized(_toggleCurrentSongLike);
 
   Future<void> _toggleCurrentSongLike() async {
     await _ready;
