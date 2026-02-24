@@ -1,12 +1,15 @@
 import 'package:drift/drift.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/database/tables/albums_table.dart';
 import 'package:navis/src/database/tables/play_history_table.dart';
 import 'package:navis/src/database/tables/recent_searches_table.dart';
 import 'package:navis/src/database/tables/songs_table.dart';
 
 part 'history_dao.g.dart';
 
-@DriftAccessor(tables: [PlayHistoryTable, RecentSearchesTable, SongsTable])
+@DriftAccessor(
+  tables: [PlayHistoryTable, RecentSearchesTable, SongsTable, AlbumsTable],
+)
 class HistoryDao extends DatabaseAccessor<NavisDatabase>
     with _$HistoryDaoMixin {
   HistoryDao(super.db);
@@ -52,6 +55,39 @@ class HistoryDao extends DatabaseAccessor<NavisDatabase>
         }
       }
       return songs;
+    });
+  }
+
+  /// Watch recently played **albums** by deriving them from play history.
+  ///
+  /// Joins play_history → songs → albums, deduplicates by album ID and
+  /// returns distinct albums in most-recently-played order.
+  Stream<List<AlbumsTableData>> watchRecentlyPlayedAlbums({int limit = 20}) {
+    final query =
+        select(playHistoryTable).join([
+            innerJoin(
+              songsTable,
+              songsTable.id.equalsExp(playHistoryTable.songId),
+            ),
+            innerJoin(
+              albumsTable,
+              albumsTable.id.equalsExp(songsTable.albumId),
+            ),
+          ])
+          ..orderBy([OrderingTerm.desc(playHistoryTable.playedAt)])
+          ..limit(limit * 5);
+
+    return query.watch().map((rows) {
+      final seen = <String>{};
+      final albums = <AlbumsTableData>[];
+      for (final row in rows) {
+        final album = row.readTable(albumsTable);
+        if (seen.add(album.id)) {
+          albums.add(album);
+          if (albums.length >= limit) break;
+        }
+      }
+      return albums;
     });
   }
 

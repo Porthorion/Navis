@@ -296,6 +296,33 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
+  /// Watch songs that have been starred/liked, ordered by starred date
+  /// (most recently starred first).
+  Stream<List<SongsTableData>> watchStarredSongs({int limit = 5}) {
+    final query = select(songsTable)
+      ..where((t) => t.starred.isNotNull())
+      ..orderBy([(t) => OrderingTerm.desc(t.starred)])
+      ..limit(limit);
+    return query.watch();
+  }
+
+  /// Watch all starred songs (no limit) for the full liked-tracks view.
+  Stream<List<SongsTableData>> watchAllStarredSongs() {
+    final query = select(songsTable)
+      ..where((t) => t.starred.isNotNull())
+      ..orderBy([(t) => OrderingTerm.desc(t.starred)]);
+    return query.watch();
+  }
+
+  /// Watch songs ordered by play count descending.
+  Stream<List<SongsTableData>> watchMostPlayedSongs({int limit = 5}) {
+    final query = select(songsTable)
+      ..where((t) => t.playCount.isBiggerThanValue(0))
+      ..orderBy([(t) => OrderingTerm.desc(t.playCount)])
+      ..limit(limit);
+    return query.watch();
+  }
+
   Future<List<ArtistsTableData>> getAllArtists() {
     return select(artistsTable).get();
   }

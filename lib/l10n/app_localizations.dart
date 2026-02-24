@@ -694,6 +694,48 @@ abstract class AppLocalizations {
   /// **'Like tracks on your server to see them here.'**
   String get homeStarredEmptySubtitle;
 
+  /// No description provided for @homeSeeAll.
+  ///
+  /// In en, this message translates to:
+  /// **'See all'**
+  String get homeSeeAll;
+
+  /// No description provided for @homeMostPlayedTracksTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Most played tracks'**
+  String get homeMostPlayedTracksTitle;
+
+  /// No description provided for @homeMostPlayedTracksEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No play data yet'**
+  String get homeMostPlayedTracksEmptyTitle;
+
+  /// No description provided for @homeMostPlayedTracksEmptySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Play more music to populate this section.'**
+  String get homeMostPlayedTracksEmptySubtitle;
+
+  /// No description provided for @homeRecentlyPlayedAlbumsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Recently played albums'**
+  String get homeRecentlyPlayedAlbumsTitle;
+
+  /// No description provided for @homeRecentlyPlayedAlbumsEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No recently played albums'**
+  String get homeRecentlyPlayedAlbumsEmptyTitle;
+
+  /// No description provided for @homeRecentlyPlayedAlbumsEmptySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Start listening to populate this section.'**
+  String get homeRecentlyPlayedAlbumsEmptySubtitle;
+
   /// No description provided for @radioTitle.
   ///
   /// In en, this message translates to:
@@ -2612,6 +2654,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'View on Forgejo'**
   String get aboutSourceCodeSub;
+
+  /// No description provided for @aboutCodename.
+  ///
+  /// In en, this message translates to:
+  /// **'Cape Horn'**
+  String get aboutCodename;
 }
 
 class _AppLocalizationsDelegate

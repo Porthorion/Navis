@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Displays app version, open-source licenses, and repository links.
@@ -7,6 +8,7 @@ class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
 
   static const String _repoUrl = 'https://git.porthorion.com/khalifa/Navis';
+  static const String _version = 'Cape Horn 0.1';
 
   @override
   Widget build(BuildContext context) {
@@ -18,11 +20,7 @@ class AboutScreen extends StatelessWidget {
       body: ListView(
         children: <Widget>[
           const SizedBox(height: 24),
-          Icon(
-            Icons.music_note_rounded,
-            size: 64,
-            color: theme.colorScheme.primary,
-          ),
+          const Center(child: NavisIcon(size: 72, tintWithAccent: true)),
           const SizedBox(height: 12),
           Text(
             'Navis',
@@ -33,7 +31,7 @@ class AboutScreen extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            '${l10n.aboutVersion} 0.1.0+1',
+            '${l10n.aboutVersion} $_version',
             textAlign: TextAlign.center,
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
@@ -50,14 +48,10 @@ class AboutScreen extends StatelessWidget {
               showLicensePage(
                 context: context,
                 applicationName: 'Navis',
-                applicationVersion: '0.1.0+1',
-                applicationIcon: Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Icon(
-                    Icons.music_note_rounded,
-                    size: 48,
-                    color: theme.colorScheme.primary,
-                  ),
+                applicationVersion: _version,
+                applicationIcon: const Padding(
+                  padding: EdgeInsets.all(8),
+                  child: NavisIcon(size: 48, tintWithAccent: true),
                 ),
               );
             },
