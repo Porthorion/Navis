@@ -751,6 +751,45 @@ class $AppSettingsTableTable extends AppSettingsTable
         type: DriftSqlType.string,
         requiredDuringInsert: false,
       );
+  static const VerificationMeta _crossfadeEnabledMeta = const VerificationMeta(
+    'crossfadeEnabled',
+  );
+  @override
+  late final GeneratedColumn<bool> crossfadeEnabled = GeneratedColumn<bool>(
+    'crossfade_enabled',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("crossfade_enabled" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _crossfadeDurationSecondsMeta =
+      const VerificationMeta('crossfadeDurationSeconds');
+  @override
+  late final GeneratedColumn<int> crossfadeDurationSeconds =
+      GeneratedColumn<int>(
+        'crossfade_duration_seconds',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(5),
+      );
+  static const VerificationMeta _crossfadeTypeMeta = const VerificationMeta(
+    'crossfadeType',
+  );
+  @override
+  late final GeneratedColumn<String> crossfadeType = GeneratedColumn<String>(
+    'crossfade_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('normal'),
+  );
   static const VerificationMeta _updatedAtMeta = const VerificationMeta(
     'updatedAt',
   );
@@ -782,6 +821,9 @@ class $AppSettingsTableTable extends AppSettingsTable
     themeMode,
     colorSchemeSeed,
     customColorPresets,
+    crossfadeEnabled,
+    crossfadeDurationSeconds,
+    crossfadeType,
     updatedAt,
   ];
   @override
@@ -946,6 +988,33 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
       );
     }
+    if (data.containsKey('crossfade_enabled')) {
+      context.handle(
+        _crossfadeEnabledMeta,
+        crossfadeEnabled.isAcceptableOrUnknown(
+          data['crossfade_enabled']!,
+          _crossfadeEnabledMeta,
+        ),
+      );
+    }
+    if (data.containsKey('crossfade_duration_seconds')) {
+      context.handle(
+        _crossfadeDurationSecondsMeta,
+        crossfadeDurationSeconds.isAcceptableOrUnknown(
+          data['crossfade_duration_seconds']!,
+          _crossfadeDurationSecondsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('crossfade_type')) {
+      context.handle(
+        _crossfadeTypeMeta,
+        crossfadeType.isAcceptableOrUnknown(
+          data['crossfade_type']!,
+          _crossfadeTypeMeta,
+        ),
+      );
+    }
     if (data.containsKey('updated_at')) {
       context.handle(
         _updatedAtMeta,
@@ -1035,6 +1104,18 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.string,
         data['${effectivePrefix}custom_color_presets'],
       ),
+      crossfadeEnabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}crossfade_enabled'],
+      )!,
+      crossfadeDurationSeconds: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}crossfade_duration_seconds'],
+      )!,
+      crossfadeType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}crossfade_type'],
+      )!,
       updatedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
@@ -1078,6 +1159,15 @@ class AppSettingsTableData extends DataClass
 
   /// JSON-encoded list of custom color presets (ARGB32 ints).
   final String? customColorPresets;
+
+  /// Cross-fade between tracks in the queue.
+  final bool crossfadeEnabled;
+
+  /// Cross-fade duration in seconds (1–12). Default 5.
+  final int crossfadeDurationSeconds;
+
+  /// Cross-fade type: 'normal' (always) or 'smart' (different albums only).
+  final String crossfadeType;
   final DateTime updatedAt;
   const AppSettingsTableData({
     required this.id,
@@ -1098,6 +1188,9 @@ class AppSettingsTableData extends DataClass
     required this.themeMode,
     this.colorSchemeSeed,
     this.customColorPresets,
+    required this.crossfadeEnabled,
+    required this.crossfadeDurationSeconds,
+    required this.crossfadeType,
     required this.updatedAt,
   });
   @override
@@ -1137,6 +1230,9 @@ class AppSettingsTableData extends DataClass
     if (!nullToAbsent || customColorPresets != null) {
       map['custom_color_presets'] = Variable<String>(customColorPresets);
     }
+    map['crossfade_enabled'] = Variable<bool>(crossfadeEnabled);
+    map['crossfade_duration_seconds'] = Variable<int>(crossfadeDurationSeconds);
+    map['crossfade_type'] = Variable<String>(crossfadeType);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
   }
@@ -1177,6 +1273,9 @@ class AppSettingsTableData extends DataClass
       customColorPresets: customColorPresets == null && nullToAbsent
           ? const Value.absent()
           : Value(customColorPresets),
+      crossfadeEnabled: Value(crossfadeEnabled),
+      crossfadeDurationSeconds: Value(crossfadeDurationSeconds),
+      crossfadeType: Value(crossfadeType),
       updatedAt: Value(updatedAt),
     );
   }
@@ -1213,6 +1312,11 @@ class AppSettingsTableData extends DataClass
       customColorPresets: serializer.fromJson<String?>(
         json['customColorPresets'],
       ),
+      crossfadeEnabled: serializer.fromJson<bool>(json['crossfadeEnabled']),
+      crossfadeDurationSeconds: serializer.fromJson<int>(
+        json['crossfadeDurationSeconds'],
+      ),
+      crossfadeType: serializer.fromJson<String>(json['crossfadeType']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
   }
@@ -1238,6 +1342,11 @@ class AppSettingsTableData extends DataClass
       'themeMode': serializer.toJson<String>(themeMode),
       'colorSchemeSeed': serializer.toJson<int?>(colorSchemeSeed),
       'customColorPresets': serializer.toJson<String?>(customColorPresets),
+      'crossfadeEnabled': serializer.toJson<bool>(crossfadeEnabled),
+      'crossfadeDurationSeconds': serializer.toJson<int>(
+        crossfadeDurationSeconds,
+      ),
+      'crossfadeType': serializer.toJson<String>(crossfadeType),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
   }
@@ -1261,6 +1370,9 @@ class AppSettingsTableData extends DataClass
     String? themeMode,
     Value<int?> colorSchemeSeed = const Value.absent(),
     Value<String?> customColorPresets = const Value.absent(),
+    bool? crossfadeEnabled,
+    int? crossfadeDurationSeconds,
+    String? crossfadeType,
     DateTime? updatedAt,
   }) => AppSettingsTableData(
     id: id ?? this.id,
@@ -1295,6 +1407,10 @@ class AppSettingsTableData extends DataClass
     customColorPresets: customColorPresets.present
         ? customColorPresets.value
         : this.customColorPresets,
+    crossfadeEnabled: crossfadeEnabled ?? this.crossfadeEnabled,
+    crossfadeDurationSeconds:
+        crossfadeDurationSeconds ?? this.crossfadeDurationSeconds,
+    crossfadeType: crossfadeType ?? this.crossfadeType,
     updatedAt: updatedAt ?? this.updatedAt,
   );
   AppSettingsTableData copyWithCompanion(AppSettingsTableCompanion data) {
@@ -1349,6 +1465,15 @@ class AppSettingsTableData extends DataClass
       customColorPresets: data.customColorPresets.present
           ? data.customColorPresets.value
           : this.customColorPresets,
+      crossfadeEnabled: data.crossfadeEnabled.present
+          ? data.crossfadeEnabled.value
+          : this.crossfadeEnabled,
+      crossfadeDurationSeconds: data.crossfadeDurationSeconds.present
+          ? data.crossfadeDurationSeconds.value
+          : this.crossfadeDurationSeconds,
+      crossfadeType: data.crossfadeType.present
+          ? data.crossfadeType.value
+          : this.crossfadeType,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
   }
@@ -1374,13 +1499,16 @@ class AppSettingsTableData extends DataClass
           ..write('themeMode: $themeMode, ')
           ..write('colorSchemeSeed: $colorSchemeSeed, ')
           ..write('customColorPresets: $customColorPresets, ')
+          ..write('crossfadeEnabled: $crossfadeEnabled, ')
+          ..write('crossfadeDurationSeconds: $crossfadeDurationSeconds, ')
+          ..write('crossfadeType: $crossfadeType, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     wifiMaxBitRate,
     wifiFormat,
@@ -1399,8 +1527,11 @@ class AppSettingsTableData extends DataClass
     themeMode,
     colorSchemeSeed,
     customColorPresets,
+    crossfadeEnabled,
+    crossfadeDurationSeconds,
+    crossfadeType,
     updatedAt,
-  );
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1423,6 +1554,9 @@ class AppSettingsTableData extends DataClass
           other.themeMode == this.themeMode &&
           other.colorSchemeSeed == this.colorSchemeSeed &&
           other.customColorPresets == this.customColorPresets &&
+          other.crossfadeEnabled == this.crossfadeEnabled &&
+          other.crossfadeDurationSeconds == this.crossfadeDurationSeconds &&
+          other.crossfadeType == this.crossfadeType &&
           other.updatedAt == this.updatedAt);
 }
 
@@ -1445,6 +1579,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<String> themeMode;
   final Value<int?> colorSchemeSeed;
   final Value<String?> customColorPresets;
+  final Value<bool> crossfadeEnabled;
+  final Value<int> crossfadeDurationSeconds;
+  final Value<String> crossfadeType;
   final Value<DateTime> updatedAt;
   const AppSettingsTableCompanion({
     this.id = const Value.absent(),
@@ -1465,6 +1602,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.themeMode = const Value.absent(),
     this.colorSchemeSeed = const Value.absent(),
     this.customColorPresets = const Value.absent(),
+    this.crossfadeEnabled = const Value.absent(),
+    this.crossfadeDurationSeconds = const Value.absent(),
+    this.crossfadeType = const Value.absent(),
     this.updatedAt = const Value.absent(),
   });
   AppSettingsTableCompanion.insert({
@@ -1486,6 +1626,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.themeMode = const Value.absent(),
     this.colorSchemeSeed = const Value.absent(),
     this.customColorPresets = const Value.absent(),
+    this.crossfadeEnabled = const Value.absent(),
+    this.crossfadeDurationSeconds = const Value.absent(),
+    this.crossfadeType = const Value.absent(),
     required DateTime updatedAt,
   }) : updatedAt = Value(updatedAt);
   static Insertable<AppSettingsTableData> custom({
@@ -1507,6 +1650,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<String>? themeMode,
     Expression<int>? colorSchemeSeed,
     Expression<String>? customColorPresets,
+    Expression<bool>? crossfadeEnabled,
+    Expression<int>? crossfadeDurationSeconds,
+    Expression<String>? crossfadeType,
     Expression<DateTime>? updatedAt,
   }) {
     return RawValuesInsertable({
@@ -1534,6 +1680,10 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       if (colorSchemeSeed != null) 'color_scheme_seed': colorSchemeSeed,
       if (customColorPresets != null)
         'custom_color_presets': customColorPresets,
+      if (crossfadeEnabled != null) 'crossfade_enabled': crossfadeEnabled,
+      if (crossfadeDurationSeconds != null)
+        'crossfade_duration_seconds': crossfadeDurationSeconds,
+      if (crossfadeType != null) 'crossfade_type': crossfadeType,
       if (updatedAt != null) 'updated_at': updatedAt,
     });
   }
@@ -1557,6 +1707,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<String>? themeMode,
     Value<int?>? colorSchemeSeed,
     Value<String?>? customColorPresets,
+    Value<bool>? crossfadeEnabled,
+    Value<int>? crossfadeDurationSeconds,
+    Value<String>? crossfadeType,
     Value<DateTime>? updatedAt,
   }) {
     return AppSettingsTableCompanion(
@@ -1578,6 +1731,10 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       themeMode: themeMode ?? this.themeMode,
       colorSchemeSeed: colorSchemeSeed ?? this.colorSchemeSeed,
       customColorPresets: customColorPresets ?? this.customColorPresets,
+      crossfadeEnabled: crossfadeEnabled ?? this.crossfadeEnabled,
+      crossfadeDurationSeconds:
+          crossfadeDurationSeconds ?? this.crossfadeDurationSeconds,
+      crossfadeType: crossfadeType ?? this.crossfadeType,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
@@ -1643,6 +1800,17 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     if (customColorPresets.present) {
       map['custom_color_presets'] = Variable<String>(customColorPresets.value);
     }
+    if (crossfadeEnabled.present) {
+      map['crossfade_enabled'] = Variable<bool>(crossfadeEnabled.value);
+    }
+    if (crossfadeDurationSeconds.present) {
+      map['crossfade_duration_seconds'] = Variable<int>(
+        crossfadeDurationSeconds.value,
+      );
+    }
+    if (crossfadeType.present) {
+      map['crossfade_type'] = Variable<String>(crossfadeType.value);
+    }
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
@@ -1670,6 +1838,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('themeMode: $themeMode, ')
           ..write('colorSchemeSeed: $colorSchemeSeed, ')
           ..write('customColorPresets: $customColorPresets, ')
+          ..write('crossfadeEnabled: $crossfadeEnabled, ')
+          ..write('crossfadeDurationSeconds: $crossfadeDurationSeconds, ')
+          ..write('crossfadeType: $crossfadeType, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
@@ -8108,6 +8279,9 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<String> themeMode,
       Value<int?> colorSchemeSeed,
       Value<String?> customColorPresets,
+      Value<bool> crossfadeEnabled,
+      Value<int> crossfadeDurationSeconds,
+      Value<String> crossfadeType,
       required DateTime updatedAt,
     });
 typedef $$AppSettingsTableTableUpdateCompanionBuilder =
@@ -8130,6 +8304,9 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<String> themeMode,
       Value<int?> colorSchemeSeed,
       Value<String?> customColorPresets,
+      Value<bool> crossfadeEnabled,
+      Value<int> crossfadeDurationSeconds,
+      Value<String> crossfadeType,
       Value<DateTime> updatedAt,
     });
 
@@ -8229,6 +8406,21 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<String> get customColorPresets => $composableBuilder(
     column: $table.customColorPresets,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get crossfadeEnabled => $composableBuilder(
+    column: $table.crossfadeEnabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get crossfadeDurationSeconds => $composableBuilder(
+    column: $table.crossfadeDurationSeconds,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get crossfadeType => $composableBuilder(
+    column: $table.crossfadeType,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -8337,6 +8529,21 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get crossfadeEnabled => $composableBuilder(
+    column: $table.crossfadeEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get crossfadeDurationSeconds => $composableBuilder(
+    column: $table.crossfadeDurationSeconds,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get crossfadeType => $composableBuilder(
+    column: $table.crossfadeType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
@@ -8438,6 +8645,21 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get crossfadeEnabled => $composableBuilder(
+    column: $table.crossfadeEnabled,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get crossfadeDurationSeconds => $composableBuilder(
+    column: $table.crossfadeDurationSeconds,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get crossfadeType => $composableBuilder(
+    column: $table.crossfadeType,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 }
@@ -8497,6 +8719,9 @@ class $$AppSettingsTableTableTableManager
                 Value<String> themeMode = const Value.absent(),
                 Value<int?> colorSchemeSeed = const Value.absent(),
                 Value<String?> customColorPresets = const Value.absent(),
+                Value<bool> crossfadeEnabled = const Value.absent(),
+                Value<int> crossfadeDurationSeconds = const Value.absent(),
+                Value<String> crossfadeType = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
               }) => AppSettingsTableCompanion(
                 id: id,
@@ -8517,6 +8742,9 @@ class $$AppSettingsTableTableTableManager
                 themeMode: themeMode,
                 colorSchemeSeed: colorSchemeSeed,
                 customColorPresets: customColorPresets,
+                crossfadeEnabled: crossfadeEnabled,
+                crossfadeDurationSeconds: crossfadeDurationSeconds,
+                crossfadeType: crossfadeType,
                 updatedAt: updatedAt,
               ),
           createCompanionCallback:
@@ -8539,6 +8767,9 @@ class $$AppSettingsTableTableTableManager
                 Value<String> themeMode = const Value.absent(),
                 Value<int?> colorSchemeSeed = const Value.absent(),
                 Value<String?> customColorPresets = const Value.absent(),
+                Value<bool> crossfadeEnabled = const Value.absent(),
+                Value<int> crossfadeDurationSeconds = const Value.absent(),
+                Value<String> crossfadeType = const Value.absent(),
                 required DateTime updatedAt,
               }) => AppSettingsTableCompanion.insert(
                 id: id,
@@ -8559,6 +8790,9 @@ class $$AppSettingsTableTableTableManager
                 themeMode: themeMode,
                 colorSchemeSeed: colorSchemeSeed,
                 customColorPresets: customColorPresets,
+                crossfadeEnabled: crossfadeEnabled,
+                crossfadeDurationSeconds: crossfadeDurationSeconds,
+                crossfadeType: crossfadeType,
                 updatedAt: updatedAt,
               ),
           withReferenceMapper: (p0) => p0

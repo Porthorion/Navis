@@ -75,6 +75,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final query = ref.watch(searchQueryProvider);
     final hasQuery = query.trim().isNotEmpty;
 
+    // Sync the text controller when the query changes externally
+    // (e.g. NavService.goToSearch sets the provider from radio tap).
+    if (_controller.text != query) {
+      _controller.text = query;
+      _controller.selection = TextSelection.fromPosition(
+        TextPosition(offset: query.length),
+      );
+    }
+
     // Re-focus the search bar whenever the search tab is tapped.
     final focusRequest = ref.watch(searchFocusRequestProvider);
     if (focusRequest != _lastFocusRequest) {

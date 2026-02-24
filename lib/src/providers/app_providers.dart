@@ -176,6 +176,9 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
           equalizerBandGains: settings.equalizerBandGains,
           loudnessEnabled: settings.loudnessEnabled,
           loudnessTargetGainDb: settings.loudnessTargetGainDb,
+          crossfadeEnabled: settings.crossfadeEnabled,
+          crossfadeDurationSeconds: settings.crossfadeDurationSeconds,
+          crossfadeType: settings.crossfadeType,
         );
       },
     );
@@ -682,28 +685,20 @@ final cachedSongTypesProvider =
 /// (downloaded) tracks **or** are currently in the download queue, for powering
 /// "Downloaded Only" library filters.
 ///
-/// This ensures that albums/artists appear in the filter as soon as any of
-/// their songs are enqueued for download, not only after the download
-/// completes.
+/// Shows albums/artists in the "Downloaded Only" library filter when at least
+/// one of their songs is permanently downloaded.  The actual download content
+/// remains unchanged – if the user downloaded only 1 song, only that song is
+/// stored; but the parent album/artist still shows in the filtered view.
 final downloadedContentIdsProvider =
     StreamProvider<({Set<String> albumIds, Set<String> artistIds})>((ref) {
   final db = ref.watch(navisDatabaseProvider);
 
-  // Combine both permanent cached tracks and the download queue so that
-  // albums/artists with even one song downloaded (or being downloaded) appear.
   final cachedStream = db.cacheDao.watchCachedTracksByType(CacheType.permanent);
 
   return cachedStream.asyncMap((cachedTracks) async {
-    // Collect song IDs from permanent cache.
     final songIds = <String>{};
     for (final t in cachedTracks) {
       songIds.add(t.songId);
-    }
-
-    // Also include songs from the download queue (queued / downloading).
-    final queueItems = await db.downloadQueueDao.getQueuedItems();
-    for (final item in queueItems) {
-      if (item.songId != null) songIds.add(item.songId!);
     }
 
     if (songIds.isEmpty) {

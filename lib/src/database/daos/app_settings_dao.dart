@@ -43,6 +43,9 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     required bool wifiOnlyDownloads,
     required String themeMode,
     int? colorSchemeSeed,
+    required bool crossfadeEnabled,
+    required int crossfadeDurationSeconds,
+    required String crossfadeType,
   }) {
     return into(appSettingsTable).insertOnConflictUpdate(
       AppSettingsTableCompanion.insert(
@@ -62,6 +65,9 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         wifiOnlyDownloads: Value(wifiOnlyDownloads),
         themeMode: Value(themeMode),
         colorSchemeSeed: Value(colorSchemeSeed),
+        crossfadeEnabled: Value(crossfadeEnabled),
+        crossfadeDurationSeconds: Value(crossfadeDurationSeconds),
+        crossfadeType: Value(crossfadeType),
         updatedAt: DateTime.now(),
       ),
     );
@@ -84,6 +90,9 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       wifiOnlyDownloads: false,
       themeMode: 'dark',
       colorSchemeSeed: null,
+      crossfadeEnabled: false,
+      crossfadeDurationSeconds: 5,
+      crossfadeType: 'normal',
     );
   }
 

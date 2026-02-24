@@ -255,6 +255,38 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get playbackSettingsCrossfadeSectionTitle => 'Cross-fade';
+
+  @override
+  String get playbackSettingsCrossfadeEnableTitle => 'Enable cross-fade';
+
+  @override
+  String get playbackSettingsCrossfadeEnableSubtitle =>
+      'Smoothly blend the end of one track into the start of the next.';
+
+  @override
+  String playbackSettingsCrossfadeDurationLabel(int seconds) {
+    return 'Duration: ${seconds}s';
+  }
+
+  @override
+  String get playbackSettingsCrossfadeTypeLabel => 'Cross-fade mode';
+
+  @override
+  String get playbackSettingsCrossfadeTypeNormal => 'Normal';
+
+  @override
+  String get playbackSettingsCrossfadeTypeNormalDescription =>
+      'Cross-fade between every track.';
+
+  @override
+  String get playbackSettingsCrossfadeTypeSmart => 'Smart';
+
+  @override
+  String get playbackSettingsCrossfadeTypeSmartDescription =>
+      'Only cross-fade between tracks from different albums.';
+
+  @override
   String get homeTitle => 'Home';
 
   @override

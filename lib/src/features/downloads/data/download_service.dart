@@ -76,6 +76,8 @@ class DownloadService {
 
   /// Enqueue a single song for permanent download.
   ///
+  /// If the song is already in the rolling cache with a compatible quality,
+  /// it is promoted to permanent storage instantly (no re-download needed).
   /// Skips if the song is already queued or downloading.
   /// When [forceRedownload] is true, re-downloads even if a permanent cache
   /// entry already exists (e.g., to upgrade to original quality).
@@ -98,6 +100,21 @@ class DownloadService {
       final cached = await _cacheDao.getCachedTrack(songId);
       if (cached != null && cached.cacheType == CacheType.permanent) {
         return;
+      }
+
+      // Smart download: if the song is in rolling cache with a compatible
+      // quality, promote it to permanent storage instead of re-downloading.
+      if (cached != null && cached.cacheType == CacheType.rolling) {
+        if (_isCacheQualityCompatible(cached, quality, format)) {
+          final promoted = await promoteToPermanent(songId);
+          if (promoted) {
+            AppLogger.info(
+              'DownloadService: Promoted rolling-cached track $songId '
+              'to permanent (saved bandwidth).',
+            );
+            return;
+          }
+        }
       }
     }
     // Remove any stale failed entry before re-enqueueing.
@@ -191,6 +208,52 @@ class DownloadService {
         lastAccessedAt: DateTime.now(),
       ),
     );
+    return true;
+  }
+
+  /// Returns `true` if the rolling-cached track's quality is compatible with
+  /// the requested download quality, meaning we can promote instead of
+  /// re-downloading.
+  ///
+  /// Rules:
+  /// * If both quality and format are null (original), a cached track with no
+  ///   bitrate/format restriction (also original) is compatible.
+  /// * If a specific format is requested and matches the cached format, we
+  ///   further check bitrate: if the cached bitrate is null (original) or ≥
+  ///   the requested bitrate, the cache is at least as good.
+  /// * If no specific quality/format is requested (original download) the
+  ///   cached entry is compatible when it was also cached at original quality
+  ///   (null bitrate).
+  bool _isCacheQualityCompatible(
+    CachedTracksTableData cached,
+    String? requestedQuality,
+    String? requestedFormat,
+  ) {
+    final requestedBitRate = requestedQuality != null
+        ? int.tryParse(requestedQuality)
+        : null;
+
+    // User wants "original" quality (no transcoding).
+    if (requestedBitRate == null && requestedFormat == null) {
+      // Only compatible if the cache is also original (no forced bitrate).
+      return cached.bitRate == null;
+    }
+
+    // Check format compatibility.
+    if (requestedFormat != null &&
+        cached.format.toLowerCase() != requestedFormat.toLowerCase()) {
+      return false;
+    }
+
+    // Check bitrate: cached must be ≥ requested (or original).
+    if (requestedBitRate != null) {
+      if (cached.bitRate == null) {
+        // Cached at original quality — always ≥ any transcoded bitrate.
+        return true;
+      }
+      return cached.bitRate! >= requestedBitRate;
+    }
+
     return true;
   }
 

@@ -50,6 +50,19 @@ class AppSettingsTable extends Table {
   IntColumn get colorSchemeSeed => integer().nullable()();
   /// JSON-encoded list of custom color presets (ARGB32 ints).
   TextColumn get customColorPresets => text().nullable()();
+
+  /// Cross-fade between tracks in the queue.
+  BoolColumn get crossfadeEnabled =>
+      boolean().withDefault(const Constant(false))();
+
+  /// Cross-fade duration in seconds (1–12). Default 5.
+  IntColumn get crossfadeDurationSeconds =>
+      integer().withDefault(const Constant(5))();
+
+  /// Cross-fade type: 'normal' (always) or 'smart' (different albums only).
+  TextColumn get crossfadeType =>
+      text().withDefault(const Constant('normal'))();
+
   DateTimeColumn get updatedAt => dateTime()();
 
   @override

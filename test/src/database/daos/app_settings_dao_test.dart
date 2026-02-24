@@ -35,6 +35,9 @@ void main() {
           wifiOnlyDownloads: false,
           themeMode: 'dark',
           colorSchemeSeed: null,
+          crossfadeEnabled: false,
+          crossfadeDurationSeconds: 5,
+          crossfadeType: 'normal',
         );
 
         final first = await database.appSettingsDao.getSettings();
@@ -69,6 +72,9 @@ void main() {
           wifiOnlyDownloads: false,
           themeMode: 'dark',
           colorSchemeSeed: null,
+          crossfadeEnabled: false,
+          crossfadeDurationSeconds: 5,
+          crossfadeType: 'normal',
         );
 
         final second = await database.appSettingsDao.getSettings();
@@ -107,6 +113,9 @@ void main() {
         wifiOnlyDownloads: true,
         themeMode: 'oled',
         colorSchemeSeed: 4283215696,
+        crossfadeEnabled: false,
+        crossfadeDurationSeconds: 5,
+        crossfadeType: 'normal',
       );
 
       await database.appSettingsDao.resetDefaults();

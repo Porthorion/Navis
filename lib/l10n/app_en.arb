@@ -107,6 +107,22 @@
       "message": {}
     }
   },
+  "playbackSettingsCrossfadeSectionTitle": "Cross-fade",
+  "playbackSettingsCrossfadeEnableTitle": "Enable cross-fade",
+  "playbackSettingsCrossfadeEnableSubtitle": "Smoothly blend the end of one track into the start of the next.",
+  "playbackSettingsCrossfadeDurationLabel": "Duration: {seconds}s",
+  "@playbackSettingsCrossfadeDurationLabel": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "playbackSettingsCrossfadeTypeLabel": "Cross-fade mode",
+  "playbackSettingsCrossfadeTypeNormal": "Normal",
+  "playbackSettingsCrossfadeTypeNormalDescription": "Cross-fade between every track.",
+  "playbackSettingsCrossfadeTypeSmart": "Smart",
+  "playbackSettingsCrossfadeTypeSmartDescription": "Only cross-fade between tracks from different albums.",
   "homeTitle": "Home",
   "homeLoadErrorTitle": "Could not load section",
   "homeRecentlyPlayedTitle": "Recently played",
