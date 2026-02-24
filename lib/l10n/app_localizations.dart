@@ -2397,6 +2397,12 @@ abstract class AppLocalizations {
   /// **'Delete preset'**
   String get appearanceColorDeletePreset;
 
+  /// No description provided for @appearanceColorDeletePresetConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete this custom color preset?'**
+  String get appearanceColorDeletePresetConfirm;
+
   /// No description provided for @aboutTitle.
   ///
   /// In en, this message translates to:

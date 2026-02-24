@@ -43,6 +43,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   bool _isArtistRailScrubbing = false;
   int _loadedAlbumPages = 1;
   String _lastVisibleAlbumSignature = '';
+  List<AlbumsTableData>? _cachedAlbums;
   TabController? _tabController;
 
   @override
@@ -291,10 +292,46 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       ),
     );
 
+    // Preserve previous album data while loading a new page to avoid
+    // destroying the scroll position (provider key change → AsyncLoading).
+    final items = albumsAsync.asData?.value ?? _cachedAlbums;
+    if (albumsAsync.asData != null) {
+      _cachedAlbums = albumsAsync.asData!.value;
+    }
+
+    if (items == null) {
+      // First load — no cached data yet.
+      return RefreshIndicator(
+        onRefresh: _refreshLibrary,
+        child: albumsAsync.when(
+          data: (_) => const SizedBox.shrink(), // handled above
+          loading: () => ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            children: const <Widget>[
+              _LoadingListPlaceholder(),
+              _LoadingListPlaceholder(),
+              _LoadingListPlaceholder(),
+            ],
+          ),
+          error: (error, _) => ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            children: <Widget>[
+              ErrorState(
+                title: l10n.libraryAlbumsErrorTitle,
+                message: error.toString(),
+                onRetry: _refreshLibrary,
+                retryLabel: l10n.commonRetry,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return RefreshIndicator(
       onRefresh: _refreshLibrary,
-      child: albumsAsync.when(
-        data: (items) {
+      child: Builder(
+        builder: (context) {
           // Apply "Downloaded Only" filter if active.
           final filteredItems = _downloadedOnly
               ? _filterDownloadedAlbums(items)
@@ -331,6 +368,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                       setState(() {
                         _albumSort = value;
                         _loadedAlbumPages = 1;
+                        _cachedAlbums = null;
                       });
                       if (_albumsScrollController.hasClients) {
                         _albumsScrollController.jumpTo(0);
@@ -372,6 +410,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                     delegate: SliverChildBuilderDelegate((context, index) {
                       final album = filteredItems[index];
                       return Card(
+                        key: ValueKey(album.id),
                         clipBehavior: Clip.antiAlias,
                         child: InkWell(
                           onTap: () {
@@ -449,25 +488,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
             ],
           );
         },
-        loading: () => ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          children: const <Widget>[
-            _LoadingListPlaceholder(),
-            _LoadingListPlaceholder(),
-            _LoadingListPlaceholder(),
-          ],
-        ),
-        error: (error, _) => ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          children: <Widget>[
-            ErrorState(
-              title: l10n.libraryAlbumsErrorTitle,
-              message: error.toString(),
-              onRetry: _refreshLibrary,
-              retryLabel: l10n.commonRetry,
-            ),
-          ],
-        ),
       ),
     );
   }

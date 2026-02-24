@@ -1322,6 +1322,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearanceColorDeletePreset => 'Delete preset';
 
   @override
+  String get appearanceColorDeletePresetConfirm =>
+      'Delete this custom color preset?';
+
+  @override
   String get aboutTitle => 'About';
 
   @override

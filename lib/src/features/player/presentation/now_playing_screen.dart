@@ -209,39 +209,52 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
     final album = song?.albumName ?? l10n.nowPlayingUnknownAlbum;
 
     return ClipRect(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Column(
-          children: <Widget>[
-            const SizedBox(height: 8),
-            Expanded(
-              child: Center(
-                child: _showLyrics && playback.currentSongId != null
-                    ? _InlineLyrics(
-                        songId: playback.currentSongId!,
-                      )
-                    : GestureDetector(
-                        onTap: _togglePlayPause,
-                        onHorizontalDragEnd: _handleHorizontalSwipe,
-                        child: _CoverArt(coverArtId: song?.coverArt),
-                      ),
-              ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // During the expand/collapse animation the available height can be
+          // very small (even <2 px). Rendering the full Column at that size
+          // causes a RenderFlex overflow. Skip the layout entirely when there
+          // isn't enough room — the content is invisible at that point anyway.
+          if (constraints.maxHeight < 200) {
+            return const SizedBox.shrink();
+          }
+
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              children: <Widget>[
+                const SizedBox(height: 8),
+                Expanded(
+                  child: Center(
+                    child: _showLyrics && playback.currentSongId != null
+                        ? _InlineLyrics(
+                            songId: playback.currentSongId!,
+                          )
+                        : GestureDetector(
+                            onTap: _togglePlayPause,
+                            onHorizontalDragEnd: _handleHorizontalSwipe,
+                            child: _CoverArt(coverArtId: song?.coverArt),
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _TrackInfo(title: title, artist: artist, album: album),
+                const SizedBox(height: 16),
+                _SeekBar(playback: playback),
+                const SizedBox(height: 8),
+                _TransportControls(playback: playback),
+                const SizedBox(height: 8),
+                _ActionRow(
+                  songId: playback.currentSongId,
+                  showLyrics: _showLyrics,
+                  onLyricsToggle: () =>
+                      setState(() => _showLyrics = !_showLyrics),
+                ),
+                const SizedBox(height: 8),
+              ],
             ),
-            const SizedBox(height: 16),
-            _TrackInfo(title: title, artist: artist, album: album),
-            const SizedBox(height: 16),
-            _SeekBar(playback: playback),
-            const SizedBox(height: 8),
-            _TransportControls(playback: playback),
-            const SizedBox(height: 8),
-            _ActionRow(
-              songId: playback.currentSongId,
-              showLyrics: _showLyrics,
-              onLyricsToggle: () => setState(() => _showLyrics = !_showLyrics),
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
