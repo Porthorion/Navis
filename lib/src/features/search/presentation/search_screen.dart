@@ -23,6 +23,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   final _controller = TextEditingController();
   final _focusNode = FocusNode();
   final _expandedSections = <SearchResultType, bool>{};
+  int _lastFocusRequest = 0;
 
   @override
   void initState() {
@@ -73,6 +74,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final l10n = AppLocalizations.of(context)!;
     final query = ref.watch(searchQueryProvider);
     final hasQuery = query.trim().isNotEmpty;
+
+    // Re-focus the search bar whenever the search tab is tapped.
+    final focusRequest = ref.watch(searchFocusRequestProvider);
+    if (focusRequest != _lastFocusRequest) {
+      _lastFocusRequest = focusRequest;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _focusNode.requestFocus();
+        }
+      });
+    }
 
     return Scaffold(
       appBar: AppBar(
