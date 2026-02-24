@@ -8,7 +8,7 @@ final _coverArtCacheManager = CacheManager(
   Config(
     'navis_cover_art_cache',
     stalePeriod: const Duration(days: 30),
-    maxNrOfCacheObjects: 2500,
+    maxNrOfCacheObjects: 5000,
   ),
 );
 
@@ -53,6 +53,10 @@ class CoverArtImage extends ConsumerWidget {
       width: width,
       height: height,
       cacheManager: _coverArtCacheManager,
+      fadeInDuration: const Duration(milliseconds: 150),
+      fadeOutDuration: Duration.zero,
+      memCacheWidth: _memCacheSize(width, size),
+      memCacheHeight: _memCacheSize(height, size),
       placeholder: (_, _) => _fallback(context),
       errorWidget: (_, _, _) => _fallback(context),
     );
@@ -82,5 +86,18 @@ class CoverArtImage extends ConsumerWidget {
       alignment: Alignment.center,
       child: Icon(placeholderIcon),
     );
+  }
+
+  /// Compute a memory-cache dimension to keep decoded images small in RAM.
+  /// Returns null when no useful constraint is available.
+  static int? _memCacheSize(double? layoutDimension, int? requestedSize) {
+    if (layoutDimension != null && layoutDimension > 0) {
+      // Use 2× the layout size for crisp Retina display.
+      return (layoutDimension * 2).ceil();
+    }
+    if (requestedSize != null && requestedSize > 0) {
+      return requestedSize;
+    }
+    return null;
   }
 }

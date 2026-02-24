@@ -90,6 +90,26 @@ class AppearanceSettingsScreen extends ConsumerWidget {
               }
             },
             onDeletePreset: (int colorValue) async {
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (dialogContext) => AlertDialog(
+                  title: Text(l10n.appearanceColorDeletePreset),
+                  content: Text(l10n.appearanceColorDeletePresetConfirm),
+                  actions: <Widget>[
+                    TextButton(
+                      onPressed: () =>
+                          Navigator.pop(dialogContext, false),
+                      child: Text(l10n.cancelAction),
+                    ),
+                    FilledButton(
+                      onPressed: () =>
+                          Navigator.pop(dialogContext, true),
+                      child: Text(l10n.appearanceColorDeletePreset),
+                    ),
+                  ],
+                ),
+              );
+              if (confirmed != true || !context.mounted) return;
               final db = ref.read(navisDatabaseProvider);
               final updated = List<int>.from(customPresets)
                 ..remove(colorValue);

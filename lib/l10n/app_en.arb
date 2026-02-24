@@ -617,6 +617,7 @@
   "appearanceColorPresetSaved": "Custom preset saved",
   "appearanceColorPresetDeleted": "Custom preset deleted",
   "appearanceColorDeletePreset": "Delete preset",
+  "appearanceColorDeletePresetConfirm": "Delete this custom color preset?",
 
   "aboutTitle": "About",
   "aboutVersion": "Version",
