@@ -281,40 +281,58 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
                   ),
                 ),
                 if (_coverArtMax != null) ...[
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    child: Row(
-                      children: <Widget>[
-                        Text(l10n.cacheSettingsCoverArtMaxLabel),
-                        const Spacer(),
-                        Text(
-                          l10n.cacheSettingsCoverArtMaxValue(_coverArtMax!),
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(fontWeight: FontWeight.w600),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Slider(
-                    value: _coverArtMax!.toDouble(),
-                    min: _minCoverArt.toDouble(),
-                    max: _maxCoverArt.toDouble(),
-                    divisions: (_maxCoverArt - _minCoverArt) ~/ _stepCoverArt,
-                    label: l10n.cacheSettingsCoverArtMaxValue(_coverArtMax!),
-                    onChanged: (value) {
-                      setState(() => _coverArtMax = value.round());
+                  SwitchListTile(
+                    value: _coverArtMax == 0,
+                    onChanged: (unlimited) async {
+                      final newMax = unlimited ? 0 : _minCoverArt;
+                      setState(() => _coverArtMax = newMax);
+                      await _saveCoverArtMax(newMax);
                     },
-                    onChangeEnd: (value) => _saveCoverArtMax(value.round()),
+                    title: Text(l10n.cacheSettingsCoverArtUnlimitedLabel),
+                    subtitle: Text(
+                      l10n.cacheSettingsCoverArtUnlimitedSubtitle,
+                    ),
                   ),
+                  if (_coverArtMax! > 0) ...[
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      child: Row(
+                        children: <Widget>[
+                          Text(l10n.cacheSettingsCoverArtMaxLabel),
+                          const Spacer(),
+                          Text(
+                            l10n.cacheSettingsCoverArtMaxValue(_coverArtMax!),
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Slider(
+                      value: _coverArtMax!.toDouble(),
+                      min: _minCoverArt.toDouble(),
+                      max: _maxCoverArt.toDouble(),
+                      divisions:
+                          (_maxCoverArt - _minCoverArt) ~/ _stepCoverArt,
+                      label:
+                          l10n.cacheSettingsCoverArtMaxValue(_coverArtMax!),
+                      onChanged: (value) {
+                        setState(() => _coverArtMax = value.round());
+                      },
+                      onChangeEnd: (value) =>
+                          _saveCoverArtMax(value.round()),
+                    ),
+                  ],
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Text(
                       l10n.cacheSettingsCoverArtRestart,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        color:
+                            Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ),

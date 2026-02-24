@@ -111,6 +111,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsCacheTitle => 'Cache';
 
   @override
+  String get settingsCacheSubtitle =>
+      'Manage storage for audio, cover art and downloads.';
+
+  @override
   String get settingsDownloadsSubtitle => 'Manage offline downloads and queue.';
 
   @override
@@ -124,7 +128,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsPlaybackTitle => 'Playback';
 
   @override
+  String get settingsPlaybackSubtitle =>
+      'Stream quality, gapless, crossfade and equalizer.';
+
+  @override
   String get settingsAppearanceTitle => 'Appearance';
+
+  @override
+  String get settingsAppearanceSubtitle =>
+      'Themes, colors and display preferences.';
 
   @override
   String get syncSettingsTitle => 'Sync Settings';
@@ -1454,6 +1466,13 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get cacheSettingsCoverArtRestart =>
       'Changes take effect after restarting the app.';
+
+  @override
+  String get cacheSettingsCoverArtUnlimitedLabel => 'No limit';
+
+  @override
+  String get cacheSettingsCoverArtUnlimitedSubtitle =>
+      'Store all cover art on disk without restriction.';
 
   @override
   String get aboutTitle => 'About';

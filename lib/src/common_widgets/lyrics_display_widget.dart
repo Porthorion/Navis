@@ -28,7 +28,7 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
   int? _currentLineIndex;
   bool _autoScroll = true;
   Timer? _autoScrollReengageTimer;
-  static const _autoScrollReengageDelay = Duration(seconds: 5);
+  static const _autoScrollReengageDelay = Duration(seconds: 2);
   bool _initialScrollDone = false;
 
   @override
@@ -101,22 +101,14 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
 
   void _scrollToLine(int index) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
       final key = _lineKeys[index];
-      if (key == null) {
-        return;
-      }
-      final currentContext = key.currentContext;
-      if (currentContext == null) {
-        return;
-      }
+      if (key?.currentContext == null) return;
       Scrollable.ensureVisible(
-        currentContext,
+        key!.currentContext!,
         alignment: 0.4,
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOut,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOutCubic,
       );
     });
   }

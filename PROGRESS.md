@@ -40,6 +40,7 @@ Last updated: 2026-02-28
 - [x] UX fixes + cross-fade feature — 2026-02-27 (evidence: `flutter analyze` — 2 info, `flutter test` — 190/191 pass, 1 pre-existing flaky)
 - [x] Pre-Phase 10 gap closure (cover art cache config, Wi-Fi quality preference, art-tinted Now Playing, resume UX branding) — 2026-02-28 (evidence: `dart analyze lib/` — 0 errors, `flutter test` — 192/192 pass)
 - [x] Phase 10 increment 1 (art-tinted default ON schema v15, logging & diagnostics, haptic feedback, crash recovery verified, localization audit, error handling UX audit) — 2026-02-28 (evidence: `dart analyze lib/` — 0 errors, `flutter test` — 192/192 pass)
+- [x] Phase 10 increment 2 (schema v17 serverCreatedAt for recently-added sort, cover art cache unlimited default + reactive provider, settings tile subtitles, lyrics faster re-engage + smoother scroll, like button haptic + scale-bounce animation, radio art background tinting, Phase 10.12 Instant Mix roadmap) — 2026-05-24 (evidence: `flutter analyze lib/` — 0 errors, `flutter test` — 190/191 pass, 1 pre-existing flaky)
 
 ## Meta Progress
 - [x] Tech stack and methodology validation refresh — 2026-02-18 (evidence: `DEVELOPMENT_PLAN.md` stack validation section + README tech stack update)
@@ -435,6 +436,15 @@ Last updated: 2026-02-28
 - [ ] Optimistic UI pass (star/queue/cache actions with rollback behavior)
 - [ ] Motion polish pass (micro-interactions + consistent transition timing)
 - [ ] Cross-screen design consistency audit (spacing, typography, states, icon rhythm)
+
+### 10.12 — Instant Mix
+- [ ] `SubsonicApiClient.getSimilarSongs(songId, {count})` — calls `getSimilarSongs2`, falls back to `getInstantMix`
+- [ ] `AudioHandler.startInstantMix(songId)` — builds and inserts a similar-songs tail after the current queue position
+- [ ] `instantMixProvider` — ephemeral async provider for button loading state
+- [ ] Now Playing: compass icon button (`Icons.explore`) in `_ActionRow` (hidden when no song playing)
+- [ ] Track context menu: "Start Instant Mix" long-press option
+- [ ] Success snackbar: "Instant Mix started — N similar tracks queued."
+- [ ] Graceful fallback when server doesn't support the endpoint
 
 ## Phase 11: AudioMuse AI Integration
 - [ ] `AudioMuseService` interface + API client

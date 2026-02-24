@@ -548,9 +548,13 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     final query = select(albumsTable);
     switch (sort) {
       case AlbumSortOrder.recentlyAdded:
+        // Sort by when the album was added to the server (serverCreatedAt),
+        // falling back to our local sync timestamp so pre-v17 rows still sort.
         query.orderBy([
           (table) => OrderingTerm(
-            expression: table.syncedAt,
+            expression: CustomExpression<DateTime>(
+              'COALESCE(server_created_at, synced_at)',
+            ),
             mode: OrderingMode.desc,
             nulls: NullsOrder.last,
           ),

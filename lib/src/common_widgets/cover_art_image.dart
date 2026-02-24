@@ -7,20 +7,42 @@ import 'package:navis/src/providers/app_providers.dart';
 /// Shared cover art cache key used by both the cache manager and clear logic.
 const String coverArtCacheKey = 'navis_cover_art_cache';
 
-/// Creates a [CacheManager] for cover art images. The [maxNrOfCacheObjects]
-/// parameter controls how many images are stored on disk.
-CacheManager createCoverArtCacheManager({int maxNrOfCacheObjects = 5000}) {
+/// Sentinel value meaning «no object-count cap» — enough covers even for a
+/// 100 k-track library where every album has a unique thumbnail at three sizes.
+const int _coverArtCacheUnlimited = 999999;
+
+/// Creates a [CacheManager] for cover art images.
+///
+/// [maxNrOfCacheObjects] controls how many image files are stored on disk.
+/// Pass `0` (the default) for an effectively unlimited cache.
+CacheManager createCoverArtCacheManager({int maxNrOfCacheObjects = 0}) {
+  final cap = maxNrOfCacheObjects <= 0
+      ? _coverArtCacheUnlimited
+      : maxNrOfCacheObjects;
   return CacheManager(
     Config(
       coverArtCacheKey,
       stalePeriod: const Duration(days: 30),
-      maxNrOfCacheObjects: maxNrOfCacheObjects,
+      maxNrOfCacheObjects: cap,
     ),
   );
 }
 
-/// Module-level default instance — used when the provider isn't available yet.
+/// Module-level fallback instance — used before the provider resolves.
 final CacheManager defaultCoverArtCacheManager = createCoverArtCacheManager();
+
+/// Reactive cover art [CacheManager] provider.
+///
+/// Watches the user's cover art cache limit setting and rebuilds on changes,
+/// so the active [CacheManager] always reflects the configured cap.
+final coverArtCacheManagerProvider = StreamProvider<CacheManager>((ref) {
+  final dao = ref.watch(navisDatabaseProvider).appSettingsDao;
+  return dao
+      .watchCoverArtCacheMaxObjects()
+      .map((maxObjects) => createCoverArtCacheManager(
+            maxNrOfCacheObjects: maxObjects,
+          ));
+});
 
 class CoverArtImage extends ConsumerWidget {
   const CoverArtImage({
@@ -56,13 +78,17 @@ class CoverArtImage extends ConsumerWidget {
       return _fallback(context);
     }
 
+    final cacheManager =
+        ref.watch(coverArtCacheManagerProvider).asData?.value ??
+        defaultCoverArtCacheManager;
+
     final image = CachedNetworkImage(
       imageUrl: api.getCoverArtUrl(id: id, size: size).toString(),
       cacheKey: '$id:${size ?? 0}',
       fit: fit,
       width: width,
       height: height,
-      cacheManager: defaultCoverArtCacheManager,
+      cacheManager: cacheManager,
       fadeInDuration: const Duration(milliseconds: 150),
       fadeOutDuration: Duration.zero,
       memCacheWidth: _memCacheSize(width, size),
