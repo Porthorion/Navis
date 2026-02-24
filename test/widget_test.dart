@@ -3,8 +3,24 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/app.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
+import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
-import 'helpers/test_database.dart';
+import 'package:riverpod/src/framework.dart' show Override;
+
+/// Overrides that prevent Drift streams (and their periodic timers) from being
+/// subscribed in widget tests.  Without these, `tester.pump()` enters an
+/// infinite loop servicing Drift's internal change-check timer.
+List<Override> _noDbOverrides({
+  List<Override> extras = const [],
+}) {
+  return [
+    // Prevent the database from being accessed at all.
+    appSettingsProvider.overrideWith(
+      (_) => Stream.value(const AppSettingsModel.defaults()),
+    ),
+    ...extras,
+  ];
+}
 
 class _StaticAudioBootstrapController extends AudioBootstrapController {
   _StaticAudioBootstrapController({
@@ -31,13 +47,10 @@ void main() {
   testWidgets('shows login screen while unauthenticated', (
     WidgetTester tester,
   ) async {
-    final database = createTestDatabase();
-    addTearDown(database.close);
     await tester.pumpWidget(
       ProviderScope(
-        overrides: withTestDatabase(
-          database,
-          overrides: [
+        overrides: _noDbOverrides(
+          extras: [
             serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
           ],
         ),
@@ -54,23 +67,15 @@ void main() {
 
     final app = tester.widget<MaterialApp>(find.byType(MaterialApp));
     expect(app.themeMode, ThemeMode.dark);
-
-    // Dispose widget tree cleanly so Drift's close-timer fires before the
-    // framework's pending-timer check runs.
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump();
   });
 
   testWidgets('shows playback bootstrap loading gate when required', (
     WidgetTester tester,
   ) async {
-    final database = createTestDatabase();
-    addTearDown(database.close);
     await tester.pumpWidget(
       ProviderScope(
-        overrides: withTestDatabase(
-          database,
-          overrides: [
+        overrides: _noDbOverrides(
+          extras: [
             audioBootstrapControllerProvider.overrideWith(
               () => _StaticAudioBootstrapController(
                 state: const AudioBootstrapState.initializing(),
@@ -85,22 +90,16 @@ void main() {
 
     expect(find.text('Preparing playback'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
-
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump();
   });
 
   testWidgets('shows retry action when playback bootstrap fails', (
     WidgetTester tester,
   ) async {
     var retried = false;
-    final database = createTestDatabase();
-    addTearDown(database.close);
     await tester.pumpWidget(
       ProviderScope(
-        overrides: withTestDatabase(
-          database,
-          overrides: [
+        overrides: _noDbOverrides(
+          extras: [
             audioBootstrapControllerProvider.overrideWith(
               () => _StaticAudioBootstrapController(
                 state: const AudioBootstrapState.failed('failed'),
@@ -118,8 +117,5 @@ void main() {
     await tester.tap(find.text('Retry playback startup'));
     await tester.pump();
     expect(retried, isTrue);
-
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump();
   });
 }

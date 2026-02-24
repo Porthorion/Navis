@@ -20,6 +20,20 @@ final searchQueryProvider = NotifierProvider<SearchQueryNotifier, String>(
   SearchQueryNotifier.new,
 );
 
+/// A simple counter that increments every time the search tab is tapped.
+/// The search screen watches this to re-request focus.
+class SearchFocusRequestNotifier extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void increment() => state++;
+}
+
+final searchFocusRequestProvider =
+    NotifierProvider<SearchFocusRequestNotifier, int>(
+  SearchFocusRequestNotifier.new,
+);
+
 final recentSearchesProvider = StreamProvider<List<RecentSearchesTableData>>((
   ref,
 ) {

@@ -272,6 +272,11 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
                   title: title,
                   artist: artist,
                   album: album,
+                  onTitleTap: isRadio
+                      ? (radioMeta?.nowPlayingTitle != null && radioMeta!.nowPlayingTitle!.isNotEmpty
+                          ? () => NavService.goToSearch(context, ref, radioMeta.nowPlayingTitle!)
+                          : null)
+                      : null,
                   onArtistTap: isRadio
                       ? (radioMeta?.nowPlayingArtist != null && radioMeta!.nowPlayingArtist!.isNotEmpty
                           ? () => NavService.goToSearch(context, ref, radioMeta.nowPlayingArtist!)
@@ -280,9 +285,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
                           ? () => NavService.goToArtist(context, ref, song.artistId!)
                           : null),
                   onAlbumTap: isRadio
-                      ? (radioMeta?.nowPlayingTitle != null && radioMeta!.nowPlayingTitle!.isNotEmpty
-                          ? () => NavService.goToSearch(context, ref, radioMeta.nowPlayingTitle!)
-                          : null)
+                      ? null
                       : (song?.albumId != null && song!.albumId!.isNotEmpty
                           ? () => NavService.goToAlbum(context, ref, song.albumId!)
                           : null),
@@ -386,6 +389,7 @@ class _TrackInfo extends StatelessWidget {
     required this.title,
     required this.artist,
     required this.album,
+    this.onTitleTap,
     this.onArtistTap,
     this.onAlbumTap,
   });
@@ -393,6 +397,7 @@ class _TrackInfo extends StatelessWidget {
   final String title;
   final String artist;
   final String album;
+  final VoidCallback? onTitleTap;
   final VoidCallback? onArtistTap;
   final VoidCallback? onAlbumTap;
 
@@ -400,14 +405,20 @@ class _TrackInfo extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: <Widget>[
-        Text(
-          title,
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.bold,
+        GestureDetector(
+          onTap: onTitleTap,
+          child: Text(
+            title,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: onTitleTap != null
+                  ? Theme.of(context).colorScheme.primary
+                  : null,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
           ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.center,
         ),
         const SizedBox(height: 4),
         GestureDetector(

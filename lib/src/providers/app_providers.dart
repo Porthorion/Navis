@@ -679,17 +679,38 @@ final cachedSongTypesProvider =
 });
 
 /// Provides the set of album IDs and artist IDs that have permanently cached
-/// (downloaded) tracks, for powering "Downloaded Only" library filters.
+/// (downloaded) tracks **or** are currently in the download queue, for powering
+/// "Downloaded Only" library filters.
+///
+/// This ensures that albums/artists appear in the filter as soon as any of
+/// their songs are enqueued for download, not only after the download
+/// completes.
 final downloadedContentIdsProvider =
     StreamProvider<({Set<String> albumIds, Set<String> artistIds})>((ref) {
   final db = ref.watch(navisDatabaseProvider);
-  return db.cacheDao.watchCachedTracksByType(CacheType.permanent).asyncMap(
-      (tracks) async {
-    final permanentSongIds = tracks.map((t) => t.songId).toList();
-    if (permanentSongIds.isEmpty) {
+
+  // Combine both permanent cached tracks and the download queue so that
+  // albums/artists with even one song downloaded (or being downloaded) appear.
+  final cachedStream = db.cacheDao.watchCachedTracksByType(CacheType.permanent);
+
+  return cachedStream.asyncMap((cachedTracks) async {
+    // Collect song IDs from permanent cache.
+    final songIds = <String>{};
+    for (final t in cachedTracks) {
+      songIds.add(t.songId);
+    }
+
+    // Also include songs from the download queue (queued / downloading).
+    final queueItems = await db.downloadQueueDao.getQueuedItems();
+    for (final item in queueItems) {
+      if (item.songId != null) songIds.add(item.songId!);
+    }
+
+    if (songIds.isEmpty) {
       return (albumIds: <String>{}, artistIds: <String>{});
     }
-    final songs = await db.libraryDao.getSongsByIds(permanentSongIds);
+
+    final songs = await db.libraryDao.getSongsByIds(songIds);
     final albumIds = <String>{};
     final artistIds = <String>{};
     for (final song in songs) {

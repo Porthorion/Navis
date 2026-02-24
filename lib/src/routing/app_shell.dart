@@ -12,6 +12,8 @@ import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
+import 'package:navis/src/features/search/presentation/search_controller_provider.dart'
+    show searchFocusRequestProvider;
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 
@@ -160,6 +162,12 @@ class AppShell extends ConsumerWidget {
                 selectedIndex: selectedIndex,
                 onDestinationSelected: (index) {
                   final branchIndex = visibleBranchIndices[index];
+                  // Trigger focus request whenever the Search tab is tapped.
+                  if (branchIndex == _searchBranchIndex) {
+                    ref
+                        .read(searchFocusRequestProvider.notifier)
+                        .increment();
+                  }
                   navigationShell.goBranch(
                     branchIndex,
                     initialLocation:
@@ -262,21 +270,42 @@ class _MiniPlayerStrip extends ConsumerWidget {
                 child: Row(
                   children: <Widget>[
                     if (isRadio)
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .primaryContainer,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Icon(
-                          Icons.radio,
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onPrimaryContainer,
-                        ),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: radioArtUrl != null &&
+                                radioArtUrl!.isNotEmpty
+                            ? Image.network(
+                                radioArtUrl!,
+                                width: 40,
+                                height: 40,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, _) => Container(
+                                  width: 40,
+                                  height: 40,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .primaryContainer,
+                                  child: Icon(
+                                    Icons.radio,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onPrimaryContainer,
+                                  ),
+                                ),
+                              )
+                            : Container(
+                                width: 40,
+                                height: 40,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .primaryContainer,
+                                child: Icon(
+                                  Icons.radio,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onPrimaryContainer,
+                                ),
+                              ),
                       )
                     else
                       CoverArtImage(

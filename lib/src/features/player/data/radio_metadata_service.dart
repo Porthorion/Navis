@@ -31,7 +31,7 @@ class RadioMetadataService {
   String? _azuracastBaseUrl;
 
   /// The polling interval for Azuracast API requests.
-  static const Duration pollingInterval = Duration(seconds: 15);
+  static const Duration pollingInterval = Duration(seconds: 5);
 
   /// Start listening for metadata for the given radio station.
   ///
