@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
-import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/star_button.dart';
@@ -77,8 +77,20 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
           final isStarred = _isStarred || artistData.starred != null;
 
           return ListView(
-            padding: const EdgeInsets.only(bottom: 16),
+            padding: EdgeInsets.zero,
             children: <Widget>[
+              // ── Artist image header ─────────────────────────────────────
+              artistInfo.when(
+                data: (info) {
+                  final url =
+                      info?.largeImageUrl ?? info?.mediumImageUrl ?? '';
+                  if (url.isEmpty) return const SizedBox.shrink();
+                  return _ArtistImageHeader(imageUrl: url);
+                },
+                loading: () => const SizedBox.shrink(),
+                error: (_, _) => const SizedBox.shrink(),
+              ),
+              // ── Name + star ─────────────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
                 child: Row(
@@ -107,6 +119,7 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
               ),
+              // ── Bio + similar artists ───────────────────────────────────
               artistInfo.when(
                 data: (info) {
                   if (info == null) {
@@ -140,7 +153,7 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                     );
                   }
                   return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
                     child: GridView.builder(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
@@ -148,62 +161,18 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                       gridDelegate:
                           const SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount: 2,
-                            childAspectRatio: 1.2,
+                            childAspectRatio: 1,
                             crossAxisSpacing: 8,
                             mainAxisSpacing: 8,
                           ),
                       itemBuilder: (context, index) {
                         final album = items[index];
-                        return Card(
-                          clipBehavior: Clip.antiAlias,
-                          child: InkWell(
+                        return RepaintBoundary(
+                          child: AlbumCard(
+                            album: album,
+                            size: AlbumCardSize.library,
                             onTap: () =>
                                 context.go('/library/albums/${album.id}'),
-                            child: Padding(
-                              padding: const EdgeInsets.all(10),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: <Widget>[
-                                  CoverArtImage(
-                                    coverArtId: album.coverArt,
-                                    size: 320,
-                                    height: 58,
-                                    width: double.infinity,
-                                    borderRadius: BorderRadius.circular(8),
-                                    placeholderIcon: Icons.album_outlined,
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: <Widget>[
-                                        Text(
-                                          album.name,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: Theme.of(
-                                            context,
-                                          ).textTheme.titleSmall,
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Flexible(
-                                          child: Text(
-                                            album.year?.toString() ??
-                                                l10n.artistDetailUnknownYear,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: Theme.of(
-                                              context,
-                                            ).textTheme.bodySmall,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
                           ),
                         );
                       },
@@ -227,6 +196,46 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
           message: error.toString(),
           onRetry: () => ref.invalidate(artistByIdProvider(widget.artistId)),
         ),
+      ),
+    );
+  }
+}
+
+/// Full-width header image shown at the top of the artist detail page when
+/// the artist has a photo from the Last.fm / MusicBrainz metadata.
+class _ArtistImageHeader extends StatelessWidget {
+  const _ArtistImageHeader({required this.imageUrl});
+
+  final String imageUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 240,
+      width: double.infinity,
+      child: Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
+          Image.network(
+            imageUrl,
+            fit: BoxFit.cover,
+            errorBuilder: (_, _, _) => const SizedBox.shrink(),
+          ),
+          // Gradient overlay — fades to scaffold background at the bottom
+          // so the artist name blends in naturally.
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: <Color>[
+                  Color(0x00000000),
+                  Color(0xCC000000),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

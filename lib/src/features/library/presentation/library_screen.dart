@@ -188,11 +188,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                     );
                   }
                   final artist = item.artist!;
-                  return ArtistCard(
-                    artist: artist,
-                    onTap: () => context.go('/library/artists/${artist.id}'),
-                    onLongPress: () => _showArtistMenu(context, artist),
-                    onStarToggled: () => _toggleArtistStar(artist),
+                  return RepaintBoundary(
+                    child: ArtistCard(
+                      artist: artist,
+                      onTap: () => context.go('/library/artists/${artist.id}'),
+                      onLongPress: () => _showArtistMenu(context, artist),
+                      onStarToggled: () => _toggleArtistStar(artist),
+                    ),
                   );
                 },
               ),
@@ -413,17 +415,19 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                         ),
                     delegate: SliverChildBuilderDelegate((context, index) {
                       final album = filteredItems[index];
-                      return AlbumCard(
-                        key: ValueKey(album.id),
-                        album: album,
-                        size: AlbumCardSize.library,
-                        onTap: () {
-                          ref
-                              .read(librarySyncControllerProvider.notifier)
-                              .registerAlbumInteraction(album.id);
-                          context.go('/library/albums/${album.id}');
-                        },
-                        onLongPress: () => _showAlbumMenu(context, album),
+                      return RepaintBoundary(
+                        child: AlbumCard(
+                          key: ValueKey(album.id),
+                          album: album,
+                          size: AlbumCardSize.library,
+                          onTap: () {
+                            ref
+                                .read(librarySyncControllerProvider.notifier)
+                                .registerAlbumInteraction(album.id);
+                            context.go('/library/albums/${album.id}');
+                          },
+                          onLongPress: () => _showAlbumMenu(context, album),
+                        ),
                       );
                     }, childCount: filteredItems.length),
                   ),
