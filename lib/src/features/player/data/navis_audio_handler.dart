@@ -1742,9 +1742,15 @@ class NavisAudioHandler extends BaseAudioHandler
       _broadcastPlaybackState();
       _emitSnapshot();
 
-      // Start metadata listening (ICY headers; Azuracast later via
-      // updateRadioMetadata or service configuration).
-      _radioMetadataService.startListening(stationId: stationId);
+      // Start metadata listening.  Try to detect Azuracast from the stream
+      // URL pattern (e.g. https://radio.example.com/listen/station/radio.mp3)
+      // or fall back to the homePageUrl as the Azuracast base.
+      final azuraInfo = _tryExtractAzuracast(streamUrl, homePageUrl);
+      _radioMetadataService.startListening(
+        stationId: stationId,
+        azuracastApiUrl: azuraInfo?.$1,
+        stationShortName: azuraInfo?.$2,
+      );
     });
   }
 
@@ -1848,6 +1854,52 @@ class NavisAudioHandler extends BaseAudioHandler
     }
     _broadcastPlaybackState();
     _emitSnapshot();
+  }
+
+  /// Attempt to extract an Azuracast base URL and station short name from the
+  /// stream URL or the homePageUrl.
+  ///
+  /// Azuracast stream URLs follow the pattern:
+  ///   `https://<host>/listen/<station_short_name>/<format>`
+  ///
+  /// Returns `(baseUrl, stationShortName)` or `null` if detection fails.
+  static (String, String)? _tryExtractAzuracast(
+    String streamUrl,
+    String? homePageUrl,
+  ) {
+    // Try parsing the stream URL for /listen/{station}/ pattern.
+    final uri = Uri.tryParse(streamUrl);
+    if (uri != null && uri.pathSegments.length >= 2) {
+      final listenIndex = uri.pathSegments.indexOf('listen');
+      if (listenIndex >= 0 && listenIndex + 1 < uri.pathSegments.length) {
+        final stationName = uri.pathSegments[listenIndex + 1];
+        final baseUrl = '${uri.scheme}://${uri.host}${uri.hasPort ? ':${uri.port}' : ''}';
+        return (baseUrl, stationName);
+      }
+    }
+
+    // Fall back to homePageUrl as Azuracast base + station name heuristic.
+    if (homePageUrl != null && homePageUrl.isNotEmpty) {
+      final homeUri = Uri.tryParse(homePageUrl);
+      if (homeUri != null) {
+        // If the homePageUrl has a path like /public/station_name
+        final segments = homeUri.pathSegments
+            .where((s) => s.isNotEmpty)
+            .toList();
+        final baseUrl = '${homeUri.scheme}://${homeUri.host}${homeUri.hasPort ? ':${homeUri.port}' : ''}';
+        if (segments.length >= 2 && segments.first == 'public') {
+          return (baseUrl, segments[1]);
+        }
+        // Try last non-empty segment as station name.
+        if (segments.isNotEmpty) {
+          return (baseUrl, segments.last);
+        }
+        // Use the base URL with a generic station name.
+        return (baseUrl, '1');
+      }
+    }
+
+    return null;
   }
 }
 

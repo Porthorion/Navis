@@ -1,17 +1,7 @@
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
-import 'package:sqlite3/sqlite3.dart';
-
-bool get _sqliteAvailable {
-  try {
-    final db = sqlite3.openInMemory();
-    db.dispose();
-    return true;
-  } on Object {
-    return false;
-  }
-}
+import '../../../helpers/test_database.dart';
 
 void main() {
   group('ScrobbleDao', () {
@@ -55,7 +45,7 @@ void main() {
         final rows = await database.select(database.scrobbleQueueTable).get();
         expect(rows.length, 1);
       },
-      skip: !_sqliteAvailable,
+      skip: !sqliteAvailable,
     );
 
     test('getDueEntries returns only due non-expired rows', () async {
@@ -80,7 +70,7 @@ void main() {
       final due = await database.scrobbleDao.getDueEntries(now);
       expect(due.length, 1);
       expect(due.single.sessionKey, 'due');
-    }, skip: !_sqliteAvailable);
+    }, skip: !sqliteAvailable);
 
     test(
       'reschedule and pruneExpired update queue correctly',
@@ -122,7 +112,7 @@ void main() {
         expect(after.single.attempts, 3);
         expect(after.single.lastError, 'timeout');
       },
-      skip: !_sqliteAvailable,
+      skip: !sqliteAvailable,
     );
   });
 }

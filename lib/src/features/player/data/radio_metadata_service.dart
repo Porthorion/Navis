@@ -138,28 +138,41 @@ class RadioMetadataService {
       // Only use ICY if we don't have Azuracast polling active.
       if (_pollingTimer != null) return;
 
-      final info = metadata?.info;
-      if (info == null) return;
-
-      final title = info.title;
-      if (title == null || title.isEmpty) return;
-
-      // ICY title is often formatted as "Artist - Title".
-      String? parsedArtist;
-      String? parsedTitle;
-      final dashIndex = title.indexOf(' - ');
-      if (dashIndex > 0) {
-        parsedArtist = title.substring(0, dashIndex).trim();
-        parsedTitle = title.substring(dashIndex + 3).trim();
-      } else {
-        parsedTitle = title;
-      }
-
-      _handler.updateRadioMetadata(
-        title: parsedTitle,
-        artist: parsedArtist,
-      );
+      _applyIcyMetadata(metadata);
     });
+
+    // Also check if ICY metadata is already available (e.g. reconnecting to an
+    // ongoing stream) — the stream above only fires on *changes*.
+    if (_pollingTimer == null) {
+      final existing = _player.icyMetadata;
+      if (existing != null) {
+        _applyIcyMetadata(existing);
+      }
+    }
+  }
+
+  void _applyIcyMetadata(IcyMetadata? metadata) {
+    final info = metadata?.info;
+    if (info == null) return;
+
+    final title = info.title;
+    if (title == null || title.isEmpty) return;
+
+    // ICY title is often formatted as "Artist - Title".
+    String? parsedArtist;
+    String? parsedTitle;
+    final dashIndex = title.indexOf(' - ');
+    if (dashIndex > 0) {
+      parsedArtist = title.substring(0, dashIndex).trim();
+      parsedTitle = title.substring(dashIndex + 3).trim();
+    } else {
+      parsedTitle = title;
+    }
+
+    _handler.updateRadioMetadata(
+      title: parsedTitle,
+      artist: parsedArtist,
+    );
   }
 
   /// Dispose resources. Call when the handler is being disposed.

@@ -12,17 +12,7 @@ import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/utils/connectivity.dart';
-import 'package:sqlite3/sqlite3.dart';
-
-bool get _sqliteAvailable {
-  try {
-    final db = sqlite3.openInMemory();
-    db.dispose();
-    return true;
-  } on Object {
-    return false;
-  }
-}
+import '../../../../helpers/test_database.dart';
 
 class _FakeCredentialStore implements SecureCredentialStore {
   String? _password;
@@ -284,7 +274,7 @@ void main() {
         expect(serverConfig?.lastSynced, isNotNull);
         expect(serverConfig?.lastFullSyncedAt, isNotNull);
       },
-      skip: !_sqliteAvailable,
+      skip: !sqliteAvailable,
     );
 
     test(
@@ -365,7 +355,7 @@ void main() {
         expect(albumStageProgress.last.processed, 3);
         expect(albumStageProgress.last.total, 3);
       },
-      skip: !_sqliteAvailable,
+      skip: !sqliteAvailable,
     );
 
     test(
@@ -399,7 +389,7 @@ void main() {
         expect(state.status, LibrarySyncStatus.succeeded);
         expect(api.calls, contains('getArtist:artist-1'));
       },
-      skip: !_sqliteAvailable,
+      skip: !sqliteAvailable,
     );
 
     test(
@@ -439,7 +429,7 @@ void main() {
         );
         expect(songs.length, 9);
       },
-      skip: !_sqliteAvailable,
+      skip: !sqliteAvailable,
     );
 
     test(
@@ -514,7 +504,7 @@ void main() {
         expect(hydrationProgress.any((count) => count > 0), isTrue);
         expect(hydrationProgress.last, greaterThanOrEqualTo(9));
       },
-      skip: !_sqliteAvailable,
+      skip: !sqliteAvailable,
     );
 
     test(
@@ -564,7 +554,7 @@ void main() {
         );
         expect(songs.length, 9);
       },
-      skip: !_sqliteAvailable,
+      skip: !sqliteAvailable,
     );
 
     test(
@@ -600,7 +590,7 @@ void main() {
           greaterThan(0),
         );
       },
-      skip: !_sqliteAvailable,
+      skip: !sqliteAvailable,
     );
 
     test(
@@ -684,7 +674,7 @@ void main() {
           containsAll(<String>{'song-1a', 'song-1b', 'song-2a', 'song-2b'}),
         );
       },
-      skip: !_sqliteAvailable,
+      skip: !sqliteAvailable,
     );
 
     test(
@@ -732,7 +722,7 @@ void main() {
         expect(songs.single.artistId, isNull);
         expect(songs.single.artistName, 'Missing Artist');
       },
-      skip: !_sqliteAvailable,
+      skip: !sqliteAvailable,
     );
 
     test('staleness gate skips sync when session is fresh', () async {
@@ -745,7 +735,7 @@ void main() {
 
       expect(state.status, LibrarySyncStatus.skipped);
       expect(api.calls, isEmpty);
-    }, skip: !_sqliteAvailable);
+    }, skip: !sqliteAvailable);
 
     test(
       'incremental sync only requests changed artists/albums',
@@ -796,7 +786,7 @@ void main() {
         expect(api.calls, isNot(contains('getArtist:artist-old')));
         expect(api.calls, contains('getAlbum:album-1'));
       },
-      skip: !_sqliteAvailable,
+      skip: !sqliteAvailable,
     );
 
     test(
@@ -826,7 +816,7 @@ void main() {
         expect(api.calls, contains('getArtists'));
         expect(api.calls, contains('getAlbumListPage:0:500'));
       },
-      skip: !_sqliteAvailable,
+      skip: !sqliteAvailable,
     );
 
     test(
@@ -859,7 +849,7 @@ void main() {
           isTrue,
         );
       },
-      skip: !_sqliteAvailable,
+      skip: !sqliteAvailable,
     );
 
     test(
@@ -915,7 +905,7 @@ void main() {
         expect(pending, 0);
         expect(songs.map((song) => song.id), contains('song-1'));
       },
-      skip: !_sqliteAvailable,
+      skip: !sqliteAvailable,
     );
 
     test(
@@ -962,7 +952,7 @@ void main() {
         expect(state.status, LibrarySyncStatus.succeeded);
         expect(api.maxConcurrentAlbumRequests, greaterThan(2));
       },
-      skip: !_sqliteAvailable,
+      skip: !sqliteAvailable,
     );
 
     test('transient album failures are retried with backoff', () async {
@@ -985,7 +975,7 @@ void main() {
         api.calls.where((call) => call == 'getAlbum:album-1').length,
         greaterThanOrEqualTo(3),
       );
-    }, skip: !_sqliteAvailable);
+    }, skip: !sqliteAvailable);
 
     test(
       'fresh session resumes pending song hydration without metadata fetch',
@@ -1021,7 +1011,7 @@ void main() {
         expect(albums.single.songsHydrated, isTrue);
         expect(songs.single.id, 'song-1');
       },
-      skip: !_sqliteAvailable,
+      skip: !sqliteAvailable,
     );
 
     test(
@@ -1049,7 +1039,7 @@ void main() {
         expect(state.status, LibrarySyncStatus.failed);
         expect(songs.any((song) => song.id == 'existing-song'), isTrue);
       },
-      skip: !_sqliteAvailable,
+      skip: !sqliteAvailable,
     );
 
     test(
@@ -1070,7 +1060,7 @@ void main() {
         expect(secondState.status, LibrarySyncStatus.succeeded);
         expect(api.calls.where((call) => call == 'getArtists').length, 1);
       },
-      skip: !_sqliteAvailable,
+      skip: !sqliteAvailable,
     );
   });
 }

@@ -9,17 +9,7 @@ import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/auth/data/sign_out_service.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
-import 'package:sqlite3/sqlite3.dart';
-
-bool get _sqliteAvailable {
-  try {
-    final db = sqlite3.openInMemory();
-    db.dispose();
-    return true;
-  } on Object {
-    return false;
-  }
-}
+import '../../../../helpers/test_database.dart';
 
 class _FakeCredentialStore implements SecureCredentialStore {
   String? password;
@@ -79,7 +69,7 @@ void main() {
         1,
       );
       expect(cacheFile.existsSync(), isTrue);
-    }, skip: !_sqliteAvailable);
+    }, skip: !sqliteAvailable);
 
     test(
       'full wipe clears local data and deletes cached files',
@@ -116,7 +106,7 @@ void main() {
         expect(await database.playQueueDao.watchQueueItems().first, isEmpty);
         expect(cacheFile.existsSync(), isFalse);
       },
-      skip: !_sqliteAvailable,
+      skip: !sqliteAvailable,
     );
 
     test('full wipe tolerates missing cached files', () async {
@@ -128,7 +118,7 @@ void main() {
       expect(await database.serverDao.getActiveServer(), isNull);
       expect(credentials.password, isNull);
       expect(await database.select(database.cachedTracksTable).get(), isEmpty);
-    }, skip: !_sqliteAvailable);
+    }, skip: !sqliteAvailable);
   });
 }
 

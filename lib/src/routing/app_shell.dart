@@ -350,7 +350,12 @@ class _MiniPlayerStrip extends ConsumerWidget {
               ),
             ),
             if (isRadio && isPlaying)
-              const LinearProgressIndicator(minHeight: 2)
+              LinearProgressIndicator(
+                value: 1,
+                minHeight: 2,
+                backgroundColor: Colors.transparent,
+                color: Theme.of(context).colorScheme.primary,
+              )
             else
               LinearProgressIndicator(
                 value: progress,

@@ -12,17 +12,7 @@ import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:path/path.dart' as p;
-import 'package:sqlite3/sqlite3.dart';
-
-bool get _sqliteAvailable {
-  try {
-    final db = sqlite3.openInMemory();
-    db.dispose();
-    return true;
-  } on Object {
-    return false;
-  }
-}
+import '../../../../helpers/test_database.dart';
 
 void main() {
   group('PlaybackSourceResolver', () {
@@ -97,7 +87,7 @@ void main() {
           isTrue,
         );
       },
-      skip: !_sqliteAvailable,
+      skip: !sqliteAvailable,
     );
 
     test(
@@ -147,7 +137,7 @@ void main() {
         expect(lockSource.uri.queryParameters['id'], 'song-2');
         expect(lockSource.uri.queryParameters['maxBitRate'], '128');
       },
-      skip: !_sqliteAvailable,
+      skip: !sqliteAvailable,
     );
 
     test(
@@ -171,7 +161,7 @@ void main() {
         expect(first.cachedFilePath, isNotNull);
         expect(second.cachedFilePath, first.cachedFilePath);
       },
-      skip: !_sqliteAvailable,
+      skip: !sqliteAvailable,
     );
 
     test(
@@ -259,7 +249,7 @@ void main() {
           expect(direct.uri?.queryParameters['id'], testCase.id);
         }
       },
-      skip: !_sqliteAvailable,
+      skip: !sqliteAvailable,
     );
 
     test(
@@ -359,7 +349,7 @@ void main() {
           expect(resolved.uri?.scheme, 'file');
         }
       },
-      skip: !_sqliteAvailable,
+      skip: !sqliteAvailable,
     );
 
     test(
@@ -407,7 +397,7 @@ void main() {
         expect(resolved.kind, PlaybackSourceKind.file);
         expect(resolved.cachedFilePath, localFile.path);
       },
-      skip: !_sqliteAvailable,
+      skip: !sqliteAvailable,
     );
 
     test(
@@ -456,7 +446,7 @@ void main() {
 
         expect(resolved.kind, isNot(PlaybackSourceKind.file));
       },
-      skip: !_sqliteAvailable,
+      skip: !sqliteAvailable,
     );
 
     test(
@@ -506,7 +496,7 @@ void main() {
         expect(resolved.kind, PlaybackSourceKind.file);
         expect(resolved.cachedFilePath, localFile.path);
       },
-      skip: !_sqliteAvailable,
+      skip: !sqliteAvailable,
     );
 
     test(
@@ -547,7 +537,7 @@ void main() {
         );
         expect(resolved.uri?.queryParameters.containsKey('format'), isFalse);
       },
-      skip: !_sqliteAvailable,
+      skip: !sqliteAvailable,
     );
 
     test(
@@ -585,7 +575,7 @@ void main() {
         expect(resolved.uri?.queryParameters['maxBitRate'], '192');
         expect(resolved.uri?.queryParameters['format'], 'mp3');
       },
-      skip: !_sqliteAvailable,
+      skip: !sqliteAvailable,
     );
   });
 }

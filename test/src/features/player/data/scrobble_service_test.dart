@@ -5,17 +5,7 @@ import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/player/data/scrobble_service.dart';
-import 'package:sqlite3/sqlite3.dart';
-
-bool get _sqliteAvailable {
-  try {
-    final db = sqlite3.openInMemory();
-    db.dispose();
-    return true;
-  } on Object {
-    return false;
-  }
-}
+import '../../../../helpers/test_database.dart';
 
 class _FakeSubsonicApiClient extends SubsonicApiClient {
   _FakeSubsonicApiClient()
@@ -92,7 +82,7 @@ void main() {
       expect(apiClient.calls.length, 2);
       expect(apiClient.calls[0], (songId: 'song-1', submission: false));
       expect(apiClient.calls[1], (songId: 'song-1', submission: true));
-    }, skip: !_sqliteAvailable);
+    }, skip: !sqliteAvailable);
 
     test(
       'flushDue reschedules failed delivery with exponential backoff',
@@ -120,7 +110,7 @@ void main() {
           isTrue,
         );
       },
-      skip: !_sqliteAvailable,
+      skip: !sqliteAvailable,
     );
 
     test('flushDue clears queue when scrobbling is disabled', () async {
@@ -139,6 +129,6 @@ void main() {
       final queued = await database.select(database.scrobbleQueueTable).get();
       expect(queued, isEmpty);
       expect(apiClient.calls, isEmpty);
-    }, skip: !_sqliteAvailable);
+    }, skip: !sqliteAvailable);
   });
 }

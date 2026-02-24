@@ -4,17 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/downloads/data/download_service.dart';
-import 'package:sqlite3/sqlite3.dart';
-
-bool get _sqliteAvailable {
-  try {
-    final db = sqlite3.openInMemory();
-    db.dispose();
-    return true;
-  } on Object {
-    return false;
-  }
-}
+import '../../../helpers/test_database.dart';
 
 void main() {
   group('DownloadService', () {
@@ -55,7 +45,7 @@ void main() {
         final items = await database.downloadQueueDao.watchQueue().first;
         expect(items, hasLength(1));
       },
-      skip: _sqliteAvailable ? null : 'sqlite3 not available',
+      skip: sqliteAvailable ? null : 'sqlite3 not available',
     );
 
     test(
@@ -83,7 +73,7 @@ void main() {
         final items = await database.downloadQueueDao.watchQueue().first;
         expect(items, isEmpty);
       },
-      skip: _sqliteAvailable ? null : 'sqlite3 not available',
+      skip: sqliteAvailable ? null : 'sqlite3 not available',
     );
 
     test(
@@ -110,7 +100,7 @@ void main() {
         expect(items, hasLength(1));
         expect(items.first.status, DownloadStatus.queued);
       },
-      skip: _sqliteAvailable ? null : 'sqlite3 not available',
+      skip: sqliteAvailable ? null : 'sqlite3 not available',
     );
 
     // -----------------------------------------------------------------------
@@ -142,7 +132,7 @@ void main() {
         final items = await database.downloadQueueDao.watchQueue().first;
         expect(items, hasLength(2));
       },
-      skip: _sqliteAvailable ? null : 'sqlite3 not available',
+      skip: sqliteAvailable ? null : 'sqlite3 not available',
     );
 
     test(
@@ -180,7 +170,7 @@ void main() {
         final count = await service.enqueueAlbum('album-1');
         expect(count, 1); // Only song-2 should be queued.
       },
-      skip: _sqliteAvailable ? null : 'sqlite3 not available',
+      skip: sqliteAvailable ? null : 'sqlite3 not available',
     );
 
     // -----------------------------------------------------------------------
@@ -204,7 +194,7 @@ void main() {
         final items = await database.downloadQueueDao.watchQueue().first;
         expect(items, hasLength(2));
       },
-      skip: _sqliteAvailable ? null : 'sqlite3 not available',
+      skip: sqliteAvailable ? null : 'sqlite3 not available',
     );
 
     // -----------------------------------------------------------------------
@@ -245,7 +235,7 @@ void main() {
           anyOf(DownloadStatus.queued, DownloadStatus.failed),
         );
       },
-      skip: _sqliteAvailable ? null : 'sqlite3 not available',
+      skip: sqliteAvailable ? null : 'sqlite3 not available',
     );
   });
 }

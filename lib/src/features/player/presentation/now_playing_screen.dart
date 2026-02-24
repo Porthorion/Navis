@@ -241,7 +241,9 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
           // very small (even <2 px). Rendering the full Column at that size
           // causes a RenderFlex overflow. Skip the layout entirely when there
           // isn't enough room — the content is invisible at that point anyway.
-          if (constraints.maxHeight < 200) {
+          // The fixed-height children (TrackInfo, SeekBar, TransportControls,
+          // ActionRow, spacers) need ~300 px; use 350 as a safe threshold.
+          if (constraints.maxHeight < 350) {
             return const SizedBox.shrink();
           }
 
@@ -266,7 +268,25 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                _TrackInfo(title: title, artist: artist, album: album),
+                _TrackInfo(
+                  title: title,
+                  artist: artist,
+                  album: album,
+                  onArtistTap: isRadio
+                      ? (radioMeta?.nowPlayingArtist != null && radioMeta!.nowPlayingArtist!.isNotEmpty
+                          ? () => NavService.goToSearch(context, ref, radioMeta.nowPlayingArtist!)
+                          : null)
+                      : (song?.artistId != null && song!.artistId!.isNotEmpty
+                          ? () => NavService.goToArtist(context, ref, song.artistId!)
+                          : null),
+                  onAlbumTap: isRadio
+                      ? (radioMeta?.nowPlayingTitle != null && radioMeta!.nowPlayingTitle!.isNotEmpty
+                          ? () => NavService.goToSearch(context, ref, radioMeta.nowPlayingTitle!)
+                          : null)
+                      : (song?.albumId != null && song!.albumId!.isNotEmpty
+                          ? () => NavService.goToAlbum(context, ref, song.albumId!)
+                          : null),
+                ),
                 const SizedBox(height: 16),
                 if (!isRadio) ...[
                   _SeekBar(playback: playback),
@@ -366,11 +386,15 @@ class _TrackInfo extends StatelessWidget {
     required this.title,
     required this.artist,
     required this.album,
+    this.onArtistTap,
+    this.onAlbumTap,
   });
 
   final String title;
   final String artist;
   final String album;
+  final VoidCallback? onArtistTap;
+  final VoidCallback? onAlbumTap;
 
   @override
   Widget build(BuildContext context) {
@@ -386,24 +410,34 @@ class _TrackInfo extends StatelessWidget {
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 4),
-        Text(
-          artist,
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
+        GestureDetector(
+          onTap: onArtistTap,
+          child: Text(
+            artist,
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              color: onArtistTap != null
+                  ? Theme.of(context).colorScheme.primary
+                  : Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
           ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.center,
         ),
         const SizedBox(height: 2),
-        Text(
-          album,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
+        GestureDetector(
+          onTap: onAlbumTap,
+          child: Text(
+            album,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: onAlbumTap != null
+                  ? Theme.of(context).colorScheme.primary
+                  : Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
           ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.center,
         ),
       ],
     );

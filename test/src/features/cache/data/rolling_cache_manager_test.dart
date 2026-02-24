@@ -6,17 +6,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:path/path.dart' as p;
-import 'package:sqlite3/sqlite3.dart';
-
-bool get _sqliteAvailable {
-  try {
-    final db = sqlite3.openInMemory();
-    db.dispose();
-    return true;
-  } on Object {
-    return false;
-  }
-}
+import '../../../../helpers/test_database.dart';
 
 void main() {
   group('DriftRollingCacheManager', () {
@@ -54,7 +44,7 @@ void main() {
       expect(row.fileSize, 64);
       expect(row.format, 'mp3');
       expect(row.downloadStatus, DownloadStatus.complete);
-    }, skip: !_sqliteAvailable);
+    }, skip: !sqliteAvailable);
 
     test('enforceBudget evicts oldest rolling items only', () async {
       await _insertSong(database, 'song-1');
@@ -108,7 +98,7 @@ void main() {
       expect(file1.existsSync(), isFalse);
       expect(file2.existsSync(), isTrue);
       expect(file3.existsSync(), isTrue);
-    }, skip: !_sqliteAvailable);
+    }, skip: !sqliteAvailable);
 
     test('pruneMissingFiles drops stale rolling entries', () async {
       await _insertSong(database, 'song-1');
@@ -142,7 +132,7 @@ void main() {
 
       expect(await database.cacheDao.getCachedTrack('song-1'), isNull);
       expect(await database.cacheDao.getCachedTrack('song-2'), isNotNull);
-    }, skip: !_sqliteAvailable);
+    }, skip: !sqliteAvailable);
 
     test('touchTrack bumps lastAccessedAt', () async {
       await _insertSong(database, 'song-1');
@@ -166,7 +156,7 @@ void main() {
       final row = await database.cacheDao.getCachedTrack('song-1');
       expect(row, isNotNull);
       expect(row!.lastAccessedAt.isAfter(oldDate), isTrue);
-    }, skip: !_sqliteAvailable);
+    }, skip: !sqliteAvailable);
   });
 }
 
