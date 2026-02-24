@@ -21,6 +21,10 @@ abstract class RollingCacheManager {
   Future<void> enforceBudget({required int maxBytes});
 
   Future<void> pruneMissingFiles();
+
+  /// Remove permanent cache DB entries whose backing files no longer exist on
+  /// disk (e.g. deleted by the OS, manual cleanup, or filesystem corruption).
+  Future<void> pruneMissingPermanentFiles();
 }
 
 class DriftRollingCacheManager implements RollingCacheManager {
@@ -111,6 +115,30 @@ class DriftRollingCacheManager implements RollingCacheManager {
 
     if (staleIds.isNotEmpty) {
       await _cacheDao.deleteCachedTracksBySongIds(staleIds);
+    }
+  }
+
+  @override
+  Future<void> pruneMissingPermanentFiles() async {
+    final entries = await _cacheDao.getPermanentEntries();
+    final staleIds = <String>[];
+
+    for (final entry in entries) {
+      final file = File(entry.filePath);
+      if (!file.existsSync()) {
+        staleIds.add(entry.songId);
+        AppLogger.info(
+          'Pruning stale permanent cache entry for ${entry.songId} — '
+          'file missing: ${entry.filePath}',
+        );
+      }
+    }
+
+    if (staleIds.isNotEmpty) {
+      await _cacheDao.deleteCachedTracksBySongIds(staleIds);
+      AppLogger.info(
+        'Pruned ${staleIds.length} permanent cache entries with missing files.',
+      );
     }
   }
 

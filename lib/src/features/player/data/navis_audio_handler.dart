@@ -432,12 +432,13 @@ class NavisAudioHandler extends BaseAudioHandler
       () async {
         try {
           await _rollingCacheManager.pruneMissingFiles();
+          await _rollingCacheManager.pruneMissingPermanentFiles();
           await _rollingCacheManager.enforceBudget(
             maxBytes: _rollingCacheBudgetBytes,
           );
         } on Object catch (error, stackTrace) {
           AppLogger.warning(
-            'Rolling cache maintenance failed during startup: '
+            'Cache maintenance failed during startup: '
             '$error\n$stackTrace',
           );
         }
@@ -459,7 +460,7 @@ class NavisAudioHandler extends BaseAudioHandler
   Future<void> _restoreQueueAfterStartup() async {
     await _runSerialized(() async {
       try {
-        await _restoreQueueFromDisk().timeout(const Duration(seconds: 3));
+        await _restoreQueueFromDisk().timeout(const Duration(seconds: 10));
       } on TimeoutException catch (error, stackTrace) {
         AppLogger.warning(
           'Queue restore timed out during startup. '
@@ -1118,6 +1119,45 @@ class NavisAudioHandler extends BaseAudioHandler
     return prepared;
   }
 
+  /// Convenience wrapper: resolve song IDs from the library, then prepare
+  /// [_PreparedQueueItem]s with lock-caching fallback.  Used by the
+  /// incremental queue operations ([addToQueue], [playNext]).
+  Future<List<_PreparedQueueItem>> _prepareQueueItemsFromIds(
+    List<String> songIds,
+  ) async {
+    final songs = await _libraryDao.getSongsByIds(songIds);
+    if (songs.isEmpty) return const <_PreparedQueueItem>[];
+    try {
+      return await _prepareQueueItems(songs, preferLockCaching: true);
+    } on PlaybackSourceUnavailableException {
+      rethrow;
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning(
+        'Incremental queue preparation failed with lock-cached sources. '
+        'Retrying with direct-stream sources. '
+        '$error\n$stackTrace',
+      );
+      return _prepareQueueItems(songs, preferLockCaching: false);
+    }
+  }
+
+  /// Register rolling-cache progress listeners for any lock-cached entries
+  /// in [prepared].
+  void _observeLockCacheForPrepared(List<_PreparedQueueItem> prepared) {
+    for (final entry in prepared) {
+      if (entry.source.kind == PlaybackSourceKind.lockCachedStream &&
+          entry.source.lockCachingAudioSource != null &&
+          entry.source.cachedFilePath != null) {
+        _observeLockCachingSource(
+          song: entry.song,
+          resolvedSource: entry.source,
+          source: entry.source.lockCachingAudioSource!,
+          cacheFilePath: entry.source.cachedFilePath!,
+        );
+      }
+    }
+  }
+
   Future<void> _applyPreparedQueue(
     List<_PreparedQueueItem> prepared, {
     required int startIndex,
@@ -1283,14 +1323,36 @@ class NavisAudioHandler extends BaseAudioHandler
         return;
       }
 
-      final existingIds = _queueItems.map((item) => item.id).toList();
-      final merged = <String>[...existingIds, ...songIds];
-      await _replaceQueueFromIds(
-        merged,
-        startIndex: _player.currentIndex ?? 0,
-        autoPlay: _player.playing,
-        persist: true,
+      // When the queue is empty, fall back to a full queue setup so the player
+      // initialises properly with the first item.
+      if (_queueItems.isEmpty) {
+        await _replaceQueueFromIds(
+          songIds,
+          startIndex: 0,
+          autoPlay: true,
+          persist: true,
+        );
+        return;
+      }
+
+      // Prepare only the new songs and append their audio sources
+      // incrementally – this does NOT interrupt current playback.
+      final prepared = await _prepareQueueItemsFromIds(songIds);
+      if (prepared.isEmpty) return;
+
+      for (final entry in prepared) {
+        _queueItems.add(entry.mediaItem);
+        await _player.addAudioSource(entry.audioSource);
+      }
+
+      _observeLockCacheForPrepared(prepared);
+      queue.add(List<MediaItem>.unmodifiable(_queueItems));
+      await _persistSafely(
+        () => _persistQueueState(includeQueueItems: true),
+        context: 'add to queue',
       );
+      _broadcastPlaybackState();
+      _emitSnapshot();
     });
   }
 
@@ -1316,22 +1378,32 @@ class NavisAudioHandler extends BaseAudioHandler
         return;
       }
 
-      final existing = _queueItems
-          .map((item) => item.id)
-          .toList(growable: true);
       final currentIndex = (_player.currentIndex ?? 0).clamp(
         0,
-        existing.length - 1,
+        _queueItems.length - 1,
       );
-      final insertAt = (currentIndex + 1).clamp(0, existing.length);
-      existing.insertAll(insertAt, incoming);
+      final insertAt = (currentIndex + 1).clamp(0, _queueItems.length);
 
-      await _replaceQueueFromIds(
-        existing,
-        startIndex: currentIndex,
-        autoPlay: _player.playing,
-        persist: true,
+      // Prepare only the new songs and insert their audio sources
+      // incrementally at the position right after the currently playing item.
+      final prepared = await _prepareQueueItemsFromIds(incoming);
+      if (prepared.isEmpty) return;
+
+      // Insert in reverse order at the same position so relative order is
+      // preserved (first incoming song ends up right after current).
+      for (var i = prepared.length - 1; i >= 0; i--) {
+        _queueItems.insert(insertAt, prepared[i].mediaItem);
+        await _player.insertAudioSource(insertAt, prepared[i].audioSource);
+      }
+
+      _observeLockCacheForPrepared(prepared);
+      queue.add(List<MediaItem>.unmodifiable(_queueItems));
+      await _persistSafely(
+        () => _persistQueueState(includeQueueItems: true),
+        context: 'play next',
       );
+      _broadcastPlaybackState();
+      _emitSnapshot();
     });
   }
 
@@ -1356,29 +1428,32 @@ class NavisAudioHandler extends BaseAudioHandler
         return;
       }
 
-      final remainingIds = <String>[];
-      for (var i = 0; i < _queueItems.length; i++) {
-        if (i != index) {
-          remainingIds.add(_queueItems[i].id);
-        }
-      }
-
-      if (remainingIds.isEmpty) {
+      if (_queueItems.length == 1) {
         await _clearQueueInternal(persist: true);
         return;
       }
 
-      final currentIndex = _player.currentIndex ?? 0;
-      final nextIndex = math.max(
-        0,
-        math.min(currentIndex, remainingIds.length - 1),
+      // Remove the audio source and queue item incrementally — this does NOT
+      // interrupt playback of other items.  If the currently playing item is
+      // removed, just_audio automatically advances to the next item.
+      _queueItems.removeAt(index);
+      await _player.removeAudioSourceAt(index);
+
+      queue.add(List<MediaItem>.unmodifiable(_queueItems));
+      // Update the mediaItem stream to match whatever is now current.
+      final nowIndex = _player.currentIndex;
+      if (nowIndex != null &&
+          nowIndex >= 0 &&
+          nowIndex < _queueItems.length) {
+        mediaItem.add(_queueItems[nowIndex]);
+      }
+
+      await _persistSafely(
+        () => _persistQueueState(includeQueueItems: true),
+        context: 'remove at',
       );
-      await _replaceQueueFromIds(
-        remainingIds,
-        startIndex: nextIndex,
-        autoPlay: _player.playing,
-        persist: true,
-      );
+      _broadcastPlaybackState();
+      _emitSnapshot();
     });
   }
 
@@ -1399,19 +1474,22 @@ class NavisAudioHandler extends BaseAudioHandler
         return;
       }
 
-      final ids = _queueItems.map((item) => item.id).toList(growable: true);
-      final movedId = ids.removeAt(oldIndex);
+      // Reorder the in-memory queue items to match the new order.
+      final movedItem = _queueItems.removeAt(oldIndex);
       final adjustedIndex = oldIndex < newIndex ? newIndex - 1 : newIndex;
-      ids.insert(adjustedIndex, movedId);
+      _queueItems.insert(adjustedIndex, movedItem);
 
-      final currentSongId = _mediaItemForIndex(_player.currentIndex)?.id;
-      final nextIndex = currentSongId == null ? 0 : ids.indexOf(currentSongId);
-      await _replaceQueueFromIds(
-        ids,
-        startIndex: nextIndex < 0 ? 0 : nextIndex,
-        autoPlay: _player.playing,
-        persist: true,
+      // Move the audio source in the player's playlist — this does NOT
+      // interrupt playback; just_audio tracks the current item internally.
+      await _player.moveAudioSource(oldIndex, newIndex);
+
+      queue.add(List<MediaItem>.unmodifiable(_queueItems));
+      await _persistSafely(
+        () => _persistQueueState(includeQueueItems: true),
+        context: 'reorder queue',
       );
+      _broadcastPlaybackState();
+      _emitSnapshot();
     });
   }
 
@@ -1445,26 +1523,30 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   @override
-  Future<void> play() async {
-    await _ready;
-    await navisRunTransportWithPersistence(
-      transportOperation: _player.play,
-      persistOperation: () => _persistQueueState(includePosition: false),
-      persistSafely: _persistSafely,
-      persistenceContext: 'play',
-    );
+  Future<void> play() {
+    return _runSerialized(() async {
+      await _ready;
+      await navisRunTransportWithPersistence(
+        transportOperation: _player.play,
+        persistOperation: () => _persistQueueState(includePosition: false),
+        persistSafely: _persistSafely,
+        persistenceContext: 'play',
+      );
+    });
   }
 
   @override
-  Future<void> pause() async {
-    await _ready;
-    _cancelCrossfade();
-    await navisRunTransportWithPersistence(
-      transportOperation: _player.pause,
-      persistOperation: _persistPosition,
-      persistSafely: _persistSafely,
-      persistenceContext: 'pause',
-    );
+  Future<void> pause() {
+    return _runSerialized(() async {
+      await _ready;
+      _cancelCrossfade();
+      await navisRunTransportWithPersistence(
+        transportOperation: _player.pause,
+        persistOperation: _persistPosition,
+        persistSafely: _persistSafely,
+        persistenceContext: 'pause',
+      );
+    });
   }
 
   @override
@@ -1522,54 +1604,60 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   @override
-  Future<void> seek(Duration position) async {
-    await _ready;
-    _cancelCrossfade();
-    final sanitizedPosition = navisSanitizeSeekPosition(position);
-    await navisRunTransportWithPersistence(
-      transportOperation: () => _player.seek(sanitizedPosition),
-      persistOperation: _persistPosition,
-      persistSafely: _persistSafely,
-      persistenceContext: 'seek',
-    );
+  Future<void> seek(Duration position) {
+    return _runSerialized(() async {
+      await _ready;
+      _cancelCrossfade();
+      final sanitizedPosition = navisSanitizeSeekPosition(position);
+      await navisRunTransportWithPersistence(
+        transportOperation: () => _player.seek(sanitizedPosition),
+        persistOperation: _persistPosition,
+        persistSafely: _persistSafely,
+        persistenceContext: 'seek',
+      );
+    });
   }
 
   @override
-  Future<void> skipToNext() async {
-    await _ready;
-    _cancelCrossfade();
-    if (!navisCanSkipQueueItem(
-      queueLength: _queueItems.length,
-      currentIndex: _player.currentIndex,
-      forward: true,
-    )) {
-      return;
-    }
-    await navisRunTransportWithPersistence(
-      transportOperation: _player.seekToNext,
-      persistOperation: _persistQueueState,
-      persistSafely: _persistSafely,
-      persistenceContext: 'skip next',
-    );
+  Future<void> skipToNext() {
+    return _runSerialized(() async {
+      await _ready;
+      _cancelCrossfade();
+      if (!navisCanSkipQueueItem(
+        queueLength: _queueItems.length,
+        currentIndex: _player.currentIndex,
+        forward: true,
+      )) {
+        return;
+      }
+      await navisRunTransportWithPersistence(
+        transportOperation: _player.seekToNext,
+        persistOperation: _persistQueueState,
+        persistSafely: _persistSafely,
+        persistenceContext: 'skip next',
+      );
+    });
   }
 
   @override
-  Future<void> skipToPrevious() async {
-    await _ready;
-    _cancelCrossfade();
-    if (!navisCanSkipQueueItem(
-      queueLength: _queueItems.length,
-      currentIndex: _player.currentIndex,
-      forward: false,
-    )) {
-      return;
-    }
-    await navisRunTransportWithPersistence(
-      transportOperation: _player.seekToPrevious,
-      persistOperation: _persistQueueState,
-      persistSafely: _persistSafely,
-      persistenceContext: 'skip previous',
-    );
+  Future<void> skipToPrevious() {
+    return _runSerialized(() async {
+      await _ready;
+      _cancelCrossfade();
+      if (!navisCanSkipQueueItem(
+        queueLength: _queueItems.length,
+        currentIndex: _player.currentIndex,
+        forward: false,
+      )) {
+        return;
+      }
+      await navisRunTransportWithPersistence(
+        transportOperation: _player.seekToPrevious,
+        persistOperation: _persistQueueState,
+        persistSafely: _persistSafely,
+        persistenceContext: 'skip previous',
+      );
+    });
   }
 
   @override
@@ -1913,6 +2001,7 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   Future<void> disposeHandler() async {
+    _cancelCrossfade();
     _positionPersistTimer?.cancel();
     _radioStation = null;
     _radioMetadataService.dispose();
@@ -1987,19 +2076,20 @@ class NavisAudioHandler extends BaseAudioHandler
       queue.add(<MediaItem>[radioMediaItem]);
       mediaItem.add(radioMediaItem);
 
-      await _player.play();
-      _broadcastPlaybackState();
-      _emitSnapshot();
-
-      // Start metadata listening.  Try to detect Azuracast from the stream
-      // URL pattern (e.g. https://radio.example.com/listen/station/radio.mp3)
-      // or fall back to the homePageUrl as the Azuracast base.
+      // Start metadata listening BEFORE play() so Azuracast polling and ICY
+      // stream subscription are active from the very beginning.  play() on a
+      // live stream returns a Future that completes only when playback is
+      // interrupted — awaiting it would block metadata setup indefinitely.
       final azuraInfo = _tryExtractAzuracast(streamUrl, homePageUrl);
       _radioMetadataService.startListening(
         stationId: stationId,
         azuracastApiUrl: azuraInfo?.$1,
         stationShortName: azuraInfo?.$2,
       );
+
+      unawaited(_player.play());
+      _broadcastPlaybackState();
+      _emitSnapshot();
     });
   }
 

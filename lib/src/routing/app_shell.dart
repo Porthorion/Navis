@@ -17,13 +17,44 @@ import 'package:navis/src/features/search/presentation/search_controller_provide
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 
-class AppShell extends ConsumerWidget {
+class AppShell extends ConsumerStatefulWidget {
   const AppShell({required this.navigationShell, super.key});
 
   final StatefulNavigationShell navigationShell;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AppShell> createState() => _AppShellState();
+}
+
+class _AppShellState extends ConsumerState<AppShell>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// Intercept the system back gesture / button **before** GoRouter processes
+  /// it.  This ensures the expanded player sheet is collapsed before the
+  /// router pops a sub-route inside a branch (e.g. album detail).
+  @override
+  Future<bool> didPopRoute() async {
+    final isExpanded = ref.read(playerSheetExpandedProvider);
+    if (isExpanded) {
+      ref.read(playerSheetExpandedProvider.notifier).collapse();
+      return true; // consumed — don't let the router navigate.
+    }
+    return super.didPopRoute();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     ref.watch(librarySyncControllerProvider);
     ref.watch(scrobbleDispatchControllerProvider);
@@ -40,6 +71,7 @@ class AppShell extends ConsumerWidget {
         : ref.watch(songByIdProvider(currentSongId));
     final showPlayer = playback.hasActivePlayback;
     final isExpanded = ref.watch(playerSheetExpandedProvider);
+    final navigationShell = widget.navigationShell;
     final visibleBranchIndices = <int>[
       _homeBranchIndex,
       _libraryBranchIndex,
