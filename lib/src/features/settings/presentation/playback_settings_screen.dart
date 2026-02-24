@@ -43,6 +43,9 @@ class _PlaybackSettingsScreenState
   List<double> _equalizerBandGains = List<double>.filled(5, 0);
   bool _loudnessEnabled = false;
   double _loudnessTargetGainDb = 0;
+  bool _crossfadeEnabled = false;
+  int _crossfadeDurationSeconds = 5;
+  String _crossfadeType = 'normal';
   bool _didHydrateForm = false;
   bool _isSaving = false;
 
@@ -265,6 +268,75 @@ class _PlaybackSettingsScreenState
                               setState(() => _loudnessTargetGainDb = value),
                   ),
               ],
+              // ── Cross-fade section ─────────────────────────────────────
+              const SizedBox(height: 24),
+              Text(
+                l10n.playbackSettingsCrossfadeSectionTitle,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 12),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: _crossfadeEnabled,
+                onChanged: _isSaving
+                    ? null
+                    : (value) => setState(() => _crossfadeEnabled = value),
+                title: Text(l10n.playbackSettingsCrossfadeEnableTitle),
+                subtitle: Text(l10n.playbackSettingsCrossfadeEnableSubtitle),
+              ),
+              if (_crossfadeEnabled) ...[
+                Text(
+                  l10n.playbackSettingsCrossfadeDurationLabel(
+                    _crossfadeDurationSeconds,
+                  ),
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                Slider(
+                  value: _crossfadeDurationSeconds.toDouble(),
+                  min: 1,
+                  max: 12,
+                  divisions: 11,
+                  label: '${_crossfadeDurationSeconds}s',
+                  onChanged: _isSaving
+                      ? null
+                      : (value) => setState(
+                            () => _crossfadeDurationSeconds = value.round(),
+                          ),
+                ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  initialValue: _crossfadeType,
+                  decoration: InputDecoration(
+                    labelText: l10n.playbackSettingsCrossfadeTypeLabel,
+                  ),
+                  items: [
+                    DropdownMenuItem(
+                      value: 'normal',
+                      child: Text(l10n.playbackSettingsCrossfadeTypeNormal),
+                    ),
+                    DropdownMenuItem(
+                      value: 'smart',
+                      child: Text(l10n.playbackSettingsCrossfadeTypeSmart),
+                    ),
+                  ],
+                  onChanged: _isSaving
+                      ? null
+                      : (value) {
+                          if (value != null) {
+                            setState(() => _crossfadeType = value);
+                          }
+                        },
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _crossfadeType == 'smart'
+                      ? l10n.playbackSettingsCrossfadeTypeSmartDescription
+                      : l10n.playbackSettingsCrossfadeTypeNormalDescription,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+                ),
+              ],
               const SizedBox(height: 20),
               Row(
                 children: <Widget>[
@@ -312,6 +384,9 @@ class _PlaybackSettingsScreenState
     _equalizerBandGains = _normalizeBandGains(settings.equalizerBandGains);
     _loudnessEnabled = settings.loudnessEnabled;
     _loudnessTargetGainDb = settings.loudnessTargetGainDb;
+    _crossfadeEnabled = settings.crossfadeEnabled;
+    _crossfadeDurationSeconds = settings.crossfadeDurationSeconds;
+    _crossfadeType = settings.crossfadeType;
   }
 
   Future<void> _save() async {
@@ -338,6 +413,9 @@ class _PlaybackSettingsScreenState
         wifiOnlyDownloads: ref.read(wifiOnlyDownloadsProvider),
         themeMode: ref.read(themeModeProvider),
         colorSchemeSeed: ref.read(colorSchemeSeedProvider),
+        crossfadeEnabled: _crossfadeEnabled,
+        crossfadeDurationSeconds: _crossfadeDurationSeconds,
+        crossfadeType: _crossfadeType,
       );
       await ref.read(settingsRepositoryProvider).saveSettings(settings);
       final handler = ref.read(audioHandlerProvider);

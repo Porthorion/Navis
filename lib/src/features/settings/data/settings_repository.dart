@@ -37,6 +37,9 @@ class SettingsRepository {
       wifiOnlyDownloads: settings.wifiOnlyDownloads,
       themeMode: settings.themeMode,
       colorSchemeSeed: settings.colorSchemeSeed,
+      crossfadeEnabled: settings.crossfadeEnabled,
+      crossfadeDurationSeconds: settings.crossfadeDurationSeconds,
+      crossfadeType: settings.crossfadeType,
     );
   }
 
@@ -62,6 +65,9 @@ class SettingsRepository {
       wifiOnlyDownloads: row.wifiOnlyDownloads,
       themeMode: row.themeMode,
       colorSchemeSeed: row.colorSchemeSeed,
+      crossfadeEnabled: row.crossfadeEnabled,
+      crossfadeDurationSeconds: row.crossfadeDurationSeconds,
+      crossfadeType: row.crossfadeType,
     );
   }
 

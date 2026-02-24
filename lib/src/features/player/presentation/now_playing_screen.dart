@@ -283,7 +283,9 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
                           : null)
                       : (song?.artistId != null && song!.artistId!.isNotEmpty
                           ? () => NavService.goToArtist(context, ref, song.artistId!)
-                          : null),
+                          : (song?.artistName != null && song!.artistName!.isNotEmpty
+                              ? () => NavService.goToSearch(context, ref, song.artistName!)
+                              : null)),
                   onAlbumTap: isRadio
                       ? null
                       : (song?.albumId != null && song!.albumId!.isNotEmpty
@@ -406,6 +408,7 @@ class _TrackInfo extends StatelessWidget {
     return Column(
       children: <Widget>[
         GestureDetector(
+          behavior: HitTestBehavior.opaque,
           onTap: onTitleTap,
           child: Text(
             title,
@@ -422,6 +425,7 @@ class _TrackInfo extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         GestureDetector(
+          behavior: HitTestBehavior.opaque,
           onTap: onArtistTap,
           child: Text(
             artist,
@@ -437,6 +441,7 @@ class _TrackInfo extends StatelessWidget {
         ),
         const SizedBox(height: 2),
         GestureDetector(
+          behavior: HitTestBehavior.opaque,
           onTap: onAlbumTap,
           child: Text(
             album,

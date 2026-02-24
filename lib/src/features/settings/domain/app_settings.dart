@@ -19,6 +19,9 @@ class AppSettingsModel {
     required this.wifiOnlyDownloads,
     required this.themeMode,
     required this.colorSchemeSeed,
+    required this.crossfadeEnabled,
+    required this.crossfadeDurationSeconds,
+    required this.crossfadeType,
   });
 
   const AppSettingsModel.defaults()
@@ -36,7 +39,10 @@ class AppSettingsModel {
       loudnessTargetGainDb = 0,
       wifiOnlyDownloads = false,
       themeMode = 'dark',
-      colorSchemeSeed = null;
+      colorSchemeSeed = null,
+      crossfadeEnabled = false,
+      crossfadeDurationSeconds = 5,
+      crossfadeType = 'normal';
 
   final int? wifiMaxBitRate;
   final String? wifiFormat;
@@ -55,6 +61,9 @@ class AppSettingsModel {
   final bool wifiOnlyDownloads;
   final String themeMode;
   final int? colorSchemeSeed;
+  final bool crossfadeEnabled;
+  final int crossfadeDurationSeconds;
+  final String crossfadeType;
 
   AppSettingsModel copyWith({
     int? wifiMaxBitRate,
@@ -72,6 +81,9 @@ class AppSettingsModel {
     bool? wifiOnlyDownloads,
     String? themeMode,
     int? colorSchemeSeed,
+    bool? crossfadeEnabled,
+    int? crossfadeDurationSeconds,
+    String? crossfadeType,
     bool clearWifiBitRate = false,
     bool clearWifiFormat = false,
     bool clearCellularBitRate = false,
@@ -103,6 +115,10 @@ class AppSettingsModel {
       colorSchemeSeed: clearColorSchemeSeed
           ? null
           : colorSchemeSeed ?? this.colorSchemeSeed,
+      crossfadeEnabled: crossfadeEnabled ?? this.crossfadeEnabled,
+      crossfadeDurationSeconds:
+          crossfadeDurationSeconds ?? this.crossfadeDurationSeconds,
+      crossfadeType: crossfadeType ?? this.crossfadeType,
     );
   }
 }

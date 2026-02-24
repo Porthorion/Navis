@@ -65,7 +65,7 @@ class NavisDatabase extends _$NavisDatabase {
   static QueryExecutor _openConnection() => driftDatabase(name: 'navis.sqlite');
 
   @override
-  int get schemaVersion => 12;
+  int get schemaVersion => 13;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -119,6 +119,9 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 12 && to >= 12) {
       await from11To12(migrator);
+    }
+    if (from < 13 && to >= 13) {
+      await from12To13(migrator);
     }
   }
 
@@ -246,6 +249,27 @@ class NavisDatabase extends _$NavisDatabase {
       await migrator.addColumn(
         appSettingsTable,
         appSettingsTable.customColorPresets,
+      );
+    }
+  }
+
+  Future<void> from12To13(Migrator migrator) async {
+    if (!await _columnExists('app_settings', 'crossfade_enabled')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.crossfadeEnabled,
+      );
+    }
+    if (!await _columnExists('app_settings', 'crossfade_duration_seconds')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.crossfadeDurationSeconds,
+      );
+    }
+    if (!await _columnExists('app_settings', 'crossfade_type')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.crossfadeType,
       );
     }
   }

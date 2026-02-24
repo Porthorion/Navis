@@ -33,6 +33,9 @@ void main() {
       wifiOnlyDownloads: false,
       themeMode: 'dark',
       colorSchemeSeed: null,
+      crossfadeEnabled: false,
+      crossfadeDurationSeconds: 5,
+      crossfadeType: 'normal',
     );
 
     setUp(() {

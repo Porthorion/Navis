@@ -538,6 +538,60 @@ abstract class AppLocalizations {
   /// **'Could not reset playback settings: {message}'**
   String playbackSettingsResetFailure(Object message);
 
+  /// No description provided for @playbackSettingsCrossfadeSectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Cross-fade'**
+  String get playbackSettingsCrossfadeSectionTitle;
+
+  /// No description provided for @playbackSettingsCrossfadeEnableTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable cross-fade'**
+  String get playbackSettingsCrossfadeEnableTitle;
+
+  /// No description provided for @playbackSettingsCrossfadeEnableSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Smoothly blend the end of one track into the start of the next.'**
+  String get playbackSettingsCrossfadeEnableSubtitle;
+
+  /// No description provided for @playbackSettingsCrossfadeDurationLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Duration: {seconds}s'**
+  String playbackSettingsCrossfadeDurationLabel(int seconds);
+
+  /// No description provided for @playbackSettingsCrossfadeTypeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cross-fade mode'**
+  String get playbackSettingsCrossfadeTypeLabel;
+
+  /// No description provided for @playbackSettingsCrossfadeTypeNormal.
+  ///
+  /// In en, this message translates to:
+  /// **'Normal'**
+  String get playbackSettingsCrossfadeTypeNormal;
+
+  /// No description provided for @playbackSettingsCrossfadeTypeNormalDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Cross-fade between every track.'**
+  String get playbackSettingsCrossfadeTypeNormalDescription;
+
+  /// No description provided for @playbackSettingsCrossfadeTypeSmart.
+  ///
+  /// In en, this message translates to:
+  /// **'Smart'**
+  String get playbackSettingsCrossfadeTypeSmart;
+
+  /// No description provided for @playbackSettingsCrossfadeTypeSmartDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Only cross-fade between tracks from different albums.'**
+  String get playbackSettingsCrossfadeTypeSmartDescription;
+
   /// No description provided for @homeTitle.
   ///
   /// In en, this message translates to:
