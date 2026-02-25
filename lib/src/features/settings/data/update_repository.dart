@@ -44,10 +44,22 @@ class UpdateRepository {
 
     if (tagVersion == currentVersion) return null;
 
+    // Look for an APK asset attached to the release.
+    final assets = (candidate['assets'] as List<dynamic>?) ?? [];
+    String? apkUrl;
+    for (final asset in assets.cast<Map<String, dynamic>>()) {
+      final name = (asset['name'] as String?) ?? '';
+      if (name.toLowerCase().endsWith('.apk')) {
+        apkUrl = asset['browser_download_url'] as String?;
+        break;
+      }
+    }
+
     return UpdateInfo(
       tagName: rawTag,
       htmlUrl: (candidate['html_url'] as String?) ?? AppConstants.repoUrl,
       releaseNotes: candidate['body'] as String?,
+      apkDownloadUrl: apkUrl,
     );
   }
 }

@@ -1543,6 +1543,26 @@ class AppLocalizationsEn extends AppLocalizations {
   String get updateUpToDate => 'Navis is up to date.';
 
   @override
+  String get updateInstall => 'Install';
+
+  @override
+  String get updateRetry => 'Retry';
+
+  @override
+  String get updateReleaseNotes => 'Release notes';
+
+  @override
+  String updateDownloading(String version) {
+    return 'Downloading $version…';
+  }
+
+  @override
+  String get updateReadyToInstall => 'Download complete. Ready to install.';
+
+  @override
+  String get updateDownloadFailed => 'Download failed. Please try again.';
+
+  @override
   String get updateAutoCheckTitle => 'Automatically check for updates';
 
   @override

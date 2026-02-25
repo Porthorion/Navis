@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
+import 'package:navis/src/features/settings/presentation/update_dialog.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/constants.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -30,15 +31,19 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
     final settingsAsync = ref.watch(appSettingsProvider);
     final settings = settingsAsync.asData?.value;
 
-    // Show a snackbar when a user-triggered check resolves as up to date.
+    // Show a snackbar when a user-triggered check resolves as up to date,
+    // or auto-show the update dialog when an update is found.
     ref.listen<AsyncValue<UpdateInfo?>>(updateProvider, (prev, next) {
       if (!mounted || !_userTriggeredCheck) return;
       if (next.isLoading) return;
       setState(() => _userTriggeredCheck = false);
-      if (!next.hasError && next.asData?.value == null) {
+      final info = next.asData?.value;
+      if (!next.hasError && info == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(l10n.updateUpToDate)),
         );
+      } else if (info != null && info.apkDownloadUrl != null) {
+        showUpdateDialog(context, info);
       }
     });
 
@@ -134,7 +139,23 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
                     height: 20,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Icon(Icons.refresh),
+                : updateAsync.asData?.value != null
+                    ? FilledButton.icon(
+                        onPressed: () {
+                          final info = updateAsync.asData!.value!;
+                          if (info.apkDownloadUrl != null) {
+                            showUpdateDialog(context, info);
+                          } else {
+                            launchUrl(
+                              Uri.parse(info.htmlUrl),
+                              mode: LaunchMode.externalApplication,
+                            );
+                          }
+                        },
+                        icon: const Icon(Icons.install_mobile, size: 18),
+                        label: Text(l10n.updateInstall),
+                      )
+                    : const Icon(Icons.refresh),
             onTap: () {
                 setState(() => _userTriggeredCheck = true);
                 ref.invalidate(updateProvider);

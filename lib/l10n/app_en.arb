@@ -715,6 +715,17 @@
   "updateDownload": "Download",
   "updateDismiss": "Dismiss",
   "updateUpToDate": "Navis is up to date.",
+  "updateInstall": "Install",
+  "updateRetry": "Retry",
+  "updateReleaseNotes": "Release notes",
+  "updateDownloading": "Downloading {version}…",
+  "@updateDownloading": {
+    "placeholders": {
+      "version": { "type": "String" }
+    }
+  },
+  "updateReadyToInstall": "Download complete. Ready to install.",
+  "updateDownloadFailed": "Download failed. Please try again.",
 
   "updateAutoCheckTitle": "Automatically check for updates",
   "updateAutoCheckSubtitle": "Check for new releases on each app launch.",
