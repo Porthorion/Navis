@@ -9,8 +9,15 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.VIBRATE" />
 
+    <!-- Declare that this app plays audio — improves discovery in app stores
+         and lets the OS treat it as a media app. required="false" means the
+         app can still be installed on devices without speakers (e.g. tablets). -->
+    <uses-feature
+        android:name="android.hardware.audio.output"
+        android:required="false" />
+
     <application
-        android:label="navis"
+        android:label="@string/app_name"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:enableOnBackInvokedCallback="true"
@@ -40,6 +47,7 @@
         </activity>
         <service
             android:name="com.ryanheise.audioservice.AudioService"
+            android:label="@string/app_name"
             android:exported="true"
             android:foregroundServiceType="mediaPlayback"
             tools:ignore="Instantiatable">

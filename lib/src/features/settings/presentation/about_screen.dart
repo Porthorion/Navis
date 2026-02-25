@@ -11,7 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 class AboutScreen extends ConsumerStatefulWidget {
   const AboutScreen({super.key});
 
-  static const String _version = 'Cape Horn 0.1';
+  static const String _version = 'Cape Horn 0.1.0';
 
   @override
   ConsumerState<AboutScreen> createState() => _AboutScreenState();
