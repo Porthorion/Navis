@@ -7,6 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
+import 'package:navis/src/features/player/presentation/smart_queue_notifier.dart';
+import 'package:navis/src/features/player/presentation/smart_queue_sheet.dart';
 import 'package:navis/src/common_widgets/lyrics_display_widget.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
@@ -261,6 +263,22 @@ class _NowPlayingAppBar extends ConsumerWidget {
                       SnackBar(content: Text(l10n.downloadSongQueued)),
                     );
                   }
+                },
+              ),
+            // Smart Queue — shown when AudioMuse NV plugin is detected.
+            if (song != null &&
+                (ref.watch(smartQueueAvailableProvider).asData?.value ?? false))
+              ListTile(
+                leading: const Icon(Icons.auto_awesome),
+                title: Text(l10n.smartQueueButton),
+                subtitle: Text(l10n.smartQueueSubtitle),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  showSmartQueueSheet(
+                    context,
+                    ref,
+                    seedSongId: song.id,
+                  );
                 },
               ),
           ],
@@ -971,7 +989,53 @@ class _ActionRowState extends ConsumerState<_ActionRow>
                     .read(instantMixProvider.notifier)
                     .toggle(widget.songId),
         ),
+        // Smart Queue button — visible only when AudioMuse NV plugin detected.
+        if (ref.watch(smartQueueAvailableProvider).asData?.value ?? false)
+          _SmartQueueButton(songId: widget.songId),
       ],
+    );
+  }
+}
+
+/// An [IconButton] that shows the Smart Queue sheet or stops an active session.
+class _SmartQueueButton extends ConsumerWidget {
+  const _SmartQueueButton({this.songId});
+
+  final String? songId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final sq = ref.watch(smartQueueProvider);
+
+    return IconButton(
+      icon: sq.refilling
+          ? SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: sq.active
+                    ? Theme.of(context).colorScheme.primary
+                    : null,
+              ),
+            )
+          : Icon(
+              sq.active ? Icons.auto_awesome : Icons.auto_awesome_outlined,
+              color: sq.active
+                  ? Theme.of(context).colorScheme.primary
+                  : null,
+            ),
+      tooltip: sq.active ? l10n.smartQueueActive : l10n.smartQueueButton,
+      onPressed: songId == null
+          ? null
+          : () {
+              if (sq.active) {
+                ref.read(smartQueueProvider.notifier).deactivate();
+              } else {
+                showSmartQueueSheet(context, ref, seedSongId: songId!);
+              }
+            },
     );
   }
 }

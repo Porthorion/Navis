@@ -149,7 +149,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     final showRadioTab = ref.watch(showRadioPageProvider);
     final showArtistsTab = ref.watch(showArtistsPageProvider);
     final showPlaylistsTab = ref.watch(showPlaylistsPageProvider);
-    final tabCount = 1 +
+    final tabCount =
+        1 +
         (showArtistsTab ? 1 : 0) +
         (showPlaylistsTab ? 1 : 0) +
         (showRadioTab ? 1 : 0);
@@ -438,113 +439,113 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
             thumbVisibility: false,
             interactive: true,
             child: CustomScrollView(
-            controller: _albumsScrollController,
-            physics: const AlwaysScrollableScrollPhysics(),
-            slivers: <Widget>[
-              SliverToBoxAdapter(
-                child: _SortFilterRow<_AlbumSort>(
-                  sortLabel: l10n.libraryAlbumsSortLabel,
-                  sortValue: _albumSort,
-                  sortItems: <DropdownMenuItem<_AlbumSort>>[
-                    DropdownMenuItem(
-                      value: _AlbumSort.recentlyAdded,
-                      child: Text(l10n.librarySortRecentlyAdded),
-                    ),
-                    DropdownMenuItem(
-                      value: _AlbumSort.newest,
-                      child: Text(l10n.librarySortNewest),
-                    ),
-                    DropdownMenuItem(
-                      value: _AlbumSort.name,
-                      child: Text(l10n.librarySortName),
-                    ),
-                    DropdownMenuItem(
-                      value: _AlbumSort.artist,
-                      child: Text(l10n.librarySortArtist),
-                    ),
-                  ],
-                  onSortChanged: (value) {
-                    if (value != null) {
-                      setState(() {
-                        _albumSort = value;
-                        _loadedAlbumPages = 1;
-                        _cachedAlbums = null;
-                      });
-                      if (_albumsScrollController.hasClients) {
-                        _albumsScrollController.jumpTo(0);
-                      }
-                    }
-                  },
-                  downloadedOnly: _downloadedOnly,
-                  onDownloadedOnlyChanged: (value) {
-                    setState(() => _downloadedOnly = value);
-                  },
-                ),
-              ),
-              if (filteredItems.isEmpty)
-                SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: EmptyState(
-                    title: _downloadedOnly
-                        ? l10n.libraryDownloadedOnlyEmpty
-                        : l10n.libraryAlbumsEmptyTitle,
-                    subtitle: _downloadedOnly
-                        ? l10n.libraryDownloadedOnlyEmptySubtitle
-                        : l10n.libraryAlbumsEmptySubtitle,
-                    icon: _downloadedOnly
-                        ? Icons.download_done_outlined
-                        : Icons.album_outlined,
-                  ),
-                )
-              else
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                  sliver: SliverGrid(
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          childAspectRatio: 1,
-                          crossAxisSpacing: 8,
-                          mainAxisSpacing: 8,
-                        ),
-                    delegate: SliverChildBuilderDelegate((context, index) {
-                      final album = filteredItems[index];
-                      return RepaintBoundary(
-                        child: AlbumCard(
-                          key: ValueKey(album.id),
-                          album: album,
-                          size: AlbumCardSize.library,
-                          heroTag: buildCoverArtHeroTag(
-                            coverArtId: album.coverArt,
-                            context: 'album',
-                          ),
-                          onTap: () {
-                            ref
-                                .read(librarySyncControllerProvider.notifier)
-                                .registerAlbumInteraction(album.id);
-                            context.go('/library/albums/${album.id}');
-                          },
-                          onLongPress: () => _showAlbumMenu(context, album),
-                        ),
-                      );
-                    }, childCount: filteredItems.length),
-                  ),
-                ),
-              if (hasMore)
+              controller: _albumsScrollController,
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: <Widget>[
                 SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
-                    child: Text(
-                      l10n.libraryAlbumsPagingProgress(
-                        items.length,
-                        totalAlbums,
+                  child: _SortFilterRow<_AlbumSort>(
+                    sortLabel: l10n.libraryAlbumsSortLabel,
+                    sortValue: _albumSort,
+                    sortItems: <DropdownMenuItem<_AlbumSort>>[
+                      DropdownMenuItem(
+                        value: _AlbumSort.recentlyAdded,
+                        child: Text(l10n.librarySortRecentlyAdded),
                       ),
-                      style: Theme.of(context).textTheme.bodySmall,
-                      textAlign: TextAlign.center,
-                    ),
+                      DropdownMenuItem(
+                        value: _AlbumSort.newest,
+                        child: Text(l10n.librarySortNewest),
+                      ),
+                      DropdownMenuItem(
+                        value: _AlbumSort.name,
+                        child: Text(l10n.librarySortName),
+                      ),
+                      DropdownMenuItem(
+                        value: _AlbumSort.artist,
+                        child: Text(l10n.librarySortArtist),
+                      ),
+                    ],
+                    onSortChanged: (value) {
+                      if (value != null) {
+                        setState(() {
+                          _albumSort = value;
+                          _loadedAlbumPages = 1;
+                          _cachedAlbums = null;
+                        });
+                        if (_albumsScrollController.hasClients) {
+                          _albumsScrollController.jumpTo(0);
+                        }
+                      }
+                    },
+                    downloadedOnly: _downloadedOnly,
+                    onDownloadedOnlyChanged: (value) {
+                      setState(() => _downloadedOnly = value);
+                    },
                   ),
                 ),
-            ],
+                if (filteredItems.isEmpty)
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: EmptyState(
+                      title: _downloadedOnly
+                          ? l10n.libraryDownloadedOnlyEmpty
+                          : l10n.libraryAlbumsEmptyTitle,
+                      subtitle: _downloadedOnly
+                          ? l10n.libraryDownloadedOnlyEmptySubtitle
+                          : l10n.libraryAlbumsEmptySubtitle,
+                      icon: _downloadedOnly
+                          ? Icons.download_done_outlined
+                          : Icons.album_outlined,
+                    ),
+                  )
+                else
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                    sliver: SliverGrid(
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            childAspectRatio: 1,
+                            crossAxisSpacing: 8,
+                            mainAxisSpacing: 8,
+                          ),
+                      delegate: SliverChildBuilderDelegate((context, index) {
+                        final album = filteredItems[index];
+                        return RepaintBoundary(
+                          child: AlbumCard(
+                            key: ValueKey(album.id),
+                            album: album,
+                            size: AlbumCardSize.library,
+                            heroTag: buildCoverArtHeroTag(
+                              coverArtId: album.coverArt,
+                              context: 'album',
+                            ),
+                            onTap: () {
+                              ref
+                                  .read(librarySyncControllerProvider.notifier)
+                                  .registerAlbumInteraction(album.id);
+                              context.go('/library/albums/${album.id}');
+                            },
+                            onLongPress: () => _showAlbumMenu(context, album),
+                          ),
+                        );
+                      }, childCount: filteredItems.length),
+                    ),
+                  ),
+                if (hasMore)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+                      child: Text(
+                        l10n.libraryAlbumsPagingProgress(
+                          items.length,
+                          totalAlbums,
+                        ),
+                        style: Theme.of(context).textTheme.bodySmall,
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+              ],
             ),
           );
         },
@@ -1159,8 +1160,7 @@ class _LibraryPlaylistsTab extends ConsumerStatefulWidget {
       _LibraryPlaylistsTabState();
 }
 
-class _LibraryPlaylistsTabState
-    extends ConsumerState<_LibraryPlaylistsTab> {
+class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab> {
   @override
   void initState() {
     super.initState();
@@ -1219,8 +1219,7 @@ class _LibraryPlaylistsTabState
                     onTap: () => context.push(
                       '/library/playlists/${playlist.id}',
                     ),
-                    onLongPress: () =>
-                        _showPlaylistActions(context, playlist),
+                    onLongPress: () => _showPlaylistActions(context, playlist),
                   );
                 },
               );
@@ -1258,8 +1257,7 @@ class _LibraryPlaylistsTabState
         content: TextField(
           controller: controller,
           autofocus: true,
-          decoration:
-              InputDecoration(labelText: l10n.playlistsCreateNameLabel),
+          decoration: InputDecoration(labelText: l10n.playlistsCreateNameLabel),
           onSubmitted: (_) =>
               _createPlaylist(dialogContext, controller.text.trim()),
         ),
@@ -1331,8 +1329,7 @@ class _LibraryPlaylistsTabState
               ),
               title: Text(
                 l10n.playlistsDeleteConfirmTitle,
-                style:
-                    TextStyle(color: Theme.of(context).colorScheme.error),
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
               onTap: () {
                 Navigator.of(sheetContext).pop();
@@ -1355,8 +1352,7 @@ class _LibraryPlaylistsTabState
         content: TextField(
           controller: controller,
           autofocus: true,
-          decoration:
-              InputDecoration(labelText: l10n.playlistsCreateNameLabel),
+          decoration: InputDecoration(labelText: l10n.playlistsCreateNameLabel),
           onSubmitted: (_) =>
               _renamePlaylist(dialogContext, playlist, controller.text.trim()),
         ),
@@ -1366,8 +1362,11 @@ class _LibraryPlaylistsTabState
             child: Text(l10n.cancelAction),
           ),
           FilledButton(
-            onPressed: () =>
-                _renamePlaylist(dialogContext, playlist, controller.text.trim()),
+            onPressed: () => _renamePlaylist(
+              dialogContext,
+              playlist,
+              controller.text.trim(),
+            ),
             child: Text(l10n.playlistsRenameTitle),
           ),
         ],

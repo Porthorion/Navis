@@ -803,5 +803,27 @@
   "audioMuseMixFailed": "Could not generate AI mix. Try again later.",
   "audioMuseNotConfigured": "AudioMuse is not configured. Set it up in Settings.",
   "audioMuseConnectionSection": "Connection",
-  "audioMuseDisabledHint": "Enable AudioMuse above to configure the server."
+  "audioMuseDisabledHint": "Enable AudioMuse above to configure the server.",
+
+  "smartQueueTitle": "Smart Queues",
+  "smartQueueSubtitle": "AI-powered queuing based on sonic analysis",
+  "smartQueueButton": "Smart Queue",
+  "smartQueueActive": "Smart Queue active",
+  "smartQueueStopped": "Smart Queue stopped",
+  "smartQueueStarted": "{count} tracks queued via Smart Queue.",
+  "@smartQueueStarted": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "smartQueueUnsupported": "Smart Queues require the AudioMuse plugin on your server.",
+  "smartQueueError": "Smart Queue encountered an error. Please try again.",
+  "smartQueueSteadyVibes": "Steady Vibes",
+  "smartQueueSteadyVibesDesc": "Consistent mood — stays close to the original feel",
+  "smartQueueDiscoveryMix": "Discovery Mix",
+  "smartQueueDiscoveryMixDesc": "Explore new artists with maximum variety",
+  "smartQueueDeepDive": "Deep Dive",
+  "smartQueueDeepDiveDesc": "Stay immersed in the same artist and style",
+  "smartQueueEnergyFlow": "Energy Flow",
+  "smartQueueEnergyFlowDesc": "Let the mood gradually evolve track by track"
 }

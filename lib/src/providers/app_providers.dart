@@ -839,7 +839,32 @@ Future<void> seedDefaultServerConfig(Ref ref) async {
 }
 
 // ---------------------------------------------------------------------------
-// AudioMuse AI providers
+// Smart Queue — AudioMuse plugin detection
+// ---------------------------------------------------------------------------
+
+/// Probes the Navidrome server to detect whether the AudioMuse plugin is
+/// installed by calling `getSimilarSongs2` with a random track.
+///
+/// Returns `true` when the endpoint returns at least one result (i.e. the
+/// plugin is active and has analysed the library).  The result is cached
+/// per server session (re-evaluated on server config change).
+final smartQueueAvailableProvider = FutureProvider<bool>((ref) async {
+  final api = ref.watch(subsonicApiProvider);
+  if (api == null) return false;
+  try {
+    // Grab a random song to use as the probe seed.
+    final randomSongs = await api.getRandomSongs(size: 1);
+    if (randomSongs.isEmpty) return false;
+    final probe = randomSongs.first;
+    final similar = await api.getSimilarSongs(probe.id, count: 3);
+    return similar.isNotEmpty;
+  } on Exception {
+    return false;
+  }
+});
+
+// ---------------------------------------------------------------------------
+// AudioMuse AI providers (direct API — disabled)
 // ---------------------------------------------------------------------------
 
 /// Whether AudioMuse AI integration is enabled and configured in settings.

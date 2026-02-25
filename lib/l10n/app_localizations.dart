@@ -3056,6 +3056,102 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Enable AudioMuse above to configure the server.'**
   String get audioMuseDisabledHint;
+
+  /// No description provided for @smartQueueTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Smart Queues'**
+  String get smartQueueTitle;
+
+  /// No description provided for @smartQueueSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'AI-powered queuing based on sonic analysis'**
+  String get smartQueueSubtitle;
+
+  /// No description provided for @smartQueueButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Smart Queue'**
+  String get smartQueueButton;
+
+  /// No description provided for @smartQueueActive.
+  ///
+  /// In en, this message translates to:
+  /// **'Smart Queue active'**
+  String get smartQueueActive;
+
+  /// No description provided for @smartQueueStopped.
+  ///
+  /// In en, this message translates to:
+  /// **'Smart Queue stopped'**
+  String get smartQueueStopped;
+
+  /// No description provided for @smartQueueStarted.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} tracks queued via Smart Queue.'**
+  String smartQueueStarted(int count);
+
+  /// No description provided for @smartQueueUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'Smart Queues require the AudioMuse plugin on your server.'**
+  String get smartQueueUnsupported;
+
+  /// No description provided for @smartQueueError.
+  ///
+  /// In en, this message translates to:
+  /// **'Smart Queue encountered an error. Please try again.'**
+  String get smartQueueError;
+
+  /// No description provided for @smartQueueSteadyVibes.
+  ///
+  /// In en, this message translates to:
+  /// **'Steady Vibes'**
+  String get smartQueueSteadyVibes;
+
+  /// No description provided for @smartQueueSteadyVibesDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Consistent mood — stays close to the original feel'**
+  String get smartQueueSteadyVibesDesc;
+
+  /// No description provided for @smartQueueDiscoveryMix.
+  ///
+  /// In en, this message translates to:
+  /// **'Discovery Mix'**
+  String get smartQueueDiscoveryMix;
+
+  /// No description provided for @smartQueueDiscoveryMixDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Explore new artists with maximum variety'**
+  String get smartQueueDiscoveryMixDesc;
+
+  /// No description provided for @smartQueueDeepDive.
+  ///
+  /// In en, this message translates to:
+  /// **'Deep Dive'**
+  String get smartQueueDeepDive;
+
+  /// No description provided for @smartQueueDeepDiveDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Stay immersed in the same artist and style'**
+  String get smartQueueDeepDiveDesc;
+
+  /// No description provided for @smartQueueEnergyFlow.
+  ///
+  /// In en, this message translates to:
+  /// **'Energy Flow'**
+  String get smartQueueEnergyFlow;
+
+  /// No description provided for @smartQueueEnergyFlowDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Let the mood gradually evolve track by track'**
+  String get smartQueueEnergyFlowDesc;
 }
 
 class _AppLocalizationsDelegate
