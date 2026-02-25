@@ -9,6 +9,9 @@ import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
+import 'package:navis/src/features/audiomuse/data/audiomuse_api_client.dart';
+import 'package:navis/src/features/audiomuse/data/audiomuse_repository.dart';
+import 'package:navis/src/features/audiomuse/domain/audiomuse_models.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
@@ -519,21 +522,22 @@ final radioStationsProvider = FutureProvider<List<InternetRadioStation>>((
   return api.getInternetRadioStations();
 });
 
-final searchResultsProvider = FutureProvider.autoDispose.family<SearchResult3, String>((
-  ref,
-  query,
-) async {
-  if (query.trim().isEmpty) {
-    return const SearchResult3();
-  }
+final searchResultsProvider = FutureProvider.autoDispose
+    .family<SearchResult3, String>((
+      ref,
+      query,
+    ) async {
+      if (query.trim().isEmpty) {
+        return const SearchResult3();
+      }
 
-  final api = ref.watch(subsonicApiProvider);
-  if (api == null) {
-    return const SearchResult3();
-  }
+      final api = ref.watch(subsonicApiProvider);
+      if (api == null) {
+        return const SearchResult3();
+      }
 
-  return api.search3(query: query);
-});
+      return api.search3(query: query);
+    });
 
 class AudioHandlerStateController extends Notifier<NavisPlaybackHandler?> {
   @override
@@ -815,7 +819,8 @@ final customColorPresetsProvider = StreamProvider<List<int>>((ref) {
 /// Auto-disposed so it re-runs each time a screen watches it freshly.
 final updateProvider = FutureProvider.autoDispose<UpdateInfo?>((ref) async {
   final settings =
-      ref.read(appSettingsProvider).asData?.value ?? const AppSettingsModel.defaults();
+      ref.read(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
   return UpdateRepository().checkForUpdate(
     includePrerelease: settings.updateChannel == 'beta',
   );
@@ -832,3 +837,80 @@ Future<void> seedDefaultServerConfig(Ref ref) async {
     ),
   );
 }
+
+// ---------------------------------------------------------------------------
+// AudioMuse AI providers
+// ---------------------------------------------------------------------------
+
+/// Whether AudioMuse AI integration is enabled and configured in settings.
+final audioMuseAvailableProvider = Provider<bool>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.audioMuseEnabled &&
+      (settings.audioMuseServerUrl?.trim().isNotEmpty ?? false);
+});
+
+/// The current AudioMuse configuration extracted from app settings.
+final audioMuseConfigProvider = Provider<AudioMuseConfig>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return AudioMuseConfig(
+    serverUrl: settings.audioMuseServerUrl ?? '',
+    apiKey: settings.audioMuseApiKey,
+    enabled: settings.audioMuseEnabled,
+  );
+});
+
+/// AudioMuse repository — `null` when AudioMuse is not configured.
+///
+/// Consumers should check [audioMuseAvailableProvider] before using this.
+final audioMuseRepositoryProvider = Provider<AudioMuseRepository?>((ref) {
+  final config = ref.watch(audioMuseConfigProvider);
+  if (!config.isConfigured) return null;
+  final client = AudioMuseApiClient(
+    baseUrl: config.serverUrl,
+    apiKey: config.apiKey,
+  );
+  return AudioMuseRepository(client);
+});
+
+/// AI-powered similar artists for a given artist ID.
+/// Returns an empty list when AudioMuse is unavailable.
+final audioMuseSimilarArtistsProvider = FutureProvider.autoDispose
+    .family<List<AudioMuseRecommendation>, String>(
+      (ref, artistId) async {
+        final repo = ref.watch(audioMuseRepositoryProvider);
+        if (repo == null) return const [];
+        return repo.getSimilarArtists(artistId);
+      },
+    );
+
+/// AI-powered similar albums for a given album ID.
+/// Returns an empty list when AudioMuse is unavailable.
+final audioMuseSimilarAlbumsProvider = FutureProvider.autoDispose
+    .family<List<AudioMuseRecommendation>, String>(
+      (ref, albumId) async {
+        final repo = ref.watch(audioMuseRepositoryProvider);
+        if (repo == null) return const [];
+        return repo.getSimilarAlbums(albumId);
+      },
+    );
+
+/// AI-powered home screen recommendations ("You might also like").
+/// Returns an empty list when AudioMuse is unavailable.
+final audioMuseHomeRecommendationsProvider =
+    FutureProvider<List<AudioMuseRecommendation>>((ref) async {
+      final repo = ref.watch(audioMuseRepositoryProvider);
+      if (repo == null) return const [];
+      return repo.getHomeRecommendations();
+    });
+
+/// AI-powered song recommendations for smart auto-queue.
+final audioMuseSongRecommendationsProvider = FutureProvider.autoDispose
+    .family<List<AudioMuseRecommendation>, String>((ref, seedSongId) async {
+      final repo = ref.watch(audioMuseRepositoryProvider);
+      if (repo == null) return const [];
+      return repo.getRecommendations(seedSongId: seedSongId);
+    });

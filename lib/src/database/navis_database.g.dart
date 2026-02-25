@@ -872,6 +872,43 @@ class $AppSettingsTableTable extends AppSettingsTable
     requiredDuringInsert: false,
     defaultValue: const Constant('stable'),
   );
+  static const VerificationMeta _audioMuseServerUrlMeta =
+      const VerificationMeta('audioMuseServerUrl');
+  @override
+  late final GeneratedColumn<String> audioMuseServerUrl =
+      GeneratedColumn<String>(
+        'audio_muse_server_url',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _audioMuseApiKeyMeta = const VerificationMeta(
+    'audioMuseApiKey',
+  );
+  @override
+  late final GeneratedColumn<String> audioMuseApiKey = GeneratedColumn<String>(
+    'audio_muse_api_key',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _audioMuseEnabledMeta = const VerificationMeta(
+    'audioMuseEnabled',
+  );
+  @override
+  late final GeneratedColumn<bool> audioMuseEnabled = GeneratedColumn<bool>(
+    'audio_muse_enabled',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("audio_muse_enabled" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _updatedAtMeta = const VerificationMeta(
     'updatedAt',
   );
@@ -912,6 +949,9 @@ class $AppSettingsTableTable extends AppSettingsTable
     artTintedNowPlaying,
     updateCheckEnabled,
     updateChannel,
+    audioMuseServerUrl,
+    audioMuseApiKey,
+    audioMuseEnabled,
     updatedAt,
   ];
   @override
@@ -1157,6 +1197,33 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
       );
     }
+    if (data.containsKey('audio_muse_server_url')) {
+      context.handle(
+        _audioMuseServerUrlMeta,
+        audioMuseServerUrl.isAcceptableOrUnknown(
+          data['audio_muse_server_url']!,
+          _audioMuseServerUrlMeta,
+        ),
+      );
+    }
+    if (data.containsKey('audio_muse_api_key')) {
+      context.handle(
+        _audioMuseApiKeyMeta,
+        audioMuseApiKey.isAcceptableOrUnknown(
+          data['audio_muse_api_key']!,
+          _audioMuseApiKeyMeta,
+        ),
+      );
+    }
+    if (data.containsKey('audio_muse_enabled')) {
+      context.handle(
+        _audioMuseEnabledMeta,
+        audioMuseEnabled.isAcceptableOrUnknown(
+          data['audio_muse_enabled']!,
+          _audioMuseEnabledMeta,
+        ),
+      );
+    }
     if (data.containsKey('updated_at')) {
       context.handle(
         _updatedAtMeta,
@@ -1282,6 +1349,18 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.string,
         data['${effectivePrefix}update_channel'],
       )!,
+      audioMuseServerUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}audio_muse_server_url'],
+      ),
+      audioMuseApiKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}audio_muse_api_key'],
+      ),
+      audioMuseEnabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}audio_muse_enabled'],
+      )!,
       updatedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
@@ -1348,6 +1427,15 @@ class AppSettingsTableData extends DataClass
 
   /// Update channel: 'stable' (default) or 'beta' (pre-releases included).
   final String updateChannel;
+
+  /// AudioMuse AI server URL. Null when not configured.
+  final String? audioMuseServerUrl;
+
+  /// AudioMuse API key. Null when not required or not configured.
+  final String? audioMuseApiKey;
+
+  /// Whether AudioMuse AI integration is enabled. Default false.
+  final bool audioMuseEnabled;
   final DateTime updatedAt;
   const AppSettingsTableData({
     required this.id,
@@ -1377,6 +1465,9 @@ class AppSettingsTableData extends DataClass
     required this.artTintedNowPlaying,
     required this.updateCheckEnabled,
     required this.updateChannel,
+    this.audioMuseServerUrl,
+    this.audioMuseApiKey,
+    required this.audioMuseEnabled,
     required this.updatedAt,
   });
   @override
@@ -1425,6 +1516,13 @@ class AppSettingsTableData extends DataClass
     map['art_tinted_now_playing'] = Variable<bool>(artTintedNowPlaying);
     map['update_check_enabled'] = Variable<bool>(updateCheckEnabled);
     map['update_channel'] = Variable<String>(updateChannel);
+    if (!nullToAbsent || audioMuseServerUrl != null) {
+      map['audio_muse_server_url'] = Variable<String>(audioMuseServerUrl);
+    }
+    if (!nullToAbsent || audioMuseApiKey != null) {
+      map['audio_muse_api_key'] = Variable<String>(audioMuseApiKey);
+    }
+    map['audio_muse_enabled'] = Variable<bool>(audioMuseEnabled);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
   }
@@ -1474,6 +1572,13 @@ class AppSettingsTableData extends DataClass
       artTintedNowPlaying: Value(artTintedNowPlaying),
       updateCheckEnabled: Value(updateCheckEnabled),
       updateChannel: Value(updateChannel),
+      audioMuseServerUrl: audioMuseServerUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(audioMuseServerUrl),
+      audioMuseApiKey: audioMuseApiKey == null && nullToAbsent
+          ? const Value.absent()
+          : Value(audioMuseApiKey),
+      audioMuseEnabled: Value(audioMuseEnabled),
       updatedAt: Value(updatedAt),
     );
   }
@@ -1525,6 +1630,11 @@ class AppSettingsTableData extends DataClass
       ),
       updateCheckEnabled: serializer.fromJson<bool>(json['updateCheckEnabled']),
       updateChannel: serializer.fromJson<String>(json['updateChannel']),
+      audioMuseServerUrl: serializer.fromJson<String?>(
+        json['audioMuseServerUrl'],
+      ),
+      audioMuseApiKey: serializer.fromJson<String?>(json['audioMuseApiKey']),
+      audioMuseEnabled: serializer.fromJson<bool>(json['audioMuseEnabled']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
   }
@@ -1563,6 +1673,9 @@ class AppSettingsTableData extends DataClass
       'artTintedNowPlaying': serializer.toJson<bool>(artTintedNowPlaying),
       'updateCheckEnabled': serializer.toJson<bool>(updateCheckEnabled),
       'updateChannel': serializer.toJson<String>(updateChannel),
+      'audioMuseServerUrl': serializer.toJson<String?>(audioMuseServerUrl),
+      'audioMuseApiKey': serializer.toJson<String?>(audioMuseApiKey),
+      'audioMuseEnabled': serializer.toJson<bool>(audioMuseEnabled),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
   }
@@ -1595,6 +1708,9 @@ class AppSettingsTableData extends DataClass
     bool? artTintedNowPlaying,
     bool? updateCheckEnabled,
     String? updateChannel,
+    Value<String?> audioMuseServerUrl = const Value.absent(),
+    Value<String?> audioMuseApiKey = const Value.absent(),
+    bool? audioMuseEnabled,
     DateTime? updatedAt,
   }) => AppSettingsTableData(
     id: id ?? this.id,
@@ -1640,6 +1756,13 @@ class AppSettingsTableData extends DataClass
     artTintedNowPlaying: artTintedNowPlaying ?? this.artTintedNowPlaying,
     updateCheckEnabled: updateCheckEnabled ?? this.updateCheckEnabled,
     updateChannel: updateChannel ?? this.updateChannel,
+    audioMuseServerUrl: audioMuseServerUrl.present
+        ? audioMuseServerUrl.value
+        : this.audioMuseServerUrl,
+    audioMuseApiKey: audioMuseApiKey.present
+        ? audioMuseApiKey.value
+        : this.audioMuseApiKey,
+    audioMuseEnabled: audioMuseEnabled ?? this.audioMuseEnabled,
     updatedAt: updatedAt ?? this.updatedAt,
   );
   AppSettingsTableData copyWithCompanion(AppSettingsTableCompanion data) {
@@ -1721,6 +1844,15 @@ class AppSettingsTableData extends DataClass
       updateChannel: data.updateChannel.present
           ? data.updateChannel.value
           : this.updateChannel,
+      audioMuseServerUrl: data.audioMuseServerUrl.present
+          ? data.audioMuseServerUrl.value
+          : this.audioMuseServerUrl,
+      audioMuseApiKey: data.audioMuseApiKey.present
+          ? data.audioMuseApiKey.value
+          : this.audioMuseApiKey,
+      audioMuseEnabled: data.audioMuseEnabled.present
+          ? data.audioMuseEnabled.value
+          : this.audioMuseEnabled,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
   }
@@ -1755,6 +1887,9 @@ class AppSettingsTableData extends DataClass
           ..write('artTintedNowPlaying: $artTintedNowPlaying, ')
           ..write('updateCheckEnabled: $updateCheckEnabled, ')
           ..write('updateChannel: $updateChannel, ')
+          ..write('audioMuseServerUrl: $audioMuseServerUrl, ')
+          ..write('audioMuseApiKey: $audioMuseApiKey, ')
+          ..write('audioMuseEnabled: $audioMuseEnabled, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
@@ -1789,6 +1924,9 @@ class AppSettingsTableData extends DataClass
     artTintedNowPlaying,
     updateCheckEnabled,
     updateChannel,
+    audioMuseServerUrl,
+    audioMuseApiKey,
+    audioMuseEnabled,
     updatedAt,
   ]);
   @override
@@ -1822,6 +1960,9 @@ class AppSettingsTableData extends DataClass
           other.artTintedNowPlaying == this.artTintedNowPlaying &&
           other.updateCheckEnabled == this.updateCheckEnabled &&
           other.updateChannel == this.updateChannel &&
+          other.audioMuseServerUrl == this.audioMuseServerUrl &&
+          other.audioMuseApiKey == this.audioMuseApiKey &&
+          other.audioMuseEnabled == this.audioMuseEnabled &&
           other.updatedAt == this.updatedAt);
 }
 
@@ -1853,6 +1994,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<bool> artTintedNowPlaying;
   final Value<bool> updateCheckEnabled;
   final Value<String> updateChannel;
+  final Value<String?> audioMuseServerUrl;
+  final Value<String?> audioMuseApiKey;
+  final Value<bool> audioMuseEnabled;
   final Value<DateTime> updatedAt;
   const AppSettingsTableCompanion({
     this.id = const Value.absent(),
@@ -1882,6 +2026,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.artTintedNowPlaying = const Value.absent(),
     this.updateCheckEnabled = const Value.absent(),
     this.updateChannel = const Value.absent(),
+    this.audioMuseServerUrl = const Value.absent(),
+    this.audioMuseApiKey = const Value.absent(),
+    this.audioMuseEnabled = const Value.absent(),
     this.updatedAt = const Value.absent(),
   });
   AppSettingsTableCompanion.insert({
@@ -1912,6 +2059,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.artTintedNowPlaying = const Value.absent(),
     this.updateCheckEnabled = const Value.absent(),
     this.updateChannel = const Value.absent(),
+    this.audioMuseServerUrl = const Value.absent(),
+    this.audioMuseApiKey = const Value.absent(),
+    this.audioMuseEnabled = const Value.absent(),
     required DateTime updatedAt,
   }) : updatedAt = Value(updatedAt);
   static Insertable<AppSettingsTableData> custom({
@@ -1942,6 +2092,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<bool>? artTintedNowPlaying,
     Expression<bool>? updateCheckEnabled,
     Expression<String>? updateChannel,
+    Expression<String>? audioMuseServerUrl,
+    Expression<String>? audioMuseApiKey,
+    Expression<bool>? audioMuseEnabled,
     Expression<DateTime>? updatedAt,
   }) {
     return RawValuesInsertable({
@@ -1982,6 +2135,10 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       if (updateCheckEnabled != null)
         'update_check_enabled': updateCheckEnabled,
       if (updateChannel != null) 'update_channel': updateChannel,
+      if (audioMuseServerUrl != null)
+        'audio_muse_server_url': audioMuseServerUrl,
+      if (audioMuseApiKey != null) 'audio_muse_api_key': audioMuseApiKey,
+      if (audioMuseEnabled != null) 'audio_muse_enabled': audioMuseEnabled,
       if (updatedAt != null) 'updated_at': updatedAt,
     });
   }
@@ -2014,6 +2171,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<bool>? artTintedNowPlaying,
     Value<bool>? updateCheckEnabled,
     Value<String>? updateChannel,
+    Value<String?>? audioMuseServerUrl,
+    Value<String?>? audioMuseApiKey,
+    Value<bool>? audioMuseEnabled,
     Value<DateTime>? updatedAt,
   }) {
     return AppSettingsTableCompanion(
@@ -2046,6 +2206,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       artTintedNowPlaying: artTintedNowPlaying ?? this.artTintedNowPlaying,
       updateCheckEnabled: updateCheckEnabled ?? this.updateCheckEnabled,
       updateChannel: updateChannel ?? this.updateChannel,
+      audioMuseServerUrl: audioMuseServerUrl ?? this.audioMuseServerUrl,
+      audioMuseApiKey: audioMuseApiKey ?? this.audioMuseApiKey,
+      audioMuseEnabled: audioMuseEnabled ?? this.audioMuseEnabled,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
@@ -2142,6 +2305,15 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     if (updateChannel.present) {
       map['update_channel'] = Variable<String>(updateChannel.value);
     }
+    if (audioMuseServerUrl.present) {
+      map['audio_muse_server_url'] = Variable<String>(audioMuseServerUrl.value);
+    }
+    if (audioMuseApiKey.present) {
+      map['audio_muse_api_key'] = Variable<String>(audioMuseApiKey.value);
+    }
+    if (audioMuseEnabled.present) {
+      map['audio_muse_enabled'] = Variable<bool>(audioMuseEnabled.value);
+    }
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
@@ -2178,6 +2350,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('artTintedNowPlaying: $artTintedNowPlaying, ')
           ..write('updateCheckEnabled: $updateCheckEnabled, ')
           ..write('updateChannel: $updateChannel, ')
+          ..write('audioMuseServerUrl: $audioMuseServerUrl, ')
+          ..write('audioMuseApiKey: $audioMuseApiKey, ')
+          ..write('audioMuseEnabled: $audioMuseEnabled, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
@@ -8738,6 +8913,9 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<bool> artTintedNowPlaying,
       Value<bool> updateCheckEnabled,
       Value<String> updateChannel,
+      Value<String?> audioMuseServerUrl,
+      Value<String?> audioMuseApiKey,
+      Value<bool> audioMuseEnabled,
       required DateTime updatedAt,
     });
 typedef $$AppSettingsTableTableUpdateCompanionBuilder =
@@ -8769,6 +8947,9 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<bool> artTintedNowPlaying,
       Value<bool> updateCheckEnabled,
       Value<String> updateChannel,
+      Value<String?> audioMuseServerUrl,
+      Value<String?> audioMuseApiKey,
+      Value<bool> audioMuseEnabled,
       Value<DateTime> updatedAt,
     });
 
@@ -8913,6 +9094,21 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<String> get updateChannel => $composableBuilder(
     column: $table.updateChannel,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get audioMuseServerUrl => $composableBuilder(
+    column: $table.audioMuseServerUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get audioMuseApiKey => $composableBuilder(
+    column: $table.audioMuseApiKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get audioMuseEnabled => $composableBuilder(
+    column: $table.audioMuseEnabled,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -9066,6 +9262,21 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get audioMuseServerUrl => $composableBuilder(
+    column: $table.audioMuseServerUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get audioMuseApiKey => $composableBuilder(
+    column: $table.audioMuseApiKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get audioMuseEnabled => $composableBuilder(
+    column: $table.audioMuseEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
@@ -9212,6 +9423,21 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get audioMuseServerUrl => $composableBuilder(
+    column: $table.audioMuseServerUrl,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get audioMuseApiKey => $composableBuilder(
+    column: $table.audioMuseApiKey,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get audioMuseEnabled => $composableBuilder(
+    column: $table.audioMuseEnabled,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 }
@@ -9280,6 +9506,9 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> artTintedNowPlaying = const Value.absent(),
                 Value<bool> updateCheckEnabled = const Value.absent(),
                 Value<String> updateChannel = const Value.absent(),
+                Value<String?> audioMuseServerUrl = const Value.absent(),
+                Value<String?> audioMuseApiKey = const Value.absent(),
+                Value<bool> audioMuseEnabled = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
               }) => AppSettingsTableCompanion(
                 id: id,
@@ -9309,6 +9538,9 @@ class $$AppSettingsTableTableTableManager
                 artTintedNowPlaying: artTintedNowPlaying,
                 updateCheckEnabled: updateCheckEnabled,
                 updateChannel: updateChannel,
+                audioMuseServerUrl: audioMuseServerUrl,
+                audioMuseApiKey: audioMuseApiKey,
+                audioMuseEnabled: audioMuseEnabled,
                 updatedAt: updatedAt,
               ),
           createCompanionCallback:
@@ -9340,6 +9572,9 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> artTintedNowPlaying = const Value.absent(),
                 Value<bool> updateCheckEnabled = const Value.absent(),
                 Value<String> updateChannel = const Value.absent(),
+                Value<String?> audioMuseServerUrl = const Value.absent(),
+                Value<String?> audioMuseApiKey = const Value.absent(),
+                Value<bool> audioMuseEnabled = const Value.absent(),
                 required DateTime updatedAt,
               }) => AppSettingsTableCompanion.insert(
                 id: id,
@@ -9369,6 +9604,9 @@ class $$AppSettingsTableTableTableManager
                 artTintedNowPlaying: artTintedNowPlaying,
                 updateCheckEnabled: updateCheckEnabled,
                 updateChannel: updateChannel,
+                audioMuseServerUrl: audioMuseServerUrl,
+                audioMuseApiKey: audioMuseApiKey,
+                audioMuseEnabled: audioMuseEnabled,
                 updatedAt: updatedAt,
               ),
           withReferenceMapper: (p0) => p0

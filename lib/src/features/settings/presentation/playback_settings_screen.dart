@@ -413,6 +413,9 @@ class _PlaybackSettingsScreenState
         artTintedNowPlaying: ref.read(artTintedNowPlayingProvider),
         updateCheckEnabled: currentSettings.updateCheckEnabled,
         updateChannel: currentSettings.updateChannel,
+        audioMuseServerUrl: currentSettings.audioMuseServerUrl,
+        audioMuseApiKey: currentSettings.audioMuseApiKey,
+        audioMuseEnabled: currentSettings.audioMuseEnabled,
       );
       await ref.read(settingsRepositoryProvider).saveSettings(settings);
       final handler = ref.read(audioHandlerProvider);

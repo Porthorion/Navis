@@ -181,7 +181,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
             SliverFillRemaining(
               hasScrollBody: false,
               child: isLoading
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const ShimmerListPage()
                   : EmptyState(
                       title: l10n.playlistDetailEmptyTitle,
                       subtitle: l10n.playlistDetailEmptySubtitle,

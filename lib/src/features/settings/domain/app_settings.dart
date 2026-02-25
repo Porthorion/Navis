@@ -27,6 +27,9 @@ class AppSettingsModel {
     required this.artTintedNowPlaying,
     required this.updateCheckEnabled,
     required this.updateChannel,
+    required this.audioMuseServerUrl,
+    required this.audioMuseApiKey,
+    required this.audioMuseEnabled,
   });
 
   const AppSettingsModel.defaults()
@@ -52,7 +55,10 @@ class AppSettingsModel {
       crossfadeType = 'normal',
       artTintedNowPlaying = true,
       updateCheckEnabled = true,
-      updateChannel = 'stable';
+      updateChannel = 'stable',
+      audioMuseServerUrl = null,
+      audioMuseApiKey = null,
+      audioMuseEnabled = false;
 
   final int? wifiMaxBitRate;
   final String? wifiFormat;
@@ -79,6 +85,9 @@ class AppSettingsModel {
   final bool artTintedNowPlaying;
   final bool updateCheckEnabled;
   final String updateChannel;
+  final String? audioMuseServerUrl;
+  final String? audioMuseApiKey;
+  final bool audioMuseEnabled;
 
   AppSettingsModel copyWith({
     int? wifiMaxBitRate,
@@ -104,11 +113,16 @@ class AppSettingsModel {
     bool? artTintedNowPlaying,
     bool? updateCheckEnabled,
     String? updateChannel,
+    String? audioMuseServerUrl,
+    String? audioMuseApiKey,
+    bool? audioMuseEnabled,
     bool clearWifiBitRate = false,
     bool clearWifiFormat = false,
     bool clearCellularBitRate = false,
     bool clearCellularFormat = false,
     bool clearColorSchemeSeed = false,
+    bool clearAudioMuseServerUrl = false,
+    bool clearAudioMuseApiKey = false,
   }) {
     return AppSettingsModel(
       wifiMaxBitRate: clearWifiBitRate
@@ -144,6 +158,13 @@ class AppSettingsModel {
       artTintedNowPlaying: artTintedNowPlaying ?? this.artTintedNowPlaying,
       updateCheckEnabled: updateCheckEnabled ?? this.updateCheckEnabled,
       updateChannel: updateChannel ?? this.updateChannel,
+      audioMuseServerUrl: clearAudioMuseServerUrl
+          ? null
+          : audioMuseServerUrl ?? this.audioMuseServerUrl,
+      audioMuseApiKey: clearAudioMuseApiKey
+          ? null
+          : audioMuseApiKey ?? this.audioMuseApiKey,
+      audioMuseEnabled: audioMuseEnabled ?? this.audioMuseEnabled,
     );
   }
 }

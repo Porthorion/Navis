@@ -70,9 +70,11 @@ class _AppShellState extends ConsumerState<AppShell>
       if (next.pendingSnackbar != null &&
           next.pendingSnackbar != prev?.pendingSnackbar) {
         final count = int.tryParse(next.pendingSnackbar ?? '') ?? 0;
-        messenger.showSnackBar(SnackBar(
-          content: Text(l10n.nowPlayingInstantMixStarted(count)),
-        ));
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(l10n.nowPlayingInstantMixStarted(count)),
+          ),
+        );
         ref.read(instantMixProvider.notifier).clearSnackbar();
       }
       if (next.error != null && next.error != prev?.error) {
@@ -216,8 +218,7 @@ class _AppShellState extends ConsumerState<AppShell>
             ? null
             : NavigationBar(
                 selectedIndex: selectedIndex,
-                labelBehavior:
-                    NavigationDestinationLabelBehavior.alwaysHide,
+                labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
                 onDestinationSelected: (index) {
                   final branchIndex = visibleBranchIndices[index];
                   // Trigger focus request whenever the Search tab is tapped.
@@ -370,17 +371,17 @@ class _MiniPlayerStrip extends ConsumerWidget {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              (songArtist == null ||
-                                      songArtist!.trim().isEmpty)
+                              (songArtist == null || songArtist!.trim().isEmpty)
                                   ? l10n.miniPlayerUnknownArtist
                                   : songArtist!,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: Theme.of(
-                                context,
-                              ).textTheme.bodySmall?.copyWith(
-                                color: cs.onSurface.withValues(alpha: 0.6),
-                              ),
+                              style:
+                                  Theme.of(
+                                    context,
+                                  ).textTheme.bodySmall?.copyWith(
+                                    color: cs.onSurface.withValues(alpha: 0.6),
+                                  ),
                             ),
                           ],
                         ),
@@ -393,9 +394,8 @@ class _MiniPlayerStrip extends ConsumerWidget {
                         style: IconButton.styleFrom(
                           backgroundColor: cs.primaryContainer,
                           foregroundColor: cs.onPrimaryContainer,
-                          minimumSize: Size.zero,
+                          minimumSize: const Size(48, 48),
                           padding: const EdgeInsets.all(6),
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
                         onPressed: () async {
                           final handler = ref.read(audioHandlerProvider);

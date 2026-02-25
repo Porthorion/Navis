@@ -65,7 +65,7 @@ class NavisDatabase extends _$NavisDatabase {
   static QueryExecutor _openConnection() => driftDatabase(name: 'navis.sqlite');
 
   @override
-  int get schemaVersion => 19;
+  int get schemaVersion => 20;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -140,6 +140,9 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 19 && to >= 19) {
       await from18To19(migrator);
+    }
+    if (from < 20 && to >= 20) {
+      await from19To20(migrator);
     }
   }
 
@@ -327,6 +330,27 @@ class NavisDatabase extends _$NavisDatabase {
       await migrator.addColumn(
         appSettingsTable,
         appSettingsTable.updateChannel,
+      );
+    }
+  }
+
+  Future<void> from19To20(Migrator migrator) async {
+    if (!await _columnExists('app_settings', 'audio_muse_server_url')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.audioMuseServerUrl,
+      );
+    }
+    if (!await _columnExists('app_settings', 'audio_muse_api_key')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.audioMuseApiKey,
+      );
+    }
+    if (!await _columnExists('app_settings', 'audio_muse_enabled')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.audioMuseEnabled,
       );
     }
   }

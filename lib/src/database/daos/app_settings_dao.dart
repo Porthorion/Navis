@@ -51,6 +51,9 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     required bool artTintedNowPlaying,
     required bool updateCheckEnabled,
     required String updateChannel,
+    String? audioMuseServerUrl,
+    String? audioMuseApiKey,
+    required bool audioMuseEnabled,
   }) {
     return into(appSettingsTable).insertOnConflictUpdate(
       AppSettingsTableCompanion.insert(
@@ -78,6 +81,9 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         artTintedNowPlaying: Value(artTintedNowPlaying),
         updateCheckEnabled: Value(updateCheckEnabled),
         updateChannel: Value(updateChannel),
+        audioMuseServerUrl: Value(audioMuseServerUrl),
+        audioMuseApiKey: Value(audioMuseApiKey),
+        audioMuseEnabled: Value(audioMuseEnabled),
         updatedAt: DateTime.now(),
       ),
     );
@@ -108,6 +114,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       artTintedNowPlaying: true,
       updateCheckEnabled: true,
       updateChannel: 'stable',
+      audioMuseEnabled: false,
     );
   }
 

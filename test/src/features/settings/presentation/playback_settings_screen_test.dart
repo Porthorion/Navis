@@ -41,6 +41,9 @@ void main() {
       artTintedNowPlaying: true,
       updateCheckEnabled: true,
       updateChannel: 'stable',
+      audioMuseServerUrl: null,
+      audioMuseApiKey: null,
+      audioMuseEnabled: false,
     );
 
     setUp(() {

@@ -45,6 +45,9 @@ class SettingsRepository {
       artTintedNowPlaying: settings.artTintedNowPlaying,
       updateCheckEnabled: settings.updateCheckEnabled,
       updateChannel: settings.updateChannel,
+      audioMuseServerUrl: settings.audioMuseServerUrl,
+      audioMuseApiKey: settings.audioMuseApiKey,
+      audioMuseEnabled: settings.audioMuseEnabled,
     );
   }
 
@@ -78,6 +81,9 @@ class SettingsRepository {
       artTintedNowPlaying: row.artTintedNowPlaying,
       updateCheckEnabled: row.updateCheckEnabled,
       updateChannel: row.updateChannel,
+      audioMuseServerUrl: row.audioMuseServerUrl,
+      audioMuseApiKey: row.audioMuseApiKey,
+      audioMuseEnabled: row.audioMuseEnabled,
     );
   }
 

@@ -2906,6 +2906,156 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Connection info'**
   String get serverSettingsConnectionInfoTitle;
+
+  /// No description provided for @audioMuseSettingsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'AudioMuse AI'**
+  String get audioMuseSettingsTitle;
+
+  /// No description provided for @audioMuseSettingsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'AI-powered smart queuing & discovery'**
+  String get audioMuseSettingsSubtitle;
+
+  /// No description provided for @audioMuseEnabledLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable AudioMuse'**
+  String get audioMuseEnabledLabel;
+
+  /// No description provided for @audioMuseEnabledSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect to an AudioMuse server for AI recommendations'**
+  String get audioMuseEnabledSubtitle;
+
+  /// No description provided for @audioMuseServerUrlLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Server URL'**
+  String get audioMuseServerUrlLabel;
+
+  /// No description provided for @audioMuseServerUrlHint.
+  ///
+  /// In en, this message translates to:
+  /// **'https://audiomuse.example.com'**
+  String get audioMuseServerUrlHint;
+
+  /// No description provided for @audioMuseApiKeyLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'API Key'**
+  String get audioMuseApiKeyLabel;
+
+  /// No description provided for @audioMuseApiKeyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Optional — leave blank if not required'**
+  String get audioMuseApiKeyHint;
+
+  /// No description provided for @audioMuseTestConnection.
+  ///
+  /// In en, this message translates to:
+  /// **'Test connection'**
+  String get audioMuseTestConnection;
+
+  /// No description provided for @audioMuseTestConnectionSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Connected to AudioMuse (v{version}).'**
+  String audioMuseTestConnectionSuccess(String version);
+
+  /// No description provided for @audioMuseTestConnectionFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not connect to AudioMuse server.'**
+  String get audioMuseTestConnectionFailed;
+
+  /// No description provided for @audioMuseSimilarArtists.
+  ///
+  /// In en, this message translates to:
+  /// **'AI Similar Artists'**
+  String get audioMuseSimilarArtists;
+
+  /// No description provided for @audioMuseSimilarAlbums.
+  ///
+  /// In en, this message translates to:
+  /// **'You might also like'**
+  String get audioMuseSimilarAlbums;
+
+  /// No description provided for @audioMuseHomeRecommendations.
+  ///
+  /// In en, this message translates to:
+  /// **'Recommended for you'**
+  String get audioMuseHomeRecommendations;
+
+  /// No description provided for @audioMuseSmartQueue.
+  ///
+  /// In en, this message translates to:
+  /// **'Smart Queue'**
+  String get audioMuseSmartQueue;
+
+  /// No description provided for @audioMuseSmartQueueActive.
+  ///
+  /// In en, this message translates to:
+  /// **'AI auto-queue is active'**
+  String get audioMuseSmartQueueActive;
+
+  /// No description provided for @audioMuseSmartQueueStopped.
+  ///
+  /// In en, this message translates to:
+  /// **'AI auto-queue stopped'**
+  String get audioMuseSmartQueueStopped;
+
+  /// No description provided for @audioMuseSmartQueueQueued.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} AI-recommended tracks queued.'**
+  String audioMuseSmartQueueQueued(int count);
+
+  /// No description provided for @audioMuseGenerateMix.
+  ///
+  /// In en, this message translates to:
+  /// **'Create AI Mix'**
+  String get audioMuseGenerateMix;
+
+  /// No description provided for @audioMuseGenerateMixSeed.
+  ///
+  /// In en, this message translates to:
+  /// **'Generate a mix based on this {seedType}'**
+  String audioMuseGenerateMixSeed(String seedType);
+
+  /// No description provided for @audioMuseMixGenerated.
+  ///
+  /// In en, this message translates to:
+  /// **'AI Mix created — {count} tracks queued.'**
+  String audioMuseMixGenerated(int count);
+
+  /// No description provided for @audioMuseMixFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not generate AI mix. Try again later.'**
+  String get audioMuseMixFailed;
+
+  /// No description provided for @audioMuseNotConfigured.
+  ///
+  /// In en, this message translates to:
+  /// **'AudioMuse is not configured. Set it up in Settings.'**
+  String get audioMuseNotConfigured;
+
+  /// No description provided for @audioMuseConnectionSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection'**
+  String get audioMuseConnectionSection;
+
+  /// No description provided for @audioMuseDisabledHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable AudioMuse above to configure the server.'**
+  String get audioMuseDisabledHint;
 }
 
 class _AppLocalizationsDelegate
