@@ -10,6 +10,8 @@ import 'package:navis/src/features/auth/presentation/server_config_provider.dart
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:navis/src/features/player/domain/instant_mix_state.dart';
+import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
@@ -59,6 +61,27 @@ class _AppShellState extends ConsumerState<AppShell>
     final l10n = AppLocalizations.of(context)!;
     ref.watch(librarySyncControllerProvider);
     ref.watch(scrobbleDispatchControllerProvider);
+
+    // Global Instant Mix snackbar / error notifications (shown on any screen).
+    ref.listen<InstantMixState>(instantMixProvider, (prev, next) {
+      if (!mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
+      if (next.pendingSnackbar != null &&
+          next.pendingSnackbar != prev?.pendingSnackbar) {
+        final count = int.tryParse(next.pendingSnackbar ?? '') ?? 0;
+        messenger.showSnackBar(SnackBar(
+          content: Text(l10n.nowPlayingInstantMixStarted(count)),
+        ));
+        ref.read(instantMixProvider.notifier).clearSnackbar();
+      }
+      if (next.error != null && next.error != prev?.error) {
+        final msg = next.error == InstantMixError.unsupported
+            ? l10n.nowPlayingInstantMixUnsupported
+            : l10n.nowPlayingInstantMixError;
+        messenger.showSnackBar(SnackBar(content: Text(msg)));
+        ref.read(instantMixProvider.notifier).clearError();
+      }
+    });
     final isAuthenticated =
         ref.watch(serverConfigStateProvider).asData?.value != null;
     final reachability = ref.watch(serverReachabilityControllerProvider);

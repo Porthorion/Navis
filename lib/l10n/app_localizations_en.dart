@@ -977,7 +977,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get nowPlayingQueue => 'Queue';
 
   @override
-  String get nowPlayingInstantMix => 'Instant Mix';
+  String get nowPlayingInstantMix => 'Start Instant Mix';
+
+  @override
+  String get nowPlayingInstantMixStop => 'Stop Instant Mix';
+
+  @override
+  String get nowPlayingInstantMixActive => 'Instant Mix — tap to stop';
 
   @override
   String nowPlayingInstantMixStarted(int count) {

@@ -451,7 +451,9 @@
   "nowPlayingStar": "Like",
   "nowPlayingLyrics": "Lyrics",
   "nowPlayingQueue": "Queue",
-  "nowPlayingInstantMix": "Instant Mix",
+  "nowPlayingInstantMix": "Start Instant Mix",
+  "nowPlayingInstantMixStop": "Stop Instant Mix",
+  "nowPlayingInstantMixActive": "Instant Mix — tap to stop",
   "nowPlayingInstantMixStarted": "{count, plural, =0{No similar tracks found.} =1{Instant Mix started — 1 similar track queued.} other{Instant Mix started — {count} similar tracks queued.}}",
   "@nowPlayingInstantMixStarted": {
     "placeholders": {
