@@ -1836,8 +1836,20 @@ abstract class AppLocalizations {
   /// No description provided for @nowPlayingInstantMix.
   ///
   /// In en, this message translates to:
-  /// **'Instant Mix'**
+  /// **'Start Instant Mix'**
   String get nowPlayingInstantMix;
+
+  /// No description provided for @nowPlayingInstantMixStop.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop Instant Mix'**
+  String get nowPlayingInstantMixStop;
+
+  /// No description provided for @nowPlayingInstantMixActive.
+  ///
+  /// In en, this message translates to:
+  /// **'Instant Mix — tap to stop'**
+  String get nowPlayingInstantMixActive;
 
   /// No description provided for @nowPlayingInstantMixStarted.
   ///

@@ -55,6 +55,7 @@ class CoverArtImage extends ConsumerWidget {
     this.placeholderIcon = Icons.album_outlined,
     this.borderRadius,
     this.circular = false,
+    this.semanticLabel,
   });
 
   final String? coverArtId;
@@ -66,16 +67,20 @@ class CoverArtImage extends ConsumerWidget {
   final BorderRadius? borderRadius;
   final bool circular;
 
+  /// Optional text description read by screen readers. When `null` the image
+  /// is treated as decorative and excluded from the accessibility tree.
+  final String? semanticLabel;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final id = coverArtId?.trim() ?? '';
     if (id.isEmpty) {
-      return _fallback(context);
+      return _withSemantics(_fallback(context));
     }
 
     final api = ref.watch(subsonicApiProvider);
     if (api == null) {
-      return _fallback(context);
+      return _withSemantics(_fallback(context));
     }
 
     final cacheManager =
@@ -97,18 +102,32 @@ class CoverArtImage extends ConsumerWidget {
       errorWidget: (_, _, _) => _fallback(context),
     );
 
+    Widget child;
     if (circular) {
-      return ClipOval(child: image);
+      child = ClipOval(child: image);
+    } else {
+      final radius = borderRadius ?? BorderRadius.zero;
+      child = radius == BorderRadius.zero
+          ? image
+          : ClipRRect(borderRadius: radius, child: image);
     }
-    final radius = borderRadius ?? BorderRadius.zero;
-    if (radius == BorderRadius.zero) {
-      return image;
-    }
-    return ClipRRect(
-      borderRadius: radius,
-      child: image,
-    );
+
+    // Wrap with Semantics when a label is provided; otherwise exclude from
+    // the accessibility tree (image is purely decorative).
+    return _withSemantics(child);
   }
+
+  Widget _withSemantics(Widget child) {
+    if (semanticLabel != null) {
+      return Semantics(
+        image: true,
+        label: semanticLabel,
+        child: ExcludeSemantics(child: child),
+      );
+    }
+    return ExcludeSemantics(child: child);
+  }
+
 
   Widget _fallback(BuildContext context) {
     return Container(

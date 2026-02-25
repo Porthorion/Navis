@@ -5,8 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
-import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
 import 'package:navis/src/common_widgets/lyrics_display_widget.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
@@ -360,7 +360,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
                               : GestureDetector(
                                   onTap: _togglePlayPause,
                                   onHorizontalDragEnd: _handleHorizontalSwipe,
-                                  child: _CoverArt(coverArtId: song?.coverArt),
+                                  child: _CoverArt(coverArtId: song?.coverArt, semanticLabel: song?.title),
                                 )),
                   ),
                 ),
@@ -441,9 +441,10 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
 }
 
 class _CoverArt extends StatelessWidget {
-  const _CoverArt({this.coverArtId});
+  const _CoverArt({this.coverArtId, this.semanticLabel});
 
   final String? coverArtId;
+  final String? semanticLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -458,6 +459,7 @@ class _CoverArt extends StatelessWidget {
       height: clampedSize,
       borderRadius: BorderRadius.circular(12),
       placeholderIcon: Icons.music_note_outlined,
+      semanticLabel: semanticLabel,
     );
   }
 }
@@ -619,6 +621,10 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
           child: Slider(
             value: sliderValue.clamp(0, sliderMax),
             max: sliderMax,
+            semanticFormatterCallback: (value) {
+              final pos = Duration(milliseconds: value.round());
+              return '${_formatDuration(pos)} of ${_formatDuration(widget.playback.duration)}';
+            },
             onChanged: (value) {
               setState(() => _draggingValue = value);
             },
@@ -672,22 +678,25 @@ class _TransportControls extends ConsumerWidget {
       return Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: <Widget>[
-          FilledButton(
-            style: FilledButton.styleFrom(
-              shape: const CircleBorder(),
-              padding: const EdgeInsets.all(16),
-            ),
-            onPressed: () {
-              final handler = ref.read(audioHandlerProvider);
-              if (isPlaying) {
-                unawaited(handler?.pause());
-              } else {
-                unawaited(handler?.play());
-              }
-            },
-            child: Icon(
-              isPlaying ? Icons.pause : Icons.play_arrow,
-              size: 36,
+          Tooltip(
+            message: isPlaying ? l10n.nowPlayingPause : l10n.nowPlayingPlay,
+            child: FilledButton(
+              style: FilledButton.styleFrom(
+                shape: const CircleBorder(),
+                padding: const EdgeInsets.all(16),
+              ),
+              onPressed: () {
+                final handler = ref.read(audioHandlerProvider);
+                if (isPlaying) {
+                  unawaited(handler?.pause());
+                } else {
+                  unawaited(handler?.play());
+                }
+              },
+              child: Icon(
+                isPlaying ? Icons.pause : Icons.play_arrow,
+                size: 36,
+              ),
             ),
           ),
           const SizedBox(width: 16),
@@ -753,22 +762,25 @@ class _TransportControls extends ConsumerWidget {
           },
         ),
         const SizedBox(width: 8),
-        FilledButton(
-          style: FilledButton.styleFrom(
-            shape: const CircleBorder(),
-            padding: const EdgeInsets.all(16),
-          ),
-          onPressed: () {
-            final handler = ref.read(audioHandlerProvider);
-            if (isPlaying) {
-              unawaited(handler?.pause());
-            } else {
-              unawaited(handler?.play());
-            }
-          },
-          child: Icon(
-            isPlaying ? Icons.pause : Icons.play_arrow,
-            size: 36,
+        Tooltip(
+          message: isPlaying ? l10n.nowPlayingPause : l10n.nowPlayingPlay,
+          child: FilledButton(
+            style: FilledButton.styleFrom(
+              shape: const CircleBorder(),
+              padding: const EdgeInsets.all(16),
+            ),
+            onPressed: () {
+              final handler = ref.read(audioHandlerProvider);
+              if (isPlaying) {
+                unawaited(handler?.pause());
+              } else {
+                unawaited(handler?.play());
+              }
+            },
+            child: Icon(
+              isPlaying ? Icons.pause : Icons.play_arrow,
+              size: 36,
+            ),
           ),
         ),
         const SizedBox(width: 8),
@@ -867,8 +879,6 @@ class _ActionRowState extends ConsumerState<_ActionRow>
   late final AnimationController _likeController;
   late final Animation<double> _likeScale;
 
-  bool _instantMixLoading = false;
-
   @override
   void initState() {
     super.initState();
@@ -896,42 +906,10 @@ class _ActionRowState extends ConsumerState<_ActionRow>
     super.dispose();
   }
 
-  Future<void> _startInstantMix() async {
-    if (_instantMixLoading || widget.songId == null) return;
-    final messenger = ScaffoldMessenger.of(context);
-    final l10n = AppLocalizations.of(context)!;
-    setState(() => _instantMixLoading = true);
-    try {
-      final api = ref.read(subsonicApiProvider);
-      if (api == null) return;
-      final songs = await api.getSimilarSongs(widget.songId!);
-      if (!mounted) return;
-      final handler = ref.read(audioHandlerProvider);
-      await handler?.playNext(songs.map((s) => s.id).toList());
-      if (!mounted) return;
-      messenger.showSnackBar(
-        SnackBar(content: Text(l10n.nowPlayingInstantMixStarted(songs.length))),
-      );
-    } on SubsonicNotFoundException {
-      if (mounted) {
-        messenger.showSnackBar(
-          SnackBar(content: Text(l10n.nowPlayingInstantMixUnsupported)),
-        );
-      }
-    } on Exception {
-      if (mounted) {
-        messenger.showSnackBar(
-          SnackBar(content: Text(l10n.nowPlayingInstantMixError)),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _instantMixLoading = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final instantMix = ref.watch(instantMixProvider);
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -965,15 +943,33 @@ class _ActionRowState extends ConsumerState<_ActionRow>
           onPressed: () => NavService.showQueue(context),
         ),
         IconButton(
-          icon: _instantMixLoading
-              ? const SizedBox(
+          icon: instantMix.refilling
+              ? SizedBox(
                   width: 24,
                   height: 24,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: instantMix.active
+                        ? Theme.of(context).colorScheme.primary
+                        : null,
+                  ),
                 )
-              : const Icon(Icons.explore),
-          tooltip: l10n.nowPlayingInstantMix,
-          onPressed: widget.songId == null ? null : _startInstantMix,
+              : Icon(
+                  instantMix.active
+                      ? Icons.explore
+                      : Icons.explore_outlined,
+                  color: instantMix.active
+                      ? Theme.of(context).colorScheme.primary
+                      : null,
+                ),
+          tooltip: instantMix.active
+              ? l10n.nowPlayingInstantMixActive
+              : l10n.nowPlayingInstantMix,
+          onPressed: widget.songId == null
+              ? null
+              : () => ref
+                    .read(instantMixProvider.notifier)
+                    .toggle(widget.songId),
         ),
       ],
     );
