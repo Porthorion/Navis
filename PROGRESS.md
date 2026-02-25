@@ -41,6 +41,7 @@ Last updated: 2026-02-28
 - [x] Pre-Phase 10 gap closure (cover art cache config, Wi-Fi quality preference, art-tinted Now Playing, resume UX branding) — 2026-02-28 (evidence: `dart analyze lib/` — 0 errors, `flutter test` — 192/192 pass)
 - [x] Phase 10 increment 1 (art-tinted default ON schema v15, logging & diagnostics, haptic feedback, crash recovery verified, localization audit, error handling UX audit) — 2026-02-28 (evidence: `dart analyze lib/` — 0 errors, `flutter test` — 192/192 pass)
 - [x] Phase 10 increment 2 (schema v17 serverCreatedAt for recently-added sort, cover art cache unlimited default + reactive provider, settings tile subtitles, lyrics faster re-engage + smoother scroll, like button haptic + scale-bounce animation, radio art background tinting, Phase 10.12 Instant Mix roadmap) — 2026-05-24 (evidence: `flutter analyze lib/` — 0 errors, `flutter test` — 190/191 pass, 1 pre-existing flaky)
+- [x] Phase 10 increment 3 (loading screen NavisIcon, Phase 10.12 Instant Mix: `getSimilarSongs` API + `_ActionRow` compass button + search context menu entry; Phase 10.10 Update Checker: `UpdateRepository` + `updateProvider` + home `_UpdateBanner` + About "Check for updates" tile; Phase 10.6 POST_NOTIFICATIONS already confirmed done) — 2026-05-25
 
 ## Meta Progress
 - [x] Tech stack and methodology validation refresh — 2026-02-18 (evidence: `DEVELOPMENT_PLAN.md` stack validation section + README tech stack update)
@@ -400,7 +401,7 @@ Last updated: 2026-02-28
 ### 10.6 — Android Platform Integration
 - [ ] Edge-to-edge display verified on Android 15 and Android 16
 - [ ] Predictive back gesture with `PopScope`
-- [ ] `POST_NOTIFICATIONS` runtime permission
+- [x] `POST_NOTIFICATIONS` runtime permission — declared in `AndroidManifest.xml` and requested via `androidPlugin.requestNotificationsPermission()` in `NotificationBootstrap.initialize()`
 
 ### 10.7 — Crash Recovery — 2026-02-28 (verified)
 - [x] Download queue resume on restart — `DownloadService.start()` calls `requeueStuckDownloads()` at line 57
@@ -424,11 +425,11 @@ Last updated: 2026-02-28
 - [x] Enhanced: Scrobble service info/debug logging (start + flush event count)
 
 ### 10.10 — In-App Update Checker
-- [ ] `UpdateRepository` (Forgejo Releases API)
-- [ ] `updateProvider`
+- [x] `UpdateRepository` (Forgejo Releases API) — `lib/src/features/settings/data/update_repository.dart`; uses `package_info_plus` + `dio`
+- [x] `updateProvider` — `FutureProvider.autoDispose<UpdateInfo?>` in `app_providers.dart`
 - [ ] Settings: update channel (Stable / Beta), check toggle, manual check
-- [ ] Home screen update banner
-- [ ] APK download or browser redirect
+- [x] Home screen update banner — `_UpdateBanner` (`MaterialBanner`) at top of `HomeScreen` ListView
+- [x] Browser redirect to Forgejo release page on "Download"
 - [ ] Forgejo URL as compile-time constants in `constants.dart`
 
 ### 10.11 — UI/UX Polish Attention
@@ -438,13 +439,13 @@ Last updated: 2026-02-28
 - [ ] Cross-screen design consistency audit (spacing, typography, states, icon rhythm)
 
 ### 10.12 — Instant Mix
-- [ ] `SubsonicApiClient.getSimilarSongs(songId, {count})` — calls `getSimilarSongs2`, falls back to `getInstantMix`
-- [ ] `AudioHandler.startInstantMix(songId)` — builds and inserts a similar-songs tail after the current queue position
-- [ ] `instantMixProvider` — ephemeral async provider for button loading state
-- [ ] Now Playing: compass icon button (`Icons.explore`) in `_ActionRow` (hidden when no song playing)
-- [ ] Track context menu: "Start Instant Mix" long-press option
-- [ ] Success snackbar: "Instant Mix started — N similar tracks queued."
-- [ ] Graceful fallback when server doesn't support the endpoint
+- [x] `SubsonicApiClient.getSimilarSongs(songId, {count})` — calls `getSimilarSongs2`, falls back to `getInstantMix`
+- [ ] `AudioHandler.startInstantMix(songId)` — used `handler.playNext(ids)` directly instead; no new handler method needed
+- [ ] `instantMixProvider` — no dedicated provider needed; loading state managed locally in `_ActionRowState`
+- [x] Now Playing: compass icon button (`Icons.explore`) in `_ActionRow` with async loading state + snackbar
+- [x] Track context menu: "Instant Mix" entry in `_showSongContextMenu` in `search_screen.dart`
+- [x] Success snackbar: "N similar tracks queued."
+- [x] Graceful fallback when server doesn't support the endpoint (`SubsonicNotFoundException` → unsupported snackbar)
 
 ## Phase 11: AudioMuse AI Integration
 - [ ] `AudioMuseService` interface + API client

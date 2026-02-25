@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_router.dart';
 import 'package:navis/src/theme/navis_theme.dart';
@@ -106,11 +107,7 @@ class _PlaybackBootstrapGate extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              Icon(
-                Icons.sailing_rounded,
-                size: 64,
-                color: isFailed ? colorScheme.error : colorScheme.primary,
-              ),
+              NavisIcon(size: 64),
               const SizedBox(height: 8),
               Text(
                 l10n.appName,

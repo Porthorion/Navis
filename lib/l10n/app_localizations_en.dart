@@ -977,6 +977,28 @@ class AppLocalizationsEn extends AppLocalizations {
   String get nowPlayingQueue => 'Queue';
 
   @override
+  String get nowPlayingInstantMix => 'Instant Mix';
+
+  @override
+  String nowPlayingInstantMixStarted(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Instant Mix started — $count similar tracks queued.',
+      one: 'Instant Mix started — 1 similar track queued.',
+      zero: 'No similar tracks found.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get nowPlayingInstantMixUnsupported =>
+      'Your server doesn\'t support Instant Mix.';
+
+  @override
+  String get nowPlayingInstantMixError => 'Couldn\'t start Instant Mix.';
+
+  @override
   String get nowPlayingMore => 'More options';
 
   @override
@@ -1494,4 +1516,29 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get aboutCodename => 'Cape Horn';
+
+  @override
+  String get updateCheckTitle => 'Check for updates';
+
+  @override
+  String updateCheckSub(String version) {
+    return 'Currently on $version. Tap to check now.';
+  }
+
+  @override
+  String get updateAvailableTitle => 'Update available';
+
+  @override
+  String updateAvailableBody(String version) {
+    return '$version is ready to download.';
+  }
+
+  @override
+  String get updateDownload => 'Download';
+
+  @override
+  String get updateDismiss => 'Dismiss';
+
+  @override
+  String get updateUpToDate => 'Navis is up to date.';
 }
