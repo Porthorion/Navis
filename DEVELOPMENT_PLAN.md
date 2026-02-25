@@ -1265,13 +1265,13 @@ Theme mode and color scheme are independent settings, giving users full control 
 
 ### Animations & Transitions
 
-Use the `animations` package (Material Design motion system) for all page-level transitions:
+Use Flutter's built-in animation primitives (`AnimationController`, `CurvedAnimation`, `CustomTransitionPage`) for all transitions — the `animations` package is not needed:
 
-- Hero animation for cover art: album grid → album detail → now playing. Seamless image transition.
-- Mini Player → Now Playing expansion: smooth slide-up animation.
-- Page transitions: `SharedAxisTransition` (horizontal axis for peer navigation like tab switches, vertical axis for parent-child like list → detail). `FadeThroughTransition` for top-level destination changes (bottom nav tabs). `OpenContainer` for list items that expand into detail screens (optional, for a premium feel).
-- Skeleton loading placeholders (shimmer) while data loads, not spinners. The `ShimmerPlaceholder` widget is built in Phase 3 — Phase 10 audits that it's used consistently everywhere.
-- Pull-to-refresh with Material 3 refresh indicator.
+- Hero animation for cover art: album grid → album detail. `HeroCoverArt` widget wraps `CoverArtImage` with a `Hero`; `buildCoverArtHeroTag()` generates a consistent tag from `coverArtId + context`. Tags wired in library album grid and home carousels. **Implemented.**
+- Mini Player → Now Playing expansion: velocity-aware `AnimationController.fling()` with `Curves.fastEaseInToSlowEaseOut`; full-player fades in from 10%, mini-player fades out by 25%. **Implemented.**
+- Page transitions: `_slideFadePage` helper (`CustomTransitionPage`) provides 5% slide-up + fade-in (280ms) on push, fade-out (220ms) on pop, applied to all detail and settings sub-routes. `SharedAxisTransition`/`FadeThroughTransition` from the `animations` package are not used — custom transitions provide equivalent quality without the extra dependency.
+- Skeleton loading placeholders (shimmer) while data loads, not spinners. `ShimmerPlaceholder`, `ShimmerListTile`, and `ShimmerListPage` widgets cover all list/grid screens. **Audit complete — all screens use shimmer.**
+- Pull-to-refresh with Material 3 refresh indicator. **Implemented on all list screens.**
 
 ### UI/UX Polish Track (Pre-Phase-5 Attention)
 

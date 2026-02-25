@@ -295,7 +295,7 @@ class SubsonicApiClient {
     int count = 50,
     CancelToken? cancelToken,
   }) async {
-    Future<List<Song>> _fetch(String endpoint) async {
+    Future<List<Song>> fetch(String endpoint) async {
       final root = await _readRoot(
         endpoint,
         query: {'id': seedSongId, 'count': count},
@@ -307,7 +307,7 @@ class SubsonicApiClient {
     }
 
     try {
-      return await _fetch('/rest/getSimilarSongs2.view');
+      return await fetch('/rest/getSimilarSongs2.view');
     } on SubsonicNotFoundException {
       // Server doesn't support getSimilarSongs2 — try getInstantMix.
       final root = await _readRoot(

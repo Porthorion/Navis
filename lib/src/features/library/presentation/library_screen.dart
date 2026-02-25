@@ -1225,8 +1225,7 @@ class _LibraryPlaylistsTabState
                 },
               );
             },
-            loading: () =>
-                const Center(child: CircularProgressIndicator()),
+            loading: () => const ShimmerListPage(count: 8),
             error: (error, _) => ErrorState(
               title: l10n.playlistsLoadError,
               message: error.toString(),

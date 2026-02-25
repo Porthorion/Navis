@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
+import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
@@ -102,7 +103,7 @@ class _QueueTab extends ConsumerWidget {
           ],
         );
       },
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const ShimmerListPage(count: 8),
       error: (error, _) => ErrorState(
         title: l10n.downloadsErrorLoadingQueue,
         message: error.toString(),
@@ -214,7 +215,7 @@ class _DownloadedTab extends ConsumerWidget {
           },
         );
       },
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const ShimmerListPage(count: 8),
       error: (_, _) => ErrorState(
         title: l10n.downloadsErrorLoadingQueue,
         onRetry: () => ref.invalidate(permanentCachedTracksProvider),
