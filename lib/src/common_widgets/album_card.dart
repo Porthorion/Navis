@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/database/navis_database.dart';
 
 /// Size presets for [AlbumCard].
@@ -24,12 +25,15 @@ class AlbumCard extends StatelessWidget {
     required this.album,
     super.key,
     this.size = AlbumCardSize.library,
+    this.heroTag,
     this.onTap,
     this.onLongPress,
   });
 
   final AlbumsTableData album;
   final AlbumCardSize size;
+  /// Optional hero tag for cover-art transition animations.
+  final String? heroTag;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
 
@@ -60,12 +64,21 @@ class AlbumCard extends StatelessWidget {
             child: Stack(
               fit: StackFit.expand,
               children: <Widget>[
-                CoverArtImage(
-                  coverArtId: album.coverArt,
-                  size: 480,
-                  fit: BoxFit.cover,
-                  placeholderIcon: Icons.album_outlined,
-                ),
+                if (heroTag != null)
+                  HeroCoverArt(
+                    coverArtId: album.coverArt,
+                    heroTag: heroTag!,
+                    size: 480,
+                    fit: BoxFit.cover,
+                    placeholderIcon: Icons.album_outlined,
+                  )
+                else
+                  CoverArtImage(
+                    coverArtId: album.coverArt,
+                    size: 480,
+                    fit: BoxFit.cover,
+                    placeholderIcon: Icons.album_outlined,
+                  ),
                 // Gradient overlay at the bottom
                 Positioned(
                   left: 0,

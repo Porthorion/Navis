@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
-import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
@@ -71,8 +71,12 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                     Center(
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
-                        child: CoverArtImage(
+                        child: HeroCoverArt(
                           coverArtId: details.coverArt,
+                          heroTag: buildCoverArtHeroTag(
+                            coverArtId: details.coverArt,
+                            context: 'album',
+                          ),
                           size: 640,
                           width: 180,
                           height: 180,
@@ -406,7 +410,11 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
       return;
     }
 
-    setState(() => _isStarring = true);
+    // Optimistic update — flip the icon immediately, block re-taps in flight.
+    setState(() {
+      _isStarred = !isStarred;
+      _isStarring = true;
+    });
     try {
       if (isStarred) {
         await api.unstar(widget.albumId);
@@ -416,29 +424,18 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
       if (!mounted) {
         return;
       }
-      setState(() => _isStarred = !isStarred);
       // Persist star change to local DB so library views update reactively.
       final dao = ref.read(navisDatabaseProvider).libraryDao;
       await dao.updateAlbumStarred(
         widget.albumId,
         isStarred ? null : DateTime.now(),
       );
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            isStarred
-                ? l10n.albumDetailUnstarSuccess
-                : l10n.albumDetailStarSuccess,
-          ),
-        ),
-      );
     } on Object {
+      // Rollback the optimistic update on failure.
       if (!mounted) {
         return;
       }
+      setState(() => _isStarred = isStarred);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(l10n.albumDetailStarFailure)));

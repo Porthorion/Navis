@@ -26,14 +26,18 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
   Future<void> _toggleStar({required bool isStarred}) async {
     final api = ref.read(subsonicApiProvider);
     if (api == null) return;
-    setState(() => _isStarring = true);
+    // Optimistic update — flip the icon immediately, block re-taps in flight.
+    setState(() {
+      _isStarred = !isStarred;
+      _isStarring = true;
+    });
     try {
       if (isStarred) {
         await api.unstar(widget.artistId);
       } else {
         await api.star(widget.artistId);
       }
-      if (mounted) setState(() => _isStarred = !isStarred);
+      if (!mounted) return;
       // Persist star change to local DB so library views update reactively.
       final dao = ref.read(navisDatabaseProvider).libraryDao;
       await dao.updateArtistStarred(
@@ -42,7 +46,9 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
       );
     } on Object catch (error, stackTrace) {
       debugPrint('Star toggle failed: $error\n$stackTrace');
+      // Rollback the optimistic update on failure.
       if (mounted) {
+        setState(() => _isStarred = isStarred);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
+import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/artist_card.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
@@ -513,6 +514,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                           key: ValueKey(album.id),
                           album: album,
                           size: AlbumCardSize.library,
+                          heroTag: buildCoverArtHeroTag(
+                            coverArtId: album.coverArt,
+                            context: 'album',
+                          ),
                           onTap: () {
                             ref
                                 .read(librarySyncControllerProvider.notifier)

@@ -1557,18 +1557,6 @@ abstract class AppLocalizations {
   /// **'Album shuffled into queue.'**
   String get albumDetailShuffleActionQueued;
 
-  /// No description provided for @albumDetailStarSuccess.
-  ///
-  /// In en, this message translates to:
-  /// **'Album liked.'**
-  String get albumDetailStarSuccess;
-
-  /// No description provided for @albumDetailUnstarSuccess.
-  ///
-  /// In en, this message translates to:
-  /// **'Album unliked.'**
-  String get albumDetailUnstarSuccess;
-
   /// No description provided for @albumDetailStarFailure.
   ///
   /// In en, this message translates to:
