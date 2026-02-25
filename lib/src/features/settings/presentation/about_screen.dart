@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
-import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/constants.dart';
@@ -29,7 +28,7 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
     final theme = Theme.of(context);
     final updateAsync = ref.watch(updateProvider);
     final settingsAsync = ref.watch(appSettingsProvider);
-    final settings = settingsAsync.asData?.value ?? const AppSettingsModel.defaults();
+    final settings = settingsAsync.asData?.value;
 
     // Show a snackbar when a user-triggered check resolves as up to date.
     ref.listen<AsyncValue<UpdateInfo?>>(updateProvider, (prev, next) {
@@ -110,22 +109,12 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
             secondary: const Icon(Icons.system_update_outlined),
             title: Text(l10n.updateAutoCheckTitle),
             subtitle: Text(l10n.updateAutoCheckSubtitle),
-            value: settings.updateCheckEnabled,
+            value: settings?.updateCheckEnabled ?? true,
             onChanged: (value) {
+              if (settings == null) return;
               final repo = ref.read(settingsRepositoryProvider);
               repo.saveSettings(settings.copyWith(updateCheckEnabled: value));
             },
-          ),
-          ListTile(
-            leading: const Icon(Icons.new_releases_outlined),
-            title: Text(l10n.updateChannelTitle),
-            subtitle: Text(
-              settings.updateChannel == 'beta'
-                  ? l10n.updateChannelBeta
-                  : l10n.updateChannelStable,
-            ),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => _showChannelDialog(context, l10n, settings),
           ),
           ListTile(
             leading: const Icon(Icons.system_update_outlined),
@@ -156,41 +145,4 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
     );
   }
 
-  void _showChannelDialog(
-    BuildContext context,
-    AppLocalizations l10n,
-    AppSettingsModel settings,
-  ) {
-    showDialog<String>(
-      context: context,
-      builder: (ctx) => SimpleDialog(
-        title: Text(l10n.updateChannelDialogTitle),
-        children: [
-          RadioGroup<String>(
-            groupValue: settings.updateChannel,
-            onChanged: (v) {
-              if (v == null) return;
-              Navigator.of(ctx).pop();
-              final repo = ref.read(settingsRepositoryProvider);
-              repo.saveSettings(settings.copyWith(updateChannel: v));
-            },
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                RadioListTile<String>(
-                  title: Text(l10n.updateChannelStable),
-                  value: 'stable',
-                ),
-                RadioListTile<String>(
-                  title: Text(l10n.updateChannelBeta),
-                  subtitle: Text(l10n.updateChannelBetaDescription),
-                  value: 'beta',
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
