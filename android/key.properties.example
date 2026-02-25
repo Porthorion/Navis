@@ -1,0 +1,19 @@
+# android/key.properties — copy this file to android/key.properties and fill in your values.
+# android/key.properties is git-ignored; this example file is tracked.
+#
+# ── Generating a keystore (one-time setup) ────────────────────────────────────
+#
+#   keytool -genkey -v \
+#     -keystore ~/navis-release.jks \
+#     -keyalg RSA -keysize 4096 -validity 10000 \
+#     -alias navis-release
+#
+#   Store the resulting .jks file safely outside the repository.
+#   Back it up — if you lose it you cannot update the app on any store.
+#
+# ── Fields ────────────────────────────────────────────────────────────────────
+
+storePassword=your_keystore_password
+keyPassword=your_key_password
+keyAlias=navis-release
+storeFile=/path/to/navis-release.jks

@@ -9,6 +9,8 @@
 #   - jq         (brew install jq  /  sudo apt install jq)
 #   - Flutter SDK on PATH
 #   - Android SDK configured (for APK)
+#   - android/key.properties configured for release signing (see android/key.properties.example)
+#     Without it the APK falls back to debug signing — not suitable for distribution.
 #   - Xcode + valid signing identity (for IPA, macOS only, pass --ipa flag)
 #   - Environment variables set in tool/release.env (git-ignored):
 #       FORGEJO_URL    e.g. https://git.porthorion.com
@@ -88,6 +90,15 @@ for tool in jq flutter git curl; do
     exit 1
   fi
 done
+
+# Warn (but don't fail) if release signing is not configured.
+if [[ ! -f "${SCRIPT_DIR}/../android/key.properties" ]]; then
+  echo "⚠️  WARNING: android/key.properties not found."
+  echo "   The APK will be signed with the debug key, which is NOT suitable for"
+  echo "   distribution. See android/key.properties.example to set up release signing."
+  echo "   Press Ctrl+C to abort, or wait 5 seconds to continue..."
+  sleep 5
+fi
 
 if [[ "${BUILD_IPA}" == "true" ]]; then
   if [[ "$(uname)" != "Darwin" ]]; then
