@@ -17,7 +17,6 @@ import 'package:navis/src/features/settings/presentation/playback_settings_scree
 import 'package:navis/src/features/settings/presentation/server_settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/sync_settings_screen.dart';
-import 'package:navis/src/features/audiomuse/presentation/audiomuse_settings_screen.dart';
 import 'package:navis/src/routing/app_shell.dart';
 
 /// Returns a [CustomTransitionPage] with a subtle slide-up + fade-in entry
@@ -202,13 +201,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     pageBuilder: (context, state) => _slideFadePage(
                       key: state.pageKey,
                       child: const AboutScreen(),
-                    ),
-                  ),
-                  GoRoute(
-                    path: 'audiomuse',
-                    pageBuilder: (context, state) => _slideFadePage(
-                      key: state.pageKey,
-                      child: const AudioMuseSettingsScreen(),
                     ),
                   ),
                 ],

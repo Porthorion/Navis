@@ -11,7 +11,9 @@ import 'package:navis/src/features/auth/presentation/server_reachability_provide
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/domain/instant_mix_state.dart';
+import 'package:navis/src/features/player/domain/smart_queue_state.dart';
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
+import 'package:navis/src/features/player/presentation/smart_queue_notifier.dart';
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
@@ -83,6 +85,33 @@ class _AppShellState extends ConsumerState<AppShell>
             : l10n.nowPlayingInstantMixError;
         messenger.showSnackBar(SnackBar(content: Text(msg)));
         ref.read(instantMixProvider.notifier).clearError();
+      }
+    });
+
+    // Global Smart Queue snackbar / error notifications.
+    ref.listen<SmartQueueState>(smartQueueProvider, (prev, next) {
+      if (!mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
+      if (next.pendingSnackbar != null &&
+          next.pendingSnackbar != prev?.pendingSnackbar) {
+        final count = int.tryParse(next.pendingSnackbar ?? '') ?? 0;
+        messenger.showSnackBar(
+          SnackBar(content: Text(l10n.smartQueueStarted(count))),
+        );
+        ref.read(smartQueueProvider.notifier).clearSnackbar();
+      }
+      if (next.error != null && next.error != prev?.error) {
+        final msg = next.error == SmartQueueError.unsupported
+            ? l10n.smartQueueUnsupported
+            : l10n.smartQueueError;
+        messenger.showSnackBar(SnackBar(content: Text(msg)));
+        ref.read(smartQueueProvider.notifier).clearError();
+      }
+      // Show a "stopped" notification when the session ends.
+      if ((prev?.active ?? false) && !next.active && next.error == null) {
+        messenger.showSnackBar(
+          SnackBar(content: Text(l10n.smartQueueStopped)),
+        );
       }
     });
     final isAuthenticated =

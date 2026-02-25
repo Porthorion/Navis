@@ -1711,4 +1711,60 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get audioMuseDisabledHint =>
       'Enable AudioMuse above to configure the server.';
+
+  @override
+  String get smartQueueTitle => 'Smart Queues';
+
+  @override
+  String get smartQueueSubtitle => 'AI-powered queuing based on sonic analysis';
+
+  @override
+  String get smartQueueButton => 'Smart Queue';
+
+  @override
+  String get smartQueueActive => 'Smart Queue active';
+
+  @override
+  String get smartQueueStopped => 'Smart Queue stopped';
+
+  @override
+  String smartQueueStarted(int count) {
+    return '$count tracks queued via Smart Queue.';
+  }
+
+  @override
+  String get smartQueueUnsupported =>
+      'Smart Queues require the AudioMuse plugin on your server.';
+
+  @override
+  String get smartQueueError =>
+      'Smart Queue encountered an error. Please try again.';
+
+  @override
+  String get smartQueueSteadyVibes => 'Steady Vibes';
+
+  @override
+  String get smartQueueSteadyVibesDesc =>
+      'Consistent mood — stays close to the original feel';
+
+  @override
+  String get smartQueueDiscoveryMix => 'Discovery Mix';
+
+  @override
+  String get smartQueueDiscoveryMixDesc =>
+      'Explore new artists with maximum variety';
+
+  @override
+  String get smartQueueDeepDive => 'Deep Dive';
+
+  @override
+  String get smartQueueDeepDiveDesc =>
+      'Stay immersed in the same artist and style';
+
+  @override
+  String get smartQueueEnergyFlow => 'Energy Flow';
+
+  @override
+  String get smartQueueEnergyFlowDesc =>
+      'Let the mood gradually evolve track by track';
 }
