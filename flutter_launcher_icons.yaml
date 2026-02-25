@@ -1,0 +1,12 @@
+flutter_launcher_icons:
+  # Android — standard + adaptive (API 26+)
+  android: true
+  image_path_android: "lib/src/icon/Navis_Icon_dark.png"
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "lib/src/icon/Navis_Icon_dark.png"
+  min_sdk_android: 21
+
+  # iOS
+  ios: true
+  image_path_ios: "lib/src/icon/Navis_Icon_dark.png"
+  remove_alpha_ios: true
