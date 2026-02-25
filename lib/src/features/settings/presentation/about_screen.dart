@@ -12,8 +12,6 @@ import 'package:url_launcher/url_launcher.dart';
 class AboutScreen extends ConsumerStatefulWidget {
   const AboutScreen({super.key});
 
-  static const String _version = 'Cape Horn 0.1.0';
-
   @override
   ConsumerState<AboutScreen> createState() => _AboutScreenState();
 }
@@ -30,6 +28,8 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
     final updateAsync = ref.watch(updateProvider);
     final settingsAsync = ref.watch(appSettingsProvider);
     final settings = settingsAsync.asData?.value;
+    final packageInfo = ref.watch(packageInfoProvider).asData?.value;
+    final version = packageInfo?.version ?? '';
 
     // Show a snackbar when a user-triggered check resolves as up to date,
     // or auto-show the update dialog when an update is found.
@@ -63,7 +63,7 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            '${l10n.aboutVersion} ${AboutScreen._version}',
+            '${l10n.aboutVersion} $version',
             textAlign: TextAlign.center,
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
@@ -80,7 +80,7 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
               showLicensePage(
                 context: context,
                 applicationName: 'Navis',
-                applicationVersion: AboutScreen._version,
+                applicationVersion: version,
                 applicationIcon: const Padding(
                   padding: EdgeInsets.all(8),
                   child: NavisIcon(size: 48, tintWithAccent: true),
@@ -129,8 +129,8 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
                 data: (UpdateInfo? info) => info != null
                     ? l10n.updateAvailableBody(info.tagName)
                     : l10n.updateUpToDate,
-                loading: () => l10n.updateCheckSub(AboutScreen._version),
-                error: (_, _) => l10n.updateCheckSub(AboutScreen._version),
+                loading: () => l10n.updateCheckSub(version),
+                error: (_, _) => l10n.updateCheckSub(version),
               ),
             ),
             trailing: updateAsync.isLoading

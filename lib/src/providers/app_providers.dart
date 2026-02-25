@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
@@ -813,6 +814,12 @@ final customColorPresetsProvider = StreamProvider<List<int>>((ref) {
       return <int>[];
     }
   });
+});
+
+/// The app's own package metadata (version, build number, etc.).
+/// Cached for the lifetime of the app — the version never changes at runtime.
+final packageInfoProvider = FutureProvider<PackageInfo>((ref) async {
+  return PackageInfo.fromPlatform();
 });
 
 /// Checks whether a newer Navis release is available on Forgejo.
