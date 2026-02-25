@@ -94,7 +94,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       return;
     }
 
-    int offset = 1;
+    var offset = 1;
 
     if (ref.read(showArtistsPageProvider)) {
       if (tab == offset) {

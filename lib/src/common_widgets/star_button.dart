@@ -35,12 +35,12 @@ class _StarButtonState extends State<StarButton>
     );
     _scale = TweenSequence<double>([
       TweenSequenceItem(
-        tween: Tween(begin: 1.0, end: 1.40)
+        tween: Tween<double>(begin: 1, end: 1.40)
             .chain(CurveTween(curve: Curves.easeOut)),
         weight: 40,
       ),
       TweenSequenceItem(
-        tween: Tween(begin: 1.40, end: 1.0)
+        tween: Tween<double>(begin: 1.40, end: 1)
             .chain(CurveTween(curve: Curves.elasticOut)),
         weight: 60,
       ),
@@ -57,7 +57,7 @@ class _StarButtonState extends State<StarButton>
   void didUpdateWidget(StarButton oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.isStarred != oldWidget.isStarred) {
-      _controller.forward(from: 0.0);
+      _controller.forward(from: 0);
     }
   }
 

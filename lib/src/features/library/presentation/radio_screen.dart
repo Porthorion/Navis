@@ -26,7 +26,7 @@ class RadioTabContent extends ConsumerWidget {
   const RadioTabContent({super.key, this.scrollController});
 
   /// Optional external [ScrollController] so that a parent widget (e.g.
-  /// [LibraryScreen]) can programmatically scroll this tab to the top.
+  /// `LibraryScreen`) can programmatically scroll this tab to the top.
   final ScrollController? scrollController;
 
   @override

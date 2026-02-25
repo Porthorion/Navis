@@ -131,7 +131,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                     tintColor.withValues(alpha: 0.4),
                     surfaceColor,
                   ],
-                  stops: const <double>[0.0, 0.7],
+                  stops: const <double>[0, 0.7],
                 )
               : null,
           color: tintColor == null ? surfaceColor : null,
@@ -887,8 +887,8 @@ class _ActionRowState extends ConsumerState<_ActionRow>
       duration: const Duration(milliseconds: 350),
     );
     _likeScale = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.4), weight: 40),
-      TweenSequenceItem(tween: Tween(begin: 1.4, end: 1.0), weight: 60),
+      TweenSequenceItem(tween: Tween(begin: 1, end: 1.4), weight: 40),
+      TweenSequenceItem(tween: Tween(begin: 1.4, end: 1), weight: 60),
     ]).animate(CurvedAnimation(parent: _likeController, curve: Curves.easeOut));
   }
 
@@ -896,7 +896,7 @@ class _ActionRowState extends ConsumerState<_ActionRow>
   void didUpdateWidget(_ActionRow oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.isLiked != oldWidget.isLiked) {
-      _likeController.forward(from: 0.0);
+      _likeController.forward(from: 0);
     }
   }
 
