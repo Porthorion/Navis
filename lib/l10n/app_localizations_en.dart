@@ -832,12 +832,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get albumDetailShuffleActionQueued => 'Album shuffled into queue.';
 
   @override
-  String get albumDetailStarSuccess => 'Album liked.';
-
-  @override
-  String get albumDetailUnstarSuccess => 'Album unliked.';
-
-  @override
   String get albumDetailStarFailure => 'Could not update like status.';
 
   @override

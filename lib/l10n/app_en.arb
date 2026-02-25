@@ -405,8 +405,6 @@
   "albumDetailDownloadActionQueued": "Album queued for download.",
   "albumDetailPlayActionQueued": "Album queued for playback.",
   "albumDetailShuffleActionQueued": "Album shuffled into queue.",
-  "albumDetailStarSuccess": "Album liked.",
-  "albumDetailUnstarSuccess": "Album unliked.",
   "albumDetailStarFailure": "Could not update like status.",
   "cacheBadgeLabel": "Cached",
   "miniPlayerUnknownTrack": "Unknown track",

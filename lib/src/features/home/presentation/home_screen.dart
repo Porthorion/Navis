@@ -5,6 +5,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
@@ -224,6 +225,10 @@ class _ServerAlbumCarousel extends StatelessWidget {
             name: album.name,
             artist: album.artist,
             coverArtId: album.coverArt,
+            heroTag: buildCoverArtHeroTag(
+              coverArtId: album.coverArt,
+              context: 'album',
+            ),
             onTap: () => onTap(album),
           );
         },
@@ -253,6 +258,10 @@ class _LocalAlbumCarousel extends StatelessWidget {
           return AlbumCard(
             album: album,
             size: AlbumCardSize.compact,
+            heroTag: buildCoverArtHeroTag(
+              coverArtId: album.coverArt,
+              context: 'album',
+            ),
             onTap: () => onTap(album),
           );
         },
@@ -268,12 +277,14 @@ class _ServerAlbumCard extends StatelessWidget {
     required this.name,
     this.artist,
     this.coverArtId,
+    this.heroTag,
     this.onTap,
   });
 
   final String name;
   final String? artist;
   final String? coverArtId;
+  final String? heroTag;
   final VoidCallback? onTap;
 
   @override
@@ -293,12 +304,21 @@ class _ServerAlbumCard extends StatelessWidget {
             child: Stack(
               fit: StackFit.expand,
               children: <Widget>[
-                CoverArtImage(
-                  coverArtId: coverArtId,
-                  size: 480,
-                  fit: BoxFit.cover,
-                  placeholderIcon: Icons.album_outlined,
-                ),
+                if (heroTag != null)
+                  HeroCoverArt(
+                    coverArtId: coverArtId,
+                    heroTag: heroTag!,
+                    size: 480,
+                    fit: BoxFit.cover,
+                    placeholderIcon: Icons.album_outlined,
+                  )
+                else
+                  CoverArtImage(
+                    coverArtId: coverArtId,
+                    size: 480,
+                    fit: BoxFit.cover,
+                    placeholderIcon: Icons.album_outlined,
+                  ),
                 Positioned(
                   left: 0,
                   right: 0,
