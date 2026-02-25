@@ -7,17 +7,38 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Displays app version, open-source licenses, and repository links.
-class AboutScreen extends ConsumerWidget {
+class AboutScreen extends ConsumerStatefulWidget {
   const AboutScreen({super.key});
 
   static const String _repoUrl = 'https://git.porthorion.com/khalifa/Navis';
   static const String _version = 'Cape Horn 0.1';
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AboutScreen> createState() => _AboutScreenState();
+}
+
+class _AboutScreenState extends ConsumerState<AboutScreen> {
+  /// True while the user has explicitly triggered an update check so we know
+  /// whether to show the "up to date" snackbar when the result arrives.
+  bool _userTriggeredCheck = false;
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final updateAsync = ref.watch(updateProvider);
+
+    // Show a snackbar when a user-triggered check resolves as up to date.
+    ref.listen<AsyncValue<UpdateInfo?>>(updateProvider, (prev, next) {
+      if (!mounted || !_userTriggeredCheck) return;
+      if (next.isLoading) return;
+      setState(() => _userTriggeredCheck = false);
+      if (!next.hasError && next.asData?.value == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l10n.updateUpToDate)),
+        );
+      }
+    });
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.aboutTitle)),
@@ -35,7 +56,7 @@ class AboutScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            '${l10n.aboutVersion} $_version',
+            '${l10n.aboutVersion} ${AboutScreen._version}',
             textAlign: TextAlign.center,
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
@@ -52,7 +73,7 @@ class AboutScreen extends ConsumerWidget {
               showLicensePage(
                 context: context,
                 applicationName: 'Navis',
-                applicationVersion: _version,
+                applicationVersion: AboutScreen._version,
                 applicationIcon: const Padding(
                   padding: EdgeInsets.all(8),
                   child: NavisIcon(size: 48, tintWithAccent: true),
@@ -66,7 +87,7 @@ class AboutScreen extends ConsumerWidget {
             subtitle: Text(l10n.aboutSourceCodeSub),
             trailing: const Icon(Icons.open_in_new),
             onTap: () async {
-              final uri = Uri.parse(_repoUrl);
+              final uri = Uri.parse(AboutScreen._repoUrl);
               if (await canLaunchUrl(uri)) {
                 await launchUrl(uri, mode: LaunchMode.externalApplication);
               }
@@ -80,8 +101,8 @@ class AboutScreen extends ConsumerWidget {
                 data: (UpdateInfo? info) => info != null
                     ? l10n.updateAvailableBody(info.tagName)
                     : l10n.updateUpToDate,
-                loading: () => l10n.updateCheckSub(_version),
-                error: (_, _) => l10n.updateCheckSub(_version),
+                loading: () => l10n.updateCheckSub(AboutScreen._version),
+                error: (_, _) => l10n.updateCheckSub(AboutScreen._version),
               ),
             ),
             trailing: updateAsync.isLoading
@@ -91,7 +112,10 @@ class AboutScreen extends ConsumerWidget {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.refresh),
-            onTap: () => ref.invalidate(updateProvider),
+            onTap: () {
+                setState(() => _userTriggeredCheck = true);
+                ref.invalidate(updateProvider);
+              },
           ),
         ],
       ),

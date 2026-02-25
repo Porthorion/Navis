@@ -15,6 +15,7 @@ import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
+import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart'
     show searchFocusRequestProvider;
 import 'package:navis/src/providers/app_providers.dart';
@@ -222,6 +223,13 @@ class _AppShellState extends ConsumerState<AppShell>
                   // Trigger focus request whenever the Search tab is tapped.
                   if (branchIndex == _searchBranchIndex) {
                     ref.read(searchFocusRequestProvider.notifier).increment();
+                  }
+                  // Scroll to top when Library is tapped while already on Library.
+                  if (branchIndex == _libraryBranchIndex &&
+                      branchIndex == navigationShell.currentIndex) {
+                    ref
+                        .read(libraryScrollToTopRequestProvider.notifier)
+                        .request();
                   }
                   navigationShell.goBranch(
                     branchIndex,

@@ -5,6 +5,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
@@ -24,18 +25,25 @@ class HomeScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.homeTitle)),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          await ref.read(librarySyncControllerProvider.notifier).syncNow();
-          ref.invalidate(homeRecentlyAddedProvider);
-          ref.invalidate(homeRandomAlbumsProvider);
-        },
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.only(bottom: 24),
-          children: <Widget>[
-            const _UpdateBanner(),
+      body: SafeArea(
+        child: RefreshIndicator(
+          onRefresh: () async {
+            await ref.read(librarySyncControllerProvider.notifier).syncNow();
+            ref.invalidate(homeRecentlyAddedProvider);
+            ref.invalidate(homeRandomAlbumsProvider);
+          },
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.only(bottom: 24),
+            children: <Widget>[
+              // App icon header — accent-tinted, modernized feel
+              Padding(
+                padding: const EdgeInsets.fromLTRB(0, 28, 0, 8),
+                child: Center(
+                  child: NavisIcon(size: 72, tintWithAccent: true),
+                ),
+              ),
+              const _UpdateBanner(),
             // ── 1. Liked Tracks (vertical list, 5 items + See all) ──
             _HomeSection<List<SongsTableData>>(
               title: l10n.homeStarredTitle,
@@ -118,7 +126,8 @@ class HomeScreen extends ConsumerWidget {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 }
 

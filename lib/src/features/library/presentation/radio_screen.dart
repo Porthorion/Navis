@@ -22,7 +22,11 @@ class RadioScreen extends ConsumerWidget {
 }
 
 class RadioTabContent extends ConsumerWidget {
-  const RadioTabContent({super.key});
+  const RadioTabContent({super.key, this.scrollController});
+
+  /// Optional external [ScrollController] so that a parent widget (e.g.
+  /// [LibraryScreen]) can programmatically scroll this tab to the top.
+  final ScrollController? scrollController;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -55,6 +59,7 @@ class RadioTabContent extends ConsumerWidget {
             );
           }
           return ListView.separated(
+            controller: scrollController,
             physics: const AlwaysScrollableScrollPhysics(),
             itemCount: stations.length,
             separatorBuilder: (_, _) => const Divider(height: 1),

@@ -303,7 +303,7 @@ void main() {
 
         final quality = container.read(activeStreamingQualityProvider);
         expect(quality.maxBitRate, 192);
-        expect(quality.format, 'mp3');
+        expect(quality.format, 'opus');
       },
     );
 

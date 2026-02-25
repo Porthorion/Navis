@@ -14,6 +14,7 @@ import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/radio_screen.dart';
+import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -33,6 +34,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   _AlbumSort _albumSort = _AlbumSort.recentlyAdded;
   bool _downloadedOnly = false;
   final ScrollController _albumsScrollController = ScrollController();
+  final ScrollController _playlistsScrollController = ScrollController();
+  final ScrollController _radioScrollController = ScrollController();
   final ItemScrollController _artistsItemScrollController =
       ItemScrollController();
   final ItemPositionsListener _artistsItemPositionsListener =
@@ -62,6 +65,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     _albumsScrollController
       ..removeListener(_onAlbumsScroll)
       ..dispose();
+    _playlistsScrollController.dispose();
+    _radioScrollController.dispose();
     _artistsItemPositionsListener.itemPositions.removeListener(
       _onArtistsViewportChanged,
     );
@@ -70,6 +75,70 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
   Future<void> _refreshLibrary() {
     return ref.read(librarySyncControllerProvider.notifier).syncNow();
+  }
+
+  /// Scrolls whichever tab is currently selected back to the top.
+  void _scrollCurrentTabToTop() {
+    final tab = _tabController?.index ?? 0;
+
+    if (tab == 0) {
+      // Albums
+      if (_albumsScrollController.hasClients) {
+        _albumsScrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 450),
+          curve: Curves.easeOutCubic,
+        );
+      }
+      return;
+    }
+
+    int offset = 1;
+
+    if (ref.read(showArtistsPageProvider)) {
+      if (tab == offset) {
+        // Artists
+        if (_artistsItemScrollController.isAttached) {
+          unawaited(
+            _artistsItemScrollController.scrollTo(
+              index: 0,
+              duration: const Duration(milliseconds: 450),
+              curve: Curves.easeOutCubic,
+            ),
+          );
+        }
+        return;
+      }
+      offset++;
+    }
+
+    if (ref.read(showPlaylistsPageProvider)) {
+      if (tab == offset) {
+        // Playlists
+        if (_playlistsScrollController.hasClients) {
+          _playlistsScrollController.animateTo(
+            0,
+            duration: const Duration(milliseconds: 450),
+            curve: Curves.easeOutCubic,
+          );
+        }
+        return;
+      }
+      offset++;
+    }
+
+    if (ref.read(showRadioPageProvider)) {
+      if (tab == offset) {
+        // Radio
+        if (_radioScrollController.hasClients) {
+          _radioScrollController.animateTo(
+            0,
+            duration: const Duration(milliseconds: 450),
+            curve: Curves.easeOutCubic,
+          );
+        }
+      }
+    }
   }
 
   @override
@@ -84,6 +153,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         (showPlaylistsTab ? 1 : 0) +
         (showRadioTab ? 1 : 0);
     final tabController = _ensureTabController(tabCount);
+
+    // Scroll the active tab to top when the Library nav icon is re-tapped.
+    ref.listen<int>(libraryScrollToTopRequestProvider, (prev, next) {
+      if (!mounted) return;
+      _scrollCurrentTabToTop();
+    });
+
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.libraryTitle),
@@ -109,8 +185,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
               children: <Widget>[
                 _buildAlbumsTab(context),
                 if (showArtistsTab) _buildArtistsTab(context),
-                if (showPlaylistsTab) const _LibraryPlaylistsTab(),
-                if (showRadioTab) const RadioTabContent(),
+                if (showPlaylistsTab)
+                  _LibraryPlaylistsTab(
+                    scrollController: _playlistsScrollController,
+                  ),
+                if (showRadioTab)
+                  RadioTabContent(scrollController: _radioScrollController),
               ],
             ),
           ),
@@ -1064,7 +1144,10 @@ class _LoadingListPlaceholder extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _LibraryPlaylistsTab extends ConsumerStatefulWidget {
-  const _LibraryPlaylistsTab();
+  const _LibraryPlaylistsTab({this.scrollController});
+
+  /// Optional external [ScrollController] for scroll-to-top support.
+  final ScrollController? scrollController;
 
   @override
   ConsumerState<_LibraryPlaylistsTab> createState() =>
@@ -1110,6 +1193,7 @@ class _LibraryPlaylistsTabState
               }
 
               return ListView.builder(
+                controller: widget.scrollController,
                 padding: const EdgeInsets.only(bottom: 80),
                 itemCount: playlists.length,
                 itemBuilder: (context, index) {
