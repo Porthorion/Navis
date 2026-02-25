@@ -89,8 +89,7 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
               // ── Artist image header ─────────────────────────────────────
               artistInfo.when(
                 data: (info) {
-                  final url =
-                      info?.largeImageUrl ?? info?.mediumImageUrl ?? '';
+                  final url = info?.largeImageUrl ?? info?.mediumImageUrl ?? '';
                   if (url.isEmpty) return const SizedBox.shrink();
                   return _ArtistImageHeader(imageUrl: url);
                 },
@@ -140,6 +139,9 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                 ),
                 error: (_, _) => const SizedBox.shrink(),
               ),
+              // ── AI Similar Artists (AudioMuse) ──────────────────────────
+              if (ref.watch(audioMuseAvailableProvider))
+                _AudioMuseSimilarArtists(artistId: widget.artistId),
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                 child: Text(
@@ -297,6 +299,62 @@ class _ArtistInfoSection extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+/// AI-powered similar artists section, gated behind
+/// [audioMuseAvailableProvider]. Hidden when no recommendations are returned.
+class _AudioMuseSimilarArtists extends ConsumerWidget {
+  const _AudioMuseSimilarArtists({required this.artistId});
+
+  final String artistId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final asyncRecs = ref.watch(audioMuseSimilarArtistsProvider(artistId));
+
+    return asyncRecs.when(
+      data: (recs) {
+        if (recs.isEmpty) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  const Icon(Icons.auto_awesome, size: 18),
+                  const SizedBox(width: 6),
+                  Text(
+                    l10n.audioMuseSimilarArtists,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                children: <Widget>[
+                  for (final rec in recs)
+                    ActionChip(
+                      avatar: const Icon(Icons.auto_awesome, size: 16),
+                      label: Text(rec.title),
+                      onPressed: () => context.go('/library/artists/${rec.id}'),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+      loading: () => const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        child: LinearProgressIndicator(minHeight: 2),
+      ),
+      error: (_, _) => const SizedBox.shrink(),
     );
   }
 }

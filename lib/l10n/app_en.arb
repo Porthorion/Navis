@@ -757,5 +757,51 @@
 
   "serverSettingsSignOutConfirmTitle": "Sign out",
   "serverSettingsSignOutConfirmMessage": "How would you like to handle your local library data?",
-  "serverSettingsConnectionInfoTitle": "Connection info"
+  "serverSettingsConnectionInfoTitle": "Connection info",
+
+  "audioMuseSettingsTitle": "AudioMuse AI",
+  "audioMuseSettingsSubtitle": "AI-powered smart queuing & discovery",
+  "audioMuseEnabledLabel": "Enable AudioMuse",
+  "audioMuseEnabledSubtitle": "Connect to an AudioMuse server for AI recommendations",
+  "audioMuseServerUrlLabel": "Server URL",
+  "audioMuseServerUrlHint": "https://audiomuse.example.com",
+  "audioMuseApiKeyLabel": "API Key",
+  "audioMuseApiKeyHint": "Optional — leave blank if not required",
+  "audioMuseTestConnection": "Test connection",
+  "audioMuseTestConnectionSuccess": "Connected to AudioMuse (v{version}).",
+  "@audioMuseTestConnectionSuccess": {
+    "placeholders": {
+      "version": { "type": "String" }
+    }
+  },
+  "audioMuseTestConnectionFailed": "Could not connect to AudioMuse server.",
+  "audioMuseSimilarArtists": "AI Similar Artists",
+  "audioMuseSimilarAlbums": "You might also like",
+  "audioMuseHomeRecommendations": "Recommended for you",
+  "audioMuseSmartQueue": "Smart Queue",
+  "audioMuseSmartQueueActive": "AI auto-queue is active",
+  "audioMuseSmartQueueStopped": "AI auto-queue stopped",
+  "audioMuseSmartQueueQueued": "{count} AI-recommended tracks queued.",
+  "@audioMuseSmartQueueQueued": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "audioMuseGenerateMix": "Create AI Mix",
+  "audioMuseGenerateMixSeed": "Generate a mix based on this {seedType}",
+  "@audioMuseGenerateMixSeed": {
+    "placeholders": {
+      "seedType": { "type": "String" }
+    }
+  },
+  "audioMuseMixGenerated": "AI Mix created — {count} tracks queued.",
+  "@audioMuseMixGenerated": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "audioMuseMixFailed": "Could not generate AI mix. Try again later.",
+  "audioMuseNotConfigured": "AudioMuse is not configured. Set it up in Settings.",
+  "audioMuseConnectionSection": "Connection",
+  "audioMuseDisabledHint": "Enable AudioMuse above to configure the server."
 }

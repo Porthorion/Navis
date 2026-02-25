@@ -11,6 +11,7 @@ import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/audiomuse/domain/audiomuse_models.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
@@ -45,90 +46,101 @@ class HomeScreen extends ConsumerWidget {
                 ),
               ),
               const _UpdateBanner(),
-            // ── 1. Liked Tracks (vertical list, 5 items + See all) ──
-            _HomeSection<List<SongsTableData>>(
-              title: l10n.homeStarredTitle,
-              data: ref.watch(homeLikedSongsProvider),
-              isEmpty: (items) => items.isEmpty,
-              builder: (context, songs) => _SongListSection(
-                songs: songs,
-                onTap: (song) {
-                  ref
-                      .read(queueProvider.notifier)
-                      .replace([song.id])
-                      .ignore();
-                },
+              // ── 1. Liked Tracks (vertical list, 5 items + See all) ──
+              _HomeSection<List<SongsTableData>>(
+                title: l10n.homeStarredTitle,
+                data: ref.watch(homeLikedSongsProvider),
+                isEmpty: (items) => items.isEmpty,
+                builder: (context, songs) => _SongListSection(
+                  songs: songs,
+                  onTap: (song) {
+                    ref.read(queueProvider.notifier).replace([
+                      song.id,
+                    ]).ignore();
+                  },
+                ),
+                emptyTitle: l10n.homeStarredEmptyTitle,
+                emptySubtitle: l10n.homeStarredEmptySubtitle,
+                onRetry: () => ref.invalidate(homeLikedSongsProvider),
               ),
-              emptyTitle: l10n.homeStarredEmptyTitle,
-              emptySubtitle: l10n.homeStarredEmptySubtitle,
-              onRetry: () => ref.invalidate(homeLikedSongsProvider),
-            ),
 
-            // ── 2. Recently Added Albums (horizontal card carousel) ──
-            _HomeSection<List<Album>>(
-              title: l10n.homeRecentlyAddedTitle,
-              data: ref.watch(homeRecentlyAddedProvider),
-              isEmpty: (items) => items.isEmpty,
-              builder: (context, albums) => _ServerAlbumCarousel(
-                albums: albums,
-                onTap: (album) => context.push('/library/albums/${album.id}'),
+              // ── 2. Recently Added Albums (horizontal card carousel) ──
+              _HomeSection<List<Album>>(
+                title: l10n.homeRecentlyAddedTitle,
+                data: ref.watch(homeRecentlyAddedProvider),
+                isEmpty: (items) => items.isEmpty,
+                builder: (context, albums) => _ServerAlbumCarousel(
+                  albums: albums,
+                  onTap: (album) => context.push('/library/albums/${album.id}'),
+                ),
+                emptyTitle: l10n.homeRecentlyAddedEmptyTitle,
+                emptySubtitle: l10n.homeRecentlyAddedEmptySubtitle,
+                onRetry: () => ref.invalidate(homeRecentlyAddedProvider),
               ),
-              emptyTitle: l10n.homeRecentlyAddedEmptyTitle,
-              emptySubtitle: l10n.homeRecentlyAddedEmptySubtitle,
-              onRetry: () => ref.invalidate(homeRecentlyAddedProvider),
-            ),
 
-            // ── 3. Recently Played Albums (horizontal card carousel) ──
-            _HomeSection<List<AlbumsTableData>>(
-              title: l10n.homeRecentlyPlayedAlbumsTitle,
-              data: ref.watch(homeRecentlyPlayedAlbumsProvider),
-              isEmpty: (items) => items.isEmpty,
-              builder: (context, albums) => _LocalAlbumCarousel(
-                albums: albums,
-                onTap: (album) => context.push('/library/albums/${album.id}'),
+              // ── 3. Recently Played Albums (horizontal card carousel) ──
+              _HomeSection<List<AlbumsTableData>>(
+                title: l10n.homeRecentlyPlayedAlbumsTitle,
+                data: ref.watch(homeRecentlyPlayedAlbumsProvider),
+                isEmpty: (items) => items.isEmpty,
+                builder: (context, albums) => _LocalAlbumCarousel(
+                  albums: albums,
+                  onTap: (album) => context.push('/library/albums/${album.id}'),
+                ),
+                emptyTitle: l10n.homeRecentlyPlayedAlbumsEmptyTitle,
+                emptySubtitle: l10n.homeRecentlyPlayedAlbumsEmptySubtitle,
+                onRetry: () => ref.invalidate(homeRecentlyPlayedAlbumsProvider),
               ),
-              emptyTitle: l10n.homeRecentlyPlayedAlbumsEmptyTitle,
-              emptySubtitle: l10n.homeRecentlyPlayedAlbumsEmptySubtitle,
-              onRetry: () => ref.invalidate(homeRecentlyPlayedAlbumsProvider),
-            ),
 
-            // ── 4. Random Albums (horizontal card carousel) ──
-            _HomeSection<List<Album>>(
-              title: l10n.homeRandomTitle,
-              data: ref.watch(homeRandomAlbumsProvider),
-              isEmpty: (items) => items.isEmpty,
-              builder: (context, albums) => _ServerAlbumCarousel(
-                albums: albums,
-                onTap: (album) => context.push('/library/albums/${album.id}'),
+              // ── 4. Random Albums (horizontal card carousel) ──
+              _HomeSection<List<Album>>(
+                title: l10n.homeRandomTitle,
+                data: ref.watch(homeRandomAlbumsProvider),
+                isEmpty: (items) => items.isEmpty,
+                builder: (context, albums) => _ServerAlbumCarousel(
+                  albums: albums,
+                  onTap: (album) => context.push('/library/albums/${album.id}'),
+                ),
+                emptyTitle: l10n.homeRandomEmptyTitle,
+                emptySubtitle: l10n.homeRandomEmptySubtitle,
+                onRetry: () => ref.invalidate(homeRandomAlbumsProvider),
               ),
-              emptyTitle: l10n.homeRandomEmptyTitle,
-              emptySubtitle: l10n.homeRandomEmptySubtitle,
-              onRetry: () => ref.invalidate(homeRandomAlbumsProvider),
-            ),
 
-            // ── 5. Most Played Tracks (vertical list) ──
-            _HomeSection<List<SongsTableData>>(
-              title: l10n.homeMostPlayedTracksTitle,
-              data: ref.watch(homeMostPlayedSongsProvider),
-              isEmpty: (items) => items.isEmpty,
-              builder: (context, songs) => _SongListSection(
-                songs: songs,
-                onTap: (song) {
-                  ref
-                      .read(queueProvider.notifier)
-                      .replace([song.id])
-                      .ignore();
-                },
+              // ── 5. Most Played Tracks (vertical list) ──
+              _HomeSection<List<SongsTableData>>(
+                title: l10n.homeMostPlayedTracksTitle,
+                data: ref.watch(homeMostPlayedSongsProvider),
+                isEmpty: (items) => items.isEmpty,
+                builder: (context, songs) => _SongListSection(
+                  songs: songs,
+                  onTap: (song) {
+                    ref.read(queueProvider.notifier).replace([
+                      song.id,
+                    ]).ignore();
+                  },
+                ),
+                emptyTitle: l10n.homeMostPlayedTracksEmptyTitle,
+                emptySubtitle: l10n.homeMostPlayedTracksEmptySubtitle,
+                onRetry: () => ref.invalidate(homeMostPlayedSongsProvider),
               ),
-              emptyTitle: l10n.homeMostPlayedTracksEmptyTitle,
-              emptySubtitle: l10n.homeMostPlayedTracksEmptySubtitle,
-              onRetry: () => ref.invalidate(homeMostPlayedSongsProvider),
-            ),
-          ],
+
+              // ── 6. AudioMuse AI Recommendations ──
+              if (ref.watch(audioMuseAvailableProvider))
+                _HomeSection<List<AudioMuseRecommendation>>(
+                  title: l10n.audioMuseHomeRecommendations,
+                  data: ref.watch(audioMuseHomeRecommendationsProvider),
+                  isEmpty: (items) => items.isEmpty,
+                  builder: (context, recs) => _AudioMuseRecsSection(recs: recs),
+                  emptyTitle: l10n.audioMuseHomeRecommendations,
+                  emptySubtitle: l10n.audioMuseNotConfigured,
+                  onRetry: () =>
+                      ref.invalidate(audioMuseHomeRecommendationsProvider),
+                ),
+            ],
+          ),
         ),
       ),
-    ),
-  );
+    );
   }
 }
 
@@ -504,6 +516,34 @@ class _UpdateBanner extends ConsumerWidget {
       },
       loading: () => const SizedBox.shrink(),
       error: (_, _) => const SizedBox.shrink(),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AudioMuse AI Recommendations section
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _AudioMuseRecsSection extends StatelessWidget {
+  const _AudioMuseRecsSection({required this.recs});
+
+  final List<AudioMuseRecommendation> recs;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 6,
+      children: recs.map((rec) {
+        return ActionChip(
+          avatar: const Icon(Icons.auto_awesome, size: 16),
+          label: Text(
+            rec.artist != null ? '${rec.title} — ${rec.artist}' : rec.title,
+            overflow: TextOverflow.ellipsis,
+          ),
+          onPressed: () => context.go('/library/albums/${rec.id}'),
+        );
+      }).toList(),
     );
   }
 }

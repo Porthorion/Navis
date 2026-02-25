@@ -43,6 +43,7 @@ void main() {
           artTintedNowPlaying: false,
           updateCheckEnabled: true,
           updateChannel: 'stable',
+          audioMuseEnabled: false,
         );
 
         final first = await database.appSettingsDao.getSettings();
@@ -85,6 +86,7 @@ void main() {
           artTintedNowPlaying: false,
           updateCheckEnabled: false,
           updateChannel: 'beta',
+          audioMuseEnabled: false,
         );
 
         final second = await database.appSettingsDao.getSettings();
@@ -131,6 +133,7 @@ void main() {
         artTintedNowPlaying: false,
         updateCheckEnabled: false,
         updateChannel: 'beta',
+        audioMuseEnabled: false,
       );
 
       await database.appSettingsDao.resetDefaults();

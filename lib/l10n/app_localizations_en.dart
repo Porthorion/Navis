@@ -1622,4 +1622,93 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get serverSettingsConnectionInfoTitle => 'Connection info';
+
+  @override
+  String get audioMuseSettingsTitle => 'AudioMuse AI';
+
+  @override
+  String get audioMuseSettingsSubtitle =>
+      'AI-powered smart queuing & discovery';
+
+  @override
+  String get audioMuseEnabledLabel => 'Enable AudioMuse';
+
+  @override
+  String get audioMuseEnabledSubtitle =>
+      'Connect to an AudioMuse server for AI recommendations';
+
+  @override
+  String get audioMuseServerUrlLabel => 'Server URL';
+
+  @override
+  String get audioMuseServerUrlHint => 'https://audiomuse.example.com';
+
+  @override
+  String get audioMuseApiKeyLabel => 'API Key';
+
+  @override
+  String get audioMuseApiKeyHint => 'Optional — leave blank if not required';
+
+  @override
+  String get audioMuseTestConnection => 'Test connection';
+
+  @override
+  String audioMuseTestConnectionSuccess(String version) {
+    return 'Connected to AudioMuse (v$version).';
+  }
+
+  @override
+  String get audioMuseTestConnectionFailed =>
+      'Could not connect to AudioMuse server.';
+
+  @override
+  String get audioMuseSimilarArtists => 'AI Similar Artists';
+
+  @override
+  String get audioMuseSimilarAlbums => 'You might also like';
+
+  @override
+  String get audioMuseHomeRecommendations => 'Recommended for you';
+
+  @override
+  String get audioMuseSmartQueue => 'Smart Queue';
+
+  @override
+  String get audioMuseSmartQueueActive => 'AI auto-queue is active';
+
+  @override
+  String get audioMuseSmartQueueStopped => 'AI auto-queue stopped';
+
+  @override
+  String audioMuseSmartQueueQueued(int count) {
+    return '$count AI-recommended tracks queued.';
+  }
+
+  @override
+  String get audioMuseGenerateMix => 'Create AI Mix';
+
+  @override
+  String audioMuseGenerateMixSeed(String seedType) {
+    return 'Generate a mix based on this $seedType';
+  }
+
+  @override
+  String audioMuseMixGenerated(int count) {
+    return 'AI Mix created — $count tracks queued.';
+  }
+
+  @override
+  String get audioMuseMixFailed =>
+      'Could not generate AI mix. Try again later.';
+
+  @override
+  String get audioMuseNotConfigured =>
+      'AudioMuse is not configured. Set it up in Settings.';
+
+  @override
+  String get audioMuseConnectionSection => 'Connection';
+
+  @override
+  String get audioMuseDisabledHint =>
+      'Enable AudioMuse above to configure the server.';
 }

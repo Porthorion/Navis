@@ -86,6 +86,16 @@ class AppSettingsTable extends Table {
   TextColumn get updateChannel =>
       text().withDefault(const Constant('stable'))();
 
+  /// AudioMuse AI server URL. Null when not configured.
+  TextColumn get audioMuseServerUrl => text().nullable()();
+
+  /// AudioMuse API key. Null when not required or not configured.
+  TextColumn get audioMuseApiKey => text().nullable()();
+
+  /// Whether AudioMuse AI integration is enabled. Default false.
+  BoolColumn get audioMuseEnabled =>
+      boolean().withDefault(const Constant(false))();
+
   DateTimeColumn get updatedAt => dateTime()();
 
   @override

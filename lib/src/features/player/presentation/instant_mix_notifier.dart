@@ -3,6 +3,7 @@ import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/features/player/domain/instant_mix_state.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/utils/app_logger.dart';
 
 /// Number of remaining tracks (after the current one) that triggers
 /// an automatic refill fetch.
@@ -108,6 +109,10 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
 
   /// Fetches similar songs and appends them to the end of the queue.
   ///
+  /// When AudioMuse is available the AI-powered recommendations are tried
+  /// first.  If AudioMuse returns no results (or is not configured) the
+  /// method falls back to the standard Subsonic getSimilarSongs endpoint.
+  ///
   /// [isInitial] distinguishes the first activation fill (which may show
   /// a snackbar) from background auto-refills (which are silent).
   Future<void> _refill(String seedSongId, {bool isInitial = false}) async {
@@ -116,6 +121,37 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
     state = state.copyWith(refilling: true, seedSongId: seedSongId);
 
     try {
+      // ── 1. Try AudioMuse AI recommendations first ──
+      final audioMuseRepo = ref.read(audioMuseRepositoryProvider);
+      if (audioMuseRepo != null) {
+        try {
+          final recs = await audioMuseRepo.getRecommendations(
+            seedSongId: seedSongId,
+          );
+          if (recs.isNotEmpty && state.active) {
+            final ids = recs.map((r) => r.id).toList(growable: false);
+            final handler = ref.read(audioHandlerProvider);
+            await handler?.addToQueue(ids);
+            AppLogger.debug(
+              'InstantMix: queued ${ids.length} tracks via AudioMuse',
+            );
+            state = state.copyWith(
+              refilling: false,
+              pendingSnackbar: isInitial ? '${recs.length}' : null,
+            );
+            return;
+          }
+        } on Object catch (e) {
+          AppLogger.debug('AudioMuse refill failed, falling back: $e');
+        }
+      }
+
+      if (!state.active) {
+        state = state.copyWith(refilling: false);
+        return;
+      }
+
+      // ── 2. Fall back to Subsonic getSimilarSongs ──
       final api = ref.read(subsonicApiProvider);
       if (api == null) {
         state = state.copyWith(refilling: false);
@@ -157,5 +193,5 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
 /// Not autoDispose — must persist across routing to keep the session alive.
 final instantMixProvider =
     NotifierProvider<InstantMixNotifier, InstantMixState>(
-  InstantMixNotifier.new,
-);
+      InstantMixNotifier.new,
+    );

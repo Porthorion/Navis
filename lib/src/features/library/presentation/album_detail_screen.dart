@@ -200,6 +200,12 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                     );
                   }, childCount: songs.length),
                 ),
+              if (ref.watch(audioMuseAvailableProvider))
+                SliverToBoxAdapter(
+                  child: _AudioMuseSimilarAlbums(
+                    albumId: widget.albumId,
+                  ),
+                ),
             ],
           );
         },
@@ -444,5 +450,59 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
         setState(() => _isStarring = false);
       }
     }
+  }
+}
+
+class _AudioMuseSimilarAlbums extends ConsumerWidget {
+  const _AudioMuseSimilarAlbums({required this.albumId});
+
+  final String albumId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final asyncAlbums = ref.watch(audioMuseSimilarAlbumsProvider(albumId));
+    return asyncAlbums.when(
+      data: (albums) {
+        if (albums.isEmpty) return const SizedBox.shrink();
+        final l10n = AppLocalizations.of(context)!;
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.auto_awesome, size: 18),
+                  const SizedBox(width: 6),
+                  Text(
+                    l10n.audioMuseSimilarAlbums,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: albums.map((rec) {
+                  return ActionChip(
+                    avatar: const Icon(Icons.album, size: 18),
+                    label: Text(
+                      rec.artist != null
+                          ? '${rec.title} — ${rec.artist}'
+                          : rec.title,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    onPressed: () => context.go('/library/albums/${rec.id}'),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (_, _) => const SizedBox.shrink(),
+    );
   }
 }
