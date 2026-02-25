@@ -2781,6 +2781,54 @@ abstract class AppLocalizations {
   /// **'Navis is up to date.'**
   String get updateUpToDate;
 
+  /// No description provided for @updateAutoCheckTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatically check for updates'**
+  String get updateAutoCheckTitle;
+
+  /// No description provided for @updateAutoCheckSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Check for new releases on each app launch.'**
+  String get updateAutoCheckSubtitle;
+
+  /// No description provided for @updatesSettingsSectionLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Updates'**
+  String get updatesSettingsSectionLabel;
+
+  /// No description provided for @updateChannelTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Update channel'**
+  String get updateChannelTitle;
+
+  /// No description provided for @updateChannelStable.
+  ///
+  /// In en, this message translates to:
+  /// **'Stable'**
+  String get updateChannelStable;
+
+  /// No description provided for @updateChannelBeta.
+  ///
+  /// In en, this message translates to:
+  /// **'Beta'**
+  String get updateChannelBeta;
+
+  /// No description provided for @updateChannelBetaDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Includes pre-release builds'**
+  String get updateChannelBetaDescription;
+
+  /// No description provided for @updateChannelDialogTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Select update channel'**
+  String get updateChannelDialogTitle;
+
   /// No description provided for @appearancePagesSectionLabel.
   ///
   /// In en, this message translates to:

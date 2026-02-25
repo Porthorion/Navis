@@ -7,6 +7,7 @@ import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
+import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
@@ -160,7 +161,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           ],
         );
       },
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const ShimmerListPage(count: 8),
       error: (error, _) => ErrorState(
         title: l10n.searchNoResults,
         message: error.toString(),

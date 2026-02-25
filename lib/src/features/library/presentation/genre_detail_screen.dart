@@ -7,6 +7,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
+import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/common_widgets/song_cache_badge.dart';
 import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -58,7 +59,7 @@ class GenreDetailScreen extends ConsumerWidget {
                   },
                 );
               },
-              loading: () => const Center(child: CircularProgressIndicator()),
+              loading: () => const ShimmerListPage(count: 6, leadingSize: 56),
               error: (error, _) => ErrorState(
                 title: l10n.libraryGenreLoadErrorTitle,
                 message: error.toString(),
@@ -84,7 +85,7 @@ class GenreDetailScreen extends ConsumerWidget {
                   },
                 );
               },
-              loading: () => const Center(child: CircularProgressIndicator()),
+              loading: () => const ShimmerListPage(count: 8),
               error: (error, _) => ErrorState(
                 title: l10n.libraryGenreLoadErrorTitle,
                 message: error.toString(),

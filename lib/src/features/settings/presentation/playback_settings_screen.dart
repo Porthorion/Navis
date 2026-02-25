@@ -386,6 +386,9 @@ class _PlaybackSettingsScreenState
 
     setState(() => _isSaving = true);
     try {
+      final currentSettings =
+          ref.read(appSettingsProvider).asData?.value ??
+          const AppSettingsModel.defaults();
       final settings = AppSettingsModel(
         wifiMaxBitRate: _wifiBitRate,
         wifiFormat: _normalizeFormat(_wifiFormat),
@@ -408,6 +411,8 @@ class _PlaybackSettingsScreenState
         crossfadeDurationSeconds: _crossfadeDurationSeconds,
         crossfadeType: _crossfadeType,
         artTintedNowPlaying: ref.read(artTintedNowPlayingProvider),
+        updateCheckEnabled: currentSettings.updateCheckEnabled,
+        updateChannel: currentSettings.updateChannel,
       );
       await ref.read(settingsRepositoryProvider).saveSettings(settings);
       final handler = ref.read(audioHandlerProvider);

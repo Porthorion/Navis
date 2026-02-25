@@ -78,6 +78,14 @@ class AppSettingsTable extends Table {
   BoolColumn get artTintedNowPlaying =>
       boolean().withDefault(const Constant(true))();
 
+  /// Whether to automatically check for updates on launch. Default true.
+  BoolColumn get updateCheckEnabled =>
+      boolean().withDefault(const Constant(true))();
+
+  /// Update channel: 'stable' (default) or 'beta' (pre-releases included).
+  TextColumn get updateChannel =>
+      text().withDefault(const Constant('stable'))();
+
   DateTimeColumn get updatedAt => dateTime()();
 
   @override

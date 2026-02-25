@@ -6,6 +6,7 @@ import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
+import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/common_widgets/star_button.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
@@ -179,7 +180,7 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                     ),
                   );
                 },
-                loading: () => const Center(child: CircularProgressIndicator()),
+                loading: () => const ShimmerListPage(count: 4, leadingSize: 56),
                 error: (error, _) => ErrorState(
                   title: l10n.artistDetailAlbumsErrorTitle,
                   message: error.toString(),
@@ -190,7 +191,7 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
             ],
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const ShimmerListPage(count: 8, leadingSize: 56),
         error: (error, _) => ErrorState(
           title: l10n.artistDetailLoadErrorTitle,
           message: error.toString(),

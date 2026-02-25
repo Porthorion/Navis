@@ -2,15 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
+import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/utils/constants.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Displays app version, open-source licenses, and repository links.
 class AboutScreen extends ConsumerStatefulWidget {
   const AboutScreen({super.key});
 
-  static const String _repoUrl = 'https://git.porthorion.com/khalifa/Navis';
   static const String _version = 'Cape Horn 0.1';
 
   @override
@@ -27,6 +28,8 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final updateAsync = ref.watch(updateProvider);
+    final settingsAsync = ref.watch(appSettingsProvider);
+    final settings = settingsAsync.asData?.value ?? const AppSettingsModel.defaults();
 
     // Show a snackbar when a user-triggered check resolves as up to date.
     ref.listen<AsyncValue<UpdateInfo?>>(updateProvider, (prev, next) {
@@ -87,11 +90,42 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
             subtitle: Text(l10n.aboutSourceCodeSub),
             trailing: const Icon(Icons.open_in_new),
             onTap: () async {
-              final uri = Uri.parse(AboutScreen._repoUrl);
+              final uri = Uri.parse(AppConstants.repoUrl);
               if (await canLaunchUrl(uri)) {
                 await launchUrl(uri, mode: LaunchMode.externalApplication);
               }
             },
+          ),
+          const Divider(),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Text(
+              l10n.updatesSettingsSectionLabel,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.primary,
+              ),
+            ),
+          ),
+          SwitchListTile(
+            secondary: const Icon(Icons.system_update_outlined),
+            title: Text(l10n.updateAutoCheckTitle),
+            subtitle: Text(l10n.updateAutoCheckSubtitle),
+            value: settings.updateCheckEnabled,
+            onChanged: (value) {
+              final repo = ref.read(settingsRepositoryProvider);
+              repo.saveSettings(settings.copyWith(updateCheckEnabled: value));
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.new_releases_outlined),
+            title: Text(l10n.updateChannelTitle),
+            subtitle: Text(
+              settings.updateChannel == 'beta'
+                  ? l10n.updateChannelBeta
+                  : l10n.updateChannelStable,
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _showChannelDialog(context, l10n, settings),
           ),
           ListTile(
             leading: const Icon(Icons.system_update_outlined),
@@ -116,6 +150,42 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
                 setState(() => _userTriggeredCheck = true);
                 ref.invalidate(updateProvider);
               },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showChannelDialog(
+    BuildContext context,
+    AppLocalizations l10n,
+    AppSettingsModel settings,
+  ) {
+    showDialog<String>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: Text(l10n.updateChannelDialogTitle),
+        children: [
+          RadioListTile<String>(
+            title: Text(l10n.updateChannelStable),
+            value: 'stable',
+            groupValue: settings.updateChannel,
+            onChanged: (v) {
+              Navigator.of(ctx).pop();
+              final repo = ref.read(settingsRepositoryProvider);
+              repo.saveSettings(settings.copyWith(updateChannel: v!));
+            },
+          ),
+          RadioListTile<String>(
+            title: Text(l10n.updateChannelBeta),
+            subtitle: Text(l10n.updateChannelBetaDescription),
+            value: 'beta',
+            groupValue: settings.updateChannel,
+            onChanged: (v) {
+              Navigator.of(ctx).pop();
+              final repo = ref.read(settingsRepositoryProvider);
+              repo.saveSettings(settings.copyWith(updateChannel: v!));
+            },
           ),
         ],
       ),

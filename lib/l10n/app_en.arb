@@ -718,6 +718,15 @@
   "updateDismiss": "Dismiss",
   "updateUpToDate": "Navis is up to date.",
 
+  "updateAutoCheckTitle": "Automatically check for updates",
+  "updateAutoCheckSubtitle": "Check for new releases on each app launch.",
+  "updatesSettingsSectionLabel": "Updates",
+  "updateChannelTitle": "Update channel",
+  "updateChannelStable": "Stable",
+  "updateChannelBeta": "Beta",
+  "updateChannelBetaDescription": "Includes pre-release builds",
+  "updateChannelDialogTitle": "Select update channel",
+
   "appearancePagesSectionLabel": "Page Visibility",
   "appearanceShowRadioPageTitle": "Show Radio tab",
   "appearanceShowRadioPageSubtitle": "Show the Radio tab in the Library screen.",

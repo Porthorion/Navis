@@ -38,9 +38,9 @@ class HomeScreen extends ConsumerWidget {
             children: <Widget>[
               // App icon header — accent-tinted, modernized feel
               Padding(
-                padding: const EdgeInsets.fromLTRB(0, 28, 0, 8),
+                padding: const EdgeInsets.fromLTRB(0, 48, 0, 20),
                 child: Center(
-                  child: NavisIcon(size: 72, tintWithAccent: true),
+                  child: NavisIcon(size: 96, tintWithAccent: true),
                 ),
               ),
               const _UpdateBanner(),
@@ -454,6 +454,12 @@ class _UpdateBanner extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final updateAsync = ref.watch(updateProvider);
+    final settings = ref.watch(appSettingsProvider).asData?.value;
+
+    // If the user has disabled automatic update checks, hide the banner.
+    if (settings != null && !settings.updateCheckEnabled) {
+      return const SizedBox.shrink();
+    }
 
     return updateAsync.when(
       data: (UpdateInfo? info) {

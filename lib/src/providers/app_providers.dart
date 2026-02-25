@@ -814,7 +814,11 @@ final customColorPresetsProvider = StreamProvider<List<int>>((ref) {
 /// Checks whether a newer Navis release is available on Forgejo.
 /// Auto-disposed so it re-runs each time a screen watches it freshly.
 final updateProvider = FutureProvider.autoDispose<UpdateInfo?>((ref) async {
-  return UpdateRepository().checkForUpdate();
+  final settings =
+      ref.read(appSettingsProvider).asData?.value ?? const AppSettingsModel.defaults();
+  return UpdateRepository().checkForUpdate(
+    includePrerelease: settings.updateChannel == 'beta',
+  );
 });
 
 Future<void> seedDefaultServerConfig(Ref ref) async {

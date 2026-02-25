@@ -1549,6 +1549,31 @@ class AppLocalizationsEn extends AppLocalizations {
   String get updateUpToDate => 'Navis is up to date.';
 
   @override
+  String get updateAutoCheckTitle => 'Automatically check for updates';
+
+  @override
+  String get updateAutoCheckSubtitle =>
+      'Check for new releases on each app launch.';
+
+  @override
+  String get updatesSettingsSectionLabel => 'Updates';
+
+  @override
+  String get updateChannelTitle => 'Update channel';
+
+  @override
+  String get updateChannelStable => 'Stable';
+
+  @override
+  String get updateChannelBeta => 'Beta';
+
+  @override
+  String get updateChannelBetaDescription => 'Includes pre-release builds';
+
+  @override
+  String get updateChannelDialogTitle => 'Select update channel';
+
+  @override
   String get appearancePagesSectionLabel => 'Page Visibility';
 
   @override
