@@ -28,9 +28,10 @@ format-check:
 	dart format --set-exit-if-changed .
 
 release:
-	@echo "Usage: make release VERSION=v0.2.0"
+	@echo "Usage: make release VERSION=v0.3.0 [IPA=1]"
+	@echo "       IPA=1 also builds and uploads an iOS IPA (macOS only)"
 	@test -n "$(VERSION)" || (echo "Error: VERSION is required" && exit 1)
-	./tool/release.sh $(VERSION)
+	./tool/release.sh $(VERSION) $(if $(IPA),--ipa)
 
 outdated:
 	flutter pub outdated
