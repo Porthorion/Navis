@@ -2,15 +2,13 @@ import 'package:dio/dio.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import 'package:navis/src/features/settings/domain/update_info.dart';
+import 'package:navis/src/utils/constants.dart';
 
 /// Fetches release information from the Navis Forgejo repository and compares
 /// it with the installed app version to determine whether an update is
 /// available.
 class UpdateRepository {
   UpdateRepository({Dio? dio}) : _dio = dio ?? Dio();
-
-  static const _releasesUrl =
-      'https://git.porthorion.com/api/v1/repos/khalifa/Navis/releases';
 
   final Dio _dio;
 
@@ -23,7 +21,7 @@ class UpdateRepository {
     final currentVersion = packageInfo.version; // e.g. "0.1.0"
 
     final response = await _dio.get<List<dynamic>>(
-      _releasesUrl,
+      AppConstants.releasesApiUrl,
       options: Options(
         responseType: ResponseType.json,
         receiveTimeout: const Duration(seconds: 10),
@@ -48,7 +46,7 @@ class UpdateRepository {
 
     return UpdateInfo(
       tagName: rawTag,
-      htmlUrl: (candidate['html_url'] as String?) ?? _releasesUrl,
+      htmlUrl: (candidate['html_url'] as String?) ?? AppConstants.repoUrl,
       releaseNotes: candidate['body'] as String?,
     );
   }

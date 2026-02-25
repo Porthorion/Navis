@@ -40,6 +40,6 @@ class NavisIcon extends StatelessWidget {
       );
     }
 
-    return image;
+    return ExcludeSemantics(child: image);
   }
 }

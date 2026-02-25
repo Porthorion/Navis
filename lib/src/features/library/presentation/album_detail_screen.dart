@@ -8,6 +8,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
+import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/common_widgets/song_cache_badge.dart';
 import 'package:navis/src/common_widgets/star_button.dart';
 import 'package:navis/src/common_widgets/track_list_tile.dart';
@@ -198,7 +199,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
             ],
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const ShimmerListPage(count: 8, leadingSize: 56),
         error: (error, _) => ErrorState(
           title: l10n.albumDetailLoadErrorTitle,
           message: error.toString(),

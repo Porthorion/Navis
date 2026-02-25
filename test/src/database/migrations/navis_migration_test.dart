@@ -20,8 +20,8 @@ void main() {
           .customSelect('PRAGMA user_version;')
           .getSingle();
 
-      expect(database.schemaVersion, 18);
-      expect(pragmaRow.read<int>('user_version'), 18);
+      expect(database.schemaVersion, 19);
+      expect(pragmaRow.read<int>('user_version'), 19);
     },
     skip: !sqliteAvailable,
   );
@@ -57,6 +57,8 @@ void main() {
         settings.rollingCacheBudgetMb,
         AppSettingsDao.defaultRollingCacheBudgetMb,
       );
+      expect(settings.updateCheckEnabled, isTrue);
+      expect(settings.updateChannel, 'stable');
     },
     skip: !sqliteAvailable,
   );
@@ -211,7 +213,7 @@ void main() {
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 18);
+      expect(versionRow.read<int>('user_version'), 19);
 
       final albums = await migrated.select(migrated.albumsTable).get();
       final albumsById = {for (final album in albums) album.id: album};

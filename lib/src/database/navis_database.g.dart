@@ -846,6 +846,32 @@ class $AppSettingsTableTable extends AppSettingsTable
     ),
     defaultValue: const Constant(true),
   );
+  static const VerificationMeta _updateCheckEnabledMeta =
+      const VerificationMeta('updateCheckEnabled');
+  @override
+  late final GeneratedColumn<bool> updateCheckEnabled = GeneratedColumn<bool>(
+    'update_check_enabled',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("update_check_enabled" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _updateChannelMeta = const VerificationMeta(
+    'updateChannel',
+  );
+  @override
+  late final GeneratedColumn<String> updateChannel = GeneratedColumn<String>(
+    'update_channel',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('stable'),
+  );
   static const VerificationMeta _updatedAtMeta = const VerificationMeta(
     'updatedAt',
   );
@@ -884,6 +910,8 @@ class $AppSettingsTableTable extends AppSettingsTable
     crossfadeType,
     coverArtCacheMaxObjects,
     artTintedNowPlaying,
+    updateCheckEnabled,
+    updateChannel,
     updatedAt,
   ];
   @override
@@ -1111,6 +1139,24 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
       );
     }
+    if (data.containsKey('update_check_enabled')) {
+      context.handle(
+        _updateCheckEnabledMeta,
+        updateCheckEnabled.isAcceptableOrUnknown(
+          data['update_check_enabled']!,
+          _updateCheckEnabledMeta,
+        ),
+      );
+    }
+    if (data.containsKey('update_channel')) {
+      context.handle(
+        _updateChannelMeta,
+        updateChannel.isAcceptableOrUnknown(
+          data['update_channel']!,
+          _updateChannelMeta,
+        ),
+      );
+    }
     if (data.containsKey('updated_at')) {
       context.handle(
         _updatedAtMeta,
@@ -1228,6 +1274,14 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.bool,
         data['${effectivePrefix}art_tinted_now_playing'],
       )!,
+      updateCheckEnabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}update_check_enabled'],
+      )!,
+      updateChannel: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}update_channel'],
+      )!,
       updatedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
@@ -1288,6 +1342,12 @@ class AppSettingsTableData extends DataClass
 
   /// When true, the Now Playing background is tinted with album art colors.
   final bool artTintedNowPlaying;
+
+  /// Whether to automatically check for updates on launch. Default true.
+  final bool updateCheckEnabled;
+
+  /// Update channel: 'stable' (default) or 'beta' (pre-releases included).
+  final String updateChannel;
   final DateTime updatedAt;
   const AppSettingsTableData({
     required this.id,
@@ -1315,6 +1375,8 @@ class AppSettingsTableData extends DataClass
     required this.crossfadeType,
     required this.coverArtCacheMaxObjects,
     required this.artTintedNowPlaying,
+    required this.updateCheckEnabled,
+    required this.updateChannel,
     required this.updatedAt,
   });
   @override
@@ -1361,6 +1423,8 @@ class AppSettingsTableData extends DataClass
     map['crossfade_type'] = Variable<String>(crossfadeType);
     map['cover_art_cache_max_objects'] = Variable<int>(coverArtCacheMaxObjects);
     map['art_tinted_now_playing'] = Variable<bool>(artTintedNowPlaying);
+    map['update_check_enabled'] = Variable<bool>(updateCheckEnabled);
+    map['update_channel'] = Variable<String>(updateChannel);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
   }
@@ -1408,6 +1472,8 @@ class AppSettingsTableData extends DataClass
       crossfadeType: Value(crossfadeType),
       coverArtCacheMaxObjects: Value(coverArtCacheMaxObjects),
       artTintedNowPlaying: Value(artTintedNowPlaying),
+      updateCheckEnabled: Value(updateCheckEnabled),
+      updateChannel: Value(updateChannel),
       updatedAt: Value(updatedAt),
     );
   }
@@ -1457,6 +1523,8 @@ class AppSettingsTableData extends DataClass
       artTintedNowPlaying: serializer.fromJson<bool>(
         json['artTintedNowPlaying'],
       ),
+      updateCheckEnabled: serializer.fromJson<bool>(json['updateCheckEnabled']),
+      updateChannel: serializer.fromJson<String>(json['updateChannel']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
   }
@@ -1493,6 +1561,8 @@ class AppSettingsTableData extends DataClass
         coverArtCacheMaxObjects,
       ),
       'artTintedNowPlaying': serializer.toJson<bool>(artTintedNowPlaying),
+      'updateCheckEnabled': serializer.toJson<bool>(updateCheckEnabled),
+      'updateChannel': serializer.toJson<String>(updateChannel),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
   }
@@ -1523,6 +1593,8 @@ class AppSettingsTableData extends DataClass
     String? crossfadeType,
     int? coverArtCacheMaxObjects,
     bool? artTintedNowPlaying,
+    bool? updateCheckEnabled,
+    String? updateChannel,
     DateTime? updatedAt,
   }) => AppSettingsTableData(
     id: id ?? this.id,
@@ -1566,6 +1638,8 @@ class AppSettingsTableData extends DataClass
     coverArtCacheMaxObjects:
         coverArtCacheMaxObjects ?? this.coverArtCacheMaxObjects,
     artTintedNowPlaying: artTintedNowPlaying ?? this.artTintedNowPlaying,
+    updateCheckEnabled: updateCheckEnabled ?? this.updateCheckEnabled,
+    updateChannel: updateChannel ?? this.updateChannel,
     updatedAt: updatedAt ?? this.updatedAt,
   );
   AppSettingsTableData copyWithCompanion(AppSettingsTableCompanion data) {
@@ -1641,6 +1715,12 @@ class AppSettingsTableData extends DataClass
       artTintedNowPlaying: data.artTintedNowPlaying.present
           ? data.artTintedNowPlaying.value
           : this.artTintedNowPlaying,
+      updateCheckEnabled: data.updateCheckEnabled.present
+          ? data.updateCheckEnabled.value
+          : this.updateCheckEnabled,
+      updateChannel: data.updateChannel.present
+          ? data.updateChannel.value
+          : this.updateChannel,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
   }
@@ -1673,6 +1753,8 @@ class AppSettingsTableData extends DataClass
           ..write('crossfadeType: $crossfadeType, ')
           ..write('coverArtCacheMaxObjects: $coverArtCacheMaxObjects, ')
           ..write('artTintedNowPlaying: $artTintedNowPlaying, ')
+          ..write('updateCheckEnabled: $updateCheckEnabled, ')
+          ..write('updateChannel: $updateChannel, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
@@ -1705,6 +1787,8 @@ class AppSettingsTableData extends DataClass
     crossfadeType,
     coverArtCacheMaxObjects,
     artTintedNowPlaying,
+    updateCheckEnabled,
+    updateChannel,
     updatedAt,
   ]);
   @override
@@ -1736,6 +1820,8 @@ class AppSettingsTableData extends DataClass
           other.crossfadeType == this.crossfadeType &&
           other.coverArtCacheMaxObjects == this.coverArtCacheMaxObjects &&
           other.artTintedNowPlaying == this.artTintedNowPlaying &&
+          other.updateCheckEnabled == this.updateCheckEnabled &&
+          other.updateChannel == this.updateChannel &&
           other.updatedAt == this.updatedAt);
 }
 
@@ -1765,6 +1851,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<String> crossfadeType;
   final Value<int> coverArtCacheMaxObjects;
   final Value<bool> artTintedNowPlaying;
+  final Value<bool> updateCheckEnabled;
+  final Value<String> updateChannel;
   final Value<DateTime> updatedAt;
   const AppSettingsTableCompanion({
     this.id = const Value.absent(),
@@ -1792,6 +1880,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.crossfadeType = const Value.absent(),
     this.coverArtCacheMaxObjects = const Value.absent(),
     this.artTintedNowPlaying = const Value.absent(),
+    this.updateCheckEnabled = const Value.absent(),
+    this.updateChannel = const Value.absent(),
     this.updatedAt = const Value.absent(),
   });
   AppSettingsTableCompanion.insert({
@@ -1820,6 +1910,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.crossfadeType = const Value.absent(),
     this.coverArtCacheMaxObjects = const Value.absent(),
     this.artTintedNowPlaying = const Value.absent(),
+    this.updateCheckEnabled = const Value.absent(),
+    this.updateChannel = const Value.absent(),
     required DateTime updatedAt,
   }) : updatedAt = Value(updatedAt);
   static Insertable<AppSettingsTableData> custom({
@@ -1848,6 +1940,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<String>? crossfadeType,
     Expression<int>? coverArtCacheMaxObjects,
     Expression<bool>? artTintedNowPlaying,
+    Expression<bool>? updateCheckEnabled,
+    Expression<String>? updateChannel,
     Expression<DateTime>? updatedAt,
   }) {
     return RawValuesInsertable({
@@ -1885,6 +1979,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         'cover_art_cache_max_objects': coverArtCacheMaxObjects,
       if (artTintedNowPlaying != null)
         'art_tinted_now_playing': artTintedNowPlaying,
+      if (updateCheckEnabled != null)
+        'update_check_enabled': updateCheckEnabled,
+      if (updateChannel != null) 'update_channel': updateChannel,
       if (updatedAt != null) 'updated_at': updatedAt,
     });
   }
@@ -1915,6 +2012,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<String>? crossfadeType,
     Value<int>? coverArtCacheMaxObjects,
     Value<bool>? artTintedNowPlaying,
+    Value<bool>? updateCheckEnabled,
+    Value<String>? updateChannel,
     Value<DateTime>? updatedAt,
   }) {
     return AppSettingsTableCompanion(
@@ -1945,6 +2044,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       coverArtCacheMaxObjects:
           coverArtCacheMaxObjects ?? this.coverArtCacheMaxObjects,
       artTintedNowPlaying: artTintedNowPlaying ?? this.artTintedNowPlaying,
+      updateCheckEnabled: updateCheckEnabled ?? this.updateCheckEnabled,
+      updateChannel: updateChannel ?? this.updateChannel,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
@@ -2035,6 +2136,12 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     if (artTintedNowPlaying.present) {
       map['art_tinted_now_playing'] = Variable<bool>(artTintedNowPlaying.value);
     }
+    if (updateCheckEnabled.present) {
+      map['update_check_enabled'] = Variable<bool>(updateCheckEnabled.value);
+    }
+    if (updateChannel.present) {
+      map['update_channel'] = Variable<String>(updateChannel.value);
+    }
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
@@ -2069,6 +2176,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('crossfadeType: $crossfadeType, ')
           ..write('coverArtCacheMaxObjects: $coverArtCacheMaxObjects, ')
           ..write('artTintedNowPlaying: $artTintedNowPlaying, ')
+          ..write('updateCheckEnabled: $updateCheckEnabled, ')
+          ..write('updateChannel: $updateChannel, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
@@ -8627,6 +8736,8 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<String> crossfadeType,
       Value<int> coverArtCacheMaxObjects,
       Value<bool> artTintedNowPlaying,
+      Value<bool> updateCheckEnabled,
+      Value<String> updateChannel,
       required DateTime updatedAt,
     });
 typedef $$AppSettingsTableTableUpdateCompanionBuilder =
@@ -8656,6 +8767,8 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<String> crossfadeType,
       Value<int> coverArtCacheMaxObjects,
       Value<bool> artTintedNowPlaying,
+      Value<bool> updateCheckEnabled,
+      Value<String> updateChannel,
       Value<DateTime> updatedAt,
     });
 
@@ -8790,6 +8903,16 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<bool> get artTintedNowPlaying => $composableBuilder(
     column: $table.artTintedNowPlaying,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get updateCheckEnabled => $composableBuilder(
+    column: $table.updateCheckEnabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get updateChannel => $composableBuilder(
+    column: $table.updateChannel,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -8933,6 +9056,16 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get updateCheckEnabled => $composableBuilder(
+    column: $table.updateCheckEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get updateChannel => $composableBuilder(
+    column: $table.updateChannel,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
@@ -9069,6 +9202,16 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get updateCheckEnabled => $composableBuilder(
+    column: $table.updateCheckEnabled,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get updateChannel => $composableBuilder(
+    column: $table.updateChannel,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 }
@@ -9135,6 +9278,8 @@ class $$AppSettingsTableTableTableManager
                 Value<String> crossfadeType = const Value.absent(),
                 Value<int> coverArtCacheMaxObjects = const Value.absent(),
                 Value<bool> artTintedNowPlaying = const Value.absent(),
+                Value<bool> updateCheckEnabled = const Value.absent(),
+                Value<String> updateChannel = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
               }) => AppSettingsTableCompanion(
                 id: id,
@@ -9162,6 +9307,8 @@ class $$AppSettingsTableTableTableManager
                 crossfadeType: crossfadeType,
                 coverArtCacheMaxObjects: coverArtCacheMaxObjects,
                 artTintedNowPlaying: artTintedNowPlaying,
+                updateCheckEnabled: updateCheckEnabled,
+                updateChannel: updateChannel,
                 updatedAt: updatedAt,
               ),
           createCompanionCallback:
@@ -9191,6 +9338,8 @@ class $$AppSettingsTableTableTableManager
                 Value<String> crossfadeType = const Value.absent(),
                 Value<int> coverArtCacheMaxObjects = const Value.absent(),
                 Value<bool> artTintedNowPlaying = const Value.absent(),
+                Value<bool> updateCheckEnabled = const Value.absent(),
+                Value<String> updateChannel = const Value.absent(),
                 required DateTime updatedAt,
               }) => AppSettingsTableCompanion.insert(
                 id: id,
@@ -9218,6 +9367,8 @@ class $$AppSettingsTableTableTableManager
                 crossfadeType: crossfadeType,
                 coverArtCacheMaxObjects: coverArtCacheMaxObjects,
                 artTintedNowPlaying: artTintedNowPlaying,
+                updateCheckEnabled: updateCheckEnabled,
+                updateChannel: updateChannel,
                 updatedAt: updatedAt,
               ),
           withReferenceMapper: (p0) => p0

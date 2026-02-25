@@ -41,6 +41,8 @@ void main() {
           crossfadeDurationSeconds: 5,
           crossfadeType: 'normal',
           artTintedNowPlaying: false,
+          updateCheckEnabled: true,
+          updateChannel: 'stable',
         );
 
         final first = await database.appSettingsDao.getSettings();
@@ -81,6 +83,8 @@ void main() {
           crossfadeDurationSeconds: 5,
           crossfadeType: 'normal',
           artTintedNowPlaying: false,
+          updateCheckEnabled: false,
+          updateChannel: 'beta',
         );
 
         final second = await database.appSettingsDao.getSettings();
@@ -125,6 +129,8 @@ void main() {
         crossfadeDurationSeconds: 5,
         crossfadeType: 'normal',
         artTintedNowPlaying: false,
+        updateCheckEnabled: false,
+        updateChannel: 'beta',
       );
 
       await database.appSettingsDao.resetDefaults();

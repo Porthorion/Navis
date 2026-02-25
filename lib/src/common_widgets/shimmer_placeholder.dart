@@ -60,3 +60,61 @@ class _ShimmerPlaceholderState extends State<ShimmerPlaceholder>
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Reusable shimmer skeletons for lists of track / album / playlist items.
+// ---------------------------------------------------------------------------
+
+/// A skeleton that mimics a single list tile with a leading square thumbnail,
+/// a title bar, and a subtitle bar — suitable for track, album, or playlist
+/// loading states.
+class ShimmerListTile extends StatelessWidget {
+  const ShimmerListTile({super.key, this.leadingSize = 48});
+
+  final double leadingSize;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: <Widget>[
+          ShimmerPlaceholder(
+            height: leadingSize,
+            width: leadingSize,
+            borderRadius: const BorderRadius.all(Radius.circular(4)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                ShimmerPlaceholder(height: 14, width: double.infinity),
+                const SizedBox(height: 6),
+                ShimmerPlaceholder(height: 12, width: 140),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A full-screen shimmer list page with [count] [ShimmerListTile] items.
+/// Use this as the `loading:` fallback in `AsyncValue.when(...)`.
+class ShimmerListPage extends StatelessWidget {
+  const ShimmerListPage({super.key, this.count = 10, this.leadingSize = 48});
+
+  final int count;
+  final double leadingSize;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: count,
+      itemBuilder: (_, __) => ShimmerListTile(leadingSize: leadingSize),
+    );
+  }
+}

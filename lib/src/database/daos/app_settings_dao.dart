@@ -49,6 +49,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     required int crossfadeDurationSeconds,
     required String crossfadeType,
     required bool artTintedNowPlaying,
+    required bool updateCheckEnabled,
+    required String updateChannel,
   }) {
     return into(appSettingsTable).insertOnConflictUpdate(
       AppSettingsTableCompanion.insert(
@@ -74,6 +76,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         crossfadeDurationSeconds: Value(crossfadeDurationSeconds),
         crossfadeType: Value(crossfadeType),
         artTintedNowPlaying: Value(artTintedNowPlaying),
+        updateCheckEnabled: Value(updateCheckEnabled),
+        updateChannel: Value(updateChannel),
         updatedAt: DateTime.now(),
       ),
     );
@@ -102,6 +106,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       crossfadeDurationSeconds: 5,
       crossfadeType: 'normal',
       artTintedNowPlaying: true,
+      updateCheckEnabled: true,
+      updateChannel: 'stable',
     );
   }
 

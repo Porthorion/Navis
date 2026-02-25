@@ -25,6 +25,8 @@ class AppSettingsModel {
     required this.crossfadeDurationSeconds,
     required this.crossfadeType,
     required this.artTintedNowPlaying,
+    required this.updateCheckEnabled,
+    required this.updateChannel,
   });
 
   const AppSettingsModel.defaults()
@@ -48,7 +50,9 @@ class AppSettingsModel {
       crossfadeEnabled = false,
       crossfadeDurationSeconds = 5,
       crossfadeType = 'normal',
-      artTintedNowPlaying = true;
+      artTintedNowPlaying = true,
+      updateCheckEnabled = true,
+      updateChannel = 'stable';
 
   final int? wifiMaxBitRate;
   final String? wifiFormat;
@@ -73,6 +77,8 @@ class AppSettingsModel {
   final int crossfadeDurationSeconds;
   final String crossfadeType;
   final bool artTintedNowPlaying;
+  final bool updateCheckEnabled;
+  final String updateChannel;
 
   AppSettingsModel copyWith({
     int? wifiMaxBitRate,
@@ -96,6 +102,8 @@ class AppSettingsModel {
     int? crossfadeDurationSeconds,
     String? crossfadeType,
     bool? artTintedNowPlaying,
+    bool? updateCheckEnabled,
+    String? updateChannel,
     bool clearWifiBitRate = false,
     bool clearWifiFormat = false,
     bool clearCellularBitRate = false,
@@ -134,6 +142,8 @@ class AppSettingsModel {
           crossfadeDurationSeconds ?? this.crossfadeDurationSeconds,
       crossfadeType: crossfadeType ?? this.crossfadeType,
       artTintedNowPlaying: artTintedNowPlaying ?? this.artTintedNowPlaying,
+      updateCheckEnabled: updateCheckEnabled ?? this.updateCheckEnabled,
+      updateChannel: updateChannel ?? this.updateChannel,
     );
   }
 }
