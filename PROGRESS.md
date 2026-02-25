@@ -454,7 +454,17 @@ Last updated: 2026-02-25
 - [x] Success snackbar: "N similar tracks queued."
 - [x] Graceful fallback when server doesn't support the endpoint (`SubsonicNotFoundException` → unsupported snackbar)
 
-## Phase 11: AudioMuse AI Integration
+## Phase 11: AudioMuse AI Integration ⚠️ DISABLED
+
+> **Status: Feature disabled** — The AudioMuse Navidrome plugin
+> (`AudioMuse-AI-NV-plugin`) already provides AI-powered similar songs
+> and similar artists transparently through the standard Subsonic API
+> endpoints (`getSimilarSongs2`, `getArtistInfo2`).  Direct
+> client-to-AudioMuse communication is unnecessary and currently blocked
+> by the Authentik reverse-proxy.  All UI surfaces are hidden via
+> `audioMuseAvailableProvider = false`.  Code is retained for potential
+> future re-enablement if internal routing becomes viable.
+
 - [x] `AudioMuseService` interface + API client — `AudioMuseApiClient` (Dio-based, 6 endpoints) + `AudioMuseRepository` with graceful degradation
 - [x] `audioMuseAvailableProvider` (feature flag) — plus `audioMuseConfigProvider`, `audioMuseRepositoryProvider`, and 4 family providers in `app_providers.dart`
 - [x] Settings: server URL, API key, test connection — `AudioMuseSettingsScreen` at `/settings/audiomuse` with enable toggle, URL/key fields, test connection
@@ -468,6 +478,7 @@ Last updated: 2026-02-25
 - [x] Schema v20 migration — 3 new columns (`audio_muse_server_url`, `audio_muse_api_key`, `audio_muse_enabled`) with `_columnExists` guards
 - [x] Domain models — `AudioMuseConfig`, `AudioMuseRecommendation`, `AudioMuseMix`, `AudioMuseHealth` in `audiomuse_models.dart`
 - [x] l10n — 20+ new `audioMuse*` localization keys in `app_en.arb`
+- [x] **Disabled** — `audioMuseAvailableProvider` hardcoded to `false`; settings tile commented out; all UI gated behind the provider auto-hides
 
 ## Phase 12: Android Auto & CarPlay
 - [ ] `AutoMediaLibraryService` — extends `NavisAudioHandler` with `getChildren()` / `getMediaItem()` browsable tree

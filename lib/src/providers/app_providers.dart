@@ -843,12 +843,21 @@ Future<void> seedDefaultServerConfig(Ref ref) async {
 // ---------------------------------------------------------------------------
 
 /// Whether AudioMuse AI integration is enabled and configured in settings.
+///
+/// **Disabled** — the AudioMuse Navidrome plugin already provides
+/// AI-powered similar songs and artists transparently through the
+/// standard Subsonic API (`getSimilarSongs2`, `getArtistInfo2`).
+/// Direct client-to-AudioMuse communication is unnecessary and blocked
+/// by the Authentik reverse-proxy. Re-enable once a viable internal
+/// route is available.
 final audioMuseAvailableProvider = Provider<bool>((ref) {
-  final settings =
-      ref.watch(appSettingsProvider).asData?.value ??
-      const AppSettingsModel.defaults();
-  return settings.audioMuseEnabled &&
-      (settings.audioMuseServerUrl?.trim().isNotEmpty ?? false);
+  // Original gate (kept for future re-enablement):
+  // final settings =
+  //     ref.watch(appSettingsProvider).asData?.value ??
+  //     const AppSettingsModel.defaults();
+  // return settings.audioMuseEnabled &&
+  //     (settings.audioMuseServerUrl?.trim().isNotEmpty ?? false);
+  return false;
 });
 
 /// The current AudioMuse configuration extracted from app settings.
