@@ -451,6 +451,15 @@
   "nowPlayingStar": "Like",
   "nowPlayingLyrics": "Lyrics",
   "nowPlayingQueue": "Queue",
+  "nowPlayingInstantMix": "Instant Mix",
+  "nowPlayingInstantMixStarted": "{count, plural, =0{No similar tracks found.} =1{Instant Mix started — 1 similar track queued.} other{Instant Mix started — {count} similar tracks queued.}}",
+  "@nowPlayingInstantMixStarted": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "nowPlayingInstantMixUnsupported": "Your server doesn\u0027t support Instant Mix.",
+  "nowPlayingInstantMixError": "Couldn\u0027t start Instant Mix.",
   "nowPlayingMore": "More options",
   "nowPlayingGoToAlbum": "Go to album",
   "nowPlayingGoToArtist": "Go to artist",
@@ -687,5 +696,23 @@
   "aboutLicensesSub": "View third-party software licenses.",
   "aboutSourceCode": "Source code",
   "aboutSourceCodeSub": "View on Forgejo",
-  "aboutCodename": "Cape Horn"
+  "aboutCodename": "Cape Horn",
+
+  "updateCheckTitle": "Check for updates",
+  "updateCheckSub": "Currently on {version}. Tap to check now.",
+  "@updateCheckSub": {
+    "placeholders": {
+      "version": { "type": "String" }
+    }
+  },
+  "updateAvailableTitle": "Update available",
+  "updateAvailableBody": "{version} is ready to download.",
+  "@updateAvailableBody": {
+    "placeholders": {
+      "version": { "type": "String" }
+    }
+  },
+  "updateDownload": "Download",
+  "updateDismiss": "Dismiss",
+  "updateUpToDate": "Navis is up to date."
 }

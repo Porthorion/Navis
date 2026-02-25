@@ -18,7 +18,9 @@ import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 import 'package:navis/src/features/player/data/scrobble_service.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
+import 'package:navis/src/features/settings/data/update_repository.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:path_provider/path_provider.dart';
@@ -793,6 +795,12 @@ final customColorPresetsProvider = StreamProvider<List<int>>((ref) {
       return <int>[];
     }
   });
+});
+
+/// Checks whether a newer Navis release is available on Forgejo.
+/// Auto-disposed so it re-runs each time a screen watches it freshly.
+final updateProvider = FutureProvider.autoDispose<UpdateInfo?>((ref) async {
+  return UpdateRepository().checkForUpdate();
 });
 
 Future<void> seedDefaultServerConfig(Ref ref) async {

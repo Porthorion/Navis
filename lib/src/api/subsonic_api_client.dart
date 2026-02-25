@@ -286,6 +286,41 @@ class SubsonicApiClient {
     ).map(Song.fromJson).toList(growable: false);
   }
 
+  /// Returns songs similar to [seedSongId] using `getSimilarSongs2`.
+  ///
+  /// Falls back to `getInstantMix` when the primary endpoint returns a
+  /// [SubsonicNotFoundException] (code 70 — not supported by the server).
+  Future<List<Song>> getSimilarSongs(
+    String seedSongId, {
+    int count = 50,
+    CancelToken? cancelToken,
+  }) async {
+    Future<List<Song>> _fetch(String endpoint) async {
+      final root = await _readRoot(
+        endpoint,
+        query: {'id': seedSongId, 'count': count},
+        cancelToken: cancelToken,
+      );
+      return _asMapList(
+        _asMap(root['similarSongs2'])['song'],
+      ).map(Song.fromJson).toList(growable: false);
+    }
+
+    try {
+      return await _fetch('/rest/getSimilarSongs2.view');
+    } on SubsonicNotFoundException {
+      // Server doesn't support getSimilarSongs2 — try getInstantMix.
+      final root = await _readRoot(
+        '/rest/getInstantMix.view',
+        query: {'id': seedSongId, 'count': count},
+        cancelToken: cancelToken,
+      );
+      return _asMapList(
+        _asMap(root['instantMix'])['song'],
+      ).map(Song.fromJson).toList(growable: false);
+    }
+  }
+
   Future<SearchResult3> search3({
     required String query,
     int artistCount = 20,

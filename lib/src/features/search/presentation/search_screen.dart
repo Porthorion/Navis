@@ -11,6 +11,7 @@ import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
@@ -514,6 +515,40 @@ class _SongResultsSection extends ConsumerWidget {
                   ref,
                   [song.id],
                 );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.explore),
+              title: Text(l10n.nowPlayingInstantMix),
+              onTap: () async {
+                Navigator.of(sheetContext).pop();
+                final messenger = ScaffoldMessenger.of(context);
+                try {
+                  final api = ref.read(subsonicApiProvider);
+                  if (api == null) return;
+                  final songs = await api.getSimilarSongs(song.id);
+                  final handler = ref.read(audioHandlerProvider);
+                  await handler?.playNext(
+                    songs.map((s) => s.id).toList(),
+                  );
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        l10n.nowPlayingInstantMixStarted(songs.length),
+                      ),
+                    ),
+                  );
+                } on SubsonicNotFoundException {
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: Text(l10n.nowPlayingInstantMixUnsupported),
+                    ),
+                  );
+                } on Exception {
+                  messenger.showSnackBar(
+                    SnackBar(content: Text(l10n.nowPlayingInstantMixError)),
+                  );
+                }
               },
             ),
           ],

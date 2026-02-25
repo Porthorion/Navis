@@ -36,6 +36,7 @@ dependencies:
   crypto: ^3.0.6
   cupertino_icons: ^1.0.8
   dio: ^5.9.0
+  package_info_plus: ^8.0.0
   drift: ^2.29.0
   drift_flutter: ^0.2.5
   flutter:

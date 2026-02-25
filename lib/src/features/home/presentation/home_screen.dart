@@ -12,6 +12,9 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
+import 'package:navis/src/features/settings/domain/update_info.dart';
+import 'package:navis/src/providers/app_providers.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -32,6 +35,7 @@ class HomeScreen extends ConsumerWidget {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.only(bottom: 24),
           children: <Widget>[
+            const _UpdateBanner(),
             // ── 1. Liked Tracks (vertical list, 5 items + See all) ──
             _HomeSection<List<SongsTableData>>(
               title: l10n.homeStarredTitle,
@@ -426,6 +430,45 @@ class _CarouselShimmer extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Update banner shown at the top of the home screen when a new release is
+// available on the Forgejo repository.
+// ---------------------------------------------------------------------------
+class _UpdateBanner extends ConsumerWidget {
+  const _UpdateBanner();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final updateAsync = ref.watch(updateProvider);
+
+    return updateAsync.when(
+      data: (UpdateInfo? info) {
+        if (info == null) return const SizedBox.shrink();
+        return MaterialBanner(
+          content: Text(l10n.updateAvailableBody(info.tagName)),
+          leading: const Icon(Icons.system_update_outlined),
+          actions: [
+            TextButton(
+              onPressed: () => ref.invalidate(updateProvider),
+              child: Text(l10n.updateDismiss),
+            ),
+            TextButton(
+              onPressed: () => launchUrl(
+                Uri.parse(info.htmlUrl),
+                mode: LaunchMode.externalApplication,
+              ),
+              child: Text(l10n.updateDownload),
+            ),
+          ],
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (_, _) => const SizedBox.shrink(),
     );
   }
 }

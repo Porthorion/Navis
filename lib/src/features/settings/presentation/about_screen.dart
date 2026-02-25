@@ -1,19 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
+import 'package:navis/src/features/settings/domain/update_info.dart';
+import 'package:navis/src/providers/app_providers.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Displays app version, open-source licenses, and repository links.
-class AboutScreen extends StatelessWidget {
+class AboutScreen extends ConsumerWidget {
   const AboutScreen({super.key});
 
   static const String _repoUrl = 'https://git.porthorion.com/khalifa/Navis';
   static const String _version = 'Cape Horn 0.1';
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
+    final updateAsync = ref.watch(updateProvider);
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.aboutTitle)),
@@ -67,6 +71,27 @@ class AboutScreen extends StatelessWidget {
                 await launchUrl(uri, mode: LaunchMode.externalApplication);
               }
             },
+          ),
+          ListTile(
+            leading: const Icon(Icons.system_update_outlined),
+            title: Text(l10n.updateCheckTitle),
+            subtitle: Text(
+              updateAsync.when(
+                data: (UpdateInfo? info) => info != null
+                    ? l10n.updateAvailableBody(info.tagName)
+                    : l10n.updateUpToDate,
+                loading: () => l10n.updateCheckSub(_version),
+                error: (_, _) => l10n.updateCheckSub(_version),
+              ),
+            ),
+            trailing: updateAsync.isLoading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.refresh),
+            onTap: () => ref.invalidate(updateProvider),
           ),
         ],
       ),

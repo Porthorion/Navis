@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/lyrics_display_widget.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -866,6 +867,8 @@ class _ActionRowState extends ConsumerState<_ActionRow>
   late final AnimationController _likeController;
   late final Animation<double> _likeScale;
 
+  bool _instantMixLoading = false;
+
   @override
   void initState() {
     super.initState();
@@ -891,6 +894,39 @@ class _ActionRowState extends ConsumerState<_ActionRow>
   void dispose() {
     _likeController.dispose();
     super.dispose();
+  }
+
+  Future<void> _startInstantMix() async {
+    if (_instantMixLoading || widget.songId == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final l10n = AppLocalizations.of(context)!;
+    setState(() => _instantMixLoading = true);
+    try {
+      final api = ref.read(subsonicApiProvider);
+      if (api == null) return;
+      final songs = await api.getSimilarSongs(widget.songId!);
+      if (!mounted) return;
+      final handler = ref.read(audioHandlerProvider);
+      await handler?.playNext(songs.map((s) => s.id).toList());
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text(l10n.nowPlayingInstantMixStarted(songs.length))),
+      );
+    } on SubsonicNotFoundException {
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(content: Text(l10n.nowPlayingInstantMixUnsupported)),
+        );
+      }
+    } on Exception {
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(content: Text(l10n.nowPlayingInstantMixError)),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _instantMixLoading = false);
+    }
   }
 
   @override
@@ -927,6 +963,17 @@ class _ActionRowState extends ConsumerState<_ActionRow>
           icon: const Icon(Icons.queue_music),
           tooltip: l10n.nowPlayingQueue,
           onPressed: () => NavService.showQueue(context),
+        ),
+        IconButton(
+          icon: _instantMixLoading
+              ? const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.explore),
+          tooltip: l10n.nowPlayingInstantMix,
+          onPressed: widget.songId == null ? null : _startInstantMix,
         ),
       ],
     );

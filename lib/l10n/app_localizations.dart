@@ -1833,6 +1833,30 @@ abstract class AppLocalizations {
   /// **'Queue'**
   String get nowPlayingQueue;
 
+  /// No description provided for @nowPlayingInstantMix.
+  ///
+  /// In en, this message translates to:
+  /// **'Instant Mix'**
+  String get nowPlayingInstantMix;
+
+  /// No description provided for @nowPlayingInstantMixStarted.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{No similar tracks found.} =1{Instant Mix started — 1 similar track queued.} other{Instant Mix started — {count} similar tracks queued.}}'**
+  String nowPlayingInstantMixStarted(int count);
+
+  /// No description provided for @nowPlayingInstantMixUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'Your server doesn\'t support Instant Mix.'**
+  String get nowPlayingInstantMixUnsupported;
+
+  /// No description provided for @nowPlayingInstantMixError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t start Instant Mix.'**
+  String get nowPlayingInstantMixError;
+
   /// No description provided for @nowPlayingMore.
   ///
   /// In en, this message translates to:
@@ -2702,6 +2726,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Cape Horn'**
   String get aboutCodename;
+
+  /// No description provided for @updateCheckTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Check for updates'**
+  String get updateCheckTitle;
+
+  /// No description provided for @updateCheckSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Currently on {version}. Tap to check now.'**
+  String updateCheckSub(String version);
+
+  /// No description provided for @updateAvailableTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Update available'**
+  String get updateAvailableTitle;
+
+  /// No description provided for @updateAvailableBody.
+  ///
+  /// In en, this message translates to:
+  /// **'{version} is ready to download.'**
+  String updateAvailableBody(String version);
+
+  /// No description provided for @updateDownload.
+  ///
+  /// In en, this message translates to:
+  /// **'Download'**
+  String get updateDownload;
+
+  /// No description provided for @updateDismiss.
+  ///
+  /// In en, this message translates to:
+  /// **'Dismiss'**
+  String get updateDismiss;
+
+  /// No description provided for @updateUpToDate.
+  ///
+  /// In en, this message translates to:
+  /// **'Navis is up to date.'**
+  String get updateUpToDate;
 }
 
 class _AppLocalizationsDelegate
