@@ -20,8 +20,8 @@ void main() {
           .customSelect('PRAGMA user_version;')
           .getSingle();
 
-      expect(database.schemaVersion, 17);
-      expect(pragmaRow.read<int>('user_version'), 17);
+      expect(database.schemaVersion, 18);
+      expect(pragmaRow.read<int>('user_version'), 18);
     },
     skip: !sqliteAvailable,
   );
@@ -211,7 +211,7 @@ void main() {
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 17);
+      expect(versionRow.read<int>('user_version'), 18);
 
       final albums = await migrated.select(migrated.albumsTable).get();
       final albumsById = {for (final album in albums) album.id: album};

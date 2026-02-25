@@ -26,6 +26,8 @@ void main() {
       gaplessEnabled: true,
       skipSilenceEnabled: false,
       showRadioPage: true,
+      showPlaylistsPage: true,
+      showArtistsPage: true,
       equalizerEnabled: false,
       equalizerBandGains: <double>[],
       loudnessEnabled: false,
@@ -63,7 +65,7 @@ void main() {
       expect(find.text('Cellular streaming'), findsOneWidget);
       expect(find.text('Enable scrobbling'), findsOneWidget);
       expect(find.text('Enable gapless playback'), findsOneWidget);
-      expect(find.text('Show Radio page'), findsOneWidget);
+      expect(find.text('Show Radio page'), findsNothing);
       expect(find.text('Skip silence when possible'), findsNothing);
       expect(find.text('Save'), findsOneWidget);
       expect(find.text('Reset defaults'), findsOneWidget);
@@ -108,10 +110,6 @@ void main() {
         SwitchListTile,
         'Enable gapless playback',
       );
-      final radioToggle = find.widgetWithText(
-        SwitchListTile,
-        'Show Radio page',
-      );
 
       await tester.ensureVisible(scrobbleToggle);
       await tester.pumpAndSettle();
@@ -120,10 +118,6 @@ void main() {
       await tester.ensureVisible(gaplessToggle);
       await tester.pumpAndSettle();
       await tester.tap(gaplessToggle);
-      await tester.pumpAndSettle();
-      await tester.ensureVisible(radioToggle);
-      await tester.pumpAndSettle();
-      await tester.tap(radioToggle);
       await tester.pumpAndSettle();
 
       await tester.ensureVisible(find.text('Save'));
@@ -138,7 +132,9 @@ void main() {
       expect(savedModel!.scrobbleEnabled, isFalse);
       expect(savedModel!.gaplessEnabled, isFalse);
       expect(savedModel!.skipSilenceEnabled, isFalse);
-      expect(savedModel!.showRadioPage, isFalse);
+      // showRadioPage, showPlaylistsPage, showArtistsPage are now read from
+      // their respective providers (managed in Appearance settings).
+      expect(savedModel!.showRadioPage, isTrue);
       expect(find.text('Playback settings saved.'), findsOneWidget);
 
       await tester.pump(const Duration(seconds: 4));

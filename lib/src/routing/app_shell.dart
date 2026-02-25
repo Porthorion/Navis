@@ -100,7 +100,6 @@ class _AppShellState extends ConsumerState<AppShell>
       _homeBranchIndex,
       _libraryBranchIndex,
       _searchBranchIndex,
-      _playlistsBranchIndex,
       _settingsBranchIndex,
     ];
     final selectedVisibleIndex = visibleBranchIndices.indexOf(
@@ -216,6 +215,8 @@ class _AppShellState extends ConsumerState<AppShell>
             ? null
             : NavigationBar(
                 selectedIndex: selectedIndex,
+                labelBehavior:
+                    NavigationDestinationLabelBehavior.alwaysHide,
                 onDestinationSelected: (index) {
                   final branchIndex = visibleBranchIndices[index];
                   // Trigger focus request whenever the Search tab is tapped.
@@ -242,10 +243,6 @@ class _AppShellState extends ConsumerState<AppShell>
                     label: l10n.navSearch,
                   ),
                   NavigationDestination(
-                    icon: const Icon(Icons.queue_music_outlined),
-                    label: l10n.navPlaylists,
-                  ),
-                  NavigationDestination(
                     icon: const Icon(Icons.settings_outlined),
                     label: l10n.navSettings,
                   ),
@@ -259,8 +256,7 @@ class _AppShellState extends ConsumerState<AppShell>
 const int _homeBranchIndex = 0;
 const int _libraryBranchIndex = 1;
 const int _searchBranchIndex = 2;
-const int _playlistsBranchIndex = 3;
-const int _settingsBranchIndex = 4;
+const int _settingsBranchIndex = 3;
 
 class _MiniPlayerStrip extends ConsumerWidget {
   const _MiniPlayerStrip({

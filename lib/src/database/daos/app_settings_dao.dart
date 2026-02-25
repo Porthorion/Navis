@@ -36,6 +36,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     required bool gaplessEnabled,
     required bool skipSilenceEnabled,
     required bool showRadioPage,
+    required bool showPlaylistsPage,
+    required bool showArtistsPage,
     required bool equalizerEnabled,
     String? equalizerBandGains,
     required bool loudnessEnabled,
@@ -59,6 +61,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         gaplessEnabled: Value(gaplessEnabled),
         skipSilenceEnabled: Value(skipSilenceEnabled),
         showRadioPage: Value(showRadioPage),
+        showPlaylistsPage: Value(showPlaylistsPage),
+        showArtistsPage: Value(showArtistsPage),
         equalizerEnabled: Value(equalizerEnabled),
         equalizerBandGains: Value(equalizerBandGains),
         loudnessEnabled: Value(loudnessEnabled),
@@ -85,6 +89,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       gaplessEnabled: true,
       skipSilenceEnabled: false,
       showRadioPage: true,
+      showPlaylistsPage: true,
+      showArtistsPage: true,
       equalizerEnabled: false,
       equalizerBandGains: null,
       loudnessEnabled: false,
@@ -96,6 +102,46 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       crossfadeDurationSeconds: 5,
       crossfadeType: 'normal',
       artTintedNowPlaying: true,
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Page visibility helpers
+  // ---------------------------------------------------------------------------
+
+  /// Targeted update for show radio page.
+  Future<void> updateShowRadioPage({required bool enabled}) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        showRadioPage: Value(enabled),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Targeted update for show playlists page.
+  Future<void> updateShowPlaylistsPage({required bool enabled}) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        showPlaylistsPage: Value(enabled),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Targeted update for show artists page.
+  Future<void> updateShowArtistsPage({required bool enabled}) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        showArtistsPage: Value(enabled),
+        updatedAt: Value(DateTime.now()),
+      ),
     );
   }
 

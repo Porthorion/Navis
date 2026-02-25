@@ -25,6 +25,12 @@ class AppSettingsTable extends Table {
 
   BoolColumn get showRadioPage => boolean().withDefault(const Constant(true))();
 
+  BoolColumn get showPlaylistsPage =>
+      boolean().withDefault(const Constant(true))();
+
+  BoolColumn get showArtistsPage =>
+      boolean().withDefault(const Constant(true))();
+
   BoolColumn get equalizerEnabled =>
       boolean().withDefault(const Constant(false))();
 

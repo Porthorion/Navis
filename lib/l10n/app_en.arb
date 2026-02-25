@@ -34,7 +34,7 @@
   "serverOfflineBanner": "Server unreachable. Retrying every 30s.",
   "settingsTitle": "Settings",
   "settingsServerTitle": "Server",
-  "settingsServerSubtitle": "View, test, and update connection settings.",
+  "settingsServerSubtitle": "View connection info, test, and sign out.",
   "settingsCacheTitle": "Cache",
   "settingsCacheSubtitle": "Manage storage for audio, cover art and downloads.",
   "settingsDownloadsSubtitle": "Manage offline downloads and queue.",
@@ -716,5 +716,39 @@
   },
   "updateDownload": "Download",
   "updateDismiss": "Dismiss",
-  "updateUpToDate": "Navis is up to date."
+  "updateUpToDate": "Navis is up to date.",
+
+  "appearancePagesSectionLabel": "Page Visibility",
+  "appearanceShowRadioPageTitle": "Show Radio tab",
+  "appearanceShowRadioPageSubtitle": "Show the Radio tab in the Library screen.",
+  "appearanceShowPlaylistsPageTitle": "Show Playlists tab",
+  "appearanceShowPlaylistsPageSubtitle": "Show the Playlists tab in the Library screen.",
+  "appearanceShowArtistsPageTitle": "Show Artists tab",
+  "appearanceShowArtistsPageSubtitle": "Show the Artists tab in the Library screen.",
+
+  "cacheSettingsCoverArtSizeLabel": "Storage used: {size}",
+  "@cacheSettingsCoverArtSizeLabel": {
+    "placeholders": {
+      "size": { "type": "String" }
+    }
+  },
+  "cacheSettingsPrecacheTitle": "Pre-cache all album art",
+  "cacheSettingsPrecacheSubtitle": "Download artwork for every album to the device now. Only available when cover art cache has no limit.",
+  "cacheSettingsPrecachingProgress": "Caching {done} of {total}...",
+  "@cacheSettingsPrecachingProgress": {
+    "placeholders": {
+      "done": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+  "cacheSettingsPrecacheSuccess": "Done — cached {total} album art image(s).",
+  "@cacheSettingsPrecacheSuccess": {
+    "placeholders": {
+      "total": { "type": "int" }
+    }
+  },
+
+  "serverSettingsSignOutConfirmTitle": "Sign out",
+  "serverSettingsSignOutConfirmMessage": "How would you like to handle your local library data?",
+  "serverSettingsConnectionInfoTitle": "Connection info"
 }

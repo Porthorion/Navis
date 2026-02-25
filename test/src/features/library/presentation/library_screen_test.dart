@@ -39,6 +39,8 @@ class _ShowRadioToggle extends Notifier<bool> {
 Widget _buildLibraryScreen({required List<Object?> overrides}) {
   final mergedOverrides = <Object?>[
     showRadioPageProvider.overrideWithValue(false),
+    showArtistsPageProvider.overrideWithValue(true),
+    showPlaylistsPageProvider.overrideWithValue(false),
     ...overrides,
   ];
   return ProviderScope(
@@ -490,6 +492,8 @@ void main() {
         ProviderScope(
           overrides: [
             showRadioPageProvider.overrideWithValue(true),
+            showArtistsPageProvider.overrideWithValue(true),
+            showPlaylistsPageProvider.overrideWithValue(false),
             librarySyncControllerProvider.overrideWith(
               () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
             ),
@@ -528,6 +532,8 @@ void main() {
             showRadioPageProvider.overrideWith(
               (ref) => ref.watch(showRadioToggleProvider),
             ),
+            showArtistsPageProvider.overrideWithValue(true),
+            showPlaylistsPageProvider.overrideWithValue(false),
             librarySyncControllerProvider.overrideWith(
               () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
             ),

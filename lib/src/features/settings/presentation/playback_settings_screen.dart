@@ -38,7 +38,6 @@ class _PlaybackSettingsScreenState
   String? _cellularFormat;
   bool _scrobbleEnabled = true;
   bool _gaplessEnabled = true;
-  bool _showRadioPage = true;
   bool _equalizerEnabled = false;
   List<double> _equalizerBandGains = List<double>.filled(5, 0);
   bool _loudnessEnabled = false;
@@ -191,15 +190,6 @@ class _PlaybackSettingsScreenState
                     : (value) => setState(() => _gaplessEnabled = value),
                 title: Text(l10n.playbackSettingsGaplessTitle),
                 subtitle: Text(l10n.playbackSettingsGaplessSubtitle),
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                value: _showRadioPage,
-                onChanged: _isSaving
-                    ? null
-                    : (value) => setState(() => _showRadioPage = value),
-                title: Text(l10n.playbackSettingsShowRadioPageTitle),
-                subtitle: Text(l10n.playbackSettingsShowRadioPageSubtitle),
               ),
               if (_supportsAndroidDsp) ...<Widget>[
                 const SizedBox(height: 24),
@@ -379,7 +369,6 @@ class _PlaybackSettingsScreenState
     _cellularFormat = settings.cellularFormat;
     _scrobbleEnabled = settings.scrobbleEnabled;
     _gaplessEnabled = settings.gaplessEnabled;
-    _showRadioPage = settings.showRadioPage;
     _equalizerEnabled = settings.equalizerEnabled;
     _equalizerBandGains = _normalizeBandGains(settings.equalizerBandGains);
     _loudnessEnabled = settings.loudnessEnabled;
@@ -405,7 +394,9 @@ class _PlaybackSettingsScreenState
         scrobbleEnabled: _scrobbleEnabled,
         gaplessEnabled: _gaplessEnabled,
         skipSilenceEnabled: false,
-        showRadioPage: _showRadioPage,
+        showRadioPage: ref.read(showRadioPageProvider),
+        showPlaylistsPage: ref.read(showPlaylistsPageProvider),
+        showArtistsPage: ref.read(showArtistsPageProvider),
         equalizerEnabled: _equalizerEnabled,
         equalizerBandGains: _normalizeBandGains(_equalizerBandGains),
         loudnessEnabled: _loudnessEnabled,

@@ -261,6 +261,8 @@ void main() {
                   gaplessEnabled: true,
                   skipSilenceEnabled: false,
                   showRadioPage: true,
+                  showPlaylistsPage: true,
+                  showArtistsPage: true,
                   equalizerEnabled: false,
                   equalizerBandGains: <double>[],
                   loudnessEnabled: false,

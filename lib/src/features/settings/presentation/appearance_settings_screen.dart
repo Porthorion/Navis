@@ -142,6 +142,45 @@ class AppearanceSettingsScreen extends ConsumerWidget {
               );
             },
           ),
+          const Divider(height: 32),
+
+          // ── Page Visibility ─────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+            child: Text(
+              l10n.appearancePagesSectionLabel,
+              style: theme.textTheme.titleSmall?.copyWith(
+                color: theme.colorScheme.primary,
+              ),
+            ),
+          ),
+          SwitchListTile(
+            title: Text(l10n.appearanceShowArtistsPageTitle),
+            subtitle: Text(l10n.appearanceShowArtistsPageSubtitle),
+            value: ref.watch(showArtistsPageProvider),
+            onChanged: (enabled) async {
+              final db = ref.read(navisDatabaseProvider);
+              await db.appSettingsDao.updateShowArtistsPage(enabled: enabled);
+            },
+          ),
+          SwitchListTile(
+            title: Text(l10n.appearanceShowPlaylistsPageTitle),
+            subtitle: Text(l10n.appearanceShowPlaylistsPageSubtitle),
+            value: ref.watch(showPlaylistsPageProvider),
+            onChanged: (enabled) async {
+              final db = ref.read(navisDatabaseProvider);
+              await db.appSettingsDao.updateShowPlaylistsPage(enabled: enabled);
+            },
+          ),
+          SwitchListTile(
+            title: Text(l10n.appearanceShowRadioPageTitle),
+            subtitle: Text(l10n.appearanceShowRadioPageSubtitle),
+            value: ref.watch(showRadioPageProvider),
+            onChanged: (enabled) async {
+              final db = ref.read(navisDatabaseProvider);
+              await db.appSettingsDao.updateShowRadioPage(enabled: enabled);
+            },
+          ),
         ],
       ),
     );
