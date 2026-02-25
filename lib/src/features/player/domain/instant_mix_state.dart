@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-/// Possible error conditions surfaced by [InstantMixNotifier].
+/// Possible error conditions surfaced by `InstantMixNotifier`.
 enum InstantMixError {
   /// The connected Subsonic server does not support `getSimilarSongs2` or
   /// `getInstantMix`.

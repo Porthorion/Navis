@@ -1,87 +1,87 @@
 # Navis
 
-Navis is a Flutter-based Subsonic/OpenSubsonic music player client targeting Android and iOS.
+A Subsonic / OpenSubsonic music player for Android and iOS, built with Flutter.
 
-## Project Status
+## Features
 
-- Roadmap: [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md)
-- Progress tracker: [PROGRESS.md](PROGRESS.md)
+- **Library** — browse artists, albums, and tracks synced from your server
+- **Playback** — gapless audio, background playback, lock-screen controls, scrobbling
+- **Now Playing** — expandable player sheet with synced and unsynced lyrics
+- **Search** — real-time search against your Subsonic server
+- **Radio** — internet radio stations from your server
+- **Playlists** — create, edit, and reorder playlists synced to the server
+- **Offline / Cache** — rolling LRU cache + permanent downloads for offline playback
+- **Instant Mix** — auto-queue similar tracks when the queue runs low
+- **Settings** — adaptive streaming quality (Wi-Fi vs. cellular), theme (Dynamic / presets / custom, OLED mode), equalizer, cache controls, update notifications
+- **Accessibility** — full screen-reader support, semantic labels throughout
 
-## Documentation
+## Screenshots
 
-- Development workflow: [docs/development-workflow.md](docs/development-workflow.md)
-- Release & quality gates: [docs/ci-cd.md](docs/ci-cd.md)
-- Troubleshooting: [docs/troubleshooting.md](docs/troubleshooting.md)
+<!-- TODO: add screenshots once UI is stable -->
 
-## Bootstrap
+## Requirements
+
+| Platform | Minimum |
+|----------|---------|
+| Android  | 8.0 (API 26) |
+| iOS      | 14.0 |
+
+Requires a Subsonic-compatible server (Navidrome, Airsonic, etc.) implementing at least API level 1.16.1.
+
+## Tech Stack
+
+| Layer | Library |
+|-------|---------|
+| State / DI | Riverpod 3 (codegen) |
+| Navigation | go_router |
+| Database | drift (SQLite) |
+| Audio | just_audio + audio_service |
+| Network | Dio |
+| UI | Material 3 / flex_color_scheme |
+
+## Build & Run
 
 ```bash
+# First-time setup
 ./tool/bootstrap.sh
+
+# Run on a connected device
+flutter run
+
+# Quality gate (format · generate · analyze · test)
 ./tool/check.sh
 ```
 
-## Local Guardrails (Optional)
+## Release
 
-Enable the repository pre-commit hook:
+```bash
+./tool/release.sh v1.0.0
+```
+
+See [docs/ci-cd.md](docs/ci-cd.md) for Forgejo release setup.
+
+## Documentation
+
+| Doc | Contents |
+|-----|----------|
+| [docs/architecture.md](docs/architecture.md) | Data flow, provider graph |
+| [docs/development-workflow.md](docs/development-workflow.md) | Code generation, conventions |
+| [docs/ci-cd.md](docs/ci-cd.md) | Release pipeline, quality gates |
+| [docs/troubleshooting.md](docs/troubleshooting.md) | Common issues |
+
+## Roadmap
+
+See [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md) and [PROGRESS.md](PROGRESS.md).
+
+## Local Guardrails
+
+Enable the pre-commit hook (runs `./tool/check.sh` before each commit):
 
 ```bash
 git config core.hooksPath .githooks
 chmod +x .githooks/pre-commit
 ```
 
-This will run `./tool/check.sh` before each commit.
+## License
 
-## Quality Gate
-
-Run before each commit:
-
-```bash
-./tool/check.sh
-```
-
-This checks formatting, code generation, static analysis, linting, and tests.
-
-## Phase 1 Close-Out
-
-Run the dedicated close-out gate when finalizing Phase 1:
-
-```bash
-export NAVIS_SMOKE_BASE_URL="https://your-subsonic-host"
-export NAVIS_SMOKE_USERNAME="your-username"
-export NAVIS_SMOKE_PASSWORD="your-password"
-# Optional (defaults shown):
-export NAVIS_SMOKE_API_VERSION="1.16.1"
-export NAVIS_SMOKE_USE_LEGACY_AUTH="false"
-
-./tool/phase1_closeout.sh
-# or: make phase1-closeout
-```
-
-This command verifies drift DB tests are not skipped and runs a real-server
-`ping()` + capabilities smoke check.
-
-## Release
-
-Publish a versioned release with APK to Forgejo:
-
-```bash
-./tool/release.sh v0.2.0
-```
-
-See [docs/ci-cd.md](docs/ci-cd.md) for setup and details.
-
-## Run
-
-```bash
-flutter run
-```
-
-## Troubleshooting
-
-- If tests appear stuck, verify disk headroom first:
-
-```bash
-df -h /tmp
-```
-
-`./tool/check.sh` now fails fast when `/tmp` is critically low.
+[MIT](LICENSE)

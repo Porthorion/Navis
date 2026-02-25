@@ -131,7 +131,7 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, __) => Center(
+        error: (_, _) => Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: Text(

@@ -88,10 +88,10 @@ class ShimmerListTile extends StatelessWidget {
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const ShimmerPlaceholder(height: 14, width: double.infinity),
-                const SizedBox(height: 6),
-                const ShimmerPlaceholder(height: 12, width: 140),
+              children: const [
+                ShimmerPlaceholder(height: 14, width: double.infinity),
+                SizedBox(height: 6),
+                ShimmerPlaceholder(height: 12, width: 140),
               ],
             ),
           ),

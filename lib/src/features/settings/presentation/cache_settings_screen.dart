@@ -70,7 +70,7 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
         if (mounted) setState(() => _coverArtStorageBytes = 0);
         return;
       }
-      int total = 0;
+      var total = 0;
       await for (final entity in dir.list(recursive: true)) {
         if (entity is File) {
           try {
@@ -250,7 +250,7 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
       _cachingTotal = coverArtIds.length;
     });
 
-    int done = 0;
+    var done = 0;
     for (final id in coverArtIds) {
       if (!mounted) break;
       try {
@@ -267,6 +267,7 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
       setState(() => _isCaching = false);
       // Refresh storage size display
       await _loadCoverArtStorageBytes();
+      if (!mounted) return;
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
         ..showSnackBar(

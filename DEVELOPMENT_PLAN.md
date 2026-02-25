@@ -1459,6 +1459,99 @@ This phase is developed after the core app (Phases 0–10) is complete and stabl
 
 ---
 
+## Phase 12: Android Auto & CarPlay
+
+**Goal**: Extend media playback to in-car displays. `audio_service` already provides the `MediaItem` foundation — this phase builds the browsable media tree and platform integrations for Android Auto and Apple CarPlay.
+
+This phase is developed after the core app (Phases 0–10) is complete and stable. Android Auto and CarPlay integration is entirely modular — the app works fully without it.
+
+### Architecture
+
+**Location**: `lib/src/features/auto/`
+
+- `AutoMediaLibraryService` — extends `NavisAudioHandler` to implement the browsable media tree. Overrides `getChildren()` and `getMediaItem()` for Android Auto's `MediaBrowserService`.
+- `autoContentProvider` — Riverpod provider that constructs the `MediaItem` hierarchy (root → artists/albums/playlists → tracks).
+- `CarPlayController` — manages the `MPPlayableContentDataSource` tab bar and content tree for iOS CarPlay via a platform channel.
+
+### Android Auto
+
+- Declare `android.media.browse.MediaBrowserService` in `AndroidManifest.xml` under the existing `AudioService` service tag with `android:exported="true"`.
+- Add `android.hardware.type.automotive` as a `<uses-feature>` declaration with `required="false"`.
+- Implement browsable root: Playlists, Artists, Albums as three top-level `MediaItem` tabs.
+- Each tab expands into a list of items; artist items drill into albums; albums list their tracks.
+- Queue operations (play, pause, next, previous, seek) are already handled by `NavisAudioHandler` — no changes required.
+- Search support: implement `onSearch()` in the handler to forward queries to the existing search provider.
+
+### Apple CarPlay
+
+- Add `com.apple.developer.carplay-audio` entitlement to `Runner.entitlements` (requires Apple Developer program membership and CarPlay entitlement request for App Store submission).
+- Implement `MPPlayableContentDataSource` and `MPPlayableContentDelegate` via a native Swift platform channel in `ios/Runner/`.
+- Content tree mirrors the Android Auto hierarchy: root tabs → artists/albums/playlists → tracks.
+- Voice-safe minimal UI: large tap targets (minimum 44 pt), no text input fields, navigation driven entirely by the content tree.
+- Support Siri Shortcuts integration (`INPlayMediaIntent`) to allow voice-initiated playback.
+
+### l10n
+
+- Add l10n keys for "Artists", "Albums", "Playlists", "Queue", "Search" as used in `MediaItem` title strings for the Auto/CarPlay content tree.
+
+### Graceful Degradation
+
+- Android Auto integration is inert on non-automotive Android devices and on iOS.
+- CarPlay integration is inert on non-CarPlay-connected iOS devices and on Android.
+- The core app is completely unaffected when neither in-car platform is connected.
+- If the browsable tree fails to load (network error), return a single error `MediaItem` with a user-readable message rather than crashing.
+
+---
+
+## Phase 13: Desktop Support (Windows, macOS, Linux)
+
+**Goal**: First-class desktop builds with an adaptive layout for large screens, platform-native audio OS integration (SMTC / MPRIS / macOS media keys), and distributable packaging for each platform.
+
+This phase is developed after Phase 10 and can be developed in parallel with Phase 11, as no Phase 11 code is required.
+
+### Responsive Layout
+
+**Location**: `lib/src/common_widgets/adaptive_shell.dart`
+
+- `AdaptiveShell` widget using `LayoutBuilder`:
+  - Width < 600 dp: `NavigationBar` at bottom (existing mobile layout).
+  - Width ≥ 600 dp: `NavigationRail` on the left, content fills the remaining width.
+  - Width ≥ 960 dp: side-by-side master-detail — navigation rail + list panel on the left, detail panel on the right (e.g., album list + album detail simultaneously visible).
+- `go_router` shell route updated to use `AdaptiveShell` instead of the current `ScaffoldWithNavbar`.
+- Window size and position persistence via the `window_manager` package: save width, height, and maximised state to shared preferences on resize, restore on launch.
+- Minimum window size enforced: 480 × 600 px.
+
+### Audio OS Integration
+
+`just_audio` already runs on desktop. `audio_service` is Android/iOS only — desktop platforms require separate media key and now-playing integrations:
+
+- **Windows**: `smtc_windows` package — integrates with the Windows System Media Transport Controls (SMTC). Provides thumbnail, track metadata, and hardware play/pause/next/previous key support. Bridged to `NavisAudioHandler` event stream.
+- **Linux**: `mpris_service` package — exposes the `org.mpris.MediaPlayer2` D-Bus interface. Enables media key support and desktop environment now-playing widgets (GNOME Shell, KDE Plasma). Bridged to `NavisAudioHandler`.
+- **macOS**: Platform channel calling `MPRemoteCommandCenter` and `MPNowPlayingInfoCenter`. Enables Control Centre now-playing widget, Touch Bar controls (older MacBooks), and hardware media key support.
+
+### Packaging & Distribution
+
+- **Windows**: MSIX package generated via the `msix` pub package. Configurable from `pubspec.yaml`. Signable with a self-hosted certificate or Microsoft Store certificate. CI artifact: `build/windows/runner/Release/*.msix`.
+- **macOS**: App bundle produced by the Flutter toolchain. Required entitlements: `com.apple.security.network.client` (outbound networking), `com.apple.security.cs.allow-jit` (for Flutter engine). Notarisable via `xcrun notarytool` for Gatekeeper compliance. CI artifact: `build/macos/Build/Products/Release/Navis.app` (zipped).
+- **Linux**: `.deb` package via `flutter_distributor` or manual `dpkg-deb`. Flatpak manifest for sandboxed distribution on Flathub. CI artifact: `build/linux/x64/release/bundle/` (tarball).
+
+### Database
+
+`drift` uses the `sqlite3` package which is compiled via `sqlite3_flutter_libs` on desktop — no schema or DAO changes are required.
+
+### Key Package Additions
+
+| Package | Platform | Purpose |
+|---|---|---|
+| `window_manager` | All desktop | Window size/position control and persistence |
+| `smtc_windows` | Windows | SMTC now-playing and media key integration |
+| `mpris_service` | Linux | D-Bus MPRIS media player interface |
+| Platform channel (Swift) | macOS | `MPRemoteCommandCenter` / `MPNowPlayingInfoCenter` |
+| `msix` | Windows | MSIX packaging |
+| `flutter_distributor` | Linux | `.deb` / Flatpak packaging |
+
+---
+
 ## AI Agent Development Guidelines
 
 These rules govern how the AI agent writes code in this project. The human reviewer should enforce these during review.
@@ -1561,6 +1654,8 @@ Global verification rule for every phase completion:
 | 9 | All settings persist across restarts. Wi-Fi vs cellular streaming quality switches automatically based on network type. Theme mode (Light/Dark/OLED/System) and color scheme (Dynamic/Preset/Custom) apply immediately on change, with a quick Light Mode toggle in settings and independent light-mode vs dark-mode color palette selections preserved when switching modes. Equalizer functional on a physical Android device. Cache management controls (rolling vs permanent) work correctly and show accurate stats. |
 | 10 | Hero animations for cover art work smoothly. Skeleton loading replaces spinners. No accessibility warnings from Flutter Inspector. All strings externalized. Haptic feedback on key actions. Edge-to-edge correct on Android 15 and Android 16 emulators. Predictive back gesture works with go_router. Logger output visible in debug, silent in release (with auth params redacted). App recovers gracefully from force-kill (play queue restored, download queue re-queued). Material motion transitions (SharedAxisTransition, FadeThroughTransition) visible on page navigations. Update checker: mock Forgejo API returns newer version → banner appears; returns same version → no banner; network unavailable → silent failure, no crash. |
 | 11 | AudioMuse smart queue appends tracks when configured. UI elements hidden when AudioMuse not configured. Similar artists/albums display. Fallback to Subsonic data when AudioMuse is off. |
+| 12 | Android Auto: browsable media tree visible in a connected Android Auto head unit or emulator (Desktop Head Unit). Artists/Albums/Playlists root tabs expand correctly. Playback controls (play/pause/next/previous/seek) work from the Auto UI. Search returns results. Inert on non-Auto Android devices and on iOS. CarPlay: content tree renders in CarPlay Simulator. Playback controls work. `MPPlayableContentDelegate` receives play commands. Siri Shortcuts `INPlayMediaIntent` triggers playback. Inert on non-CarPlay iOS devices and on Android. |
+| 13 | All three desktop targets (`flutter run -d windows`, `-d macos`, `-d linux`) build and launch without errors. `NavigationRail` visible at ≥ 600 dp window width; `BottomNavigationBar` visible at < 600 dp. Master-detail layout active at ≥ 960 dp. Window size and position survive app restart. Windows: SMTC thumbnail and controls appear in the taskbar media flyout; hardware media keys toggle playback. Linux: `playerctl status` reports `Playing`/`Paused`; `playerctl play-pause` toggles playback; `playerctl metadata` shows current track. macOS: Control Centre now-playing widget shows track info and art; keyboard media keys work. MSIX, `.app` bundle, and `.deb` packages build successfully in CI. |
 
 ---
 
@@ -1587,8 +1682,8 @@ Global verification rule for every phase completion:
 These are explicitly out of scope for the initial development but designed to be addable later.
 
 - **Multi-server support**: Add a `serverId` foreign key to all data tables. Add a server list/switcher UI. The provider architecture already supports swapping the API client based on active server.
-- **Android Auto / CarPlay**: `audio_service` provides the foundation. Requires implementing a browsable media tree (`MediaItem` hierarchy for artists/albums/playlists). Addable without architectural changes.
-- **Tablet / Desktop layout**: Responsive layouts with `NavigationRail` instead of `NavigationBar` on wide screens. Side-by-side list + detail views. `LayoutBuilder` or `MediaQuery` breakpoints.
+- **Android Auto / CarPlay**: ~~Promoted to **Phase 12**.~~ See Phase 12 for the full implementation plan.
+- **Desktop support (Windows, macOS, Linux)**: ~~Promoted to **Phase 13**.~~ See Phase 13 for the full implementation plan including adaptive layout, OS audio integration (SMTC / MPRIS / macOS media keys), and packaging.
 - **Chromecast / DLNA**: Cast audio to external devices. Requires a casting package and UI affordances. Independent of the core playback engine.
 - **Widgets**: Home screen widget showing current track with basic controls.
 - **Wear OS / Apple Watch**: Companion app for playback control.

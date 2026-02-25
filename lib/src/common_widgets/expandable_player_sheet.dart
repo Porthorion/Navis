@@ -87,9 +87,9 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
     if (widget.isExpanded != oldWidget.isExpanded) {
       if (widget.isExpanded) {
         // Velocity of 2.5 gives a snappy but not jarring spring-style snap.
-        _controller.fling(velocity: 2.5);
+        _controller.fling(velocity: 2);
       } else {
-        _controller.fling(velocity: -2.5);
+        _controller.fling(velocity: -2);
       }
     }
   }
@@ -186,10 +186,10 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
     } else {
       // Low velocity — snap to nearest half with moderate spring
       if (_controller.value > 0.5) {
-        _controller.fling(velocity: 2.0);
+        _controller.fling(velocity: 2);
         if (!widget.isExpanded) widget.onExpand();
       } else {
-        _controller.fling(velocity: -2.0);
+        _controller.fling(velocity: -2);
         if (widget.isExpanded) widget.onCollapse();
       }
     }

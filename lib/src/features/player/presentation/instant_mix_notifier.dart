@@ -10,8 +10,8 @@ const _kRefillThreshold = 3;
 
 /// Global notifier that manages the Instant Mix auto-refill mode.
 ///
-/// When [active], this notifier watches the playback queue and automatically
-/// appends similar tracks whenever fewer than [_kRefillThreshold] tracks remain
+/// When `active`, this notifier watches the playback queue and automatically
+/// appends similar tracks whenever fewer than `_kRefillThreshold` tracks remain
 /// after the current position.  The seed song is updated each cycle to the
 /// currently-playing track, keeping the recommendations fresh.
 ///

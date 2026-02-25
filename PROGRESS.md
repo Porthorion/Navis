@@ -48,6 +48,7 @@ Last updated: 2026-02-25
 - [x] Phase 10 increment 7 (hero cover art animation: `AlbumCard` accepts optional `heroTag`, `HeroCoverArt` used when tag provided; hero tags wired in library album grid, home local+server album carousels → album detail screen using consistent `buildCoverArtHeroTag(coverArtId:, context: 'album')` so cover art smoothly animates on navigation; optimistic star/unstar UI in album detail + artist detail — star icon flips immediately on tap with rollback + error snackbar on API failure, removed redundant success snackbars; removed now-unused `albumDetailStarSuccess` / `albumDetailUnstarSuccess` l10n keys; restored accidentally deleted app icon PNG assets) — 2026-02-25 (evidence: `flutter analyze lib/` — 0 errors 26 infos, `flutter test` — 190/191 pass, 1 pre-existing flaky)
 - [x] Phase 10 increment 8 (mini-player ↔ Now Playing animation overhaul: `Curves.fastEaseInToSlowEaseOut` replaces `easeOutCubic`, full-player fade starts at 10% instead of 20%, mini-player fades out by 25% instead of 30%, velocity-aware `_controller.fling()` replaces bare `forward()`/`reverse()` for both gesture-drag-end and programmatic expand/collapse so finger momentum carries through naturally, lower velocity threshold 150px/s → more responsive swipe detection; page transitions: `_slideFadePage` helper with 280ms slide-up + fade-in / 220ms fade-out applied to all push routes — album detail, artist detail, playlist detail, and all 7 settings sub-screens; applied new launcher icons for Android+iOS via `flutter_launcher_icons`) — 2026-02-25 (evidence: `flutter analyze lib/` — 0 errors 28 infos, `flutter test` — 190/191 pass, 1 pre-existing flaky)
 - [x] Phase 10 increment 9 (shimmer audit completion: `CircularProgressIndicator` replaced with `ShimmerListPage` in radio screen, downloads screen queue + downloaded tabs, and library playlists tab — all remaining screens now use shimmer consistently; code quality: `ShimmerListTile`/`ShimmerListPage` widget constructors made `const`, `_` double-underscore in `itemBuilder` fixed to single `_`; `about_screen` update-channel picker refactored from two independent `RadioListTile` widgets to a single `RadioGroup<String>` with child `Column` so selection state is correctly shared; `searchResultsProvider` changed to `FutureProvider.autoDispose.family` so results are released when search screen leaves the stack; `_fetch` local function in `SubsonicApiClient.getInstantMix` renamed to `fetch` to satisfy linter; `submit()` in `SearchQueryNotifier` annotated with `// ignore: use_setters_to_change_properties` — lint infos reduced from 28 → 21) — 2026-02-25 (evidence: `flutter analyze lib/` — 0 errors 21 infos, `flutter test` — 190/191 pass, 1 pre-existing flaky)
+- [x] Phase 10 increment 10 (lint completion: `dart fix --apply` auto-fixed 12 infos; remaining 9 fixed manually across 12 files — explicit type annotations in `expandable_player_sheet.dart`, `shimmer_placeholder.dart`, `star_button.dart`, `library_scroll_provider.dart`, `instant_mix_state.dart`; `use_build_context_synchronously` `// ignore` suppressions in `now_playing_screen.dart`, `search_controller_provider.dart`, `cache_settings_screen.dart`, `server_settings_screen.dart`, `instant_mix_notifier.dart`; `comment_references` backtick fixes in `library_screen.dart`, `radio_screen.dart`; `Tween<double>` explicit type in `expandable_player_sheet.dart` — lint infos reduced from 21 → 0; README.md comprehensive rewrite with features, requirements, tech stack, build/run/release instructions, docs table, roadmap, and local guardrails sections; DEVELOPMENT_PLAN.md: Phase 12 Android Auto & CarPlay added as full phase with architecture/Android Auto/CarPlay/l10n/graceful degradation sections + Verification Strategy row; Phase 13 Desktop Support Windows/macOS/Linux added as full phase with adaptive layout/audio OS integration/packaging/key packages table + Verification Strategy row; Future Considerations updated to note Android Auto/CarPlay and Desktop promoted to full phases) — 2026-05-25 (evidence: `flutter analyze lib/` — 0 issues, `flutter test` — 190/191 pass, 1 pre-existing flaky)
 
 ## Meta Progress
 - [x] Tech stack and methodology validation refresh — 2026-02-18 (evidence: `DEVELOPMENT_PLAN.md` stack validation section + README tech stack update)
@@ -464,6 +465,30 @@ Last updated: 2026-02-25
 - [ ] "You might also like" on home screen
 - [ ] AI mix generation (seed → playlist)
 - [ ] Graceful degradation (hidden when unconfigured, fallback to Subsonic data)
+
+## Phase 12: Android Auto & CarPlay
+- [ ] `AutoMediaLibraryService` — extends `NavisAudioHandler` with `getChildren()` / `getMediaItem()` browsable tree
+- [ ] `autoContentProvider` — Riverpod provider constructing `MediaItem` hierarchy (root → artists/albums/playlists → tracks)
+- [ ] Android `AndroidManifest.xml`: `MediaBrowserService` export + `android.hardware.type.automotive` uses-feature
+- [ ] Artists, Albums, Playlists root tabs; drill-down into albums → tracks
+- [ ] Android Auto: queue operations wired (play/pause/next/previous/seek/search)
+- [ ] `CarPlayController` — Swift platform channel implementing `MPPlayableContentDataSource` + `MPPlayableContentDelegate`
+- [ ] iOS `Runner.entitlements`: `com.apple.developer.carplay-audio` entitlement
+- [ ] Siri Shortcuts `INPlayMediaIntent` integration
+- [ ] l10n keys for Auto/CarPlay content tree root labels
+- [ ] Graceful degradation (inert when not connected, error `MediaItem` on tree load failure)
+
+## Phase 13: Desktop Support (Windows, macOS, Linux)
+- [ ] `AdaptiveShell` widget with `LayoutBuilder` breakpoints (< 600 dp BottomNav, ≥ 600 dp NavigationRail, ≥ 960 dp master-detail)
+- [ ] `go_router` shell route updated to use `AdaptiveShell`
+- [ ] Window size/position persistence via `window_manager` package
+- [ ] Minimum window size enforced (480 × 600 px)
+- [ ] Windows: `smtc_windows` SMTC integration bridged to `NavisAudioHandler`
+- [ ] Linux: `mpris_service` D-Bus MPRIS interface bridged to `NavisAudioHandler`
+- [ ] macOS: platform channel → `MPRemoteCommandCenter` + `MPNowPlayingInfoCenter`
+- [ ] Windows: MSIX packaging via `msix` pub package
+- [ ] macOS: entitlements + notarisation workflow documented
+- [ ] Linux: `.deb` + Flatpak packaging via `flutter_distributor`
 
 ---
 
