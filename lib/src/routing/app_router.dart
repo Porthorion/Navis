@@ -8,7 +8,6 @@ import 'package:navis/src/features/library/presentation/album_detail_screen.dart
 import 'package:navis/src/features/library/presentation/artist_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/library_screen.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_detail_screen.dart';
-import 'package:navis/src/features/playlists/presentation/playlists_screen.dart';
 import 'package:navis/src/features/search/presentation/search_screen.dart';
 import 'package:navis/src/features/settings/presentation/appearance_settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/about_screen.dart';
@@ -86,6 +85,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                       return AlbumDetailScreen(albumId: albumId);
                     },
                   ),
+                  GoRoute(
+                    path: 'playlists/:id',
+                    builder: (context, state) {
+                      final playlistId = state.pathParameters['id']!;
+                      return PlaylistDetailScreen(playlistId: playlistId);
+                    },
+                  ),
                 ],
               ),
             ],
@@ -95,23 +101,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/search',
                 builder: (context, state) => const SearchScreen(),
-              ),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: <RouteBase>[
-              GoRoute(
-                path: '/playlists',
-                builder: (context, state) => const PlaylistsScreen(),
-                routes: <RouteBase>[
-                  GoRoute(
-                    path: ':id',
-                    builder: (context, state) {
-                      final playlistId = state.pathParameters['id']!;
-                      return PlaylistDetailScreen(playlistId: playlistId);
-                    },
-                  ),
-                ],
               ),
             ],
           ),

@@ -347,8 +347,7 @@ void main() {
     expect(configuredLocations, contains('/library/artists/:id'));
     expect(configuredLocations, contains('/library/albums/:id'));
     expect(configuredLocations, contains('/search'));
-    expect(configuredLocations, contains('/playlists'));
-    expect(configuredLocations, contains('/playlists/:id'));
+    expect(configuredLocations, contains('/library/playlists/:id'));
     expect(configuredLocations, contains('/settings'));
     expect(configuredLocations, contains('/settings/server'));
     expect(configuredLocations, contains('/settings/cache'));

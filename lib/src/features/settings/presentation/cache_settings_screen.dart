@@ -7,6 +7,7 @@ import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/format_utils.dart';
+import 'package:path_provider/path_provider.dart';
 
 class CacheSettingsScreen extends ConsumerStatefulWidget {
   const CacheSettingsScreen({super.key});
@@ -25,6 +26,14 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
 
   /// True while a clear operation is in progress.
   bool _clearing = false;
+
+  // Cover art storage size in bytes. null = not yet calculated.
+  int? _coverArtStorageBytes;
+
+  // Pre-cache state
+  bool _isCaching = false;
+  int _cachingProgress = 0;
+  int _cachingTotal = 0;
 
   static const int _minBudgetMb = 500;
   static const int _maxBudgetMb = 10240; // 10 GB
@@ -49,6 +58,31 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
         _budgetMb = mb;
         _coverArtMax = coverArt;
       });
+    }
+    await _loadCoverArtStorageBytes();
+  }
+
+  Future<void> _loadCoverArtStorageBytes() async {
+    try {
+      final tempDir = await getTemporaryDirectory();
+      final dir = Directory('${tempDir.path}/$coverArtCacheKey');
+      if (!dir.existsSync()) {
+        if (mounted) setState(() => _coverArtStorageBytes = 0);
+        return;
+      }
+      int total = 0;
+      await for (final entity in dir.list(recursive: true)) {
+        if (entity is File) {
+          try {
+            total += await entity.length();
+          } on FileSystemException {
+            // skip
+          }
+        }
+      }
+      if (mounted) setState(() => _coverArtStorageBytes = total);
+    } on Exception {
+      if (mounted) setState(() => _coverArtStorageBytes = 0);
     }
   }
 
@@ -147,7 +181,10 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
     setState(() => _clearing = true);
     try {
       await defaultCoverArtCacheManager.emptyCache();
-      if (mounted) _showClearedSnackBar();
+      if (mounted) {
+        setState(() => _coverArtStorageBytes = 0);
+        _showClearedSnackBar();
+      }
     } finally {
       if (mounted) setState(() => _clearing = false);
     }
@@ -183,6 +220,61 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
     ScaffoldMessenger.of(context)
       ..clearSnackBars()
       ..showSnackBar(SnackBar(content: Text(l10n.cacheSettingsClearSuccess)));
+  }
+
+  // ---------------------------------------------------------------------------
+  // Pre-cache cover art
+  // ---------------------------------------------------------------------------
+
+  Future<void> _preCacheAllCoverArt() async {
+    final api = ref.read(subsonicApiProvider);
+    if (api == null) return;
+
+    final l10n = AppLocalizations.of(context)!;
+    final albums = await ref
+        .read(navisDatabaseProvider)
+        .libraryDao
+        .getAllAlbums();
+
+    final coverArtIds = albums
+        .where((a) => a.coverArt != null && a.coverArt!.isNotEmpty)
+        .map((a) => a.coverArt!)
+        .toSet()
+        .toList(growable: false);
+
+    if (coverArtIds.isEmpty) return;
+
+    setState(() {
+      _isCaching = true;
+      _cachingProgress = 0;
+      _cachingTotal = coverArtIds.length;
+    });
+
+    int done = 0;
+    for (final id in coverArtIds) {
+      if (!mounted) break;
+      try {
+        final url = api.getCoverArtUrl(id: id, size: 300).toString();
+        await defaultCoverArtCacheManager.downloadFile(url, key: '$id:300');
+      } on Exception {
+        // best-effort: skip failures
+      }
+      done++;
+      if (mounted) setState(() => _cachingProgress = done);
+    }
+
+    if (mounted) {
+      setState(() => _isCaching = false);
+      // Refresh storage size display
+      await _loadCoverArtStorageBytes();
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(l10n.cacheSettingsPrecacheSuccess(done)),
+          ),
+        );
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -280,6 +372,18 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ),
+                if (_coverArtStorageBytes != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                    child: Text(
+                      l10n.cacheSettingsCoverArtSizeLabel(
+                        formatBytes(_coverArtStorageBytes!),
+                      ),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
                 if (_coverArtMax != null) ...[
                   SwitchListTile(
                     value: _coverArtMax == 0,
@@ -337,6 +441,38 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
                     ),
                   ),
                 ],
+                if (_isCaching)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          l10n.cacheSettingsPrecachingProgress(
+                            _cachingProgress,
+                            _cachingTotal,
+                          ),
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                        const SizedBox(height: 4),
+                        LinearProgressIndicator(
+                          value: _cachingTotal > 0
+                              ? _cachingProgress / _cachingTotal
+                              : null,
+                        ),
+                      ],
+                    ),
+                  ),
+                if (_coverArtMax == 0 && !_isCaching)
+                  ListTile(
+                    leading: const Icon(Icons.download_for_offline_outlined),
+                    title: Text(l10n.cacheSettingsPrecacheTitle),
+                    subtitle: Text(l10n.cacheSettingsPrecacheSubtitle),
+                    onTap: _preCacheAllCoverArt,
+                  ),
                 ListTile(
                   leading: const Icon(Icons.image_outlined),
                   title: Text(l10n.cacheSettingsClearCoverArt),

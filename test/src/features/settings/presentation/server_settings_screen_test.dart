@@ -128,16 +128,17 @@ void main() {
     expect(find.text('Connection successful (API 1.16.1).'), findsOneWidget);
   });
 
-  testWidgets('save updates server config', (tester) async {
+  testWidgets('screen is read-only (no form fields or save button)', (
+    tester,
+  ) async {
     final fakeConnection = _FakeServerConnectionService();
     final fakeSignOut = _FakeSignOutService();
-    late _TestServerConfigNotifier notifier;
 
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           serverConfigProvider.overrideWith(
-            () => notifier = _TestServerConfigNotifier(initialConfig),
+            () => _TestServerConfigNotifier(initialConfig),
           ),
           serverConnectionServiceProvider.overrideWithValue(fakeConnection),
           signOutServiceProvider.overrideWithValue(fakeSignOut),
@@ -147,18 +148,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextFormField).at(0), 'http://new.test');
-    await tester.enterText(find.byType(TextFormField).at(1), 'bob');
-    await tester.enterText(find.byType(TextFormField).at(2), 'newsecret');
-    await tester.ensureVisible(find.text('Save'));
-    await tester.tap(find.text('Save'));
-    await tester.pumpAndSettle();
-
-    expect(notifier.savedConfigSnapshot(), isNotNull);
-    expect(notifier.savedConfigSnapshot()?.url, 'http://new.test');
-    expect(notifier.savedConfigSnapshot()?.username, 'bob');
-    expect(notifier.savedConfigSnapshot()?.password, 'newsecret');
-    expect(find.text('Server settings saved.'), findsOneWidget);
+    // Server details are displayed as static text, not editable form fields.
+    expect(find.byType(TextFormField), findsNothing);
+    expect(find.text('Save'), findsNothing);
   });
 
   testWidgets('sign out dialog presents both options', (tester) async {

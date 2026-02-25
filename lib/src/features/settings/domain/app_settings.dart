@@ -12,6 +12,8 @@ class AppSettingsModel {
     required this.gaplessEnabled,
     required this.skipSilenceEnabled,
     required this.showRadioPage,
+    required this.showPlaylistsPage,
+    required this.showArtistsPage,
     required this.equalizerEnabled,
     required this.equalizerBandGains,
     required this.loudnessEnabled,
@@ -34,6 +36,8 @@ class AppSettingsModel {
       gaplessEnabled = true,
       skipSilenceEnabled = false,
       showRadioPage = true,
+      showPlaylistsPage = true,
+      showArtistsPage = true,
       equalizerEnabled = false,
       equalizerBandGains = const <double>[],
       loudnessEnabled = false,
@@ -56,6 +60,8 @@ class AppSettingsModel {
   // Runtime playback behavior intentionally does not consume this setting.
   final bool skipSilenceEnabled;
   final bool showRadioPage;
+  final bool showPlaylistsPage;
+  final bool showArtistsPage;
   final bool equalizerEnabled;
   final List<double> equalizerBandGains;
   final bool loudnessEnabled;
@@ -77,6 +83,8 @@ class AppSettingsModel {
     bool? gaplessEnabled,
     bool? skipSilenceEnabled,
     bool? showRadioPage,
+    bool? showPlaylistsPage,
+    bool? showArtistsPage,
     bool? equalizerEnabled,
     List<double>? equalizerBandGains,
     bool? loudnessEnabled,
@@ -109,6 +117,8 @@ class AppSettingsModel {
       gaplessEnabled: gaplessEnabled ?? this.gaplessEnabled,
       skipSilenceEnabled: skipSilenceEnabled ?? this.skipSilenceEnabled,
       showRadioPage: showRadioPage ?? this.showRadioPage,
+      showPlaylistsPage: showPlaylistsPage ?? this.showPlaylistsPage,
+      showArtistsPage: showArtistsPage ?? this.showArtistsPage,
       equalizerEnabled: equalizerEnabled ?? this.equalizerEnabled,
       equalizerBandGains:
           equalizerBandGains ?? List<double>.from(this.equalizerBandGains),

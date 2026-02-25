@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/common_widgets/artist_card.dart';
+import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
@@ -14,6 +15,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/radio_screen.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
@@ -75,7 +77,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     final l10n = AppLocalizations.of(context)!;
     final syncState = ref.watch(librarySyncControllerProvider);
     final showRadioTab = ref.watch(showRadioPageProvider);
-    final tabCount = showRadioTab ? 3 : 2;
+    final showArtistsTab = ref.watch(showArtistsPageProvider);
+    final showPlaylistsTab = ref.watch(showPlaylistsPageProvider);
+    final tabCount = 1 +
+        (showArtistsTab ? 1 : 0) +
+        (showPlaylistsTab ? 1 : 0) +
+        (showRadioTab ? 1 : 0);
     final tabController = _ensureTabController(tabCount);
     return Scaffold(
       appBar: AppBar(
@@ -84,7 +91,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           controller: tabController,
           tabs: <Widget>[
             Tab(text: l10n.libraryTabAlbums),
-            Tab(text: l10n.libraryTabArtists),
+            if (showArtistsTab) Tab(text: l10n.libraryTabArtists),
+            if (showPlaylistsTab) Tab(text: l10n.navPlaylists),
             if (showRadioTab) Tab(text: l10n.navRadio),
           ],
         ),
@@ -100,7 +108,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                   : const PageScrollPhysics(),
               children: <Widget>[
                 _buildAlbumsTab(context),
-                _buildArtistsTab(context),
+                if (showArtistsTab) _buildArtistsTab(context),
+                if (showPlaylistsTab) const _LibraryPlaylistsTab(),
                 if (showRadioTab) const RadioTabContent(),
               ],
             ),
@@ -343,7 +352,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
               ? filteredItems.length
               : (totalAlbumsAsync.asData?.value ?? items.length);
           final hasMore = !_downloadedOnly && items.length < totalAlbums;
-          return CustomScrollView(
+          return Scrollbar(
+            controller: _albumsScrollController,
+            thumbVisibility: false,
+            interactive: true,
+            child: CustomScrollView(
             controller: _albumsScrollController,
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: <Widget>[
@@ -447,6 +460,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                   ),
                 ),
             ],
+            ),
           );
         },
       ),
@@ -1041,6 +1055,300 @@ class _LoadingListPlaceholder extends StatelessWidget {
           ShimmerPlaceholder(height: 14, width: 120),
         ],
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Playlists tab embedded in the Library screen
+// ---------------------------------------------------------------------------
+
+class _LibraryPlaylistsTab extends ConsumerStatefulWidget {
+  const _LibraryPlaylistsTab();
+
+  @override
+  ConsumerState<_LibraryPlaylistsTab> createState() =>
+      _LibraryPlaylistsTabState();
+}
+
+class _LibraryPlaylistsTabState
+    extends ConsumerState<_LibraryPlaylistsTab> {
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() => ref.invalidate(playlistSyncProvider));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final playlistsAsync = ref.watch(playlistListProvider);
+    ref.watch(playlistSyncProvider);
+
+    return Stack(
+      children: [
+        RefreshIndicator(
+          onRefresh: () async {
+            ref.invalidate(playlistSyncProvider);
+            await ref.read(playlistSyncProvider.future);
+          },
+          child: playlistsAsync.when(
+            data: (playlists) {
+              if (playlists.isEmpty) {
+                return ListView(
+                  children: [
+                    SizedBox(
+                      height: MediaQuery.of(context).size.height * 0.6,
+                      child: EmptyState(
+                        title: l10n.playlistsEmpty,
+                        subtitle: l10n.playlistsEmptySubtitle,
+                        icon: Icons.queue_music_outlined,
+                      ),
+                    ),
+                  ],
+                );
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.only(bottom: 80),
+                itemCount: playlists.length,
+                itemBuilder: (context, index) {
+                  final playlist = playlists[index];
+                  return ListTile(
+                    leading: ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: CoverArtImage(
+                        coverArtId: playlist.coverArt,
+                        size: 48,
+                        semanticLabel: playlist.name,
+                      ),
+                    ),
+                    title: Text(playlist.name),
+                    subtitle: playlist.songCount != null
+                        ? Text(l10n.playlistsSongCount(playlist.songCount!))
+                        : null,
+                    onTap: () => context.push(
+                      '/library/playlists/${playlist.id}',
+                    ),
+                    onLongPress: () =>
+                        _showPlaylistActions(context, playlist),
+                  );
+                },
+              );
+            },
+            loading: () =>
+                const Center(child: CircularProgressIndicator()),
+            error: (error, _) => ErrorState(
+              title: l10n.playlistsLoadError,
+              message: error.toString(),
+              onRetry: () => ref.invalidate(playlistSyncProvider),
+            ),
+          ),
+        ),
+        Positioned(
+          bottom: 16,
+          right: 16,
+          child: FloatingActionButton(
+            heroTag: 'library_playlists_fab',
+            onPressed: () => _showCreatePlaylistDialog(context),
+            tooltip: l10n.playlistsCreateAction,
+            child: const Icon(Icons.add),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showCreatePlaylistDialog(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final controller = TextEditingController();
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.playlistsCreateTitle),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration:
+              InputDecoration(labelText: l10n.playlistsCreateNameLabel),
+          onSubmitted: (_) =>
+              _createPlaylist(dialogContext, controller.text.trim()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(l10n.cancelAction),
+          ),
+          FilledButton(
+            onPressed: () =>
+                _createPlaylist(dialogContext, controller.text.trim()),
+            child: Text(l10n.playlistsCreateAction),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _createPlaylist(BuildContext dialogContext, String name) {
+    if (name.isEmpty) return;
+    Navigator.of(dialogContext).pop();
+
+    final l10n = AppLocalizations.of(context)!;
+    final api = ref.read(subsonicApiProvider);
+    if (api == null) return;
+
+    unawaited(
+      api
+          .createPlaylist(name)
+          .then((_) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(l10n.playlistsCreateSuccess)),
+            );
+            ref.invalidate(playlistSyncProvider);
+          })
+          .catchError((_) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(l10n.playlistsCreateFailed)),
+            );
+          }),
+    );
+  }
+
+  void _showPlaylistActions(
+    BuildContext context,
+    PlaylistsTableData playlist,
+  ) {
+    final l10n = AppLocalizations.of(context)!;
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: Text(l10n.playlistsRenameTitle),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                _showRenameDialog(context, playlist);
+              },
+            ),
+            ListTile(
+              leading: Icon(
+                Icons.delete_outline,
+                color: Theme.of(context).colorScheme.error,
+              ),
+              title: Text(
+                l10n.playlistsDeleteConfirmTitle,
+                style:
+                    TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                _confirmDelete(context, playlist);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showRenameDialog(BuildContext context, PlaylistsTableData playlist) {
+    final l10n = AppLocalizations.of(context)!;
+    final controller = TextEditingController(text: playlist.name);
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.playlistsRenameTitle),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration:
+              InputDecoration(labelText: l10n.playlistsCreateNameLabel),
+          onSubmitted: (_) =>
+              _renamePlaylist(dialogContext, playlist, controller.text.trim()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(l10n.cancelAction),
+          ),
+          FilledButton(
+            onPressed: () =>
+                _renamePlaylist(dialogContext, playlist, controller.text.trim()),
+            child: Text(l10n.playlistsRenameTitle),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _renamePlaylist(
+    BuildContext dialogContext,
+    PlaylistsTableData playlist,
+    String newName,
+  ) {
+    if (newName.isEmpty) return;
+    Navigator.of(dialogContext).pop();
+    final api = ref.read(subsonicApiProvider);
+    if (api == null) return;
+    unawaited(
+      api
+          .updatePlaylist(id: playlist.id, name: newName)
+          .then((_) {
+            if (!mounted) return;
+            ref.invalidate(playlistSyncProvider);
+          })
+          .catchError((_) {}),
+    );
+  }
+
+  void _confirmDelete(
+    BuildContext context,
+    PlaylistsTableData playlist,
+  ) {
+    final l10n = AppLocalizations.of(context)!;
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.playlistsDeleteConfirmTitle),
+        content: Text(l10n.playlistsDeleteConfirmMessage(playlist.name)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(l10n.cancelAction),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Theme.of(context).colorScheme.onError,
+            ),
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              _deletePlaylist(playlist);
+            },
+            child: Text(l10n.playlistsDeleteConfirmTitle),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _deletePlaylist(PlaylistsTableData playlist) {
+    final api = ref.read(subsonicApiProvider);
+    if (api == null) return;
+    unawaited(
+      api
+          .deletePlaylist(playlist.id)
+          .then((_) {
+            if (!mounted) return;
+            ref.invalidate(playlistSyncProvider);
+          })
+          .catchError((_) {}),
     );
   }
 }

@@ -639,6 +639,36 @@ class $AppSettingsTableTable extends AppSettingsTable
     ),
     defaultValue: const Constant(true),
   );
+  static const VerificationMeta _showPlaylistsPageMeta = const VerificationMeta(
+    'showPlaylistsPage',
+  );
+  @override
+  late final GeneratedColumn<bool> showPlaylistsPage = GeneratedColumn<bool>(
+    'show_playlists_page',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("show_playlists_page" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _showArtistsPageMeta = const VerificationMeta(
+    'showArtistsPage',
+  );
+  @override
+  late final GeneratedColumn<bool> showArtistsPage = GeneratedColumn<bool>(
+    'show_artists_page',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("show_artists_page" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
   static const VerificationMeta _equalizerEnabledMeta = const VerificationMeta(
     'equalizerEnabled',
   );
@@ -838,6 +868,8 @@ class $AppSettingsTableTable extends AppSettingsTable
     gaplessEnabled,
     skipSilenceEnabled,
     showRadioPage,
+    showPlaylistsPage,
+    showArtistsPage,
     equalizerEnabled,
     equalizerBandGains,
     loudnessEnabled,
@@ -935,6 +967,24 @@ class $AppSettingsTableTable extends AppSettingsTable
         showRadioPage.isAcceptableOrUnknown(
           data['show_radio_page']!,
           _showRadioPageMeta,
+        ),
+      );
+    }
+    if (data.containsKey('show_playlists_page')) {
+      context.handle(
+        _showPlaylistsPageMeta,
+        showPlaylistsPage.isAcceptableOrUnknown(
+          data['show_playlists_page']!,
+          _showPlaylistsPageMeta,
+        ),
+      );
+    }
+    if (data.containsKey('show_artists_page')) {
+      context.handle(
+        _showArtistsPageMeta,
+        showArtistsPage.isAcceptableOrUnknown(
+          data['show_artists_page']!,
+          _showArtistsPageMeta,
         ),
       );
     }
@@ -1114,6 +1164,14 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.bool,
         data['${effectivePrefix}show_radio_page'],
       )!,
+      showPlaylistsPage: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}show_playlists_page'],
+      )!,
+      showArtistsPage: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}show_artists_page'],
+      )!,
       equalizerEnabled: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}equalizer_enabled'],
@@ -1194,6 +1252,8 @@ class AppSettingsTableData extends DataClass
   final bool gaplessEnabled;
   final bool skipSilenceEnabled;
   final bool showRadioPage;
+  final bool showPlaylistsPage;
+  final bool showArtistsPage;
   final bool equalizerEnabled;
   final String? equalizerBandGains;
   final bool loudnessEnabled;
@@ -1239,6 +1299,8 @@ class AppSettingsTableData extends DataClass
     required this.gaplessEnabled,
     required this.skipSilenceEnabled,
     required this.showRadioPage,
+    required this.showPlaylistsPage,
+    required this.showArtistsPage,
     required this.equalizerEnabled,
     this.equalizerBandGains,
     required this.loudnessEnabled,
@@ -1275,6 +1337,8 @@ class AppSettingsTableData extends DataClass
     map['gapless_enabled'] = Variable<bool>(gaplessEnabled);
     map['skip_silence_enabled'] = Variable<bool>(skipSilenceEnabled);
     map['show_radio_page'] = Variable<bool>(showRadioPage);
+    map['show_playlists_page'] = Variable<bool>(showPlaylistsPage);
+    map['show_artists_page'] = Variable<bool>(showArtistsPage);
     map['equalizer_enabled'] = Variable<bool>(equalizerEnabled);
     if (!nullToAbsent || equalizerBandGains != null) {
       map['equalizer_band_gains'] = Variable<String>(equalizerBandGains);
@@ -1320,6 +1384,8 @@ class AppSettingsTableData extends DataClass
       gaplessEnabled: Value(gaplessEnabled),
       skipSilenceEnabled: Value(skipSilenceEnabled),
       showRadioPage: Value(showRadioPage),
+      showPlaylistsPage: Value(showPlaylistsPage),
+      showArtistsPage: Value(showArtistsPage),
       equalizerEnabled: Value(equalizerEnabled),
       equalizerBandGains: equalizerBandGains == null && nullToAbsent
           ? const Value.absent()
@@ -1361,6 +1427,8 @@ class AppSettingsTableData extends DataClass
       gaplessEnabled: serializer.fromJson<bool>(json['gaplessEnabled']),
       skipSilenceEnabled: serializer.fromJson<bool>(json['skipSilenceEnabled']),
       showRadioPage: serializer.fromJson<bool>(json['showRadioPage']),
+      showPlaylistsPage: serializer.fromJson<bool>(json['showPlaylistsPage']),
+      showArtistsPage: serializer.fromJson<bool>(json['showArtistsPage']),
       equalizerEnabled: serializer.fromJson<bool>(json['equalizerEnabled']),
       equalizerBandGains: serializer.fromJson<String?>(
         json['equalizerBandGains'],
@@ -1405,6 +1473,8 @@ class AppSettingsTableData extends DataClass
       'gaplessEnabled': serializer.toJson<bool>(gaplessEnabled),
       'skipSilenceEnabled': serializer.toJson<bool>(skipSilenceEnabled),
       'showRadioPage': serializer.toJson<bool>(showRadioPage),
+      'showPlaylistsPage': serializer.toJson<bool>(showPlaylistsPage),
+      'showArtistsPage': serializer.toJson<bool>(showArtistsPage),
       'equalizerEnabled': serializer.toJson<bool>(equalizerEnabled),
       'equalizerBandGains': serializer.toJson<String?>(equalizerBandGains),
       'loudnessEnabled': serializer.toJson<bool>(loudnessEnabled),
@@ -1437,6 +1507,8 @@ class AppSettingsTableData extends DataClass
     bool? gaplessEnabled,
     bool? skipSilenceEnabled,
     bool? showRadioPage,
+    bool? showPlaylistsPage,
+    bool? showArtistsPage,
     bool? equalizerEnabled,
     Value<String?> equalizerBandGains = const Value.absent(),
     bool? loudnessEnabled,
@@ -1468,6 +1540,8 @@ class AppSettingsTableData extends DataClass
     gaplessEnabled: gaplessEnabled ?? this.gaplessEnabled,
     skipSilenceEnabled: skipSilenceEnabled ?? this.skipSilenceEnabled,
     showRadioPage: showRadioPage ?? this.showRadioPage,
+    showPlaylistsPage: showPlaylistsPage ?? this.showPlaylistsPage,
+    showArtistsPage: showArtistsPage ?? this.showArtistsPage,
     equalizerEnabled: equalizerEnabled ?? this.equalizerEnabled,
     equalizerBandGains: equalizerBandGains.present
         ? equalizerBandGains.value
@@ -1521,6 +1595,12 @@ class AppSettingsTableData extends DataClass
       showRadioPage: data.showRadioPage.present
           ? data.showRadioPage.value
           : this.showRadioPage,
+      showPlaylistsPage: data.showPlaylistsPage.present
+          ? data.showPlaylistsPage.value
+          : this.showPlaylistsPage,
+      showArtistsPage: data.showArtistsPage.present
+          ? data.showArtistsPage.value
+          : this.showArtistsPage,
       equalizerEnabled: data.equalizerEnabled.present
           ? data.equalizerEnabled.value
           : this.equalizerEnabled,
@@ -1577,6 +1657,8 @@ class AppSettingsTableData extends DataClass
           ..write('gaplessEnabled: $gaplessEnabled, ')
           ..write('skipSilenceEnabled: $skipSilenceEnabled, ')
           ..write('showRadioPage: $showRadioPage, ')
+          ..write('showPlaylistsPage: $showPlaylistsPage, ')
+          ..write('showArtistsPage: $showArtistsPage, ')
           ..write('equalizerEnabled: $equalizerEnabled, ')
           ..write('equalizerBandGains: $equalizerBandGains, ')
           ..write('loudnessEnabled: $loudnessEnabled, ')
@@ -1607,6 +1689,8 @@ class AppSettingsTableData extends DataClass
     gaplessEnabled,
     skipSilenceEnabled,
     showRadioPage,
+    showPlaylistsPage,
+    showArtistsPage,
     equalizerEnabled,
     equalizerBandGains,
     loudnessEnabled,
@@ -1636,6 +1720,8 @@ class AppSettingsTableData extends DataClass
           other.gaplessEnabled == this.gaplessEnabled &&
           other.skipSilenceEnabled == this.skipSilenceEnabled &&
           other.showRadioPage == this.showRadioPage &&
+          other.showPlaylistsPage == this.showPlaylistsPage &&
+          other.showArtistsPage == this.showArtistsPage &&
           other.equalizerEnabled == this.equalizerEnabled &&
           other.equalizerBandGains == this.equalizerBandGains &&
           other.loudnessEnabled == this.loudnessEnabled &&
@@ -1663,6 +1749,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<bool> gaplessEnabled;
   final Value<bool> skipSilenceEnabled;
   final Value<bool> showRadioPage;
+  final Value<bool> showPlaylistsPage;
+  final Value<bool> showArtistsPage;
   final Value<bool> equalizerEnabled;
   final Value<String?> equalizerBandGains;
   final Value<bool> loudnessEnabled;
@@ -1688,6 +1776,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.gaplessEnabled = const Value.absent(),
     this.skipSilenceEnabled = const Value.absent(),
     this.showRadioPage = const Value.absent(),
+    this.showPlaylistsPage = const Value.absent(),
+    this.showArtistsPage = const Value.absent(),
     this.equalizerEnabled = const Value.absent(),
     this.equalizerBandGains = const Value.absent(),
     this.loudnessEnabled = const Value.absent(),
@@ -1714,6 +1804,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.gaplessEnabled = const Value.absent(),
     this.skipSilenceEnabled = const Value.absent(),
     this.showRadioPage = const Value.absent(),
+    this.showPlaylistsPage = const Value.absent(),
+    this.showArtistsPage = const Value.absent(),
     this.equalizerEnabled = const Value.absent(),
     this.equalizerBandGains = const Value.absent(),
     this.loudnessEnabled = const Value.absent(),
@@ -1740,6 +1832,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<bool>? gaplessEnabled,
     Expression<bool>? skipSilenceEnabled,
     Expression<bool>? showRadioPage,
+    Expression<bool>? showPlaylistsPage,
+    Expression<bool>? showArtistsPage,
     Expression<bool>? equalizerEnabled,
     Expression<String>? equalizerBandGains,
     Expression<bool>? loudnessEnabled,
@@ -1768,6 +1862,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       if (skipSilenceEnabled != null)
         'skip_silence_enabled': skipSilenceEnabled,
       if (showRadioPage != null) 'show_radio_page': showRadioPage,
+      if (showPlaylistsPage != null) 'show_playlists_page': showPlaylistsPage,
+      if (showArtistsPage != null) 'show_artists_page': showArtistsPage,
       if (equalizerEnabled != null) 'equalizer_enabled': equalizerEnabled,
       if (equalizerBandGains != null)
         'equalizer_band_gains': equalizerBandGains,
@@ -1803,6 +1899,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<bool>? gaplessEnabled,
     Value<bool>? skipSilenceEnabled,
     Value<bool>? showRadioPage,
+    Value<bool>? showPlaylistsPage,
+    Value<bool>? showArtistsPage,
     Value<bool>? equalizerEnabled,
     Value<String?>? equalizerBandGains,
     Value<bool>? loudnessEnabled,
@@ -1829,6 +1927,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       gaplessEnabled: gaplessEnabled ?? this.gaplessEnabled,
       skipSilenceEnabled: skipSilenceEnabled ?? this.skipSilenceEnabled,
       showRadioPage: showRadioPage ?? this.showRadioPage,
+      showPlaylistsPage: showPlaylistsPage ?? this.showPlaylistsPage,
+      showArtistsPage: showArtistsPage ?? this.showArtistsPage,
       equalizerEnabled: equalizerEnabled ?? this.equalizerEnabled,
       equalizerBandGains: equalizerBandGains ?? this.equalizerBandGains,
       loudnessEnabled: loudnessEnabled ?? this.loudnessEnabled,
@@ -1878,6 +1978,12 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     }
     if (showRadioPage.present) {
       map['show_radio_page'] = Variable<bool>(showRadioPage.value);
+    }
+    if (showPlaylistsPage.present) {
+      map['show_playlists_page'] = Variable<bool>(showPlaylistsPage.value);
+    }
+    if (showArtistsPage.present) {
+      map['show_artists_page'] = Variable<bool>(showArtistsPage.value);
     }
     if (equalizerEnabled.present) {
       map['equalizer_enabled'] = Variable<bool>(equalizerEnabled.value);
@@ -1947,6 +2053,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('gaplessEnabled: $gaplessEnabled, ')
           ..write('skipSilenceEnabled: $skipSilenceEnabled, ')
           ..write('showRadioPage: $showRadioPage, ')
+          ..write('showPlaylistsPage: $showPlaylistsPage, ')
+          ..write('showArtistsPage: $showArtistsPage, ')
           ..write('equalizerEnabled: $equalizerEnabled, ')
           ..write('equalizerBandGains: $equalizerBandGains, ')
           ..write('loudnessEnabled: $loudnessEnabled, ')
@@ -8503,6 +8611,8 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<bool> gaplessEnabled,
       Value<bool> skipSilenceEnabled,
       Value<bool> showRadioPage,
+      Value<bool> showPlaylistsPage,
+      Value<bool> showArtistsPage,
       Value<bool> equalizerEnabled,
       Value<String?> equalizerBandGains,
       Value<bool> loudnessEnabled,
@@ -8530,6 +8640,8 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<bool> gaplessEnabled,
       Value<bool> skipSilenceEnabled,
       Value<bool> showRadioPage,
+      Value<bool> showPlaylistsPage,
+      Value<bool> showArtistsPage,
       Value<bool> equalizerEnabled,
       Value<String?> equalizerBandGains,
       Value<bool> loudnessEnabled,
@@ -8598,6 +8710,16 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<bool> get showRadioPage => $composableBuilder(
     column: $table.showRadioPage,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get showPlaylistsPage => $composableBuilder(
+    column: $table.showPlaylistsPage,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get showArtistsPage => $composableBuilder(
+    column: $table.showArtistsPage,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -8731,6 +8853,16 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get showPlaylistsPage => $composableBuilder(
+    column: $table.showPlaylistsPage,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get showArtistsPage => $composableBuilder(
+    column: $table.showArtistsPage,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get equalizerEnabled => $composableBuilder(
     column: $table.equalizerEnabled,
     builder: (column) => ColumnOrderings(column),
@@ -8859,6 +8991,16 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get showPlaylistsPage => $composableBuilder(
+    column: $table.showPlaylistsPage,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get showArtistsPage => $composableBuilder(
+    column: $table.showArtistsPage,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<bool> get equalizerEnabled => $composableBuilder(
     column: $table.equalizerEnabled,
     builder: (column) => column,
@@ -8977,6 +9119,8 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> gaplessEnabled = const Value.absent(),
                 Value<bool> skipSilenceEnabled = const Value.absent(),
                 Value<bool> showRadioPage = const Value.absent(),
+                Value<bool> showPlaylistsPage = const Value.absent(),
+                Value<bool> showArtistsPage = const Value.absent(),
                 Value<bool> equalizerEnabled = const Value.absent(),
                 Value<String?> equalizerBandGains = const Value.absent(),
                 Value<bool> loudnessEnabled = const Value.absent(),
@@ -9002,6 +9146,8 @@ class $$AppSettingsTableTableTableManager
                 gaplessEnabled: gaplessEnabled,
                 skipSilenceEnabled: skipSilenceEnabled,
                 showRadioPage: showRadioPage,
+                showPlaylistsPage: showPlaylistsPage,
+                showArtistsPage: showArtistsPage,
                 equalizerEnabled: equalizerEnabled,
                 equalizerBandGains: equalizerBandGains,
                 loudnessEnabled: loudnessEnabled,
@@ -9029,6 +9175,8 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> gaplessEnabled = const Value.absent(),
                 Value<bool> skipSilenceEnabled = const Value.absent(),
                 Value<bool> showRadioPage = const Value.absent(),
+                Value<bool> showPlaylistsPage = const Value.absent(),
+                Value<bool> showArtistsPage = const Value.absent(),
                 Value<bool> equalizerEnabled = const Value.absent(),
                 Value<String?> equalizerBandGains = const Value.absent(),
                 Value<bool> loudnessEnabled = const Value.absent(),
@@ -9054,6 +9202,8 @@ class $$AppSettingsTableTableTableManager
                 gaplessEnabled: gaplessEnabled,
                 skipSilenceEnabled: skipSilenceEnabled,
                 showRadioPage: showRadioPage,
+                showPlaylistsPage: showPlaylistsPage,
+                showArtistsPage: showArtistsPage,
                 equalizerEnabled: equalizerEnabled,
                 equalizerBandGains: equalizerBandGains,
                 loudnessEnabled: loudnessEnabled,

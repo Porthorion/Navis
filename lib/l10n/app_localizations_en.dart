@@ -105,7 +105,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsServerSubtitle =>
-      'View, test, and update connection settings.';
+      'View connection info, test, and sign out.';
 
   @override
   String get settingsCacheTitle => 'Cache';
@@ -1547,4 +1547,60 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get updateUpToDate => 'Navis is up to date.';
+
+  @override
+  String get appearancePagesSectionLabel => 'Page Visibility';
+
+  @override
+  String get appearanceShowRadioPageTitle => 'Show Radio tab';
+
+  @override
+  String get appearanceShowRadioPageSubtitle =>
+      'Show the Radio tab in the Library screen.';
+
+  @override
+  String get appearanceShowPlaylistsPageTitle => 'Show Playlists tab';
+
+  @override
+  String get appearanceShowPlaylistsPageSubtitle =>
+      'Show the Playlists tab in the Library screen.';
+
+  @override
+  String get appearanceShowArtistsPageTitle => 'Show Artists tab';
+
+  @override
+  String get appearanceShowArtistsPageSubtitle =>
+      'Show the Artists tab in the Library screen.';
+
+  @override
+  String cacheSettingsCoverArtSizeLabel(String size) {
+    return 'Storage used: $size';
+  }
+
+  @override
+  String get cacheSettingsPrecacheTitle => 'Pre-cache all album art';
+
+  @override
+  String get cacheSettingsPrecacheSubtitle =>
+      'Download artwork for every album to the device now. Only available when cover art cache has no limit.';
+
+  @override
+  String cacheSettingsPrecachingProgress(int done, int total) {
+    return 'Caching $done of $total...';
+  }
+
+  @override
+  String cacheSettingsPrecacheSuccess(int total) {
+    return 'Done — cached $total album art image(s).';
+  }
+
+  @override
+  String get serverSettingsSignOutConfirmTitle => 'Sign out';
+
+  @override
+  String get serverSettingsSignOutConfirmMessage =>
+      'How would you like to handle your local library data?';
+
+  @override
+  String get serverSettingsConnectionInfoTitle => 'Connection info';
 }

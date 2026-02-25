@@ -72,6 +72,20 @@ final showRadioPageProvider = Provider<bool>((ref) {
   return settings.showRadioPage;
 });
 
+final showPlaylistsPageProvider = Provider<bool>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.showPlaylistsPage;
+});
+
+final showArtistsPageProvider = Provider<bool>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.showArtistsPage;
+});
+
 final activeStreamingQualityProvider = Provider<StreamingQuality>((ref) {
   final networkType = ref.watch(networkTypeProvider);
   final settings =

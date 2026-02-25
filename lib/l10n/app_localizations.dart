@@ -277,7 +277,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsServerSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'View, test, and update connection settings.'**
+  /// **'View connection info, test, and sign out.'**
   String get settingsServerSubtitle;
 
   /// No description provided for @settingsCacheTitle.
@@ -2780,6 +2780,96 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Navis is up to date.'**
   String get updateUpToDate;
+
+  /// No description provided for @appearancePagesSectionLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Page Visibility'**
+  String get appearancePagesSectionLabel;
+
+  /// No description provided for @appearanceShowRadioPageTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Radio tab'**
+  String get appearanceShowRadioPageTitle;
+
+  /// No description provided for @appearanceShowRadioPageSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Show the Radio tab in the Library screen.'**
+  String get appearanceShowRadioPageSubtitle;
+
+  /// No description provided for @appearanceShowPlaylistsPageTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Playlists tab'**
+  String get appearanceShowPlaylistsPageTitle;
+
+  /// No description provided for @appearanceShowPlaylistsPageSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Show the Playlists tab in the Library screen.'**
+  String get appearanceShowPlaylistsPageSubtitle;
+
+  /// No description provided for @appearanceShowArtistsPageTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Artists tab'**
+  String get appearanceShowArtistsPageTitle;
+
+  /// No description provided for @appearanceShowArtistsPageSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Show the Artists tab in the Library screen.'**
+  String get appearanceShowArtistsPageSubtitle;
+
+  /// No description provided for @cacheSettingsCoverArtSizeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Storage used: {size}'**
+  String cacheSettingsCoverArtSizeLabel(String size);
+
+  /// No description provided for @cacheSettingsPrecacheTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Pre-cache all album art'**
+  String get cacheSettingsPrecacheTitle;
+
+  /// No description provided for @cacheSettingsPrecacheSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Download artwork for every album to the device now. Only available when cover art cache has no limit.'**
+  String get cacheSettingsPrecacheSubtitle;
+
+  /// No description provided for @cacheSettingsPrecachingProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Caching {done} of {total}...'**
+  String cacheSettingsPrecachingProgress(int done, int total);
+
+  /// No description provided for @cacheSettingsPrecacheSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Done — cached {total} album art image(s).'**
+  String cacheSettingsPrecacheSuccess(int total);
+
+  /// No description provided for @serverSettingsSignOutConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign out'**
+  String get serverSettingsSignOutConfirmTitle;
+
+  /// No description provided for @serverSettingsSignOutConfirmMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'How would you like to handle your local library data?'**
+  String get serverSettingsSignOutConfirmMessage;
+
+  /// No description provided for @serverSettingsConnectionInfoTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection info'**
+  String get serverSettingsConnectionInfoTitle;
 }
 
 class _AppLocalizationsDelegate
