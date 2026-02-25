@@ -60,13 +60,16 @@ class SettingsScreen extends StatelessWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push('/settings/about'),
           ),
-          ListTile(
-            leading: const Icon(Icons.auto_awesome),
-            title: Text(l10n.audioMuseSettingsTitle),
-            subtitle: Text(l10n.audioMuseSettingsSubtitle),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => context.push('/settings/audiomuse'),
-          ),
+          // AudioMuse settings tile hidden — AI recommendations are
+          // provided transparently via the Navidrome AudioMuse plugin
+          // through standard Subsonic API endpoints.
+          // ListTile(
+          //   leading: const Icon(Icons.auto_awesome),
+          //   title: Text(l10n.audioMuseSettingsTitle),
+          //   subtitle: Text(l10n.audioMuseSettingsSubtitle),
+          //   trailing: const Icon(Icons.chevron_right),
+          //   onTap: () => context.push('/settings/audiomuse'),
+          // ),
         ],
       ),
     );
