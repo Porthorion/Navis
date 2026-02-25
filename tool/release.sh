@@ -168,10 +168,14 @@ if [[ "${BUILD_IPA}" == "true" ]]; then
   echo "    IPA -> ${IPA_ASSET}"
 fi
 
-# ─── Commit pubspec bump ─────────────────────────────────────────────────────
+# ─── Commit pubspec bump (only if version changed) ──────────────────────────
 echo "==> Committing pubspec bump..."
 git add pubspec.yaml
-git commit -m "chore: bump version to ${SEMVER}+${BUILD_NUMBER} for release ${VERSION}"
+if git diff --cached --quiet; then
+  echo "    pubspec.yaml already at ${SEMVER}+${BUILD_NUMBER} — skipping commit."
+else
+  git commit -m "chore: bump version to ${SEMVER}+${BUILD_NUMBER} for release ${VERSION}"
+fi
 
 # ─── Merge dev -> main ──────────────────────────────────────────────────────
 echo "==> Merging ${CURRENT_BRANCH} -> main..."
