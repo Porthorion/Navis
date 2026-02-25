@@ -438,12 +438,11 @@ class _SongResultsSection extends ConsumerWidget {
               ),
               trailing: Text(_formatDuration(song.duration)),
               onTap: () {
-                final songIds = songs.map((s) => s.id).toList();
                 unawaited(
                   ref
                       .read(queueProvider.notifier)
-                      .replace(
-                        songIds,
+                      .replaceWithSongs(
+                        songs,
                         startIndex: index,
                       ),
                 );
@@ -474,7 +473,7 @@ class _SongResultsSection extends ConsumerWidget {
               onTap: () {
                 Navigator.of(sheetContext).pop();
                 unawaited(
-                  ref.read(queueProvider.notifier).playNext(song.id),
+                  ref.read(queueProvider.notifier).playNextWithSong(song),
                 );
               },
             ),
@@ -484,7 +483,7 @@ class _SongResultsSection extends ConsumerWidget {
               onTap: () {
                 Navigator.of(sheetContext).pop();
                 unawaited(
-                  ref.read(queueProvider.notifier).add(song.id),
+                  ref.read(queueProvider.notifier).addWithSong(song),
                 );
               },
             ),
