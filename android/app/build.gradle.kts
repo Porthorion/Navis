@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -8,7 +10,7 @@ plugins {
 // Load keystore properties if the file exists (git-ignored; never commit secrets).
 // Copy android/key.properties.example -> android/key.properties and fill in values.
 val keyPropertiesFile = rootProject.file("key.properties")
-val keyProperties = java.util.Properties()
+val keyProperties = Properties()
 if (keyPropertiesFile.exists()) {
     keyProperties.load(keyPropertiesFile.inputStream())
 }
@@ -31,10 +33,10 @@ android {
     signingConfigs {
         if (keyPropertiesFile.exists()) {
             create("release") {
-                keyAlias = keyProperties["keyAlias"] as String
-                keyPassword = keyProperties["keyPassword"] as String
-                storeFile = file(keyProperties["storeFile"] as String)
-                storePassword = keyProperties["storePassword"] as String
+                keyAlias = keyProperties["keyAlias"] as String?
+                keyPassword = keyProperties["keyPassword"] as String?
+                storeFile = keyProperties["storeFile"]?.let { file(it as String) }
+                storePassword = keyProperties["storePassword"] as String?
             }
         }
     }
