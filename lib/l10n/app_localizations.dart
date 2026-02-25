@@ -2769,6 +2769,42 @@ abstract class AppLocalizations {
   /// **'Navis is up to date.'**
   String get updateUpToDate;
 
+  /// No description provided for @updateInstall.
+  ///
+  /// In en, this message translates to:
+  /// **'Install'**
+  String get updateInstall;
+
+  /// No description provided for @updateRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get updateRetry;
+
+  /// No description provided for @updateReleaseNotes.
+  ///
+  /// In en, this message translates to:
+  /// **'Release notes'**
+  String get updateReleaseNotes;
+
+  /// No description provided for @updateDownloading.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading {version}…'**
+  String updateDownloading(String version);
+
+  /// No description provided for @updateReadyToInstall.
+  ///
+  /// In en, this message translates to:
+  /// **'Download complete. Ready to install.'**
+  String get updateReadyToInstall;
+
+  /// No description provided for @updateDownloadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Download failed. Please try again.'**
+  String get updateDownloadFailed;
+
   /// No description provided for @updateAutoCheckTitle.
   ///
   /// In en, this message translates to:

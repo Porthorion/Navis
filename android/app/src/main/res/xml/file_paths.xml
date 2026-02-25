@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Expose the app's internal cache directory so the in-app updater can
+         share the downloaded APK with the system package installer via a
+         content:// URI. -->
+    <cache-path name="apk_updates" path="updates/" />
+</paths>
