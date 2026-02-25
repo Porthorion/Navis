@@ -11,6 +11,8 @@ class SearchQueryNotifier extends Notifier<String> {
   @override
   String build() => '';
 
+  // ignore: use_setters_to_change_properties
+  // `submit` is a user-intent action verb, not a property setter
   void submit(String value) => state = value;
 
   void clear() => state = '';

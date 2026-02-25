@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
+import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
@@ -102,7 +103,7 @@ class RadioTabContent extends ConsumerWidget {
             },
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const ShimmerListPage(count: 8),
         error: (error, _) => ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           children: <Widget>[

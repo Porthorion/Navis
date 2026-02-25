@@ -519,7 +519,7 @@ final radioStationsProvider = FutureProvider<List<InternetRadioStation>>((
   return api.getInternetRadioStations();
 });
 
-final searchResultsProvider = FutureProvider.family<SearchResult3, String>((
+final searchResultsProvider = FutureProvider.autoDispose.family<SearchResult3, String>((
   ref,
   query,
 ) async {

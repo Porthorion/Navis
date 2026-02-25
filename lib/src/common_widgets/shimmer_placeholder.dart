@@ -88,10 +88,10 @@ class ShimmerListTile extends StatelessWidget {
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                ShimmerPlaceholder(height: 14, width: double.infinity),
+              children: [
+                const ShimmerPlaceholder(height: 14, width: double.infinity),
                 const SizedBox(height: 6),
-                ShimmerPlaceholder(height: 12, width: 140),
+                const ShimmerPlaceholder(height: 12, width: 140),
               ],
             ),
           ),
@@ -114,7 +114,7 @@ class ShimmerListPage extends StatelessWidget {
     return ListView.builder(
       physics: const NeverScrollableScrollPhysics(),
       itemCount: count,
-      itemBuilder: (_, __) => ShimmerListTile(leadingSize: leadingSize),
+      itemBuilder: (_, _) => ShimmerListTile(leadingSize: leadingSize),
     );
   }
 }

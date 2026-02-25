@@ -166,26 +166,28 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
       builder: (ctx) => SimpleDialog(
         title: Text(l10n.updateChannelDialogTitle),
         children: [
-          RadioListTile<String>(
-            title: Text(l10n.updateChannelStable),
-            value: 'stable',
+          RadioGroup<String>(
             groupValue: settings.updateChannel,
             onChanged: (v) {
+              if (v == null) return;
               Navigator.of(ctx).pop();
               final repo = ref.read(settingsRepositoryProvider);
-              repo.saveSettings(settings.copyWith(updateChannel: v!));
+              repo.saveSettings(settings.copyWith(updateChannel: v));
             },
-          ),
-          RadioListTile<String>(
-            title: Text(l10n.updateChannelBeta),
-            subtitle: Text(l10n.updateChannelBetaDescription),
-            value: 'beta',
-            groupValue: settings.updateChannel,
-            onChanged: (v) {
-              Navigator.of(ctx).pop();
-              final repo = ref.read(settingsRepositoryProvider);
-              repo.saveSettings(settings.copyWith(updateChannel: v!));
-            },
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                RadioListTile<String>(
+                  title: Text(l10n.updateChannelStable),
+                  value: 'stable',
+                ),
+                RadioListTile<String>(
+                  title: Text(l10n.updateChannelBeta),
+                  subtitle: Text(l10n.updateChannelBetaDescription),
+                  value: 'beta',
+                ),
+              ],
+            ),
           ),
         ],
       ),
