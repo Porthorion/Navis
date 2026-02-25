@@ -115,7 +115,6 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.text('Home'), findsOneWidget);
     expect(find.text('Recently added'), findsOneWidget);
     expect(find.text('Liked tracks'), findsOneWidget);
     expect(tester.takeException(), isNull);

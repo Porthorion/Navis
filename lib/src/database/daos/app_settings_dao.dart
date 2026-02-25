@@ -11,7 +11,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
 
   static const int primarySettingsId = 1;
   static const int defaultCellularBitRate = 192;
-  static const String defaultCellularFormat = 'mp3';
+  static const String defaultCellularFormat = 'opus';
 
   Stream<AppSettingsTableData?> watchSettings() {
     final query = select(appSettingsTable)
