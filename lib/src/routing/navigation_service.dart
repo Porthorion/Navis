@@ -6,6 +6,9 @@ import 'package:navis/src/features/player/presentation/player_sheet_provider.dar
 import 'package:navis/src/features/player/presentation/queue_sheet.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 
+/// Tracks the last back-press timestamp for double-back-to-exit.
+DateTime? _lastBackPress;
+
 /// Centralised navigation helpers that guarantee a consistent UX:
 ///
 /// * Collapsing the player sheet before cross-screen navigation.
@@ -106,8 +109,22 @@ abstract final class NavService {
       return;
     }
 
-    // 4. We're at Home root — exit the app
-    SystemNavigator.pop();
+    // 4. We're at Home root — require double-tap to exit
+    final now = DateTime.now();
+    if (_lastBackPress != null &&
+        now.difference(_lastBackPress!).inMilliseconds < 2000) {
+      SystemNavigator.pop();
+    } else {
+      _lastBackPress = now;
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Press back again to exit'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+    }
   }
 
   // ---------------------------------------------------------------------------
