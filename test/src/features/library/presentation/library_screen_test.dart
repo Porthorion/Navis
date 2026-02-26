@@ -25,7 +25,10 @@ class _FakeLibrarySyncController extends LibrarySyncController {
   Future<LibrarySyncState> syncIfStale() async => _initialState;
 
   @override
-  Future<LibrarySyncState> syncNow({bool forceFull = false}) async {
+  Future<LibrarySyncState> syncNow({
+    bool forceFull = false,
+    bool preferIncremental = false,
+  }) async {
     onSyncNow?.call();
     return _initialState;
   }

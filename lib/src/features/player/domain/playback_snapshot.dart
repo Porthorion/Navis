@@ -1,4 +1,5 @@
 import 'package:audio_service/audio_service.dart';
+export 'package:audio_service/audio_service.dart' show AudioProcessingState;
 import 'package:flutter/foundation.dart';
 
 /// Metadata for the currently playing radio station.

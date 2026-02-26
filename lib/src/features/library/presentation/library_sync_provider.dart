@@ -96,8 +96,15 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
 
   Future<LibrarySyncState> syncIfStale() => _runSync(force: false);
 
-  Future<LibrarySyncState> syncNow({bool forceFull = false}) {
-    return _runSync(force: true, forceFull: forceFull);
+  Future<LibrarySyncState> syncNow({
+    bool forceFull = false,
+    bool preferIncremental = false,
+  }) {
+    return _runSync(
+      force: true,
+      forceFull: forceFull,
+      preferIncremental: preferIncremental,
+    );
   }
 
   void setVisibleAlbumIds(Iterable<String> albumIds) {
@@ -186,6 +193,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   Future<LibrarySyncState> _runSync({
     required bool force,
     bool forceFull = false,
+    bool preferIncremental = false,
   }) async {
     if (state.isRunning) {
       return state;
@@ -206,6 +214,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       engine: engine,
       force: force,
       forceFull: forceFull,
+      preferIncremental: preferIncremental,
     );
     if (!ref.mounted) {
       return result;
@@ -243,6 +252,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     required LibrarySyncEngine engine,
     required bool force,
     required bool forceFull,
+    bool preferIncremental = false,
   }) {
     void updateProgress(LibrarySyncState progress) {
       if (ref.mounted) {
@@ -253,6 +263,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     return force
         ? engine.syncNow(
             forceFull: forceFull,
+            preferIncremental: preferIncremental,
             priorityAlbumIds: _priorityAlbumIds,
             onProgress: updateProgress,
           )

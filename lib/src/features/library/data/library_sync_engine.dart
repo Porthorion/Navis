@@ -25,6 +25,7 @@ class LibrarySyncEngine {
 
   Future<LibrarySyncState> syncNow({
     bool forceFull = false,
+    bool preferIncremental = false,
     Iterable<String> priorityAlbumIds = const <String>[],
     LibrarySyncProgressCallback? onProgress,
   }) {
@@ -200,12 +201,14 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
   @override
   Future<LibrarySyncState> syncNow({
     bool forceFull = false,
+    bool preferIncremental = false,
     Iterable<String> priorityAlbumIds = const <String>[],
     LibrarySyncProgressCallback? onProgress,
   }) {
     return _runWithLock(
       force: true,
       forceFull: forceFull,
+      preferIncremental: preferIncremental,
       priorityAlbumIds: priorityAlbumIds,
       onProgress: onProgress,
     );
@@ -214,6 +217,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
   Future<LibrarySyncState> _runWithLock({
     required bool force,
     required bool forceFull,
+    bool preferIncremental = false,
     required Iterable<String> priorityAlbumIds,
     LibrarySyncProgressCallback? onProgress,
   }) {
@@ -225,6 +229,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     final future = _runSync(
       force: force,
       forceFull: forceFull,
+      preferIncremental: preferIncremental,
       priorityAlbumIds: priorityAlbumIds,
       onProgress: onProgress,
     );
@@ -235,6 +240,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
   Future<LibrarySyncState> _runSync({
     required bool force,
     required bool forceFull,
+    bool preferIncremental = false,
     required Iterable<String> priorityAlbumIds,
     LibrarySyncProgressCallback? onProgress,
   }) async {
@@ -256,7 +262,11 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       return failed;
     }
 
-    final mode = _resolveMode(serverConfig, forceFull: forceFull);
+    final mode = _resolveMode(
+      serverConfig,
+      forceFull: forceFull,
+      preferIncremental: preferIncremental,
+    );
     var state = _withMetrics(
       LibrarySyncState(
         status: LibrarySyncStatus.running,
@@ -378,6 +388,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
   LibrarySyncMode _resolveMode(
     ServerConfigModel config, {
     required bool forceFull,
+    bool preferIncremental = false,
   }) {
     if (forceFull) {
       return LibrarySyncMode.forceFull;
@@ -385,6 +396,13 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
 
     if (config.lastSynced == null) {
       return LibrarySyncMode.fullInitial;
+    }
+
+    // When preferIncremental is set (e.g. manual pull-to-refresh), skip the
+    // rebaseline check and go straight to incremental sync.  This avoids
+    // re-fetching the entire library on every manual refresh.
+    if (preferIncremental) {
+      return LibrarySyncMode.incremental;
     }
 
     final lastFullSync = config.lastFullSyncedAt;
