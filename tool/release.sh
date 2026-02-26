@@ -91,6 +91,10 @@ for tool in jq flutter git curl; do
   fi
 done
 
+# ─── Always run from the project root ───────────────────────────────────────
+# Relative paths (APK, IPA, build/, git, flutter) all assume the project root.
+cd "${SCRIPT_DIR}/.."
+
 # Warn (but don't fail) if release signing is not configured.
 if [[ ! -f "${SCRIPT_DIR}/../android/key.properties" ]]; then
   echo "⚠️  WARNING: android/key.properties not found."
@@ -136,8 +140,9 @@ sed -i.bak "s/^version: .*/version: ${SEMVER}+${BUILD_NUMBER}/" "${PUBSPEC}"
 rm -f "${PUBSPEC}.bak"
 
 # ─── Build APK ──────────────────────────────────────────────────────────────
-APK_PATH="build/app/outputs/flutter-apk/app-release.apk"
-APK_ASSET="navis-${VERSION}.apk"
+APK_PATH="${SCRIPT_DIR}/../build/app/outputs/flutter-apk/app-release.apk"
+APK_ASSET_NAME="navis-${VERSION}.apk"
+APK_ASSET="${SCRIPT_DIR}/../${APK_ASSET_NAME}"
 
 echo "==> Building release APK..."
 flutter build apk --release
@@ -147,13 +152,15 @@ if [[ ! -f "${APK_PATH}" ]]; then
   exit 1
 fi
 cp "${APK_PATH}" "${APK_ASSET}"
-echo "    APK -> ${APK_ASSET}"
+echo "    APK -> ${APK_ASSET_NAME}"
 
 # ─── Build IPA (optional) ───────────────────────────────────────────────────
+IPA_ASSET_NAME=""
 IPA_ASSET=""
 if [[ "${BUILD_IPA}" == "true" ]]; then
-  IPA_DIR="build/ios/ipa"
-  IPA_ASSET="navis-${VERSION}.ipa"
+  IPA_DIR="${SCRIPT_DIR}/../build/ios/ipa"
+  IPA_ASSET_NAME="navis-${VERSION}.ipa"
+  IPA_ASSET="${SCRIPT_DIR}/../${IPA_ASSET_NAME}"
 
   echo "==> Building release IPA (ad-hoc)..."
   flutter build ipa --release --export-method ad-hoc
@@ -165,7 +172,7 @@ if [[ "${BUILD_IPA}" == "true" ]]; then
     exit 1
   fi
   cp "${FOUND_IPA}" "${IPA_ASSET}"
-  echo "    IPA -> ${IPA_ASSET}"
+  echo "    IPA -> ${IPA_ASSET_NAME}"
 fi
 
 # ─── Commit pubspec bump (only if version changed) ──────────────────────────
@@ -221,20 +228,20 @@ fi
 # ─── Upload APK asset ───────────────────────────────────────────────────────
 echo "==> Uploading APK..."
 curl -sf -X POST \
-  "${FORGEJO_URL}/api/v1/repos/${FORGEJO_REPO}/releases/${RELEASE_ID}/assets?name=${APK_ASSET}" \
+  "${FORGEJO_URL}/api/v1/repos/${FORGEJO_REPO}/releases/${RELEASE_ID}/assets?name=${APK_ASSET_NAME}" \
   -H "Authorization: token ${FORGEJO_TOKEN}" \
   -F "attachment=@${APK_ASSET}" > /dev/null
-echo "    Uploaded ${APK_ASSET}"
+echo "    Uploaded ${APK_ASSET_NAME}"
 rm -f "${APK_ASSET}"
 
 # ─── Upload IPA asset (if built) ────────────────────────────────────────────
 if [[ -n "${IPA_ASSET}" && -f "${IPA_ASSET}" ]]; then
   echo "==> Uploading IPA..."
   curl -sf -X POST \
-    "${FORGEJO_URL}/api/v1/repos/${FORGEJO_REPO}/releases/${RELEASE_ID}/assets?name=${IPA_ASSET}" \
+    "${FORGEJO_URL}/api/v1/repos/${FORGEJO_REPO}/releases/${RELEASE_ID}/assets?name=${IPA_ASSET_NAME}" \
     -H "Authorization: token ${FORGEJO_TOKEN}" \
     -F "attachment=@${IPA_ASSET}" > /dev/null
-  echo "    Uploaded ${IPA_ASSET}"
+  echo "    Uploaded ${IPA_ASSET_NAME}"
   rm -f "${IPA_ASSET}"
 fi
 
