@@ -67,6 +67,7 @@ class _FakeLibrarySyncEngine extends LibrarySyncEngine {
   @override
   Future<LibrarySyncState> syncNow({
     bool forceFull = false,
+    bool preferIncremental = false,
     Iterable<String> priorityAlbumIds = const <String>[],
     LibrarySyncProgressCallback? onProgress,
   }) {

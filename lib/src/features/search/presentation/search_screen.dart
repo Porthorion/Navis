@@ -418,7 +418,6 @@ class _SongResultsSection extends ConsumerWidget {
         ),
         ...visible.asMap().entries.map(
           (entry) {
-            final index = entry.key;
             final song = entry.value;
 
             return ListTile(
@@ -442,8 +441,8 @@ class _SongResultsSection extends ConsumerWidget {
                   ref
                       .read(queueProvider.notifier)
                       .replaceWithSongs(
-                        songs,
-                        startIndex: index,
+                        <Song>[song],
+                        startIndex: 0,
                       ),
                 );
               },

@@ -75,7 +75,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   }
 
   Future<void> _refreshLibrary() {
-    return ref.read(librarySyncControllerProvider.notifier).syncNow();
+    return ref
+        .read(librarySyncControllerProvider.notifier)
+        .syncNow(preferIncremental: true);
   }
 
   /// Scrolls whichever tab is currently selected back to the top.

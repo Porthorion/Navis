@@ -98,7 +98,10 @@ class _StaticLibrarySyncController extends LibrarySyncController {
   }
 
   @override
-  Future<LibrarySyncState> syncNow({bool forceFull = false}) async {
+  Future<LibrarySyncState> syncNow({
+    bool forceFull = false,
+    bool preferIncremental = false,
+  }) async {
     return const LibrarySyncState.idle();
   }
 }
