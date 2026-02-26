@@ -22,11 +22,11 @@ class InstantMixState {
   });
 
   const InstantMixState.inactive()
-      : active = false,
-        seedSongId = null,
-        refilling = false,
-        error = null,
-        pendingSnackbar = null;
+    : active = false,
+      seedSongId = null,
+      refilling = false,
+      error = null,
+      pendingSnackbar = null;
 
   /// Whether the Instant Mix auto-refill mode is currently active.
   final bool active;
@@ -78,12 +78,12 @@ class InstantMixState {
 
   @override
   int get hashCode => Object.hash(
-        active,
-        seedSongId,
-        refilling,
-        error,
-        pendingSnackbar,
-      );
+    active,
+    seedSongId,
+    refilling,
+    error,
+    pendingSnackbar,
+  );
 }
 
 /// Sentinel used to distinguish "don't change this field" from "clear it".

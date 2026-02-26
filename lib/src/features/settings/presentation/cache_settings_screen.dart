@@ -420,15 +420,12 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
                       value: _coverArtMax!.toDouble(),
                       min: _minCoverArt.toDouble(),
                       max: _maxCoverArt.toDouble(),
-                      divisions:
-                          (_maxCoverArt - _minCoverArt) ~/ _stepCoverArt,
-                      label:
-                          l10n.cacheSettingsCoverArtMaxValue(_coverArtMax!),
+                      divisions: (_maxCoverArt - _minCoverArt) ~/ _stepCoverArt,
+                      label: l10n.cacheSettingsCoverArtMaxValue(_coverArtMax!),
                       onChanged: (value) {
                         setState(() => _coverArtMax = value.round());
                       },
-                      onChangeEnd: (value) =>
-                          _saveCoverArtMax(value.round()),
+                      onChangeEnd: (value) => _saveCoverArtMax(value.round()),
                     ),
                   ],
                   Padding(
@@ -436,8 +433,7 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
                     child: Text(
                       l10n.cacheSettingsCoverArtRestart,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color:
-                            Theme.of(context).colorScheme.onSurfaceVariant,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ),

@@ -2208,8 +2208,7 @@ class NavisAudioHandler extends BaseAudioHandler
     if (uri != null && uri.pathSegments.length >= 2) {
       for (final prefix in <String>['listen', 'hls']) {
         final prefixIndex = uri.pathSegments.indexOf(prefix);
-        if (prefixIndex >= 0 &&
-            prefixIndex + 1 < uri.pathSegments.length) {
+        if (prefixIndex >= 0 && prefixIndex + 1 < uri.pathSegments.length) {
           final stationName = uri.pathSegments[prefixIndex + 1];
           final baseUrl =
               '${uri.scheme}://${uri.host}${uri.hasPort ? ':${uri.port}' : ''}';

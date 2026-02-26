@@ -482,11 +482,11 @@ class _MiniPlayerStrip extends ConsumerWidget {
                 LinearProgressIndicator(
                   value: isRadio
                       ? (playback.processingState ==
-                                  AudioProcessingState.loading ||
-                              playback.processingState ==
-                                  AudioProcessingState.buffering
-                          ? null
-                          : 0.0)
+                                    AudioProcessingState.loading ||
+                                playback.processingState ==
+                                    AudioProcessingState.buffering
+                            ? null
+                            : 0.0)
                       : progress,
                   minHeight: 3,
                   color: cs.primary,

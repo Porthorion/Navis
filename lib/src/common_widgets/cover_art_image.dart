@@ -37,11 +37,11 @@ final CacheManager defaultCoverArtCacheManager = createCoverArtCacheManager();
 /// so the active [CacheManager] always reflects the configured cap.
 final coverArtCacheManagerProvider = StreamProvider<CacheManager>((ref) {
   final dao = ref.watch(navisDatabaseProvider).appSettingsDao;
-  return dao
-      .watchCoverArtCacheMaxObjects()
-      .map((maxObjects) => createCoverArtCacheManager(
-            maxNrOfCacheObjects: maxObjects,
-          ));
+  return dao.watchCoverArtCacheMaxObjects().map(
+    (maxObjects) => createCoverArtCacheManager(
+      maxNrOfCacheObjects: maxObjects,
+    ),
+  );
 });
 
 class CoverArtImage extends ConsumerWidget {
@@ -127,7 +127,6 @@ class CoverArtImage extends ConsumerWidget {
     }
     return ExcludeSemantics(child: child);
   }
-
 
   Widget _fallback(BuildContext context) {
     return Container(

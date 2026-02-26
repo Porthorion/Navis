@@ -140,30 +140,29 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : updateAsync.asData?.value != null
-                    ? FilledButton.icon(
-                        onPressed: () {
-                          final info = updateAsync.asData!.value!;
-                          if (info.apkDownloadUrl != null) {
-                            showUpdateDialog(context, info);
-                          } else {
-                            launchUrl(
-                              Uri.parse(info.htmlUrl),
-                              mode: LaunchMode.externalApplication,
-                            );
-                          }
-                        },
-                        icon: const Icon(Icons.install_mobile, size: 18),
-                        label: Text(l10n.updateInstall),
-                      )
-                    : const Icon(Icons.refresh),
+                ? FilledButton.icon(
+                    onPressed: () {
+                      final info = updateAsync.asData!.value!;
+                      if (info.apkDownloadUrl != null) {
+                        showUpdateDialog(context, info);
+                      } else {
+                        launchUrl(
+                          Uri.parse(info.htmlUrl),
+                          mode: LaunchMode.externalApplication,
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.install_mobile, size: 18),
+                    label: Text(l10n.updateInstall),
+                  )
+                : const Icon(Icons.refresh),
             onTap: () {
-                setState(() => _userTriggeredCheck = true);
-                ref.invalidate(updateProvider);
-              },
+              setState(() => _userTriggeredCheck = true);
+              ref.invalidate(updateProvider);
+            },
           ),
         ],
       ),
     );
   }
-
 }

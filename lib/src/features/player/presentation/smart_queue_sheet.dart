@@ -33,10 +33,9 @@ void showSmartQueueSheet(
                 height: 4,
                 margin: const EdgeInsets.only(bottom: 16),
                 decoration: BoxDecoration(
-                  color: Theme.of(sheetContext)
-                      .colorScheme
-                      .onSurfaceVariant
-                      .withValues(alpha: 0.4),
+                  color: Theme.of(
+                    sheetContext,
+                  ).colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -124,18 +123,16 @@ class _SmartQueueProfileCard extends StatelessWidget {
                     children: [
                       Text(
                         _profileTitle(profile),
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleSmall
-                            ?.copyWith(fontWeight: FontWeight.w600),
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         _profileDescription(profile),
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(color: colorScheme.onSurfaceVariant),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     ],
                   ),

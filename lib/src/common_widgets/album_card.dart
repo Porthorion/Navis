@@ -32,6 +32,7 @@ class AlbumCard extends StatelessWidget {
 
   final AlbumsTableData album;
   final AlbumCardSize size;
+
   /// Optional hero tag for cover-art transition animations.
   final String? heroTag;
   final VoidCallback? onTap;

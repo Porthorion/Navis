@@ -18,6 +18,7 @@ abstract class Album with _$Album {
     String? coverArt,
     DateTime? starred,
     int? playCount,
+
     /// When the album was added to the Subsonic server library.
     /// Maps to the `created` field in the Subsonic API response.
     DateTime? created,
