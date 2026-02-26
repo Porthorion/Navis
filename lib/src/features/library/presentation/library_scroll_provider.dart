@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 /// Incremented whenever the user taps the Library nav icon while already on
 /// the Library screen. `LibraryScreen` watches this provider and scrolls the
 /// active tab back to the top when the value changes.

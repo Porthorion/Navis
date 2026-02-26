@@ -1850,6 +1850,7 @@ class _AlbumRow {
   final String? coverArt;
   final DateTime? starred;
   final int? playCount;
+
   /// When the album was added to the server library (`created` from the API).
   final DateTime? created;
 }

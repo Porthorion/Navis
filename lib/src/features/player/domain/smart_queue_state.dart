@@ -66,13 +66,13 @@ class SmartQueueState {
   });
 
   const SmartQueueState.inactive()
-      : active = false,
-        profile = null,
-        seedSongId = null,
-        refilling = false,
-        error = null,
-        pendingSnackbar = null,
-        queuedArtists = const <String>{};
+    : active = false,
+      profile = null,
+      seedSongId = null,
+      refilling = false,
+      error = null,
+      pendingSnackbar = null,
+      queuedArtists = const <String>{};
 
   /// Whether a smart queue session is active.
   final bool active;

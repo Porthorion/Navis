@@ -378,7 +378,10 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
                               : GestureDetector(
                                   onTap: _togglePlayPause,
                                   onHorizontalDragEnd: _handleHorizontalSwipe,
-                                  child: _CoverArt(coverArtId: song?.coverArt, semanticLabel: song?.title),
+                                  child: _CoverArt(
+                                    coverArtId: song?.coverArt,
+                                    semanticLabel: song?.title,
+                                  ),
                                 )),
                   ),
                 ),
@@ -936,7 +939,9 @@ class _ActionRowState extends ConsumerState<_ActionRow>
           scale: _likeScale,
           child: IconButton(
             icon: Icon(widget.isLiked ? Icons.favorite : Icons.favorite_border),
-            color: widget.isLiked ? Theme.of(context).colorScheme.primary : null,
+            color: widget.isLiked
+                ? Theme.of(context).colorScheme.primary
+                : null,
             tooltip: l10n.nowPlayingStar,
             onPressed: widget.songId == null
                 ? null
@@ -950,7 +955,9 @@ class _ActionRowState extends ConsumerState<_ActionRow>
         IconButton(
           icon: Icon(
             widget.showLyrics ? Icons.lyrics : Icons.lyrics_outlined,
-            color: widget.showLyrics ? Theme.of(context).colorScheme.primary : null,
+            color: widget.showLyrics
+                ? Theme.of(context).colorScheme.primary
+                : null,
           ),
           tooltip: l10n.nowPlayingLyrics,
           onPressed: widget.songId == null ? null : widget.onLyricsToggle,
@@ -973,9 +980,7 @@ class _ActionRowState extends ConsumerState<_ActionRow>
                   ),
                 )
               : Icon(
-                  instantMix.active
-                      ? Icons.explore
-                      : Icons.explore_outlined,
+                  instantMix.active ? Icons.explore : Icons.explore_outlined,
                   color: instantMix.active
                       ? Theme.of(context).colorScheme.primary
                       : null,
@@ -985,9 +990,8 @@ class _ActionRowState extends ConsumerState<_ActionRow>
               : l10n.nowPlayingInstantMix,
           onPressed: widget.songId == null
               ? null
-              : () => ref
-                    .read(instantMixProvider.notifier)
-                    .toggle(widget.songId),
+              : () =>
+                    ref.read(instantMixProvider.notifier).toggle(widget.songId),
         ),
         // Smart Queue button — visible only when AudioMuse NV plugin detected.
         if (ref.watch(smartQueueAvailableProvider).asData?.value ?? false)
@@ -1015,16 +1019,12 @@ class _SmartQueueButton extends ConsumerWidget {
               height: 24,
               child: CircularProgressIndicator(
                 strokeWidth: 2,
-                color: sq.active
-                    ? Theme.of(context).colorScheme.primary
-                    : null,
+                color: sq.active ? Theme.of(context).colorScheme.primary : null,
               ),
             )
           : Icon(
               sq.active ? Icons.auto_awesome : Icons.auto_awesome_outlined,
-              color: sq.active
-                  ? Theme.of(context).colorScheme.primary
-                  : null,
+              color: sq.active ? Theme.of(context).colorScheme.primary : null,
             ),
       tooltip: sq.active ? l10n.smartQueueActive : l10n.smartQueueButton,
       onPressed: songId == null

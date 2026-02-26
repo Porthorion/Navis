@@ -69,8 +69,7 @@ class SmartQueueNotifier extends Notifier<SmartQueueState> {
   void _onSnapshotChanged(PlaybackSnapshot? prev, PlaybackSnapshot next) {
     if (!state.active) return;
     if (next.isRadioMode) return;
-    if (state.refilling ||
-        state.error == SmartQueueError.unsupported) {
+    if (state.refilling || state.error == SmartQueueError.unsupported) {
       return;
     }
 
@@ -146,9 +145,7 @@ class SmartQueueNotifier extends Notifier<SmartQueueState> {
     }
     // Bound the set to prevent unbounded growth.
     final trimmed = artists.length > _kMaxArtistSetSize
-        ? (artists.toList()..shuffle(Random()))
-            .take(_kMaxArtistSetSize)
-            .toSet()
+        ? (artists.toList()..shuffle(Random())).take(_kMaxArtistSetSize).toSet()
         : artists;
 
     AppLogger.debug(
@@ -193,8 +190,9 @@ class SmartQueueNotifier extends Notifier<SmartQueueState> {
       case SmartQueueProfile.discoveryMix:
         // Remove tracks whose artist is already in the queue.
         final known = state.queuedArtists;
-        final unique =
-            songs.where((s) => s.artist == null || !known.contains(s.artist)).toList();
+        final unique = songs
+            .where((s) => s.artist == null || !known.contains(s.artist))
+            .toList();
         // Shuffle to maximise variety.
         unique.shuffle(Random());
         return unique;
@@ -208,15 +206,17 @@ class SmartQueueNotifier extends Notifier<SmartQueueState> {
         if (currentId != null) {
           // Try to grab the artist from the song table.
           try {
-            final songData = ref.read(songByIdProvider(currentId)).asData?.value;
+            final songData = ref
+                .read(songByIdProvider(currentId))
+                .asData
+                ?.value;
             seedArtist = songData?.artistName;
           } on Object {
             // Ignore — we just won't filter.
           }
         }
         if (seedArtist == null || seedArtist.isEmpty) return songs;
-        final sameArtist =
-            songs.where((s) => s.artist == seedArtist).toList();
+        final sameArtist = songs.where((s) => s.artist == seedArtist).toList();
         // If very few matches, append others after to avoid tiny queues.
         if (sameArtist.length >= 5) return sameArtist;
         final rest = songs.where((s) => s.artist != seedArtist).toList();
@@ -236,5 +236,5 @@ class SmartQueueNotifier extends Notifier<SmartQueueState> {
 /// Not autoDispose — must persist across routing to keep the session alive.
 final smartQueueProvider =
     NotifierProvider<SmartQueueNotifier, SmartQueueState>(
-  SmartQueueNotifier.new,
-);
+      SmartQueueNotifier.new,
+    );
