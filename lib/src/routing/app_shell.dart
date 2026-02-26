@@ -8,6 +8,8 @@ import 'package:navis/src/common_widgets/expandable_player_sheet.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
+import 'package:navis/src/features/changelog/changelog_dialog.dart';
+import 'package:navis/src/features/changelog/changelog_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/domain/instant_mix_state.dart';
@@ -35,10 +37,29 @@ class AppShell extends ConsumerStatefulWidget {
 
 class _AppShellState extends ConsumerState<AppShell>
     with WidgetsBindingObserver {
+  bool _changelogChecked = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+  }
+
+  void _maybeShowChangelog() {
+    if (_changelogChecked) return;
+    _changelogChecked = true;
+    // Schedule after the first frame so the route is fully settled.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      try {
+        final changelog = await ref.read(changelogToShowProvider.future);
+        if (changelog != null && mounted) {
+          await showChangelogDialog(context, changelog);
+        }
+      } on Exception {
+        // Silently ignore — changelog is non-critical.
+      }
+    });
   }
 
   @override
@@ -52,6 +73,9 @@ class _AppShellState extends ConsumerState<AppShell>
     final l10n = AppLocalizations.of(context)!;
     ref.watch(librarySyncControllerProvider);
     ref.watch(scrobbleDispatchControllerProvider);
+
+    // Show changelog dialog once per version, on first build.
+    _maybeShowChangelog();
 
     // Global Instant Mix snackbar / error notifications (shown on any screen).
     ref.listen<InstantMixState>(instantMixProvider, (prev, next) {
