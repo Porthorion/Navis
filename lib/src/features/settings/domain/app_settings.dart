@@ -30,6 +30,7 @@ class AppSettingsModel {
     required this.audioMuseServerUrl,
     required this.audioMuseApiKey,
     required this.audioMuseEnabled,
+    required this.syncIntervalMinutes,
   });
 
   const AppSettingsModel.defaults()
@@ -58,7 +59,8 @@ class AppSettingsModel {
       updateChannel = 'stable',
       audioMuseServerUrl = null,
       audioMuseApiKey = null,
-      audioMuseEnabled = false;
+      audioMuseEnabled = false,
+      syncIntervalMinutes = 60;
 
   final int? wifiMaxBitRate;
   final String? wifiFormat;
@@ -88,6 +90,7 @@ class AppSettingsModel {
   final String? audioMuseServerUrl;
   final String? audioMuseApiKey;
   final bool audioMuseEnabled;
+  final int syncIntervalMinutes;
 
   AppSettingsModel copyWith({
     int? wifiMaxBitRate,
@@ -116,6 +119,7 @@ class AppSettingsModel {
     String? audioMuseServerUrl,
     String? audioMuseApiKey,
     bool? audioMuseEnabled,
+    int? syncIntervalMinutes,
     bool clearWifiBitRate = false,
     bool clearWifiFormat = false,
     bool clearCellularBitRate = false,
@@ -165,6 +169,7 @@ class AppSettingsModel {
           ? null
           : audioMuseApiKey ?? this.audioMuseApiKey,
       audioMuseEnabled: audioMuseEnabled ?? this.audioMuseEnabled,
+      syncIntervalMinutes: syncIntervalMinutes ?? this.syncIntervalMinutes,
     );
   }
 }

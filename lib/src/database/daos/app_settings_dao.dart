@@ -12,6 +12,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   static const int primarySettingsId = 1;
   static const int defaultCellularBitRate = 192;
   static const String defaultCellularFormat = 'opus';
+  static const int defaultSyncIntervalMinutes = 60;
 
   Stream<AppSettingsTableData?> watchSettings() {
     final query = select(appSettingsTable)
@@ -54,6 +55,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     String? audioMuseServerUrl,
     String? audioMuseApiKey,
     required bool audioMuseEnabled,
+    required int syncIntervalMinutes,
   }) {
     return into(appSettingsTable).insertOnConflictUpdate(
       AppSettingsTableCompanion.insert(
@@ -84,6 +86,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         audioMuseServerUrl: Value(audioMuseServerUrl),
         audioMuseApiKey: Value(audioMuseApiKey),
         audioMuseEnabled: Value(audioMuseEnabled),
+        syncIntervalMinutes: Value(syncIntervalMinutes),
         updatedAt: DateTime.now(),
       ),
     );
@@ -115,6 +118,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       updateCheckEnabled: true,
       updateChannel: 'stable',
       audioMuseEnabled: false,
+      syncIntervalMinutes: defaultSyncIntervalMinutes,
     );
   }
 
@@ -321,5 +325,34 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   /// Stream the art-tinted Now Playing setting.
   Stream<bool> watchArtTintedNowPlaying() {
     return watchSettings().map((s) => s?.artTintedNowPlaying ?? true);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Sync interval helpers
+  // ---------------------------------------------------------------------------
+
+  /// Targeted update for sync interval minutes.
+  Future<void> updateSyncIntervalMinutes(int minutes) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        syncIntervalMinutes: Value(minutes),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Stream the sync interval in minutes (0 = manual only).
+  Stream<int> watchSyncIntervalMinutes() {
+    return watchSettings().map(
+      (s) => s?.syncIntervalMinutes ?? defaultSyncIntervalMinutes,
+    );
+  }
+
+  /// Read current sync interval in minutes (one-shot).
+  Future<int> getSyncIntervalMinutes() async {
+    final s = await getSettings();
+    return s?.syncIntervalMinutes ?? defaultSyncIntervalMinutes;
   }
 }

@@ -376,6 +376,36 @@ abstract class AppLocalizations {
   /// **'Last sync failed'**
   String get syncSettingsStatusFailed;
 
+  /// No description provided for @syncSettingsIntervalLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto-sync interval'**
+  String get syncSettingsIntervalLabel;
+
+  /// No description provided for @syncSettingsIntervalManual.
+  ///
+  /// In en, this message translates to:
+  /// **'Manual only'**
+  String get syncSettingsIntervalManual;
+
+  /// No description provided for @syncSettingsIntervalMinutes.
+  ///
+  /// In en, this message translates to:
+  /// **'Every {minutes} minutes'**
+  String syncSettingsIntervalMinutes(Object minutes);
+
+  /// No description provided for @syncSettingsIntervalHours.
+  ///
+  /// In en, this message translates to:
+  /// **'Every {hours} hour(s)'**
+  String syncSettingsIntervalHours(Object hours);
+
+  /// No description provided for @syncSettingsIntervalDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'How often the library syncs automatically in the background.'**
+  String get syncSettingsIntervalDescription;
+
   /// No description provided for @playbackSettingsLoadError.
   ///
   /// In en, this message translates to:

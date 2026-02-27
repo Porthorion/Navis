@@ -909,6 +909,17 @@ class $AppSettingsTableTable extends AppSettingsTable
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _syncIntervalMinutesMeta =
+      const VerificationMeta('syncIntervalMinutes');
+  @override
+  late final GeneratedColumn<int> syncIntervalMinutes = GeneratedColumn<int>(
+    'sync_interval_minutes',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(60),
+  );
   static const VerificationMeta _updatedAtMeta = const VerificationMeta(
     'updatedAt',
   );
@@ -952,6 +963,7 @@ class $AppSettingsTableTable extends AppSettingsTable
     audioMuseServerUrl,
     audioMuseApiKey,
     audioMuseEnabled,
+    syncIntervalMinutes,
     updatedAt,
   ];
   @override
@@ -1224,6 +1236,15 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
       );
     }
+    if (data.containsKey('sync_interval_minutes')) {
+      context.handle(
+        _syncIntervalMinutesMeta,
+        syncIntervalMinutes.isAcceptableOrUnknown(
+          data['sync_interval_minutes']!,
+          _syncIntervalMinutesMeta,
+        ),
+      );
+    }
     if (data.containsKey('updated_at')) {
       context.handle(
         _updatedAtMeta,
@@ -1361,6 +1382,10 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.bool,
         data['${effectivePrefix}audio_muse_enabled'],
       )!,
+      syncIntervalMinutes: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sync_interval_minutes'],
+      )!,
       updatedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
@@ -1436,6 +1461,10 @@ class AppSettingsTableData extends DataClass
 
   /// Whether AudioMuse AI integration is enabled. Default false.
   final bool audioMuseEnabled;
+
+  /// Automatic background sync interval in minutes.
+  /// 0 = manual only (disabled). Default 60 (1 hour).
+  final int syncIntervalMinutes;
   final DateTime updatedAt;
   const AppSettingsTableData({
     required this.id,
@@ -1468,6 +1497,7 @@ class AppSettingsTableData extends DataClass
     this.audioMuseServerUrl,
     this.audioMuseApiKey,
     required this.audioMuseEnabled,
+    required this.syncIntervalMinutes,
     required this.updatedAt,
   });
   @override
@@ -1523,6 +1553,7 @@ class AppSettingsTableData extends DataClass
       map['audio_muse_api_key'] = Variable<String>(audioMuseApiKey);
     }
     map['audio_muse_enabled'] = Variable<bool>(audioMuseEnabled);
+    map['sync_interval_minutes'] = Variable<int>(syncIntervalMinutes);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
   }
@@ -1579,6 +1610,7 @@ class AppSettingsTableData extends DataClass
           ? const Value.absent()
           : Value(audioMuseApiKey),
       audioMuseEnabled: Value(audioMuseEnabled),
+      syncIntervalMinutes: Value(syncIntervalMinutes),
       updatedAt: Value(updatedAt),
     );
   }
@@ -1635,6 +1667,9 @@ class AppSettingsTableData extends DataClass
       ),
       audioMuseApiKey: serializer.fromJson<String?>(json['audioMuseApiKey']),
       audioMuseEnabled: serializer.fromJson<bool>(json['audioMuseEnabled']),
+      syncIntervalMinutes: serializer.fromJson<int>(
+        json['syncIntervalMinutes'],
+      ),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
   }
@@ -1676,6 +1711,7 @@ class AppSettingsTableData extends DataClass
       'audioMuseServerUrl': serializer.toJson<String?>(audioMuseServerUrl),
       'audioMuseApiKey': serializer.toJson<String?>(audioMuseApiKey),
       'audioMuseEnabled': serializer.toJson<bool>(audioMuseEnabled),
+      'syncIntervalMinutes': serializer.toJson<int>(syncIntervalMinutes),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
   }
@@ -1711,6 +1747,7 @@ class AppSettingsTableData extends DataClass
     Value<String?> audioMuseServerUrl = const Value.absent(),
     Value<String?> audioMuseApiKey = const Value.absent(),
     bool? audioMuseEnabled,
+    int? syncIntervalMinutes,
     DateTime? updatedAt,
   }) => AppSettingsTableData(
     id: id ?? this.id,
@@ -1763,6 +1800,7 @@ class AppSettingsTableData extends DataClass
         ? audioMuseApiKey.value
         : this.audioMuseApiKey,
     audioMuseEnabled: audioMuseEnabled ?? this.audioMuseEnabled,
+    syncIntervalMinutes: syncIntervalMinutes ?? this.syncIntervalMinutes,
     updatedAt: updatedAt ?? this.updatedAt,
   );
   AppSettingsTableData copyWithCompanion(AppSettingsTableCompanion data) {
@@ -1853,6 +1891,9 @@ class AppSettingsTableData extends DataClass
       audioMuseEnabled: data.audioMuseEnabled.present
           ? data.audioMuseEnabled.value
           : this.audioMuseEnabled,
+      syncIntervalMinutes: data.syncIntervalMinutes.present
+          ? data.syncIntervalMinutes.value
+          : this.syncIntervalMinutes,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
   }
@@ -1890,6 +1931,7 @@ class AppSettingsTableData extends DataClass
           ..write('audioMuseServerUrl: $audioMuseServerUrl, ')
           ..write('audioMuseApiKey: $audioMuseApiKey, ')
           ..write('audioMuseEnabled: $audioMuseEnabled, ')
+          ..write('syncIntervalMinutes: $syncIntervalMinutes, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
@@ -1927,6 +1969,7 @@ class AppSettingsTableData extends DataClass
     audioMuseServerUrl,
     audioMuseApiKey,
     audioMuseEnabled,
+    syncIntervalMinutes,
     updatedAt,
   ]);
   @override
@@ -1963,6 +2006,7 @@ class AppSettingsTableData extends DataClass
           other.audioMuseServerUrl == this.audioMuseServerUrl &&
           other.audioMuseApiKey == this.audioMuseApiKey &&
           other.audioMuseEnabled == this.audioMuseEnabled &&
+          other.syncIntervalMinutes == this.syncIntervalMinutes &&
           other.updatedAt == this.updatedAt);
 }
 
@@ -1997,6 +2041,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<String?> audioMuseServerUrl;
   final Value<String?> audioMuseApiKey;
   final Value<bool> audioMuseEnabled;
+  final Value<int> syncIntervalMinutes;
   final Value<DateTime> updatedAt;
   const AppSettingsTableCompanion({
     this.id = const Value.absent(),
@@ -2029,6 +2074,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.audioMuseServerUrl = const Value.absent(),
     this.audioMuseApiKey = const Value.absent(),
     this.audioMuseEnabled = const Value.absent(),
+    this.syncIntervalMinutes = const Value.absent(),
     this.updatedAt = const Value.absent(),
   });
   AppSettingsTableCompanion.insert({
@@ -2062,6 +2108,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.audioMuseServerUrl = const Value.absent(),
     this.audioMuseApiKey = const Value.absent(),
     this.audioMuseEnabled = const Value.absent(),
+    this.syncIntervalMinutes = const Value.absent(),
     required DateTime updatedAt,
   }) : updatedAt = Value(updatedAt);
   static Insertable<AppSettingsTableData> custom({
@@ -2095,6 +2142,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<String>? audioMuseServerUrl,
     Expression<String>? audioMuseApiKey,
     Expression<bool>? audioMuseEnabled,
+    Expression<int>? syncIntervalMinutes,
     Expression<DateTime>? updatedAt,
   }) {
     return RawValuesInsertable({
@@ -2139,6 +2187,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         'audio_muse_server_url': audioMuseServerUrl,
       if (audioMuseApiKey != null) 'audio_muse_api_key': audioMuseApiKey,
       if (audioMuseEnabled != null) 'audio_muse_enabled': audioMuseEnabled,
+      if (syncIntervalMinutes != null)
+        'sync_interval_minutes': syncIntervalMinutes,
       if (updatedAt != null) 'updated_at': updatedAt,
     });
   }
@@ -2174,6 +2224,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<String?>? audioMuseServerUrl,
     Value<String?>? audioMuseApiKey,
     Value<bool>? audioMuseEnabled,
+    Value<int>? syncIntervalMinutes,
     Value<DateTime>? updatedAt,
   }) {
     return AppSettingsTableCompanion(
@@ -2209,6 +2260,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       audioMuseServerUrl: audioMuseServerUrl ?? this.audioMuseServerUrl,
       audioMuseApiKey: audioMuseApiKey ?? this.audioMuseApiKey,
       audioMuseEnabled: audioMuseEnabled ?? this.audioMuseEnabled,
+      syncIntervalMinutes: syncIntervalMinutes ?? this.syncIntervalMinutes,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
@@ -2314,6 +2366,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     if (audioMuseEnabled.present) {
       map['audio_muse_enabled'] = Variable<bool>(audioMuseEnabled.value);
     }
+    if (syncIntervalMinutes.present) {
+      map['sync_interval_minutes'] = Variable<int>(syncIntervalMinutes.value);
+    }
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
@@ -2353,6 +2408,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('audioMuseServerUrl: $audioMuseServerUrl, ')
           ..write('audioMuseApiKey: $audioMuseApiKey, ')
           ..write('audioMuseEnabled: $audioMuseEnabled, ')
+          ..write('syncIntervalMinutes: $syncIntervalMinutes, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
@@ -8916,6 +8972,7 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<String?> audioMuseServerUrl,
       Value<String?> audioMuseApiKey,
       Value<bool> audioMuseEnabled,
+      Value<int> syncIntervalMinutes,
       required DateTime updatedAt,
     });
 typedef $$AppSettingsTableTableUpdateCompanionBuilder =
@@ -8950,6 +9007,7 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<String?> audioMuseServerUrl,
       Value<String?> audioMuseApiKey,
       Value<bool> audioMuseEnabled,
+      Value<int> syncIntervalMinutes,
       Value<DateTime> updatedAt,
     });
 
@@ -9109,6 +9167,11 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<bool> get audioMuseEnabled => $composableBuilder(
     column: $table.audioMuseEnabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get syncIntervalMinutes => $composableBuilder(
+    column: $table.syncIntervalMinutes,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -9277,6 +9340,11 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get syncIntervalMinutes => $composableBuilder(
+    column: $table.syncIntervalMinutes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
@@ -9438,6 +9506,11 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<int> get syncIntervalMinutes => $composableBuilder(
+    column: $table.syncIntervalMinutes,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 }
@@ -9509,6 +9582,7 @@ class $$AppSettingsTableTableTableManager
                 Value<String?> audioMuseServerUrl = const Value.absent(),
                 Value<String?> audioMuseApiKey = const Value.absent(),
                 Value<bool> audioMuseEnabled = const Value.absent(),
+                Value<int> syncIntervalMinutes = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
               }) => AppSettingsTableCompanion(
                 id: id,
@@ -9541,6 +9615,7 @@ class $$AppSettingsTableTableTableManager
                 audioMuseServerUrl: audioMuseServerUrl,
                 audioMuseApiKey: audioMuseApiKey,
                 audioMuseEnabled: audioMuseEnabled,
+                syncIntervalMinutes: syncIntervalMinutes,
                 updatedAt: updatedAt,
               ),
           createCompanionCallback:
@@ -9575,6 +9650,7 @@ class $$AppSettingsTableTableTableManager
                 Value<String?> audioMuseServerUrl = const Value.absent(),
                 Value<String?> audioMuseApiKey = const Value.absent(),
                 Value<bool> audioMuseEnabled = const Value.absent(),
+                Value<int> syncIntervalMinutes = const Value.absent(),
                 required DateTime updatedAt,
               }) => AppSettingsTableCompanion.insert(
                 id: id,
@@ -9607,6 +9683,7 @@ class $$AppSettingsTableTableTableManager
                 audioMuseServerUrl: audioMuseServerUrl,
                 audioMuseApiKey: audioMuseApiKey,
                 audioMuseEnabled: audioMuseEnabled,
+                syncIntervalMinutes: syncIntervalMinutes,
                 updatedAt: updatedAt,
               ),
           withReferenceMapper: (p0) => p0

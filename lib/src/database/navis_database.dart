@@ -65,7 +65,7 @@ class NavisDatabase extends _$NavisDatabase {
   static QueryExecutor _openConnection() => driftDatabase(name: 'navis.sqlite');
 
   @override
-  int get schemaVersion => 20;
+  int get schemaVersion => 21;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -143,6 +143,9 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 20 && to >= 20) {
       await from19To20(migrator);
+    }
+    if (from < 21 && to >= 21) {
+      await from20To21(migrator);
     }
   }
 
@@ -351,6 +354,15 @@ class NavisDatabase extends _$NavisDatabase {
       await migrator.addColumn(
         appSettingsTable,
         appSettingsTable.audioMuseEnabled,
+      );
+    }
+  }
+
+  Future<void> from20To21(Migrator migrator) async {
+    if (!await _columnExists('app_settings', 'sync_interval_minutes')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.syncIntervalMinutes,
       );
     }
   }

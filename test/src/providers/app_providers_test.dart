@@ -279,6 +279,7 @@ void main() {
                   audioMuseServerUrl: null,
                   audioMuseApiKey: null,
                   audioMuseEnabled: false,
+                  syncIntervalMinutes: 60,
                 ),
               ),
             ),
