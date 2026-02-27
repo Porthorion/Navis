@@ -9,11 +9,28 @@ import 'package:navis/src/features/auth/presentation/server_config_provider.dart
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/app_logger.dart';
 
+/// Sync interval in minutes from user settings (0 = manual only).
+/// The staleness window for the sync engine equals this interval so that
+/// periodic ticks actually trigger a sync rather than being skipped.
+final syncIntervalMinutesProvider = Provider<int>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.syncIntervalMinutes;
+});
+
 final syncStaleAfterProvider = Provider<Duration>((ref) {
-  return const Duration(hours: 1);
+  final minutes = ref.watch(syncIntervalMinutesProvider);
+  if (minutes <= 0) {
+    // Manual-only: use a large staleness window so syncIfStale won't fire
+    // on its own, but syncNow still works.
+    return const Duration(hours: 24);
+  }
+  return Duration(minutes: minutes);
 });
 
 /// Whether auto-enqueue of new tracks for pinned albums runs after sync.
@@ -56,6 +73,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   final Queue<String> _priorityAlbumIds = Queue<String>();
   static const int _maxPriorityAlbums = 120;
   late final AppLifecycleListener _lifecycleListener;
+  Timer? _periodicSyncTimer;
 
   @override
   LibrarySyncState build() {
@@ -71,6 +89,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     );
     ref.onDispose(() {
       _lifecycleListener.dispose();
+      _cancelPeriodicSync();
     });
 
     final serverConfig = ref.read(serverConfigStateProvider).asData?.value;
@@ -89,6 +108,14 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       serverReachabilityControllerProvider,
       (_, next) => _onReachabilityChanged(next),
     );
+    ref.listen<int>(
+      syncIntervalMinutesProvider,
+      (previous, next) => _onSyncIntervalChanged(next),
+    );
+
+    // Kick off the periodic timer with the current interval.
+    final intervalMinutes = ref.read(syncIntervalMinutesProvider);
+    _schedulePeriodicSync(intervalMinutes);
 
     Future<void>.microtask(_maybeRunStartupSync);
     return LibrarySyncState.idle(lastSyncedAt: serverConfig?.lastSynced);
@@ -347,6 +374,37 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     _isForeground = true;
     if (!wasForeground) {
       _maybeRunStartupSync();
+      // Re-arm the periodic timer in case it drifted while backgrounded.
+      final intervalMinutes = ref.read(syncIntervalMinutesProvider);
+      _schedulePeriodicSync(intervalMinutes);
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Periodic background sync
+  // ---------------------------------------------------------------------------
+
+  void _onSyncIntervalChanged(int minutes) {
+    _schedulePeriodicSync(minutes);
+  }
+
+  void _schedulePeriodicSync(int minutes) {
+    _cancelPeriodicSync();
+    if (minutes <= 0) {
+      return; // Manual-only mode — no timer.
+    }
+    final interval = Duration(minutes: minutes);
+    _periodicSyncTimer = Timer.periodic(interval, (_) {
+      if (!_isForeground) {
+        return; // Don't run while backgrounded.
+      }
+      AppLogger.debug('Periodic sync timer fired (interval: ${minutes}m).');
+      unawaited(syncIfStale());
+    });
+  }
+
+  void _cancelPeriodicSync() {
+    _periodicSyncTimer?.cancel();
+    _periodicSyncTimer = null;
   }
 }

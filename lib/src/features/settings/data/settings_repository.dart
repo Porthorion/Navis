@@ -48,6 +48,7 @@ class SettingsRepository {
       audioMuseServerUrl: settings.audioMuseServerUrl,
       audioMuseApiKey: settings.audioMuseApiKey,
       audioMuseEnabled: settings.audioMuseEnabled,
+      syncIntervalMinutes: settings.syncIntervalMinutes,
     );
   }
 
@@ -84,6 +85,7 @@ class SettingsRepository {
       audioMuseServerUrl: row.audioMuseServerUrl,
       audioMuseApiKey: row.audioMuseApiKey,
       audioMuseEnabled: row.audioMuseEnabled,
+      syncIntervalMinutes: row.syncIntervalMinutes,
     );
   }
 

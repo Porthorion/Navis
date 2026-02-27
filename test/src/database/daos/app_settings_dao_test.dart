@@ -44,6 +44,7 @@ void main() {
           updateCheckEnabled: true,
           updateChannel: 'stable',
           audioMuseEnabled: false,
+          syncIntervalMinutes: 60,
         );
 
         final first = await database.appSettingsDao.getSettings();
@@ -87,6 +88,7 @@ void main() {
           updateCheckEnabled: false,
           updateChannel: 'beta',
           audioMuseEnabled: false,
+          syncIntervalMinutes: 60,
         );
 
         final second = await database.appSettingsDao.getSettings();
@@ -134,6 +136,7 @@ void main() {
         updateCheckEnabled: false,
         updateChannel: 'beta',
         audioMuseEnabled: false,
+        syncIntervalMinutes: 60,
       );
 
       await database.appSettingsDao.resetDefaults();

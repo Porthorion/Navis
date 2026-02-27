@@ -96,6 +96,11 @@ class AppSettingsTable extends Table {
   BoolColumn get audioMuseEnabled =>
       boolean().withDefault(const Constant(false))();
 
+  /// Automatic background sync interval in minutes.
+  /// 0 = manual only (disabled). Default 60 (1 hour).
+  IntColumn get syncIntervalMinutes =>
+      integer().withDefault(const Constant(60))();
+
   DateTimeColumn get updatedAt => dateTime()();
 
   @override

@@ -8,8 +8,6 @@ import 'package:navis/src/common_widgets/expandable_player_sheet.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
-import 'package:navis/src/features/changelog/changelog_dialog.dart';
-import 'package:navis/src/features/changelog/changelog_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/domain/instant_mix_state.dart';
@@ -20,7 +18,6 @@ import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
-import 'package:navis/src/features/home/presentation/home_scroll_provider.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart'
     show searchFocusRequestProvider;
 import 'package:navis/src/providers/app_providers.dart';
@@ -37,29 +34,10 @@ class AppShell extends ConsumerStatefulWidget {
 
 class _AppShellState extends ConsumerState<AppShell>
     with WidgetsBindingObserver {
-  bool _changelogChecked = false;
-
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-  }
-
-  void _maybeShowChangelog() {
-    if (_changelogChecked) return;
-    _changelogChecked = true;
-    // Schedule after the first frame so the route is fully settled.
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted) return;
-      try {
-        final changelog = await ref.read(changelogToShowProvider.future);
-        if (changelog != null && mounted) {
-          await showChangelogDialog(context, changelog);
-        }
-      } on Exception {
-        // Silently ignore — changelog is non-critical.
-      }
-    });
   }
 
   @override
@@ -68,14 +46,24 @@ class _AppShellState extends ConsumerState<AppShell>
     super.dispose();
   }
 
+  /// Intercept the system back gesture / button **before** GoRouter processes
+  /// it.  This ensures the expanded player sheet is collapsed before the
+  /// router pops a sub-route inside a branch (e.g. album detail).
+  @override
+  Future<bool> didPopRoute() async {
+    final isExpanded = ref.read(playerSheetExpandedProvider);
+    if (isExpanded) {
+      ref.read(playerSheetExpandedProvider.notifier).collapse();
+      return true; // consumed — don't let the router navigate.
+    }
+    return super.didPopRoute();
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     ref.watch(librarySyncControllerProvider);
     ref.watch(scrobbleDispatchControllerProvider);
-
-    // Show changelog dialog once per version, on first build.
-    _maybeShowChangelog();
 
     // Global Instant Mix snackbar / error notifications (shown on any screen).
     ref.listen<InstantMixState>(instantMixProvider, (prev, next) {
@@ -155,12 +143,10 @@ class _AppShellState extends ConsumerState<AppShell>
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
-        // Read player state fresh to avoid stale build-snapshot issues.
-        final freshIsExpanded = ref.read(playerSheetExpandedProvider);
         NavService.handleSystemBack(
           ref: ref,
           context: context,
-          isPlayerExpanded: freshIsExpanded,
+          isPlayerExpanded: isExpanded,
           navigationShell: navigationShell,
           homeBranchIndex: _homeBranchIndex,
         );
@@ -264,13 +250,6 @@ class _AppShellState extends ConsumerState<AppShell>
                 labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
                 onDestinationSelected: (index) {
                   final branchIndex = visibleBranchIndices[index];
-                  // Scroll to top when Home is tapped while already on Home.
-                  if (branchIndex == _homeBranchIndex &&
-                      branchIndex == navigationShell.currentIndex) {
-                    ref
-                        .read(homeScrollToTopRequestProvider.notifier)
-                        .request();
-                  }
                   // Trigger focus request whenever the Search tab is tapped.
                   if (branchIndex == _searchBranchIndex) {
                     ref.read(searchFocusRequestProvider.notifier).increment();

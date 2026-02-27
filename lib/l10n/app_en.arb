@@ -51,6 +51,21 @@
   "syncSettingsStatusIdle": "Idle",
   "syncSettingsStatusSucceeded": "Last sync succeeded",
   "syncSettingsStatusFailed": "Last sync failed",
+  "syncSettingsIntervalLabel": "Auto-sync interval",
+  "syncSettingsIntervalManual": "Manual only",
+  "syncSettingsIntervalMinutes": "Every {minutes} minutes",
+  "@syncSettingsIntervalMinutes": {
+    "placeholders": {
+      "minutes": {}
+    }
+  },
+  "syncSettingsIntervalHours": "Every {hours} hour(s)",
+  "@syncSettingsIntervalHours": {
+    "placeholders": {
+      "hours": {}
+    }
+  },
+  "syncSettingsIntervalDescription": "How often the library syncs automatically in the background.",
   "playbackSettingsLoadError": "Could not load playback settings: {message}",
   "@playbackSettingsLoadError": {
     "placeholders": {

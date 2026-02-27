@@ -160,6 +160,26 @@ class AppLocalizationsEn extends AppLocalizations {
   String get syncSettingsStatusFailed => 'Last sync failed';
 
   @override
+  String get syncSettingsIntervalLabel => 'Auto-sync interval';
+
+  @override
+  String get syncSettingsIntervalManual => 'Manual only';
+
+  @override
+  String syncSettingsIntervalMinutes(Object minutes) {
+    return 'Every $minutes minutes';
+  }
+
+  @override
+  String syncSettingsIntervalHours(Object hours) {
+    return 'Every $hours hour(s)';
+  }
+
+  @override
+  String get syncSettingsIntervalDescription =>
+      'How often the library syncs automatically in the background.';
+
+  @override
   String playbackSettingsLoadError(Object message) {
     return 'Could not load playback settings: $message';
   }

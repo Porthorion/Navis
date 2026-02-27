@@ -416,6 +416,7 @@ class _PlaybackSettingsScreenState
         audioMuseServerUrl: currentSettings.audioMuseServerUrl,
         audioMuseApiKey: currentSettings.audioMuseApiKey,
         audioMuseEnabled: currentSettings.audioMuseEnabled,
+        syncIntervalMinutes: currentSettings.syncIntervalMinutes,
       );
       await ref.read(settingsRepositoryProvider).saveSettings(settings);
       final handler = ref.read(audioHandlerProvider);

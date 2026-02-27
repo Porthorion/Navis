@@ -39,27 +39,27 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 350),
+      duration: const Duration(milliseconds: 320),
       vsync: this,
     );
 
     _expandProgress = CurvedAnimation(
       parent: _controller,
-      curve: Curves.easeOutCubic,
-      reverseCurve: Curves.easeInCubic,
+      curve: Curves.fastEaseInToSlowEaseOut,
+      reverseCurve: Curves.fastEaseInToSlowEaseOut.flipped,
     );
 
     _fullPlayerOpacity = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.05, 0.6, curve: Curves.easeIn),
+        curve: const Interval(0.1, 0.7, curve: Curves.easeIn),
       ),
     );
 
     _miniPlayerOpacity = Tween<double>(begin: 1, end: 0).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0, 0.3, curve: Curves.easeOut),
+        curve: const Interval(0, 0.25, curve: Curves.easeOut),
       ),
     );
 
@@ -86,9 +86,10 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
     super.didUpdateWidget(oldWidget);
     if (widget.isExpanded != oldWidget.isExpanded) {
       if (widget.isExpanded) {
-        _controller.fling(velocity: 2.5);
+        // Velocity of 2.5 gives a snappy but not jarring spring-style snap.
+        _controller.fling(velocity: 2);
       } else {
-        _controller.fling(velocity: -2.5);
+        _controller.fling(velocity: -2);
       }
     }
   }
@@ -164,7 +165,7 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
     final velocity = details.primaryVelocity ?? 0;
     final absVelocity = velocity.abs();
 
-    if (absVelocity > 300) {
+    if (absVelocity > 150) {
       if (velocity < 0) {
         // Swipe up — expand
         if (_controller.value >= 0.99 && widget.onSwipeUp != null) {
@@ -172,23 +173,23 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
           widget.onSwipeUp!();
         } else {
           // Clamp so very fast flicks don't overshoot spring simulation.
-          final v = (absVelocity / _maxHeight).clamp(1.0, 6.0);
+          final v = (absVelocity / _maxHeight).clamp(0.5, 8.0);
           _controller.fling(velocity: v);
           if (!widget.isExpanded) widget.onExpand();
         }
       } else {
         // Swipe down — collapse
-        final v = (absVelocity / _maxHeight).clamp(1.0, 6.0);
+        final v = (absVelocity / _maxHeight).clamp(0.5, 8.0);
         _controller.fling(velocity: -v);
         if (widget.isExpanded) widget.onCollapse();
       }
     } else {
-      // Low velocity — snap based on position (35% threshold for collapse)
-      if (_controller.value > 0.35) {
-        _controller.fling(velocity: 2.5);
+      // Low velocity — snap to nearest half with moderate spring
+      if (_controller.value > 0.5) {
+        _controller.fling(velocity: 2);
         if (!widget.isExpanded) widget.onExpand();
       } else {
-        _controller.fling(velocity: -2.5);
+        _controller.fling(velocity: -2);
         if (widget.isExpanded) widget.onCollapse();
       }
     }

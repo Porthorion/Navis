@@ -27,6 +27,26 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
+    version: '0.2.10',
+    entries: [
+      ChangelogEntry(
+        'Added configurable auto-sync interval (15m, 30m, 1h, 2h, 6h, 12h, '
+        'or manual only) in Sync Settings',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Library now syncs automatically in the background on a periodic timer '
+        'based on the chosen interval',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Sync staleness window is now driven by user settings instead of a '
+        'hard-coded 1-hour window',
+        type: ChangelogEntryType.improvement,
+      ),
+    ],
+  ),
+  ChangelogVersion(
     version: '0.2.9',
     entries: [
       ChangelogEntry(
