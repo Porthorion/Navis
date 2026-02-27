@@ -213,6 +213,7 @@ class _NowPlayingAppBar extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
     showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       builder: (sheetContext) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,

@@ -802,6 +802,14 @@ final artTintedNowPlayingProvider = Provider<bool>((ref) {
   return settings.artTintedNowPlaying;
 });
 
+/// Whether app-wide accent color should follow currently playing album art.
+final dynamicAlbumColorEnabledProvider = Provider<bool>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.dynamicAlbumColorEnabled;
+});
+
 /// Custom color presets stored as a JSON list of ARGB32 ints.
 final customColorPresetsProvider = StreamProvider<List<int>>((ref) {
   final dao = ref.watch(navisDatabaseProvider).appSettingsDao;

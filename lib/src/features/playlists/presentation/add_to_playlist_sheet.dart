@@ -17,6 +17,7 @@ Future<void> showAddToPlaylistSheet(
   await showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
+    useRootNavigator: true,
     builder: (sheetContext) => DraggableScrollableSheet(
       initialChildSize: 0.5,
       minChildSize: 0.3,

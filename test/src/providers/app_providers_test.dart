@@ -274,6 +274,7 @@ void main() {
                   crossfadeDurationSeconds: 5,
                   crossfadeType: 'normal',
                   artTintedNowPlaying: true,
+                  dynamicAlbumColorEnabled: false,
                   updateCheckEnabled: true,
                   updateChannel: 'stable',
                   audioMuseServerUrl: null,

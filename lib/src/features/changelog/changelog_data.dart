@@ -27,6 +27,27 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
+    version: '0.2.11',
+    entries: [
+      ChangelogEntry(
+        'Fixed search/Now Playing navigation edge cases: closing queue no '
+        'longer retriggers search, and expanding Now Playing no longer '
+        'keeps the search keyboard active',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Added full-screen album art viewer from album detail with smoother '
+        'open/close transitions and pinch-to-zoom',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Added Appearance toggle for Dynamic Album Color to theme app accent '
+        'colors from currently playing album art (off by default)',
+        type: ChangelogEntryType.newFeature,
+      ),
+    ],
+  ),
+  ChangelogVersion(
     version: '0.2.10',
     entries: [
       ChangelogEntry(

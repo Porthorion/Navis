@@ -4,6 +4,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_router.dart';
+import 'package:navis/src/theme/dynamic_accent_provider.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 
 /// Root application widget for Navis.
@@ -65,7 +66,7 @@ class _NavisAppState extends ConsumerState<NavisApp> {
 
     final router = ref.watch(appRouterProvider);
     final themeModeName = ref.watch(themeModeProvider);
-    final colorSeed = ref.watch(colorSchemeSeedProvider);
+    final colorSeed = ref.watch(effectiveColorSchemeSeedProvider);
     final seedColor = colorSeed != null ? Color(colorSeed) : Colors.blue;
     final resolvedThemeMode = resolveThemeMode(themeModeName);
     final isOled = themeModeName == 'oled';

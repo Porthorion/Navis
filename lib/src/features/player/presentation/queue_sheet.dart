@@ -8,6 +8,7 @@ import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart'
     show songByIdProvider, subsonicApiProvider;
+import 'package:navis/src/routing/navigation_service.dart';
 
 /// A full-screen modal bottom sheet that displays the current playback queue.
 ///
@@ -116,7 +117,10 @@ class _QueueSheetHeader extends ConsumerWidget {
             children: <Widget>[
               IconButton(
                 icon: const Icon(Icons.close),
-                onPressed: () => Navigator.of(context).pop(),
+                onPressed: () {
+                  NavService.dismissKeyboard(context);
+                  Navigator.of(context).pop();
+                },
               ),
               const SizedBox(width: 4),
               Expanded(
