@@ -112,7 +112,9 @@ class SyncSettingsScreen extends ConsumerWidget {
                         .toList(),
                     onChanged: (value) async {
                       if (value == null) return;
-                      final dao = ref.read(navisDatabaseProvider).appSettingsDao;
+                      final dao = ref
+                          .read(navisDatabaseProvider)
+                          .appSettingsDao;
                       await dao.updateSyncIntervalMinutes(value);
                     },
                   ),
