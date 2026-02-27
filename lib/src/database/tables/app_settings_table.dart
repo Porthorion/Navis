@@ -78,6 +78,10 @@ class AppSettingsTable extends Table {
   BoolColumn get artTintedNowPlaying =>
       boolean().withDefault(const Constant(true))();
 
+  /// When true, app accent color follows the currently playing album art.
+  BoolColumn get dynamicAlbumColorEnabled =>
+      boolean().withDefault(const Constant(false))();
+
   /// Whether to automatically check for updates on launch. Default true.
   BoolColumn get updateCheckEnabled =>
       boolean().withDefault(const Constant(true))();

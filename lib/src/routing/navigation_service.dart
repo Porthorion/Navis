@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -23,9 +25,10 @@ abstract final class NavService {
   /// Navigate to an album detail screen inside the Library branch.
   ///
   /// If the player sheet is expanded it is collapsed first so the destination
-  /// is fully visible.
+  /// is fully visible.  Any open modal (queue panel, overflow menu) is
+  /// dismissed before navigating.
   static void goToAlbum(BuildContext context, WidgetRef ref, String albumId) {
-    _collapsePlayerIfNeeded(ref);
+    _dismissOverlaysAndCollapse(context, ref);
     context.go('/library/albums/$albumId');
   }
 
@@ -35,7 +38,7 @@ abstract final class NavService {
     WidgetRef ref,
     String artistId,
   ) {
-    _collapsePlayerIfNeeded(ref);
+    _dismissOverlaysAndCollapse(context, ref);
     context.go('/library/artists/$artistId');
   }
 
@@ -47,7 +50,7 @@ abstract final class NavService {
     WidgetRef ref,
     String query,
   ) {
-    _collapsePlayerIfNeeded(ref);
+    _dismissOverlaysAndCollapse(context, ref);
     ref.read(searchQueryProvider.notifier).submit(query);
     context.go('/search');
   }
@@ -58,13 +61,16 @@ abstract final class NavService {
 
   /// Show the playback queue as a full-screen modal bottom sheet.
   ///
-  /// The sheet overlays the Now Playing view and can be dismissed by swiping
-  /// down or tapping the close button.
+  /// Uses the root navigator so the modal sits above everything (including
+  /// the expanded player) and is properly handled by the back-button logic.
   static void showQueue(BuildContext context) {
+    dismissKeyboard(context);
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      useRootNavigator: true,
       useSafeArea: true,
+      requestFocus: false,
       backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -80,10 +86,15 @@ abstract final class NavService {
   /// Handles system back (Android back gesture / button) with the following
   /// priority chain:
   ///
+  /// **Important:** Modal routes (queue panel, dialogs, overflow menus) are
+  /// popped by the Navigator *before* this method is called, because
+  /// `PopScope(canPop: false)` only triggers `onPopInvokedWithResult` when
+  /// the shell route is the topmost route.
+  ///
   /// 1. **Player expanded** → collapse it.
   /// 2. **GoRouter can pop** (sub-route within a branch) → pop it.
   /// 3. **Not on Home tab** → switch to Home.
-  /// 4. **Home tab root** → exit the app.
+  /// 4. **Home tab root** → require double-tap to exit.
   static void handleSystemBack({
     required WidgetRef ref,
     required BuildContext context,
@@ -93,6 +104,7 @@ abstract final class NavService {
   }) {
     // 1. Collapse the player if expanded
     if (isPlayerExpanded) {
+      dismissKeyboard(context);
       ref.read(playerSheetExpandedProvider.notifier).collapse();
       return;
     }
@@ -131,10 +143,32 @@ abstract final class NavService {
   // Private
   // ---------------------------------------------------------------------------
 
-  static void _collapsePlayerIfNeeded(WidgetRef ref) {
+  /// Dismiss any modal routes (queue panel, overflow menus, dialogs) that
+  /// are on the root navigator, then collapse the player sheet.
+  ///
+  /// Called before [goToAlbum], [goToArtist], [goToSearch] to guarantee a
+  /// clean navigation state.
+  static void _dismissOverlaysAndCollapse(BuildContext context, WidgetRef ref) {
+    dismissKeyboard(context);
+
+    // Pop all modal routes above the shell route so GoRouter navigation
+    // doesn't leave orphan overlays on the navigator.
+    final rootNav = Navigator.of(context, rootNavigator: true);
+    rootNav.popUntil((route) => route.isFirst);
+
+    // Collapse the expanded player.
     final notifier = ref.read(playerSheetExpandedProvider.notifier);
     if (ref.read(playerSheetExpandedProvider)) {
       notifier.collapse();
     }
+  }
+
+  /// Dismiss the on-screen keyboard and clear any active text focus.
+  static void dismissKeyboard([BuildContext? context]) {
+    if (context != null) {
+      FocusScope.of(context).unfocus();
+    }
+    FocusManager.instance.primaryFocus?.unfocus();
+    unawaited(SystemChannels.textInput.invokeMethod<void>('TextInput.hide'));
   }
 }

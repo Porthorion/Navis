@@ -22,6 +22,7 @@ Future<DownloadQualityChoice?> showDownloadQualitySheet(
   final l10n = AppLocalizations.of(context)!;
   return showModalBottomSheet<DownloadQualityChoice>(
     context: context,
+    useRootNavigator: true,
     builder: (ctx) {
       return SafeArea(
         child: Column(

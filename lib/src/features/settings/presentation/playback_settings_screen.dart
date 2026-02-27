@@ -411,6 +411,7 @@ class _PlaybackSettingsScreenState
         crossfadeDurationSeconds: _crossfadeDurationSeconds,
         crossfadeType: _crossfadeType,
         artTintedNowPlaying: ref.read(artTintedNowPlayingProvider),
+        dynamicAlbumColorEnabled: currentSettings.dynamicAlbumColorEnabled,
         updateCheckEnabled: currentSettings.updateCheckEnabled,
         updateChannel: currentSettings.updateChannel,
         audioMuseServerUrl: currentSettings.audioMuseServerUrl,

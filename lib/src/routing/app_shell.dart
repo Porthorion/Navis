@@ -32,32 +32,13 @@ class AppShell extends ConsumerStatefulWidget {
   ConsumerState<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends ConsumerState<AppShell>
-    with WidgetsBindingObserver {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  /// Intercept the system back gesture / button **before** GoRouter processes
-  /// it.  This ensures the expanded player sheet is collapsed before the
-  /// router pops a sub-route inside a branch (e.g. album detail).
-  @override
-  Future<bool> didPopRoute() async {
-    final isExpanded = ref.read(playerSheetExpandedProvider);
-    if (isExpanded) {
-      ref.read(playerSheetExpandedProvider.notifier).collapse();
-      return true; // consumed — don't let the router navigate.
-    }
-    return super.didPopRoute();
-  }
+class _AppShellState extends ConsumerState<AppShell> {
+  // NOTE: We intentionally do NOT use WidgetsBindingObserver.didPopRoute()
+  // for back-button handling. That observer fires BEFORE the Navigator
+  // processes the event, which means it would consume back presses that
+  // should dismiss modal bottom sheets (queue panel, overflow menus,
+  // dialogs, etc.). Instead we rely solely on PopScope + GoRouter which
+  // correctly lets the Navigator pop modal routes first.
 
   @override
   Widget build(BuildContext context) {
@@ -140,8 +121,14 @@ class _AppShellState extends ConsumerState<AppShell>
     final selectedIndex = selectedVisibleIndex >= 0 ? selectedVisibleIndex : 0;
 
     return PopScope(
+      // canPop: false means the shell route itself cannot be popped by the
+      // Navigator. Modal routes (queue sheet, dialogs, overflow menus) that
+      // sit ABOVE this route are unaffected — the Navigator pops them first
+      // before this PopScope is ever consulted.
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
+        // didPop is true only if the route was actually popped (shouldn't
+        // happen since canPop is false, but guard anyway).
         if (didPop) return;
         NavService.handleSystemBack(
           ref: ref,
@@ -152,6 +139,9 @@ class _AppShellState extends ConsumerState<AppShell>
         );
       },
       child: Scaffold(
+        // Keep the expanded player at full height even if a hidden text field
+        // elsewhere (e.g. Search) still has keyboard insets in flight.
+        resizeToAvoidBottomInset: !(showPlayer && isExpanded),
         body: LayoutBuilder(
           builder: (context, constraints) {
             final bodyHeight = constraints.maxHeight;
@@ -206,9 +196,12 @@ class _AppShellState extends ConsumerState<AppShell>
                     child: ExpandablePlayerSheet(
                       maxHeight: bodyHeight,
                       isExpanded: isExpanded,
-                      onExpand: () => ref
-                          .read(playerSheetExpandedProvider.notifier)
-                          .expand(),
+                      onExpand: () {
+                        // Dismiss the keyboard (e.g. search bar) before expanding
+                        // so the Now Playing screen isn't squished.
+                        NavService.dismissKeyboard(context);
+                        ref.read(playerSheetExpandedProvider.notifier).expand();
+                      },
                       onCollapse: () => ref
                           .read(playerSheetExpandedProvider.notifier)
                           .collapse(),
@@ -228,9 +221,13 @@ class _AppShellState extends ConsumerState<AppShell>
                             : currentSongAsync.asData?.value?.coverArt,
                         isRadio: playback.isRadioMode,
                         radioArtUrl: playback.radioStation?.nowPlayingArtUrl,
-                        onTap: () => ref
-                            .read(playerSheetExpandedProvider.notifier)
-                            .expand(),
+                        onTap: () {
+                          // Dismiss keyboard before expanding.
+                          NavService.dismissKeyboard(context);
+                          ref
+                              .read(playerSheetExpandedProvider.notifier)
+                              .expand();
+                        },
                       ),
                       fullPlayer: NowPlayingScreen(
                         onCollapse: () => ref
@@ -249,6 +246,7 @@ class _AppShellState extends ConsumerState<AppShell>
                 selectedIndex: selectedIndex,
                 labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
                 onDestinationSelected: (index) {
+                  NavService.dismissKeyboard(context);
                   final branchIndex = visibleBranchIndices[index];
                   // Trigger focus request whenever the Search tab is tapped.
                   if (branchIndex == _searchBranchIndex) {

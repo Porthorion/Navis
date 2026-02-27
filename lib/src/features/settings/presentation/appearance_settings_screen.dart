@@ -142,6 +142,19 @@ class AppearanceSettingsScreen extends ConsumerWidget {
               );
             },
           ),
+          SwitchListTile(
+            title: const Text('Dynamic Album Color'),
+            subtitle: const Text(
+              'Use the currently playing album art to theme app accent colors.',
+            ),
+            value: ref.watch(dynamicAlbumColorEnabledProvider),
+            onChanged: (enabled) async {
+              final db = ref.read(navisDatabaseProvider);
+              await db.appSettingsDao.updateDynamicAlbumColorEnabled(
+                enabled: enabled,
+              );
+            },
+          ),
           const Divider(height: 32),
 
           // ── Page Visibility ─────────────────────────────────────

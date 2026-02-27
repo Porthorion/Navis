@@ -41,6 +41,7 @@ void main() {
           crossfadeDurationSeconds: 5,
           crossfadeType: 'normal',
           artTintedNowPlaying: false,
+          dynamicAlbumColorEnabled: false,
           updateCheckEnabled: true,
           updateChannel: 'stable',
           audioMuseEnabled: false,
@@ -85,6 +86,7 @@ void main() {
           crossfadeDurationSeconds: 5,
           crossfadeType: 'normal',
           artTintedNowPlaying: false,
+          dynamicAlbumColorEnabled: false,
           updateCheckEnabled: false,
           updateChannel: 'beta',
           audioMuseEnabled: false,
@@ -133,6 +135,7 @@ void main() {
         crossfadeDurationSeconds: 5,
         crossfadeType: 'normal',
         artTintedNowPlaying: false,
+        dynamicAlbumColorEnabled: false,
         updateCheckEnabled: false,
         updateChannel: 'beta',
         audioMuseEnabled: false,
@@ -158,6 +161,7 @@ void main() {
       expect(settings.equalizerBandGains, isNull);
       expect(settings.loudnessEnabled, isFalse);
       expect(settings.loudnessTargetGainDb, 0);
+      expect(settings.dynamicAlbumColorEnabled, isFalse);
     }, skip: !sqliteAvailable);
   });
 }

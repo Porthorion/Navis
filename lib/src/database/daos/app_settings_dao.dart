@@ -50,6 +50,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     required int crossfadeDurationSeconds,
     required String crossfadeType,
     required bool artTintedNowPlaying,
+    required bool dynamicAlbumColorEnabled,
     required bool updateCheckEnabled,
     required String updateChannel,
     String? audioMuseServerUrl,
@@ -81,6 +82,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         crossfadeDurationSeconds: Value(crossfadeDurationSeconds),
         crossfadeType: Value(crossfadeType),
         artTintedNowPlaying: Value(artTintedNowPlaying),
+        dynamicAlbumColorEnabled: Value(dynamicAlbumColorEnabled),
         updateCheckEnabled: Value(updateCheckEnabled),
         updateChannel: Value(updateChannel),
         audioMuseServerUrl: Value(audioMuseServerUrl),
@@ -115,6 +117,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       crossfadeDurationSeconds: 5,
       crossfadeType: 'normal',
       artTintedNowPlaying: true,
+      dynamicAlbumColorEnabled: false,
       updateCheckEnabled: true,
       updateChannel: 'stable',
       audioMuseEnabled: false,
@@ -325,6 +328,23 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   /// Stream the art-tinted Now Playing setting.
   Stream<bool> watchArtTintedNowPlaying() {
     return watchSettings().map((s) => s?.artTintedNowPlaying ?? true);
+  }
+
+  /// Targeted update for dynamic album-color theming.
+  Future<void> updateDynamicAlbumColorEnabled({required bool enabled}) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        dynamicAlbumColorEnabled: Value(enabled),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Stream the dynamic album-color setting.
+  Stream<bool> watchDynamicAlbumColorEnabled() {
+    return watchSettings().map((s) => s?.dynamicAlbumColorEnabled ?? false);
   }
 
   // ---------------------------------------------------------------------------

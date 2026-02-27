@@ -25,6 +25,7 @@ class AppSettingsModel {
     required this.crossfadeDurationSeconds,
     required this.crossfadeType,
     required this.artTintedNowPlaying,
+    required this.dynamicAlbumColorEnabled,
     required this.updateCheckEnabled,
     required this.updateChannel,
     required this.audioMuseServerUrl,
@@ -55,6 +56,7 @@ class AppSettingsModel {
       crossfadeDurationSeconds = 5,
       crossfadeType = 'normal',
       artTintedNowPlaying = true,
+      dynamicAlbumColorEnabled = false,
       updateCheckEnabled = true,
       updateChannel = 'stable',
       audioMuseServerUrl = null,
@@ -85,6 +87,7 @@ class AppSettingsModel {
   final int crossfadeDurationSeconds;
   final String crossfadeType;
   final bool artTintedNowPlaying;
+  final bool dynamicAlbumColorEnabled;
   final bool updateCheckEnabled;
   final String updateChannel;
   final String? audioMuseServerUrl;
@@ -114,6 +117,7 @@ class AppSettingsModel {
     int? crossfadeDurationSeconds,
     String? crossfadeType,
     bool? artTintedNowPlaying,
+    bool? dynamicAlbumColorEnabled,
     bool? updateCheckEnabled,
     String? updateChannel,
     String? audioMuseServerUrl,
@@ -160,6 +164,8 @@ class AppSettingsModel {
           crossfadeDurationSeconds ?? this.crossfadeDurationSeconds,
       crossfadeType: crossfadeType ?? this.crossfadeType,
       artTintedNowPlaying: artTintedNowPlaying ?? this.artTintedNowPlaying,
+      dynamicAlbumColorEnabled:
+          dynamicAlbumColorEnabled ?? this.dynamicAlbumColorEnabled,
       updateCheckEnabled: updateCheckEnabled ?? this.updateCheckEnabled,
       updateChannel: updateChannel ?? this.updateChannel,
       audioMuseServerUrl: clearAudioMuseServerUrl

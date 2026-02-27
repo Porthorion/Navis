@@ -846,6 +846,21 @@ class $AppSettingsTableTable extends AppSettingsTable
     ),
     defaultValue: const Constant(true),
   );
+  static const VerificationMeta _dynamicAlbumColorEnabledMeta =
+      const VerificationMeta('dynamicAlbumColorEnabled');
+  @override
+  late final GeneratedColumn<bool> dynamicAlbumColorEnabled =
+      GeneratedColumn<bool>(
+        'dynamic_album_color_enabled',
+        aliasedName,
+        false,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("dynamic_album_color_enabled" IN (0, 1))',
+        ),
+        defaultValue: const Constant(false),
+      );
   static const VerificationMeta _updateCheckEnabledMeta =
       const VerificationMeta('updateCheckEnabled');
   @override
@@ -958,6 +973,7 @@ class $AppSettingsTableTable extends AppSettingsTable
     crossfadeType,
     coverArtCacheMaxObjects,
     artTintedNowPlaying,
+    dynamicAlbumColorEnabled,
     updateCheckEnabled,
     updateChannel,
     audioMuseServerUrl,
@@ -1191,6 +1207,15 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
       );
     }
+    if (data.containsKey('dynamic_album_color_enabled')) {
+      context.handle(
+        _dynamicAlbumColorEnabledMeta,
+        dynamicAlbumColorEnabled.isAcceptableOrUnknown(
+          data['dynamic_album_color_enabled']!,
+          _dynamicAlbumColorEnabledMeta,
+        ),
+      );
+    }
     if (data.containsKey('update_check_enabled')) {
       context.handle(
         _updateCheckEnabledMeta,
@@ -1362,6 +1387,10 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.bool,
         data['${effectivePrefix}art_tinted_now_playing'],
       )!,
+      dynamicAlbumColorEnabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}dynamic_album_color_enabled'],
+      )!,
       updateCheckEnabled: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}update_check_enabled'],
@@ -1447,6 +1476,9 @@ class AppSettingsTableData extends DataClass
   /// When true, the Now Playing background is tinted with album art colors.
   final bool artTintedNowPlaying;
 
+  /// When true, app accent color follows the currently playing album art.
+  final bool dynamicAlbumColorEnabled;
+
   /// Whether to automatically check for updates on launch. Default true.
   final bool updateCheckEnabled;
 
@@ -1492,6 +1524,7 @@ class AppSettingsTableData extends DataClass
     required this.crossfadeType,
     required this.coverArtCacheMaxObjects,
     required this.artTintedNowPlaying,
+    required this.dynamicAlbumColorEnabled,
     required this.updateCheckEnabled,
     required this.updateChannel,
     this.audioMuseServerUrl,
@@ -1544,6 +1577,9 @@ class AppSettingsTableData extends DataClass
     map['crossfade_type'] = Variable<String>(crossfadeType);
     map['cover_art_cache_max_objects'] = Variable<int>(coverArtCacheMaxObjects);
     map['art_tinted_now_playing'] = Variable<bool>(artTintedNowPlaying);
+    map['dynamic_album_color_enabled'] = Variable<bool>(
+      dynamicAlbumColorEnabled,
+    );
     map['update_check_enabled'] = Variable<bool>(updateCheckEnabled);
     map['update_channel'] = Variable<String>(updateChannel);
     if (!nullToAbsent || audioMuseServerUrl != null) {
@@ -1601,6 +1637,7 @@ class AppSettingsTableData extends DataClass
       crossfadeType: Value(crossfadeType),
       coverArtCacheMaxObjects: Value(coverArtCacheMaxObjects),
       artTintedNowPlaying: Value(artTintedNowPlaying),
+      dynamicAlbumColorEnabled: Value(dynamicAlbumColorEnabled),
       updateCheckEnabled: Value(updateCheckEnabled),
       updateChannel: Value(updateChannel),
       audioMuseServerUrl: audioMuseServerUrl == null && nullToAbsent
@@ -1660,6 +1697,9 @@ class AppSettingsTableData extends DataClass
       artTintedNowPlaying: serializer.fromJson<bool>(
         json['artTintedNowPlaying'],
       ),
+      dynamicAlbumColorEnabled: serializer.fromJson<bool>(
+        json['dynamicAlbumColorEnabled'],
+      ),
       updateCheckEnabled: serializer.fromJson<bool>(json['updateCheckEnabled']),
       updateChannel: serializer.fromJson<String>(json['updateChannel']),
       audioMuseServerUrl: serializer.fromJson<String?>(
@@ -1706,6 +1746,9 @@ class AppSettingsTableData extends DataClass
         coverArtCacheMaxObjects,
       ),
       'artTintedNowPlaying': serializer.toJson<bool>(artTintedNowPlaying),
+      'dynamicAlbumColorEnabled': serializer.toJson<bool>(
+        dynamicAlbumColorEnabled,
+      ),
       'updateCheckEnabled': serializer.toJson<bool>(updateCheckEnabled),
       'updateChannel': serializer.toJson<String>(updateChannel),
       'audioMuseServerUrl': serializer.toJson<String?>(audioMuseServerUrl),
@@ -1742,6 +1785,7 @@ class AppSettingsTableData extends DataClass
     String? crossfadeType,
     int? coverArtCacheMaxObjects,
     bool? artTintedNowPlaying,
+    bool? dynamicAlbumColorEnabled,
     bool? updateCheckEnabled,
     String? updateChannel,
     Value<String?> audioMuseServerUrl = const Value.absent(),
@@ -1791,6 +1835,8 @@ class AppSettingsTableData extends DataClass
     coverArtCacheMaxObjects:
         coverArtCacheMaxObjects ?? this.coverArtCacheMaxObjects,
     artTintedNowPlaying: artTintedNowPlaying ?? this.artTintedNowPlaying,
+    dynamicAlbumColorEnabled:
+        dynamicAlbumColorEnabled ?? this.dynamicAlbumColorEnabled,
     updateCheckEnabled: updateCheckEnabled ?? this.updateCheckEnabled,
     updateChannel: updateChannel ?? this.updateChannel,
     audioMuseServerUrl: audioMuseServerUrl.present
@@ -1876,6 +1922,9 @@ class AppSettingsTableData extends DataClass
       artTintedNowPlaying: data.artTintedNowPlaying.present
           ? data.artTintedNowPlaying.value
           : this.artTintedNowPlaying,
+      dynamicAlbumColorEnabled: data.dynamicAlbumColorEnabled.present
+          ? data.dynamicAlbumColorEnabled.value
+          : this.dynamicAlbumColorEnabled,
       updateCheckEnabled: data.updateCheckEnabled.present
           ? data.updateCheckEnabled.value
           : this.updateCheckEnabled,
@@ -1926,6 +1975,7 @@ class AppSettingsTableData extends DataClass
           ..write('crossfadeType: $crossfadeType, ')
           ..write('coverArtCacheMaxObjects: $coverArtCacheMaxObjects, ')
           ..write('artTintedNowPlaying: $artTintedNowPlaying, ')
+          ..write('dynamicAlbumColorEnabled: $dynamicAlbumColorEnabled, ')
           ..write('updateCheckEnabled: $updateCheckEnabled, ')
           ..write('updateChannel: $updateChannel, ')
           ..write('audioMuseServerUrl: $audioMuseServerUrl, ')
@@ -1964,6 +2014,7 @@ class AppSettingsTableData extends DataClass
     crossfadeType,
     coverArtCacheMaxObjects,
     artTintedNowPlaying,
+    dynamicAlbumColorEnabled,
     updateCheckEnabled,
     updateChannel,
     audioMuseServerUrl,
@@ -2001,6 +2052,7 @@ class AppSettingsTableData extends DataClass
           other.crossfadeType == this.crossfadeType &&
           other.coverArtCacheMaxObjects == this.coverArtCacheMaxObjects &&
           other.artTintedNowPlaying == this.artTintedNowPlaying &&
+          other.dynamicAlbumColorEnabled == this.dynamicAlbumColorEnabled &&
           other.updateCheckEnabled == this.updateCheckEnabled &&
           other.updateChannel == this.updateChannel &&
           other.audioMuseServerUrl == this.audioMuseServerUrl &&
@@ -2036,6 +2088,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<String> crossfadeType;
   final Value<int> coverArtCacheMaxObjects;
   final Value<bool> artTintedNowPlaying;
+  final Value<bool> dynamicAlbumColorEnabled;
   final Value<bool> updateCheckEnabled;
   final Value<String> updateChannel;
   final Value<String?> audioMuseServerUrl;
@@ -2069,6 +2122,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.crossfadeType = const Value.absent(),
     this.coverArtCacheMaxObjects = const Value.absent(),
     this.artTintedNowPlaying = const Value.absent(),
+    this.dynamicAlbumColorEnabled = const Value.absent(),
     this.updateCheckEnabled = const Value.absent(),
     this.updateChannel = const Value.absent(),
     this.audioMuseServerUrl = const Value.absent(),
@@ -2103,6 +2157,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.crossfadeType = const Value.absent(),
     this.coverArtCacheMaxObjects = const Value.absent(),
     this.artTintedNowPlaying = const Value.absent(),
+    this.dynamicAlbumColorEnabled = const Value.absent(),
     this.updateCheckEnabled = const Value.absent(),
     this.updateChannel = const Value.absent(),
     this.audioMuseServerUrl = const Value.absent(),
@@ -2137,6 +2192,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<String>? crossfadeType,
     Expression<int>? coverArtCacheMaxObjects,
     Expression<bool>? artTintedNowPlaying,
+    Expression<bool>? dynamicAlbumColorEnabled,
     Expression<bool>? updateCheckEnabled,
     Expression<String>? updateChannel,
     Expression<String>? audioMuseServerUrl,
@@ -2180,6 +2236,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         'cover_art_cache_max_objects': coverArtCacheMaxObjects,
       if (artTintedNowPlaying != null)
         'art_tinted_now_playing': artTintedNowPlaying,
+      if (dynamicAlbumColorEnabled != null)
+        'dynamic_album_color_enabled': dynamicAlbumColorEnabled,
       if (updateCheckEnabled != null)
         'update_check_enabled': updateCheckEnabled,
       if (updateChannel != null) 'update_channel': updateChannel,
@@ -2219,6 +2277,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<String>? crossfadeType,
     Value<int>? coverArtCacheMaxObjects,
     Value<bool>? artTintedNowPlaying,
+    Value<bool>? dynamicAlbumColorEnabled,
     Value<bool>? updateCheckEnabled,
     Value<String>? updateChannel,
     Value<String?>? audioMuseServerUrl,
@@ -2255,6 +2314,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       coverArtCacheMaxObjects:
           coverArtCacheMaxObjects ?? this.coverArtCacheMaxObjects,
       artTintedNowPlaying: artTintedNowPlaying ?? this.artTintedNowPlaying,
+      dynamicAlbumColorEnabled:
+          dynamicAlbumColorEnabled ?? this.dynamicAlbumColorEnabled,
       updateCheckEnabled: updateCheckEnabled ?? this.updateCheckEnabled,
       updateChannel: updateChannel ?? this.updateChannel,
       audioMuseServerUrl: audioMuseServerUrl ?? this.audioMuseServerUrl,
@@ -2351,6 +2412,11 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     if (artTintedNowPlaying.present) {
       map['art_tinted_now_playing'] = Variable<bool>(artTintedNowPlaying.value);
     }
+    if (dynamicAlbumColorEnabled.present) {
+      map['dynamic_album_color_enabled'] = Variable<bool>(
+        dynamicAlbumColorEnabled.value,
+      );
+    }
     if (updateCheckEnabled.present) {
       map['update_check_enabled'] = Variable<bool>(updateCheckEnabled.value);
     }
@@ -2403,6 +2469,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('crossfadeType: $crossfadeType, ')
           ..write('coverArtCacheMaxObjects: $coverArtCacheMaxObjects, ')
           ..write('artTintedNowPlaying: $artTintedNowPlaying, ')
+          ..write('dynamicAlbumColorEnabled: $dynamicAlbumColorEnabled, ')
           ..write('updateCheckEnabled: $updateCheckEnabled, ')
           ..write('updateChannel: $updateChannel, ')
           ..write('audioMuseServerUrl: $audioMuseServerUrl, ')
@@ -8967,6 +9034,7 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<String> crossfadeType,
       Value<int> coverArtCacheMaxObjects,
       Value<bool> artTintedNowPlaying,
+      Value<bool> dynamicAlbumColorEnabled,
       Value<bool> updateCheckEnabled,
       Value<String> updateChannel,
       Value<String?> audioMuseServerUrl,
@@ -9002,6 +9070,7 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<String> crossfadeType,
       Value<int> coverArtCacheMaxObjects,
       Value<bool> artTintedNowPlaying,
+      Value<bool> dynamicAlbumColorEnabled,
       Value<bool> updateCheckEnabled,
       Value<String> updateChannel,
       Value<String?> audioMuseServerUrl,
@@ -9142,6 +9211,11 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<bool> get artTintedNowPlaying => $composableBuilder(
     column: $table.artTintedNowPlaying,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get dynamicAlbumColorEnabled => $composableBuilder(
+    column: $table.dynamicAlbumColorEnabled,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -9315,6 +9389,11 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get dynamicAlbumColorEnabled => $composableBuilder(
+    column: $table.dynamicAlbumColorEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get updateCheckEnabled => $composableBuilder(
     column: $table.updateCheckEnabled,
     builder: (column) => ColumnOrderings(column),
@@ -9481,6 +9560,11 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get dynamicAlbumColorEnabled => $composableBuilder(
+    column: $table.dynamicAlbumColorEnabled,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<bool> get updateCheckEnabled => $composableBuilder(
     column: $table.updateCheckEnabled,
     builder: (column) => column,
@@ -9577,6 +9661,7 @@ class $$AppSettingsTableTableTableManager
                 Value<String> crossfadeType = const Value.absent(),
                 Value<int> coverArtCacheMaxObjects = const Value.absent(),
                 Value<bool> artTintedNowPlaying = const Value.absent(),
+                Value<bool> dynamicAlbumColorEnabled = const Value.absent(),
                 Value<bool> updateCheckEnabled = const Value.absent(),
                 Value<String> updateChannel = const Value.absent(),
                 Value<String?> audioMuseServerUrl = const Value.absent(),
@@ -9610,6 +9695,7 @@ class $$AppSettingsTableTableTableManager
                 crossfadeType: crossfadeType,
                 coverArtCacheMaxObjects: coverArtCacheMaxObjects,
                 artTintedNowPlaying: artTintedNowPlaying,
+                dynamicAlbumColorEnabled: dynamicAlbumColorEnabled,
                 updateCheckEnabled: updateCheckEnabled,
                 updateChannel: updateChannel,
                 audioMuseServerUrl: audioMuseServerUrl,
@@ -9645,6 +9731,7 @@ class $$AppSettingsTableTableTableManager
                 Value<String> crossfadeType = const Value.absent(),
                 Value<int> coverArtCacheMaxObjects = const Value.absent(),
                 Value<bool> artTintedNowPlaying = const Value.absent(),
+                Value<bool> dynamicAlbumColorEnabled = const Value.absent(),
                 Value<bool> updateCheckEnabled = const Value.absent(),
                 Value<String> updateChannel = const Value.absent(),
                 Value<String?> audioMuseServerUrl = const Value.absent(),
@@ -9678,6 +9765,7 @@ class $$AppSettingsTableTableTableManager
                 crossfadeType: crossfadeType,
                 coverArtCacheMaxObjects: coverArtCacheMaxObjects,
                 artTintedNowPlaying: artTintedNowPlaying,
+                dynamicAlbumColorEnabled: dynamicAlbumColorEnabled,
                 updateCheckEnabled: updateCheckEnabled,
                 updateChannel: updateChannel,
                 audioMuseServerUrl: audioMuseServerUrl,

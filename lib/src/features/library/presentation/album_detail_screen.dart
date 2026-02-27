@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:navis/src/common_widgets/cover_art_viewer.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
@@ -61,6 +62,10 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
           final details = data.album;
           final songs = data.songs;
           final isStarred = _isStarred || details.starred != null;
+          final coverArtHeroTag = buildCoverArtHeroTag(
+            coverArtId: details.coverArt,
+            context: 'album',
+          );
 
           return CustomScrollView(
             slivers: <Widget>[
@@ -71,17 +76,24 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                     Center(
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
-                        child: HeroCoverArt(
-                          coverArtId: details.coverArt,
-                          heroTag: buildCoverArtHeroTag(
-                            coverArtId: details.coverArt,
-                            context: 'album',
-                          ),
-                          size: 640,
-                          width: 180,
-                          height: 180,
+                        child: InkWell(
                           borderRadius: BorderRadius.circular(12),
-                          placeholderIcon: Icons.album_outlined,
+                          onTap: () => unawaited(
+                            showCoverArtViewer(
+                              context,
+                              coverArtId: details.coverArt,
+                              heroTag: coverArtHeroTag,
+                            ),
+                          ),
+                          child: HeroCoverArt(
+                            coverArtId: details.coverArt,
+                            heroTag: coverArtHeroTag,
+                            size: 640,
+                            width: 180,
+                            height: 180,
+                            borderRadius: BorderRadius.circular(12),
+                            placeholderIcon: Icons.album_outlined,
+                          ),
                         ),
                       ),
                     ),

@@ -11,6 +11,7 @@ import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
+import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/navigation_service.dart';
@@ -26,19 +27,51 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   final _controller = TextEditingController();
   final _focusNode = FocusNode();
   final _expandedSections = <SearchResultType, bool>{};
+  late final ProviderSubscription<int> _focusRequestSubscription;
+  late final ProviderSubscription<bool> _playerExpandedSubscription;
   int _lastFocusRequest = 0;
+  bool _isPlayerExpanded = false;
 
   @override
   void initState() {
     super.initState();
+
     final initial = ref.read(searchQueryProvider);
     if (initial.isNotEmpty) {
       _controller.text = initial;
     }
+
+    _lastFocusRequest = ref.read(searchFocusRequestProvider);
+    _isPlayerExpanded = ref.read(playerSheetExpandedProvider);
+    _focusNode.canRequestFocus = !_isPlayerExpanded;
+
+    _focusRequestSubscription = ref.listenManual<int>(
+      searchFocusRequestProvider,
+      (previous, next) {
+        if (next == _lastFocusRequest) {
+          return;
+        }
+        _lastFocusRequest = next;
+        _requestSearchFocus();
+      },
+    );
+
+    _playerExpandedSubscription = ref.listenManual<bool>(
+      playerSheetExpandedProvider,
+      (previous, next) {
+        _isPlayerExpanded = next;
+        _focusNode.canRequestFocus = !next;
+        if (next) {
+          _dismissSearchFocus();
+        }
+      },
+    );
   }
 
   @override
   void dispose() {
+    _focusRequestSubscription.close();
+    _playerExpandedSubscription.close();
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
@@ -63,13 +96,35 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       TextPosition(offset: query.length),
     );
     ref.read(searchQueryProvider.notifier).submit(query);
-    _focusNode.requestFocus();
+    _requestSearchFocus();
   }
 
   void _clearSearch() {
     _controller.clear();
     ref.read(searchQueryProvider.notifier).clear();
-    _focusNode.requestFocus();
+    _requestSearchFocus();
+  }
+
+  void _dismissSearchFocus() {
+    if (!mounted) {
+      return;
+    }
+    NavService.dismissKeyboard(context);
+    if (_focusNode.hasFocus) {
+      _focusNode.unfocus();
+    }
+  }
+
+  void _requestSearchFocus() {
+    if (!mounted || _isPlayerExpanded || !_focusNode.canRequestFocus) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _isPlayerExpanded || !_focusNode.canRequestFocus) {
+        return;
+      }
+      _focusNode.requestFocus();
+    });
   }
 
   @override
@@ -85,17 +140,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       _controller.selection = TextSelection.fromPosition(
         TextPosition(offset: query.length),
       );
-    }
-
-    // Re-focus the search bar whenever the search tab is tapped.
-    final focusRequest = ref.watch(searchFocusRequestProvider);
-    if (focusRequest != _lastFocusRequest) {
-      _lastFocusRequest = focusRequest;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          _focusNode.requestFocus();
-        }
-      });
     }
 
     return Scaffold(
