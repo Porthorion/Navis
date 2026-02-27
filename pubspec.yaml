@@ -59,6 +59,7 @@ dependencies:
   scrollable_positioned_list: ^0.3.8
   url_launcher: ^6.3.1
   uuid: ^4.5.1
+  flutter_markdown: ^0.7.7+1
 
 dev_dependencies:
   build_runner: ^2.9.0
