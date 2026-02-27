@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/settings/data/update_service.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
@@ -124,9 +125,12 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
               ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: 160),
                 child: SingleChildScrollView(
-                  child: Text(
-                    widget.info.releaseNotes!,
-                    style: theme.textTheme.bodySmall,
+                  child: MarkdownBody(
+                    data: widget.info.releaseNotes!,
+                    styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
+                      p: theme.textTheme.bodySmall,
+                    ),
+                    shrinkWrap: true,
                   ),
                 ),
               ),

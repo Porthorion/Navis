@@ -13,7 +13,6 @@ import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/audiomuse/domain/audiomuse_models.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
-import 'package:navis/src/features/home/presentation/home_scroll_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
@@ -21,35 +20,12 @@ import 'package:navis/src/features/settings/presentation/update_dialog.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class HomeScreen extends ConsumerStatefulWidget {
+class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
-  ConsumerState<HomeScreen> createState() => _HomeScreenState();
-}
-
-class _HomeScreenState extends ConsumerState<HomeScreen> {
-  final ScrollController _scrollController = ScrollController();
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
-
-    // Listen for scroll-to-top requests (nav bar re-tap).
-    ref.listen<int>(homeScrollToTopRequestProvider, (prev, next) {
-      if (!_scrollController.hasClients) return;
-      _scrollController.animateTo(
-        0,
-        duration: const Duration(milliseconds: 450),
-        curve: Curves.easeOutCubic,
-      );
-    });
 
     return Scaffold(
       body: SafeArea(
@@ -58,9 +34,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             await ref.read(librarySyncControllerProvider.notifier).syncNow();
             ref.invalidate(homeRecentlyAddedProvider);
             ref.invalidate(homeRandomAlbumsProvider);
+            // Re-check for app updates (and APK availability) on refresh.
+            ref.invalidate(updateProvider);
           },
           child: ListView(
-            controller: _scrollController,
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.only(bottom: 24),
             children: <Widget>[

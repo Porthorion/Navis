@@ -27,6 +27,25 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
+    version: '0.2.9',
+    entries: [
+      ChangelogEntry(
+        'Fixed version not being upgraded, causing an infinite update loop',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Refreshing the home screen now rescans for app updates and APK '
+        'availability',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Release notes in the update dialog now render markdown formatting '
+        'correctly (bold, headings, lists, etc.)',
+        type: ChangelogEntryType.fix,
+      ),
+    ],
+  ),
+  ChangelogVersion(
     version: '0.2.8',
     entries: [
       ChangelogEntry(
