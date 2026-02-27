@@ -12,8 +12,8 @@ Future<String?> _readLastSeenVersion() async {
   try {
     final dir = await getApplicationSupportDirectory();
     final file = File('${dir.path}/$_fileName');
-    if (await file.exists()) {
-      return (await file.readAsString()).trim();
+    if (file.existsSync()) {
+      return file.readAsStringSync().trim();
     }
   } on Exception {
     // Silently ignore - treat as never-seen.
@@ -26,7 +26,7 @@ Future<void> _writeLastSeenVersion(String version) async {
   try {
     final dir = await getApplicationSupportDirectory();
     final file = File('${dir.path}/$_fileName');
-    await file.writeAsString(version);
+    file.writeAsStringSync(version);
   } on Exception {
     // Best-effort — ignore write errors.
   }
