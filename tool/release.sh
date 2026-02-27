@@ -84,7 +84,7 @@ fi
 : "${FORGEJO_TOKEN:?Set FORGEJO_TOKEN in tool/release.env (API token with write:release)}"
 
 # ─── Validate tools ─────────────────────────────────────────────────────────
-for tool in jq flutter git curl; do
+for tool in jq flutter git curl keytool; do
   if ! command -v "${tool}" &>/dev/null; then
     echo "Error: '${tool}' is required but not found on PATH."
     exit 1
@@ -94,6 +94,20 @@ done
 # ─── Always run from the project root ───────────────────────────────────────
 # Relative paths (APK, IPA, build/, git, flutter) all assume the project root.
 cd "${SCRIPT_DIR}/.."
+
+# Resolve Android build-tools binaries used for APK validation.
+ANDROID_SDK_DIR="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-$HOME/Library/Android/sdk}}"
+if [[ ! -d "${ANDROID_SDK_DIR}/build-tools" ]]; then
+  echo "Error: Android build-tools not found under ${ANDROID_SDK_DIR}/build-tools"
+  exit 1
+fi
+BUILD_TOOLS_DIR="$(find "${ANDROID_SDK_DIR}/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+AAPT_BIN="${BUILD_TOOLS_DIR}/aapt"
+APKSIGNER_BIN="${BUILD_TOOLS_DIR}/apksigner"
+if [[ ! -x "${AAPT_BIN}" || ! -x "${APKSIGNER_BIN}" ]]; then
+  echo "Error: Could not find executable aapt/apksigner in ${BUILD_TOOLS_DIR}"
+  exit 1
+fi
 
 # Warn (but don't fail) if release signing is not configured.
 if [[ ! -f "${SCRIPT_DIR}/../android/key.properties" ]]; then
@@ -153,6 +167,59 @@ if [[ ! -f "${APK_PATH}" ]]; then
 fi
 cp "${APK_PATH}" "${APK_ASSET}"
 echo "    APK -> ${APK_ASSET_NAME}"
+
+# Validate package metadata and signing before publishing.
+echo "==> Validating APK metadata/signing..."
+BADGING="$("${AAPT_BIN}" dump badging "${APK_ASSET}")"
+APK_PACKAGE="$(echo "${BADGING}" | sed -n "s/^package: name='\([^']*\)'.*/\1/p" | head -1)"
+APK_VERSION_CODE="$(echo "${BADGING}" | sed -n "s/^package:.* versionCode='\([^']*\)'.*/\1/p" | head -1)"
+APK_VERSION_NAME="$(echo "${BADGING}" | sed -n "s/^package:.* versionName='\([^']*\)'.*/\1/p" | head -1)"
+
+if [[ "${APK_PACKAGE}" != "com.navis.app.navis" ]]; then
+  echo "Error: APK package mismatch. Expected com.navis.app.navis, got ${APK_PACKAGE:-<empty>}"
+  exit 1
+fi
+
+if [[ "${APK_VERSION_NAME}" != "${SEMVER}" ]]; then
+  echo "Error: APK versionName mismatch. Expected ${SEMVER}, got ${APK_VERSION_NAME:-<empty>}"
+  exit 1
+fi
+
+if [[ "${APK_VERSION_CODE}" != "${BUILD_NUMBER}" ]]; then
+  echo "Error: APK versionCode mismatch. Expected ${BUILD_NUMBER}, got ${APK_VERSION_CODE:-<empty>}"
+  exit 1
+fi
+
+if [[ -f "${SCRIPT_DIR}/../android/key.properties" ]]; then
+  STORE_FILE="$(grep -E '^storeFile=' "${SCRIPT_DIR}/../android/key.properties" | cut -d= -f2-)"
+  STORE_PASSWORD="$(grep -E '^storePassword=' "${SCRIPT_DIR}/../android/key.properties" | cut -d= -f2-)"
+  KEY_ALIAS="$(grep -E '^keyAlias=' "${SCRIPT_DIR}/../android/key.properties" | cut -d= -f2-)"
+
+  if [[ -z "${STORE_FILE}" || -z "${STORE_PASSWORD}" || -z "${KEY_ALIAS}" ]]; then
+    echo "Error: key.properties is missing storeFile/storePassword/keyAlias"
+    exit 1
+  fi
+
+  EXPECTED_CERT_SHA256="$(keytool -list -v \
+    -keystore "${STORE_FILE}" \
+    -storepass "${STORE_PASSWORD}" \
+    -alias "${KEY_ALIAS}" | awk -F': ' '/SHA256:/{gsub(":", "", $2); print tolower($2); exit}')"
+  ACTUAL_CERT_SHA256="$("${APKSIGNER_BIN}" verify --print-certs "${APK_ASSET}" | awk -F': ' '/Signer #1 certificate SHA-256 digest:/{print tolower($2); exit}')"
+
+  if [[ -z "${EXPECTED_CERT_SHA256}" || -z "${ACTUAL_CERT_SHA256}" ]]; then
+    echo "Error: Failed to read APK signing certificate fingerprint."
+    exit 1
+  fi
+
+  if [[ "${EXPECTED_CERT_SHA256}" != "${ACTUAL_CERT_SHA256}" ]]; then
+    echo "Error: APK signer mismatch."
+    echo "  Expected: ${EXPECTED_CERT_SHA256}"
+    echo "  Actual:   ${ACTUAL_CERT_SHA256}"
+    exit 1
+  fi
+fi
+
+echo "    APK metadata/signing OK"
 
 # ─── Build IPA (optional) ───────────────────────────────────────────────────
 IPA_ASSET_NAME=""
