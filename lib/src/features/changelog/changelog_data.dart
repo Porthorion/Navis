@@ -27,6 +27,27 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
+    version: '0.2.12',
+    entries: [
+      ChangelogEntry(
+        'Improved in-app update reliability by selecting only strictly newer '
+        'release versions and deterministically preferring the matching APK '
+        'asset for each tag',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Added APK pre-install validation for package/signature compatibility '
+        'to prevent conflicting-package install attempts',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Hardened release pipeline with APK package/version/signature checks '
+        'before publishing new assets',
+        type: ChangelogEntryType.improvement,
+      ),
+    ],
+  ),
+  ChangelogVersion(
     version: '0.2.11',
     entries: [
       ChangelogEntry(

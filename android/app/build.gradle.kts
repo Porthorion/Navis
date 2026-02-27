@@ -50,6 +50,14 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Keep debug builds updatable from release installs when local
+            // release signing is configured (useful for internal dogfooding).
+            signingConfig = if (keyPropertiesFile.exists())
+                signingConfigs.getByName("release")
+            else
+                signingConfigs.getByName("debug")
+        }
         release {
             signingConfig = if (keyPropertiesFile.exists())
                 signingConfigs.getByName("release")
