@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-02-25
+Last updated: 2026-02-28
 
 ---
 
@@ -503,6 +503,130 @@ Last updated: 2026-02-25
 - [ ] Windows: MSIX packaging via `msix` pub package
 - [ ] macOS: entitlements + notarisation workflow documented
 - [ ] Linux: `.deb` + Flatpak packaging via `flutter_distributor`
+
+## Phase 14: Playback Quality & Reliability
+
+> Complete before starting Phase 12 (Android Auto) or Phase 13 (Desktop). Work CRITICAL tasks before HIGH, HIGH before MEDIUM.
+
+### 14.1 — Skip Silence Toggle Removal (CRITICAL)
+- [ ] Remove `skipSilenceEnabled` `SwitchListTile` from `playback_settings_screen.dart`
+- [ ] Remove associated l10n key from `app_en.arb` if unused after removal
+
+### 14.2 — Position Persistence on Pause (CRITICAL)
+- [ ] Add `_persistQueueState()` call in `NavisAudioHandler.pause()` override
+
+### 14.3 — Lyrics Error State Distinction (CRITICAL)
+- [ ] Update `_InlineLyrics` widget to distinguish server-unsupported vs network-error vs no-lyrics states
+- [ ] Add `lyricsError` and `lyricsUnsupported` l10n keys to `app_en.arb`
+
+### 14.4 — ReplayGain Volume Normalization (CRITICAL)
+- [ ] Confirm `replayGain` fields present on `Song` Freezed model; add if missing
+- [ ] Apply per-track gain in `NavisAudioHandler` before each track starts
+- [ ] Add ReplayGain mode selector (Off / Track / Album) and pre-amp slider to Playback settings
+- [ ] Schema migration: `replayGainMode` + `replayGainPreamp` columns in `app_settings`
+- [ ] l10n strings for ReplayGain settings section
+
+### 14.5 — Playback Speed Control (HIGH)
+- [ ] Expose 0.5×–2.0× speed via `AudioPlayer.setSpeed()` in Now Playing overflow or seek bar area
+- [ ] Persist `playbackSpeed` in `AppSettings`; schema migration required
+- [ ] Reset to 1.0× on queue clear
+
+### 14.6 — Crossfade / Gapless Conflict Guard (MEDIUM)
+- [ ] Show a warning chip in Playback settings when both `crossfadeEnabled` and `gaplessPlayback` are enabled simultaneously
+
+### 14.7 — Playback Snapshot Granularity (MEDIUM)
+- [ ] Create derived providers: `isPlayingProvider`, `currentSongProvider`, `currentIndexProvider`
+- [ ] Update non-seek widgets to watch targeted providers instead of the full snapshot
+
+## Phase 15: Library & Discovery Enhancements
+
+> Work HIGH tasks before MEDIUM, MEDIUM before LOW.
+
+### 15.1 — Starred / Favorites Screen (HIGH)
+- [ ] Add Favorites screen listing starred albums, artists, and songs from `getStarred2()`
+- [ ] Wire access point (Library tab or Home tile)
+- [ ] Reactive star updates via drift stream queries
+- [ ] Pull-to-refresh re-fetches `getStarred2()` from server
+
+### 15.2 — Download Progress on Browsing Tiles (HIGH)
+- [ ] Show completed-download badge on fully downloaded `AlbumCard` tiles
+- [ ] Show in-progress indicator for actively downloading albums
+- [ ] Wire `downloadedContentIdsProvider` and download queue into album tile renderer
+
+### 15.3 — Pull-to-Refresh Consistency (MEDIUM)
+- [ ] Audit and add `RefreshIndicator` on: Library albums tab, Library artists tab, Home screen, Artist detail albums grid, Genre detail
+
+### 15.4 — Empty State Audit (MEDIUM)
+- [ ] Verify `EmptyState` widget is shown for: unsynced library, Downloaded-only filter empty, empty playlist, empty downloads, empty Favorites screen
+
+### 15.5 — Album Art Thumbnail Downsizing (MEDIUM)
+- [ ] Audit all `CoverArtImage` call sites; enforce `size: 200` for grid cards, `size: 80` for list rows, `size: 640` for detail/Now Playing
+
+### 15.6 — Year / Decade Album Browsing (LOW)
+- [ ] Add "By Year" sort option to Albums tab using `getAlbumList2(type: byYear)` with decade chip picker
+
+### 15.7 — Auto-Download Starred on Wi-Fi (LOW)
+- [ ] Add "Auto-download starred on Wi-Fi" toggle in Settings > Downloads (default off)
+- [ ] Trigger download enqueue in `ServerReachabilityProvider` when transitioning to Wi-Fi
+- [ ] Schema migration: `autoDownloadStarred` boolean column in `app_settings`
+
+## Phase 16: Search & Offline Sync
+
+> 16.1 is a data-integrity fix — address it early, ideally alongside Phase 14. Work CRITICAL before HIGH, HIGH before MEDIUM.
+
+### 16.1 — Offline Star Sync Queue (CRITICAL)
+- [ ] Add `star_sync_queue` Drift table: `itemId`, `itemType`, `action`, `queuedAt`
+- [ ] Queue failed `star()`/`unstar()` calls when `SubsonicConnectionException` is thrown
+- [ ] Flush queue in `ServerReachabilityProvider.onTransitionToOnline()`
+- [ ] Schema migration required
+
+### 16.2 — Local / Offline Search (HIGH)
+- [ ] Implement Drift-backed `LIKE` search across `artists`, `albums`, `songs` tables
+- [ ] Auto-detect offline state via `serverReachabilityProvider` and route to local search
+- [ ] Show "Searching local library (offline)" banner when offline path is active
+
+### 16.3 — Search Type Filters (MEDIUM)
+- [ ] Add All / Artists / Albums / Songs filter chip row below search input
+- [ ] Restrict `search3()` call limits based on selected filter
+
+### 16.4 — Radio Offline / Error Handling (MEDIUM)
+- [ ] Display station name when ICY metadata is unavailable (instead of empty mini player)
+- [ ] Show dismissible error snackbar and stop stream on HTTP 503 / connection reset
+- [ ] Add dead-stream detection in `RadioMetadataService` (5+ unchanged polling cycles)
+- [ ] Preserve previously loaded metadata on polling failure
+
+## Phase 17: Accessibility, Locale & Test Coverage
+
+> All tasks are LOW priority. Complete Phase 16 first. Can be spread across sessions.
+
+### 17.1 — Seek Bar Accessibility Actions (LOW)
+- [ ] Add `SemanticsAction.increase` / `SemanticsAction.decrease` to Now Playing seek bar `Slider` (10-second step)
+
+### 17.2 — In-App Locale Override (LOW)
+- [ ] Add Language dropdown to Appearance settings
+- [ ] Store selected locale code in `AppSettings`; apply as `locale:` on `MaterialApp.router`
+- [ ] Schema migration: `appLocale` text column in `app_settings`
+
+### 17.3 — Widget & Integration Test Coverage (LOW)
+- [ ] Add widget tests for `ExpandablePlayerSheet` animation lifecycle
+- [ ] Add unit tests for `InstantMixNotifier` auto-refill trigger
+- [ ] Add auth-to-playback integration test using a mock Subsonic fixture
+
+### 17.4 — Ghost File Cleanup (LOW)
+- [ ] On startup, enumerate rolling and permanent cache directories; remove files with no matching `cached_tracks` DB row
+
+## Phase 18: Platform Extensions
+
+> All tasks are LOW priority. Complete Phase 17 first. Phase 18 adds new platform surfaces after the core app is fully stable.
+
+### 18.1 — Android Home Screen Widget (LOW)
+- [ ] Implement 4×1 `AppWidgetProvider` with album art, track info, and playback controls
+- [ ] Wire widget actions through `audio_service` `AudioHandler.customAction()`
+- [ ] Widget updates reactively when track changes in background
+
+### 18.2 — iOS Live Activity / Dynamic Island (LOW) *(Stretch Goal)*
+- [ ] Implement ActivityKit-based Live Activity via Flutter platform channel
+- [ ] Graceful no-op on iOS < 16.1
 
 ---
 
