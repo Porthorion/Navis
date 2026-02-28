@@ -203,8 +203,15 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     }
 
     _startupSyncInFlight = true;
+    // Prefer incremental when the library has been synced before — this
+    // prevents the automatic 24-hour rebaseline from blocking the UI on
+    // every reconnect.  Full rebaseline is only triggered explicitly from
+    // Sync Settings ("Force Full Sync").
+    final hasBeenSyncedBefore = config.lastSynced != null;
     unawaited(
-      syncIfStale()
+      (hasBeenSyncedBefore
+              ? syncNow(preferIncremental: true)
+              : syncIfStale())
           .then((result) {
             if (result.status == LibrarySyncStatus.succeeded ||
                 result.status == LibrarySyncStatus.skipped) {

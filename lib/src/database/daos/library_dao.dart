@@ -16,10 +16,37 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     with _$LibraryDaoMixin {
   LibraryDao(super.db);
 
-  Stream<List<ArtistsTableData>> watchArtists() {
+  Stream<List<ArtistsTableData>> watchArtists({bool likedOnly = false}) {
     final query = select(artistsTable)
       ..orderBy([(table) => OrderingTerm.asc(table.name)]);
+    if (likedOnly) {
+      query.where((table) => table.starred.isNotNull());
+    }
     return query.watch();
+  }
+
+  Stream<List<ArtistsTableData>> watchLikedArtists() {
+    // Recursive match: artist is liked, OR artist has a liked song,
+    // OR artist has a liked album (album.starred IS NOT NULL).
+    return customSelect(
+      '''
+      SELECT DISTINCT a.*
+      FROM artists a
+      WHERE a.starred IS NOT NULL
+        OR EXISTS (
+          SELECT 1 FROM songs s
+          WHERE s.artist_id = a.id AND s.starred IS NOT NULL
+        )
+        OR EXISTS (
+          SELECT 1 FROM albums al
+          WHERE al.artist_id = a.id AND al.starred IS NOT NULL
+        )
+      ORDER BY a.name ASC
+      ''',
+      readsFrom: {artistsTable, songsTable, albumsTable},
+    ).watch().map(
+      (rows) => rows.map((row) => artistsTable.map(row.data)).toList(),
+    );
   }
 
   Stream<List<AlbumsTableData>> watchAlbumsByArtist(String artistId) {
@@ -39,28 +66,70 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return query.watchSingleOrNull();
   }
 
-  Stream<List<AlbumsTableData>> watchAllAlbums() {
-    final query = _orderedAlbumsQuery(AlbumSortOrder.newest);
-    return query.watch();
+  Stream<List<AlbumsTableData>> watchAllAlbums({bool likedOnly = false}) {
+    if (!likedOnly) {
+      final query = _orderedAlbumsQuery(AlbumSortOrder.newest);
+      return query.watch();
+    }
+    return _watchAlbumsCustom(
+      sort: AlbumSortOrder.newest,
+      likedOnly: true,
+    );
   }
 
-  Stream<int> watchAlbumCount() {
-    final countExpression = albumsTable.id.count();
-    final query = selectOnly(albumsTable)..addColumns([countExpression]);
-    return query.watchSingle().map((row) => row.read(countExpression) ?? 0);
+  Stream<List<AlbumsTableData>> watchLikedAlbums() {
+    return _watchAlbumsCustom(
+      sort: AlbumSortOrder.newest,
+      likedOnly: true,
+    );
+  }
+
+  Stream<int> watchAlbumCount({bool likedOnly = false}) {
+    if (!likedOnly) {
+      final countExpression = albumsTable.id.count();
+      final query = selectOnly(albumsTable)..addColumns([countExpression]);
+      return query.watchSingle().map((row) => row.read(countExpression) ?? 0);
+    }
+    return customSelect(
+      '''
+      SELECT COUNT(*) AS count
+      FROM albums
+      WHERE ${_likedAlbumPredicate('albums')}
+      ''',
+      readsFrom: {albumsTable, songsTable},
+    ).watchSingle().map((row) => row.read<int>('count'));
   }
 
   Stream<List<AlbumsTableData>> watchAlbumsPage({
     required AlbumSortOrder sort,
     required int limit,
     int offset = 0,
+    bool likedOnly = false,
   }) {
-    final query = _orderedAlbumsQuery(sort)
-      ..limit(
-        limit < 1 ? 1 : limit,
-        offset: offset < 0 ? 0 : offset,
-      );
-    return query.watch();
+    if (!likedOnly) {
+      final query = _orderedAlbumsQuery(sort)
+        ..limit(
+          limit < 1 ? 1 : limit,
+          offset: offset < 0 ? 0 : offset,
+        );
+      return query.watch();
+    }
+    return _watchAlbumsCustom(
+      sort: sort,
+      limit: limit,
+      offset: offset,
+      likedOnly: true,
+    );
+  }
+
+  Stream<List<AlbumsTableData>> watchAlbumsForYearView({
+    bool likedOnly = false,
+  }) {
+    return _watchAlbumsCustom(
+      sort: AlbumSortOrder.newest,
+      likedOnly: likedOnly,
+      includeUnknownYearsLast: true,
+    );
   }
 
   Stream<AlbumsTableData?> watchAlbumById(String albumId) {
@@ -340,6 +409,10 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return select(artistsTable).get();
   }
 
+  Future<List<SongsTableData>> getAllSongs() {
+    return select(songsTable).get();
+  }
+
   Future<Set<String>> getArtistIds() async {
     final query = selectOnly(artistsTable)..addColumns([artistsTable.id]);
     final rows = await query.get();
@@ -351,6 +424,28 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
 
   Future<List<AlbumsTableData>> getAllAlbums() {
     return select(albumsTable).get();
+  }
+
+  Future<List<AlbumsTableData>> getLikedAlbums() {
+    return customSelect(
+      '''
+      SELECT albums.*
+      FROM albums
+      WHERE ${_likedAlbumPredicate('albums')}
+      ORDER BY albums.year DESC, albums.name ASC, albums.id ASC
+      ''',
+      readsFrom: {albumsTable, songsTable},
+    ).get().then(
+      (rows) =>
+          rows.map((row) => albumsTable.map(row.data)).toList(growable: false),
+    );
+  }
+
+  Future<List<SongsTableData>> getAllStarredSongs() {
+    final query = select(songsTable)
+      ..where((t) => t.starred.isNotNull())
+      ..orderBy([(t) => OrderingTerm.desc(t.starred)]);
+    return query.get();
   }
 
   /// Return a map of albumId → set of songIds for the given album IDs.
@@ -580,5 +675,64 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         ]);
     }
     return query;
+  }
+
+  Stream<List<AlbumsTableData>> _watchAlbumsCustom({
+    required AlbumSortOrder sort,
+    bool likedOnly = false,
+    int? limit,
+    int? offset,
+    bool includeUnknownYearsLast = false,
+  }) {
+    final sql = StringBuffer('SELECT albums.* FROM albums');
+    if (likedOnly) {
+      sql.write(' WHERE ${_likedAlbumPredicate('albums')}');
+    }
+    sql.write(' ORDER BY ${_albumOrderSql(sort, includeUnknownYearsLast)}');
+    final variables = <Variable<Object>>[];
+    if (limit != null) {
+      sql.write(' LIMIT ?');
+      variables.add(Variable<int>(limit < 1 ? 1 : limit));
+    }
+    if (offset != null) {
+      sql.write(' OFFSET ?');
+      variables.add(Variable<int>(offset < 0 ? 0 : offset));
+    }
+    return customSelect(
+      sql.toString(),
+      variables: variables,
+      readsFrom: {albumsTable, songsTable},
+    ).watch().map(
+      (rows) =>
+          rows.map((row) => albumsTable.map(row.data)).toList(growable: false),
+    );
+  }
+
+  String _likedAlbumPredicate(String albumAlias) {
+    return '''
+      $albumAlias.starred IS NOT NULL
+      OR EXISTS (
+        SELECT 1
+        FROM songs liked_songs
+        WHERE liked_songs.album_id = $albumAlias.id
+          AND liked_songs.starred IS NOT NULL
+      )
+    ''';
+  }
+
+  String _albumOrderSql(AlbumSortOrder sort, bool includeUnknownYearsLast) {
+    switch (sort) {
+      case AlbumSortOrder.recentlyAdded:
+        return 'COALESCE(server_created_at, synced_at) DESC, name ASC, id ASC';
+      case AlbumSortOrder.newest:
+        if (includeUnknownYearsLast) {
+          return 'year IS NULL ASC, year DESC, name ASC, id ASC';
+        }
+        return 'year DESC, name ASC, id ASC';
+      case AlbumSortOrder.name:
+        return 'name ASC, id ASC';
+      case AlbumSortOrder.artist:
+        return 'artist_name ASC, name ASC, id ASC';
+    }
   }
 }

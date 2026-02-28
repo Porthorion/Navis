@@ -10,4 +10,5 @@ export 'playlist.dart';
 export 'search_result3.dart';
 export 'server_capabilities.dart';
 export 'song.dart';
+export 'starred_content.dart';
 export 'subsonic_response.dart';

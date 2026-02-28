@@ -22,6 +22,7 @@ import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 import 'package:navis/src/features/player/data/scrobble_service.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:navis/src/features/library/presentation/library_browse_models.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/data/update_repository.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
@@ -89,6 +90,13 @@ final showArtistsPageProvider = Provider<bool>((ref) {
       ref.watch(appSettingsProvider).asData?.value ??
       const AppSettingsModel.defaults();
   return settings.showArtistsPage;
+});
+
+final showLikedPageProvider = Provider<bool>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.showLikedPage;
 });
 
 final activeStreamingQualityProvider = Provider<StreamingQuality>((ref) {
@@ -413,6 +421,11 @@ final artistsProvider = StreamProvider<List<ArtistsTableData>>((ref) {
   return dao.watchArtists();
 });
 
+final likedArtistsProvider = StreamProvider<List<ArtistsTableData>>((ref) {
+  final dao = ref.watch(navisDatabaseProvider).libraryDao;
+  return dao.watchLikedArtists();
+});
+
 final artistByIdProvider = StreamProvider.family<ArtistsTableData?, String>((
   ref,
   artistId,
@@ -445,12 +458,19 @@ final albumProvider = StreamProvider.family<AlbumWithSongs?, String>((
 });
 
 typedef AlbumPageRequest = ({AlbumSortOrder sort, int limit});
+typedef LikedAlbumPageRequest = ({AlbumSortOrder sort, int limit});
+typedef AlbumYearSectionsRequest = ({bool likedOnly, bool downloadedOnly});
 
 final albumPageSizeProvider = Provider<int>((_) => 60);
 
 final albumCountProvider = StreamProvider<int>((ref) {
   final dao = ref.watch(navisDatabaseProvider).libraryDao;
   return dao.watchAlbumCount();
+});
+
+final likedAlbumCountProvider = StreamProvider<int>((ref) {
+  final dao = ref.watch(navisDatabaseProvider).libraryDao;
+  return dao.watchAlbumCount(likedOnly: true);
 });
 
 final pagedAlbumsProvider =
@@ -465,6 +485,24 @@ final pagedAlbumsProvider =
       );
     });
 
+final likedPagedAlbumsProvider =
+    StreamProvider.family<List<AlbumsTableData>, LikedAlbumPageRequest>((
+      ref,
+      request,
+    ) {
+      final dao = ref.watch(navisDatabaseProvider).libraryDao;
+      return dao.watchAlbumsPage(
+        sort: request.sort,
+        limit: request.limit,
+        likedOnly: true,
+      );
+    });
+
+final likedAlbumsProvider = StreamProvider<List<AlbumsTableData>>((ref) {
+  final dao = ref.watch(navisDatabaseProvider).libraryDao;
+  return dao.watchLikedAlbums();
+});
+
 final albumListProvider = StreamProvider.family<List<AlbumsTableData>, String>((
   ref,
   type,
@@ -476,6 +514,11 @@ final albumListProvider = StreamProvider.family<List<AlbumsTableData>, String>((
 final songsProvider = StreamProvider<List<SongsTableData>>((ref) {
   final dao = ref.watch(navisDatabaseProvider).libraryDao;
   return dao.watchSongsSorted(SongSortOrder.newest);
+});
+
+final likedSongsProvider = StreamProvider<List<SongsTableData>>((ref) {
+  final dao = ref.watch(navisDatabaseProvider).libraryDao;
+  return dao.watchAllStarredSongs();
 });
 
 final songsBySortProvider =
@@ -516,6 +559,88 @@ final songsByGenreProvider =
     ) {
       final dao = ref.watch(navisDatabaseProvider).libraryDao;
       return dao.watchSongsByGenre(genre);
+    });
+
+final albumYearSectionsProvider =
+    StreamProvider.family<List<AlbumYearSection>, AlbumYearSectionsRequest>((
+      ref,
+      request,
+    ) {
+      final dao = ref.watch(navisDatabaseProvider).libraryDao;
+      final downloadState = ref.watch(downloadedContentIdsProvider);
+      return dao
+          .watchAlbumsForYearView(likedOnly: request.likedOnly)
+          .map((albums) {
+            final filteredAlbums = request.downloadedOnly
+                ? albums
+                    .where(
+                      (album) =>
+                          downloadState.asData?.value.albumIds.contains(
+                            album.id,
+                          ) ??
+                          false,
+                    )
+                    .toList(growable: false)
+                : albums;
+            return _buildAlbumYearSections(filteredAlbums);
+          });
+    });
+
+final albumTileDownloadStateProvider =
+    Provider.family<AlbumTileDownloadState, String>((ref, albumId) {
+      final albumAsync = ref.watch(albumProvider(albumId));
+      final cachedTypes = ref.watch(cachedSongTypesProvider).asData?.value;
+      final queue = ref.watch(downloadQueueProvider).asData?.value;
+      final album = albumAsync.asData?.value;
+      if (album == null || cachedTypes == null || queue == null) {
+        return const AlbumTileDownloadState.idle();
+      }
+
+      final songs = album.songs;
+      if (songs.isEmpty) {
+        return const AlbumTileDownloadState.idle();
+      }
+
+      final queueBySongId = <String, DownloadQueueTableData>{
+        for (final item in queue)
+          if (item.songId != null) item.songId!: item,
+      };
+      var completeCount = 0.0;
+      var inFlightProgress = 0.0;
+      var hasQueued = false;
+      for (final song in songs) {
+        final cacheType = cachedTypes[song.id];
+        if (cacheType == CacheType.permanent) {
+          completeCount += 1;
+          continue;
+        }
+        final item = queueBySongId[song.id];
+        if (item == null) {
+          continue;
+        }
+        if (item.status == DownloadStatus.downloading) {
+          inFlightProgress += item.progress.clamp(0.0, 1.0);
+          hasQueued = true;
+          continue;
+        }
+        if (item.status == DownloadStatus.queued ||
+            item.status == DownloadStatus.failed) {
+          hasQueued = true;
+        }
+      }
+
+      final totalTrackCount = songs.length;
+      final progress = totalTrackCount == 0
+          ? 0.0
+          : ((completeCount + inFlightProgress) / totalTrackCount).clamp(
+              0.0,
+              1.0,
+            );
+      return AlbumTileDownloadState(
+        fullyDownloaded: completeCount >= totalTrackCount,
+        queued: hasQueued,
+        progress: progress,
+      );
     });
 
 final radioStationsProvider = FutureProvider<List<InternetRadioStation>>((
@@ -824,6 +949,13 @@ final wifiOnlyDownloadsProvider = Provider<bool>((ref) {
   return settings.wifiOnlyDownloads;
 });
 
+final autoDownloadStarredOnWifiProvider = Provider<bool>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.autoDownloadStarredOnWifi;
+});
+
 /// Current theme mode string ('light', 'dark', 'oled', 'system').
 final themeModeProvider = Provider<String>((ref) {
   final settings =
@@ -1005,3 +1137,63 @@ final audioMuseSongRecommendationsProvider = FutureProvider.autoDispose
       if (repo == null) return const [];
       return repo.getRecommendations(seedSongId: seedSongId);
     });
+
+List<AlbumYearSection> _buildAlbumYearSections(List<AlbumsTableData> albums) {
+  if (albums.isEmpty) {
+    return const <AlbumYearSection>[];
+  }
+
+  final sections = <AlbumYearSection>[];
+  final byYear = <int, List<AlbumsTableData>>{};
+  final unknownYearAlbums = <AlbumsTableData>[];
+
+  for (final album in albums) {
+    final year = album.year;
+    if (year == null) {
+      unknownYearAlbums.add(album);
+      continue;
+    }
+    (byYear[year] ??= <AlbumsTableData>[]).add(album);
+  }
+
+  final sortedYears = byYear.keys.toList()..sort((a, b) => b.compareTo(a));
+  for (final year in sortedYears) {
+    final albumsForYear = byYear[year]!
+      ..sort((a, b) {
+        final nameComparison = a.name.compareTo(b.name);
+        if (nameComparison != 0) {
+          return nameComparison;
+        }
+        return a.id.compareTo(b.id);
+      });
+    sections.add(
+      AlbumYearSection(
+        title: '$year',
+        decadeStart: (year ~/ 10) * 10,
+        year: year,
+        albums: List<AlbumsTableData>.unmodifiable(albumsForYear),
+      ),
+    );
+  }
+
+  if (unknownYearAlbums.isNotEmpty) {
+    unknownYearAlbums.sort((a, b) {
+      final nameComparison = a.name.compareTo(b.name);
+      if (nameComparison != 0) {
+        return nameComparison;
+      }
+      return a.id.compareTo(b.id);
+    });
+    sections.add(
+      AlbumYearSection(
+        title: 'Unknown year',
+        decadeStart: null,
+        year: null,
+        isUnknownYear: true,
+        albums: List<AlbumsTableData>.unmodifiable(unknownYearAlbums),
+      ),
+    );
+  }
+
+  return List<AlbumYearSection>.unmodifiable(sections);
+}

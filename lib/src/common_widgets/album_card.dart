@@ -26,6 +26,7 @@ class AlbumCard extends StatelessWidget {
     super.key,
     this.size = AlbumCardSize.library,
     this.heroTag,
+    this.badge,
     this.onTap,
     this.onLongPress,
   });
@@ -35,6 +36,7 @@ class AlbumCard extends StatelessWidget {
 
   /// Optional hero tag for cover-art transition animations.
   final String? heroTag;
+  final Widget? badge;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
 
@@ -69,16 +71,22 @@ class AlbumCard extends StatelessWidget {
                   HeroCoverArt(
                     coverArtId: album.coverArt,
                     heroTag: heroTag!,
-                    size: 480,
+                    size: 200,
                     fit: BoxFit.cover,
                     placeholderIcon: Icons.album_outlined,
                   )
                 else
                   CoverArtImage(
                     coverArtId: album.coverArt,
-                    size: 480,
+                    size: 200,
                     fit: BoxFit.cover,
                     placeholderIcon: Icons.album_outlined,
+                  ),
+                if (badge != null)
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: badge!,
                   ),
                 // Gradient overlay at the bottom
                 Positioned(

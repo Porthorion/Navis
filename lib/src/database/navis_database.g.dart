@@ -669,6 +669,21 @@ class $AppSettingsTableTable extends AppSettingsTable
     ),
     defaultValue: const Constant(true),
   );
+  static const VerificationMeta _showLikedPageMeta = const VerificationMeta(
+    'showLikedPage',
+  );
+  @override
+  late final GeneratedColumn<bool> showLikedPage = GeneratedColumn<bool>(
+    'show_liked_page',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("show_liked_page" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
   static const VerificationMeta _equalizerEnabledMeta = const VerificationMeta(
     'equalizerEnabled',
   );
@@ -747,6 +762,21 @@ class $AppSettingsTableTable extends AppSettingsTable
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _autoDownloadStarredOnWifiMeta =
+      const VerificationMeta('autoDownloadStarredOnWifi');
+  @override
+  late final GeneratedColumn<bool> autoDownloadStarredOnWifi =
+      GeneratedColumn<bool>(
+        'auto_download_starred_on_wifi',
+        aliasedName,
+        false,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("auto_download_starred_on_wifi" IN (0, 1))',
+        ),
+        defaultValue: const Constant(false),
+      );
   static const VerificationMeta _themeModeMeta = const VerificationMeta(
     'themeMode',
   );
@@ -995,12 +1025,14 @@ class $AppSettingsTableTable extends AppSettingsTable
     showRadioPage,
     showPlaylistsPage,
     showArtistsPage,
+    showLikedPage,
     equalizerEnabled,
     equalizerBandGains,
     loudnessEnabled,
     loudnessTargetGainDb,
     rollingCacheBudgetMb,
     wifiOnlyDownloads,
+    autoDownloadStarredOnWifi,
     themeMode,
     colorSchemeSeed,
     customColorPresets,
@@ -1123,6 +1155,15 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
       );
     }
+    if (data.containsKey('show_liked_page')) {
+      context.handle(
+        _showLikedPageMeta,
+        showLikedPage.isAcceptableOrUnknown(
+          data['show_liked_page']!,
+          _showLikedPageMeta,
+        ),
+      );
+    }
     if (data.containsKey('equalizer_enabled')) {
       context.handle(
         _equalizerEnabledMeta,
@@ -1174,6 +1215,15 @@ class $AppSettingsTableTable extends AppSettingsTable
         wifiOnlyDownloads.isAcceptableOrUnknown(
           data['wifi_only_downloads']!,
           _wifiOnlyDownloadsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('auto_download_starred_on_wifi')) {
+      context.handle(
+        _autoDownloadStarredOnWifiMeta,
+        autoDownloadStarredOnWifi.isAcceptableOrUnknown(
+          data['auto_download_starred_on_wifi']!,
+          _autoDownloadStarredOnWifiMeta,
         ),
       );
     }
@@ -1397,6 +1447,10 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.bool,
         data['${effectivePrefix}show_artists_page'],
       )!,
+      showLikedPage: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}show_liked_page'],
+      )!,
       equalizerEnabled: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}equalizer_enabled'],
@@ -1420,6 +1474,10 @@ class $AppSettingsTableTable extends AppSettingsTable
       wifiOnlyDownloads: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}wifi_only_downloads'],
+      )!,
+      autoDownloadStarredOnWifi: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}auto_download_starred_on_wifi'],
       )!,
       themeMode: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
@@ -1519,6 +1577,7 @@ class AppSettingsTableData extends DataClass
   final bool showRadioPage;
   final bool showPlaylistsPage;
   final bool showArtistsPage;
+  final bool showLikedPage;
   final bool equalizerEnabled;
   final String? equalizerBandGains;
   final bool loudnessEnabled;
@@ -1529,6 +1588,9 @@ class AppSettingsTableData extends DataClass
 
   /// When true, downloads only proceed on Wi-Fi / Ethernet.
   final bool wifiOnlyDownloads;
+
+  /// When true, liked albums and songs enqueue for permanent download on Wi-Fi.
+  final bool autoDownloadStarredOnWifi;
 
   /// Theme mode: 'light', 'dark', 'oled', or 'system'. Defaults to 'dark'.
   final String themeMode;
@@ -1597,12 +1659,14 @@ class AppSettingsTableData extends DataClass
     required this.showRadioPage,
     required this.showPlaylistsPage,
     required this.showArtistsPage,
+    required this.showLikedPage,
     required this.equalizerEnabled,
     this.equalizerBandGains,
     required this.loudnessEnabled,
     this.loudnessTargetGainDb,
     required this.rollingCacheBudgetMb,
     required this.wifiOnlyDownloads,
+    required this.autoDownloadStarredOnWifi,
     required this.themeMode,
     this.colorSchemeSeed,
     this.customColorPresets,
@@ -1645,6 +1709,7 @@ class AppSettingsTableData extends DataClass
     map['show_radio_page'] = Variable<bool>(showRadioPage);
     map['show_playlists_page'] = Variable<bool>(showPlaylistsPage);
     map['show_artists_page'] = Variable<bool>(showArtistsPage);
+    map['show_liked_page'] = Variable<bool>(showLikedPage);
     map['equalizer_enabled'] = Variable<bool>(equalizerEnabled);
     if (!nullToAbsent || equalizerBandGains != null) {
       map['equalizer_band_gains'] = Variable<String>(equalizerBandGains);
@@ -1655,6 +1720,9 @@ class AppSettingsTableData extends DataClass
     }
     map['rolling_cache_budget_mb'] = Variable<int>(rollingCacheBudgetMb);
     map['wifi_only_downloads'] = Variable<bool>(wifiOnlyDownloads);
+    map['auto_download_starred_on_wifi'] = Variable<bool>(
+      autoDownloadStarredOnWifi,
+    );
     map['theme_mode'] = Variable<String>(themeMode);
     if (!nullToAbsent || colorSchemeSeed != null) {
       map['color_scheme_seed'] = Variable<int>(colorSchemeSeed);
@@ -1708,6 +1776,7 @@ class AppSettingsTableData extends DataClass
       showRadioPage: Value(showRadioPage),
       showPlaylistsPage: Value(showPlaylistsPage),
       showArtistsPage: Value(showArtistsPage),
+      showLikedPage: Value(showLikedPage),
       equalizerEnabled: Value(equalizerEnabled),
       equalizerBandGains: equalizerBandGains == null && nullToAbsent
           ? const Value.absent()
@@ -1718,6 +1787,7 @@ class AppSettingsTableData extends DataClass
           : Value(loudnessTargetGainDb),
       rollingCacheBudgetMb: Value(rollingCacheBudgetMb),
       wifiOnlyDownloads: Value(wifiOnlyDownloads),
+      autoDownloadStarredOnWifi: Value(autoDownloadStarredOnWifi),
       themeMode: Value(themeMode),
       colorSchemeSeed: colorSchemeSeed == null && nullToAbsent
           ? const Value.absent()
@@ -1765,6 +1835,7 @@ class AppSettingsTableData extends DataClass
       showRadioPage: serializer.fromJson<bool>(json['showRadioPage']),
       showPlaylistsPage: serializer.fromJson<bool>(json['showPlaylistsPage']),
       showArtistsPage: serializer.fromJson<bool>(json['showArtistsPage']),
+      showLikedPage: serializer.fromJson<bool>(json['showLikedPage']),
       equalizerEnabled: serializer.fromJson<bool>(json['equalizerEnabled']),
       equalizerBandGains: serializer.fromJson<String?>(
         json['equalizerBandGains'],
@@ -1777,6 +1848,9 @@ class AppSettingsTableData extends DataClass
         json['rollingCacheBudgetMb'],
       ),
       wifiOnlyDownloads: serializer.fromJson<bool>(json['wifiOnlyDownloads']),
+      autoDownloadStarredOnWifi: serializer.fromJson<bool>(
+        json['autoDownloadStarredOnWifi'],
+      ),
       themeMode: serializer.fromJson<String>(json['themeMode']),
       colorSchemeSeed: serializer.fromJson<int?>(json['colorSchemeSeed']),
       customColorPresets: serializer.fromJson<String?>(
@@ -1827,12 +1901,16 @@ class AppSettingsTableData extends DataClass
       'showRadioPage': serializer.toJson<bool>(showRadioPage),
       'showPlaylistsPage': serializer.toJson<bool>(showPlaylistsPage),
       'showArtistsPage': serializer.toJson<bool>(showArtistsPage),
+      'showLikedPage': serializer.toJson<bool>(showLikedPage),
       'equalizerEnabled': serializer.toJson<bool>(equalizerEnabled),
       'equalizerBandGains': serializer.toJson<String?>(equalizerBandGains),
       'loudnessEnabled': serializer.toJson<bool>(loudnessEnabled),
       'loudnessTargetGainDb': serializer.toJson<double?>(loudnessTargetGainDb),
       'rollingCacheBudgetMb': serializer.toJson<int>(rollingCacheBudgetMb),
       'wifiOnlyDownloads': serializer.toJson<bool>(wifiOnlyDownloads),
+      'autoDownloadStarredOnWifi': serializer.toJson<bool>(
+        autoDownloadStarredOnWifi,
+      ),
       'themeMode': serializer.toJson<String>(themeMode),
       'colorSchemeSeed': serializer.toJson<int?>(colorSchemeSeed),
       'customColorPresets': serializer.toJson<String?>(customColorPresets),
@@ -1873,12 +1951,14 @@ class AppSettingsTableData extends DataClass
     bool? showRadioPage,
     bool? showPlaylistsPage,
     bool? showArtistsPage,
+    bool? showLikedPage,
     bool? equalizerEnabled,
     Value<String?> equalizerBandGains = const Value.absent(),
     bool? loudnessEnabled,
     Value<double?> loudnessTargetGainDb = const Value.absent(),
     int? rollingCacheBudgetMb,
     bool? wifiOnlyDownloads,
+    bool? autoDownloadStarredOnWifi,
     String? themeMode,
     Value<int?> colorSchemeSeed = const Value.absent(),
     Value<String?> customColorPresets = const Value.absent(),
@@ -1916,6 +1996,7 @@ class AppSettingsTableData extends DataClass
     showRadioPage: showRadioPage ?? this.showRadioPage,
     showPlaylistsPage: showPlaylistsPage ?? this.showPlaylistsPage,
     showArtistsPage: showArtistsPage ?? this.showArtistsPage,
+    showLikedPage: showLikedPage ?? this.showLikedPage,
     equalizerEnabled: equalizerEnabled ?? this.equalizerEnabled,
     equalizerBandGains: equalizerBandGains.present
         ? equalizerBandGains.value
@@ -1926,6 +2007,8 @@ class AppSettingsTableData extends DataClass
         : this.loudnessTargetGainDb,
     rollingCacheBudgetMb: rollingCacheBudgetMb ?? this.rollingCacheBudgetMb,
     wifiOnlyDownloads: wifiOnlyDownloads ?? this.wifiOnlyDownloads,
+    autoDownloadStarredOnWifi:
+        autoDownloadStarredOnWifi ?? this.autoDownloadStarredOnWifi,
     themeMode: themeMode ?? this.themeMode,
     colorSchemeSeed: colorSchemeSeed.present
         ? colorSchemeSeed.value
@@ -1990,6 +2073,9 @@ class AppSettingsTableData extends DataClass
       showArtistsPage: data.showArtistsPage.present
           ? data.showArtistsPage.value
           : this.showArtistsPage,
+      showLikedPage: data.showLikedPage.present
+          ? data.showLikedPage.value
+          : this.showLikedPage,
       equalizerEnabled: data.equalizerEnabled.present
           ? data.equalizerEnabled.value
           : this.equalizerEnabled,
@@ -2008,6 +2094,9 @@ class AppSettingsTableData extends DataClass
       wifiOnlyDownloads: data.wifiOnlyDownloads.present
           ? data.wifiOnlyDownloads.value
           : this.wifiOnlyDownloads,
+      autoDownloadStarredOnWifi: data.autoDownloadStarredOnWifi.present
+          ? data.autoDownloadStarredOnWifi.value
+          : this.autoDownloadStarredOnWifi,
       themeMode: data.themeMode.present ? data.themeMode.value : this.themeMode,
       colorSchemeSeed: data.colorSchemeSeed.present
           ? data.colorSchemeSeed.value
@@ -2078,12 +2167,14 @@ class AppSettingsTableData extends DataClass
           ..write('showRadioPage: $showRadioPage, ')
           ..write('showPlaylistsPage: $showPlaylistsPage, ')
           ..write('showArtistsPage: $showArtistsPage, ')
+          ..write('showLikedPage: $showLikedPage, ')
           ..write('equalizerEnabled: $equalizerEnabled, ')
           ..write('equalizerBandGains: $equalizerBandGains, ')
           ..write('loudnessEnabled: $loudnessEnabled, ')
           ..write('loudnessTargetGainDb: $loudnessTargetGainDb, ')
           ..write('rollingCacheBudgetMb: $rollingCacheBudgetMb, ')
           ..write('wifiOnlyDownloads: $wifiOnlyDownloads, ')
+          ..write('autoDownloadStarredOnWifi: $autoDownloadStarredOnWifi, ')
           ..write('themeMode: $themeMode, ')
           ..write('colorSchemeSeed: $colorSchemeSeed, ')
           ..write('customColorPresets: $customColorPresets, ')
@@ -2120,12 +2211,14 @@ class AppSettingsTableData extends DataClass
     showRadioPage,
     showPlaylistsPage,
     showArtistsPage,
+    showLikedPage,
     equalizerEnabled,
     equalizerBandGains,
     loudnessEnabled,
     loudnessTargetGainDb,
     rollingCacheBudgetMb,
     wifiOnlyDownloads,
+    autoDownloadStarredOnWifi,
     themeMode,
     colorSchemeSeed,
     customColorPresets,
@@ -2161,12 +2254,14 @@ class AppSettingsTableData extends DataClass
           other.showRadioPage == this.showRadioPage &&
           other.showPlaylistsPage == this.showPlaylistsPage &&
           other.showArtistsPage == this.showArtistsPage &&
+          other.showLikedPage == this.showLikedPage &&
           other.equalizerEnabled == this.equalizerEnabled &&
           other.equalizerBandGains == this.equalizerBandGains &&
           other.loudnessEnabled == this.loudnessEnabled &&
           other.loudnessTargetGainDb == this.loudnessTargetGainDb &&
           other.rollingCacheBudgetMb == this.rollingCacheBudgetMb &&
           other.wifiOnlyDownloads == this.wifiOnlyDownloads &&
+          other.autoDownloadStarredOnWifi == this.autoDownloadStarredOnWifi &&
           other.themeMode == this.themeMode &&
           other.colorSchemeSeed == this.colorSchemeSeed &&
           other.customColorPresets == this.customColorPresets &&
@@ -2200,12 +2295,14 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<bool> showRadioPage;
   final Value<bool> showPlaylistsPage;
   final Value<bool> showArtistsPage;
+  final Value<bool> showLikedPage;
   final Value<bool> equalizerEnabled;
   final Value<String?> equalizerBandGains;
   final Value<bool> loudnessEnabled;
   final Value<double?> loudnessTargetGainDb;
   final Value<int> rollingCacheBudgetMb;
   final Value<bool> wifiOnlyDownloads;
+  final Value<bool> autoDownloadStarredOnWifi;
   final Value<String> themeMode;
   final Value<int?> colorSchemeSeed;
   final Value<String?> customColorPresets;
@@ -2237,12 +2334,14 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.showRadioPage = const Value.absent(),
     this.showPlaylistsPage = const Value.absent(),
     this.showArtistsPage = const Value.absent(),
+    this.showLikedPage = const Value.absent(),
     this.equalizerEnabled = const Value.absent(),
     this.equalizerBandGains = const Value.absent(),
     this.loudnessEnabled = const Value.absent(),
     this.loudnessTargetGainDb = const Value.absent(),
     this.rollingCacheBudgetMb = const Value.absent(),
     this.wifiOnlyDownloads = const Value.absent(),
+    this.autoDownloadStarredOnWifi = const Value.absent(),
     this.themeMode = const Value.absent(),
     this.colorSchemeSeed = const Value.absent(),
     this.customColorPresets = const Value.absent(),
@@ -2275,12 +2374,14 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.showRadioPage = const Value.absent(),
     this.showPlaylistsPage = const Value.absent(),
     this.showArtistsPage = const Value.absent(),
+    this.showLikedPage = const Value.absent(),
     this.equalizerEnabled = const Value.absent(),
     this.equalizerBandGains = const Value.absent(),
     this.loudnessEnabled = const Value.absent(),
     this.loudnessTargetGainDb = const Value.absent(),
     this.rollingCacheBudgetMb = const Value.absent(),
     this.wifiOnlyDownloads = const Value.absent(),
+    this.autoDownloadStarredOnWifi = const Value.absent(),
     this.themeMode = const Value.absent(),
     this.colorSchemeSeed = const Value.absent(),
     this.customColorPresets = const Value.absent(),
@@ -2313,12 +2414,14 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<bool>? showRadioPage,
     Expression<bool>? showPlaylistsPage,
     Expression<bool>? showArtistsPage,
+    Expression<bool>? showLikedPage,
     Expression<bool>? equalizerEnabled,
     Expression<String>? equalizerBandGains,
     Expression<bool>? loudnessEnabled,
     Expression<double>? loudnessTargetGainDb,
     Expression<int>? rollingCacheBudgetMb,
     Expression<bool>? wifiOnlyDownloads,
+    Expression<bool>? autoDownloadStarredOnWifi,
     Expression<String>? themeMode,
     Expression<int>? colorSchemeSeed,
     Expression<String>? customColorPresets,
@@ -2353,6 +2456,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       if (showRadioPage != null) 'show_radio_page': showRadioPage,
       if (showPlaylistsPage != null) 'show_playlists_page': showPlaylistsPage,
       if (showArtistsPage != null) 'show_artists_page': showArtistsPage,
+      if (showLikedPage != null) 'show_liked_page': showLikedPage,
       if (equalizerEnabled != null) 'equalizer_enabled': equalizerEnabled,
       if (equalizerBandGains != null)
         'equalizer_band_gains': equalizerBandGains,
@@ -2362,6 +2466,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       if (rollingCacheBudgetMb != null)
         'rolling_cache_budget_mb': rollingCacheBudgetMb,
       if (wifiOnlyDownloads != null) 'wifi_only_downloads': wifiOnlyDownloads,
+      if (autoDownloadStarredOnWifi != null)
+        'auto_download_starred_on_wifi': autoDownloadStarredOnWifi,
       if (themeMode != null) 'theme_mode': themeMode,
       if (colorSchemeSeed != null) 'color_scheme_seed': colorSchemeSeed,
       if (customColorPresets != null)
@@ -2404,12 +2510,14 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<bool>? showRadioPage,
     Value<bool>? showPlaylistsPage,
     Value<bool>? showArtistsPage,
+    Value<bool>? showLikedPage,
     Value<bool>? equalizerEnabled,
     Value<String?>? equalizerBandGains,
     Value<bool>? loudnessEnabled,
     Value<double?>? loudnessTargetGainDb,
     Value<int>? rollingCacheBudgetMb,
     Value<bool>? wifiOnlyDownloads,
+    Value<bool>? autoDownloadStarredOnWifi,
     Value<String>? themeMode,
     Value<int?>? colorSchemeSeed,
     Value<String?>? customColorPresets,
@@ -2442,12 +2550,15 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       showRadioPage: showRadioPage ?? this.showRadioPage,
       showPlaylistsPage: showPlaylistsPage ?? this.showPlaylistsPage,
       showArtistsPage: showArtistsPage ?? this.showArtistsPage,
+      showLikedPage: showLikedPage ?? this.showLikedPage,
       equalizerEnabled: equalizerEnabled ?? this.equalizerEnabled,
       equalizerBandGains: equalizerBandGains ?? this.equalizerBandGains,
       loudnessEnabled: loudnessEnabled ?? this.loudnessEnabled,
       loudnessTargetGainDb: loudnessTargetGainDb ?? this.loudnessTargetGainDb,
       rollingCacheBudgetMb: rollingCacheBudgetMb ?? this.rollingCacheBudgetMb,
       wifiOnlyDownloads: wifiOnlyDownloads ?? this.wifiOnlyDownloads,
+      autoDownloadStarredOnWifi:
+          autoDownloadStarredOnWifi ?? this.autoDownloadStarredOnWifi,
       themeMode: themeMode ?? this.themeMode,
       colorSchemeSeed: colorSchemeSeed ?? this.colorSchemeSeed,
       customColorPresets: customColorPresets ?? this.customColorPresets,
@@ -2509,6 +2620,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     if (showArtistsPage.present) {
       map['show_artists_page'] = Variable<bool>(showArtistsPage.value);
     }
+    if (showLikedPage.present) {
+      map['show_liked_page'] = Variable<bool>(showLikedPage.value);
+    }
     if (equalizerEnabled.present) {
       map['equalizer_enabled'] = Variable<bool>(equalizerEnabled.value);
     }
@@ -2530,6 +2644,11 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     }
     if (wifiOnlyDownloads.present) {
       map['wifi_only_downloads'] = Variable<bool>(wifiOnlyDownloads.value);
+    }
+    if (autoDownloadStarredOnWifi.present) {
+      map['auto_download_starred_on_wifi'] = Variable<bool>(
+        autoDownloadStarredOnWifi.value,
+      );
     }
     if (themeMode.present) {
       map['theme_mode'] = Variable<String>(themeMode.value);
@@ -2611,12 +2730,14 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('showRadioPage: $showRadioPage, ')
           ..write('showPlaylistsPage: $showPlaylistsPage, ')
           ..write('showArtistsPage: $showArtistsPage, ')
+          ..write('showLikedPage: $showLikedPage, ')
           ..write('equalizerEnabled: $equalizerEnabled, ')
           ..write('equalizerBandGains: $equalizerBandGains, ')
           ..write('loudnessEnabled: $loudnessEnabled, ')
           ..write('loudnessTargetGainDb: $loudnessTargetGainDb, ')
           ..write('rollingCacheBudgetMb: $rollingCacheBudgetMb, ')
           ..write('wifiOnlyDownloads: $wifiOnlyDownloads, ')
+          ..write('autoDownloadStarredOnWifi: $autoDownloadStarredOnWifi, ')
           ..write('themeMode: $themeMode, ')
           ..write('colorSchemeSeed: $colorSchemeSeed, ')
           ..write('customColorPresets: $customColorPresets, ')
@@ -9793,12 +9914,14 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<bool> showRadioPage,
       Value<bool> showPlaylistsPage,
       Value<bool> showArtistsPage,
+      Value<bool> showLikedPage,
       Value<bool> equalizerEnabled,
       Value<String?> equalizerBandGains,
       Value<bool> loudnessEnabled,
       Value<double?> loudnessTargetGainDb,
       Value<int> rollingCacheBudgetMb,
       Value<bool> wifiOnlyDownloads,
+      Value<bool> autoDownloadStarredOnWifi,
       Value<String> themeMode,
       Value<int?> colorSchemeSeed,
       Value<String?> customColorPresets,
@@ -9832,12 +9955,14 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<bool> showRadioPage,
       Value<bool> showPlaylistsPage,
       Value<bool> showArtistsPage,
+      Value<bool> showLikedPage,
       Value<bool> equalizerEnabled,
       Value<String?> equalizerBandGains,
       Value<bool> loudnessEnabled,
       Value<double?> loudnessTargetGainDb,
       Value<int> rollingCacheBudgetMb,
       Value<bool> wifiOnlyDownloads,
+      Value<bool> autoDownloadStarredOnWifi,
       Value<String> themeMode,
       Value<int?> colorSchemeSeed,
       Value<String?> customColorPresets,
@@ -9923,6 +10048,11 @@ class $$AppSettingsTableTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<bool> get showLikedPage => $composableBuilder(
+    column: $table.showLikedPage,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<bool> get equalizerEnabled => $composableBuilder(
     column: $table.equalizerEnabled,
     builder: (column) => ColumnFilters(column),
@@ -9950,6 +10080,11 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<bool> get wifiOnlyDownloads => $composableBuilder(
     column: $table.wifiOnlyDownloads,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get autoDownloadStarredOnWifi => $composableBuilder(
+    column: $table.autoDownloadStarredOnWifi,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -10113,6 +10248,11 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get showLikedPage => $composableBuilder(
+    column: $table.showLikedPage,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get equalizerEnabled => $composableBuilder(
     column: $table.equalizerEnabled,
     builder: (column) => ColumnOrderings(column),
@@ -10140,6 +10280,11 @@ class $$AppSettingsTableTableOrderingComposer
 
   ColumnOrderings<bool> get wifiOnlyDownloads => $composableBuilder(
     column: $table.wifiOnlyDownloads,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get autoDownloadStarredOnWifi => $composableBuilder(
+    column: $table.autoDownloadStarredOnWifi,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -10301,6 +10446,11 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get showLikedPage => $composableBuilder(
+    column: $table.showLikedPage,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<bool> get equalizerEnabled => $composableBuilder(
     column: $table.equalizerEnabled,
     builder: (column) => column,
@@ -10328,6 +10478,11 @@ class $$AppSettingsTableTableAnnotationComposer
 
   GeneratedColumn<bool> get wifiOnlyDownloads => $composableBuilder(
     column: $table.wifiOnlyDownloads,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get autoDownloadStarredOnWifi => $composableBuilder(
+    column: $table.autoDownloadStarredOnWifi,
     builder: (column) => column,
   );
 
@@ -10471,12 +10626,14 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> showRadioPage = const Value.absent(),
                 Value<bool> showPlaylistsPage = const Value.absent(),
                 Value<bool> showArtistsPage = const Value.absent(),
+                Value<bool> showLikedPage = const Value.absent(),
                 Value<bool> equalizerEnabled = const Value.absent(),
                 Value<String?> equalizerBandGains = const Value.absent(),
                 Value<bool> loudnessEnabled = const Value.absent(),
                 Value<double?> loudnessTargetGainDb = const Value.absent(),
                 Value<int> rollingCacheBudgetMb = const Value.absent(),
                 Value<bool> wifiOnlyDownloads = const Value.absent(),
+                Value<bool> autoDownloadStarredOnWifi = const Value.absent(),
                 Value<String> themeMode = const Value.absent(),
                 Value<int?> colorSchemeSeed = const Value.absent(),
                 Value<String?> customColorPresets = const Value.absent(),
@@ -10508,12 +10665,14 @@ class $$AppSettingsTableTableTableManager
                 showRadioPage: showRadioPage,
                 showPlaylistsPage: showPlaylistsPage,
                 showArtistsPage: showArtistsPage,
+                showLikedPage: showLikedPage,
                 equalizerEnabled: equalizerEnabled,
                 equalizerBandGains: equalizerBandGains,
                 loudnessEnabled: loudnessEnabled,
                 loudnessTargetGainDb: loudnessTargetGainDb,
                 rollingCacheBudgetMb: rollingCacheBudgetMb,
                 wifiOnlyDownloads: wifiOnlyDownloads,
+                autoDownloadStarredOnWifi: autoDownloadStarredOnWifi,
                 themeMode: themeMode,
                 colorSchemeSeed: colorSchemeSeed,
                 customColorPresets: customColorPresets,
@@ -10547,12 +10706,14 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> showRadioPage = const Value.absent(),
                 Value<bool> showPlaylistsPage = const Value.absent(),
                 Value<bool> showArtistsPage = const Value.absent(),
+                Value<bool> showLikedPage = const Value.absent(),
                 Value<bool> equalizerEnabled = const Value.absent(),
                 Value<String?> equalizerBandGains = const Value.absent(),
                 Value<bool> loudnessEnabled = const Value.absent(),
                 Value<double?> loudnessTargetGainDb = const Value.absent(),
                 Value<int> rollingCacheBudgetMb = const Value.absent(),
                 Value<bool> wifiOnlyDownloads = const Value.absent(),
+                Value<bool> autoDownloadStarredOnWifi = const Value.absent(),
                 Value<String> themeMode = const Value.absent(),
                 Value<int?> colorSchemeSeed = const Value.absent(),
                 Value<String?> customColorPresets = const Value.absent(),
@@ -10584,12 +10745,14 @@ class $$AppSettingsTableTableTableManager
                 showRadioPage: showRadioPage,
                 showPlaylistsPage: showPlaylistsPage,
                 showArtistsPage: showArtistsPage,
+                showLikedPage: showLikedPage,
                 equalizerEnabled: equalizerEnabled,
                 equalizerBandGains: equalizerBandGains,
                 loudnessEnabled: loudnessEnabled,
                 loudnessTargetGainDb: loudnessTargetGainDb,
                 rollingCacheBudgetMb: rollingCacheBudgetMb,
                 wifiOnlyDownloads: wifiOnlyDownloads,
+                autoDownloadStarredOnWifi: autoDownloadStarredOnWifi,
                 themeMode: themeMode,
                 colorSchemeSeed: colorSchemeSeed,
                 customColorPresets: customColorPresets,

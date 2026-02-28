@@ -20,8 +20,8 @@ void main() {
           .customSelect('PRAGMA user_version;')
           .getSingle();
 
-      expect(database.schemaVersion, 23);
-      expect(pragmaRow.read<int>('user_version'), 23);
+      expect(database.schemaVersion, 24);
+      expect(pragmaRow.read<int>('user_version'), 24);
     },
     skip: !sqliteAvailable,
   );
@@ -49,6 +49,9 @@ void main() {
       expect(settings.gaplessEnabled, isTrue);
       expect(settings.skipSilenceEnabled, isFalse);
       expect(settings.showRadioPage, isTrue);
+      expect(settings.showPlaylistsPage, isTrue);
+      expect(settings.showArtistsPage, isTrue);
+      expect(settings.showLikedPage, isTrue);
       expect(settings.equalizerEnabled, isFalse);
       expect(settings.equalizerBandGains, isNull);
       expect(settings.loudnessEnabled, isFalse);
@@ -57,6 +60,7 @@ void main() {
         settings.rollingCacheBudgetMb,
         AppSettingsDao.defaultRollingCacheBudgetMb,
       );
+      expect(settings.autoDownloadStarredOnWifi, isFalse);
       expect(settings.updateCheckEnabled, isTrue);
       expect(settings.updateChannel, 'stable');
     },
@@ -214,7 +218,7 @@ void main() {
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 23);
+      expect(versionRow.read<int>('user_version'), 24);
 
       final albums = await migrated.select(migrated.albumsTable).get();
       final albumsById = {for (final album in albums) album.id: album};
@@ -242,6 +246,9 @@ void main() {
       expect(settings!.gaplessEnabled, isTrue);
       expect(settings.skipSilenceEnabled, isFalse);
       expect(settings.showRadioPage, isTrue);
+      expect(settings.showPlaylistsPage, isTrue);
+      expect(settings.showArtistsPage, isTrue);
+      expect(settings.showLikedPage, isTrue);
       expect(settings.equalizerEnabled, isFalse);
       expect(settings.equalizerBandGains, isNull);
       expect(settings.loudnessEnabled, isFalse);
@@ -250,6 +257,7 @@ void main() {
         settings.rollingCacheBudgetMb,
         AppSettingsDao.defaultRollingCacheBudgetMb,
       );
+      expect(settings.autoDownloadStarredOnWifi, isFalse);
     },
     skip: !sqliteAvailable,
   );

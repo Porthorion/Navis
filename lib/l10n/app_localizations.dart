@@ -1090,6 +1090,12 @@ abstract class AppLocalizations {
   /// **'Could not complete sign out. Try again.'**
   String get serverSettingsSignOutError;
 
+  /// No description provided for @commonQueued.
+  ///
+  /// In en, this message translates to:
+  /// **'Queued'**
+  String get commonQueued;
+
   /// No description provided for @commonRetry.
   ///
   /// In en, this message translates to:
@@ -1113,6 +1119,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Albums'**
   String get libraryTabAlbums;
+
+  /// No description provided for @libraryTabLiked.
+  ///
+  /// In en, this message translates to:
+  /// **'Liked'**
+  String get libraryTabLiked;
 
   /// No description provided for @libraryTabSongs.
   ///
@@ -1251,6 +1263,48 @@ abstract class AppLocalizations {
   /// **'Could not load artists'**
   String get libraryArtistsErrorTitle;
 
+  /// No description provided for @libraryLikedAlbumsSectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Liked Albums'**
+  String get libraryLikedAlbumsSectionTitle;
+
+  /// No description provided for @libraryLikedSongsSectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Liked Songs'**
+  String get libraryLikedSongsSectionTitle;
+
+  /// No description provided for @libraryLikedEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing liked yet'**
+  String get libraryLikedEmptyTitle;
+
+  /// No description provided for @libraryLikedEmptySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Like albums or songs to see them here.'**
+  String get libraryLikedEmptySubtitle;
+
+  /// No description provided for @libraryLikedOnlyFilter.
+  ///
+  /// In en, this message translates to:
+  /// **'Liked'**
+  String get libraryLikedOnlyFilter;
+
+  /// No description provided for @libraryLikedOnlyEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No liked matches'**
+  String get libraryLikedOnlyEmptyTitle;
+
+  /// No description provided for @libraryLikedOnlyEmptySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Try turning off the liked filter or like more content.'**
+  String get libraryLikedOnlyEmptySubtitle;
+
   /// No description provided for @libraryAlbumsEmptyTitle.
   ///
   /// In en, this message translates to:
@@ -1268,6 +1322,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could not load albums'**
   String get libraryAlbumsErrorTitle;
+
+  /// No description provided for @libraryAlbumsByYearEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No albums with year data'**
+  String get libraryAlbumsByYearEmptyTitle;
+
+  /// No description provided for @libraryAlbumsByYearEmptySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync more metadata or change filters to browse by year.'**
+  String get libraryAlbumsByYearEmptySubtitle;
 
   /// No description provided for @libraryAlbumsSortLabel.
   ///
@@ -1340,6 +1406,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Newest (Year)'**
   String get librarySortNewest;
+
+  /// No description provided for @librarySortByYear.
+  ///
+  /// In en, this message translates to:
+  /// **'By Year'**
+  String get librarySortByYear;
 
   /// No description provided for @librarySortOldest.
   ///
@@ -1604,6 +1676,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Sync your library to load album tracks.'**
   String get albumDetailTracksEmptySubtitle;
+
+  /// No description provided for @albumDetailLikedTracksEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No liked tracks in this album'**
+  String get albumDetailLikedTracksEmptyTitle;
+
+  /// No description provided for @albumDetailLikedTracksEmptySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'This album is liked, but none of its individual tracks are liked yet.'**
+  String get albumDetailLikedTracksEmptySubtitle;
+
+  /// No description provided for @albumDetailShowAllTracksAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Show all tracks'**
+  String get albumDetailShowAllTracksAction;
 
   /// No description provided for @albumDetailLoadErrorTitle.
   ///
@@ -2583,6 +2673,18 @@ abstract class AppLocalizations {
   /// **'Could not load download queue.'**
   String get downloadsErrorLoadingQueue;
 
+  /// No description provided for @downloadsClearQueue.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear queue'**
+  String get downloadsClearQueue;
+
+  /// No description provided for @downloadsClearQueueConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove all queued downloads? Active downloads will be cancelled.'**
+  String get downloadsClearQueueConfirm;
+
   /// No description provided for @libraryDownloadedOnlyFilter.
   ///
   /// In en, this message translates to:
@@ -2601,6 +2703,12 @@ abstract class AppLocalizations {
   /// **'Download albums or tracks to see them here.'**
   String get libraryDownloadedOnlyEmptySubtitle;
 
+  /// No description provided for @libraryUnknownYear.
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown year'**
+  String get libraryUnknownYear;
+
   /// No description provided for @cacheSettingsWifiOnlyDownloads.
   ///
   /// In en, this message translates to:
@@ -2612,6 +2720,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Pause downloads when not connected to Wi-Fi.'**
   String get cacheSettingsWifiOnlyDownloadsSub;
+
+  /// No description provided for @cacheSettingsAutoDownloadStarredOnWifi.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto-download liked on Wi-Fi'**
+  String get cacheSettingsAutoDownloadStarredOnWifi;
+
+  /// No description provided for @cacheSettingsAutoDownloadStarredOnWifiSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Queue liked albums and songs for download when Wi-Fi becomes available.'**
+  String get cacheSettingsAutoDownloadStarredOnWifiSub;
 
   /// No description provided for @cacheBadgeDownloaded.
   ///
@@ -3002,6 +3122,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Show the Artists tab in the Library screen.'**
   String get appearanceShowArtistsPageSubtitle;
+
+  /// No description provided for @appearanceShowLikedPageTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Liked tab'**
+  String get appearanceShowLikedPageTitle;
+
+  /// No description provided for @appearanceShowLikedPageSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Show the Liked tab in the Library screen.'**
+  String get appearanceShowLikedPageSubtitle;
 
   /// No description provided for @cacheSettingsCoverArtSizeLabel.
   ///

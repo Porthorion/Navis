@@ -14,11 +14,13 @@ class AppSettingsModel {
     required this.showRadioPage,
     required this.showPlaylistsPage,
     required this.showArtistsPage,
+    required this.showLikedPage,
     required this.equalizerEnabled,
     required this.equalizerBandGains,
     required this.loudnessEnabled,
     required this.loudnessTargetGainDb,
     required this.wifiOnlyDownloads,
+    required this.autoDownloadStarredOnWifi,
     required this.themeMode,
     required this.colorSchemeSeed,
     required this.crossfadeEnabled,
@@ -48,11 +50,13 @@ class AppSettingsModel {
       showRadioPage = true,
       showPlaylistsPage = true,
       showArtistsPage = true,
+      showLikedPage = true,
       equalizerEnabled = false,
       equalizerBandGains = const <double>[],
       loudnessEnabled = false,
       loudnessTargetGainDb = 0,
       wifiOnlyDownloads = false,
+      autoDownloadStarredOnWifi = false,
       themeMode = 'dark',
       colorSchemeSeed = null,
       crossfadeEnabled = false,
@@ -82,11 +86,13 @@ class AppSettingsModel {
   final bool showRadioPage;
   final bool showPlaylistsPage;
   final bool showArtistsPage;
+  final bool showLikedPage;
   final bool equalizerEnabled;
   final List<double> equalizerBandGains;
   final bool loudnessEnabled;
   final double loudnessTargetGainDb;
   final bool wifiOnlyDownloads;
+  final bool autoDownloadStarredOnWifi;
   final String themeMode;
   final int? colorSchemeSeed;
   final bool crossfadeEnabled;
@@ -121,11 +127,13 @@ class AppSettingsModel {
     bool? showRadioPage,
     bool? showPlaylistsPage,
     bool? showArtistsPage,
+    bool? showLikedPage,
     bool? equalizerEnabled,
     List<double>? equalizerBandGains,
     bool? loudnessEnabled,
     double? loudnessTargetGainDb,
     bool? wifiOnlyDownloads,
+    bool? autoDownloadStarredOnWifi,
     String? themeMode,
     int? colorSchemeSeed,
     bool? crossfadeEnabled,
@@ -167,12 +175,15 @@ class AppSettingsModel {
       showRadioPage: showRadioPage ?? this.showRadioPage,
       showPlaylistsPage: showPlaylistsPage ?? this.showPlaylistsPage,
       showArtistsPage: showArtistsPage ?? this.showArtistsPage,
+      showLikedPage: showLikedPage ?? this.showLikedPage,
       equalizerEnabled: equalizerEnabled ?? this.equalizerEnabled,
       equalizerBandGains:
           equalizerBandGains ?? List<double>.from(this.equalizerBandGains),
       loudnessEnabled: loudnessEnabled ?? this.loudnessEnabled,
       loudnessTargetGainDb: loudnessTargetGainDb ?? this.loudnessTargetGainDb,
       wifiOnlyDownloads: wifiOnlyDownloads ?? this.wifiOnlyDownloads,
+      autoDownloadStarredOnWifi:
+          autoDownloadStarredOnWifi ?? this.autoDownloadStarredOnWifi,
       themeMode: themeMode ?? this.themeMode,
       colorSchemeSeed: clearColorSchemeSeed
           ? null

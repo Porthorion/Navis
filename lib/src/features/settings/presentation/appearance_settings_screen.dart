@@ -168,6 +168,15 @@ class AppearanceSettingsScreen extends ConsumerWidget {
             ),
           ),
           SwitchListTile(
+            title: Text(l10n.appearanceShowLikedPageTitle),
+            subtitle: Text(l10n.appearanceShowLikedPageSubtitle),
+            value: ref.watch(showLikedPageProvider),
+            onChanged: (enabled) async {
+              final db = ref.read(navisDatabaseProvider);
+              await db.appSettingsDao.updateShowLikedPage(enabled: enabled);
+            },
+          ),
+          SwitchListTile(
             title: Text(l10n.appearanceShowArtistsPageTitle),
             subtitle: Text(l10n.appearanceShowArtistsPageSubtitle),
             value: ref.watch(showArtistsPageProvider),

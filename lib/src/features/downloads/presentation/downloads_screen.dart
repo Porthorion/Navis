@@ -69,26 +69,58 @@ class _QueueTab extends ConsumerWidget {
           (i) => i.status == DownloadStatus.failed,
         );
 
+        Future<void> clearQueue() async {
+          final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: Text(l10n.downloadsClearQueue),
+              content: Text(l10n.downloadsClearQueueConfirm),
+              actions: <Widget>[
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(false),
+                  child: Text(l10n.cancelAction),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(ctx).pop(true),
+                  child: Text(l10n.downloadsClearQueue),
+                ),
+              ],
+            ),
+          );
+          if (confirmed != true) return;
+          final dao = ref.read(navisDatabaseProvider).downloadQueueDao;
+          await dao.clearQueue();
+        }
+
         return Column(
           children: <Widget>[
-            if (hasFailed)
+            if (hasFailed || items.isNotEmpty)
               Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.tonalIcon(
-                    onPressed: () {
-                      final dao = ref
-                          .read(navisDatabaseProvider)
-                          .downloadQueueDao;
-                      dao.retryAllFailed();
-                    },
-                    icon: const Icon(Icons.refresh),
-                    label: Text(l10n.downloadsRetryAllFailed),
-                  ),
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: Row(
+                  children: <Widget>[
+                    if (hasFailed)
+                      Expanded(
+                        child: FilledButton.tonalIcon(
+                          onPressed: () {
+                            final dao = ref
+                                .read(navisDatabaseProvider)
+                                .downloadQueueDao;
+                            dao.retryAllFailed();
+                          },
+                          icon: const Icon(Icons.refresh),
+                          label: Text(l10n.downloadsRetryAllFailed),
+                        ),
+                      ),
+                    if (hasFailed) const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: clearQueue,
+                        icon: const Icon(Icons.clear_all),
+                        label: Text(l10n.downloadsClearQueue),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             Expanded(
@@ -441,6 +473,15 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
           onChanged: (value) {
             final dao = ref.read(navisDatabaseProvider).appSettingsDao;
             dao.updateWifiOnlyDownloads(enabled: value);
+          },
+        ),
+        SwitchListTile(
+          title: Text(l10n.cacheSettingsAutoDownloadStarredOnWifi),
+          subtitle: Text(l10n.cacheSettingsAutoDownloadStarredOnWifiSub),
+          value: ref.watch(autoDownloadStarredOnWifiProvider),
+          onChanged: (value) {
+            final dao = ref.read(navisDatabaseProvider).appSettingsDao;
+            dao.updateAutoDownloadStarredOnWifi(enabled: value);
           },
         ),
         const Divider(),

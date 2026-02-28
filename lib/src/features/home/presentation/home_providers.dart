@@ -92,5 +92,5 @@ final homeStarredSongsProvider = FutureProvider<List<Song>>((ref) async {
   final cancelToken = CancelToken();
   ref.onDispose(cancelToken.cancel);
 
-  return api.getStarred2(cancelToken: cancelToken);
+  return (await api.getStarred2(cancelToken: cancelToken)).songs;
 });

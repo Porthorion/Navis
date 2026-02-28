@@ -37,6 +37,7 @@ abstract class LibrarySyncApi {
   Future<List<Artist>> getArtists();
   Future<Artist> getArtist(String id);
   Future<Album> getAlbum(String id);
+  Future<StarredContent> getStarredContent();
   Future<SearchResult3> searchSongsPage({
     required String query,
     required int size,
@@ -64,6 +65,9 @@ class SubsonicLibrarySyncApi implements LibrarySyncApi {
 
   @override
   Future<Album> getAlbum(String id) => _api.getAlbum(id);
+
+  @override
+  Future<StarredContent> getStarredContent() => _api.getStarred2();
 
   @override
   Future<SearchResult3> searchSongsPage({
@@ -340,6 +344,8 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
         );
       }
 
+      await _reconcileStarredContent(metrics);
+
       final syncedAt = DateTime.now();
       if (mode == LibrarySyncMode.incremental) {
         await _serverConfigRepository.updateLastSynced(syncedAt);
@@ -382,6 +388,77 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       onProgress?.call(failed);
       _logSyncSummary(state: failed, metrics: metrics);
       return failed;
+    }
+  }
+
+  Future<void> _reconcileStarredContent(_SyncRunMetrics metrics) async {
+    try {
+      final starred = await _api.getStarredContent();
+      final pendingActions = await _database.starSyncDao.getPendingActions();
+      final pendingByType = <String, Set<String>>{
+        'album': <String>{},
+        'artist': <String>{},
+        'song': <String>{},
+      };
+      for (final action in pendingActions) {
+        pendingByType[action.itemType]?.add(action.itemId);
+      }
+
+      final albumStarredAt = <String, DateTime?>{
+        for (final album in starred.albums) album.id: album.starred,
+      };
+      final artistStarredAt = <String, DateTime?>{
+        for (final artist in starred.artists) artist.id: artist.starred,
+      };
+      final songStarredAt = <String, DateTime?>{
+        for (final song in starred.songs) song.id: song.starred,
+      };
+
+      final albums = await _database.libraryDao.getAllAlbums();
+      for (final album in albums) {
+        if (pendingByType['album']!.contains(album.id)) {
+          continue;
+        }
+        final nextStarred = albumStarredAt[album.id];
+        if (album.starred != nextStarred) {
+          await _database.libraryDao.updateAlbumStarred(album.id, nextStarred);
+        }
+      }
+
+      final artists = await _database.libraryDao.getAllArtists();
+      for (final artist in artists) {
+        if (pendingByType['artist']!.contains(artist.id)) {
+          continue;
+        }
+        final nextStarred = artistStarredAt[artist.id];
+        if (artist.starred != nextStarred) {
+          await _database.libraryDao.updateArtistStarred(
+            artist.id,
+            nextStarred,
+          );
+        }
+      }
+
+      final songs = await _database.libraryDao.getAllSongs();
+      for (final song in songs) {
+        if (pendingByType['song']!.contains(song.id)) {
+          continue;
+        }
+        final nextStarred = songStarredAt[song.id];
+        if (song.starred != nextStarred) {
+          await _database.libraryDao.updateSongStarred(song.id, nextStarred);
+        }
+      }
+
+      metrics.addDbWriteBatch();
+    } on SubsonicNotFoundException {
+      AppLogger.debug(
+        'Starred content reconciliation skipped: endpoint unsupported.',
+      );
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning(
+        'Starred content reconciliation failed: $error\n$stackTrace',
+      );
     }
   }
 

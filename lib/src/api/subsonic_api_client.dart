@@ -266,14 +266,23 @@ class SubsonicApiClient {
     ).map(Song.fromJson).toList(growable: false);
   }
 
-  Future<List<Song>> getStarred2({CancelToken? cancelToken}) async {
+  Future<StarredContent> getStarred2({CancelToken? cancelToken}) async {
     final root = await _readRoot(
       '/rest/getStarred2.view',
       cancelToken: cancelToken,
     );
-    return _asMapList(
-      _asMap(root['starred2'])['song'],
-    ).map(Song.fromJson).toList(growable: false);
+    final starred = _asMap(root['starred2']);
+    return StarredContent(
+      albums: _asMapList(
+        starred['album'],
+      ).map(Album.fromJson).toList(growable: false),
+      artists: _asMapList(
+        starred['artist'],
+      ).map(Artist.fromJson).toList(growable: false),
+      songs: _asMapList(
+        starred['song'],
+      ).map(Song.fromJson).toList(growable: false),
+    );
   }
 
   Future<List<Song>> getNowPlaying({CancelToken? cancelToken}) async {
