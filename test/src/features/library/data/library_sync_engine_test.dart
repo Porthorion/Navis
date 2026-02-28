@@ -38,6 +38,7 @@ class _FakeLibrarySyncApi implements LibrarySyncApi {
   final Map<String, Album> albumDetails = <String, Album>{};
   final Map<int, List<Album>> fastPathPages = <int, List<Album>>{};
   final Map<int, List<Song>> bulkSongPages = <int, List<Song>>{};
+  StarredContent starredContent = const StarredContent();
   List<Genre> genres = <Genre>[];
   List<Playlist> playlists = <Playlist>[];
   Indexes indexes = const Indexes();
@@ -74,6 +75,9 @@ class _FakeLibrarySyncApi implements LibrarySyncApi {
     }
     return album;
   }
+
+  @override
+  Future<StarredContent> getStarredContent() async => starredContent;
 
   @override
   Future<List<Album>> getAlbumListPage({

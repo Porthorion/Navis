@@ -4,12 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/album_download_badge.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/common_widgets/song_cache_badge.dart';
 import 'package:navis/src/common_widgets/track_list_tile.dart';
+import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
 class GenreDetailScreen extends ConsumerWidget {
@@ -24,6 +26,11 @@ class GenreDetailScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
     final albums = ref.watch(albumsByGenreProvider(genreName));
     final songs = ref.watch(songsByGenreProvider(genreName));
+    Future<void> refresh() {
+      return ref
+          .read(librarySyncControllerProvider.notifier)
+          .syncNow(preferIncremental: true);
+    }
 
     return DefaultTabController(
       length: 2,
@@ -39,57 +46,78 @@ class GenreDetailScreen extends ConsumerWidget {
         ),
         body: TabBarView(
           children: <Widget>[
-            albums.when(
-              data: (items) {
-                if (items.isEmpty) {
-                  return EmptyState(
-                    title: l10n.libraryGenreAlbumsEmptyTitle,
-                    subtitle: l10n.libraryGenreAlbumsEmptySubtitle,
-                    icon: Icons.album_outlined,
-                  );
-                }
-                return ListView.builder(
-                  itemCount: items.length,
-                  itemBuilder: (context, index) {
-                    final album = items[index];
-                    return AlbumCard(
-                      album: album,
-                      onTap: () => context.go('/library/albums/${album.id}'),
+            RefreshIndicator(
+              onRefresh: refresh,
+              child: albums.when(
+                data: (items) {
+                  if (items.isEmpty) {
+                    return ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: <Widget>[
+                        EmptyState(
+                          title: l10n.libraryGenreAlbumsEmptyTitle,
+                          subtitle: l10n.libraryGenreAlbumsEmptySubtitle,
+                          icon: Icons.album_outlined,
+                        ),
+                      ],
                     );
-                  },
-                );
-              },
-              loading: () => const ShimmerListPage(count: 6, leadingSize: 56),
-              error: (error, _) => ErrorState(
-                title: l10n.libraryGenreLoadErrorTitle,
-                message: error.toString(),
-                onRetry: () => ref.invalidate(albumsByGenreProvider(genreName)),
+                  }
+                  return ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    itemCount: items.length,
+                    itemBuilder: (context, index) {
+                      final album = items[index];
+                      return AlbumCard(
+                        album: album,
+                        badge: AlbumDownloadBadge(albumId: album.id),
+                        onTap: () => context.go('/library/albums/${album.id}'),
+                      );
+                    },
+                  );
+                },
+                loading: () => const ShimmerListPage(count: 6, leadingSize: 56),
+                error: (error, _) => ErrorState(
+                  title: l10n.libraryGenreLoadErrorTitle,
+                  message: error.toString(),
+                  onRetry: () =>
+                      ref.invalidate(albumsByGenreProvider(genreName)),
+                ),
               ),
             ),
-            songs.when(
-              data: (items) {
-                if (items.isEmpty) {
-                  return EmptyState(
-                    title: l10n.libraryGenreSongsEmptyTitle,
-                    subtitle: l10n.libraryGenreSongsEmptySubtitle,
-                    icon: Icons.music_note_outlined,
-                  );
-                }
-                return ListView.builder(
-                  itemCount: items.length,
-                  itemBuilder: (context, index) {
-                    return TrackListTile(
-                      song: items[index],
-                      badge: SongCacheBadge(songId: items[index].id),
+            RefreshIndicator(
+              onRefresh: refresh,
+              child: songs.when(
+                data: (items) {
+                  if (items.isEmpty) {
+                    return ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: <Widget>[
+                        EmptyState(
+                          title: l10n.libraryGenreSongsEmptyTitle,
+                          subtitle: l10n.libraryGenreSongsEmptySubtitle,
+                          icon: Icons.music_note_outlined,
+                        ),
+                      ],
                     );
-                  },
-                );
-              },
-              loading: () => const ShimmerListPage(count: 8),
-              error: (error, _) => ErrorState(
-                title: l10n.libraryGenreLoadErrorTitle,
-                message: error.toString(),
-                onRetry: () => ref.invalidate(songsByGenreProvider(genreName)),
+                  }
+                  return ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    itemCount: items.length,
+                    itemBuilder: (context, index) {
+                      return TrackListTile(
+                        song: items[index],
+                        badge: SongCacheBadge(songId: items[index].id),
+                      );
+                    },
+                  );
+                },
+                loading: () => const ShimmerListPage(count: 8),
+                error: (error, _) => ErrorState(
+                  title: l10n.libraryGenreLoadErrorTitle,
+                  message: error.toString(),
+                  onRetry: () =>
+                      ref.invalidate(songsByGenreProvider(genreName)),
+                ),
               ),
             ),
           ],

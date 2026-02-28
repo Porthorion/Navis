@@ -570,6 +570,9 @@ class AppLocalizationsEn extends AppLocalizations {
       'Could not complete sign out. Try again.';
 
   @override
+  String get commonQueued => 'Queued';
+
+  @override
   String get commonRetry => 'Retry';
 
   @override
@@ -580,6 +583,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get libraryTabAlbums => 'Albums';
+
+  @override
+  String get libraryTabLiked => 'Liked';
 
   @override
   String get libraryTabSongs => 'Songs';
@@ -665,6 +671,29 @@ class AppLocalizationsEn extends AppLocalizations {
   String get libraryArtistsErrorTitle => 'Could not load artists';
 
   @override
+  String get libraryLikedAlbumsSectionTitle => 'Liked Albums';
+
+  @override
+  String get libraryLikedSongsSectionTitle => 'Liked Songs';
+
+  @override
+  String get libraryLikedEmptyTitle => 'Nothing liked yet';
+
+  @override
+  String get libraryLikedEmptySubtitle =>
+      'Like albums or songs to see them here.';
+
+  @override
+  String get libraryLikedOnlyFilter => 'Liked';
+
+  @override
+  String get libraryLikedOnlyEmptyTitle => 'No liked matches';
+
+  @override
+  String get libraryLikedOnlyEmptySubtitle =>
+      'Try turning off the liked filter or like more content.';
+
+  @override
   String get libraryAlbumsEmptyTitle => 'No albums found';
 
   @override
@@ -673,6 +702,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get libraryAlbumsErrorTitle => 'Could not load albums';
+
+  @override
+  String get libraryAlbumsByYearEmptyTitle => 'No albums with year data';
+
+  @override
+  String get libraryAlbumsByYearEmptySubtitle =>
+      'Sync more metadata or change filters to browse by year.';
 
   @override
   String get libraryAlbumsSortLabel => 'Sort albums by';
@@ -715,6 +751,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get librarySortNewest => 'Newest (Year)';
+
+  @override
+  String get librarySortByYear => 'By Year';
 
   @override
   String get librarySortOldest => 'Oldest';
@@ -865,6 +904,17 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get albumDetailTracksEmptySubtitle =>
       'Sync your library to load album tracks.';
+
+  @override
+  String get albumDetailLikedTracksEmptyTitle =>
+      'No liked tracks in this album';
+
+  @override
+  String get albumDetailLikedTracksEmptySubtitle =>
+      'This album is liked, but none of its individual tracks are liked yet.';
+
+  @override
+  String get albumDetailShowAllTracksAction => 'Show all tracks';
 
   @override
   String get albumDetailLoadErrorTitle => 'Could not load album details';
@@ -1445,6 +1495,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get downloadsErrorLoadingQueue => 'Could not load download queue.';
 
   @override
+  String get downloadsClearQueue => 'Clear queue';
+
+  @override
+  String get downloadsClearQueueConfirm =>
+      'Remove all queued downloads? Active downloads will be cancelled.';
+
+  @override
   String get libraryDownloadedOnlyFilter => 'Downloaded';
 
   @override
@@ -1455,11 +1512,22 @@ class AppLocalizationsEn extends AppLocalizations {
       'Download albums or tracks to see them here.';
 
   @override
+  String get libraryUnknownYear => 'Unknown year';
+
+  @override
   String get cacheSettingsWifiOnlyDownloads => 'Download on Wi-Fi only';
 
   @override
   String get cacheSettingsWifiOnlyDownloadsSub =>
       'Pause downloads when not connected to Wi-Fi.';
+
+  @override
+  String get cacheSettingsAutoDownloadStarredOnWifi =>
+      'Auto-download liked on Wi-Fi';
+
+  @override
+  String get cacheSettingsAutoDownloadStarredOnWifiSub =>
+      'Queue liked albums and songs for download when Wi-Fi becomes available.';
 
   @override
   String get cacheBadgeDownloaded => 'Downloaded';
@@ -1675,6 +1743,13 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get appearanceShowArtistsPageSubtitle =>
       'Show the Artists tab in the Library screen.';
+
+  @override
+  String get appearanceShowLikedPageTitle => 'Show Liked tab';
+
+  @override
+  String get appearanceShowLikedPageSubtitle =>
+      'Show the Liked tab in the Library screen.';
 
   @override
   String cacheSettingsCoverArtSizeLabel(String size) {

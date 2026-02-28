@@ -6,6 +6,8 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:drift/drift.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
+import 'package:navis/src/common_widgets/cover_art_image.dart'
+    show defaultCoverArtCacheManager;
 import 'package:navis/src/database/daos/cache_dao.dart';
 import 'package:navis/src/database/daos/download_queue_dao.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
@@ -369,6 +371,20 @@ class DownloadService {
 
         // Remove from queue.
         await _downloadQueueDao.remove(item.id);
+
+        // Pre-cache cover art alongside the audio file (best-effort).
+        final coverArtId = song.coverArt;
+        if (coverArtId != null && coverArtId.isNotEmpty) {
+          final artUrl =
+              api.getCoverArtUrl(id: coverArtId, size: 300).toString();
+          unawaited(
+            defaultCoverArtCacheManager
+                .downloadFile(artUrl, key: '$coverArtId:300')
+                .then((_) {})
+                .catchError((_) {}),
+          );
+        }
+
         unawaited(DownloadNotifier.dismissProgress());
         unawaited(
           DownloadNotifier.showComplete(title: 'Downloaded: $songTitle'),

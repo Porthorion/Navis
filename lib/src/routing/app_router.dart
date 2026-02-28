@@ -124,6 +124,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                       key: state.pageKey,
                       child: AlbumDetailScreen(
                         albumId: state.pathParameters['id']!,
+                        likedOnly:
+                            state.uri.queryParameters['likedOnly'] == '1',
                       ),
                     ),
                   ),

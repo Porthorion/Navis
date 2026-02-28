@@ -31,6 +31,8 @@ class AppSettingsTable extends Table {
   BoolColumn get showArtistsPage =>
       boolean().withDefault(const Constant(true))();
 
+  BoolColumn get showLikedPage => boolean().withDefault(const Constant(true))();
+
   BoolColumn get equalizerEnabled =>
       boolean().withDefault(const Constant(false))();
 
@@ -47,6 +49,10 @@ class AppSettingsTable extends Table {
 
   /// When true, downloads only proceed on Wi-Fi / Ethernet.
   BoolColumn get wifiOnlyDownloads =>
+      boolean().withDefault(const Constant(false))();
+
+  /// When true, liked albums and songs enqueue for permanent download on Wi-Fi.
+  BoolColumn get autoDownloadStarredOnWifi =>
       boolean().withDefault(const Constant(false))();
 
   /// Theme mode: 'light', 'dark', 'oled', or 'system'. Defaults to 'dark'.

@@ -53,7 +53,7 @@ class DriftRollingCacheManager implements RollingCacheManager {
     final stat = file.statSync();
     final normalizedFormat = _normalizeFormat(format, filePath);
 
-    await _cacheDao.upsertCachedTrack(
+    await _cacheDao.upsertRollingCachedTrack(
       CachedTracksTableCompanion.insert(
         songId: songId,
         filePath: filePath,

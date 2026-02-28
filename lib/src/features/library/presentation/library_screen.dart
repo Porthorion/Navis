@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/subsonic_error.dart';
+import 'package:navis/src/common_widgets/album_download_badge.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/artist_card.dart';
@@ -12,17 +13,21 @@ import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
+import 'package:navis/src/common_widgets/song_cache_badge.dart';
+import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/features/library/presentation/library_browse_models.dart';
 import 'package:navis/src/features/library/presentation/radio_screen.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
-enum _AlbumSort { recentlyAdded, newest, name, artist }
+enum _AlbumSort { recentlyAdded, newest, name, artist, byYear }
 
 class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
@@ -35,12 +40,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     with TickerProviderStateMixin {
   _AlbumSort _albumSort = _AlbumSort.recentlyAdded;
   bool _downloadedOnly = false;
+  bool _artistsLikedOnly = false;
   final ScrollController _albumsScrollController = ScrollController();
+  final ScrollController _likedScrollController = ScrollController();
   final ScrollController _playlistsScrollController = ScrollController();
   final ScrollController _radioScrollController = ScrollController();
   final ItemScrollController _artistsItemScrollController =
       ItemScrollController();
   final ItemPositionsListener _artistsItemPositionsListener =
+      ItemPositionsListener.create();
+  final ItemScrollController _yearItemScrollController = ItemScrollController();
+  final ItemPositionsListener _yearItemPositionsListener =
       ItemPositionsListener.create();
   List<ArtistsTableData>? _cachedArtists;
   List<_ArtistListItem> _artistListItems = const <_ArtistListItem>[];
@@ -50,6 +60,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   int _loadedAlbumPages = 1;
   String _lastVisibleAlbumSignature = '';
   List<AlbumsTableData>? _cachedAlbums;
+  List<_YearListItem> _yearListItems = const <_YearListItem>[];
+  List<AlbumYearSection>? _cachedYearSectionsSource;
+  Map<String, int> _yearDecadeStartIndex = const <String, int>{};
+  String? _activeYearDecade;
+  bool _isYearRailScrubbing = false;
   TabController? _tabController;
 
   @override
@@ -59,6 +74,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     _artistsItemPositionsListener.itemPositions.addListener(
       _onArtistsViewportChanged,
     );
+    _yearItemPositionsListener.itemPositions.addListener(
+      _onYearViewportChanged,
+    );
   }
 
   @override
@@ -67,10 +85,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     _albumsScrollController
       ..removeListener(_onAlbumsScroll)
       ..dispose();
+    _likedScrollController.dispose();
     _playlistsScrollController.dispose();
     _radioScrollController.dispose();
     _artistsItemPositionsListener.itemPositions.removeListener(
       _onArtistsViewportChanged,
+    );
+    _yearItemPositionsListener.itemPositions.removeListener(
+      _onYearViewportChanged,
     );
     super.dispose();
   }
@@ -86,8 +108,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     final tab = _tabController?.index ?? 0;
 
     if (tab == 0) {
-      // Albums
-      if (_albumsScrollController.hasClients) {
+      if (_albumSort == _AlbumSort.byYear) {
+        if (_yearItemScrollController.isAttached) {
+          unawaited(
+            _yearItemScrollController.scrollTo(
+              index: 0,
+              duration: const Duration(milliseconds: 450),
+              curve: Curves.easeOutCubic,
+            ),
+          );
+        }
+      } else if (_albumsScrollController.hasClients) {
         _albumsScrollController.animateTo(
           0,
           duration: const Duration(milliseconds: 450),
@@ -98,6 +129,20 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     }
 
     var offset = 1;
+
+    if (ref.read(showLikedPageProvider)) {
+      if (tab == offset) {
+        if (_likedScrollController.hasClients) {
+          _likedScrollController.animateTo(
+            0,
+            duration: const Duration(milliseconds: 450),
+            curve: Curves.easeOutCubic,
+          );
+        }
+        return;
+      }
+      offset++;
+    }
 
     if (ref.read(showArtistsPageProvider)) {
       if (tab == offset) {
@@ -152,8 +197,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     final showRadioTab = ref.watch(showRadioPageProvider);
     final showArtistsTab = ref.watch(showArtistsPageProvider);
     final showPlaylistsTab = ref.watch(showPlaylistsPageProvider);
+    final showLikedTab = ref.watch(showLikedPageProvider);
     final tabCount =
         1 +
+        (showLikedTab ? 1 : 0) +
         (showArtistsTab ? 1 : 0) +
         (showPlaylistsTab ? 1 : 0) +
         (showRadioTab ? 1 : 0);
@@ -172,6 +219,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           controller: tabController,
           tabs: <Widget>[
             Tab(text: l10n.libraryTabAlbums),
+            if (showLikedTab) Tab(text: l10n.libraryTabLiked),
             if (showArtistsTab) Tab(text: l10n.libraryTabArtists),
             if (showPlaylistsTab) Tab(text: l10n.navPlaylists),
             if (showRadioTab) Tab(text: l10n.navRadio),
@@ -184,11 +232,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           Expanded(
             child: TabBarView(
               controller: tabController,
-              physics: _isArtistRailScrubbing
+              physics: (_isArtistRailScrubbing || _isYearRailScrubbing)
                   ? const NeverScrollableScrollPhysics()
                   : const PageScrollPhysics(),
               children: <Widget>[
                 _buildAlbumsTab(context),
+                if (showLikedTab) _buildLikedTab(context),
                 if (showArtistsTab) _buildArtistsTab(context),
                 if (showPlaylistsTab)
                   _LibraryPlaylistsTab(
@@ -227,151 +276,181 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
   Widget _buildArtistsTab(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final artists = ref.watch(artistsProvider);
+    final artists = ref.watch(
+      _artistsLikedOnly ? likedArtistsProvider : artistsProvider,
+    );
     // Watch downloaded content IDs so filter updates reactively.
     if (_downloadedOnly) {
       ref.watch(downloadedContentIdsProvider);
     }
 
-    return RefreshIndicator(
-      onRefresh: _refreshLibrary,
-      child: artists.when(
-        data: (items) {
-          final filteredItems = _downloadedOnly
-              ? _filterDownloadedArtists(items)
-              : items;
-          if (filteredItems.isEmpty) {
-            return ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              children: <Widget>[
-                EmptyState(
-                  title: _downloadedOnly
-                      ? l10n.libraryDownloadedOnlyEmpty
-                      : l10n.libraryArtistsEmptyTitle,
-                  subtitle: _downloadedOnly
-                      ? l10n.libraryDownloadedOnlyEmptySubtitle
-                      : l10n.libraryArtistsEmptySubtitle,
-                  icon: _downloadedOnly
-                      ? Icons.download_done_outlined
-                      : Icons.person_outline,
-                ),
-              ],
-            );
-          }
-
-          _ensureArtistListCache(filteredItems);
-          final letters = _artistLetterStartIndex.keys.toList(growable: false);
-
-          return Stack(
+    return Column(
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: <Widget>[
-              ScrollablePositionedList.builder(
-                itemCount: _artistListItems.length,
-                itemScrollController: _artistsItemScrollController,
-                itemPositionsListener: _artistsItemPositionsListener,
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.only(bottom: 16, right: 28),
-                itemBuilder: (context, index) {
-                  final item = _artistListItems[index];
-                  if (item.artist == null) {
-                    return Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                      child: Text(
-                        item.letter,
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                    );
-                  }
-                  final artist = item.artist!;
-                  return RepaintBoundary(
-                    child: ArtistCard(
-                      artist: artist,
-                      onTap: () => context.go('/library/artists/${artist.id}'),
-                      onLongPress: () => _showArtistMenu(context, artist),
-                      onStarToggled: () => _toggleArtistStar(artist),
-                    ),
-                  );
-                },
-              ),
-              Positioned(
-                right: 0,
-                top: 8,
-                bottom: 8,
-                child: _ArtistAlphabetRail(
-                  letters: letters,
-                  activeLetter: _activeArtistLetter,
-                  onLetterSelected: _scrollToArtistLetter,
-                  onInteractionStart: () {
-                    if (_isArtistRailScrubbing) {
-                      return;
-                    }
-                    setState(() => _isArtistRailScrubbing = true);
-                  },
-                  onInteractionEnd: () {
-                    if (!_isArtistRailScrubbing) {
-                      return;
-                    }
-                    setState(() => _isArtistRailScrubbing = false);
-                  },
+              FilterChip(
+                label: Text(l10n.libraryDownloadedOnlyFilter),
+                selected: _downloadedOnly,
+                onSelected: (value) => setState(() => _downloadedOnly = value),
+                avatar: Icon(
+                  _downloadedOnly
+                      ? Icons.download_done
+                      : Icons.download_outlined,
+                  size: 18,
                 ),
               ),
-              if (_isArtistRailScrubbing && _activeArtistLetter != null)
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: Center(
-                      child: DecoratedBox(
-                        key: const Key('artistAlphabetOverlay'),
-                        decoration: BoxDecoration(
-                          color:
-                              Theme.of(
-                                context,
-                              ).colorScheme.surfaceContainerHigh.withValues(
-                                alpha: 0.92,
-                              ),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 18,
-                            vertical: 12,
-                          ),
-                          child: Text(
-                            _activeArtistLetter!,
-                            style: Theme.of(context).textTheme.headlineMedium
-                                ?.copyWith(fontWeight: FontWeight.w700),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
+              FilterChip(
+                label: Text(l10n.libraryLikedOnlyFilter),
+                selected: _artistsLikedOnly,
+                onSelected: (value) =>
+                    setState(() => _artistsLikedOnly = value),
+                avatar: Icon(
+                  _artistsLikedOnly
+                      ? Icons.favorite
+                      : Icons.favorite_border_outlined,
+                  size: 18,
                 ),
+              ),
             ],
-          );
-        },
-        loading: () => ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          children: const <Widget>[
-            _LoadingListPlaceholder(),
-            _LoadingListPlaceholder(),
-            _LoadingListPlaceholder(),
-          ],
+          ),
         ),
-        error: (error, _) => ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          children: <Widget>[
-            ErrorState(
-              title: l10n.libraryArtistsErrorTitle,
-              message: error.toString(),
-              onRetry: _refreshLibrary,
-              retryLabel: l10n.commonRetry,
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: _refreshLibrary,
+            child: artists.when(
+              data: (items) {
+                final filteredItems = _downloadedOnly
+                    ? _filterDownloadedArtists(items)
+                    : items;
+                if (filteredItems.isEmpty) {
+                  return ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: <Widget>[
+                      EmptyState(
+                        title: _artistsLikedOnly
+                            ? l10n.libraryLikedOnlyEmptyTitle
+                            : _downloadedOnly
+                            ? l10n.libraryDownloadedOnlyEmpty
+                            : l10n.libraryArtistsEmptyTitle,
+                        subtitle: _artistsLikedOnly
+                            ? l10n.libraryLikedOnlyEmptySubtitle
+                            : _downloadedOnly
+                            ? l10n.libraryDownloadedOnlyEmptySubtitle
+                            : l10n.libraryArtistsEmptySubtitle,
+                        icon: _artistsLikedOnly
+                            ? Icons.favorite_border_outlined
+                            : _downloadedOnly
+                            ? Icons.download_done_outlined
+                            : Icons.person_outline,
+                      ),
+                    ],
+                  );
+                }
+
+                _ensureArtistListCache(filteredItems);
+                final letters = _artistLetterStartIndex.keys.toList(
+                  growable: false,
+                );
+
+                return Stack(
+                  children: <Widget>[
+                    ScrollablePositionedList.builder(
+                      itemCount: _artistListItems.length,
+                      itemScrollController: _artistsItemScrollController,
+                      itemPositionsListener: _artistsItemPositionsListener,
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.only(bottom: 16, right: 28),
+                      itemBuilder: (context, index) {
+                        final item = _artistListItems[index];
+                        if (item.artist == null) {
+                          return Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                            child: Text(
+                              item.letter,
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                          );
+                        }
+                        final artist = item.artist!;
+                        return RepaintBoundary(
+                          child: ArtistCard(
+                            artist: artist,
+                            onTap: () =>
+                                context.go('/library/artists/${artist.id}'),
+                            onLongPress: () => _showArtistMenu(context, artist),
+                            onStarToggled: () => _toggleArtistStar(artist),
+                          ),
+                        );
+                      },
+                    ),
+                    Positioned(
+                      right: 0,
+                      top: 8,
+                      bottom: 8,
+                      child: _SectionRail(
+                        railKey: const Key('artistAlphabetRail'),
+                        activeLabelKey: const Key('artistRailActiveLetter'),
+                        labels: letters,
+                        activeLabel: _activeArtistLetter,
+                        onLabelSelected: _scrollToArtistLetter,
+                        onInteractionStart: () {
+                          if (_isArtistRailScrubbing) {
+                            return;
+                          }
+                          setState(() => _isArtistRailScrubbing = true);
+                        },
+                        onInteractionEnd: () {
+                          if (!_isArtistRailScrubbing) {
+                            return;
+                          }
+                          setState(() => _isArtistRailScrubbing = false);
+                        },
+                      ),
+                    ),
+                    if (_isArtistRailScrubbing && _activeArtistLetter != null)
+                      _RailOverlay(
+                        overlayKey: const Key('artistAlphabetOverlay'),
+                        label: _activeArtistLetter!,
+                      ),
+                  ],
+                );
+              },
+              loading: () => ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: const <Widget>[
+                  _LoadingListPlaceholder(),
+                  _LoadingListPlaceholder(),
+                  _LoadingListPlaceholder(),
+                ],
+              ),
+              error: (error, _) => ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: <Widget>[
+                  ErrorState(
+                    title: l10n.libraryArtistsErrorTitle,
+                    message: error.toString(),
+                    onRetry: _refreshLibrary,
+                    retryLabel: l10n.commonRetry,
+                  ),
+                ],
+              ),
             ),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 
   Widget _buildAlbumsTab(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    if (_albumSort == _AlbumSort.byYear) {
+      return _buildAlbumsByYearTab(context);
+    }
+
     final pageSize = ref.watch(albumPageSizeProvider);
     final totalAlbumsAsync = ref.watch(albumCountProvider);
     final limit = pageSize * _loadedAlbumPages;
@@ -379,13 +458,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     if (_downloadedOnly) {
       ref.watch(downloadedContentIdsProvider);
     }
+    final sortOrder = _toAlbumSortOrder(_albumSort);
     final albumsAsync = ref.watch(
-      pagedAlbumsProvider(
-        (
-          sort: _toAlbumSortOrder(_albumSort),
-          limit: limit,
-        ),
-      ),
+      pagedAlbumsProvider((sort: sortOrder, limit: limit)),
     );
 
     // Preserve previous album data while loading a new page to avoid
@@ -466,6 +541,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                         value: _AlbumSort.artist,
                         child: Text(l10n.librarySortArtist),
                       ),
+                      DropdownMenuItem(
+                        value: _AlbumSort.byYear,
+                        child: Text(l10n.librarySortByYear),
+                      ),
                     ],
                     onSortChanged: (value) {
                       if (value != null) {
@@ -473,6 +552,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                           _albumSort = value;
                           _loadedAlbumPages = 1;
                           _cachedAlbums = null;
+                          _yearListItems = const <_YearListItem>[];
+                          _cachedYearSectionsSource = null;
                         });
                         if (_albumsScrollController.hasClients) {
                           _albumsScrollController.jumpTo(0);
@@ -522,6 +603,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                               coverArtId: album.coverArt,
                               context: 'album',
                             ),
+                            badge: AlbumDownloadBadge(albumId: album.id),
                             onTap: () {
                               ref
                                   .read(librarySyncControllerProvider.notifier)
@@ -556,7 +638,343 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     );
   }
 
+  Widget _buildAlbumsByYearTab(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    if (_downloadedOnly) {
+      ref.watch(downloadedContentIdsProvider);
+    }
+    final sectionsAsync = ref.watch(
+      albumYearSectionsProvider(
+        (likedOnly: false, downloadedOnly: _downloadedOnly),
+      ),
+    );
+    if (sectionsAsync.asData != null) {
+      _ensureYearListCache(sectionsAsync.asData!.value);
+    }
+
+    return Column(
+      children: <Widget>[
+        _SortFilterRow<_AlbumSort>(
+          sortLabel: l10n.libraryAlbumsSortLabel,
+          sortValue: _albumSort,
+          sortItems: <DropdownMenuItem<_AlbumSort>>[
+            DropdownMenuItem(
+              value: _AlbumSort.recentlyAdded,
+              child: Text(l10n.librarySortRecentlyAdded),
+            ),
+            DropdownMenuItem(
+              value: _AlbumSort.newest,
+              child: Text(l10n.librarySortNewest),
+            ),
+            DropdownMenuItem(
+              value: _AlbumSort.name,
+              child: Text(l10n.librarySortName),
+            ),
+            DropdownMenuItem(
+              value: _AlbumSort.artist,
+              child: Text(l10n.librarySortArtist),
+            ),
+            DropdownMenuItem(
+              value: _AlbumSort.byYear,
+              child: Text(l10n.librarySortByYear),
+            ),
+          ],
+          onSortChanged: (value) {
+            if (value == null) {
+              return;
+            }
+            setState(() {
+              _albumSort = value;
+              _cachedAlbums = null;
+              _yearListItems = const <_YearListItem>[];
+              _cachedYearSectionsSource = null;
+            });
+          },
+          downloadedOnly: _downloadedOnly,
+          onDownloadedOnlyChanged: (value) {
+            setState(() {
+              _downloadedOnly = value;
+              _yearListItems = const <_YearListItem>[];
+              _cachedYearSectionsSource = null;
+            });
+          },
+        ),
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: _refreshLibrary,
+            child: _yearListItems.isEmpty && sectionsAsync.asData == null
+                ? ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: const <Widget>[
+                      _LoadingListPlaceholder(),
+                      _LoadingListPlaceholder(),
+                      _LoadingListPlaceholder(),
+                    ],
+                  )
+                : _yearListItems.isEmpty
+                ? ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: <Widget>[
+                      EmptyState(
+                        title: l10n.libraryAlbumsByYearEmptyTitle,
+                        subtitle: l10n.libraryAlbumsByYearEmptySubtitle,
+                        icon: Icons.calendar_today_outlined,
+                      ),
+                    ],
+                  )
+                : Stack(
+                    children: <Widget>[
+                      ScrollablePositionedList.builder(
+                        itemCount: _yearListItems.length,
+                        itemScrollController: _yearItemScrollController,
+                        itemPositionsListener: _yearItemPositionsListener,
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(12, 0, 52, 12),
+                        itemBuilder: (context, index) {
+                          final item = _yearListItems[index];
+                          if (item.isHeader) {
+                            return Padding(
+                              padding: const EdgeInsets.fromLTRB(4, 16, 4, 8),
+                              child: Text(
+                                item.isUnknownYear
+                                    ? l10n.libraryUnknownYear
+                                    : item.label,
+                                style:
+                                    Theme.of(context).textTheme.titleLarge,
+                              ),
+                            );
+                          }
+                          // Album pair row.
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Expanded(
+                                  child: AspectRatio(
+                                    aspectRatio: 1,
+                                    child: _buildYearAlbumCard(
+                                      context,
+                                      item.albums[0],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: item.albums.length > 1
+                                      ? AspectRatio(
+                                          aspectRatio: 1,
+                                          child: _buildYearAlbumCard(
+                                            context,
+                                            item.albums[1],
+                                          ),
+                                        )
+                                      : const SizedBox.shrink(),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                      Positioned(
+                        right: 0,
+                        top: 8,
+                        bottom: 8,
+                        child: _SectionRail(
+                          railKey: const Key('albumYearRail'),
+                          width: 52,
+                          labels: _yearDecadeStartIndex.keys.toList(
+                            growable: false,
+                          ),
+                          activeLabel: _activeYearDecade,
+                          onLabelSelected: _scrollToYearDecade,
+                          onInteractionStart: () {
+                            if (_isYearRailScrubbing) {
+                              return;
+                            }
+                            setState(() => _isYearRailScrubbing = true);
+                          },
+                          onInteractionEnd: () {
+                            if (!_isYearRailScrubbing) {
+                              return;
+                            }
+                            setState(() => _isYearRailScrubbing = false);
+                          },
+                        ),
+                      ),
+                      if (_isYearRailScrubbing && _activeYearDecade != null)
+                        _RailOverlay(
+                          overlayKey: const Key('albumYearOverlay'),
+                          label: _activeYearDecade!,
+                        ),
+                    ],
+                  ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildYearAlbumCard(BuildContext context, AlbumsTableData album) {
+    return RepaintBoundary(
+      child: AlbumCard(
+        key: ValueKey('year-album-${album.id}'),
+        album: album,
+        size: AlbumCardSize.library,
+        heroTag: buildCoverArtHeroTag(
+          coverArtId: album.coverArt,
+          context: 'year_album',
+        ),
+        badge: AlbumDownloadBadge(albumId: album.id),
+        onTap: () {
+          ref
+              .read(librarySyncControllerProvider.notifier)
+              .registerAlbumInteraction(album.id);
+          context.go('/library/albums/${album.id}');
+        },
+        onLongPress: () => _showAlbumMenu(context, album),
+      ),
+    );
+  }
+
+  Widget _buildLikedTab(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final likedAlbumsAsync = ref.watch(likedAlbumsProvider);
+    final likedSongsAsync = ref.watch(likedSongsProvider);
+
+    final isLoading = likedAlbumsAsync.isLoading || likedSongsAsync.isLoading;
+    final albums = likedAlbumsAsync.asData?.value ?? const <AlbumsTableData>[];
+    final songs = likedSongsAsync.asData?.value ?? const <SongsTableData>[];
+    final error = likedAlbumsAsync.error ?? likedSongsAsync.error;
+
+    if (error != null && albums.isEmpty && songs.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: _refreshLibrary,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: <Widget>[
+            ErrorState(
+              title: l10n.libraryAlbumsErrorTitle,
+              message: error.toString(),
+              onRetry: _refreshLibrary,
+              retryLabel: l10n.commonRetry,
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (isLoading && albums.isEmpty && songs.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: _refreshLibrary,
+        child: ListView(
+          controller: _likedScrollController,
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: const <Widget>[
+            _LoadingListPlaceholder(),
+            _LoadingListPlaceholder(),
+            _LoadingListPlaceholder(),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _refreshLibrary,
+      child: CustomScrollView(
+        controller: _likedScrollController,
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: <Widget>[
+          if (albums.isEmpty && songs.isEmpty)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: EmptyState(
+                title: l10n.libraryLikedEmptyTitle,
+                subtitle: l10n.libraryLikedEmptySubtitle,
+                icon: Icons.favorite_border_outlined,
+              ),
+            )
+          else ...<Widget>[
+            if (albums.isNotEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Text(
+                    l10n.libraryLikedAlbumsSectionTitle,
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+              ),
+            if (albums.isNotEmpty)
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                sliver: SliverGrid(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    childAspectRatio: 1,
+                    crossAxisSpacing: 8,
+                    mainAxisSpacing: 8,
+                  ),
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    final album = albums[index];
+                    return RepaintBoundary(
+                      child: AlbumCard(
+                        key: ValueKey('liked-album-${album.id}'),
+                        album: album,
+                        size: AlbumCardSize.library,
+                        heroTag: buildCoverArtHeroTag(
+                          coverArtId: album.coverArt,
+                          context: 'liked_album',
+                        ),
+                        badge: AlbumDownloadBadge(albumId: album.id),
+                        onTap: () {
+                          ref
+                              .read(librarySyncControllerProvider.notifier)
+                              .registerAlbumInteraction(album.id);
+                          context.go('/library/albums/${album.id}?likedOnly=1');
+                        },
+                        onLongPress: () => _showAlbumMenu(context, album),
+                      ),
+                    );
+                  }, childCount: albums.length),
+                ),
+              ),
+            if (songs.isNotEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                  child: Text(
+                    l10n.libraryLikedSongsSectionTitle,
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+              ),
+            if (songs.isNotEmpty)
+              SliverList(
+                delegate: SliverChildBuilderDelegate((context, index) {
+                  final song = songs[index];
+                  return TrackListTile(
+                    song: song,
+                    showAlbumArt: true,
+                    badge: SongCacheBadge(songId: song.id),
+                    onTap: () {
+                      ref.read(queueProvider.notifier).replace([
+                        song.id,
+                      ]).ignore();
+                    },
+                  );
+                }, childCount: songs.length),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+
   void _onAlbumsScroll() {
+    if (_albumSort == _AlbumSort.byYear) {
+      return;
+    }
     if (!_albumsScrollController.hasClients) {
       return;
     }
@@ -571,7 +989,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       return;
     }
 
-    final totalAlbums = ref.read(albumCountProvider).asData?.value;
+    final totalAlbums = ref
+        .read(albumCountProvider)
+        .asData
+        ?.value;
     final pageSize = ref.read(albumPageSizeProvider);
     if (totalAlbums == null) {
       return;
@@ -583,6 +1004,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   }
 
   void _reportVisibleAlbumPriority(List<AlbumsTableData> albums) {
+    if (_albumSort == _AlbumSort.byYear) {
+      return;
+    }
     if (albums.isEmpty) {
       return;
     }
@@ -613,6 +1037,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       _AlbumSort.newest => AlbumSortOrder.newest,
       _AlbumSort.name => AlbumSortOrder.name,
       _AlbumSort.artist => AlbumSortOrder.artist,
+      _AlbumSort.byYear => AlbumSortOrder.newest,
     };
   }
 
@@ -732,6 +1157,92 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     setState(() => _activeArtistLetter = topLetter);
   }
 
+  void _ensureYearListCache(List<AlbumYearSection> sections) {
+    if (identical(_cachedYearSectionsSource, sections) &&
+        _yearListItems.isNotEmpty) {
+      return;
+    }
+    _cachedYearSectionsSource = sections;
+    final items = <_YearListItem>[];
+    final decadeIndex = <String, int>{};
+    for (final section in sections) {
+      final headerIndex = items.length;
+      items.add(
+        _YearListItem.header(
+          label: section.title,
+          isUnknownYear: section.isUnknownYear,
+          decadeStart: section.decadeStart,
+        ),
+      );
+      if (section.decadeStart != null) {
+        final key = '${section.decadeStart}s';
+        decadeIndex.putIfAbsent(key, () => headerIndex);
+      }
+      for (var i = 0; i < section.albums.length; i += 2) {
+        final left = section.albums[i];
+        final right = (i + 1 < section.albums.length)
+            ? section.albums[i + 1]
+            : null;
+        items.add(_YearListItem.albumRow(left, right));
+      }
+    }
+    _yearListItems = items;
+    _yearDecadeStartIndex = decadeIndex;
+    if (_yearDecadeStartIndex.isEmpty) {
+      _activeYearDecade = null;
+    } else if (_activeYearDecade == null ||
+        !_yearDecadeStartIndex.containsKey(_activeYearDecade)) {
+      _activeYearDecade = _yearDecadeStartIndex.keys.first;
+    }
+  }
+
+  void _onYearViewportChanged() {
+    if (_yearListItems.isEmpty || _isYearRailScrubbing) {
+      return;
+    }
+    final positions = _yearItemPositionsListener.itemPositions.value;
+    if (positions.isEmpty) {
+      return;
+    }
+    final visible = positions
+        .where(
+          (position) =>
+              position.itemTrailingEdge > 0 && position.itemLeadingEdge < 1,
+        )
+        .toList(growable: false);
+    if (visible.isEmpty) {
+      return;
+    }
+    final candidates = visible
+        .where((position) => position.itemLeadingEdge >= 0)
+        .toList(growable: false);
+    final targetSet = candidates.isEmpty ? visible : candidates;
+    targetSet.sort((a, b) {
+      final byEdge = a.itemLeadingEdge.compareTo(b.itemLeadingEdge);
+      if (byEdge != 0) {
+        return byEdge;
+      }
+      return a.index.compareTo(b.index);
+    });
+    final topIndex = targetSet.first.index.clamp(
+      0,
+      _yearListItems.length - 1,
+    );
+    // Walk back through the flat list to find the nearest section header.
+    String? label;
+    for (var i = topIndex; i >= 0; i--) {
+      final item = _yearListItems[i];
+      if (item.isHeader && item.decadeStart != null) {
+        label = '${item.decadeStart}s';
+        break;
+      }
+    }
+    if (label == null || label == _activeYearDecade || !mounted) {
+      return;
+    }
+    setState(() => _activeYearDecade = label!);
+  }
+
   void _scrollToArtistLetter(
     String letter, {
     required bool animate,
@@ -757,6 +1268,30 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       return;
     }
     _artistsItemScrollController.jumpTo(index: sectionIndex);
+  }
+
+  void _scrollToYearDecade(
+    String label, {
+    required bool animate,
+  }) {
+    if (_activeYearDecade != label) {
+      setState(() => _activeYearDecade = label);
+    }
+    final sectionIndex = _yearDecadeStartIndex[label];
+    if (sectionIndex == null || !_yearItemScrollController.isAttached) {
+      return;
+    }
+    if (animate) {
+      unawaited(
+        _yearItemScrollController.scrollTo(
+          index: sectionIndex,
+          duration: const Duration(milliseconds: 140),
+          curve: Curves.easeOut,
+        ),
+      );
+      return;
+    }
+    _yearItemScrollController.jumpTo(index: sectionIndex);
   }
 
   // Kept for future star action in album context menu.
@@ -1001,44 +1536,50 @@ class _SyncStatusBanner extends StatelessWidget {
   }
 }
 
-class _ArtistAlphabetRail extends StatelessWidget {
-  const _ArtistAlphabetRail({
-    required this.letters,
-    required this.activeLetter,
-    required this.onLetterSelected,
+class _SectionRail extends StatelessWidget {
+  const _SectionRail({
+    required this.labels,
+    required this.activeLabel,
+    required this.onLabelSelected,
     required this.onInteractionStart,
     required this.onInteractionEnd,
+    this.railKey,
+    this.activeLabelKey,
+    this.width = 36,
   });
 
-  final List<String> letters;
-  final String? activeLetter;
-  final void Function(String letter, {required bool animate}) onLetterSelected;
+  final Key? railKey;
+  final Key? activeLabelKey;
+  final double width;
+  final List<String> labels;
+  final String? activeLabel;
+  final void Function(String label, {required bool animate}) onLabelSelected;
   final VoidCallback onInteractionStart;
   final VoidCallback onInteractionEnd;
 
   @override
   Widget build(BuildContext context) {
-    if (letters.isEmpty) {
+    if (labels.isEmpty) {
       return const SizedBox.shrink();
     }
 
     return SizedBox(
-      key: const Key('artistAlphabetRail'),
-      width: 36,
+      key: railKey,
+      width: width,
       child: LayoutBuilder(
         builder: (context, constraints) {
           void selectAtDy(double dy) {
             if (constraints.maxHeight <= 0) {
               return;
             }
-            final normalized = ((dy / constraints.maxHeight) * letters.length)
-                .clamp(0, letters.length - 0.0001);
+            final normalized = ((dy / constraints.maxHeight) * labels.length)
+                .clamp(0, labels.length - 0.0001);
             final index = normalized.floor().clamp(
               0,
-              letters.length - 1,
+              labels.length - 1,
             );
-            onLetterSelected(
-              letters[index],
+            onLabelSelected(
+              labels[index],
               animate: false,
             );
           }
@@ -1061,23 +1602,21 @@ class _ArtistAlphabetRail extends StatelessWidget {
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Column(
-                children: letters
+                children: labels
                     .map(
-                      (letter) => Expanded(
+                      (label) => Expanded(
                         child: Center(
                           child: Text(
-                            letter,
-                            key: letter == activeLetter
-                                ? const Key('artistRailActiveLetter')
-                                : null,
+                            label,
+                            key: label == activeLabel ? activeLabelKey : null,
                             style:
                                 Theme.of(
                                   context,
                                 ).textTheme.labelSmall?.copyWith(
-                                  color: letter == activeLetter
+                                  color: label == activeLabel
                                       ? Theme.of(context).colorScheme.primary
                                       : null,
-                                  fontWeight: letter == activeLetter
+                                  fontWeight: label == activeLabel
                                       ? FontWeight.w700
                                       : FontWeight.w500,
                                 ),
@@ -1090,6 +1629,47 @@ class _ArtistAlphabetRail extends StatelessWidget {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+class _RailOverlay extends StatelessWidget {
+  const _RailOverlay({
+    required this.overlayKey,
+    required this.label,
+  });
+
+  final Key overlayKey;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: Center(
+          child: DecoratedBox(
+            key: overlayKey,
+            decoration: BoxDecoration(
+              color: Theme.of(
+                context,
+              ).colorScheme.surfaceContainerHigh.withValues(alpha: 0.92),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              child: Text(
+                label,
+                style:
+                    Theme.of(
+                      context,
+                    ).textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -1108,6 +1688,29 @@ class _ArtistListItem {
   final ArtistsTableData? artist;
 }
 
+/// A flat list item for the By Year album view.
+/// Either a section header (isHeader == true) or a row of 1–2 album cards.
+class _YearListItem {
+  _YearListItem.header({
+    required this.label,
+    required this.isUnknownYear,
+    this.decadeStart,
+  }) : albums = const [];
+
+  _YearListItem.albumRow(AlbumsTableData left, [AlbumsTableData? right])
+    : label = '',
+      isUnknownYear = false,
+      decadeStart = null,
+      albums = right != null ? [left, right] : [left];
+
+  final String label;                  // non-empty for headers
+  final bool isUnknownYear;            // true when year is unknown
+  final int? decadeStart;              // decade start year for headers
+  final List<AlbumsTableData> albums;  // empty = header, 1–2 = album row
+
+  bool get isHeader => albums.isEmpty;
+}
+
 class _SortFilterRow<T> extends StatelessWidget {
   const _SortFilterRow({
     required this.sortLabel,
@@ -1116,6 +1719,8 @@ class _SortFilterRow<T> extends StatelessWidget {
     required this.onSortChanged,
     required this.downloadedOnly,
     required this.onDownloadedOnlyChanged,
+    this.likedOnly = false,
+    this.onLikedOnlyChanged,
   });
 
   final String sortLabel;
@@ -1124,6 +1729,8 @@ class _SortFilterRow<T> extends StatelessWidget {
   final ValueChanged<T?> onSortChanged;
   final bool downloadedOnly;
   final ValueChanged<bool> onDownloadedOnlyChanged;
+  final bool likedOnly;
+  final ValueChanged<bool>? onLikedOnlyChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -1132,16 +1739,38 @@ class _SortFilterRow<T> extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
       child: Row(
         children: <Widget>[
-          FilterChip(
-            label: Text(l10n.libraryDownloadedOnlyFilter),
-            selected: downloadedOnly,
-            onSelected: onDownloadedOnlyChanged,
-            avatar: Icon(
-              downloadedOnly ? Icons.download_done : Icons.download_outlined,
-              size: 18,
+          Expanded(
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: <Widget>[
+                FilterChip(
+                  label: Text(l10n.libraryDownloadedOnlyFilter),
+                  selected: downloadedOnly,
+                  onSelected: onDownloadedOnlyChanged,
+                  avatar: Icon(
+                    downloadedOnly
+                        ? Icons.download_done
+                        : Icons.download_outlined,
+                    size: 18,
+                  ),
+                ),
+                if (onLikedOnlyChanged != null)
+                  FilterChip(
+                    label: Text(l10n.libraryLikedOnlyFilter),
+                    selected: likedOnly,
+                    onSelected: onLikedOnlyChanged,
+                    avatar: Icon(
+                      likedOnly
+                          ? Icons.favorite
+                          : Icons.favorite_border_outlined,
+                      size: 18,
+                    ),
+                  ),
+              ],
             ),
           ),
-          const Spacer(),
+          const SizedBox(width: 12),
           DropdownButton<T>(
             value: sortValue,
             items: sortItems,

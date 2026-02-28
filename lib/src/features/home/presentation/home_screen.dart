@@ -31,7 +31,9 @@ class HomeScreen extends ConsumerWidget {
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: () async {
-            await ref.read(librarySyncControllerProvider.notifier).syncNow();
+            await ref
+                .read(librarySyncControllerProvider.notifier)
+                .syncNow(preferIncremental: true);
             ref.invalidate(homeRecentlyAddedProvider);
             ref.invalidate(homeRandomAlbumsProvider);
             // Re-check for app updates (and APK availability) on refresh.

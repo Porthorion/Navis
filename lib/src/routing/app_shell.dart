@@ -8,6 +8,7 @@ import 'package:navis/src/common_widgets/expandable_player_sheet.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
+import 'package:navis/src/features/downloads/presentation/auto_download_starred_dispatch_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/domain/instant_mix_state.dart';
@@ -47,6 +48,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     ref.watch(librarySyncControllerProvider);
     ref.watch(scrobbleDispatchControllerProvider);
     ref.watch(starSyncDispatchControllerProvider);
+    ref.watch(autoDownloadStarredDispatchControllerProvider);
 
     // Global Instant Mix snackbar / error notifications (shown on any screen).
     ref.listen<InstantMixState>(instantMixProvider, (prev, next) {

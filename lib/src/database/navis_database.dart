@@ -69,7 +69,7 @@ class NavisDatabase extends _$NavisDatabase {
   static QueryExecutor _openConnection() => driftDatabase(name: 'navis.sqlite');
 
   @override
-  int get schemaVersion => 23;
+  int get schemaVersion => 24;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -156,6 +156,9 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 23 && to >= 23) {
       await from22To23(migrator);
+    }
+    if (from < 24 && to >= 24) {
+      await from23To24(migrator);
     }
   }
 
@@ -429,6 +432,21 @@ class NavisDatabase extends _$NavisDatabase {
     }
   }
 
+  Future<void> from23To24(Migrator migrator) async {
+    if (!await _columnExists('app_settings', 'show_liked_page')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.showLikedPage,
+      );
+    }
+    if (!await _columnExists('app_settings', 'auto_download_starred_on_wifi')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.autoDownloadStarredOnWifi,
+      );
+    }
+  }
+
   Future<void> from17To18(Migrator migrator) async {
     if (!await _columnExists('app_settings', 'show_playlists_page')) {
       await migrator.addColumn(
@@ -468,6 +486,9 @@ class NavisDatabase extends _$NavisDatabase {
         gaplessEnabled: const Value(true),
         skipSilenceEnabled: const Value(false),
         showRadioPage: const Value(true),
+        showPlaylistsPage: const Value(true),
+        showArtistsPage: const Value(true),
+        showLikedPage: const Value(true),
         equalizerEnabled: const Value(false),
         equalizerBandGains: const Value(null),
         loudnessEnabled: const Value(false),
@@ -476,6 +497,7 @@ class NavisDatabase extends _$NavisDatabase {
           AppSettingsDao.defaultRollingCacheBudgetMb,
         ),
         wifiOnlyDownloads: const Value(false),
+        autoDownloadStarredOnWifi: const Value(false),
         themeMode: const Value('dark'),
         colorSchemeSeed: const Value(null),
         updatedAt: DateTime.now(),

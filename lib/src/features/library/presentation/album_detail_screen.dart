@@ -23,9 +23,14 @@ import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.
 import 'package:navis/src/providers/app_providers.dart';
 
 class AlbumDetailScreen extends ConsumerStatefulWidget {
-  const AlbumDetailScreen({required this.albumId, super.key});
+  const AlbumDetailScreen({
+    required this.albumId,
+    this.likedOnly = false,
+    super.key,
+  });
 
   final String albumId;
+  final bool likedOnly;
 
   @override
   ConsumerState<AlbumDetailScreen> createState() => _AlbumDetailScreenState();
@@ -35,6 +40,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
   bool _isStarred = false;
   bool _isStarring = false;
   bool _isQueueActionInFlight = false;
+  late bool _showLikedOnly = widget.likedOnly;
 
   @override
   void initState() {
@@ -62,11 +68,67 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
           }
           final details = data.album;
           final songs = data.songs;
+          final filteredSongs = _showLikedOnly
+              ? songs.where((song) => song.starred != null).toList()
+              : songs;
           final isStarred = _isStarred || details.starred != null;
           final coverArtHeroTag = buildCoverArtHeroTag(
             coverArtId: details.coverArt,
             context: 'album',
           );
+          final tracksSliver = filteredSongs.isEmpty
+              ? SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: _showLikedOnly && isStarred
+                      ? Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: <Widget>[
+                            EmptyState(
+                              title: l10n.albumDetailLikedTracksEmptyTitle,
+                              subtitle:
+                                  l10n.albumDetailLikedTracksEmptySubtitle,
+                              icon: Icons.favorite_border_outlined,
+                            ),
+                            const SizedBox(height: 12),
+                            FilledButton.tonal(
+                              onPressed: () =>
+                                  setState(() => _showLikedOnly = false),
+                              child: Text(l10n.albumDetailShowAllTracksAction),
+                            ),
+                          ],
+                        )
+                      : EmptyState(
+                          title: l10n.albumDetailTracksEmptyTitle,
+                          subtitle: l10n.albumDetailTracksEmptySubtitle,
+                          icon: Icons.music_note_outlined,
+                        ),
+                )
+              : SliverList(
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    final song = filteredSongs[index];
+                    return TrackListTile(
+                      song: song,
+                      badge: SongCacheBadge(songId: song.id),
+                      onTap: _isQueueActionInFlight
+                          ? null
+                          : () => unawaited(_playNow(song)),
+                      onLongPress: _isQueueActionInFlight
+                          ? null
+                          : () => unawaited(_showSongActions(song)),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          IconButton(
+                            icon: const Icon(Icons.more_vert),
+                            onPressed: _isQueueActionInFlight
+                                ? null
+                                : () => unawaited(_showSongActions(song)),
+                          ),
+                        ],
+                      ),
+                    );
+                  }, childCount: filteredSongs.length),
+                );
 
           return CustomScrollView(
             slivers: <Widget>[
@@ -111,29 +173,48 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                         l10n.albumDetailMeta(
                           details.artistName ?? l10n.albumDetailUnknownArtist,
                           details.year?.toString() ?? '-',
-                          songs.length,
+                          filteredSongs.length,
                         ),
                       ),
                     ),
+                    if (_showLikedOnly)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: ActionChip(
+                            label: Text(l10n.libraryLikedOnlyFilter),
+                            avatar: const Icon(Icons.favorite, size: 18),
+                            onPressed: filteredSongs.isEmpty && isStarred
+                                ? () => setState(() => _showLikedOnly = false)
+                                : null,
+                          ),
+                        ),
+                      ),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       child: Wrap(
                         spacing: 8,
                         children: <Widget>[
                           FilledButton.tonalIcon(
-                            onPressed: songs.isEmpty || _isQueueActionInFlight
+                            onPressed:
+                                filteredSongs.isEmpty || _isQueueActionInFlight
                                 ? null
                                 : () => unawaited(
-                                    _queueAlbum(songs, shuffle: false),
+                                    _queueAlbum(
+                                      filteredSongs,
+                                      shuffle: false,
+                                    ),
                                   ),
                             icon: const Icon(Icons.play_arrow_outlined),
                             label: Text(l10n.albumDetailPlayAction),
                           ),
                           FilledButton.tonalIcon(
-                            onPressed: songs.isEmpty || _isQueueActionInFlight
+                            onPressed:
+                                filteredSongs.isEmpty || _isQueueActionInFlight
                                 ? null
                                 : () => unawaited(
-                                    _queueAlbum(songs, shuffle: true),
+                                    _queueAlbum(filteredSongs, shuffle: true),
                                   ),
                             icon: const Icon(Icons.shuffle_outlined),
                             label: Text(l10n.albumDetailShuffleAction),
@@ -177,42 +258,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                   ],
                 ),
               ),
-              if (songs.isEmpty)
-                SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: EmptyState(
-                    title: l10n.albumDetailTracksEmptyTitle,
-                    subtitle: l10n.albumDetailTracksEmptySubtitle,
-                    icon: Icons.music_note_outlined,
-                  ),
-                )
-              else
-                SliverList(
-                  delegate: SliverChildBuilderDelegate((context, index) {
-                    final song = songs[index];
-                    return TrackListTile(
-                      song: song,
-                      badge: SongCacheBadge(songId: song.id),
-                      onTap: _isQueueActionInFlight
-                          ? null
-                          : () => unawaited(_playNow(song)),
-                      onLongPress: _isQueueActionInFlight
-                          ? null
-                          : () => unawaited(_showSongActions(song)),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          IconButton(
-                            icon: const Icon(Icons.more_vert),
-                            onPressed: _isQueueActionInFlight
-                                ? null
-                                : () => unawaited(_showSongActions(song)),
-                          ),
-                        ],
-                      ),
-                    );
-                  }, childCount: songs.length),
-                ),
+              tracksSliver,
               if (ref.watch(audioMuseAvailableProvider))
                 SliverToBoxAdapter(
                   child: _AudioMuseSimilarAlbums(

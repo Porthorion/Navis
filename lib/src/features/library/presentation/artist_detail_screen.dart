@@ -4,11 +4,13 @@ import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_error.dart';
+import 'package:navis/src/common_widgets/album_download_badge.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/common_widgets/star_button.dart';
+import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
 class ArtistDetailScreen extends ConsumerStatefulWidget {
@@ -97,120 +99,129 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
 
           final isStarred = _isStarred || artistData.starred != null;
 
-          return ListView(
-            padding: EdgeInsets.zero,
-            children: <Widget>[
-              // ── Artist image header ─────────────────────────────────────
-              artistInfo.when(
-                data: (info) {
-                  final url = info?.largeImageUrl ?? info?.mediumImageUrl ?? '';
-                  if (url.isEmpty) return const SizedBox.shrink();
-                  return _ArtistImageHeader(imageUrl: url);
-                },
-                loading: () => const SizedBox.shrink(),
-                error: (_, _) => const SizedBox.shrink(),
-              ),
-              // ── Name + star ─────────────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-                child: Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: Text(
-                        artistData.name,
-                        style: Theme.of(context).textTheme.headlineSmall,
+          return RefreshIndicator(
+            onRefresh: () => ref
+                .read(librarySyncControllerProvider.notifier)
+                .syncNow(preferIncremental: true),
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: EdgeInsets.zero,
+              children: <Widget>[
+                // ── Artist image header ─────────────────────────────────────
+                artistInfo.when(
+                  data: (info) {
+                    final url =
+                        info?.largeImageUrl ?? info?.mediumImageUrl ?? '';
+                    if (url.isEmpty) return const SizedBox.shrink();
+                    return _ArtistImageHeader(imageUrl: url);
+                  },
+                  loading: () => const SizedBox.shrink(),
+                  error: (_, _) => const SizedBox.shrink(),
+                ),
+                // ── Name + star ─────────────────────────────────────────────
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+                  child: Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: Text(
+                          artistData.name,
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
                       ),
-                    ),
-                    StarButton(
-                      isStarred: isStarred,
-                      onPressed: _isStarring
-                          ? null
-                          : () => _toggleStar(isStarred: isStarred),
-                      compact: true,
-                      tooltip: l10n.albumDetailStarAction,
-                    ),
-                  ],
+                      StarButton(
+                        isStarred: isStarred,
+                        onPressed: _isStarring
+                            ? null
+                            : () => _toggleStar(isStarred: isStarred),
+                        compact: true,
+                        tooltip: l10n.albumDetailStarAction,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                child: Text(
-                  l10n.artistDetailAlbumCount(artistData.albumCount ?? 0),
-                  style: Theme.of(context).textTheme.bodyMedium,
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                  child: Text(
+                    l10n.artistDetailAlbumCount(artistData.albumCount ?? 0),
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
                 ),
-              ),
-              // ── Bio + similar artists ───────────────────────────────────
-              artistInfo.when(
-                data: (info) {
-                  if (info == null) {
-                    return const SizedBox.shrink();
-                  }
-                  return _ArtistInfoSection(info: info);
-                },
-                loading: () => const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  child: LinearProgressIndicator(minHeight: 2),
+                // ── Bio + similar artists ───────────────────────────────────
+                artistInfo.when(
+                  data: (info) {
+                    if (info == null) {
+                      return const SizedBox.shrink();
+                    }
+                    return _ArtistInfoSection(info: info);
+                  },
+                  loading: () => const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    child: LinearProgressIndicator(minHeight: 2),
+                  ),
+                  error: (_, _) => const SizedBox.shrink(),
                 ),
-                error: (_, _) => const SizedBox.shrink(),
-              ),
-              // ── AI Similar Artists (AudioMuse) ──────────────────────────
-              if (ref.watch(audioMuseAvailableProvider))
-                _AudioMuseSimilarArtists(artistId: widget.artistId),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                child: Text(
-                  l10n.artistDetailAlbumsSection,
-                  style: Theme.of(context).textTheme.titleMedium,
+                // ── AI Similar Artists (AudioMuse) ──────────────────────────
+                if (ref.watch(audioMuseAvailableProvider))
+                  _AudioMuseSimilarArtists(artistId: widget.artistId),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                  child: Text(
+                    l10n.artistDetailAlbumsSection,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                 ),
-              ),
-              albums.when(
-                data: (items) {
-                  if (items.isEmpty) {
+                albums.when(
+                  data: (items) {
+                    if (items.isEmpty) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: EmptyState(
+                          title: l10n.artistDetailAlbumsEmptyTitle,
+                          subtitle: l10n.artistDetailAlbumsEmptySubtitle,
+                          icon: Icons.album_outlined,
+                        ),
+                      );
+                    }
                     return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: EmptyState(
-                        title: l10n.artistDetailAlbumsEmptyTitle,
-                        subtitle: l10n.artistDetailAlbumsEmptySubtitle,
-                        icon: Icons.album_outlined,
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+                      child: GridView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: items.length,
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              childAspectRatio: 1,
+                              crossAxisSpacing: 8,
+                              mainAxisSpacing: 8,
+                            ),
+                        itemBuilder: (context, index) {
+                          final album = items[index];
+                          return RepaintBoundary(
+                            child: AlbumCard(
+                              album: album,
+                              size: AlbumCardSize.library,
+                              badge: AlbumDownloadBadge(albumId: album.id),
+                              onTap: () =>
+                                  context.go('/library/albums/${album.id}'),
+                            ),
+                          );
+                        },
                       ),
                     );
-                  }
-                  return Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
-                    child: GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: items.length,
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            childAspectRatio: 1,
-                            crossAxisSpacing: 8,
-                            mainAxisSpacing: 8,
-                          ),
-                      itemBuilder: (context, index) {
-                        final album = items[index];
-                        return RepaintBoundary(
-                          child: AlbumCard(
-                            album: album,
-                            size: AlbumCardSize.library,
-                            onTap: () =>
-                                context.go('/library/albums/${album.id}'),
-                          ),
-                        );
-                      },
-                    ),
-                  );
-                },
-                loading: () => const ShimmerListPage(count: 4, leadingSize: 56),
-                error: (error, _) => ErrorState(
-                  title: l10n.artistDetailAlbumsErrorTitle,
-                  message: error.toString(),
-                  onRetry: () =>
-                      ref.invalidate(albumsByArtistProvider(widget.artistId)),
+                  },
+                  loading: () =>
+                      const ShimmerListPage(count: 4, leadingSize: 56),
+                  error: (error, _) => ErrorState(
+                    title: l10n.artistDetailAlbumsErrorTitle,
+                    message: error.toString(),
+                    onRetry: () =>
+                        ref.invalidate(albumsByArtistProvider(widget.artistId)),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           );
         },
         loading: () => const ShimmerListPage(count: 8, leadingSize: 56),

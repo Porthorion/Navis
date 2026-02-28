@@ -39,11 +39,13 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     required bool showRadioPage,
     required bool showPlaylistsPage,
     required bool showArtistsPage,
+    required bool showLikedPage,
     required bool equalizerEnabled,
     String? equalizerBandGains,
     required bool loudnessEnabled,
     double? loudnessTargetGainDb,
     required bool wifiOnlyDownloads,
+    required bool autoDownloadStarredOnWifi,
     required String themeMode,
     int? colorSchemeSeed,
     required bool crossfadeEnabled,
@@ -74,11 +76,13 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         showRadioPage: Value(showRadioPage),
         showPlaylistsPage: Value(showPlaylistsPage),
         showArtistsPage: Value(showArtistsPage),
+        showLikedPage: Value(showLikedPage),
         equalizerEnabled: Value(equalizerEnabled),
         equalizerBandGains: Value(equalizerBandGains),
         loudnessEnabled: Value(loudnessEnabled),
         loudnessTargetGainDb: Value(loudnessTargetGainDb),
         wifiOnlyDownloads: Value(wifiOnlyDownloads),
+        autoDownloadStarredOnWifi: Value(autoDownloadStarredOnWifi),
         themeMode: Value(themeMode),
         colorSchemeSeed: Value(colorSchemeSeed),
         crossfadeEnabled: Value(crossfadeEnabled),
@@ -112,11 +116,13 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       showRadioPage: true,
       showPlaylistsPage: true,
       showArtistsPage: true,
+      showLikedPage: true,
       equalizerEnabled: false,
       equalizerBandGains: null,
       loudnessEnabled: false,
       loudnessTargetGainDb: 0,
       wifiOnlyDownloads: false,
+      autoDownloadStarredOnWifi: false,
       themeMode: 'dark',
       colorSchemeSeed: null,
       crossfadeEnabled: false,
@@ -174,6 +180,18 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
+  /// Targeted update for show liked page.
+  Future<void> updateShowLikedPage({required bool enabled}) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        showLikedPage: Value(enabled),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
   // ---------------------------------------------------------------------------
   // Cache budget helpers
   // ---------------------------------------------------------------------------
@@ -221,9 +239,31 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
+  /// Targeted update for the auto-download liked content on Wi-Fi flag.
+  Future<void> updateAutoDownloadStarredOnWifi({required bool enabled}) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        autoDownloadStarredOnWifi: Value(enabled),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
   /// Stream the Wi-Fi-only downloads setting.
   Stream<bool> watchWifiOnlyDownloads() {
     return watchSettings().map((s) => s?.wifiOnlyDownloads ?? false);
+  }
+
+  /// Stream the show liked page setting.
+  Stream<bool> watchShowLikedPage() {
+    return watchSettings().map((s) => s?.showLikedPage ?? true);
+  }
+
+  /// Stream the auto-download liked on Wi-Fi setting.
+  Stream<bool> watchAutoDownloadStarredOnWifi() {
+    return watchSettings().map((s) => s?.autoDownloadStarredOnWifi ?? false);
   }
 
   // ---------------------------------------------------------------------------

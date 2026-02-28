@@ -61,15 +61,34 @@ class CoverArtViewerScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(
-        child: Stack(
-          children: <Widget>[
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final side = math.min(
-                  constraints.maxWidth,
-                  constraints.maxHeight,
-                );
-                return Center(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final side = math.min(
+              constraints.maxWidth,
+              constraints.maxHeight,
+            );
+            final imageLeft = (constraints.maxWidth - side) / 2;
+            final imageTop = (constraints.maxHeight - side) / 2;
+
+            return Stack(
+              children: <Widget>[
+                // Full-screen background: tap OR vertical swipe to dismiss.
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => Navigator.of(context).pop(),
+                  onVerticalDragEnd: (details) {
+                    if ((details.primaryVelocity ?? 0).abs() > 300) {
+                      Navigator.of(context).pop();
+                    }
+                  },
+                  child: const SizedBox.expand(),
+                ),
+                // Image: positioned over the center square only.
+                Positioned(
+                  left: imageLeft,
+                  top: imageTop,
+                  width: side,
+                  height: side,
                   child: InteractiveViewer(
                     minScale: 1,
                     maxScale: 6,
@@ -85,11 +104,11 @@ class CoverArtViewerScreen extends StatelessWidget {
                       ),
                     ),
                   ),
-                );
-              },
-            ),
-            closeButton,
-          ],
+                ),
+                closeButton,
+              ],
+            );
+          },
         ),
       ),
     );
