@@ -236,8 +236,8 @@ return $default(_that.id,_that.title,_that.album,_that.albumId,_that.artist,_tha
 }
 
 /// @nodoc
-@JsonSerializable()
 
+@JsonSerializable(explicitToJson: true)
 class _Song implements Song {
   const _Song({required this.id, required this.title, this.album, this.albumId, this.artist, this.artistId, this.track, this.discNumber, this.year, this.duration, this.bitRate, this.contentType, this.suffix, this.size, this.coverArt, this.starred, this.playCount, this.created, this.replayGain});
   factory _Song.fromJson(Map<String, dynamic> json) => _$SongFromJson(json);

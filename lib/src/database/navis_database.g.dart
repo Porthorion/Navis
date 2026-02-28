@@ -1579,7 +1579,7 @@ class AppSettingsTableData extends DataClass
   /// ReplayGain mode: 'off', 'track', or 'album'. Default 'off'.
   final String replayGainMode;
 
-  /// ReplayGain pre-amp adjustment in dB (-15.0 to +15.0). Default 0.
+  /// ReplayGain pre-amp adjustment in dB (-6.0 to +6.0). Default 0.
   final double replayGainPreamp;
 
   /// Playback speed multiplier (0.5–2.0). Default 1.0.
