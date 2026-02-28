@@ -558,6 +558,66 @@ void main() {
     );
 
     test(
+      'bulk song fast path with replay gain keeps fast-path hydration active',
+      () async {
+        await saveSession();
+        api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
+        api.fastPathPages[0] = List<Album>.generate(
+          9,
+          (index) => Album(
+            id: 'album-${index + 1}',
+            name: 'Album ${index + 1}',
+            artistId: 'artist-1',
+            artist: 'Artist 1',
+            songCount: 1,
+          ),
+        );
+        api.bulkSongPages[0] = List<Song>.generate(
+          9,
+          (index) => Song(
+            id: 'song-${index + 1}',
+            title: 'Song ${index + 1}',
+            albumId: 'album-${index + 1}',
+            artistId: 'artist-1',
+            replayGain: const ReplayGain(
+              trackGain: -4.5,
+              albumGain: -3,
+              trackPeak: 0.92,
+              albumPeak: 0.95,
+            ),
+          ),
+        );
+
+        final isolateEngine = DriftLibrarySyncEngine(
+          api: api,
+          database: database,
+          serverConfigRepository: serverConfigRepository,
+          fallbackArtistConcurrency: 1,
+          wifiAlbumConcurrency: 1,
+          cellularAlbumConcurrency: 1,
+          otherAlbumConcurrency: 1,
+          writeChunkSize: 4,
+          isolateThreshold: 1,
+        );
+
+        final state = await isolateEngine.syncNow(forceFull: true);
+        final songs = await database.select(database.songsTable).get();
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(
+          api.calls.where((call) => call.startsWith('getAlbum:')),
+          isEmpty,
+        );
+        expect(songs.length, 9);
+        expect(songs.first.replayGainTrackGain, -4.5);
+        expect(songs.first.replayGainAlbumGain, -3.0);
+        expect(songs.first.replayGainTrackPeak, 0.92);
+        expect(songs.first.replayGainAlbumPeak, 0.95);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'bulk song fast path gracefully falls back to per-album hydration',
       () async {
         await saveSession();

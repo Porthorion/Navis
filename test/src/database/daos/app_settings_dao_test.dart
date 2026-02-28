@@ -46,6 +46,9 @@ void main() {
           updateChannel: 'stable',
           audioMuseEnabled: false,
           syncIntervalMinutes: 60,
+          replayGainMode: 'off',
+          replayGainPreamp: 0,
+          playbackSpeed: 1,
         );
 
         final first = await database.appSettingsDao.getSettings();
@@ -91,6 +94,9 @@ void main() {
           updateChannel: 'beta',
           audioMuseEnabled: false,
           syncIntervalMinutes: 60,
+          replayGainMode: 'off',
+          replayGainPreamp: 0,
+          playbackSpeed: 1,
         );
 
         final second = await database.appSettingsDao.getSettings();
@@ -140,6 +146,9 @@ void main() {
         updateChannel: 'beta',
         audioMuseEnabled: false,
         syncIntervalMinutes: 60,
+        replayGainMode: 'off',
+        replayGainPreamp: 0,
+        playbackSpeed: 1,
       );
 
       await database.appSettingsDao.resetDefaults();

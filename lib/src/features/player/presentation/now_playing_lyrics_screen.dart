@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/lyrics_display_widget.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
@@ -12,6 +13,8 @@ class NowPlayingLyricsScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
     final playback = ref.watch(playerStateProvider);
     final songId = playback.currentSongId;
+    final position =
+        ref.watch(playbackPositionProvider).asData?.value ?? playback.position;
 
     return Scaffold(
       appBar: AppBar(
@@ -30,7 +33,7 @@ class NowPlayingLyricsScreen extends ConsumerWidget {
             )
           : _LyricsContent(
               songId: songId,
-              position: playback.position,
+              position: position,
             ),
     );
   }
@@ -60,16 +63,46 @@ class _LyricsContent extends ConsumerWidget {
         },
       ),
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (_, _) => Center(
-        child: Text(
-          l10n.lyricsNoneAvailable,
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            color: Theme.of(
-              context,
-            ).colorScheme.onSurface.withValues(alpha: 0.6),
+      error: (error, _) {
+        final String message;
+        final VoidCallback? onRetry;
+
+        if (error is LyricsUnsupportedException) {
+          message = l10n.lyricsUnsupported;
+          onRetry = null;
+        } else if (error is LyricsNetworkException) {
+          message = l10n.lyricsError;
+          onRetry = () => ref.invalidate(lyricsProvider(songId));
+        } else {
+          message = l10n.lyricsNoneAvailable;
+          onRetry = null;
+        }
+
+        return Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                message,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.6),
+                ),
+                textAlign: TextAlign.center,
+              ),
+              if (onRetry != null) ...[
+                const SizedBox(height: 12),
+                TextButton.icon(
+                  onPressed: onRetry,
+                  icon: const Icon(Icons.refresh),
+                  label: Text(l10n.commonRetry),
+                ),
+              ],
+            ],
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

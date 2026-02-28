@@ -85,6 +85,10 @@ final playlistDetailSyncProvider = FutureProvider.autoDispose
                 starred: Value(song.starred),
                 playCount: Value(song.playCount),
                 createdAt: Value(song.created),
+                replayGainTrackGain: Value(song.replayGain?.trackGain),
+                replayGainAlbumGain: Value(song.replayGain?.albumGain),
+                replayGainTrackPeak: Value(song.replayGain?.trackPeak),
+                replayGainAlbumPeak: Value(song.replayGain?.albumPeak),
               ),
             )
             .toList(growable: false);

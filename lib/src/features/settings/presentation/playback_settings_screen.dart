@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/utils/format_utils.dart';
 
 class PlaybackSettingsScreen extends ConsumerStatefulWidget {
   const PlaybackSettingsScreen({super.key});
@@ -15,6 +16,10 @@ class PlaybackSettingsScreen extends ConsumerStatefulWidget {
 
 class _PlaybackSettingsScreenState
     extends ConsumerState<PlaybackSettingsScreen> {
+  static const double _minReplayGainPreamp = -6;
+  static const double _maxReplayGainPreamp = 6;
+  static const double _minPlaybackSpeed = 0.5;
+  static const double _maxPlaybackSpeed = 2;
   static const List<int?> _qualityOptions = <int?>[
     null,
     320,
@@ -45,6 +50,9 @@ class _PlaybackSettingsScreenState
   bool _crossfadeEnabled = false;
   int _crossfadeDurationSeconds = 5;
   String _crossfadeType = 'normal';
+  String _replayGainMode = 'off';
+  double _replayGainPreamp = 0;
+  double _playbackSpeed = 1;
   bool _didHydrateForm = false;
   bool _isSaving = false;
 
@@ -191,6 +199,38 @@ class _PlaybackSettingsScreenState
                 title: Text(l10n.playbackSettingsGaplessTitle),
                 subtitle: Text(l10n.playbackSettingsGaplessSubtitle),
               ),
+              if (_gaplessEnabled && _crossfadeEnabled)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Card(
+                    color: Theme.of(context).colorScheme.errorContainer,
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.warning_amber_rounded,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onErrorContainer,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              l10n.playbackSettingsCrossfadeGaplessWarning,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onErrorContainer,
+                                  ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               if (_supportsAndroidDsp) ...<Widget>[
                 const SizedBox(height: 24),
                 Text(
@@ -327,6 +367,114 @@ class _PlaybackSettingsScreenState
                   ),
                 ),
               ],
+              // ── ReplayGain section ─────────────────────────────────────
+              const SizedBox(height: 24),
+              Text(
+                l10n.playbackSettingsReplayGainSectionTitle,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: _replayGainMode,
+                decoration: InputDecoration(
+                  labelText: l10n.playbackSettingsReplayGainModeLabel,
+                ),
+                items: [
+                  DropdownMenuItem(
+                    value: 'off',
+                    child: Text(l10n.playbackSettingsReplayGainModeOff),
+                  ),
+                  DropdownMenuItem(
+                    value: 'track',
+                    child: Text(l10n.playbackSettingsReplayGainModeTrack),
+                  ),
+                  DropdownMenuItem(
+                    value: 'album',
+                    child: Text(l10n.playbackSettingsReplayGainModeAlbum),
+                  ),
+                ],
+                onChanged: _isSaving
+                    ? null
+                    : (value) {
+                        if (value != null) {
+                          setState(() => _replayGainMode = value);
+                        }
+                      },
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _replayGainMode == 'off'
+                    ? l10n.playbackSettingsReplayGainModeOffDescription
+                    : _replayGainMode == 'track'
+                    ? l10n.playbackSettingsReplayGainModeTrackDescription
+                    : l10n.playbackSettingsReplayGainModeAlbumDescription,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.outline,
+                ),
+              ),
+              if (_replayGainMode != 'off') ...[
+                const SizedBox(height: 12),
+                Text(
+                  '${l10n.playbackSettingsReplayGainPreampLabel}: '
+                  '${_replayGainPreamp.toStringAsFixed(1)} dB',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                Slider(
+                  value: _replayGainPreamp.clamp(
+                    _minReplayGainPreamp,
+                    _maxReplayGainPreamp,
+                  ),
+                  min: _minReplayGainPreamp,
+                  max: _maxReplayGainPreamp,
+                  divisions: 24,
+                  label: '${_replayGainPreamp.toStringAsFixed(1)} dB',
+                  onChanged: _isSaving
+                      ? null
+                      : (value) => setState(
+                          () => _replayGainPreamp = _normalizeReplayGainPreamp(
+                            value,
+                          ),
+                        ),
+                ),
+                Text(
+                  l10n.playbackSettingsReplayGainPreampSubtitle,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+                ),
+              ],
+              // ── Playback Speed section ─────────────────────────────────
+              const SizedBox(height: 24),
+              Text(
+                l10n.playbackSettingsPlaybackSpeedLabel,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                formatPlaybackSpeed(_playbackSpeed),
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              Slider(
+                value: _playbackSpeed.clamp(
+                  _minPlaybackSpeed,
+                  _maxPlaybackSpeed,
+                ),
+                min: _minPlaybackSpeed,
+                max: _maxPlaybackSpeed,
+                divisions: 6,
+                label: formatPlaybackSpeed(_playbackSpeed),
+                onChanged: _isSaving
+                    ? null
+                    : (value) => setState(
+                        () => _playbackSpeed = _normalizePlaybackSpeed(value),
+                      ),
+              ),
+              Text(
+                l10n.playbackSettingsPlaybackSpeedSubtitle,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.outline,
+                ),
+              ),
               const SizedBox(height: 20),
               Row(
                 children: <Widget>[
@@ -376,6 +524,9 @@ class _PlaybackSettingsScreenState
     _crossfadeEnabled = settings.crossfadeEnabled;
     _crossfadeDurationSeconds = settings.crossfadeDurationSeconds;
     _crossfadeType = settings.crossfadeType;
+    _replayGainMode = settings.replayGainMode;
+    _replayGainPreamp = _normalizeReplayGainPreamp(settings.replayGainPreamp);
+    _playbackSpeed = _normalizePlaybackSpeed(settings.playbackSpeed);
   }
 
   Future<void> _save() async {
@@ -418,11 +569,15 @@ class _PlaybackSettingsScreenState
         audioMuseApiKey: currentSettings.audioMuseApiKey,
         audioMuseEnabled: currentSettings.audioMuseEnabled,
         syncIntervalMinutes: currentSettings.syncIntervalMinutes,
+        replayGainMode: _replayGainMode,
+        replayGainPreamp: _normalizeReplayGainPreamp(_replayGainPreamp),
+        playbackSpeed: _normalizePlaybackSpeed(_playbackSpeed),
       );
       await ref.read(settingsRepositoryProvider).saveSettings(settings);
       final handler = ref.read(audioHandlerProvider);
       if (handler != null) {
         await handler.applyRuntimeSettings();
+        await handler.setPlaybackSpeed(settings.playbackSpeed);
       }
       if (!mounted) {
         return;
@@ -455,6 +610,7 @@ class _PlaybackSettingsScreenState
       final handler = ref.read(audioHandlerProvider);
       if (handler != null) {
         await handler.applyRuntimeSettings();
+        await handler.setPlaybackSpeed(defaults.playbackSpeed);
       }
       if (!mounted) {
         return;
@@ -498,5 +654,14 @@ class _PlaybackSettingsScreenState
       ...values,
       ...List<double>.filled(5 - values.length, 0),
     ];
+  }
+
+  double _normalizeReplayGainPreamp(double value) {
+    return value.clamp(_minReplayGainPreamp, _maxReplayGainPreamp);
+  }
+
+  double _normalizePlaybackSpeed(double value) {
+    final clamped = value.clamp(_minPlaybackSpeed, _maxPlaybackSpeed);
+    return (clamped * 4).round() / 4;
   }
 }

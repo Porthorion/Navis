@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/artist_card.dart';
@@ -776,6 +777,18 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         album.id,
         isStarred ? null : DateTime.now(),
       );
+    } on SubsonicConnectionException {
+      if (!mounted) return;
+      final db = ref.read(navisDatabaseProvider);
+      await db.starSyncDao.queueStarAction(
+        itemId: album.id,
+        itemType: 'album',
+        action: isStarred ? 'unstar' : 'star',
+      );
+      await db.libraryDao.updateAlbumStarred(
+        album.id,
+        isStarred ? null : DateTime.now(),
+      );
     } on Object {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -797,6 +810,18 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       }
       final dao = ref.read(navisDatabaseProvider).libraryDao;
       await dao.updateArtistStarred(
+        artist.id,
+        isStarred ? null : DateTime.now(),
+      );
+    } on SubsonicConnectionException {
+      if (!mounted) return;
+      final db = ref.read(navisDatabaseProvider);
+      await db.starSyncDao.queueStarAction(
+        itemId: artist.id,
+        itemType: 'artist',
+        action: isStarred ? 'unstar' : 'star',
+      );
+      await db.libraryDao.updateArtistStarred(
         artist.id,
         isStarred ? null : DateTime.now(),
       );

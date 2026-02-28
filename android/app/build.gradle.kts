@@ -15,6 +15,17 @@ if (keyPropertiesFile.exists()) {
     keyProperties.load(keyPropertiesFile.inputStream())
 }
 
+val sidecarAppIdSuffix =
+    System.getenv("NAVIS_APP_ID_SUFFIX")
+        ?.trim()
+        ?.takeIf { it.isNotEmpty() }
+        ?: ""
+val sidecarAppName =
+    System.getenv("NAVIS_APP_NAME")
+        ?.trim()
+        ?.takeIf { it.isNotEmpty() }
+        ?: "Navis"
+
 android {
     namespace = "com.navis.app.navis"
     compileSdk = 36
@@ -51,6 +62,14 @@ android {
 
     buildTypes {
         debug {
+            // Optional debug-only sidecar install path for device testing.
+            // Example:
+            //   NAVIS_APP_ID_SUFFIX=.sidecar NAVIS_APP_NAME="Navis Sidecar" flutter run
+            if (sidecarAppIdSuffix.isNotEmpty()) {
+                applicationIdSuffix = sidecarAppIdSuffix
+                versionNameSuffix = "-sidecar"
+            }
+            resValue("string", "app_name", sidecarAppName)
             // Keep debug builds updatable from release installs when local
             // release signing is configured (useful for internal dogfooding).
             signingConfig = if (keyPropertiesFile.exists())

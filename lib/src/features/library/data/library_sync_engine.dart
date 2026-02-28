@@ -1622,6 +1622,10 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
             starred: Value(row.starred),
             playCount: Value(row.playCount),
             createdAt: Value(row.createdAt),
+            replayGainTrackGain: Value(row.replayGainTrackGain),
+            replayGainAlbumGain: Value(row.replayGainAlbumGain),
+            replayGainTrackPeak: Value(row.replayGainTrackPeak),
+            replayGainAlbumPeak: Value(row.replayGainAlbumPeak),
           ),
         )
         .toList(growable: false);
@@ -1874,6 +1878,10 @@ class _SongRow {
     this.starred,
     this.playCount,
     this.createdAt,
+    this.replayGainTrackGain,
+    this.replayGainAlbumGain,
+    this.replayGainTrackPeak,
+    this.replayGainAlbumPeak,
   });
 
   final String id;
@@ -1893,6 +1901,10 @@ class _SongRow {
   final DateTime? starred;
   final int? playCount;
   final DateTime? createdAt;
+  final double? replayGainTrackGain;
+  final double? replayGainAlbumGain;
+  final double? replayGainTrackPeak;
+  final double? replayGainAlbumPeak;
 }
 
 Future<List<_AlbumRow>> _parseAlbumRowsInIsolate(
@@ -1931,25 +1943,32 @@ List<_AlbumRow> _albumRowsFromJson(List<Map<String, dynamic>> payload) {
 List<_SongRow> _songRowsFromJson(List<Map<String, dynamic>> payload) {
   return payload
       .map(
-        (json) => _SongRow(
-          id: json['id'] as String,
-          title: json['title'] as String,
-          albumId: json['albumId'] as String?,
-          artistId: json['artistId'] as String?,
-          artistName: json['artist'] as String?,
-          albumName: json['album'] as String?,
-          track: json['track'] as int?,
-          discNumber: json['discNumber'] as int?,
-          duration: json['duration'] as int?,
-          bitRate: json['bitRate'] as int?,
-          contentType: json['contentType'] as String?,
-          suffix: json['suffix'] as String?,
-          size: json['size'] as int?,
-          coverArt: json['coverArt'] as String?,
-          starred: _parseIsoDate(json['starred'] as String?),
-          playCount: json['playCount'] as int?,
-          createdAt: _parseIsoDate(json['created'] as String?),
-        ),
+        (json) {
+          final rg = json['replayGain'] as Map<String, dynamic>?;
+          return _SongRow(
+            id: json['id'] as String,
+            title: json['title'] as String,
+            albumId: json['albumId'] as String?,
+            artistId: json['artistId'] as String?,
+            artistName: json['artist'] as String?,
+            albumName: json['album'] as String?,
+            track: json['track'] as int?,
+            discNumber: json['discNumber'] as int?,
+            duration: json['duration'] as int?,
+            bitRate: json['bitRate'] as int?,
+            contentType: json['contentType'] as String?,
+            suffix: json['suffix'] as String?,
+            size: json['size'] as int?,
+            coverArt: json['coverArt'] as String?,
+            starred: _parseIsoDate(json['starred'] as String?),
+            playCount: json['playCount'] as int?,
+            createdAt: _parseIsoDate(json['created'] as String?),
+            replayGainTrackGain: (rg?['trackGain'] as num?)?.toDouble(),
+            replayGainAlbumGain: (rg?['albumGain'] as num?)?.toDouble(),
+            replayGainTrackPeak: (rg?['trackPeak'] as num?)?.toDouble(),
+            replayGainAlbumPeak: (rg?['albumPeak'] as num?)?.toDouble(),
+          );
+        },
       )
       .toList(growable: false);
 }

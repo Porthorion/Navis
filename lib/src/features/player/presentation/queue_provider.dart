@@ -5,10 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
+import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
 final currentQueueSongIdProvider = Provider<String?>((ref) {
-  return ref.watch(playerStateProvider).currentSongId;
+  return ref.watch(currentSongProvider);
 });
 
 class QueueController extends Notifier<List<String>> {
@@ -191,6 +192,10 @@ class QueueController extends Notifier<List<String>> {
             starred: Value(song.starred),
             playCount: Value(song.playCount),
             createdAt: Value(song.created),
+            replayGainTrackGain: Value(song.replayGain?.trackGain),
+            replayGainAlbumGain: Value(song.replayGain?.albumGain),
+            replayGainTrackPeak: Value(song.replayGain?.trackPeak),
+            replayGainAlbumPeak: Value(song.replayGain?.albumPeak),
           ),
         )
         .toList(growable: false);
@@ -215,6 +220,18 @@ class QueueController extends Notifier<List<String>> {
   Future<void> clear() async {
     final handler = _requireHandler();
     await handler.clearQueue();
+    final settings =
+        ref.read(appSettingsProvider).asData?.value ??
+        const AppSettingsModel.defaults();
+    if (settings.playbackSpeed == 1) {
+      return;
+    }
+    await ref
+        .read(settingsRepositoryProvider)
+        .saveSettings(
+          settings.copyWith(playbackSpeed: 1),
+        );
+    await handler.applyRuntimeSettings();
   }
 
   List<String> _normalizeSongIds(Iterable<String> ids) {

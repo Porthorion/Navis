@@ -20,8 +20,8 @@ void main() {
           .customSelect('PRAGMA user_version;')
           .getSingle();
 
-      expect(database.schemaVersion, 22);
-      expect(pragmaRow.read<int>('user_version'), 22);
+      expect(database.schemaVersion, 23);
+      expect(pragmaRow.read<int>('user_version'), 23);
     },
     skip: !sqliteAvailable,
   );
@@ -199,6 +199,7 @@ void main() {
         raw.execute('ALTER TABLE songs DROP COLUMN created_at;');
         raw.execute('DROP TABLE IF EXISTS app_settings;');
         raw.execute('DROP TABLE IF EXISTS scrobble_queue;');
+        raw.execute('DROP TABLE IF EXISTS star_sync_queue;');
         raw.execute('PRAGMA user_version = 2;');
       } finally {
         raw.dispose();
@@ -213,7 +214,7 @@ void main() {
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 22);
+      expect(versionRow.read<int>('user_version'), 23);
 
       final albums = await migrated.select(migrated.albumsTable).get();
       final albumsById = {for (final album in albums) album.id: album};

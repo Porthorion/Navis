@@ -17,6 +17,7 @@ import 'package:navis/src/features/player/presentation/smart_queue_notifier.dart
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
+import 'package:navis/src/features/library/presentation/star_sync_dispatch_provider.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart'
     show searchFocusRequestProvider;
@@ -45,6 +46,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     final l10n = AppLocalizations.of(context)!;
     ref.watch(librarySyncControllerProvider);
     ref.watch(scrobbleDispatchControllerProvider);
+    ref.watch(starSyncDispatchControllerProvider);
 
     // Global Instant Mix snackbar / error notifications (shown on any screen).
     ref.listen<InstantMixState>(instantMixProvider, (prev, next) {

@@ -28,7 +28,7 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
   int? _currentLineIndex;
   bool _autoScroll = true;
   Timer? _autoScrollReengageTimer;
-  static const _autoScrollReengageDelay = Duration(seconds: 2);
+  static const _autoScrollReengageDelay = Duration(seconds: 1);
   bool _initialScrollDone = false;
 
   @override

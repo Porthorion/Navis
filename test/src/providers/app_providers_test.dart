@@ -6,6 +6,7 @@ import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -14,10 +15,13 @@ import 'package:navis/src/features/auth/presentation/server_config_provider.dart
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
+import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import '../../helpers/test_database.dart';
+
+class _MockSettingsRepository extends Mock implements SettingsRepository {}
 
 class _FakePlaybackHandler implements NavisPlaybackHandler {
   final StreamController<PlaybackSnapshot> _controller =
@@ -182,6 +186,9 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
   Future<void> setVolume(double volume) async {}
 
   @override
+  Future<void> setPlaybackSpeed(double speed) async {}
+
+  @override
   Future<void> toggleLike() async {
     final liked = !_snapshot.isCurrentSongLiked;
     _snapshot = _snapshot.copyWith(isCurrentSongLiked: liked);
@@ -212,6 +219,10 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
 }
 
 void main() {
+  setUpAll(() {
+    registerFallbackValue(const AppSettingsModel.defaults());
+  });
+
   group('app providers', () {
     test('subsonicApiProvider returns null when server config missing', () {
       final container = ProviderContainer(
@@ -281,6 +292,9 @@ void main() {
                   audioMuseApiKey: null,
                   audioMuseEnabled: false,
                   syncIntervalMinutes: 60,
+                  replayGainMode: 'off',
+                  replayGainPreamp: 0,
+                  playbackSpeed: 1,
                 ),
               ),
             ),
@@ -439,10 +453,16 @@ void main() {
     });
 
     test('queueProvider delegates to playback-backed handler', () async {
+      final repository = _MockSettingsRepository();
       final handler = _FakePlaybackHandler();
+      when(() => repository.saveSettings(any())).thenAnswer((_) async {});
       final container = ProviderContainer(
         overrides: [
+          settingsRepositoryProvider.overrideWithValue(repository),
           audioHandlerProvider.overrideWithValue(handler),
+          appSettingsProvider.overrideWithValue(
+            const AsyncData(AppSettingsModel.defaults()),
+          ),
         ],
       );
       addTearDown(() async {
@@ -471,6 +491,46 @@ void main() {
       await container.read(queueProvider.notifier).clear();
       expect(handler.snapshot.queueSongIds, isEmpty);
     });
+
+    test(
+      'queueProvider clear resets persisted playback speed to 1.0',
+      () async {
+        final repository = _MockSettingsRepository();
+        final handler = _FakePlaybackHandler();
+        AppSettingsModel? savedSettings;
+        when(
+          () => repository.saveSettings(any()),
+        ).thenAnswer((invocation) async {
+          savedSettings =
+              invocation.positionalArguments.first as AppSettingsModel;
+        });
+        final container = ProviderContainer(
+          overrides: [
+            settingsRepositoryProvider.overrideWithValue(repository),
+            audioHandlerProvider.overrideWithValue(handler),
+            appSettingsProvider.overrideWithValue(
+              AsyncData(
+                const AppSettingsModel.defaults().copyWith(playbackSpeed: 1.5),
+              ),
+            ),
+          ],
+        );
+        addTearDown(() async {
+          container.dispose();
+          await handler.dispose();
+        });
+
+        await container.read(queueProvider.notifier).replace(<String>[
+          'song-1',
+        ]);
+        await container.read(queueProvider.notifier).clear();
+
+        expect(handler.snapshot.queueSongIds, isEmpty);
+        verify(() => repository.saveSettings(any())).called(1);
+        expect(savedSettings, isNotNull);
+        expect(savedSettings!.playbackSpeed, 1);
+      },
+    );
 
     test(
       'queueProvider normalizes replace IDs and clamps start index',

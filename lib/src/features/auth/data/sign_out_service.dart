@@ -31,6 +31,7 @@ class SignOutService {
         ? await _database.cacheDao.getCachedTracks()
         : const <CachedTracksTableData>[];
 
+    await _database.starSyncDao.clearAll();
     await _serverConfigRepository.clear();
 
     if (!wipeLocalData) {

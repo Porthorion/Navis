@@ -68,6 +68,7 @@ void main() {
         (await database.select(database.cachedTracksTable).get()).length,
         1,
       );
+      expect(await database.starSyncDao.getPendingActions(), isEmpty);
       expect(cacheFile.existsSync(), isTrue);
     }, skip: !sqliteAvailable);
 
@@ -104,6 +105,7 @@ void main() {
           isEmpty,
         );
         expect(await database.playQueueDao.watchQueueItems().first, isEmpty);
+        expect(await database.starSyncDao.getPendingActions(), isEmpty);
         expect(cacheFile.existsSync(), isFalse);
       },
       skip: !sqliteAvailable,
@@ -118,6 +120,7 @@ void main() {
       expect(await database.serverDao.getActiveServer(), isNull);
       expect(credentials.password, isNull);
       expect(await database.select(database.cachedTracksTable).get(), isEmpty);
+      expect(await database.starSyncDao.getPendingActions(), isEmpty);
     }, skip: !sqliteAvailable);
   });
 }
@@ -223,4 +226,9 @@ Future<void> _seedAuthenticatedData(
     ),
   );
   await database.playQueueDao.saveQueue(songIds: const ['song-1']);
+  await database.starSyncDao.queueStarAction(
+    itemId: 'song-1',
+    itemType: 'song',
+    action: 'star',
+  );
 }

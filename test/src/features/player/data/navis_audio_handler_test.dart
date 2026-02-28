@@ -38,6 +38,39 @@ void main() {
       expect(navisSanitizeSeekPosition(Duration.zero), Duration.zero);
     });
 
+    test('playback speed normalize helper clamps to supported range', () {
+      expect(navisNormalizePlaybackSpeed(0.25), 0.5);
+      expect(navisNormalizePlaybackSpeed(1.25), 1.25);
+      expect(navisNormalizePlaybackSpeed(2.5), 2.0);
+    });
+
+    test('seek recovery helper detects lock-cached resets to the start', () {
+      expect(
+        navisShouldRecoverSeekToDirectStream(
+          sourceKind: 'lockCachedStream',
+          requestedPosition: const Duration(seconds: 48),
+          actualPosition: const Duration(milliseconds: 250),
+        ),
+        isTrue,
+      );
+      expect(
+        navisShouldRecoverSeekToDirectStream(
+          sourceKind: 'directStream',
+          requestedPosition: const Duration(seconds: 48),
+          actualPosition: const Duration(milliseconds: 250),
+        ),
+        isFalse,
+      );
+      expect(
+        navisShouldRecoverSeekToDirectStream(
+          sourceKind: 'lockCachedStream',
+          requestedPosition: const Duration(seconds: 1),
+          actualPosition: const Duration(milliseconds: 250),
+        ),
+        isFalse,
+      );
+    });
+
     test('skip helper enforces queue bounds for next and previous', () {
       expect(
         navisCanSkipQueueItem(

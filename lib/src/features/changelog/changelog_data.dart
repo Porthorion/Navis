@@ -27,6 +27,27 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
+    version: '0.3.0',
+    entries: [
+      ChangelogEntry(
+        'Added playback speed control in Now Playing and Playback Settings, with saved speed restored across sessions',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Added ReplayGain playback settings with track/album modes and pre-amp control for supported libraries',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Improved synced lyrics with full-screen live tracking, faster auto-scroll recovery, and tap-to-seek',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Added a playback warning when crossfade and gapless settings conflict',
+        type: ChangelogEntryType.improvement,
+      ),
+    ],
+  ),
+  ChangelogVersion(
     version: '0.2.12',
     entries: [
       ChangelogEntry(

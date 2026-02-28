@@ -520,18 +520,6 @@ abstract class AppLocalizations {
   /// **'Apply target gain in dB on Android playback.'**
   String get playbackSettingsLoudnessSubtitle;
 
-  /// No description provided for @playbackSettingsSkipSilenceTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Skip silence when possible'**
-  String get playbackSettingsSkipSilenceTitle;
-
-  /// No description provided for @playbackSettingsSkipSilenceSubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Automatically skip silent segments on supported platforms.'**
-  String get playbackSettingsSkipSilenceSubtitle;
-
   /// No description provided for @playbackSettingsSaveAction.
   ///
   /// In en, this message translates to:
@@ -639,6 +627,84 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Only cross-fade between tracks from different albums.'**
   String get playbackSettingsCrossfadeTypeSmartDescription;
+
+  /// No description provided for @playbackSettingsCrossfadeGaplessWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Crossfade and gapless playback are both enabled. These features conflict — crossfade may not work correctly. Consider disabling one.'**
+  String get playbackSettingsCrossfadeGaplessWarning;
+
+  /// No description provided for @playbackSettingsReplayGainSectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Volume Normalization (ReplayGain)'**
+  String get playbackSettingsReplayGainSectionTitle;
+
+  /// No description provided for @playbackSettingsReplayGainModeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'ReplayGain mode'**
+  String get playbackSettingsReplayGainModeLabel;
+
+  /// No description provided for @playbackSettingsReplayGainModeOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Off'**
+  String get playbackSettingsReplayGainModeOff;
+
+  /// No description provided for @playbackSettingsReplayGainModeOffDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'No volume normalization applied.'**
+  String get playbackSettingsReplayGainModeOffDescription;
+
+  /// No description provided for @playbackSettingsReplayGainModeTrack.
+  ///
+  /// In en, this message translates to:
+  /// **'Track'**
+  String get playbackSettingsReplayGainModeTrack;
+
+  /// No description provided for @playbackSettingsReplayGainModeTrackDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Normalize volume on a per-track basis.'**
+  String get playbackSettingsReplayGainModeTrackDescription;
+
+  /// No description provided for @playbackSettingsReplayGainModeAlbum.
+  ///
+  /// In en, this message translates to:
+  /// **'Album'**
+  String get playbackSettingsReplayGainModeAlbum;
+
+  /// No description provided for @playbackSettingsReplayGainModeAlbumDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Normalize volume on a per-album basis, preserving relative loudness.'**
+  String get playbackSettingsReplayGainModeAlbumDescription;
+
+  /// No description provided for @playbackSettingsReplayGainPreampLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Pre-amp (dB)'**
+  String get playbackSettingsReplayGainPreampLabel;
+
+  /// No description provided for @playbackSettingsReplayGainPreampSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Additional gain adjustment. Range: −6 to +6 dB.'**
+  String get playbackSettingsReplayGainPreampSubtitle;
+
+  /// No description provided for @playbackSettingsPlaybackSpeedLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Playback speed'**
+  String get playbackSettingsPlaybackSpeedLabel;
+
+  /// No description provided for @playbackSettingsPlaybackSpeedSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Adjust playback tempo (0.5× – 2.0×). Default: 1.0×.'**
+  String get playbackSettingsPlaybackSpeedSubtitle;
 
   /// No description provided for @homeTitle.
   ///
@@ -1922,6 +1988,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No lyrics available'**
   String get lyricsNoneAvailable;
+
+  /// No description provided for @lyricsError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load lyrics. Check your connection.'**
+  String get lyricsError;
+
+  /// No description provided for @lyricsUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'Lyrics not supported by this server.'**
+  String get lyricsUnsupported;
 
   /// No description provided for @queueSaveAsPlaylist.
   ///

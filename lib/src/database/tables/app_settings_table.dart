@@ -105,6 +105,15 @@ class AppSettingsTable extends Table {
   IntColumn get syncIntervalMinutes =>
       integer().withDefault(const Constant(60))();
 
+  /// ReplayGain mode: 'off', 'track', or 'album'. Default 'off'.
+  TextColumn get replayGainMode => text().withDefault(const Constant('off'))();
+
+  /// ReplayGain pre-amp adjustment in dB (-6.0 to +6.0). Default 0.
+  RealColumn get replayGainPreamp => real().withDefault(const Constant(0))();
+
+  /// Playback speed multiplier (0.5–2.0). Default 1.0.
+  RealColumn get playbackSpeed => real().withDefault(const Constant(1))();
+
   DateTimeColumn get updatedAt => dateTime()();
 
   @override

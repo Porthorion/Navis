@@ -49,6 +49,11 @@ Last updated: 2026-02-28
 - [x] Phase 10 increment 8 (mini-player ↔ Now Playing animation overhaul: `Curves.fastEaseInToSlowEaseOut` replaces `easeOutCubic`, full-player fade starts at 10% instead of 20%, mini-player fades out by 25% instead of 30%, velocity-aware `_controller.fling()` replaces bare `forward()`/`reverse()` for both gesture-drag-end and programmatic expand/collapse so finger momentum carries through naturally, lower velocity threshold 150px/s → more responsive swipe detection; page transitions: `_slideFadePage` helper with 280ms slide-up + fade-in / 220ms fade-out applied to all push routes — album detail, artist detail, playlist detail, and all 7 settings sub-screens; applied new launcher icons for Android+iOS via `flutter_launcher_icons`) — 2026-02-25 (evidence: `flutter analyze lib/` — 0 errors 28 infos, `flutter test` — 190/191 pass, 1 pre-existing flaky)
 - [x] Phase 10 increment 9 (shimmer audit completion: `CircularProgressIndicator` replaced with `ShimmerListPage` in radio screen, downloads screen queue + downloaded tabs, and library playlists tab — all remaining screens now use shimmer consistently; code quality: `ShimmerListTile`/`ShimmerListPage` widget constructors made `const`, `_` double-underscore in `itemBuilder` fixed to single `_`; `about_screen` update-channel picker refactored from two independent `RadioListTile` widgets to a single `RadioGroup<String>` with child `Column` so selection state is correctly shared; `searchResultsProvider` changed to `FutureProvider.autoDispose.family` so results are released when search screen leaves the stack; `_fetch` local function in `SubsonicApiClient.getInstantMix` renamed to `fetch` to satisfy linter; `submit()` in `SearchQueryNotifier` annotated with `// ignore: use_setters_to_change_properties` — lint infos reduced from 28 → 21) — 2026-02-25 (evidence: `flutter analyze lib/` — 0 errors 21 infos, `flutter test` — 190/191 pass, 1 pre-existing flaky)
 - [x] Phase 10 increment 10 (lint completion: `dart fix --apply` auto-fixed 12 infos; remaining 9 fixed manually across 12 files — explicit type annotations in `expandable_player_sheet.dart`, `shimmer_placeholder.dart`, `star_button.dart`, `library_scroll_provider.dart`, `instant_mix_state.dart`; `use_build_context_synchronously` `// ignore` suppressions in `now_playing_screen.dart`, `search_controller_provider.dart`, `cache_settings_screen.dart`, `server_settings_screen.dart`, `instant_mix_notifier.dart`; `comment_references` backtick fixes in `library_screen.dart`, `radio_screen.dart`; `Tween<double>` explicit type in `expandable_player_sheet.dart` — lint infos reduced from 21 → 0; README.md comprehensive rewrite with features, requirements, tech stack, build/run/release instructions, docs table, roadmap, and local guardrails sections; DEVELOPMENT_PLAN.md: Phase 12 Android Auto & CarPlay added as full phase with architecture/Android Auto/CarPlay/l10n/graceful degradation sections + Verification Strategy row; Phase 13 Desktop Support Windows/macOS/Linux added as full phase with adaptive layout/audio OS integration/packaging/key packages table + Verification Strategy row; Future Considerations updated to note Android Auto/CarPlay and Desktop promoted to full phases) — 2026-05-25 (evidence: `flutter analyze lib/` — 0 issues, `flutter test` — 190/191 pass, 1 pre-existing flaky)
+- [x] Phase 14 + 16.1 combined increment (schema v22→v23 single migration; 14.1 Skip Silence l10n cleanup; 14.2 position persistence on pause verified; 14.3 lyrics error state distinction with typed exceptions + retry button; 14.4 ReplayGain volume normalization with dB→linear conversion, track/album mode, pre-amp slider, 4 ReplayGain columns on songs; 14.5 playback speed 0.5×–2.0× persisted + UI control; 14.6 crossfade/gapless conflict warning card; 14.7 derived providers isPlayingProvider/currentSongProvider/currentIndexProvider; 16.1 offline star sync queue table + DAO + StarSyncDispatchController flush-on-reconnect + 5 star/unstar call sites with SubsonicConnectionException offline queuing) — 2026-02-28 (evidence: `dart analyze lib test`, targeted playback/settings/migration/provider tests pass)
+- [x] Phase 14 + 16.1 hardening pass (song like toggles now persist to the local songs table, offline star queue collapses stale duplicate actions per item, sign-out clears pending star-sync work, playback speed control added to Now Playing overflow with 0.25× steps and queue-clear reset to 1.0×, full-screen lyrics view now matches inline typed-error handling, progress/docs reconciled to actual implementation date/range) — 2026-02-28 (evidence: `test/src/database/daos/star_sync_dao_test.dart`, `test/src/features/auth/data/sign_out_service_test.dart`, `test/src/providers/app_providers_test.dart`, `lib/src/features/player/presentation/now_playing_screen.dart`, `lib/src/features/player/presentation/now_playing_lyrics_screen.dart`, `PROGRESS.md`)
+- [x] Phase 14 hydration regression fix (ReplayGain nested model now serializes as JSON during bulk song hydration, preventing isolate fast-path type-cast failures and per-album fallback slowdowns) — 2026-02-28 (evidence: `lib/src/api/models/song.dart`, `lib/src/api/models/song.g.dart`, `test/src/features/library/data/library_sync_engine_test.dart`, `test/src/api/models_serialization_test.dart`)
+- [x] Phase 14 playback transport follow-up (playback speed now applies on the first save via direct runtime update, seek/skip/pause transport is serialized again, and failed lock-cached seeks recover by rebuilding the active queue with direct streams so scrubber and lyric taps stop snapping back to the start) — 2026-02-28 (evidence: `lib/src/features/player/data/navis_audio_handler.dart`, `lib/src/features/player/presentation/now_playing_screen.dart`, `lib/src/features/settings/presentation/playback_settings_screen.dart`, `test/src/features/player/data/navis_audio_handler_test.dart`)
+- [x] Phase 14 lyrics follow-up (full-screen lyrics now subscribe to the live playback position stream on open so mid-song entry immediately aligns to the active line, and auto-scroll re-engages faster after the user stops manual scrolling) — 2026-02-28 (evidence: `lib/src/features/player/presentation/now_playing_lyrics_screen.dart`, `lib/src/common_widgets/lyrics_display_widget.dart`, `dart analyze lib test`)
 
 ## Meta Progress
 - [x] Tech stack and methodology validation refresh — 2026-02-18 (evidence: `DEVELOPMENT_PLAN.md` stack validation section + README tech stack update)
@@ -203,7 +208,7 @@ Last updated: 2026-02-28
 - [ ] Verify native codec support (FLAC, ALAC, MP3, AAC, Opus, Vorbis) — partial: 2026-02-22 (implemented: resolver matrix across file/lock-cached/direct paths + handler fallback decision tests + critical gate wiring + `tool/phase4_codec_closeout.sh` evidence helper; remaining: record completed real-device evidence matrix rows)
 - [x] Android equalizer (`AndroidEqualizer`) — 2026-02-21 (evidence: `lib/src/features/player/data/navis_audio_handler.dart`, `lib/src/features/settings/presentation/playback_settings_screen.dart`)
 - [x] Android loudness enhancer (`AndroidLoudnessEnhancer`) — 2026-02-21 (evidence: `lib/src/features/player/data/navis_audio_handler.dart`, `lib/src/features/settings/presentation/playback_settings_screen.dart`)
-- [ ] ReplayGain volume normalization (deferred post-Phase-5)
+- [x] ReplayGain volume normalization — completed in Phase 14 on 2026-02-28
 - [x] Skip-silence option removed from runtime behavior (compatibility field retained only in DB/settings model) — 2026-02-21 (evidence: `lib/src/features/player/data/navis_audio_handler.dart`, `lib/src/features/settings/presentation/playback_settings_screen.dart`, `lib/src/features/settings/domain/app_settings.dart`)
 
 ## Phase 5: Now Playing & Lyrics
@@ -313,7 +318,7 @@ Last updated: 2026-02-28
 ## Phase 9: Settings
 - [x] Server section (display, test, sign out) — 2026-02-23 (evidence: `lib/src/features/settings/presentation/server_settings_screen.dart` with connection details, test connection, sign out)
 - [x] Playback — streaming quality (Wi-Fi / cellular profiles) — 2026-02-20 (evidence: `/settings/playback` in `lib/src/features/settings/presentation/playback_settings_screen.dart`, persistence in `lib/src/database/daos/app_settings_dao.dart`)
-- [x] Playback — general (ReplayGain deferred post-Phase-5, resume UX polished) — 2026-02-28 (evidence: bootstrap gate branded with sailing icon + app name + themed colors in `app.dart`, loading subtitle updated to "Restoring your listening session…" in `app_en.arb`, bootstrap uses user's configured theme instead of hardcoded dark blue)
+- [x] Playback — general (resume UX polished; ReplayGain completed later in Phase 14) — 2026-02-28 (evidence: bootstrap gate branded with sailing icon + app name + themed colors in `app.dart`, loading subtitle updated to "Restoring your listening session…" in `app_en.arb`, bootstrap uses user's configured theme instead of hardcoded dark blue)
 - [x] Audio section (equalizer, loudness enhancer — Android only) — 2026-02-21 (evidence: `lib/src/features/player/data/navis_audio_handler.dart`, `lib/src/features/settings/presentation/playback_settings_screen.dart`)
 - [x] Downloads & cache (cache budget slider, rolling/permanent stats, clear buttons, downloads screen) — 2026-02-23 (evidence: `lib/src/features/settings/presentation/cache_settings_screen.dart`, `lib/src/features/downloads/presentation/downloads_screen.dart`, `/settings/cache` + `/settings/downloads` routes)
 - [x] Appearance — theme mode (Light / Dark / OLED / System) — 2026-02-24 (evidence: `AppearanceSettingsScreen` with `SegmentedButton` for Light/Dark/OLED/System, `themeMode` column in `app_settings` schema v11, `themeModeProvider` in `app_providers.dart`, `resolveThemeMode` + `buildLightTheme`/`buildDarkTheme`/`buildOledTheme` in `lib/src/theme/navis_theme.dart`, wired into `NavisApp`)
@@ -509,34 +514,34 @@ Last updated: 2026-02-28
 > Complete before starting Phase 12 (Android Auto) or Phase 13 (Desktop). Work CRITICAL tasks before HIGH, HIGH before MEDIUM.
 
 ### 14.1 — Skip Silence Toggle Removal (CRITICAL)
-- [ ] Remove `skipSilenceEnabled` `SwitchListTile` from `playback_settings_screen.dart`
-- [ ] Remove associated l10n key from `app_en.arb` if unused after removal
+- [x] Remove `skipSilenceEnabled` `SwitchListTile` from `playback_settings_screen.dart` — 2026-02-28
+- [x] Remove associated l10n keys from `app_en.arb` — 2026-02-28
 
 ### 14.2 — Position Persistence on Pause (CRITICAL)
-- [ ] Add `_persistQueueState()` call in `NavisAudioHandler.pause()` override
+- [x] Verified `_persistQueueState()` already called in `NavisAudioHandler.pause()` override — 2026-02-28
 
 ### 14.3 — Lyrics Error State Distinction (CRITICAL)
-- [ ] Update `_InlineLyrics` widget to distinguish server-unsupported vs network-error vs no-lyrics states
-- [ ] Add `lyricsError` and `lyricsUnsupported` l10n keys to `app_en.arb`
+- [x] Update `_InlineLyrics` widget with typed exceptions (`LyricsUnsupportedException`, `LyricsNetworkException`) + retry button — 2026-02-28
+- [x] Add `lyricsError` and `lyricsUnsupported` l10n keys to `app_en.arb` — 2026-02-28
 
 ### 14.4 — ReplayGain Volume Normalization (CRITICAL)
-- [ ] Confirm `replayGain` fields present on `Song` Freezed model; add if missing
-- [ ] Apply per-track gain in `NavisAudioHandler` before each track starts
-- [ ] Add ReplayGain mode selector (Off / Track / Album) and pre-amp slider to Playback settings
-- [ ] Schema migration: `replayGainMode` + `replayGainPreamp` columns in `app_settings`
-- [ ] l10n strings for ReplayGain settings section
+- [x] Added `ReplayGain` Freezed class + 4 nullable columns on `songs_table` — 2026-02-28
+- [x] Apply per-track gain via `_applyReplayGainVolume()` dB→linear conversion in `NavisAudioHandler` — 2026-02-28
+- [x] ReplayGain mode selector (Off / Track / Album) dropdown + pre-amp slider (-6 to +6 dB) in Playback settings — 2026-02-28
+- [x] Schema migration v22→v23: `replayGainMode` + `replayGainPreamp` columns in `app_settings` — 2026-02-28
+- [x] l10n strings for ReplayGain settings section — 2026-02-28
 
 ### 14.5 — Playback Speed Control (HIGH)
-- [ ] Expose 0.5×–2.0× speed via `AudioPlayer.setSpeed()` in Now Playing overflow or seek bar area
-- [ ] Persist `playbackSpeed` in `AppSettings`; schema migration required
-- [ ] Reset to 1.0× on queue clear
+- [x] Expose 0.5×–2.0× speed via `AudioPlayer.setSpeed()` in Playback settings and Now Playing overflow with 0.25× steps — 2026-02-28
+- [x] Persist `playbackSpeed` in `AppSettings`; schema v22→v23 migration — 2026-02-28
+- [x] Applied via `applyRuntimeSettings()` in `NavisAudioHandler`; queue clear resets speed to 1.0× — 2026-02-28
 
 ### 14.6 — Crossfade / Gapless Conflict Guard (MEDIUM)
-- [ ] Show a warning chip in Playback settings when both `crossfadeEnabled` and `gaplessPlayback` are enabled simultaneously
+- [x] Warning Card in Playback settings when both `crossfadeEnabled` and `gaplessPlayback` enabled — 2026-02-28
 
 ### 14.7 — Playback Snapshot Granularity (MEDIUM)
-- [ ] Create derived providers: `isPlayingProvider`, `currentSongProvider`, `currentIndexProvider`
-- [ ] Update non-seek widgets to watch targeted providers instead of the full snapshot
+- [x] Created derived providers: `isPlayingProvider`, `currentSongProvider`, `currentIndexProvider` — 2026-02-28
+- [x] Updated `currentQueueSongIdProvider` to use `currentSongProvider` — 2026-02-28
 
 ## Phase 15: Library & Discovery Enhancements
 
@@ -575,10 +580,10 @@ Last updated: 2026-02-28
 > 16.1 is a data-integrity fix — address it early, ideally alongside Phase 14. Work CRITICAL before HIGH, HIGH before MEDIUM.
 
 ### 16.1 — Offline Star Sync Queue (CRITICAL)
-- [ ] Add `star_sync_queue` Drift table: `itemId`, `itemType`, `action`, `queuedAt`
-- [ ] Queue failed `star()`/`unstar()` calls when `SubsonicConnectionException` is thrown
-- [ ] Flush queue in `ServerReachabilityProvider.onTransitionToOnline()`
-- [ ] Schema migration required
+- [x] Added `star_sync_queue` Drift table with `StarSyncDao` (queue/get/remove/clear/watchCount; latest action wins per item) — 2026-02-28
+- [x] Queue failed `star()`/`unstar()` calls on `SubsonicConnectionException` in 5 call sites — 2026-02-28
+- [x] `StarSyncDispatchController` flushes queue on offline→online transition; sign-out clears pending queue — 2026-02-28
+- [x] Schema migration v22→v23 creates `star_sync_queue` table — 2026-02-28
 
 ### 16.2 — Local / Offline Search (HIGH)
 - [ ] Implement Drift-backed `LIKE` search across `artists`, `albums`, `songs` tables
