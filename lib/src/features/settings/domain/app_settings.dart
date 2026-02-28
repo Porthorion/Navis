@@ -32,6 +32,9 @@ class AppSettingsModel {
     required this.audioMuseApiKey,
     required this.audioMuseEnabled,
     required this.syncIntervalMinutes,
+    required this.replayGainMode,
+    required this.replayGainPreamp,
+    required this.playbackSpeed,
   });
 
   const AppSettingsModel.defaults()
@@ -62,7 +65,10 @@ class AppSettingsModel {
       audioMuseServerUrl = null,
       audioMuseApiKey = null,
       audioMuseEnabled = false,
-      syncIntervalMinutes = 60;
+      syncIntervalMinutes = 60,
+      replayGainMode = 'off',
+      replayGainPreamp = 0.0,
+      playbackSpeed = 1.0;
 
   final int? wifiMaxBitRate;
   final String? wifiFormat;
@@ -95,6 +101,15 @@ class AppSettingsModel {
   final bool audioMuseEnabled;
   final int syncIntervalMinutes;
 
+  /// ReplayGain mode: 'off', 'track', or 'album'.
+  final String replayGainMode;
+
+  /// ReplayGain pre-amp adjustment in dB (-6.0 to +6.0).
+  final double replayGainPreamp;
+
+  /// Playback speed multiplier (0.5–2.0).
+  final double playbackSpeed;
+
   AppSettingsModel copyWith({
     int? wifiMaxBitRate,
     String? wifiFormat,
@@ -124,6 +139,9 @@ class AppSettingsModel {
     String? audioMuseApiKey,
     bool? audioMuseEnabled,
     int? syncIntervalMinutes,
+    String? replayGainMode,
+    double? replayGainPreamp,
+    double? playbackSpeed,
     bool clearWifiBitRate = false,
     bool clearWifiFormat = false,
     bool clearCellularBitRate = false,
@@ -176,6 +194,9 @@ class AppSettingsModel {
           : audioMuseApiKey ?? this.audioMuseApiKey,
       audioMuseEnabled: audioMuseEnabled ?? this.audioMuseEnabled,
       syncIntervalMinutes: syncIntervalMinutes ?? this.syncIntervalMinutes,
+      replayGainMode: replayGainMode ?? this.replayGainMode,
+      replayGainPreamp: replayGainPreamp ?? this.replayGainPreamp,
+      playbackSpeed: playbackSpeed ?? this.playbackSpeed,
     );
   }
 }

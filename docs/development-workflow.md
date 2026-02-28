@@ -120,6 +120,42 @@ Or: `make outdated`
 
 Preferred runtime targets for this project are Android and iOS.
 
+### Android Sidecar Install
+
+To install a temporary debug build on Android without replacing the normally
+installed app, set a debug-only package suffix and app name before running the
+build:
+
+```bash
+export NAVIS_APP_ID_SUFFIX=".sidecar"
+export NAVIS_APP_NAME="Navis Sidecar"
+
+flutter run -d <device-id> --debug
+```
+
+For this repo's currently attached phone:
+
+```bash
+export NAVIS_APP_ID_SUFFIX=".sidecar"
+export NAVIS_APP_NAME="Navis Sidecar"
+
+flutter run -d R5CX14TVQEE --debug
+```
+
+The sidecar package installs as `com.navis.app.navis.sidecar`, so it lives
+next to the regular `com.navis.app.navis` install. Remove it later with:
+
+```bash
+adb uninstall com.navis.app.navis.sidecar
+```
+
+Unset the variables to go back to the normal package:
+
+```bash
+unset NAVIS_APP_ID_SUFFIX
+unset NAVIS_APP_NAME
+```
+
 When Android SDK/device is not available locally, you can still verify app startup behavior with Linux desktop:
 
 ```bash

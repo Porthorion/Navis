@@ -29,6 +29,9 @@ _Song _$SongFromJson(Map<String, dynamic> json) => _Song(
   created: json['created'] == null
       ? null
       : DateTime.parse(json['created'] as String),
+  replayGain: json['replayGain'] == null
+      ? null
+      : ReplayGain.fromJson(json['replayGain'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$SongToJson(_Song instance) => <String, dynamic>{
@@ -50,4 +53,20 @@ Map<String, dynamic> _$SongToJson(_Song instance) => <String, dynamic>{
   'starred': instance.starred?.toIso8601String(),
   'playCount': instance.playCount,
   'created': instance.created?.toIso8601String(),
+  'replayGain': instance.replayGain?.toJson(),
 };
+
+_ReplayGain _$ReplayGainFromJson(Map<String, dynamic> json) => _ReplayGain(
+  trackGain: (json['trackGain'] as num?)?.toDouble(),
+  albumGain: (json['albumGain'] as num?)?.toDouble(),
+  trackPeak: (json['trackPeak'] as num?)?.toDouble(),
+  albumPeak: (json['albumPeak'] as num?)?.toDouble(),
+);
+
+Map<String, dynamic> _$ReplayGainToJson(_ReplayGain instance) =>
+    <String, dynamic>{
+      'trackGain': instance.trackGain,
+      'albumGain': instance.albumGain,
+      'trackPeak': instance.trackPeak,
+      'albumPeak': instance.albumPeak,
+    };

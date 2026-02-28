@@ -8,10 +8,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
+import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/database/daos/history_dao.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/daos/play_queue_dao.dart';
+import 'package:navis/src/database/daos/star_sync_dao.dart';
 import 'package:navis/src/database/tables/schema_enums.dart' as schema;
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
@@ -45,6 +47,7 @@ abstract class NavisPlaybackHandler {
   Future<void> skipToPrevious();
   Future<void> setShuffleMode(AudioServiceShuffleMode shuffleMode);
   Future<void> setRepeatMode(AudioServiceRepeatMode repeatMode);
+  Future<void> setPlaybackSpeed(double speed);
   Future<void> setVolume(double volume);
   Future<void> applyRuntimeSettings();
   Future<void> toggleLike();
@@ -82,6 +85,9 @@ class PlaybackRuntimeSettings {
     required this.crossfadeEnabled,
     required this.crossfadeDurationSeconds,
     required this.crossfadeType,
+    required this.replayGainMode,
+    required this.replayGainPreamp,
+    required this.playbackSpeed,
   });
 
   const PlaybackRuntimeSettings.defaults()
@@ -92,7 +98,10 @@ class PlaybackRuntimeSettings {
       loudnessTargetGainDb = 0,
       crossfadeEnabled = false,
       crossfadeDurationSeconds = 5,
-      crossfadeType = 'normal';
+      crossfadeType = 'normal',
+      replayGainMode = 'off',
+      replayGainPreamp = 0.0,
+      playbackSpeed = 1.0;
 
   final bool gaplessEnabled;
   final bool equalizerEnabled;
@@ -102,6 +111,15 @@ class PlaybackRuntimeSettings {
   final bool crossfadeEnabled;
   final int crossfadeDurationSeconds;
   final String crossfadeType;
+
+  /// ReplayGain mode: 'off', 'track', or 'album'.
+  final String replayGainMode;
+
+  /// ReplayGain pre-amp adjustment in dB (-6 to +6).
+  final double replayGainPreamp;
+
+  /// Playback speed multiplier (0.5–2.0).
+  final double playbackSpeed;
 }
 
 @visibleForTesting
@@ -167,6 +185,28 @@ Duration navisSanitizeSeekPosition(Duration position) {
   return position;
 }
 
+@visibleForTesting
+double navisNormalizePlaybackSpeed(double speed) {
+  return speed.clamp(0.5, 2.0);
+}
+
+@visibleForTesting
+bool navisShouldRecoverSeekToDirectStream({
+  required String? sourceKind,
+  required Duration requestedPosition,
+  required Duration actualPosition,
+}) {
+  if (sourceKind != PlaybackSourceKind.lockCachedStream.name) {
+    return false;
+  }
+  if (requestedPosition <= const Duration(seconds: 2)) {
+    return false;
+  }
+  final delta = (requestedPosition - actualPosition).abs();
+  return actualPosition <= const Duration(seconds: 1) &&
+      delta >= const Duration(seconds: 2);
+}
+
 typedef NavisPersistSafely =
     Future<void> Function(
       Future<void> Function() persistOperation, {
@@ -230,6 +270,7 @@ Future<NavisAudioHandler> initNavisAudioHandler({
   required int rollingCacheBudgetBytes,
   required ScrobbleService scrobbleService,
   required PlaybackRuntimeSettings Function() readRuntimeSettings,
+  required StarSyncDao starSyncDao,
 }) {
   final cachedFuture = _audioServiceInitFuture;
   if (cachedFuture != null) {
@@ -247,6 +288,7 @@ Future<NavisAudioHandler> initNavisAudioHandler({
       rollingCacheBudgetBytes: rollingCacheBudgetBytes,
       scrobbleService: scrobbleService,
       readRuntimeSettings: readRuntimeSettings,
+      starSyncDao: starSyncDao,
     ),
     config: AudioServiceConfig(
       androidNotificationChannelId: 'playback',
@@ -283,6 +325,7 @@ class NavisAudioHandler extends BaseAudioHandler
     required int rollingCacheBudgetBytes,
     required ScrobbleService scrobbleService,
     required PlaybackRuntimeSettings Function() readRuntimeSettings,
+    required StarSyncDao starSyncDao,
     AudioPlayer? player,
   }) : _libraryDao = libraryDao,
        _playQueueDao = playQueueDao,
@@ -292,7 +335,8 @@ class NavisAudioHandler extends BaseAudioHandler
        _rollingCacheManager = rollingCacheManager,
        _rollingCacheBudgetBytes = rollingCacheBudgetBytes,
        _scrobbleService = scrobbleService,
-       _readRuntimeSettings = readRuntimeSettings {
+       _readRuntimeSettings = readRuntimeSettings,
+       _starSyncDao = starSyncDao {
     final runtime = _readRuntimeSettings();
     if (player != null) {
       _androidDspPipelineEnabled = false;
@@ -324,6 +368,7 @@ class NavisAudioHandler extends BaseAudioHandler
   final int _rollingCacheBudgetBytes;
   final ScrobbleService _scrobbleService;
   final PlaybackRuntimeSettings Function() _readRuntimeSettings;
+  final StarSyncDao _starSyncDao;
   late AudioPlayer _player;
   AndroidEqualizer? _androidEqualizer;
   AndroidLoudnessEnhancer? _androidLoudnessEnhancer;
@@ -541,6 +586,7 @@ class NavisAudioHandler extends BaseAudioHandler
       final item = _mediaItemForIndex(index);
       mediaItem.add(item);
       _updateScrobbleSession(item);
+      _applyReplayGainVolume();
       _emitSnapshot();
       unawaited(
         _persistSafely(
@@ -1108,6 +1154,10 @@ class NavisAudioHandler extends BaseAudioHandler
           'localSource': source.isLocal,
           'cachedFilePath': source.cachedFilePath,
           'liked': song.starred != null,
+          'replayGainTrackGain': song.replayGainTrackGain,
+          'replayGainAlbumGain': song.replayGainAlbumGain,
+          'replayGainTrackPeak': song.replayGainTrackPeak,
+          'replayGainAlbumPeak': song.replayGainAlbumPeak,
         },
       );
       prepared.add(
@@ -1541,15 +1591,17 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   @override
-  Future<void> pause() async {
-    await _ready;
-    _cancelCrossfade();
-    await navisRunTransportWithPersistence(
-      transportOperation: _player.pause,
-      persistOperation: _persistPosition,
-      persistSafely: _persistSafely,
-      persistenceContext: 'pause',
-    );
+  Future<void> pause() {
+    return _runSerialized(() async {
+      await _ready;
+      _cancelCrossfade();
+      await navisRunTransportWithPersistence(
+        transportOperation: _player.pause,
+        persistOperation: _persistPosition,
+        persistSafely: _persistSafely,
+        persistenceContext: 'pause',
+      );
+    });
   }
 
   @override
@@ -1564,6 +1616,20 @@ class NavisAudioHandler extends BaseAudioHandler
     if (!_crossfadeEnabled && _isCrossfading) {
       _cancelCrossfade();
     }
+
+    // Apply playback speed.
+    try {
+      await _player.setSpeed(
+        navisNormalizePlaybackSpeed(runtime.playbackSpeed),
+      );
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning(
+        'Failed to apply playback speed: $error\n$stackTrace',
+      );
+    }
+
+    // Apply ReplayGain volume normalization for current track.
+    _applyReplayGainVolume();
 
     if (!_isAndroidRuntime) {
       return;
@@ -1606,55 +1672,104 @@ class NavisAudioHandler extends BaseAudioHandler
     }
   }
 
-  @override
-  Future<void> seek(Duration position) async {
-    await _ready;
-    _cancelCrossfade();
-    final sanitizedPosition = navisSanitizeSeekPosition(position);
-    await navisRunTransportWithPersistence(
-      transportOperation: () => _player.seek(sanitizedPosition),
-      persistOperation: _persistPosition,
-      persistSafely: _persistSafely,
-      persistenceContext: 'seek',
-    );
+  // ── ReplayGain ──────────────────────────────────────────────────────────
+
+  /// Apply ReplayGain volume normalization for the current track.
+  ///
+  /// Converts the ReplayGain dB value to a linear volume multiplier and
+  /// sets it on the player. When the mode is 'off' (or metadata is missing),
+  /// resets to full volume (1.0).
+  void _applyReplayGainVolume() {
+    final runtime = _readRuntimeSettings();
+    final mode = runtime.replayGainMode;
+    if (mode == 'off') {
+      _player.setVolume(1);
+      return;
+    }
+
+    final index = _player.currentIndex;
+    if (index == null || index < 0 || index >= _queueItems.length) {
+      _player.setVolume(1);
+      return;
+    }
+
+    final extras = _queueItems[index].extras;
+    if (extras == null) {
+      _player.setVolume(1);
+      return;
+    }
+
+    final gainDb = mode == 'album'
+        ? (extras['replayGainAlbumGain'] as double?) ??
+              (extras['replayGainTrackGain'] as double?)
+        : (extras['replayGainTrackGain'] as double?) ??
+              (extras['replayGainAlbumGain'] as double?);
+
+    if (gainDb == null) {
+      _player.setVolume(1);
+      return;
+    }
+
+    final preamp = runtime.replayGainPreamp.clamp(-6, 6);
+    // dB to linear: 10^((gain + preamp) / 20), clamped to [0, 1].
+    final linear = math
+        .pow(10, (gainDb + preamp) / 20)
+        .toDouble()
+        .clamp(0.0, 1.0);
+    _player.setVolume(linear);
   }
 
   @override
-  Future<void> skipToNext() async {
-    await _ready;
-    _cancelCrossfade();
-    if (!navisCanSkipQueueItem(
-      queueLength: _queueItems.length,
-      currentIndex: _player.currentIndex,
-      forward: true,
-    )) {
-      return;
-    }
-    await navisRunTransportWithPersistence(
-      transportOperation: _player.seekToNext,
-      persistOperation: _persistQueueState,
-      persistSafely: _persistSafely,
-      persistenceContext: 'skip next',
-    );
+  Future<void> seek(Duration position) {
+    return _runSerialized(() async {
+      await _ready;
+      _cancelCrossfade();
+      final sanitizedPosition = navisSanitizeSeekPosition(position);
+      await _seekWithRecovery(sanitizedPosition);
+      await _persistSafely(_persistPosition, context: 'seek');
+    });
   }
 
   @override
-  Future<void> skipToPrevious() async {
-    await _ready;
-    _cancelCrossfade();
-    if (!navisCanSkipQueueItem(
-      queueLength: _queueItems.length,
-      currentIndex: _player.currentIndex,
-      forward: false,
-    )) {
-      return;
-    }
-    await navisRunTransportWithPersistence(
-      transportOperation: _player.seekToPrevious,
-      persistOperation: _persistQueueState,
-      persistSafely: _persistSafely,
-      persistenceContext: 'skip previous',
-    );
+  Future<void> skipToNext() {
+    return _runSerialized(() async {
+      await _ready;
+      _cancelCrossfade();
+      if (!navisCanSkipQueueItem(
+        queueLength: _queueItems.length,
+        currentIndex: _player.currentIndex,
+        forward: true,
+      )) {
+        return;
+      }
+      await navisRunTransportWithPersistence(
+        transportOperation: _player.seekToNext,
+        persistOperation: _persistQueueState,
+        persistSafely: _persistSafely,
+        persistenceContext: 'skip next',
+      );
+    });
+  }
+
+  @override
+  Future<void> skipToPrevious() {
+    return _runSerialized(() async {
+      await _ready;
+      _cancelCrossfade();
+      if (!navisCanSkipQueueItem(
+        queueLength: _queueItems.length,
+        currentIndex: _player.currentIndex,
+        forward: false,
+      )) {
+        return;
+      }
+      await navisRunTransportWithPersistence(
+        transportOperation: _player.seekToPrevious,
+        persistOperation: _persistQueueState,
+        persistSafely: _persistSafely,
+        persistenceContext: 'skip previous',
+      );
+    });
   }
 
   @override
@@ -1689,6 +1804,19 @@ class NavisAudioHandler extends BaseAudioHandler
     );
     _broadcastPlaybackState();
     _emitSnapshot();
+  }
+
+  @override
+  Future<void> setPlaybackSpeed(double speed) async {
+    await _ready;
+    final normalizedSpeed = navisNormalizePlaybackSpeed(speed);
+    try {
+      await _player.setSpeed(normalizedSpeed);
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning(
+        'Failed to set playback speed directly: $error\n$stackTrace',
+      );
+    }
   }
 
   @override
@@ -1934,6 +2062,82 @@ class NavisAudioHandler extends BaseAudioHandler
     }
   }
 
+  Future<void> _seekWithRecovery(Duration position) async {
+    await _player.seek(position);
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    final actualPosition = _player.position;
+    if (!navisShouldRecoverSeekToDirectStream(
+      sourceKind: _currentSourceKind,
+      requestedPosition: position,
+      actualPosition: actualPosition,
+    )) {
+      return;
+    }
+
+    AppLogger.warning(
+      'Seek landed at $actualPosition instead of $position on a lock-cached '
+      'source. Rebuilding the active queue with direct streams and retrying.',
+    );
+    await _rebuildQueueForSeekRecovery(position);
+  }
+
+  Future<void> _rebuildQueueForSeekRecovery(Duration position) async {
+    final currentIndex = _player.currentIndex;
+    if (currentIndex == null ||
+        currentIndex < 0 ||
+        currentIndex >= _queueItems.length) {
+      return;
+    }
+
+    final queueSongIds = _queueItems
+        .map((item) => item.id)
+        .toList(growable: false);
+    if (queueSongIds.isEmpty) {
+      return;
+    }
+
+    final songs = await _libraryDao.getSongsByIds(queueSongIds);
+    final songsById = <String, SongsTableData>{
+      for (final song in songs) song.id: song,
+    };
+    final orderedSongs = queueSongIds
+        .map((songId) => songsById[songId])
+        .whereType<SongsTableData>()
+        .toList(growable: false);
+    if (orderedSongs.length != queueSongIds.length) {
+      AppLogger.warning(
+        'Seek recovery could not rebuild the full queue from the local songs '
+        'table. Skipping direct-stream fallback.',
+      );
+      return;
+    }
+
+    final wasPlaying = _player.playing;
+    final previousLoopMode = _player.loopMode;
+    final previousShuffleModeEnabled = _player.shuffleModeEnabled;
+    final prepared = await _prepareQueueItems(
+      orderedSongs,
+      preferLockCaching: false,
+    );
+    await _applyPreparedQueue(
+      prepared,
+      startIndex: currentIndex,
+      autoPlay: wasPlaying,
+      initialPosition: position,
+      preloadWhenPaused: false,
+    );
+    await _player.setLoopMode(previousLoopMode);
+    await _player.setShuffleModeEnabled(previousShuffleModeEnabled);
+  }
+
+  String? get _currentSourceKind {
+    final index = _player.currentIndex;
+    if (index == null || index < 0 || index >= _queueItems.length) {
+      return null;
+    }
+    return _queueItems[index].extras?['sourceKind'] as String?;
+  }
+
   @override
   Future<void> onTaskRemoved() async {
     await _persistSafely(_persistPosition, context: 'task removed');
@@ -1981,15 +2185,29 @@ class NavisAudioHandler extends BaseAudioHandler
     final extras = <String, Object?>{...?current.extras};
     final isLiked = extras['liked'] as bool? ?? false;
 
-    if (isLiked) {
-      await api.unstar(current.id);
-    } else {
-      await api.star(current.id);
+    try {
+      if (isLiked) {
+        await api.unstar(current.id);
+      } else {
+        await api.star(current.id);
+      }
+    } on SubsonicConnectionException {
+      // Offline — queue for retry and keep the optimistic UI.
+      await _starSyncDao.queueStarAction(
+        itemId: current.id,
+        itemType: 'song',
+        action: isLiked ? 'unstar' : 'star',
+      );
     }
 
     extras['liked'] = !isLiked;
     final updated = current.copyWith(extras: extras);
     _queueItems[index] = updated;
+    final likedNow = extras['liked'] as bool? ?? false;
+    await _libraryDao.updateSongStarred(
+      current.id,
+      likedNow ? DateTime.now() : null,
+    );
     queue.add(List<MediaItem>.unmodifiable(_queueItems));
     mediaItem.add(updated);
     _broadcastPlaybackState();
@@ -2181,6 +2399,7 @@ class NavisAudioHandler extends BaseAudioHandler
     _queueItems.clear();
     await _player.stop();
     await _player.setAudioSources(const <AudioSource>[]);
+    await _player.setSpeed(1);
     _updateScrobbleSession(null);
     queue.add(const <MediaItem>[]);
     mediaItem.add(null);

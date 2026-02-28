@@ -48,6 +48,18 @@ class SongsTable extends Table {
 
   DateTimeColumn get createdAt => dateTime().nullable()();
 
+  /// ReplayGain track gain in dB (from OpenSubsonic replayGain object).
+  RealColumn get replayGainTrackGain => real().nullable()();
+
+  /// ReplayGain album gain in dB.
+  RealColumn get replayGainAlbumGain => real().nullable()();
+
+  /// ReplayGain track peak (linear, 0.0–1.0+).
+  RealColumn get replayGainTrackPeak => real().nullable()();
+
+  /// ReplayGain album peak (linear, 0.0–1.0+).
+  RealColumn get replayGainAlbumPeak => real().nullable()();
+
   @override
   Set<Column<Object>> get primaryKey => {id};
 }

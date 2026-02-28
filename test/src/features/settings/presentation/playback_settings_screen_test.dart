@@ -46,6 +46,9 @@ void main() {
       audioMuseApiKey: null,
       audioMuseEnabled: false,
       syncIntervalMinutes: 60,
+      replayGainMode: 'off',
+      replayGainPreamp: 0,
+      playbackSpeed: 1,
     );
 
     setUp(() {

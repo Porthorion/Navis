@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
 import 'package:navis/src/features/player/presentation/smart_queue_notifier.dart';
@@ -14,8 +15,10 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
+import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/utils/format_utils.dart';
 
 String _formatDuration(Duration d) {
   final totalSeconds = d.inSeconds;
@@ -211,6 +214,8 @@ class _NowPlayingAppBar extends ConsumerWidget {
     SongsTableData? song,
   ) {
     final l10n = AppLocalizations.of(context)!;
+    final playbackSpeed =
+        ref.read(appSettingsProvider).asData?.value.playbackSpeed ?? 1;
     showModalBottomSheet<void>(
       context: context,
       useRootNavigator: true,
@@ -218,6 +223,15 @@ class _NowPlayingAppBar extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
+            ListTile(
+              leading: const Icon(Icons.speed),
+              title: Text(l10n.playbackSettingsPlaybackSpeedLabel),
+              subtitle: Text(formatPlaybackSpeed(playbackSpeed)),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                _showPlaybackSpeedSheet(context, ref, playbackSpeed);
+              },
+            ),
             if (song?.albumId != null && song!.albumId!.isNotEmpty)
               ListTile(
                 leading: const Icon(Icons.album_outlined),
@@ -285,6 +299,19 @@ class _NowPlayingAppBar extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+
+  void _showPlaybackSpeedSheet(
+    BuildContext context,
+    WidgetRef ref,
+    double initialSpeed,
+  ) {
+    showModalBottomSheet<void>(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      builder: (context) => _PlaybackSpeedSheet(initialSpeed: initialSpeed),
     );
   }
 }
@@ -849,7 +876,6 @@ class _InlineLyrics extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context)!;
     final lyricsAsync = ref.watch(lyricsProvider(songId));
     final position =
         ref.watch(playbackPositionProvider).asData?.value ??
@@ -865,17 +891,164 @@ class _InlineLyrics extends ConsumerWidget {
         },
       ),
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (_, _) => Center(
-        child: Text(
-          l10n.lyricsNoneAvailable,
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            color: Theme.of(
-              context,
-            ).colorScheme.onSurface.withValues(alpha: 0.6),
+      error: (error, _) {
+        final l10n = AppLocalizations.of(context)!;
+        final String message;
+        final VoidCallback? onRetry;
+
+        if (error is LyricsUnsupportedException) {
+          message = l10n.lyricsUnsupported;
+          onRetry = null;
+        } else if (error is LyricsNetworkException) {
+          message = l10n.lyricsError;
+          onRetry = () => ref.invalidate(lyricsProvider(songId));
+        } else {
+          message = l10n.lyricsNoneAvailable;
+          onRetry = null;
+        }
+
+        return Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                message,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.6),
+                ),
+                textAlign: TextAlign.center,
+              ),
+              if (onRetry != null) ...[
+                const SizedBox(height: 12),
+                TextButton.icon(
+                  onPressed: onRetry,
+                  icon: const Icon(Icons.refresh),
+                  label: Text(l10n.commonRetry),
+                ),
+              ],
+            ],
           ),
+        );
+      },
+    );
+  }
+}
+
+class _PlaybackSpeedSheet extends ConsumerStatefulWidget {
+  const _PlaybackSpeedSheet({required this.initialSpeed});
+
+  final double initialSpeed;
+
+  @override
+  ConsumerState<_PlaybackSpeedSheet> createState() =>
+      _PlaybackSpeedSheetState();
+}
+
+class _PlaybackSpeedSheetState extends ConsumerState<_PlaybackSpeedSheet> {
+  static const double _minPlaybackSpeed = 0.5;
+  static const double _maxPlaybackSpeed = 2;
+  double _speed = 1;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _speed = _normalizePlaybackSpeed(widget.initialSpeed);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 16,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              l10n.playbackSettingsPlaybackSpeedLabel,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              formatPlaybackSpeed(_speed),
+              style: Theme.of(context).textTheme.bodyLarge,
+            ),
+            Slider(
+              value: _speed.clamp(_minPlaybackSpeed, _maxPlaybackSpeed),
+              min: _minPlaybackSpeed,
+              max: _maxPlaybackSpeed,
+              divisions: 6,
+              label: formatPlaybackSpeed(_speed),
+              onChanged: _isSaving
+                  ? null
+                  : (value) => setState(
+                      () => _speed = _normalizePlaybackSpeed(value),
+                    ),
+            ),
+            Text(
+              l10n.playbackSettingsPlaybackSpeedSubtitle,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.outline,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                TextButton(
+                  onPressed: _isSaving
+                      ? null
+                      : () => setState(() => _speed = 1),
+                  child: Text(l10n.playbackSettingsResetAction),
+                ),
+                const Spacer(),
+                FilledButton(
+                  onPressed: _isSaving ? null : _save,
+                  child: Text(l10n.playbackSettingsSaveAction),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
+  }
+
+  Future<void> _save() async {
+    setState(() => _isSaving = true);
+    try {
+      final settings =
+          ref.read(appSettingsProvider).asData?.value ??
+          const AppSettingsModel.defaults();
+      await ref
+          .read(settingsRepositoryProvider)
+          .saveSettings(
+            settings.copyWith(playbackSpeed: _normalizePlaybackSpeed(_speed)),
+          );
+      final handler = ref.read(audioHandlerProvider);
+      await handler?.setPlaybackSpeed(_normalizePlaybackSpeed(_speed));
+      if (!mounted) {
+        return;
+      }
+      Navigator.of(context).pop();
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
+
+  double _normalizePlaybackSpeed(double value) {
+    final clamped = value.clamp(_minPlaybackSpeed, _maxPlaybackSpeed);
+    return (clamped * 4).round() / 4;
   }
 }
 

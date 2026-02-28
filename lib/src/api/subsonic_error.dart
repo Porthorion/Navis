@@ -41,6 +41,26 @@ class SubsonicConnectionException extends SubsonicException {
   const SubsonicConnectionException(super.message);
 }
 
+/// Lyrics endpoint is not supported by the connected server.
+class LyricsUnsupportedException implements Exception {
+  const LyricsUnsupportedException([this.message = 'Lyrics not supported']);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+/// Network or transport error while fetching lyrics.
+class LyricsNetworkException implements Exception {
+  const LyricsNetworkException([this.message = 'Could not load lyrics']);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
 SubsonicApiException mapSubsonicApiError({int? code, String? message}) {
   final resolvedMessage = message == null || message.isEmpty
       ? 'Unknown Subsonic API error.'

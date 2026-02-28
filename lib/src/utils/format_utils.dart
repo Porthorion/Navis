@@ -11,3 +11,12 @@ String formatBytes(int bytes) {
   final gb = mb / 1024;
   return '${gb.toStringAsFixed(2)} GB';
 }
+
+/// Format a playback speed multiplier without unnecessary trailing zeroes.
+String formatPlaybackSpeed(double speed) {
+  final normalized = speed.toStringAsFixed(2);
+  final trimmed = normalized
+      .replaceFirst(RegExp(r'0+$'), '')
+      .replaceFirst(RegExp(r'\.$'), '');
+  return '$trimmed×';
+}

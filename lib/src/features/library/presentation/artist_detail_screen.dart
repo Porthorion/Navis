@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
+import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
@@ -41,6 +42,19 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
       // Persist star change to local DB so library views update reactively.
       final dao = ref.read(navisDatabaseProvider).libraryDao;
       await dao.updateArtistStarred(
+        widget.artistId,
+        isStarred ? null : DateTime.now(),
+      );
+    } on SubsonicConnectionException {
+      // Offline — queue for retry and keep the optimistic UI.
+      if (!mounted) return;
+      final db = ref.read(navisDatabaseProvider);
+      await db.starSyncDao.queueStarAction(
+        itemId: widget.artistId,
+        itemType: 'artist',
+        action: isStarred ? 'unstar' : 'star',
+      );
+      await db.libraryDao.updateArtistStarred(
         widget.artistId,
         isStarred ? null : DateTime.now(),
       );

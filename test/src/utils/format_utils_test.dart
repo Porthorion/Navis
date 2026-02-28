@@ -26,4 +26,17 @@ void main() {
       expect(formatBytes(2684354560), '2.50 GB');
     });
   });
+
+  group('formatPlaybackSpeed', () {
+    test('formats whole number speeds without decimals', () {
+      expect(formatPlaybackSpeed(1), '1×');
+      expect(formatPlaybackSpeed(2), '2×');
+    });
+
+    test('formats fractional speeds without unnecessary trailing zeroes', () {
+      expect(formatPlaybackSpeed(1.5), '1.5×');
+      expect(formatPlaybackSpeed(1.25), '1.25×');
+      expect(formatPlaybackSpeed(0.75), '0.75×');
+    });
+  });
 }

@@ -935,6 +935,42 @@ class $AppSettingsTableTable extends AppSettingsTable
     requiredDuringInsert: false,
     defaultValue: const Constant(60),
   );
+  static const VerificationMeta _replayGainModeMeta = const VerificationMeta(
+    'replayGainMode',
+  );
+  @override
+  late final GeneratedColumn<String> replayGainMode = GeneratedColumn<String>(
+    'replay_gain_mode',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('off'),
+  );
+  static const VerificationMeta _replayGainPreampMeta = const VerificationMeta(
+    'replayGainPreamp',
+  );
+  @override
+  late final GeneratedColumn<double> replayGainPreamp = GeneratedColumn<double>(
+    'replay_gain_preamp',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _playbackSpeedMeta = const VerificationMeta(
+    'playbackSpeed',
+  );
+  @override
+  late final GeneratedColumn<double> playbackSpeed = GeneratedColumn<double>(
+    'playback_speed',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
   static const VerificationMeta _updatedAtMeta = const VerificationMeta(
     'updatedAt',
   );
@@ -980,6 +1016,9 @@ class $AppSettingsTableTable extends AppSettingsTable
     audioMuseApiKey,
     audioMuseEnabled,
     syncIntervalMinutes,
+    replayGainMode,
+    replayGainPreamp,
+    playbackSpeed,
     updatedAt,
   ];
   @override
@@ -1270,6 +1309,33 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
       );
     }
+    if (data.containsKey('replay_gain_mode')) {
+      context.handle(
+        _replayGainModeMeta,
+        replayGainMode.isAcceptableOrUnknown(
+          data['replay_gain_mode']!,
+          _replayGainModeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('replay_gain_preamp')) {
+      context.handle(
+        _replayGainPreampMeta,
+        replayGainPreamp.isAcceptableOrUnknown(
+          data['replay_gain_preamp']!,
+          _replayGainPreampMeta,
+        ),
+      );
+    }
+    if (data.containsKey('playback_speed')) {
+      context.handle(
+        _playbackSpeedMeta,
+        playbackSpeed.isAcceptableOrUnknown(
+          data['playback_speed']!,
+          _playbackSpeedMeta,
+        ),
+      );
+    }
     if (data.containsKey('updated_at')) {
       context.handle(
         _updatedAtMeta,
@@ -1415,6 +1481,18 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.int,
         data['${effectivePrefix}sync_interval_minutes'],
       )!,
+      replayGainMode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}replay_gain_mode'],
+      )!,
+      replayGainPreamp: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}replay_gain_preamp'],
+      )!,
+      playbackSpeed: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}playback_speed'],
+      )!,
       updatedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
@@ -1497,6 +1575,15 @@ class AppSettingsTableData extends DataClass
   /// Automatic background sync interval in minutes.
   /// 0 = manual only (disabled). Default 60 (1 hour).
   final int syncIntervalMinutes;
+
+  /// ReplayGain mode: 'off', 'track', or 'album'. Default 'off'.
+  final String replayGainMode;
+
+  /// ReplayGain pre-amp adjustment in dB (-15.0 to +15.0). Default 0.
+  final double replayGainPreamp;
+
+  /// Playback speed multiplier (0.5–2.0). Default 1.0.
+  final double playbackSpeed;
   final DateTime updatedAt;
   const AppSettingsTableData({
     required this.id,
@@ -1531,6 +1618,9 @@ class AppSettingsTableData extends DataClass
     this.audioMuseApiKey,
     required this.audioMuseEnabled,
     required this.syncIntervalMinutes,
+    required this.replayGainMode,
+    required this.replayGainPreamp,
+    required this.playbackSpeed,
     required this.updatedAt,
   });
   @override
@@ -1590,6 +1680,9 @@ class AppSettingsTableData extends DataClass
     }
     map['audio_muse_enabled'] = Variable<bool>(audioMuseEnabled);
     map['sync_interval_minutes'] = Variable<int>(syncIntervalMinutes);
+    map['replay_gain_mode'] = Variable<String>(replayGainMode);
+    map['replay_gain_preamp'] = Variable<double>(replayGainPreamp);
+    map['playback_speed'] = Variable<double>(playbackSpeed);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
   }
@@ -1648,6 +1741,9 @@ class AppSettingsTableData extends DataClass
           : Value(audioMuseApiKey),
       audioMuseEnabled: Value(audioMuseEnabled),
       syncIntervalMinutes: Value(syncIntervalMinutes),
+      replayGainMode: Value(replayGainMode),
+      replayGainPreamp: Value(replayGainPreamp),
+      playbackSpeed: Value(playbackSpeed),
       updatedAt: Value(updatedAt),
     );
   }
@@ -1710,6 +1806,9 @@ class AppSettingsTableData extends DataClass
       syncIntervalMinutes: serializer.fromJson<int>(
         json['syncIntervalMinutes'],
       ),
+      replayGainMode: serializer.fromJson<String>(json['replayGainMode']),
+      replayGainPreamp: serializer.fromJson<double>(json['replayGainPreamp']),
+      playbackSpeed: serializer.fromJson<double>(json['playbackSpeed']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
   }
@@ -1755,6 +1854,9 @@ class AppSettingsTableData extends DataClass
       'audioMuseApiKey': serializer.toJson<String?>(audioMuseApiKey),
       'audioMuseEnabled': serializer.toJson<bool>(audioMuseEnabled),
       'syncIntervalMinutes': serializer.toJson<int>(syncIntervalMinutes),
+      'replayGainMode': serializer.toJson<String>(replayGainMode),
+      'replayGainPreamp': serializer.toJson<double>(replayGainPreamp),
+      'playbackSpeed': serializer.toJson<double>(playbackSpeed),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
   }
@@ -1792,6 +1894,9 @@ class AppSettingsTableData extends DataClass
     Value<String?> audioMuseApiKey = const Value.absent(),
     bool? audioMuseEnabled,
     int? syncIntervalMinutes,
+    String? replayGainMode,
+    double? replayGainPreamp,
+    double? playbackSpeed,
     DateTime? updatedAt,
   }) => AppSettingsTableData(
     id: id ?? this.id,
@@ -1847,6 +1952,9 @@ class AppSettingsTableData extends DataClass
         : this.audioMuseApiKey,
     audioMuseEnabled: audioMuseEnabled ?? this.audioMuseEnabled,
     syncIntervalMinutes: syncIntervalMinutes ?? this.syncIntervalMinutes,
+    replayGainMode: replayGainMode ?? this.replayGainMode,
+    replayGainPreamp: replayGainPreamp ?? this.replayGainPreamp,
+    playbackSpeed: playbackSpeed ?? this.playbackSpeed,
     updatedAt: updatedAt ?? this.updatedAt,
   );
   AppSettingsTableData copyWithCompanion(AppSettingsTableCompanion data) {
@@ -1943,6 +2051,15 @@ class AppSettingsTableData extends DataClass
       syncIntervalMinutes: data.syncIntervalMinutes.present
           ? data.syncIntervalMinutes.value
           : this.syncIntervalMinutes,
+      replayGainMode: data.replayGainMode.present
+          ? data.replayGainMode.value
+          : this.replayGainMode,
+      replayGainPreamp: data.replayGainPreamp.present
+          ? data.replayGainPreamp.value
+          : this.replayGainPreamp,
+      playbackSpeed: data.playbackSpeed.present
+          ? data.playbackSpeed.value
+          : this.playbackSpeed,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
   }
@@ -1982,6 +2099,9 @@ class AppSettingsTableData extends DataClass
           ..write('audioMuseApiKey: $audioMuseApiKey, ')
           ..write('audioMuseEnabled: $audioMuseEnabled, ')
           ..write('syncIntervalMinutes: $syncIntervalMinutes, ')
+          ..write('replayGainMode: $replayGainMode, ')
+          ..write('replayGainPreamp: $replayGainPreamp, ')
+          ..write('playbackSpeed: $playbackSpeed, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
@@ -2021,6 +2141,9 @@ class AppSettingsTableData extends DataClass
     audioMuseApiKey,
     audioMuseEnabled,
     syncIntervalMinutes,
+    replayGainMode,
+    replayGainPreamp,
+    playbackSpeed,
     updatedAt,
   ]);
   @override
@@ -2059,6 +2182,9 @@ class AppSettingsTableData extends DataClass
           other.audioMuseApiKey == this.audioMuseApiKey &&
           other.audioMuseEnabled == this.audioMuseEnabled &&
           other.syncIntervalMinutes == this.syncIntervalMinutes &&
+          other.replayGainMode == this.replayGainMode &&
+          other.replayGainPreamp == this.replayGainPreamp &&
+          other.playbackSpeed == this.playbackSpeed &&
           other.updatedAt == this.updatedAt);
 }
 
@@ -2095,6 +2221,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<String?> audioMuseApiKey;
   final Value<bool> audioMuseEnabled;
   final Value<int> syncIntervalMinutes;
+  final Value<String> replayGainMode;
+  final Value<double> replayGainPreamp;
+  final Value<double> playbackSpeed;
   final Value<DateTime> updatedAt;
   const AppSettingsTableCompanion({
     this.id = const Value.absent(),
@@ -2129,6 +2258,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.audioMuseApiKey = const Value.absent(),
     this.audioMuseEnabled = const Value.absent(),
     this.syncIntervalMinutes = const Value.absent(),
+    this.replayGainMode = const Value.absent(),
+    this.replayGainPreamp = const Value.absent(),
+    this.playbackSpeed = const Value.absent(),
     this.updatedAt = const Value.absent(),
   });
   AppSettingsTableCompanion.insert({
@@ -2164,6 +2296,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.audioMuseApiKey = const Value.absent(),
     this.audioMuseEnabled = const Value.absent(),
     this.syncIntervalMinutes = const Value.absent(),
+    this.replayGainMode = const Value.absent(),
+    this.replayGainPreamp = const Value.absent(),
+    this.playbackSpeed = const Value.absent(),
     required DateTime updatedAt,
   }) : updatedAt = Value(updatedAt);
   static Insertable<AppSettingsTableData> custom({
@@ -2199,6 +2334,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<String>? audioMuseApiKey,
     Expression<bool>? audioMuseEnabled,
     Expression<int>? syncIntervalMinutes,
+    Expression<String>? replayGainMode,
+    Expression<double>? replayGainPreamp,
+    Expression<double>? playbackSpeed,
     Expression<DateTime>? updatedAt,
   }) {
     return RawValuesInsertable({
@@ -2247,6 +2385,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       if (audioMuseEnabled != null) 'audio_muse_enabled': audioMuseEnabled,
       if (syncIntervalMinutes != null)
         'sync_interval_minutes': syncIntervalMinutes,
+      if (replayGainMode != null) 'replay_gain_mode': replayGainMode,
+      if (replayGainPreamp != null) 'replay_gain_preamp': replayGainPreamp,
+      if (playbackSpeed != null) 'playback_speed': playbackSpeed,
       if (updatedAt != null) 'updated_at': updatedAt,
     });
   }
@@ -2284,6 +2425,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<String?>? audioMuseApiKey,
     Value<bool>? audioMuseEnabled,
     Value<int>? syncIntervalMinutes,
+    Value<String>? replayGainMode,
+    Value<double>? replayGainPreamp,
+    Value<double>? playbackSpeed,
     Value<DateTime>? updatedAt,
   }) {
     return AppSettingsTableCompanion(
@@ -2322,6 +2466,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       audioMuseApiKey: audioMuseApiKey ?? this.audioMuseApiKey,
       audioMuseEnabled: audioMuseEnabled ?? this.audioMuseEnabled,
       syncIntervalMinutes: syncIntervalMinutes ?? this.syncIntervalMinutes,
+      replayGainMode: replayGainMode ?? this.replayGainMode,
+      replayGainPreamp: replayGainPreamp ?? this.replayGainPreamp,
+      playbackSpeed: playbackSpeed ?? this.playbackSpeed,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
@@ -2435,6 +2582,15 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     if (syncIntervalMinutes.present) {
       map['sync_interval_minutes'] = Variable<int>(syncIntervalMinutes.value);
     }
+    if (replayGainMode.present) {
+      map['replay_gain_mode'] = Variable<String>(replayGainMode.value);
+    }
+    if (replayGainPreamp.present) {
+      map['replay_gain_preamp'] = Variable<double>(replayGainPreamp.value);
+    }
+    if (playbackSpeed.present) {
+      map['playback_speed'] = Variable<double>(playbackSpeed.value);
+    }
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
@@ -2476,6 +2632,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('audioMuseApiKey: $audioMuseApiKey, ')
           ..write('audioMuseEnabled: $audioMuseEnabled, ')
           ..write('syncIntervalMinutes: $syncIntervalMinutes, ')
+          ..write('replayGainMode: $replayGainMode, ')
+          ..write('replayGainPreamp: $replayGainPreamp, ')
+          ..write('playbackSpeed: $playbackSpeed, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
@@ -3866,6 +4025,50 @@ class $SongsTableTable extends SongsTable
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _replayGainTrackGainMeta =
+      const VerificationMeta('replayGainTrackGain');
+  @override
+  late final GeneratedColumn<double> replayGainTrackGain =
+      GeneratedColumn<double>(
+        'replay_gain_track_gain',
+        aliasedName,
+        true,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _replayGainAlbumGainMeta =
+      const VerificationMeta('replayGainAlbumGain');
+  @override
+  late final GeneratedColumn<double> replayGainAlbumGain =
+      GeneratedColumn<double>(
+        'replay_gain_album_gain',
+        aliasedName,
+        true,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _replayGainTrackPeakMeta =
+      const VerificationMeta('replayGainTrackPeak');
+  @override
+  late final GeneratedColumn<double> replayGainTrackPeak =
+      GeneratedColumn<double>(
+        'replay_gain_track_peak',
+        aliasedName,
+        true,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _replayGainAlbumPeakMeta =
+      const VerificationMeta('replayGainAlbumPeak');
+  @override
+  late final GeneratedColumn<double> replayGainAlbumPeak =
+      GeneratedColumn<double>(
+        'replay_gain_album_peak',
+        aliasedName,
+        true,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+      );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -3885,6 +4088,10 @@ class $SongsTableTable extends SongsTable
     starred,
     playCount,
     createdAt,
+    replayGainTrackGain,
+    replayGainAlbumGain,
+    replayGainTrackPeak,
+    replayGainAlbumPeak,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -4004,6 +4211,42 @@ class $SongsTableTable extends SongsTable
         createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
       );
     }
+    if (data.containsKey('replay_gain_track_gain')) {
+      context.handle(
+        _replayGainTrackGainMeta,
+        replayGainTrackGain.isAcceptableOrUnknown(
+          data['replay_gain_track_gain']!,
+          _replayGainTrackGainMeta,
+        ),
+      );
+    }
+    if (data.containsKey('replay_gain_album_gain')) {
+      context.handle(
+        _replayGainAlbumGainMeta,
+        replayGainAlbumGain.isAcceptableOrUnknown(
+          data['replay_gain_album_gain']!,
+          _replayGainAlbumGainMeta,
+        ),
+      );
+    }
+    if (data.containsKey('replay_gain_track_peak')) {
+      context.handle(
+        _replayGainTrackPeakMeta,
+        replayGainTrackPeak.isAcceptableOrUnknown(
+          data['replay_gain_track_peak']!,
+          _replayGainTrackPeakMeta,
+        ),
+      );
+    }
+    if (data.containsKey('replay_gain_album_peak')) {
+      context.handle(
+        _replayGainAlbumPeakMeta,
+        replayGainAlbumPeak.isAcceptableOrUnknown(
+          data['replay_gain_album_peak']!,
+          _replayGainAlbumPeakMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -4081,6 +4324,22 @@ class $SongsTableTable extends SongsTable
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
       ),
+      replayGainTrackGain: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}replay_gain_track_gain'],
+      ),
+      replayGainAlbumGain: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}replay_gain_album_gain'],
+      ),
+      replayGainTrackPeak: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}replay_gain_track_peak'],
+      ),
+      replayGainAlbumPeak: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}replay_gain_album_peak'],
+      ),
     );
   }
 
@@ -4108,6 +4367,18 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
   final DateTime? starred;
   final int? playCount;
   final DateTime? createdAt;
+
+  /// ReplayGain track gain in dB (from OpenSubsonic replayGain object).
+  final double? replayGainTrackGain;
+
+  /// ReplayGain album gain in dB.
+  final double? replayGainAlbumGain;
+
+  /// ReplayGain track peak (linear, 0.0–1.0+).
+  final double? replayGainTrackPeak;
+
+  /// ReplayGain album peak (linear, 0.0–1.0+).
+  final double? replayGainAlbumPeak;
   const SongsTableData({
     required this.id,
     required this.title,
@@ -4126,6 +4397,10 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     this.starred,
     this.playCount,
     this.createdAt,
+    this.replayGainTrackGain,
+    this.replayGainAlbumGain,
+    this.replayGainTrackPeak,
+    this.replayGainAlbumPeak,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -4177,6 +4452,18 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     if (!nullToAbsent || createdAt != null) {
       map['created_at'] = Variable<DateTime>(createdAt);
     }
+    if (!nullToAbsent || replayGainTrackGain != null) {
+      map['replay_gain_track_gain'] = Variable<double>(replayGainTrackGain);
+    }
+    if (!nullToAbsent || replayGainAlbumGain != null) {
+      map['replay_gain_album_gain'] = Variable<double>(replayGainAlbumGain);
+    }
+    if (!nullToAbsent || replayGainTrackPeak != null) {
+      map['replay_gain_track_peak'] = Variable<double>(replayGainTrackPeak);
+    }
+    if (!nullToAbsent || replayGainAlbumPeak != null) {
+      map['replay_gain_album_peak'] = Variable<double>(replayGainAlbumPeak);
+    }
     return map;
   }
 
@@ -4227,6 +4514,18 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       createdAt: createdAt == null && nullToAbsent
           ? const Value.absent()
           : Value(createdAt),
+      replayGainTrackGain: replayGainTrackGain == null && nullToAbsent
+          ? const Value.absent()
+          : Value(replayGainTrackGain),
+      replayGainAlbumGain: replayGainAlbumGain == null && nullToAbsent
+          ? const Value.absent()
+          : Value(replayGainAlbumGain),
+      replayGainTrackPeak: replayGainTrackPeak == null && nullToAbsent
+          ? const Value.absent()
+          : Value(replayGainTrackPeak),
+      replayGainAlbumPeak: replayGainAlbumPeak == null && nullToAbsent
+          ? const Value.absent()
+          : Value(replayGainAlbumPeak),
     );
   }
 
@@ -4253,6 +4552,18 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       starred: serializer.fromJson<DateTime?>(json['starred']),
       playCount: serializer.fromJson<int?>(json['playCount']),
       createdAt: serializer.fromJson<DateTime?>(json['createdAt']),
+      replayGainTrackGain: serializer.fromJson<double?>(
+        json['replayGainTrackGain'],
+      ),
+      replayGainAlbumGain: serializer.fromJson<double?>(
+        json['replayGainAlbumGain'],
+      ),
+      replayGainTrackPeak: serializer.fromJson<double?>(
+        json['replayGainTrackPeak'],
+      ),
+      replayGainAlbumPeak: serializer.fromJson<double?>(
+        json['replayGainAlbumPeak'],
+      ),
     );
   }
   @override
@@ -4276,6 +4587,10 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       'starred': serializer.toJson<DateTime?>(starred),
       'playCount': serializer.toJson<int?>(playCount),
       'createdAt': serializer.toJson<DateTime?>(createdAt),
+      'replayGainTrackGain': serializer.toJson<double?>(replayGainTrackGain),
+      'replayGainAlbumGain': serializer.toJson<double?>(replayGainAlbumGain),
+      'replayGainTrackPeak': serializer.toJson<double?>(replayGainTrackPeak),
+      'replayGainAlbumPeak': serializer.toJson<double?>(replayGainAlbumPeak),
     };
   }
 
@@ -4297,6 +4612,10 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     Value<DateTime?> starred = const Value.absent(),
     Value<int?> playCount = const Value.absent(),
     Value<DateTime?> createdAt = const Value.absent(),
+    Value<double?> replayGainTrackGain = const Value.absent(),
+    Value<double?> replayGainAlbumGain = const Value.absent(),
+    Value<double?> replayGainTrackPeak = const Value.absent(),
+    Value<double?> replayGainAlbumPeak = const Value.absent(),
   }) => SongsTableData(
     id: id ?? this.id,
     title: title ?? this.title,
@@ -4315,6 +4634,18 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     starred: starred.present ? starred.value : this.starred,
     playCount: playCount.present ? playCount.value : this.playCount,
     createdAt: createdAt.present ? createdAt.value : this.createdAt,
+    replayGainTrackGain: replayGainTrackGain.present
+        ? replayGainTrackGain.value
+        : this.replayGainTrackGain,
+    replayGainAlbumGain: replayGainAlbumGain.present
+        ? replayGainAlbumGain.value
+        : this.replayGainAlbumGain,
+    replayGainTrackPeak: replayGainTrackPeak.present
+        ? replayGainTrackPeak.value
+        : this.replayGainTrackPeak,
+    replayGainAlbumPeak: replayGainAlbumPeak.present
+        ? replayGainAlbumPeak.value
+        : this.replayGainAlbumPeak,
   );
   SongsTableData copyWithCompanion(SongsTableCompanion data) {
     return SongsTableData(
@@ -4341,6 +4672,18 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       starred: data.starred.present ? data.starred.value : this.starred,
       playCount: data.playCount.present ? data.playCount.value : this.playCount,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      replayGainTrackGain: data.replayGainTrackGain.present
+          ? data.replayGainTrackGain.value
+          : this.replayGainTrackGain,
+      replayGainAlbumGain: data.replayGainAlbumGain.present
+          ? data.replayGainAlbumGain.value
+          : this.replayGainAlbumGain,
+      replayGainTrackPeak: data.replayGainTrackPeak.present
+          ? data.replayGainTrackPeak.value
+          : this.replayGainTrackPeak,
+      replayGainAlbumPeak: data.replayGainAlbumPeak.present
+          ? data.replayGainAlbumPeak.value
+          : this.replayGainAlbumPeak,
     );
   }
 
@@ -4363,13 +4706,17 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
           ..write('coverArt: $coverArt, ')
           ..write('starred: $starred, ')
           ..write('playCount: $playCount, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('replayGainTrackGain: $replayGainTrackGain, ')
+          ..write('replayGainAlbumGain: $replayGainAlbumGain, ')
+          ..write('replayGainTrackPeak: $replayGainTrackPeak, ')
+          ..write('replayGainAlbumPeak: $replayGainAlbumPeak')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     title,
     albumId,
@@ -4387,7 +4734,11 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     starred,
     playCount,
     createdAt,
-  );
+    replayGainTrackGain,
+    replayGainAlbumGain,
+    replayGainTrackPeak,
+    replayGainAlbumPeak,
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -4408,7 +4759,11 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
           other.coverArt == this.coverArt &&
           other.starred == this.starred &&
           other.playCount == this.playCount &&
-          other.createdAt == this.createdAt);
+          other.createdAt == this.createdAt &&
+          other.replayGainTrackGain == this.replayGainTrackGain &&
+          other.replayGainAlbumGain == this.replayGainAlbumGain &&
+          other.replayGainTrackPeak == this.replayGainTrackPeak &&
+          other.replayGainAlbumPeak == this.replayGainAlbumPeak);
 }
 
 class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
@@ -4429,6 +4784,10 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
   final Value<DateTime?> starred;
   final Value<int?> playCount;
   final Value<DateTime?> createdAt;
+  final Value<double?> replayGainTrackGain;
+  final Value<double?> replayGainAlbumGain;
+  final Value<double?> replayGainTrackPeak;
+  final Value<double?> replayGainAlbumPeak;
   final Value<int> rowid;
   const SongsTableCompanion({
     this.id = const Value.absent(),
@@ -4448,6 +4807,10 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     this.starred = const Value.absent(),
     this.playCount = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.replayGainTrackGain = const Value.absent(),
+    this.replayGainAlbumGain = const Value.absent(),
+    this.replayGainTrackPeak = const Value.absent(),
+    this.replayGainAlbumPeak = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   SongsTableCompanion.insert({
@@ -4468,6 +4831,10 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     this.starred = const Value.absent(),
     this.playCount = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.replayGainTrackGain = const Value.absent(),
+    this.replayGainAlbumGain = const Value.absent(),
+    this.replayGainTrackPeak = const Value.absent(),
+    this.replayGainAlbumPeak = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        title = Value(title);
@@ -4489,6 +4856,10 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     Expression<DateTime>? starred,
     Expression<int>? playCount,
     Expression<DateTime>? createdAt,
+    Expression<double>? replayGainTrackGain,
+    Expression<double>? replayGainAlbumGain,
+    Expression<double>? replayGainTrackPeak,
+    Expression<double>? replayGainAlbumPeak,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -4509,6 +4880,14 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
       if (starred != null) 'starred': starred,
       if (playCount != null) 'play_count': playCount,
       if (createdAt != null) 'created_at': createdAt,
+      if (replayGainTrackGain != null)
+        'replay_gain_track_gain': replayGainTrackGain,
+      if (replayGainAlbumGain != null)
+        'replay_gain_album_gain': replayGainAlbumGain,
+      if (replayGainTrackPeak != null)
+        'replay_gain_track_peak': replayGainTrackPeak,
+      if (replayGainAlbumPeak != null)
+        'replay_gain_album_peak': replayGainAlbumPeak,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -4531,6 +4910,10 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     Value<DateTime?>? starred,
     Value<int?>? playCount,
     Value<DateTime?>? createdAt,
+    Value<double?>? replayGainTrackGain,
+    Value<double?>? replayGainAlbumGain,
+    Value<double?>? replayGainTrackPeak,
+    Value<double?>? replayGainAlbumPeak,
     Value<int>? rowid,
   }) {
     return SongsTableCompanion(
@@ -4551,6 +4934,10 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
       starred: starred ?? this.starred,
       playCount: playCount ?? this.playCount,
       createdAt: createdAt ?? this.createdAt,
+      replayGainTrackGain: replayGainTrackGain ?? this.replayGainTrackGain,
+      replayGainAlbumGain: replayGainAlbumGain ?? this.replayGainAlbumGain,
+      replayGainTrackPeak: replayGainTrackPeak ?? this.replayGainTrackPeak,
+      replayGainAlbumPeak: replayGainAlbumPeak ?? this.replayGainAlbumPeak,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -4609,6 +4996,26 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
+    if (replayGainTrackGain.present) {
+      map['replay_gain_track_gain'] = Variable<double>(
+        replayGainTrackGain.value,
+      );
+    }
+    if (replayGainAlbumGain.present) {
+      map['replay_gain_album_gain'] = Variable<double>(
+        replayGainAlbumGain.value,
+      );
+    }
+    if (replayGainTrackPeak.present) {
+      map['replay_gain_track_peak'] = Variable<double>(
+        replayGainTrackPeak.value,
+      );
+    }
+    if (replayGainAlbumPeak.present) {
+      map['replay_gain_album_peak'] = Variable<double>(
+        replayGainAlbumPeak.value,
+      );
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -4635,6 +5042,10 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
           ..write('starred: $starred, ')
           ..write('playCount: $playCount, ')
           ..write('createdAt: $createdAt, ')
+          ..write('replayGainTrackGain: $replayGainTrackGain, ')
+          ..write('replayGainAlbumGain: $replayGainAlbumGain, ')
+          ..write('replayGainTrackPeak: $replayGainTrackPeak, ')
+          ..write('replayGainAlbumPeak: $replayGainAlbumPeak, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -8576,6 +8987,364 @@ class ScrobbleQueueTableCompanion
   }
 }
 
+class $StarSyncQueueTableTable extends StarSyncQueueTable
+    with TableInfo<$StarSyncQueueTableTable, StarSyncQueueTableData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $StarSyncQueueTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _itemIdMeta = const VerificationMeta('itemId');
+  @override
+  late final GeneratedColumn<String> itemId = GeneratedColumn<String>(
+    'item_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _itemTypeMeta = const VerificationMeta(
+    'itemType',
+  );
+  @override
+  late final GeneratedColumn<String> itemType = GeneratedColumn<String>(
+    'item_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _actionMeta = const VerificationMeta('action');
+  @override
+  late final GeneratedColumn<String> action = GeneratedColumn<String>(
+    'action',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _queuedAtMeta = const VerificationMeta(
+    'queuedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> queuedAt = GeneratedColumn<DateTime>(
+    'queued_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    itemId,
+    itemType,
+    action,
+    queuedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'star_sync_queue';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<StarSyncQueueTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('item_id')) {
+      context.handle(
+        _itemIdMeta,
+        itemId.isAcceptableOrUnknown(data['item_id']!, _itemIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_itemIdMeta);
+    }
+    if (data.containsKey('item_type')) {
+      context.handle(
+        _itemTypeMeta,
+        itemType.isAcceptableOrUnknown(data['item_type']!, _itemTypeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_itemTypeMeta);
+    }
+    if (data.containsKey('action')) {
+      context.handle(
+        _actionMeta,
+        action.isAcceptableOrUnknown(data['action']!, _actionMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_actionMeta);
+    }
+    if (data.containsKey('queued_at')) {
+      context.handle(
+        _queuedAtMeta,
+        queuedAt.isAcceptableOrUnknown(data['queued_at']!, _queuedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_queuedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  StarSyncQueueTableData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return StarSyncQueueTableData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      itemId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}item_id'],
+      )!,
+      itemType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}item_type'],
+      )!,
+      action: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}action'],
+      )!,
+      queuedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}queued_at'],
+      )!,
+    );
+  }
+
+  @override
+  $StarSyncQueueTableTable createAlias(String alias) {
+    return $StarSyncQueueTableTable(attachedDatabase, alias);
+  }
+}
+
+class StarSyncQueueTableData extends DataClass
+    implements Insertable<StarSyncQueueTableData> {
+  final int id;
+
+  /// The ID of the item to star/unstar (song, album, or artist server ID).
+  final String itemId;
+
+  /// The type of item: 'song', 'album', or 'artist'.
+  final String itemType;
+
+  /// The action to perform: 'star' or 'unstar'.
+  final String action;
+
+  /// When the action was queued.
+  final DateTime queuedAt;
+  const StarSyncQueueTableData({
+    required this.id,
+    required this.itemId,
+    required this.itemType,
+    required this.action,
+    required this.queuedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['item_id'] = Variable<String>(itemId);
+    map['item_type'] = Variable<String>(itemType);
+    map['action'] = Variable<String>(action);
+    map['queued_at'] = Variable<DateTime>(queuedAt);
+    return map;
+  }
+
+  StarSyncQueueTableCompanion toCompanion(bool nullToAbsent) {
+    return StarSyncQueueTableCompanion(
+      id: Value(id),
+      itemId: Value(itemId),
+      itemType: Value(itemType),
+      action: Value(action),
+      queuedAt: Value(queuedAt),
+    );
+  }
+
+  factory StarSyncQueueTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return StarSyncQueueTableData(
+      id: serializer.fromJson<int>(json['id']),
+      itemId: serializer.fromJson<String>(json['itemId']),
+      itemType: serializer.fromJson<String>(json['itemType']),
+      action: serializer.fromJson<String>(json['action']),
+      queuedAt: serializer.fromJson<DateTime>(json['queuedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'itemId': serializer.toJson<String>(itemId),
+      'itemType': serializer.toJson<String>(itemType),
+      'action': serializer.toJson<String>(action),
+      'queuedAt': serializer.toJson<DateTime>(queuedAt),
+    };
+  }
+
+  StarSyncQueueTableData copyWith({
+    int? id,
+    String? itemId,
+    String? itemType,
+    String? action,
+    DateTime? queuedAt,
+  }) => StarSyncQueueTableData(
+    id: id ?? this.id,
+    itemId: itemId ?? this.itemId,
+    itemType: itemType ?? this.itemType,
+    action: action ?? this.action,
+    queuedAt: queuedAt ?? this.queuedAt,
+  );
+  StarSyncQueueTableData copyWithCompanion(StarSyncQueueTableCompanion data) {
+    return StarSyncQueueTableData(
+      id: data.id.present ? data.id.value : this.id,
+      itemId: data.itemId.present ? data.itemId.value : this.itemId,
+      itemType: data.itemType.present ? data.itemType.value : this.itemType,
+      action: data.action.present ? data.action.value : this.action,
+      queuedAt: data.queuedAt.present ? data.queuedAt.value : this.queuedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('StarSyncQueueTableData(')
+          ..write('id: $id, ')
+          ..write('itemId: $itemId, ')
+          ..write('itemType: $itemType, ')
+          ..write('action: $action, ')
+          ..write('queuedAt: $queuedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, itemId, itemType, action, queuedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is StarSyncQueueTableData &&
+          other.id == this.id &&
+          other.itemId == this.itemId &&
+          other.itemType == this.itemType &&
+          other.action == this.action &&
+          other.queuedAt == this.queuedAt);
+}
+
+class StarSyncQueueTableCompanion
+    extends UpdateCompanion<StarSyncQueueTableData> {
+  final Value<int> id;
+  final Value<String> itemId;
+  final Value<String> itemType;
+  final Value<String> action;
+  final Value<DateTime> queuedAt;
+  const StarSyncQueueTableCompanion({
+    this.id = const Value.absent(),
+    this.itemId = const Value.absent(),
+    this.itemType = const Value.absent(),
+    this.action = const Value.absent(),
+    this.queuedAt = const Value.absent(),
+  });
+  StarSyncQueueTableCompanion.insert({
+    this.id = const Value.absent(),
+    required String itemId,
+    required String itemType,
+    required String action,
+    required DateTime queuedAt,
+  }) : itemId = Value(itemId),
+       itemType = Value(itemType),
+       action = Value(action),
+       queuedAt = Value(queuedAt);
+  static Insertable<StarSyncQueueTableData> custom({
+    Expression<int>? id,
+    Expression<String>? itemId,
+    Expression<String>? itemType,
+    Expression<String>? action,
+    Expression<DateTime>? queuedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (itemId != null) 'item_id': itemId,
+      if (itemType != null) 'item_type': itemType,
+      if (action != null) 'action': action,
+      if (queuedAt != null) 'queued_at': queuedAt,
+    });
+  }
+
+  StarSyncQueueTableCompanion copyWith({
+    Value<int>? id,
+    Value<String>? itemId,
+    Value<String>? itemType,
+    Value<String>? action,
+    Value<DateTime>? queuedAt,
+  }) {
+    return StarSyncQueueTableCompanion(
+      id: id ?? this.id,
+      itemId: itemId ?? this.itemId,
+      itemType: itemType ?? this.itemType,
+      action: action ?? this.action,
+      queuedAt: queuedAt ?? this.queuedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (itemId.present) {
+      map['item_id'] = Variable<String>(itemId.value);
+    }
+    if (itemType.present) {
+      map['item_type'] = Variable<String>(itemType.value);
+    }
+    if (action.present) {
+      map['action'] = Variable<String>(action.value);
+    }
+    if (queuedAt.present) {
+      map['queued_at'] = Variable<DateTime>(queuedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('StarSyncQueueTableCompanion(')
+          ..write('id: $id, ')
+          ..write('itemId: $itemId, ')
+          ..write('itemType: $itemType, ')
+          ..write('action: $action, ')
+          ..write('queuedAt: $queuedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$NavisDatabase extends GeneratedDatabase {
   _$NavisDatabase(QueryExecutor e) : super(e);
   $NavisDatabaseManager get managers => $NavisDatabaseManager(this);
@@ -8605,6 +9374,8 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
       $PlayQueueItemsTableTable(this);
   late final $ScrobbleQueueTableTable scrobbleQueueTable =
       $ScrobbleQueueTableTable(this);
+  late final $StarSyncQueueTableTable starSyncQueueTable =
+      $StarSyncQueueTableTable(this);
   late final AppSettingsDao appSettingsDao = AppSettingsDao(
     this as NavisDatabase,
   );
@@ -8618,6 +9389,7 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
   late final HistoryDao historyDao = HistoryDao(this as NavisDatabase);
   late final PlayQueueDao playQueueDao = PlayQueueDao(this as NavisDatabase);
   late final ScrobbleDao scrobbleDao = ScrobbleDao(this as NavisDatabase);
+  late final StarSyncDao starSyncDao = StarSyncDao(this as NavisDatabase);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -8638,6 +9410,7 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
     playQueueTable,
     playQueueItemsTable,
     scrobbleQueueTable,
+    starSyncQueueTable,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -9041,6 +9814,9 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<String?> audioMuseApiKey,
       Value<bool> audioMuseEnabled,
       Value<int> syncIntervalMinutes,
+      Value<String> replayGainMode,
+      Value<double> replayGainPreamp,
+      Value<double> playbackSpeed,
       required DateTime updatedAt,
     });
 typedef $$AppSettingsTableTableUpdateCompanionBuilder =
@@ -9077,6 +9853,9 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<String?> audioMuseApiKey,
       Value<bool> audioMuseEnabled,
       Value<int> syncIntervalMinutes,
+      Value<String> replayGainMode,
+      Value<double> replayGainPreamp,
+      Value<double> playbackSpeed,
       Value<DateTime> updatedAt,
     });
 
@@ -9246,6 +10025,21 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<int> get syncIntervalMinutes => $composableBuilder(
     column: $table.syncIntervalMinutes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get replayGainMode => $composableBuilder(
+    column: $table.replayGainMode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get replayGainPreamp => $composableBuilder(
+    column: $table.replayGainPreamp,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get playbackSpeed => $composableBuilder(
+    column: $table.playbackSpeed,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -9424,6 +10218,21 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get replayGainMode => $composableBuilder(
+    column: $table.replayGainMode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get replayGainPreamp => $composableBuilder(
+    column: $table.replayGainPreamp,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get playbackSpeed => $composableBuilder(
+    column: $table.playbackSpeed,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
@@ -9595,6 +10404,21 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get replayGainMode => $composableBuilder(
+    column: $table.replayGainMode,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get replayGainPreamp => $composableBuilder(
+    column: $table.replayGainPreamp,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get playbackSpeed => $composableBuilder(
+    column: $table.playbackSpeed,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 }
@@ -9668,6 +10492,9 @@ class $$AppSettingsTableTableTableManager
                 Value<String?> audioMuseApiKey = const Value.absent(),
                 Value<bool> audioMuseEnabled = const Value.absent(),
                 Value<int> syncIntervalMinutes = const Value.absent(),
+                Value<String> replayGainMode = const Value.absent(),
+                Value<double> replayGainPreamp = const Value.absent(),
+                Value<double> playbackSpeed = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
               }) => AppSettingsTableCompanion(
                 id: id,
@@ -9702,6 +10529,9 @@ class $$AppSettingsTableTableTableManager
                 audioMuseApiKey: audioMuseApiKey,
                 audioMuseEnabled: audioMuseEnabled,
                 syncIntervalMinutes: syncIntervalMinutes,
+                replayGainMode: replayGainMode,
+                replayGainPreamp: replayGainPreamp,
+                playbackSpeed: playbackSpeed,
                 updatedAt: updatedAt,
               ),
           createCompanionCallback:
@@ -9738,6 +10568,9 @@ class $$AppSettingsTableTableTableManager
                 Value<String?> audioMuseApiKey = const Value.absent(),
                 Value<bool> audioMuseEnabled = const Value.absent(),
                 Value<int> syncIntervalMinutes = const Value.absent(),
+                Value<String> replayGainMode = const Value.absent(),
+                Value<double> replayGainPreamp = const Value.absent(),
+                Value<double> playbackSpeed = const Value.absent(),
                 required DateTime updatedAt,
               }) => AppSettingsTableCompanion.insert(
                 id: id,
@@ -9772,6 +10605,9 @@ class $$AppSettingsTableTableTableManager
                 audioMuseApiKey: audioMuseApiKey,
                 audioMuseEnabled: audioMuseEnabled,
                 syncIntervalMinutes: syncIntervalMinutes,
+                replayGainMode: replayGainMode,
+                replayGainPreamp: replayGainPreamp,
+                playbackSpeed: playbackSpeed,
                 updatedAt: updatedAt,
               ),
           withReferenceMapper: (p0) => p0
@@ -10928,6 +11764,10 @@ typedef $$SongsTableTableCreateCompanionBuilder =
       Value<DateTime?> starred,
       Value<int?> playCount,
       Value<DateTime?> createdAt,
+      Value<double?> replayGainTrackGain,
+      Value<double?> replayGainAlbumGain,
+      Value<double?> replayGainTrackPeak,
+      Value<double?> replayGainAlbumPeak,
       Value<int> rowid,
     });
 typedef $$SongsTableTableUpdateCompanionBuilder =
@@ -10949,6 +11789,10 @@ typedef $$SongsTableTableUpdateCompanionBuilder =
       Value<DateTime?> starred,
       Value<int?> playCount,
       Value<DateTime?> createdAt,
+      Value<double?> replayGainTrackGain,
+      Value<double?> replayGainAlbumGain,
+      Value<double?> replayGainTrackPeak,
+      Value<double?> replayGainAlbumPeak,
       Value<int> rowid,
     });
 
@@ -11238,6 +12082,26 @@ class $$SongsTableTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<double> get replayGainTrackGain => $composableBuilder(
+    column: $table.replayGainTrackGain,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get replayGainAlbumGain => $composableBuilder(
+    column: $table.replayGainAlbumGain,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get replayGainTrackPeak => $composableBuilder(
+    column: $table.replayGainTrackPeak,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get replayGainAlbumPeak => $composableBuilder(
+    column: $table.replayGainAlbumPeak,
+    builder: (column) => ColumnFilters(column),
+  );
+
   $$AlbumsTableTableFilterComposer get albumId {
     final $$AlbumsTableTableFilterComposer composer = $composerBuilder(
       composer: this,
@@ -11519,6 +12383,26 @@ class $$SongsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<double> get replayGainTrackGain => $composableBuilder(
+    column: $table.replayGainTrackGain,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get replayGainAlbumGain => $composableBuilder(
+    column: $table.replayGainAlbumGain,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get replayGainTrackPeak => $composableBuilder(
+    column: $table.replayGainTrackPeak,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get replayGainAlbumPeak => $composableBuilder(
+    column: $table.replayGainAlbumPeak,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$AlbumsTableTableOrderingComposer get albumId {
     final $$AlbumsTableTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -11625,6 +12509,26 @@ class $$SongsTableTableAnnotationComposer
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<double> get replayGainTrackGain => $composableBuilder(
+    column: $table.replayGainTrackGain,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get replayGainAlbumGain => $composableBuilder(
+    column: $table.replayGainAlbumGain,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get replayGainTrackPeak => $composableBuilder(
+    column: $table.replayGainTrackPeak,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get replayGainAlbumPeak => $composableBuilder(
+    column: $table.replayGainAlbumPeak,
+    builder: (column) => column,
+  );
 
   $$AlbumsTableTableAnnotationComposer get albumId {
     final $$AlbumsTableTableAnnotationComposer composer = $composerBuilder(
@@ -11882,6 +12786,10 @@ class $$SongsTableTableTableManager
                 Value<DateTime?> starred = const Value.absent(),
                 Value<int?> playCount = const Value.absent(),
                 Value<DateTime?> createdAt = const Value.absent(),
+                Value<double?> replayGainTrackGain = const Value.absent(),
+                Value<double?> replayGainAlbumGain = const Value.absent(),
+                Value<double?> replayGainTrackPeak = const Value.absent(),
+                Value<double?> replayGainAlbumPeak = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SongsTableCompanion(
                 id: id,
@@ -11901,6 +12809,10 @@ class $$SongsTableTableTableManager
                 starred: starred,
                 playCount: playCount,
                 createdAt: createdAt,
+                replayGainTrackGain: replayGainTrackGain,
+                replayGainAlbumGain: replayGainAlbumGain,
+                replayGainTrackPeak: replayGainTrackPeak,
+                replayGainAlbumPeak: replayGainAlbumPeak,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -11922,6 +12834,10 @@ class $$SongsTableTableTableManager
                 Value<DateTime?> starred = const Value.absent(),
                 Value<int?> playCount = const Value.absent(),
                 Value<DateTime?> createdAt = const Value.absent(),
+                Value<double?> replayGainTrackGain = const Value.absent(),
+                Value<double?> replayGainAlbumGain = const Value.absent(),
+                Value<double?> replayGainTrackPeak = const Value.absent(),
+                Value<double?> replayGainAlbumPeak = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SongsTableCompanion.insert(
                 id: id,
@@ -11941,6 +12857,10 @@ class $$SongsTableTableTableManager
                 starred: starred,
                 playCount: playCount,
                 createdAt: createdAt,
+                replayGainTrackGain: replayGainTrackGain,
+                replayGainAlbumGain: replayGainAlbumGain,
+                replayGainTrackPeak: replayGainTrackPeak,
+                replayGainAlbumPeak: replayGainAlbumPeak,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -15822,6 +16742,213 @@ typedef $$ScrobbleQueueTableTableProcessedTableManager =
       ScrobbleQueueTableData,
       PrefetchHooks Function({bool songId})
     >;
+typedef $$StarSyncQueueTableTableCreateCompanionBuilder =
+    StarSyncQueueTableCompanion Function({
+      Value<int> id,
+      required String itemId,
+      required String itemType,
+      required String action,
+      required DateTime queuedAt,
+    });
+typedef $$StarSyncQueueTableTableUpdateCompanionBuilder =
+    StarSyncQueueTableCompanion Function({
+      Value<int> id,
+      Value<String> itemId,
+      Value<String> itemType,
+      Value<String> action,
+      Value<DateTime> queuedAt,
+    });
+
+class $$StarSyncQueueTableTableFilterComposer
+    extends Composer<_$NavisDatabase, $StarSyncQueueTableTable> {
+  $$StarSyncQueueTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get itemId => $composableBuilder(
+    column: $table.itemId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get itemType => $composableBuilder(
+    column: $table.itemType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get action => $composableBuilder(
+    column: $table.action,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get queuedAt => $composableBuilder(
+    column: $table.queuedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$StarSyncQueueTableTableOrderingComposer
+    extends Composer<_$NavisDatabase, $StarSyncQueueTableTable> {
+  $$StarSyncQueueTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get itemId => $composableBuilder(
+    column: $table.itemId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get itemType => $composableBuilder(
+    column: $table.itemType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get action => $composableBuilder(
+    column: $table.action,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get queuedAt => $composableBuilder(
+    column: $table.queuedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$StarSyncQueueTableTableAnnotationComposer
+    extends Composer<_$NavisDatabase, $StarSyncQueueTableTable> {
+  $$StarSyncQueueTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get itemId =>
+      $composableBuilder(column: $table.itemId, builder: (column) => column);
+
+  GeneratedColumn<String> get itemType =>
+      $composableBuilder(column: $table.itemType, builder: (column) => column);
+
+  GeneratedColumn<String> get action =>
+      $composableBuilder(column: $table.action, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get queuedAt =>
+      $composableBuilder(column: $table.queuedAt, builder: (column) => column);
+}
+
+class $$StarSyncQueueTableTableTableManager
+    extends
+        RootTableManager<
+          _$NavisDatabase,
+          $StarSyncQueueTableTable,
+          StarSyncQueueTableData,
+          $$StarSyncQueueTableTableFilterComposer,
+          $$StarSyncQueueTableTableOrderingComposer,
+          $$StarSyncQueueTableTableAnnotationComposer,
+          $$StarSyncQueueTableTableCreateCompanionBuilder,
+          $$StarSyncQueueTableTableUpdateCompanionBuilder,
+          (
+            StarSyncQueueTableData,
+            BaseReferences<
+              _$NavisDatabase,
+              $StarSyncQueueTableTable,
+              StarSyncQueueTableData
+            >,
+          ),
+          StarSyncQueueTableData,
+          PrefetchHooks Function()
+        > {
+  $$StarSyncQueueTableTableTableManager(
+    _$NavisDatabase db,
+    $StarSyncQueueTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$StarSyncQueueTableTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$StarSyncQueueTableTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$StarSyncQueueTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> itemId = const Value.absent(),
+                Value<String> itemType = const Value.absent(),
+                Value<String> action = const Value.absent(),
+                Value<DateTime> queuedAt = const Value.absent(),
+              }) => StarSyncQueueTableCompanion(
+                id: id,
+                itemId: itemId,
+                itemType: itemType,
+                action: action,
+                queuedAt: queuedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String itemId,
+                required String itemType,
+                required String action,
+                required DateTime queuedAt,
+              }) => StarSyncQueueTableCompanion.insert(
+                id: id,
+                itemId: itemId,
+                itemType: itemType,
+                action: action,
+                queuedAt: queuedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$StarSyncQueueTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NavisDatabase,
+      $StarSyncQueueTableTable,
+      StarSyncQueueTableData,
+      $$StarSyncQueueTableTableFilterComposer,
+      $$StarSyncQueueTableTableOrderingComposer,
+      $$StarSyncQueueTableTableAnnotationComposer,
+      $$StarSyncQueueTableTableCreateCompanionBuilder,
+      $$StarSyncQueueTableTableUpdateCompanionBuilder,
+      (
+        StarSyncQueueTableData,
+        BaseReferences<
+          _$NavisDatabase,
+          $StarSyncQueueTableTable,
+          StarSyncQueueTableData
+        >,
+      ),
+      StarSyncQueueTableData,
+      PrefetchHooks Function()
+    >;
 
 class $NavisDatabaseManager {
   final _$NavisDatabase _db;
@@ -15856,4 +16983,6 @@ class $NavisDatabaseManager {
       $$PlayQueueItemsTableTableTableManager(_db, _db.playQueueItemsTable);
   $$ScrobbleQueueTableTableTableManager get scrobbleQueueTable =>
       $$ScrobbleQueueTableTableTableManager(_db, _db.scrobbleQueueTable);
+  $$StarSyncQueueTableTableTableManager get starSyncQueueTable =>
+      $$StarSyncQueueTableTableTableManager(_db, _db.starSyncQueueTable);
 }

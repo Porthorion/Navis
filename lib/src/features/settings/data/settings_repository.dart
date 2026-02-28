@@ -50,6 +50,9 @@ class SettingsRepository {
       audioMuseApiKey: settings.audioMuseApiKey,
       audioMuseEnabled: settings.audioMuseEnabled,
       syncIntervalMinutes: settings.syncIntervalMinutes,
+      replayGainMode: settings.replayGainMode,
+      replayGainPreamp: settings.replayGainPreamp,
+      playbackSpeed: settings.playbackSpeed,
     );
   }
 
@@ -88,6 +91,9 @@ class SettingsRepository {
       audioMuseApiKey: row.audioMuseApiKey,
       audioMuseEnabled: row.audioMuseEnabled,
       syncIntervalMinutes: row.syncIntervalMinutes,
+      replayGainMode: row.replayGainMode,
+      replayGainPreamp: row.replayGainPreamp,
+      playbackSpeed: row.playbackSpeed,
     );
   }
 

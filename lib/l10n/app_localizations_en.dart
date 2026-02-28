@@ -246,13 +246,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Apply target gain in dB on Android playback.';
 
   @override
-  String get playbackSettingsSkipSilenceTitle => 'Skip silence when possible';
-
-  @override
-  String get playbackSettingsSkipSilenceSubtitle =>
-      'Automatically skip silent segments on supported platforms.';
-
-  @override
   String get playbackSettingsSaveAction => 'Save';
 
   @override
@@ -317,6 +310,52 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get playbackSettingsCrossfadeTypeSmartDescription =>
       'Only cross-fade between tracks from different albums.';
+
+  @override
+  String get playbackSettingsCrossfadeGaplessWarning =>
+      'Crossfade and gapless playback are both enabled. These features conflict — crossfade may not work correctly. Consider disabling one.';
+
+  @override
+  String get playbackSettingsReplayGainSectionTitle =>
+      'Volume Normalization (ReplayGain)';
+
+  @override
+  String get playbackSettingsReplayGainModeLabel => 'ReplayGain mode';
+
+  @override
+  String get playbackSettingsReplayGainModeOff => 'Off';
+
+  @override
+  String get playbackSettingsReplayGainModeOffDescription =>
+      'No volume normalization applied.';
+
+  @override
+  String get playbackSettingsReplayGainModeTrack => 'Track';
+
+  @override
+  String get playbackSettingsReplayGainModeTrackDescription =>
+      'Normalize volume on a per-track basis.';
+
+  @override
+  String get playbackSettingsReplayGainModeAlbum => 'Album';
+
+  @override
+  String get playbackSettingsReplayGainModeAlbumDescription =>
+      'Normalize volume on a per-album basis, preserving relative loudness.';
+
+  @override
+  String get playbackSettingsReplayGainPreampLabel => 'Pre-amp (dB)';
+
+  @override
+  String get playbackSettingsReplayGainPreampSubtitle =>
+      'Additional gain adjustment. Range: −6 to +6 dB.';
+
+  @override
+  String get playbackSettingsPlaybackSpeedLabel => 'Playback speed';
+
+  @override
+  String get playbackSettingsPlaybackSpeedSubtitle =>
+      'Adjust playback tempo (0.5× – 2.0×). Default: 1.0×.';
 
   @override
   String get homeTitle => 'Home';
@@ -1035,6 +1074,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get lyricsNoneAvailable => 'No lyrics available';
+
+  @override
+  String get lyricsError => 'Could not load lyrics. Check your connection.';
+
+  @override
+  String get lyricsUnsupported => 'Lyrics not supported by this server.';
 
   @override
   String get queueSaveAsPlaylist => 'Save as playlist';

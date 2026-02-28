@@ -86,6 +86,9 @@ class _DelayedReplaceHandler implements NavisPlaybackHandler {
   Future<void> setVolume(double volume) async {}
 
   @override
+  Future<void> setPlaybackSpeed(double speed) async {}
+
+  @override
   Future<void> applyRuntimeSettings() async {}
 
   @override

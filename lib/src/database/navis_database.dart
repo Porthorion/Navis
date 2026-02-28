@@ -9,6 +9,7 @@ import 'package:navis/src/database/daos/play_queue_dao.dart';
 import 'package:navis/src/database/daos/playlist_dao.dart';
 import 'package:navis/src/database/daos/scrobble_dao.dart';
 import 'package:navis/src/database/daos/server_dao.dart';
+import 'package:navis/src/database/daos/star_sync_dao.dart';
 import 'package:navis/src/database/tables/albums_table.dart';
 import 'package:navis/src/database/tables/app_settings_table.dart';
 import 'package:navis/src/database/tables/artists_table.dart';
@@ -25,6 +26,7 @@ import 'package:navis/src/database/tables/scrobble_queue_table.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/database/tables/server_config_table.dart';
 import 'package:navis/src/database/tables/songs_table.dart';
+import 'package:navis/src/database/tables/star_sync_queue_table.dart';
 
 part 'navis_database.g.dart';
 
@@ -45,6 +47,7 @@ part 'navis_database.g.dart';
     PlayQueueTable,
     PlayQueueItemsTable,
     ScrobbleQueueTable,
+    StarSyncQueueTable,
   ],
   daos: [
     AppSettingsDao,
@@ -56,6 +59,7 @@ part 'navis_database.g.dart';
     HistoryDao,
     PlayQueueDao,
     ScrobbleDao,
+    StarSyncDao,
   ],
 )
 class NavisDatabase extends _$NavisDatabase {
@@ -65,7 +69,7 @@ class NavisDatabase extends _$NavisDatabase {
   static QueryExecutor _openConnection() => driftDatabase(name: 'navis.sqlite');
 
   @override
-  int get schemaVersion => 22;
+  int get schemaVersion => 23;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -149,6 +153,9 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 22 && to >= 22) {
       await from21To22(migrator);
+    }
+    if (from < 23 && to >= 23) {
+      await from22To23(migrator);
     }
   }
 
@@ -375,6 +382,49 @@ class NavisDatabase extends _$NavisDatabase {
       await migrator.addColumn(
         appSettingsTable,
         appSettingsTable.dynamicAlbumColorEnabled,
+      );
+    }
+  }
+
+  Future<void> from22To23(Migrator migrator) async {
+    // 16.1: Star sync queue table.
+    if (!await _tableExists('star_sync_queue')) {
+      await migrator.createTable(starSyncQueueTable);
+    }
+
+    // 14.4: ReplayGain columns on songs.
+    if (!await _columnExists('songs', 'replay_gain_track_gain')) {
+      await migrator.addColumn(songsTable, songsTable.replayGainTrackGain);
+    }
+    if (!await _columnExists('songs', 'replay_gain_album_gain')) {
+      await migrator.addColumn(songsTable, songsTable.replayGainAlbumGain);
+    }
+    if (!await _columnExists('songs', 'replay_gain_track_peak')) {
+      await migrator.addColumn(songsTable, songsTable.replayGainTrackPeak);
+    }
+    if (!await _columnExists('songs', 'replay_gain_album_peak')) {
+      await migrator.addColumn(songsTable, songsTable.replayGainAlbumPeak);
+    }
+
+    // 14.4: ReplayGain mode and pre-amp on app_settings.
+    if (!await _columnExists('app_settings', 'replay_gain_mode')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.replayGainMode,
+      );
+    }
+    if (!await _columnExists('app_settings', 'replay_gain_preamp')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.replayGainPreamp,
+      );
+    }
+
+    // 14.5: Playback speed on app_settings.
+    if (!await _columnExists('app_settings', 'playback_speed')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.playbackSpeed,
       );
     }
   }

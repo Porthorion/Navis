@@ -7,6 +7,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
+import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
@@ -187,6 +188,7 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
       rollingCacheManager: ref.read(rollingCacheManagerProvider),
       rollingCacheBudgetBytes: ref.read(rollingCacheBudgetBytesProvider),
       scrobbleService: ref.read(scrobbleServiceProvider),
+      starSyncDao: database.starSyncDao,
       readRuntimeSettings: () {
         final settings =
             ref.read(appSettingsProvider).asData?.value ??
@@ -200,6 +202,9 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
           crossfadeEnabled: settings.crossfadeEnabled,
           crossfadeDurationSeconds: settings.crossfadeDurationSeconds,
           crossfadeType: settings.crossfadeType,
+          replayGainMode: settings.replayGainMode,
+          replayGainPreamp: settings.replayGainPreamp,
+          playbackSpeed: settings.playbackSpeed,
         );
       },
     );
@@ -585,6 +590,21 @@ final playerStateProvider = Provider<PlaybackSnapshot>((ref) {
   return snapshot ?? const PlaybackSnapshot.idle();
 });
 
+/// Whether the player is currently playing audio.
+final isPlayingProvider = Provider<bool>((ref) {
+  return ref.watch(playerStateProvider.select((s) => s.playing));
+});
+
+/// The song ID of the currently playing track, or null.
+final currentSongProvider = Provider<String?>((ref) {
+  return ref.watch(playerStateProvider.select((s) => s.currentSongId));
+});
+
+/// The index of the currently playing track within the queue, or null.
+final currentIndexProvider = Provider<int?>((ref) {
+  return ref.watch(playerStateProvider.select((s) => s.currentIndex));
+});
+
 /// The station ID currently playing, or null when not in radio mode.
 final currentRadioStationIdProvider = Provider<String?>((ref) {
   final snapshot = ref.watch(playerStateProvider);
@@ -608,26 +628,52 @@ final lyricsProvider = FutureProvider.family<LyricsList, String>((
     return const LyricsList();
   }
 
+  // Whether the OpenSubsonic lyrics endpoint is unsupported by this server.
+  var openSubsonicUnsupported = false;
+
   // Try OpenSubsonic getLyricsBySongId first.
   try {
     return await api.getLyricsBySongId(songId);
+  } on SubsonicNotFoundException {
+    // Endpoint unsupported — fall through to legacy.
+    openSubsonicUnsupported = true;
+  } on SubsonicApiException {
+    // Other API error (e.g. malformed response) — fall through to legacy.
+    openSubsonicUnsupported = true;
+  } on SubsonicConnectionException {
+    // Network error — propagate as typed lyrics exception.
+    throw const LyricsNetworkException();
   } on Exception {
-    // Extension not supported — fall through to legacy endpoint.
+    // Unknown exception — treat as network error.
+    throw const LyricsNetworkException();
   }
 
   // Legacy fallback: getLyrics(artist, title).
-  final dao = ref.read(navisDatabaseProvider).libraryDao;
-  final songs = await dao.getSongsByIds(<String>[songId]);
-  if (songs.isEmpty) {
-    return const LyricsList();
+  try {
+    final dao = ref.read(navisDatabaseProvider).libraryDao;
+    final songs = await dao.getSongsByIds(<String>[songId]);
+    if (songs.isEmpty) {
+      return const LyricsList();
+    }
+    final song = songs.first;
+    final artist = song.artistName;
+    final title = song.title;
+    if (artist == null || title.isEmpty) {
+      return const LyricsList();
+    }
+    return await api.getLyrics(artist: artist, title: title);
+  } on SubsonicConnectionException {
+    throw const LyricsNetworkException();
+  } on SubsonicNotFoundException {
+    // Both endpoints unsupported — server doesn't support lyrics at all.
+    throw const LyricsUnsupportedException();
+  } on SubsonicApiException {
+    // If both endpoints failed with API errors, it's an unsupported server.
+    if (openSubsonicUnsupported) {
+      throw const LyricsUnsupportedException();
+    }
+    throw const LyricsNetworkException();
   }
-  final song = songs.first;
-  final artist = song.artistName;
-  final title = song.title;
-  if (artist == null || title.isEmpty) {
-    return const LyricsList();
-  }
-  return api.getLyrics(artist: artist, title: title);
 });
 
 final artistInfoProvider = FutureProvider.family<ArtistInfo?, String>((

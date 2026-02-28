@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/cover_art_viewer.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
@@ -445,6 +446,19 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
       // Persist star change to local DB so library views update reactively.
       final dao = ref.read(navisDatabaseProvider).libraryDao;
       await dao.updateAlbumStarred(
+        widget.albumId,
+        isStarred ? null : DateTime.now(),
+      );
+    } on SubsonicConnectionException {
+      // Offline — queue for retry and keep the optimistic UI.
+      if (!mounted) return;
+      final dao = ref.read(navisDatabaseProvider);
+      await dao.starSyncDao.queueStarAction(
+        itemId: widget.albumId,
+        itemType: 'album',
+        action: isStarred ? 'unstar' : 'star',
+      );
+      await dao.libraryDao.updateAlbumStarred(
         widget.albumId,
         isStarred ? null : DateTime.now(),
       );

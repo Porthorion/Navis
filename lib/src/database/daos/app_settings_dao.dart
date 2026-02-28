@@ -57,6 +57,9 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     String? audioMuseApiKey,
     required bool audioMuseEnabled,
     required int syncIntervalMinutes,
+    required String replayGainMode,
+    required double replayGainPreamp,
+    required double playbackSpeed,
   }) {
     return into(appSettingsTable).insertOnConflictUpdate(
       AppSettingsTableCompanion.insert(
@@ -89,6 +92,9 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         audioMuseApiKey: Value(audioMuseApiKey),
         audioMuseEnabled: Value(audioMuseEnabled),
         syncIntervalMinutes: Value(syncIntervalMinutes),
+        replayGainMode: Value(replayGainMode),
+        replayGainPreamp: Value(replayGainPreamp),
+        playbackSpeed: Value(playbackSpeed),
         updatedAt: DateTime.now(),
       ),
     );
@@ -122,6 +128,9 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       updateChannel: 'stable',
       audioMuseEnabled: false,
       syncIntervalMinutes: defaultSyncIntervalMinutes,
+      replayGainMode: 'off',
+      replayGainPreamp: 0,
+      playbackSpeed: 1,
     );
   }
 
