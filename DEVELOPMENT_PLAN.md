@@ -25,6 +25,13 @@ A Flutter-based Subsonic/OpenSubsonic music player client targeting Android and 
 - [Phase 9: Settings](#phase-9-settings)
 - [Phase 10: Polish & Platform Integration](#phase-10-polish--platform-integration)
 - [Phase 11: AudioMuse AI Integration](#phase-11-audiomuse-ai-integration)
+- [Phase 12: Android Auto & CarPlay](#phase-12-android-auto--carplay)
+- [Phase 13: Desktop Support (Windows, macOS, Linux)](#phase-13-desktop-support-windows-macos-linux)
+- [Phase 14: Playback Quality & Reliability](#phase-14-playback-quality--reliability)
+- [Phase 15: Library & Discovery Enhancements](#phase-15-library--discovery-enhancements)
+- [Phase 16: Search & Offline Sync](#phase-16-search--offline-sync)
+- [Phase 17: Accessibility, Locale & Test Coverage](#phase-17-accessibility-locale--test-coverage)
+- [Phase 18: Platform Extensions](#phase-18-platform-extensions)
 - [AI Agent Development Guidelines](#ai-agent-development-guidelines)
 - [Verification Strategy](#verification-strategy)
 - [Key Technical Decisions](#key-technical-decisions)
@@ -161,6 +168,13 @@ Follow [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`:
 | Phase 9 complete (settings) | `0.6.0` | `v0.6.0` |
 | Phase 10 complete (polish) — **first stable** | `1.0.0` | `v1.0.0` |
 | Phase 11 (AudioMuse AI) | `1.1.0` | `v1.1.0` |
+| Phase 14 complete (playback quality + reliability) | `1.2.0` | `v1.2.0` |
+| Phase 15 complete (library + discovery enhancements) | `1.3.0` | `v1.3.0` |
+| Phase 16 complete (search + offline sync) | `1.4.0` | `v1.4.0` |
+| Phase 17 complete (accessibility + locale + test coverage) | `1.5.0` | `v1.5.0` |
+| Phase 18 complete (platform extensions) | `1.6.0` | `v1.6.0` |
+| Phase 12 complete (Android Auto & CarPlay) | `2.0.0` | `v2.0.0` |
+| Phase 13 complete (desktop support) | `2.1.0` | `v2.1.0` |
 
 Bug fixes on any version bump the patch: `0.3.1`, `1.0.1`, etc.
 
@@ -1552,6 +1566,224 @@ This phase is developed after Phase 10 and can be developed in parallel with Pha
 
 ---
 
+## Phase 14: Playback Quality & Reliability
+
+**Development order note**: Complete this phase before starting Phases 12 (Android Auto) and 13 (Desktop). These are foundational audio and UX improvements that affect the entire playback pipeline.
+
+Work through tasks in priority order within this phase: CRITICAL first, then HIGH, then MEDIUM. Do not start a lower-priority task until all higher-priority tasks pass verification.
+
+### 14.1 — Skip Silence Toggle Removal (CRITICAL)
+
+Remove the `skipSilenceEnabled` toggle from the Playback settings screen. `just_audio` does not support skip-silence for music playback; the toggle has no runtime effect and misleads users into thinking a feature is active when it is not. The DB column may remain as a migration artifact — simply do not expose it in the settings UI.
+
+**Files to touch**: `lib/src/features/settings/presentation/playback_settings_screen.dart` — remove the `SwitchListTile` and any provider watch for `skipSilenceEnabled`. Remove the associated l10n key from `app_en.arb` if it becomes unused after removal.
+
+### 14.2 — Position Persistence on Pause (CRITICAL)
+
+The 15-second periodic position timer is the only current persistence trigger. If the app is killed immediately after the user pauses, up to 15 seconds of position is lost. Add an explicit `_persistQueueState()` call in the `pause()` override so position is always flushed at pause time.
+
+**Files to touch**: `lib/src/features/player/data/navis_audio_handler.dart` — add `_persistQueueState()` in the `pause()` override alongside the existing stop/skip persistence calls.
+
+### 14.3 — Lyrics Error State Distinction (CRITICAL)
+
+The `_InlineLyrics` widget currently displays the same `lyricsNoneAvailable` message for three distinct situations:
+1. The server does not support the lyrics endpoint.
+2. A network or API error occurred while fetching.
+3. The track has no lyrics in the server's database.
+
+Each state needs an accurate user-facing message so users do not misinterpret a temporary network failure as permanent absence of lyrics.
+
+**Files to touch**: `lib/src/features/player/presentation/now_playing_screen.dart` — update the `AsyncValue` error/data branch in the lyrics widget to differentiate exception types. `lib/l10n/app_en.arb` — add `lyricsError` ("Could not load lyrics. Check your connection.") and `lyricsUnsupported` ("Lyrics not supported by this server.") keys.
+
+### 14.4 — ReplayGain Volume Normalization (CRITICAL)
+
+Read `replayGain` data from the `Song` model and apply per-track gain normalization before each track starts. This prevents jarring volume jumps between tracks mastered at different levels.
+
+**Required**:
+- Confirm `replayGain` fields (`trackGain`, `albumGain`, `trackPeak`, `albumPeak`) are present in the `Song` Freezed model (the Subsonic API returns them). Add if missing.
+- In `NavisAudioHandler`, before starting each track, compute the gain value from `song.replayGain` (prefer track gain, fall back to album gain, fall back to 0 dB) and apply via `_player.setVolume()` with an appropriate linear amplitude conversion.
+- Add a **ReplayGain** setting in Settings > Playback > General: mode selector (Off / Track Gain / Album Gain; default Off) and a pre-amp slider (−6 dB to +6 dB, default 0 dB).
+- l10n strings for the new settings entries.
+- Schema migration: add `replayGainMode` (text enum: `off`/`track`/`album`) and `replayGainPreamp` (real, default 0.0) columns to `app_settings`.
+
+### 14.5 — Playback Speed Control (HIGH)
+
+Expose playback speed (0.5× to 2.0× in 0.25× steps) via `AudioPlayer.setSpeed()`. Surface the control in the Now Playing overflow menu or as a persistent chip near the seek bar.
+
+- Persist selected speed in `AppSettings` (new `playbackSpeed` real column, default 1.0).
+- Display current speed on the control as a text label (e.g., "1.5×").
+- Reset to 1.0× on queue clear.
+- Schema migration required.
+
+### 14.6 — Crossfade / Gapless Conflict Guard (MEDIUM)
+
+Enabling both `crossfadeEnabled` and `gaplessPlayback` simultaneously creates conflicting playback architectures. When both are enabled, show a warning chip in Playback settings explaining that the combination is unsupported and recommend disabling one. Optionally, auto-disable gapless when crossfade is turned on (and vice versa) to prevent the conflict silently.
+
+### 14.7 — Playback Snapshot Granularity (MEDIUM)
+
+`playerStateProvider` emits on every position tick (100–200 ms). Any widget that watches this full snapshot rebuilds at audio clock frequency. Derive targeted providers to reduce rebuild scope:
+- `isPlayingProvider` — `bool`, derived from snapshot.
+- `currentSongProvider` — `Song?`, derived from snapshot.
+- `currentIndexProvider` — `int?`, derived from snapshot.
+
+Update all widgets that only need is-playing state or current song metadata to watch a targeted provider. Widgets that render seek progress continue watching the full snapshot.
+
+---
+
+## Phase 15: Library & Discovery Enhancements
+
+**Development order note**: Can be developed in parallel with Phase 14 for HIGH-priority tasks, but depends on Phase 14 being complete before this phase is signed off.
+
+Work through tasks in priority order: HIGH → MEDIUM → LOW.
+
+### 15.1 — Starred / Favorites Screen (HIGH)
+
+Add a dedicated **Favorites** screen that surfaces all starred content. Access point: a "Favorites" tab within the Library screen (alongside Albums, Artists), or a "Favorites" tile in the Home screen navigating to the full screen.
+
+- Three sections: Starred Albums, Starred Artists, Starred Songs — each showing a scrollable list/grid.
+- Data from `getStarred2()` API, synced to local DB during the standard sync engine run.
+- Reactive: `star()` / `unstar()` actions on any screen immediately reflect here via drift stream queries.
+- Pull-to-refresh re-fetches `getStarred2()` and updates local DB.
+- Tap items navigate to the existing album/artist detail screens.
+
+**Note**: The Home screen "Liked" carousel already uses `getStarred2()` for a limited subset. This screen is the full browsing surface.
+
+### 15.2 — Download Progress on Browsing Tiles (HIGH)
+
+Album tiles in the library grid should reflect download state without requiring navigation to the Downloads screen.
+
+- Fully downloaded albums: a small completed-download badge (reuse existing `CacheBadge` pattern).
+- Partially downloaded / actively downloading: a progress overlay or dot indicator driven by `downloadQueueProvider`.
+- Updates reactively as downloads complete.
+
+**Files to touch**: `lib/src/common_widgets/album_card.dart`, `lib/src/features/library/presentation/library_screen.dart` — wire `downloadedContentIdsProvider` and download queue state into album tile renderers.
+
+### 15.3 — Pull-to-Refresh Consistency (MEDIUM)
+
+Audit all browsable list and grid screens to confirm `RefreshIndicator` is present and correctly wired. Screens to audit: Library albums tab, Library artists tab, Home screen (section carousels), Artist detail albums grid, Genre detail. Add any missing `RefreshIndicator` wrappers and ensure they trigger the correct data re-fetch.
+
+### 15.4 — Empty State Audit (MEDIUM)
+
+Verify every content screen displays a meaningful `EmptyState` widget (not a blank screen) when:
+- Library has never been synced.
+- A filter ("Downloaded Only") leaves no matching content.
+- A playlist is empty.
+- Downloads list is empty.
+- Favorites screen has no starred items.
+
+The `EmptyState` widget already exists in `common_widgets/`. This is an audit and wiring pass to ensure consistent usage.
+
+### 15.5 — Album Art Thumbnail Downsizing (MEDIUM)
+
+In list and grid views, `CoverArtImage` should request appropriately sized thumbnails from the server and constrain in-memory decode size. Serving full-resolution art in album grid cells wastes significant memory with large libraries.
+
+Guidelines by context:
+- Album grid cards (small): server `size: 200` + `memCacheWidth: 200`.
+- List rows (artists, tracks, search results): server `size: 80` + `memCacheWidth: 80`.
+- Detail headers / Now Playing: server `size: 640` (unchanged).
+
+Audit all `CoverArtImage` call sites and confirm the `size:` parameter is appropriately set for each context.
+
+### 15.6 — Year / Decade Album Browsing (LOW)
+
+Add a "By Year" option to the Albums tab sort/filter controls. Use `getAlbumList2(type: 'byYear', fromYear: X, toYear: Y)` to retrieve albums within a year range. A decade chip row (1960s, 1970s, ..., 2020s) provides intuitive filtering without requiring a custom date-range slider.
+
+### 15.7 — Auto-Download Starred on Wi-Fi (LOW)
+
+When the device connects to Wi-Fi (and Wi-Fi-only downloads is enabled), automatically enqueue downloads for starred albums and songs not yet permanently downloaded.
+
+- Gate behind a new settings toggle in Settings > Downloads: "Auto-download starred on Wi-Fi" (off by default).
+- Trigger in `ServerReachabilityProvider` when transitioning to online via Wi-Fi.
+- Feeds the existing `DownloadService` queue — no separate download path.
+- Schema migration: add `autoDownloadStarred` boolean column to `app_settings`.
+
+---
+
+## Phase 16: Search & Offline Sync
+
+**Development order note**: The CRITICAL task (16.1) should be addressed early — ideally alongside Phase 14 since it is a data-integrity bug, not a UI feature. The HIGH and MEDIUM tasks follow naturally.
+
+Work through tasks in priority order: CRITICAL → HIGH → MEDIUM.
+
+### 16.1 — Offline Star Sync Queue (CRITICAL)
+
+Currently, `star()` / `unstar()` API calls that fail due to connectivity produce silent divergence: the local DB holds the new state but the server never receives the update. The optimistic UI (Phase 10) correctly flips the icon immediately, but connectivity failures are not queued for retry.
+
+**Implementation**:
+- Add a `star_sync_queue` Drift table: `itemId`, `itemType` (song/album/artist), `action` (star/unstar), `queuedAt`.
+- When a `star()` / `unstar()` API call fails with `SubsonicConnectionException`, insert a row into `star_sync_queue` instead of silently dropping the operation.
+- `ServerReachabilityProvider.onTransitionToOnline()` flushes the queue: re-issues each pending star/unstar in order, removes successfully processed rows.
+- Schema migration required.
+
+### 16.2 — Local / Offline Search (HIGH)
+
+When the server is unreachable, `search3()` fails and the search screen shows an error. Fall back to a Drift-backed local search across the cached `artists`, `albums`, and `songs` tables using `LIKE '%query%'` pattern matching.
+
+- Auto-detect offline state via `serverReachabilityProvider`.
+- Show a subtle inline banner: "Searching local library (offline)" when the offline path is active.
+- Offline search results navigate to the same detail screens as online results.
+- No change to the online search path.
+
+### 16.3 — Search Type Filters (MEDIUM)
+
+Add a filter chip row below the search input: **All** | **Artists** | **Albums** | **Songs**. Selecting a filter sets the non-selected type counts to 0 in the `search3()` call and collapses the irrelevant result sections. State lives only for the lifetime of the current search session.
+
+### 16.4 — Radio Offline / Error Handling (MEDIUM)
+
+Improve radio stream failure modes:
+- When ICY metadata is unavailable, display the station name (always known) in the mini player and Now Playing screen instead of showing empty metadata.
+- On stream error (HTTP 503, connection reset, timeout), show a dismissible error snackbar ("Radio stream unavailable") and stop the stream rather than silently hanging.
+- In `RadioMetadataService`, add dead-stream detection: if the now-playing metadata has not changed for 5+ consecutive polling cycles, reduce polling frequency and display the station name only.
+- Distinguish "polling failed" from "no metadata available" — a polling failure must not clear metadata that was previously loaded successfully.
+
+---
+
+## Phase 17: Accessibility, Locale & Test Coverage
+
+**Development order note**: All tasks in this phase are LOW priority. Complete Phase 16 before starting Phase 17. Tasks can be distributed across sessions as capacity allows.
+
+### 17.1 — Seek Bar Accessibility Actions (LOW)
+
+The Now Playing seek bar `Slider` already exposes `semanticFormatterCallback` (Phase 10.4). Add `SemanticsAction.increase` and `SemanticsAction.decrease` so screen reader users can step forward and backward in 10-second increments without gesturing directly on the slider track.
+
+### 17.2 — In-App Locale Override (LOW)
+
+Add a "Language" dropdown to Appearance settings that allows users to override the display locale explicitly, independent of the system locale. Store the selected locale code (e.g., `"en"`, `"fr"`) in `AppSettings`. Apply by passing the stored locale as `locale:` on `MaterialApp.router`. Supported locales enumerate from `AppLocalizations.supportedLocales`. Schema migration required.
+
+### 17.3 — Widget & Integration Test Coverage (LOW)
+
+Add missing test coverage for:
+- `ExpandablePlayerSheet` animation lifecycle: open from mini player, close with back button, velocity-fling gesture.
+- `InstantMixNotifier` auto-refill: verify the trigger fires correctly when remaining queue count drops to ≤ 3.
+- `SmartQueueNotifier` if the architecture retains a distinct implementation.
+- Auth-to-playback integration test using a mock Subsonic fixture: login → library sync → enqueue → play.
+
+### 17.4 — Ghost File Cleanup (LOW)
+
+`pruneMissingPermanentFiles()` already removes DB records for files deleted externally from disk. Add the complementary scan: on startup, enumerate the rolling cache and permanent cache directories and remove any files that do not have a corresponding `cached_tracks` row in the DB. Prevents accumulation of orphaned files from previous installs or interrupted writes.
+
+---
+
+## Phase 18: Platform Extensions
+
+**Development order note**: All tasks are LOW priority. Complete Phase 17 before starting Phase 18. Phase 18 adds new platform surfaces — the core app must be fully stable before investing in platform extensions.
+
+### 18.1 — Android Home Screen Widget (LOW)
+
+A 4×1 Android `AppWidgetProvider` showing:
+- Album art thumbnail.
+- Track title and artist.
+- Previous / Play-Pause / Next controls.
+- Optional progress bar if the widget API permits it.
+
+Use the `home_widget` pub package or a native Android implementation bridged via a platform channel. Widget actions call `NavisAudioHandler` through `audio_service`'s `AudioHandler.customAction()`.
+
+### 18.2 — iOS Live Activity / Dynamic Island (LOW) *(Stretch Goal)*
+
+Implement a Live Activity via the ActivityKit framework using a Flutter platform channel. Displays current track title, artist, and playback controls on the Dynamic Island and Lock Screen for iOS 16.1+. Graceful no-op on unsupported iOS versions. This is a stretch goal dependent on Flutter's evolving ActivityKit support.
+
+---
+
 ## AI Agent Development Guidelines
 
 These rules govern how the AI agent writes code in this project. The human reviewer should enforce these during review.
@@ -1656,6 +1888,11 @@ Global verification rule for every phase completion:
 | 11 | AudioMuse smart queue appends tracks when configured. UI elements hidden when AudioMuse not configured. Similar artists/albums display. Fallback to Subsonic data when AudioMuse is off. |
 | 12 | Android Auto: browsable media tree visible in a connected Android Auto head unit or emulator (Desktop Head Unit). Artists/Albums/Playlists root tabs expand correctly. Playback controls (play/pause/next/previous/seek) work from the Auto UI. Search returns results. Inert on non-Auto Android devices and on iOS. CarPlay: content tree renders in CarPlay Simulator. Playback controls work. `MPPlayableContentDelegate` receives play commands. Siri Shortcuts `INPlayMediaIntent` triggers playback. Inert on non-CarPlay iOS devices and on Android. |
 | 13 | All three desktop targets (`flutter run -d windows`, `-d macos`, `-d linux`) build and launch without errors. `NavigationRail` visible at ≥ 600 dp window width; `BottomNavigationBar` visible at < 600 dp. Master-detail layout active at ≥ 960 dp. Window size and position survive app restart. Windows: SMTC thumbnail and controls appear in the taskbar media flyout; hardware media keys toggle playback. Linux: `playerctl status` reports `Playing`/`Paused`; `playerctl play-pause` toggles playback; `playerctl metadata` shows current track. macOS: Control Centre now-playing widget shows track info and art; keyboard media keys work. MSIX, `.app` bundle, and `.deb` packages build successfully in CI. |
+| 14 | `skipSilenceEnabled` toggle is absent from the Playback settings screen. Killing the app immediately after pausing and relaunching places playback within 1 second of the pause point. Lyrics widget shows distinct messages for: no lyrics, fetch error, and unsupported server. ReplayGain applies audible gain normalization when mode is set to Track or Album (audible volume difference between a quietly and a loudly mastered track). Playback speed control visible in Now Playing; speed persists after navigating away and returning. Crossfade + gapless conflict warning visible when both are enabled. Targeted `isPlayingProvider` / `currentSongProvider` derived providers exist and are used by non-seek widgets. |
+| 15 | Favorites screen lists starred albums, artists, and songs from `getStarred2()`. Starring from any screen reflects immediately in the Favorites screen via drift stream. Download badges visible on album tiles in the library grid for fully downloaded albums. Every list/grid screen has pull-to-refresh. No blank screens on empty states for all listed scenarios. Album grid thumbnails use size-constrained server requests. Year/decade chip filter returns correct albums from server. Auto-download starred toggle queues downloads when Wi-Fi connects (when enabled). |
+| 16 | Starring a song offline queues the action in `star_sync_queue`; reconnecting to the server flushes the queue and the server reflects the correct star state. Search screen returns local drift results with offline banner when server is unreachable. Search type filter chips correctly restrict results to the selected type. Radio stream error produces a dismissible snackbar and stops gracefully; station name displays when ICY metadata is unavailable; previously loaded metadata is not cleared on polling failure. |
+| 17 | Seek bar responds to TalkBack / VoiceOver increase/decrease gesture with 10-second step. Language override in Appearance settings changes display locale immediately on selection. `ExpandablePlayerSheet` and `InstantMixNotifier` tests pass. Startup ghost file scan completes without errors and removes orphaned cache files on a device with a simulated orphan. |
+| 18 | Android home screen widget displays current track and responds to play/pause/skip. Widget updates when the track changes while the app is in the background. |
 
 ---
 
@@ -1685,7 +1922,7 @@ These are explicitly out of scope for the initial development but designed to be
 - **Android Auto / CarPlay**: ~~Promoted to **Phase 12**.~~ See Phase 12 for the full implementation plan.
 - **Desktop support (Windows, macOS, Linux)**: ~~Promoted to **Phase 13**.~~ See Phase 13 for the full implementation plan including adaptive layout, OS audio integration (SMTC / MPRIS / macOS media keys), and packaging.
 - **Chromecast / DLNA**: Cast audio to external devices. Requires a casting package and UI affordances. Independent of the core playback engine.
-- **Widgets**: Home screen widget showing current track with basic controls.
+- **Widgets**: ~~Promoted to **Phase 18**.~~ See Phase 18 for the Android home screen widget and iOS Live Activity implementation plan.
 - **Wear OS / Apple Watch**: Companion app for playback control.
 - **Import/export**: Import playlists from M3U files. Export starred items.
 - **Custom server endpoints**: Support non-standard Subsonic API extensions beyond OpenSubsonic.
