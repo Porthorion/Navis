@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -350,26 +351,177 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 }
 
-class _QueueOverlay extends StatelessWidget {
+class _QueueOverlay extends StatefulWidget {
   const _QueueOverlay({required this.onDismiss});
 
   final VoidCallback onDismiss;
 
   @override
+  State<_QueueOverlay> createState() => _QueueOverlayState();
+}
+
+class _QueueOverlayState extends State<_QueueOverlay>
+    with SingleTickerProviderStateMixin {
+  static const double _sheetHeightFactor = 0.95;
+  static const Duration _openDuration = Duration(milliseconds: 280);
+  static const Duration _closeDuration = Duration(milliseconds: 160);
+  static const double _flingVelocityThreshold = 400.0;
+
+  late final AnimationController _controller;
+  late final Animation<Offset> _slideAnimation;
+
+  // Scroll controller shared with the queue list so we know when the list
+  // is at the top and a downward drag should move the sheet instead.
+  final ScrollController _scrollController = ScrollController();
+
+  // Raw-pointer drag tracking — uses Listener (not GestureDetector) so it
+  // fires alongside the list's scroll recognizer without competing in the
+  // gesture arena.
+  VelocityTracker? _velocityTracker;
+  int? _activePointer;
+  bool _draggingSheet = false;
+  bool _dismissing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: _openDuration);
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 1),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _dismiss() {
+    if (_dismissing) return;
+    _dismissing = true;
+    _controller
+        .animateTo(0.0, duration: _closeDuration, curve: Curves.easeInCubic)
+        .whenComplete(widget.onDismiss);
+  }
+
+  // ---- Raw pointer handlers -----------------------------------------------
+
+  void _onPointerDown(PointerDownEvent event) {
+    if (_dismissing) return;
+    _activePointer = event.pointer;
+    _velocityTracker = VelocityTracker.withKind(event.kind);
+    _velocityTracker!.addPosition(event.timeStamp, event.position);
+    _draggingSheet = false;
+  }
+
+  void _onPointerMove(PointerMoveEvent event) {
+    if (_dismissing || event.pointer != _activePointer) return;
+    _velocityTracker?.addPosition(event.timeStamp, event.position);
+
+    final dy = event.delta.dy;
+
+    if (dy < 0) {
+      // Upward movement — stop any sheet drag and let the list scroll.
+      _draggingSheet = false;
+      return;
+    }
+
+    // Downward movement — start sheet drag only when the list is at the top.
+    if (!_draggingSheet) {
+      final atTop = !_scrollController.hasClients ||
+          _scrollController.offset <= 0.0;
+      if (!atTop) return;
+      _draggingSheet = true;
+    }
+
+    final sheetHeight =
+        MediaQuery.of(context).size.height * _sheetHeightFactor;
+    _controller.value =
+        (_controller.value - dy / sheetHeight).clamp(0.0, 1.0);
+  }
+
+  void _onPointerUp(PointerUpEvent event) {
+    if (event.pointer != _activePointer) return;
+    _activePointer = null;
+    if (!_draggingSheet || _dismissing) {
+      _draggingSheet = false;
+      return;
+    }
+    _draggingSheet = false;
+
+    final velocity =
+        _velocityTracker?.getVelocity().pixelsPerSecond.dy ?? 0.0;
+    if (velocity > _flingVelocityThreshold || _controller.value < 0.5) {
+      _dismiss();
+    } else {
+      _controller.animateTo(
+        1.0,
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+      );
+    }
+  }
+
+  void _onPointerCancel(PointerCancelEvent event) {
+    if (event.pointer != _activePointer) return;
+    _activePointer = null;
+    _draggingSheet = false;
+    if (!_dismissing) {
+      _controller.animateTo(
+        1.0,
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+      );
+    }
+  }
+
+  // -------------------------------------------------------------------------
+
+  @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.black.withValues(alpha: 0.35),
-      child: Stack(
-        children: <Widget>[
-          Positioned.fill(
+    return Stack(
+      children: <Widget>[
+        // Scrim — fades in/out with the sheet; tap to dismiss.
+        Positioned.fill(
+          child: FadeTransition(
+            opacity: Tween<double>(begin: 0, end: 0.45).animate(_controller),
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTap: onDismiss,
+              onTap: _dismiss,
+              child: const ColoredBox(color: Colors.black),
             ),
           ),
-          QueueSheet(onClose: onDismiss),
-        ],
-      ),
+        ),
+        // Sheet — slides up from the bottom.
+        Align(
+          alignment: Alignment.bottomCenter,
+          child: FractionallySizedBox(
+            heightFactor: _sheetHeightFactor,
+            widthFactor: 1.0,
+            child: SlideTransition(
+              position: _slideAnimation,
+              child: IgnorePointer(
+                ignoring: _dismissing,
+                child: Listener(
+                  behavior: HitTestBehavior.translucent,
+                  onPointerDown: _onPointerDown,
+                  onPointerMove: _onPointerMove,
+                  onPointerUp: _onPointerUp,
+                  onPointerCancel: _onPointerCancel,
+                  child: QueueSheet(
+                    scrollController: _scrollController,
+                    onClose: _dismiss,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
