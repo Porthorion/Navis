@@ -338,11 +338,13 @@ class _SearchFilterChips extends ConsumerWidget {
               child: ChoiceChip(
                 label: Text(l10n.searchArtistsSection),
                 selected: selected == SearchResultType.artists,
-                onSelected: (_) =>
-                    ref.read(searchFilterProvider.notifier).select(
-                        selected == SearchResultType.artists
-                            ? null
-                            : SearchResultType.artists),
+                onSelected: (_) => ref
+                    .read(searchFilterProvider.notifier)
+                    .select(
+                      selected == SearchResultType.artists
+                          ? null
+                          : SearchResultType.artists,
+                    ),
               ),
             ),
             Padding(
@@ -350,21 +352,25 @@ class _SearchFilterChips extends ConsumerWidget {
               child: ChoiceChip(
                 label: Text(l10n.searchAlbumsSection),
                 selected: selected == SearchResultType.albums,
-                onSelected: (_) =>
-                    ref.read(searchFilterProvider.notifier).select(
-                        selected == SearchResultType.albums
-                            ? null
-                            : SearchResultType.albums),
+                onSelected: (_) => ref
+                    .read(searchFilterProvider.notifier)
+                    .select(
+                      selected == SearchResultType.albums
+                          ? null
+                          : SearchResultType.albums,
+                    ),
               ),
             ),
             ChoiceChip(
               label: Text(l10n.searchSongsSection),
               selected: selected == SearchResultType.songs,
-              onSelected: (_) =>
-                  ref.read(searchFilterProvider.notifier).select(
-                      selected == SearchResultType.songs
-                          ? null
-                          : SearchResultType.songs),
+              onSelected: (_) => ref
+                  .read(searchFilterProvider.notifier)
+                  .select(
+                    selected == SearchResultType.songs
+                        ? null
+                        : SearchResultType.songs,
+                  ),
             ),
           ],
         ),
