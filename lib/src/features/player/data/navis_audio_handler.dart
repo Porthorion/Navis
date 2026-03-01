@@ -437,8 +437,7 @@ class NavisAudioHandler extends BaseAudioHandler
   Stream<PlaybackSnapshot> get snapshotStream => _snapshotController.stream;
 
   @override
-  Stream<void> get radioStreamErrorStream =>
-      _radioStreamErrorController.stream;
+  Stream<void> get radioStreamErrorStream => _radioStreamErrorController.stream;
 
   @override
   Stream<Duration> get positionStream => _player.createPositionStream(

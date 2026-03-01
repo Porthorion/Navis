@@ -209,9 +209,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     // Sync Settings ("Force Full Sync").
     final hasBeenSyncedBefore = config.lastSynced != null;
     unawaited(
-      (hasBeenSyncedBefore
-              ? syncNow(preferIncremental: true)
-              : syncIfStale())
+      (hasBeenSyncedBefore ? syncNow(preferIncremental: true) : syncIfStale())
           .then((result) {
             if (result.status == LibrarySyncStatus.succeeded ||
                 result.status == LibrarySyncStatus.skipped) {

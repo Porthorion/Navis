@@ -375,8 +375,9 @@ class DownloadService {
         // Pre-cache cover art alongside the audio file (best-effort).
         final coverArtId = song.coverArt;
         if (coverArtId != null && coverArtId.isNotEmpty) {
-          final artUrl =
-              api.getCoverArtUrl(id: coverArtId, size: 300).toString();
+          final artUrl = api
+              .getCoverArtUrl(id: coverArtId, size: 300)
+              .toString();
           unawaited(
             defaultCoverArtCacheManager
                 .downloadFile(artUrl, key: '$coverArtId:300')

@@ -444,16 +444,14 @@ class _QueueOverlayState extends State<_QueueOverlay>
 
     // Downward movement — start sheet drag only when the list is at the top.
     if (!_draggingSheet) {
-      final atTop = !_scrollController.hasClients ||
-          _scrollController.offset <= 0.0;
+      final atTop =
+          !_scrollController.hasClients || _scrollController.offset <= 0.0;
       if (!atTop) return;
       _draggingSheet = true;
     }
 
-    final sheetHeight =
-        MediaQuery.of(context).size.height * _sheetHeightFactor;
-    _controller.value =
-        (_controller.value - dy / sheetHeight).clamp(0.0, 1.0);
+    final sheetHeight = MediaQuery.of(context).size.height * _sheetHeightFactor;
+    _controller.value = (_controller.value - dy / sheetHeight).clamp(0.0, 1.0);
   }
 
   void _onPointerUp(PointerUpEvent event) {
@@ -465,8 +463,7 @@ class _QueueOverlayState extends State<_QueueOverlay>
     }
     _draggingSheet = false;
 
-    final velocity =
-        _velocityTracker?.getVelocity().pixelsPerSecond.dy ?? 0.0;
+    final velocity = _velocityTracker?.getVelocity().pixelsPerSecond.dy ?? 0.0;
     if (velocity > _flingVelocityThreshold || _controller.value < 0.5) {
       _dismiss();
     } else {

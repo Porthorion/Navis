@@ -575,22 +575,22 @@ final albumYearSectionsProvider =
     ) {
       final dao = ref.watch(navisDatabaseProvider).libraryDao;
       final downloadState = ref.watch(downloadedContentIdsProvider);
-      return dao
-          .watchAlbumsForYearView(likedOnly: request.likedOnly)
-          .map((albums) {
-            final filteredAlbums = request.downloadedOnly
-                ? albums
-                    .where(
-                      (album) =>
-                          downloadState.asData?.value.albumIds.contains(
-                            album.id,
-                          ) ??
-                          false,
-                    )
-                    .toList(growable: false)
-                : albums;
-            return _buildAlbumYearSections(filteredAlbums);
-          });
+      return dao.watchAlbumsForYearView(likedOnly: request.likedOnly).map((
+        albums,
+      ) {
+        final filteredAlbums = request.downloadedOnly
+            ? albums
+                  .where(
+                    (album) =>
+                        downloadState.asData?.value.albumIds.contains(
+                          album.id,
+                        ) ??
+                        false,
+                  )
+                  .toList(growable: false)
+            : albums;
+        return _buildAlbumYearSections(filteredAlbums);
+      });
     });
 
 final albumTileDownloadStateProvider =

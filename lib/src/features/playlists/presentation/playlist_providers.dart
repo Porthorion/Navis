@@ -6,11 +6,10 @@ import 'package:navis/src/providers/app_providers.dart';
 /// Watches the local playlist list (synced from server).
 /// Non-autoDispose so the stream stays alive across tab switches, preventing
 /// the playlist tab from resetting back to a loading/empty state on revisit.
-final playlistListProvider =
-    StreamProvider<List<PlaylistsTableData>>((ref) {
-      final db = ref.watch(navisDatabaseProvider);
-      return db.playlistDao.watchPlaylists();
-    });
+final playlistListProvider = StreamProvider<List<PlaylistsTableData>>((ref) {
+  final db = ref.watch(navisDatabaseProvider);
+  return db.playlistDao.watchPlaylists();
+});
 
 /// Fetches playlist data from the server and stores it locally.
 /// Returns the list of playlists after sync.

@@ -741,8 +741,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                                 item.isUnknownYear
                                     ? l10n.libraryUnknownYear
                                     : item.label,
-                                style:
-                                    Theme.of(context).textTheme.titleLarge,
+                                style: Theme.of(context).textTheme.titleLarge,
                               ),
                             );
                           }
@@ -1010,10 +1009,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       return;
     }
 
-    final totalAlbums = ref
-        .read(albumCountProvider)
-        .asData
-        ?.value;
+    final totalAlbums = ref.read(albumCountProvider).asData?.value;
     final pageSize = ref.read(albumPageSizeProvider);
     if (totalAlbums == null) {
       return;
@@ -1724,10 +1720,10 @@ class _YearListItem {
       decadeStart = null,
       albums = right != null ? [left, right] : [left];
 
-  final String label;                  // non-empty for headers
-  final bool isUnknownYear;            // true when year is unknown
-  final int? decadeStart;              // decade start year for headers
-  final List<AlbumsTableData> albums;  // empty = header, 1–2 = album row
+  final String label; // non-empty for headers
+  final bool isUnknownYear; // true when year is unknown
+  final int? decadeStart; // decade start year for headers
+  final List<AlbumsTableData> albums; // empty = header, 1–2 = album row
 
   bool get isHeader => albums.isEmpty;
 }
