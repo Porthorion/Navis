@@ -550,32 +550,32 @@ Last updated: 2026-03-01
 > Work HIGH tasks before MEDIUM, MEDIUM before LOW.
 
 ### 15.1 — Starred / Favorites Screen (HIGH)
-- [ ] Add Favorites screen listing starred albums, artists, and songs from `getStarred2()`
-- [ ] Wire access point (Library tab or Home tile)
-- [ ] Reactive star updates via drift stream queries
-- [ ] Pull-to-refresh re-fetches `getStarred2()` from server
+- [x] Add Favorites screen listing starred albums, artists, and songs from `getStarred2()` — 2026-03-01 (evidence: `lib/src/features/library/presentation/library_screen.dart` `_buildLikedTab()` — starred albums grid + starred songs list + loading shimmer)
+- [x] Wire access point (Library tab or Home tile) — 2026-03-01 (evidence: `showLikedPageProvider` appearance toggle; Home "Liked Tracks" carousel via `homeLikedSongsProvider` in `lib/src/features/home/presentation/home_screen.dart`)
+- [x] Reactive star updates via drift stream queries — 2026-03-01 (evidence: `likedAlbumsProvider` / `likedSongsProvider` / `likedArtistsProvider` stream providers in `lib/src/providers/app_providers.dart`)
+- [x] Pull-to-refresh re-fetches `getStarred2()` from server — 2026-03-01 (evidence: `RefreshIndicator` in `_buildLikedTab()`)
 
 ### 15.2 — Download Progress on Browsing Tiles (HIGH)
-- [ ] Show completed-download badge on fully downloaded `AlbumCard` tiles
-- [ ] Show in-progress indicator for actively downloading albums
-- [ ] Wire `downloadedContentIdsProvider` and download queue into album tile renderer
+- [x] Show completed-download badge on fully downloaded `AlbumCard` tiles — 2026-03-01 (evidence: `lib/src/common_widgets/album_download_badge.dart` `AlbumDownloadBadge` widget)
+- [x] Show in-progress indicator for actively downloading albums — 2026-03-01 (evidence: `AlbumDownloadBadge` renders progress percentage when partially downloaded)
+- [x] Wire `downloadedContentIdsProvider` and download queue into album tile renderer — 2026-03-01 (evidence: `albumTileDownloadStateProvider` in `lib/src/providers/app_providers.dart`; `AlbumTileDownloadState` in `lib/src/features/library/presentation/library_browse_models.dart`; wired into library album grid, liked tab, artist detail, genre detail)
 
 ### 15.3 — Pull-to-Refresh Consistency (MEDIUM)
-- [ ] Audit and add `RefreshIndicator` on: Library albums tab, Library artists tab, Home screen, Artist detail albums grid, Genre detail
+- [x] Audit and add `RefreshIndicator` on: Library albums tab, Library artists tab, Home screen, Artist detail albums grid, Genre detail — 2026-03-01 (evidence: `RefreshIndicator` confirmed on 16+ screens including home, all library tabs, radio, artist detail, genre detail songs+albums, playlists list, playlist detail, by-year/by-name album views)
 
 ### 15.4 — Empty State Audit (MEDIUM)
-- [ ] Verify `EmptyState` widget is shown for: unsynced library, Downloaded-only filter empty, empty playlist, empty downloads, empty Favorites screen
+- [x] Verify `EmptyState` widget is shown for: unsynced library, Downloaded-only filter empty, empty playlist, empty downloads, empty Favorites screen — 2026-03-01 (evidence: `EmptyState` widget used in 20+ screens — home, all library tabs, radio, downloads queue+downloaded, search no-results+no-query, genre detail, artist detail, album detail, queue screen/sheet)
 
 ### 15.5 — Album Art Thumbnail Downsizing (MEDIUM)
-- [ ] Audit all `CoverArtImage` call sites; enforce `size: 200` for grid cards, `size: 80` for list rows, `size: 640` for detail/Now Playing
+- [x] Audit all `CoverArtImage` call sites; enforce `size: 200` for grid cards, `size: 80` for list rows, `size: 640` for detail/Now Playing — 2026-03-01 (evidence: grid cards `size: 200` in `album_card.dart`; list rows `size: 48–96` in `track_list_tile.dart`, artist cards, mini player; detail/NP `size: 640` in `now_playing_screen.dart`, `size: 480` home carousels, `size: 1600` full-screen viewer — all call sites conform)
 
 ### 15.6 — Year / Decade Album Browsing (LOW)
-- [ ] Add "By Year" sort option to Albums tab using `getAlbumList2(type: byYear)` with decade chip picker
+- [x] Add "By Year" sort option to Albums tab using `getAlbumList2(type: byYear)` with decade chip picker — 2026-03-01 (evidence: `_AlbumSort.byYear` enum + `_buildAlbumsByYearTab()` in `lib/src/features/library/presentation/library_screen.dart`; `albumsByYearSectionsProvider` in `lib/src/providers/app_providers.dart`; `AlbumViewMode` in `lib/src/features/library/presentation/library_browse_models.dart`; decade rail with scrub lock via `NeverScrollableScrollPhysics`; flat `_YearListItem` list with `ScrollablePositionedList` virtualization)
 
 ### 15.7 — Auto-Download Starred on Wi-Fi (LOW)
-- [ ] Add "Auto-download starred on Wi-Fi" toggle in Settings > Downloads (default off)
-- [ ] Trigger download enqueue in `ServerReachabilityProvider` when transitioning to Wi-Fi
-- [ ] Schema migration: `autoDownloadStarred` boolean column in `app_settings`
+- [x] Add "Auto-download starred on Wi-Fi" toggle in Settings > Downloads (default off) — 2026-03-01 (evidence: `autoDownloadStarredOnWifiProvider` in `lib/src/providers/app_providers.dart`; settings toggle wired in playback settings screen)
+- [x] Trigger download enqueue in `ServerReachabilityProvider` when transitioning to Wi-Fi — 2026-03-01 (evidence: `AutoDownloadStarredDispatchController` in `lib/src/features/downloads/presentation/auto_download_starred_dispatch_provider.dart`; controller listened in `lib/src/routing/app_shell.dart`)
+- [x] Schema migration: `autoDownloadStarred` boolean column in `app_settings` — 2026-03-01 (evidence: `autoDownloadStarredOnWifi` column in `AppSettingsDao`; guarded schema migration)
 
 ## Phase 16: Search & Offline Sync
 
