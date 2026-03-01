@@ -59,17 +59,17 @@ class DownloadNotifier {
     );
 
     await _plugin.show(
-      _progressId,
-      title,
-      '${received * 100 ~/ (total > 0 ? total : 1)}%',
-      NotificationDetails(android: androidDetails),
+      id: _progressId,
+      title: title,
+      body: '${received * 100 ~/ (total > 0 ? total : 1)}%',
+      notificationDetails: NotificationDetails(android: androidDetails),
     );
   }
 
   /// Dismiss the ongoing progress notification.
   static Future<void> dismissProgress() async {
     if (defaultTargetPlatform != TargetPlatform.android) return;
-    await _plugin.cancel(_progressId);
+    await _plugin.cancel(id: _progressId);
   }
 
   /// Show a notification when a download completes successfully.
@@ -85,10 +85,9 @@ class DownloadNotifier {
     );
 
     await _plugin.show(
-      _summaryId,
-      title,
-      null,
-      const NotificationDetails(android: androidDetails),
+      id: _summaryId,
+      title: title,
+      notificationDetails: const NotificationDetails(android: androidDetails),
     );
   }
 
@@ -105,10 +104,9 @@ class DownloadNotifier {
     );
 
     await _plugin.show(
-      _summaryId,
-      title,
-      null,
-      const NotificationDetails(android: androidDetails),
+      id: _summaryId,
+      title: title,
+      notificationDetails: const NotificationDetails(android: androidDetails),
     );
   }
 }

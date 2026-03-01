@@ -23,7 +23,7 @@ class NotificationBootstrap {
     );
     const initSettings = InitializationSettings(android: androidInitSettings);
 
-    await _plugin.initialize(initSettings);
+    await _plugin.initialize(settings: initSettings);
 
     final androidPlugin = _plugin
         .resolvePlatformSpecificImplementation<
