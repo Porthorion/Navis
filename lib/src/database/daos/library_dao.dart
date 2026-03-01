@@ -84,6 +84,28 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
+  /// Returns the [limit] most recently liked albums, ordered by the album's
+  /// own starred timestamp descending. Albums liked via a liked song (but not
+  /// directly starred) are ordered last by name.
+  Stream<List<AlbumsTableData>> watchRecentlyLikedAlbums({int limit = 6}) {
+    return customSelect(
+      '''
+      SELECT albums.* FROM albums
+      WHERE ${_likedAlbumPredicate('albums')}
+      ORDER BY
+        albums.starred DESC NULLS LAST,
+        albums.name ASC,
+        albums.id ASC
+      LIMIT ?
+      ''',
+      variables: [Variable<int>(limit < 1 ? 1 : limit)],
+      readsFrom: {albumsTable, songsTable},
+    ).watch().map(
+      (rows) =>
+          rows.map((row) => albumsTable.map(row.data)).toList(growable: false),
+    );
+  }
+
   Stream<int> watchAlbumCount({bool likedOnly = false}) {
     if (!likedOnly) {
       final countExpression = albumsTable.id.count();
@@ -542,6 +564,64 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       await delete(artistsTable).go();
       await delete(genresTable).go();
     });
+  }
+
+  // ── Local (offline) search ──────────────────────────────────────────────
+
+  /// Search artists by name using case-insensitive LIKE matching.
+  Future<List<ArtistsTableData>> searchArtistsLocal(
+    String query, {
+    int limit = 20,
+  }) {
+    final pattern = '%${query.toLowerCase()}%';
+    return (select(artistsTable)
+          ..where(
+            (t) => t.name.lower().like(pattern),
+          )
+          ..orderBy([(t) => OrderingTerm.asc(t.name)])
+          ..limit(limit))
+        .get();
+  }
+
+  /// Search albums by name or artist name.
+  Future<List<AlbumsTableData>> searchAlbumsLocal(
+    String query, {
+    int limit = 20,
+  }) {
+    final pattern = '%${query.toLowerCase()}%';
+    return (select(albumsTable)
+          ..where(
+            (t) =>
+                t.name.lower().like(pattern) |
+                t.artistName.lower().like(pattern),
+          )
+          ..orderBy([
+            (t) => OrderingTerm.desc(t.year),
+            (t) => OrderingTerm.asc(t.name),
+          ])
+          ..limit(limit))
+        .get();
+  }
+
+  /// Search songs by title, artist name, or album name.
+  Future<List<SongsTableData>> searchSongsLocal(
+    String query, {
+    int limit = 20,
+  }) {
+    final pattern = '%${query.toLowerCase()}%';
+    return (select(songsTable)
+          ..where(
+            (t) =>
+                t.title.lower().like(pattern) |
+                t.artistName.lower().like(pattern) |
+                t.albumName.lower().like(pattern),
+          )
+          ..orderBy([
+            (t) => OrderingTerm.asc(t.title),
+            (t) => OrderingTerm.asc(t.id),
+          ])
+          ..limit(limit))
+        .get();
   }
 
   Future<List<AlbumsTableData>> getPendingHydrationAlbums({

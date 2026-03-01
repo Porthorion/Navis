@@ -138,6 +138,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                       ),
                     ),
                   ),
+                  GoRoute(
+                    path: 'liked-albums',
+                    pageBuilder: (context, state) => _slideFadePage(
+                      key: state.pageKey,
+                      child: const LikedAlbumsAllScreen(),
+                    ),
+                  ),
                 ],
               ),
             ],

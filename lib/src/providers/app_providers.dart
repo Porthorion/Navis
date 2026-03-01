@@ -503,6 +503,13 @@ final likedAlbumsProvider = StreamProvider<List<AlbumsTableData>>((ref) {
   return dao.watchLikedAlbums();
 });
 
+/// The 6 most recently liked albums, ordered by starred timestamp descending.
+/// Used by the liked tab to cap the album grid and avoid excessive scrolling.
+final likedAlbumsRecentProvider = StreamProvider<List<AlbumsTableData>>((ref) {
+  final dao = ref.watch(navisDatabaseProvider).libraryDao;
+  return dao.watchRecentlyLikedAlbums(limit: 6);
+});
+
 final albumListProvider = StreamProvider.family<List<AlbumsTableData>, String>((
   ref,
   type,
@@ -713,6 +720,14 @@ final playbackSnapshotProvider = StreamProvider<PlaybackSnapshot>((ref) async* {
 final playerStateProvider = Provider<PlaybackSnapshot>((ref) {
   final snapshot = ref.watch(playbackSnapshotProvider).asData?.value;
   return snapshot ?? const PlaybackSnapshot.idle();
+});
+
+/// Emits an event whenever a radio stream encounters a mid-playback error.
+/// Consumed by AppShell to display a dismissible snackbar.
+final radioStreamErrorProvider = StreamProvider<void>((ref) {
+  final handler = ref.watch(audioHandlerProvider);
+  if (handler == null) return const Stream<void>.empty();
+  return handler.radioStreamErrorStream;
 });
 
 /// Whether the player is currently playing audio.

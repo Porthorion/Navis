@@ -217,6 +217,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         title: Text(l10n.libraryTitle),
         bottom: TabBar(
           controller: tabController,
+          isScrollable: true,
+          tabAlignment: TabAlignment.start,
           tabs: <Widget>[
             Tab(text: l10n.libraryTabAlbums),
             if (showLikedTab) Tab(text: l10n.libraryTabLiked),
@@ -839,13 +841,20 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
   Widget _buildLikedTab(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final likedAlbumsAsync = ref.watch(likedAlbumsProvider);
+    // Recent 6 liked albums (ordered by starred desc) for the capped grid.
+    final likedAlbumsRecentAsync = ref.watch(likedAlbumsRecentProvider);
+    // Full list used only for the total count; data is not rendered directly.
+    final likedAlbumsAllAsync = ref.watch(likedAlbumsProvider);
     final likedSongsAsync = ref.watch(likedSongsProvider);
 
-    final isLoading = likedAlbumsAsync.isLoading || likedSongsAsync.isLoading;
-    final albums = likedAlbumsAsync.asData?.value ?? const <AlbumsTableData>[];
+    final isLoading =
+        likedAlbumsRecentAsync.isLoading || likedSongsAsync.isLoading;
+    final albums =
+        likedAlbumsRecentAsync.asData?.value ?? const <AlbumsTableData>[];
+    final totalAlbumCount =
+        likedAlbumsAllAsync.asData?.value.length ?? albums.length;
     final songs = likedSongsAsync.asData?.value ?? const <SongsTableData>[];
-    final error = likedAlbumsAsync.error ?? likedSongsAsync.error;
+    final error = likedAlbumsRecentAsync.error ?? likedSongsAsync.error;
 
     if (error != null && albums.isEmpty && songs.isEmpty) {
       return RefreshIndicator(
@@ -898,16 +907,28 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
             if (albums.isNotEmpty)
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                  child: Text(
-                    l10n.libraryLikedAlbumsSectionTitle,
-                    style: Theme.of(context).textTheme.titleLarge,
+                  padding: const EdgeInsets.fromLTRB(16, 16, 4, 0),
+                  child: Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: Text(
+                          l10n.libraryLikedAlbumsSectionTitle,
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                      ),
+                      if (totalAlbumCount > 6)
+                        TextButton(
+                          onPressed: () =>
+                              context.push('/library/liked-albums'),
+                          child: Text(l10n.libraryLikedAlbumsSeeAll),
+                        ),
+                    ],
                   ),
                 ),
               ),
             if (albums.isNotEmpty)
               SliverPadding(
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
                 sliver: SliverGrid(
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
@@ -1816,18 +1837,38 @@ class _LibraryPlaylistsTab extends ConsumerStatefulWidget {
       _LibraryPlaylistsTabState();
 }
 
-class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab> {
+class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
   @override
   void initState() {
     super.initState();
-    Future.microtask(() => ref.invalidate(playlistSyncProvider));
+    // No microtask invalidation here — ref.watch(playlistSyncProvider) in
+    // build already starts the fetch on first mount. The keepalive mixin
+    // prevents unnecessary remounts when switching tabs.
   }
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // required by AutomaticKeepAliveClientMixin
     final l10n = AppLocalizations.of(context)!;
     final playlistsAsync = ref.watch(playlistListProvider);
     ref.watch(playlistSyncProvider);
+
+    // Show sync errors as a dismissible snackbar rather than crashing the page.
+    ref.listen<AsyncValue<void>>(playlistSyncProvider, (prev, next) {
+      if (!mounted) return;
+      if (next is AsyncError && (prev == null || prev is! AsyncError)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(l10n.playlistsLoadError),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    });
 
     return Stack(
       children: [
@@ -1881,10 +1922,15 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab> {
               );
             },
             loading: () => const ShimmerListPage(count: 8),
-            error: (error, _) => ErrorState(
-              title: l10n.playlistsLoadError,
-              message: error.toString(),
-              onRetry: () => ref.invalidate(playlistSyncProvider),
+            error: (error, _) => ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: [
+                ErrorState(
+                  title: l10n.playlistsLoadError,
+                  message: error.toString(),
+                  onRetry: () => ref.invalidate(playlistSyncProvider),
+                ),
+              ],
             ),
           ),
         ),
@@ -2092,6 +2138,135 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab> {
             ref.invalidate(playlistSyncProvider);
           })
           .catchError((_) {}),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Liked Albums — full-screen list (navigated to from the "See all" button)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class LikedAlbumsAllScreen extends ConsumerWidget {
+  const LikedAlbumsAllScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final likedAlbumsAsync = ref.watch(likedAlbumsProvider);
+
+    Future<void> refresh() {
+      return ref
+          .read(librarySyncControllerProvider.notifier)
+          .syncNow(preferIncremental: true);
+    }
+
+    return Scaffold(
+      appBar: AppBar(title: Text(l10n.libraryLikedAlbumsAllTitle)),
+      body: RefreshIndicator(
+        onRefresh: refresh,
+        child: likedAlbumsAsync.when(
+          loading: () => const _LoadingListPlaceholder(),
+          error: (error, _) => ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            children: [
+              ErrorState(
+                title: l10n.libraryAlbumsErrorTitle,
+                message: error.toString(),
+                onRetry: refresh,
+                retryLabel: l10n.commonRetry,
+              ),
+            ],
+          ),
+          data: (albums) {
+            if (albums.isEmpty) {
+              return ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: [
+                  SizedBox(
+                    height: MediaQuery.of(context).size.height * 0.6,
+                    child: EmptyState(
+                      title: l10n.libraryLikedEmptyTitle,
+                      subtitle: l10n.libraryLikedEmptySubtitle,
+                      icon: Icons.favorite_border_outlined,
+                    ),
+                  ),
+                ],
+              );
+            }
+            return CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
+                  sliver: SliverGrid(
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          childAspectRatio: 1,
+                          crossAxisSpacing: 8,
+                          mainAxisSpacing: 8,
+                        ),
+                    delegate: SliverChildBuilderDelegate((context, index) {
+                      final album = albums[index];
+                      return RepaintBoundary(
+                        child: AlbumCard(
+                          key: ValueKey('liked-all-album-${album.id}'),
+                          album: album,
+                          size: AlbumCardSize.library,
+                          heroTag: buildCoverArtHeroTag(
+                            coverArtId: album.coverArt,
+                            context: 'liked_all_album',
+                          ),
+                          badge: AlbumDownloadBadge(albumId: album.id),
+                          onTap: () {
+                            ref
+                                .read(librarySyncControllerProvider.notifier)
+                                .registerAlbumInteraction(album.id);
+                            context.push(
+                              '/library/albums/${album.id}?likedOnly=1',
+                            );
+                          },
+                          onLongPress: () =>
+                              _showAlbumMenu(context, ref, album, l10n),
+                        ),
+                      );
+                    }, childCount: albums.length),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showAlbumMenu(
+    BuildContext context,
+    WidgetRef ref,
+    AlbumsTableData album,
+    AppLocalizations l10n,
+  ) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.open_in_new_outlined),
+              title: Text(l10n.libraryAlbumMenuOpen),
+              onTap: () {
+                Navigator.of(context).pop();
+                ref
+                    .read(librarySyncControllerProvider.notifier)
+                    .registerAlbumInteraction(album.id);
+                GoRouter.of(context).push('/library/albums/${album.id}');
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

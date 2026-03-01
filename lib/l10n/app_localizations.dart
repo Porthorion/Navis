@@ -892,6 +892,12 @@ abstract class AppLocalizations {
   /// **'Could not play this radio station.'**
   String get radioPlaybackError;
 
+  /// No description provided for @radioStreamUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Radio stream unavailable.'**
+  String get radioStreamUnavailable;
+
   /// No description provided for @radioNowPlaying.
   ///
   /// In en, this message translates to:
@@ -1268,6 +1274,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Liked Albums'**
   String get libraryLikedAlbumsSectionTitle;
+
+  /// No description provided for @libraryLikedAlbumsSeeAll.
+  ///
+  /// In en, this message translates to:
+  /// **'See all'**
+  String get libraryLikedAlbumsSeeAll;
+
+  /// No description provided for @libraryLikedAlbumsAllTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Liked Albums'**
+  String get libraryLikedAlbumsAllTitle;
 
   /// No description provided for @libraryLikedSongsSectionTitle.
   ///
@@ -2186,6 +2204,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Add to queue'**
   String get searchAddToQueue;
+
+  /// No description provided for @searchFilterAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get searchFilterAll;
+
+  /// No description provided for @searchLocalOfflineBanner.
+  ///
+  /// In en, this message translates to:
+  /// **'Searching local library (offline)'**
+  String get searchLocalOfflineBanner;
 
   /// No description provided for @playlistsTitle.
   ///

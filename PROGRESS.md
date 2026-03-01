@@ -588,19 +588,19 @@ Last updated: 2026-03-01
 - [x] Schema migration v22→v23 creates `star_sync_queue` table — 2026-02-28
 
 ### 16.2 — Local / Offline Search (HIGH)
-- [ ] Implement Drift-backed `LIKE` search across `artists`, `albums`, `songs` tables
-- [ ] Auto-detect offline state via `serverReachabilityProvider` and route to local search
-- [ ] Show "Searching local library (offline)" banner when offline path is active
+- [x] Implement Drift-backed `LIKE` search across `artists`, `albums`, `songs` tables — 2026-03-02 (evidence: `searchArtistsLocal`, `searchAlbumsLocal`, `searchSongsLocal` in `library_dao.dart`)
+- [x] Auto-detect offline state via `serverReachabilityProvider` and route to local search — 2026-03-02 (evidence: `searchIsOfflineProvider` + offline branch in `debouncedSearchProvider` in `search_controller_provider.dart`)
+- [x] Show "Searching local library (offline)" banner when offline path is active — 2026-03-02 (evidence: `_OfflineSearchBanner` widget in `search_screen.dart`)
 
 ### 16.3 — Search Type Filters (MEDIUM)
-- [ ] Add All / Artists / Albums / Songs filter chip row below search input
-- [ ] Restrict `search3()` call limits based on selected filter
+- [x] Add All / Artists / Albums / Songs filter chip row below search input — 2026-03-02 (evidence: `_SearchFilterChips` widget + `SearchFilterNotifier` in `search_controller_provider.dart`)
+- [x] Restrict `search3()` call limits based on selected filter — 2026-03-02 (evidence: filter-aware count logic in `debouncedSearchProvider` and `expandedSearchProvider`)
 
 ### 16.4 — Radio Offline / Error Handling (MEDIUM)
-- [ ] Display station name when ICY metadata is unavailable (instead of empty mini player)
-- [ ] Show dismissible error snackbar and stop stream on HTTP 503 / connection reset
-- [ ] Add dead-stream detection in `RadioMetadataService` (5+ unchanged polling cycles)
-- [ ] Preserve previously loaded metadata on polling failure
+- [x] Display station name when ICY metadata is unavailable (instead of empty mini player) — already working (evidence: `updateRadioMetadata` always sets `stationName` as fallback title in `navis_audio_handler.dart`)
+- [x] Show dismissible error snackbar and stop stream on HTTP 503 / connection reset — 2026-03-02 (evidence: `radioStreamErrorStream` on `NavisPlaybackHandler`; `radioStreamErrorProvider` wired in `app_shell.dart` with `SnackBar`)
+- [x] Add dead-stream detection in `RadioMetadataService` (5+ unchanged polling cycles) — 2026-03-02 (evidence: `_updateDeadStreamCounter`, `deadStreamThreshold`, reduced polling in `radio_metadata_service.dart`)
+- [x] Preserve previously loaded metadata on polling failure — already working (evidence: polling `catch` block in `_pollAzuracast` preserves existing metadata; no clearing on error)
 
 ## Phase 17: Accessibility, Locale & Test Coverage
 
