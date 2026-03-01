@@ -84,7 +84,7 @@ void main() {
         await tester.pump();
         expect(_searchFocusNode(tester).hasFocus, isTrue);
 
-        container.read(playerSheetExpandedProvider.notifier).expand();
+        container.read(playerOverlayStackProvider.notifier).expand();
         await tester.pump();
         await tester.pump();
         expect(_searchFocusNode(tester).hasFocus, isFalse);
@@ -94,7 +94,7 @@ void main() {
         await tester.pump();
         expect(_searchFocusNode(tester).hasFocus, isFalse);
 
-        container.read(playerSheetExpandedProvider.notifier).collapse();
+        container.read(playerOverlayStackProvider.notifier).collapse();
         await tester.pump();
         await tester.pump();
         expect(_searchFocusNode(tester).hasFocus, isFalse);

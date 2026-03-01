@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
-import 'package:navis/src/features/player/presentation/queue_sheet.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 
 /// Tracks the last back-press timestamp for double-back-to-exit.
@@ -16,7 +15,7 @@ DateTime? _lastBackPress;
 /// * Collapsing the player sheet before cross-screen navigation.
 /// * Using `context.go` for branch-aware transitions so the bottom-nav
 ///   indicator and back-stack stay correct.
-/// * Showing the queue as a full-screen modal that keeps the player alive.
+/// * Dismissing shell-managed player overlays in strict top-first order.
 abstract final class NavService {
   // ---------------------------------------------------------------------------
   // Library
@@ -28,6 +27,7 @@ abstract final class NavService {
   /// is fully visible.  Any open modal (queue panel, overflow menu) is
   /// dismissed before navigating.
   static void goToAlbum(BuildContext context, WidgetRef ref, String albumId) {
+    clearExitPrompt();
     _dismissOverlaysAndCollapse(context, ref);
     context.go('/library/albums/$albumId');
   }
@@ -38,6 +38,7 @@ abstract final class NavService {
     WidgetRef ref,
     String artistId,
   ) {
+    clearExitPrompt();
     _dismissOverlaysAndCollapse(context, ref);
     context.go('/library/artists/$artistId');
   }
@@ -50,6 +51,7 @@ abstract final class NavService {
     WidgetRef ref,
     String query,
   ) {
+    clearExitPrompt();
     _dismissOverlaysAndCollapse(context, ref);
     ref.read(searchQueryProvider.notifier).submit(query);
     context.go('/search');
@@ -59,24 +61,11 @@ abstract final class NavService {
   // Player helpers
   // ---------------------------------------------------------------------------
 
-  /// Show the playback queue as a full-screen modal bottom sheet.
-  ///
-  /// Uses the root navigator so the modal sits above everything (including
-  /// the expanded player) and is properly handled by the back-button logic.
-  static void showQueue(BuildContext context) {
+  /// Show the playback queue on the shell-managed player overlay stack.
+  static void showQueue(BuildContext context, WidgetRef ref) {
+    clearExitPrompt();
     dismissKeyboard(context);
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useRootNavigator: true,
-      useSafeArea: true,
-      requestFocus: false,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (_) => const QueueSheet(),
-    );
+    ref.read(playerOverlayStackProvider.notifier).showQueue();
   }
 
   // ---------------------------------------------------------------------------
@@ -86,37 +75,37 @@ abstract final class NavService {
   /// Handles system back (Android back gesture / button) with the following
   /// priority chain:
   ///
-  /// **Important:** Modal routes (queue panel, dialogs, overflow menus) are
-  /// popped by the Navigator *before* this method is called, because
-  /// `PopScope(canPop: false)` only triggers `onPopInvokedWithResult` when
-  /// the shell route is the topmost route.
+  /// **Important:** Navigator-owned modal routes (dialogs, overflow menus,
+  /// etc.) are popped before this method runs. The shell route only calls this
+  /// when it is the visible top route.
   ///
-  /// 1. **Player expanded** → collapse it.
+  /// 1. **Shell player overlay stack** → dismiss top-most player surface.
   /// 2. **GoRouter can pop** (sub-route within a branch) → pop it.
   /// 3. **Not on Home tab** → switch to Home.
   /// 4. **Home tab root** → require double-tap to exit.
   static void handleSystemBack({
     required WidgetRef ref,
     required BuildContext context,
-    required bool isPlayerExpanded,
     required StatefulNavigationShell navigationShell,
     required int homeBranchIndex,
   }) {
-    // 1. Collapse the player if expanded
-    if (isPlayerExpanded) {
+    // 1. Dismiss the top-most shell-managed player surface.
+    if (ref.read(playerOverlayStackProvider.notifier).dismissTop()) {
       dismissKeyboard(context);
-      ref.read(playerSheetExpandedProvider.notifier).collapse();
+      clearExitPrompt();
       return;
     }
 
     // 2. Pop sub-route (e.g. album detail → library root)
     if (GoRouter.of(context).canPop()) {
+      clearExitPrompt();
       context.pop();
       return;
     }
 
     // 3. Go home if we're on another tab's root
     if (navigationShell.currentIndex != homeBranchIndex) {
+      clearExitPrompt();
       navigationShell.goBranch(homeBranchIndex);
       return;
     }
@@ -139,12 +128,17 @@ abstract final class NavService {
     }
   }
 
+  /// Clears any pending double-back-to-exit window after real navigation.
+  static void clearExitPrompt() {
+    _lastBackPress = null;
+  }
+
   // ---------------------------------------------------------------------------
   // Private
   // ---------------------------------------------------------------------------
 
-  /// Dismiss any modal routes (queue panel, overflow menus, dialogs) that
-  /// are on the root navigator, then collapse the player sheet.
+  /// Dismiss any modal routes on the root navigator, then clear the shell's
+  /// own player overlay stack.
   ///
   /// Called before [goToAlbum], [goToArtist], [goToSearch] to guarantee a
   /// clean navigation state.
@@ -156,11 +150,8 @@ abstract final class NavService {
     final rootNav = Navigator.of(context, rootNavigator: true);
     rootNav.popUntil((route) => route.isFirst);
 
-    // Collapse the expanded player.
-    final notifier = ref.read(playerSheetExpandedProvider.notifier);
-    if (ref.read(playerSheetExpandedProvider)) {
-      notifier.collapse();
-    }
+    // Reset shell-managed player overlays so navigation starts clean.
+    ref.read(playerOverlayStackProvider.notifier).clear();
   }
 
   /// Dismiss the on-screen keyboard and clear any active text focus.

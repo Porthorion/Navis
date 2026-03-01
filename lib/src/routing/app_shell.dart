@@ -17,6 +17,7 @@ import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart
 import 'package:navis/src/features/player/presentation/smart_queue_notifier.dart';
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
+import 'package:navis/src/features/player/presentation/queue_sheet.dart';
 import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
 import 'package:navis/src/features/library/presentation/star_sync_dispatch_provider.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
@@ -38,9 +39,9 @@ class _AppShellState extends ConsumerState<AppShell> {
   // NOTE: We intentionally do NOT use WidgetsBindingObserver.didPopRoute()
   // for back-button handling. That observer fires BEFORE the Navigator
   // processes the event, which means it would consume back presses that
-  // should dismiss modal bottom sheets (queue panel, overflow menus,
-  // dialogs, etc.). Instead we rely solely on PopScope + GoRouter which
-  // correctly lets the Navigator pop modal routes first.
+  // should dismiss higher-priority UI first. Instead we let Navigator-owned
+  // routes (dialogs, bottom sheets, etc.) handle back normally and only apply
+  // shell back behavior when this shell route is actually current.
 
   @override
   Widget build(BuildContext context) {
@@ -99,6 +100,14 @@ class _AppShellState extends ConsumerState<AppShell> {
         );
       }
     });
+    ref.listen<bool>(
+      playerStateProvider.select((snapshot) => snapshot.hasActivePlayback),
+      (previous, next) {
+        if (!next) {
+          ref.read(playerOverlayStackProvider.notifier).clear();
+        }
+      },
+    );
     final isAuthenticated =
         ref.watch(serverConfigStateProvider).asData?.value != null;
     final reachability = ref.watch(serverReachabilityControllerProvider);
@@ -112,6 +121,10 @@ class _AppShellState extends ConsumerState<AppShell> {
         : ref.watch(songByIdProvider(currentSongId));
     final showPlayer = playback.hasActivePlayback;
     final isExpanded = ref.watch(playerSheetExpandedProvider);
+    final showQueueOverlay = ref.watch(queueOverlayVisibleProvider);
+    final hasPlayerOverlay = ref.watch(
+      playerOverlayStackProvider.select((stack) => stack.isNotEmpty),
+    );
     final navigationShell = widget.navigationShell;
     final visibleBranchIndices = <int>[
       _homeBranchIndex,
@@ -124,170 +137,238 @@ class _AppShellState extends ConsumerState<AppShell> {
     );
     final selectedIndex = selectedVisibleIndex >= 0 ? selectedVisibleIndex : 0;
 
-    return PopScope(
-      // canPop: false means the shell route itself cannot be popped by the
-      // Navigator. Modal routes (queue sheet, dialogs, overflow menus) that
-      // sit ABOVE this route are unaffected — the Navigator pops them first
-      // before this PopScope is ever consulted.
-      canPop: false,
-      onPopInvokedWithResult: (didPop, _) {
-        // didPop is true only if the route was actually popped (shouldn't
-        // happen since canPop is false, but guard anyway).
-        if (didPop) return;
+    return BackButtonListener(
+      onBackButtonPressed: () async {
+        // Intercept Android back-button presses before nested branch
+        // navigators pop their detail routes. This is what gives the shell's
+        // overlay stack priority over pages like album detail.
+        if (!hasPlayerOverlay || !(ModalRoute.of(context)?.isCurrent ?? true)) {
+          return false;
+        }
         NavService.handleSystemBack(
           ref: ref,
           context: context,
-          isPlayerExpanded: isExpanded,
           navigationShell: navigationShell,
           homeBranchIndex: _homeBranchIndex,
         );
+        return true;
       },
-      child: Scaffold(
-        // Keep the expanded player at full height even if a hidden text field
-        // elsewhere (e.g. Search) still has keyboard insets in flight.
-        resizeToAvoidBottomInset: !(showPlayer && isExpanded),
-        body: LayoutBuilder(
-          builder: (context, constraints) {
-            final bodyHeight = constraints.maxHeight;
+      child: PopScope(
+        // canPop: false means the shell route itself cannot be popped by the
+        // Navigator. Shell-managed player overlays are dismissed explicitly in
+        // NavService.handleSystemBack, and Navigator-owned modal routes above
+        // this shell are ignored by the route-current guard below.
+        canPop: false,
+        onPopInvokedWithResult: (didPop, _) {
+          // Only run shell fallback logic when this route is the visible top
+          // route. Navigator-owned modals above the shell should consume back
+          // without also mutating the shell state underneath.
+          if (didPop || !(ModalRoute.of(context)?.isCurrent ?? true)) return;
+          NavService.handleSystemBack(
+            ref: ref,
+            context: context,
+            navigationShell: navigationShell,
+            homeBranchIndex: _homeBranchIndex,
+          );
+        },
+        child: Scaffold(
+          // Keep the expanded player at full height even if a hidden text field
+          // elsewhere (e.g. Search) still has keyboard insets in flight.
+          resizeToAvoidBottomInset: !(showPlayer && isExpanded),
+          body: LayoutBuilder(
+            builder: (context, constraints) {
+              final bodyHeight = constraints.maxHeight;
 
-            return Stack(
-              children: <Widget>[
-                Column(
-                  children: <Widget>[
-                    if (showOfflineBanner)
-                      Material(
-                        color: Theme.of(context).colorScheme.errorContainer,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                          child: Row(
-                            children: <Widget>[
-                              Icon(
-                                Icons.cloud_off_outlined,
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onErrorContainer,
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  l10n.serverOfflineBanner,
-                                  style: TextStyle(
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.onErrorContainer,
+              return Stack(
+                children: <Widget>[
+                  Column(
+                    children: <Widget>[
+                      if (showOfflineBanner)
+                        Material(
+                          color: Theme.of(context).colorScheme.errorContainer,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            child: Row(
+                              children: <Widget>[
+                                Icon(
+                                  Icons.cloud_off_outlined,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onErrorContainer,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    l10n.serverOfflineBanner,
+                                    style: TextStyle(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onErrorContainer,
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
+                      Expanded(
+                        child: NavigatorPopHandler<Object?>(
+                          // When a shell-managed player overlay is visible, the
+                          // nested branch navigator must not consume system back
+                          // before the shell dismisses that overlay.
+                          enabled: !hasPlayerOverlay,
+                          onPopWithResult: (result) {
+                            final router = GoRouter.of(context);
+                            if (!router.canPop()) {
+                              return;
+                            }
+                            NavService.clearExitPrompt();
+                            router.pop(result);
+                          },
+                          child: navigationShell,
+                        ),
                       ),
-                    Expanded(child: navigationShell),
-                    if (showPlayer && !isExpanded)
-                      SizedBox(
-                        height: ExpandablePlayerSheet.miniPlayerHeight,
-                      ),
-                  ],
-                ),
-                if (showPlayer)
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    child: ExpandablePlayerSheet(
-                      maxHeight: bodyHeight,
-                      isExpanded: isExpanded,
-                      onExpand: () {
-                        // Dismiss the keyboard (e.g. search bar) before expanding
-                        // so the Now Playing screen isn't squished.
-                        NavService.dismissKeyboard(context);
-                        ref.read(playerSheetExpandedProvider.notifier).expand();
-                      },
-                      onCollapse: () => ref
-                          .read(playerSheetExpandedProvider.notifier)
-                          .collapse(),
-                      onSwipeUp: () => NavService.showQueue(context),
-                      miniPlayer: _MiniPlayerStrip(
-                        playback: playback,
-                        songTitle: playback.isRadioMode
-                            ? (playback.radioStation!.nowPlayingTitle ??
-                                  playback.radioStation!.stationName)
-                            : currentSongAsync.asData?.value?.title,
-                        songArtist: playback.isRadioMode
-                            ? (playback.radioStation!.nowPlayingArtist ??
-                                  playback.radioStation!.stationName)
-                            : currentSongAsync.asData?.value?.artistName,
-                        coverArtId: playback.isRadioMode
-                            ? null
-                            : currentSongAsync.asData?.value?.coverArt,
-                        isRadio: playback.isRadioMode,
-                        radioArtUrl: playback.radioStation?.nowPlayingArtUrl,
-                        onTap: () {
-                          // Dismiss keyboard before expanding.
+                      if (showPlayer && !isExpanded)
+                        SizedBox(
+                          height: ExpandablePlayerSheet.miniPlayerHeight,
+                        ),
+                    ],
+                  ),
+                  if (showPlayer)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: ExpandablePlayerSheet(
+                        maxHeight: bodyHeight,
+                        isExpanded: isExpanded,
+                        onExpand: () {
+                          // Dismiss the keyboard (e.g. search bar) before expanding
+                          // so the Now Playing screen isn't squished.
                           NavService.dismissKeyboard(context);
                           ref
-                              .read(playerSheetExpandedProvider.notifier)
+                              .read(playerOverlayStackProvider.notifier)
                               .expand();
                         },
-                      ),
-                      fullPlayer: NowPlayingScreen(
                         onCollapse: () => ref
-                            .read(playerSheetExpandedProvider.notifier)
+                            .read(playerOverlayStackProvider.notifier)
                             .collapse(),
+                        onSwipeUp: () => NavService.showQueue(context, ref),
+                        miniPlayer: _MiniPlayerStrip(
+                          playback: playback,
+                          songTitle: playback.isRadioMode
+                              ? (playback.radioStation!.nowPlayingTitle ??
+                                    playback.radioStation!.stationName)
+                              : currentSongAsync.asData?.value?.title,
+                          songArtist: playback.isRadioMode
+                              ? (playback.radioStation!.nowPlayingArtist ??
+                                    playback.radioStation!.stationName)
+                              : currentSongAsync.asData?.value?.artistName,
+                          coverArtId: playback.isRadioMode
+                              ? null
+                              : currentSongAsync.asData?.value?.coverArt,
+                          isRadio: playback.isRadioMode,
+                          radioArtUrl: playback.radioStation?.nowPlayingArtUrl,
+                          onTap: () {
+                            // Dismiss keyboard before expanding.
+                            NavService.dismissKeyboard(context);
+                            ref
+                                .read(playerOverlayStackProvider.notifier)
+                                .expand();
+                          },
+                        ),
+                        fullPlayer: NowPlayingScreen(
+                          onCollapse: () => ref
+                              .read(playerOverlayStackProvider.notifier)
+                              .collapse(),
+                        ),
                       ),
                     ),
-                  ),
-              ],
-            );
-          },
-        ),
-        bottomNavigationBar: showPlayer && isExpanded
-            ? null
-            : NavigationBar(
-                selectedIndex: selectedIndex,
-                labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
-                onDestinationSelected: (index) {
-                  NavService.dismissKeyboard(context);
-                  final branchIndex = visibleBranchIndices[index];
-                  // Trigger focus request whenever the Search tab is tapped.
-                  if (branchIndex == _searchBranchIndex) {
-                    ref.read(searchFocusRequestProvider.notifier).increment();
-                  }
-                  // Scroll to top when Library is tapped while already on Library.
-                  if (branchIndex == _libraryBranchIndex &&
-                      branchIndex == navigationShell.currentIndex) {
-                    ref
-                        .read(libraryScrollToTopRequestProvider.notifier)
-                        .request();
-                  }
-                  navigationShell.goBranch(
-                    branchIndex,
-                    initialLocation:
-                        branchIndex == navigationShell.currentIndex,
-                  );
-                },
-                destinations: <NavigationDestination>[
-                  NavigationDestination(
-                    icon: const Icon(Icons.home_outlined),
-                    label: l10n.navHome,
-                  ),
-                  NavigationDestination(
-                    icon: const Icon(Icons.library_music_outlined),
-                    label: l10n.navLibrary,
-                  ),
-                  NavigationDestination(
-                    icon: const Icon(Icons.search),
-                    label: l10n.navSearch,
-                  ),
-                  NavigationDestination(
-                    icon: const Icon(Icons.settings_outlined),
-                    label: l10n.navSettings,
-                  ),
+                  if (showPlayer && showQueueOverlay)
+                    Positioned.fill(
+                      child: _QueueOverlay(
+                        onDismiss: () => ref
+                            .read(playerOverlayStackProvider.notifier)
+                            .hideQueue(),
+                      ),
+                    ),
                 ],
-              ),
+              );
+            },
+          ),
+          bottomNavigationBar: showPlayer && isExpanded
+              ? null
+              : NavigationBar(
+                  selectedIndex: selectedIndex,
+                  labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
+                  onDestinationSelected: (index) {
+                    NavService.dismissKeyboard(context);
+                    NavService.clearExitPrompt();
+                    final branchIndex = visibleBranchIndices[index];
+                    // Trigger focus request whenever the Search tab is tapped.
+                    if (branchIndex == _searchBranchIndex) {
+                      ref.read(searchFocusRequestProvider.notifier).increment();
+                    }
+                    // Scroll to top when Library is tapped while already on Library.
+                    if (branchIndex == _libraryBranchIndex &&
+                        branchIndex == navigationShell.currentIndex) {
+                      ref
+                          .read(libraryScrollToTopRequestProvider.notifier)
+                          .request();
+                    }
+                    navigationShell.goBranch(
+                      branchIndex,
+                      initialLocation:
+                          branchIndex == navigationShell.currentIndex,
+                    );
+                  },
+                  destinations: <NavigationDestination>[
+                    NavigationDestination(
+                      icon: const Icon(Icons.home_outlined),
+                      label: l10n.navHome,
+                    ),
+                    NavigationDestination(
+                      icon: const Icon(Icons.library_music_outlined),
+                      label: l10n.navLibrary,
+                    ),
+                    NavigationDestination(
+                      icon: const Icon(Icons.search),
+                      label: l10n.navSearch,
+                    ),
+                    NavigationDestination(
+                      icon: const Icon(Icons.settings_outlined),
+                      label: l10n.navSettings,
+                    ),
+                  ],
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+class _QueueOverlay extends StatelessWidget {
+  const _QueueOverlay({required this.onDismiss});
+
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.black.withValues(alpha: 0.35),
+      child: Stack(
+        children: <Widget>[
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onDismiss,
+            ),
+          ),
+          QueueSheet(onClose: onDismiss),
+        ],
       ),
     );
   }
