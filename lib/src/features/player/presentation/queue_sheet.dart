@@ -10,10 +10,20 @@ import 'package:navis/src/providers/app_providers.dart'
     show songByIdProvider, subsonicApiProvider;
 import 'package:navis/src/routing/navigation_service.dart';
 
-/// A draggable queue panel rendered above the player surface inside the shell.
+/// A queue panel. Slide animation and swipe-to-dismiss are driven entirely
+/// by [_QueueOverlay] in app_shell.dart — this widget has no animation logic.
+///
+/// [scrollController] must be supplied by the overlay so that the overlay's
+/// pointer listener can check the scroll offset when deciding whether a
+/// downward drag should move the sheet or scroll the list.
 class QueueSheet extends ConsumerWidget {
-  const QueueSheet({this.onClose, super.key});
+  const QueueSheet({
+    required this.scrollController,
+    this.onClose,
+    super.key,
+  });
 
+  final ScrollController scrollController;
   final VoidCallback? onClose;
 
   @override
@@ -21,75 +31,67 @@ class QueueSheet extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
     final queueIds = ref.watch(queueProvider);
     final currentSongId = ref.watch(currentQueueSongIdProvider);
-    final onClose = this.onClose ?? () => Navigator.of(context).pop();
+    final close = onClose ?? () => Navigator.of(context).pop();
 
-    return DraggableScrollableSheet(
-      initialChildSize: 0.95,
-      minChildSize: 0.5,
-      maxChildSize: 0.95,
-      expand: false,
-      builder: (context, scrollController) {
-        return SafeArea(
-          top: true,
-          bottom: false,
-          child: Material(
-            color: Theme.of(context).colorScheme.surface,
-            elevation: 12,
-            shape: const RoundedRectangleBorder(
-              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+    return SafeArea(
+      top: true,
+      bottom: false,
+      child: Material(
+        color: Theme.of(context).colorScheme.surface,
+        elevation: 12,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          children: <Widget>[
+            _QueueSheetHeader(
+              queueIds: queueIds,
+              onClose: close,
             ),
-            clipBehavior: Clip.antiAlias,
-            child: Column(
-              children: <Widget>[
-                _QueueSheetHeader(
-                  queueIds: queueIds,
-                  onClose: onClose,
-                ),
-                Expanded(
-                  child: queueIds.isEmpty
-                      ? EmptyState(
-                          title: l10n.queueEmptyTitle,
-                          subtitle: l10n.queueEmptySubtitle,
-                          icon: Icons.queue_music_outlined,
-                        )
-                      : ReorderableListView.builder(
-                          scrollController: scrollController,
-                          padding: const EdgeInsets.only(bottom: 80),
-                          itemCount: queueIds.length,
-                          onReorder: (oldIndex, newIndex) async {
-                            await ref.read(reorderQueueProvider)(
-                              oldIndex,
-                              newIndex,
-                            );
-                          },
-                          itemBuilder: (context, index) {
-                            final songId = queueIds[index];
-                            final isCurrentSong = songId == currentSongId;
+            Expanded(
+              child: queueIds.isEmpty
+                  ? EmptyState(
+                      title: l10n.queueEmptyTitle,
+                      subtitle: l10n.queueEmptySubtitle,
+                      icon: Icons.queue_music_outlined,
+                    )
+                  : ReorderableListView.builder(
+                      scrollController: scrollController,
+                      padding: const EdgeInsets.only(bottom: 80),
+                      itemCount: queueIds.length,
+                      onReorder: (oldIndex, newIndex) async {
+                        await ref.read(reorderQueueProvider)(
+                          oldIndex,
+                          newIndex,
+                        );
+                      },
+                      itemBuilder: (context, index) {
+                        final songId = queueIds[index];
+                        final isCurrentSong = songId == currentSongId;
 
-                            return _QueueItem(
-                              key: ValueKey('$index-$songId'),
-                              songId: songId,
-                              index: index,
-                              isCurrentSong: isCurrentSong,
-                              onRemove: () async {
-                                await ref
-                                    .read(queueProvider.notifier)
-                                    .removeAt(index);
-                              },
-                              onTap: () async {
-                                await ref
-                                    .read(queueProvider.notifier)
-                                    .playFromIndex(index);
-                              },
-                            );
+                        return _QueueItem(
+                          key: ValueKey('$index-$songId'),
+                          songId: songId,
+                          index: index,
+                          isCurrentSong: isCurrentSong,
+                          onRemove: () async {
+                            await ref
+                                .read(queueProvider.notifier)
+                                .removeAt(index);
                           },
-                        ),
-                ),
-              ],
+                          onTap: () async {
+                            await ref
+                                .read(queueProvider.notifier)
+                                .playFromIndex(index);
+                          },
+                        );
+                      },
+                    ),
             ),
-          ),
-        );
-      },
+          ],
+        ),
+      ),
     );
   }
 }
@@ -114,7 +116,7 @@ class _QueueSheetHeader extends ConsumerWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        // Drag handle
+        // Drag handle indicator
         Center(
           child: Padding(
             padding: const EdgeInsets.only(top: 8, bottom: 4),
