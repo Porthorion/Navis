@@ -10,18 +10,18 @@ import 'package:navis/src/providers/app_providers.dart'
     show songByIdProvider, subsonicApiProvider;
 import 'package:navis/src/routing/navigation_service.dart';
 
-/// A full-screen modal bottom sheet that displays the current playback queue.
-///
-/// Shown via `NavService.showQueue` so the player sheet remains alive
-/// underneath.
+/// A draggable queue panel rendered above the player surface inside the shell.
 class QueueSheet extends ConsumerWidget {
-  const QueueSheet({super.key});
+  const QueueSheet({this.onClose, super.key});
+
+  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final queueIds = ref.watch(queueProvider);
     final currentSongId = ref.watch(currentQueueSongIdProvider);
+    final onClose = this.onClose ?? () => Navigator.of(context).pop();
 
     return DraggableScrollableSheet(
       initialChildSize: 0.95,
@@ -29,50 +29,65 @@ class QueueSheet extends ConsumerWidget {
       maxChildSize: 0.95,
       expand: false,
       builder: (context, scrollController) {
-        return Column(
-          children: <Widget>[
-            _QueueSheetHeader(queueIds: queueIds),
-            Expanded(
-              child: queueIds.isEmpty
-                  ? EmptyState(
-                      title: l10n.queueEmptyTitle,
-                      subtitle: l10n.queueEmptySubtitle,
-                      icon: Icons.queue_music_outlined,
-                    )
-                  : ReorderableListView.builder(
-                      scrollController: scrollController,
-                      padding: const EdgeInsets.only(bottom: 80),
-                      itemCount: queueIds.length,
-                      onReorder: (oldIndex, newIndex) async {
-                        await ref.read(reorderQueueProvider)(
-                          oldIndex,
-                          newIndex,
-                        );
-                      },
-                      itemBuilder: (context, index) {
-                        final songId = queueIds[index];
-                        final isCurrentSong = songId == currentSongId;
-
-                        return _QueueItem(
-                          key: ValueKey('$index-$songId'),
-                          songId: songId,
-                          index: index,
-                          isCurrentSong: isCurrentSong,
-                          onRemove: () async {
-                            await ref
-                                .read(queueProvider.notifier)
-                                .removeAt(index);
-                          },
-                          onTap: () async {
-                            await ref
-                                .read(queueProvider.notifier)
-                                .playFromIndex(index);
-                          },
-                        );
-                      },
-                    ),
+        return SafeArea(
+          top: true,
+          bottom: false,
+          child: Material(
+            color: Theme.of(context).colorScheme.surface,
+            elevation: 12,
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
             ),
-          ],
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              children: <Widget>[
+                _QueueSheetHeader(
+                  queueIds: queueIds,
+                  onClose: onClose,
+                ),
+                Expanded(
+                  child: queueIds.isEmpty
+                      ? EmptyState(
+                          title: l10n.queueEmptyTitle,
+                          subtitle: l10n.queueEmptySubtitle,
+                          icon: Icons.queue_music_outlined,
+                        )
+                      : ReorderableListView.builder(
+                          scrollController: scrollController,
+                          padding: const EdgeInsets.only(bottom: 80),
+                          itemCount: queueIds.length,
+                          onReorder: (oldIndex, newIndex) async {
+                            await ref.read(reorderQueueProvider)(
+                              oldIndex,
+                              newIndex,
+                            );
+                          },
+                          itemBuilder: (context, index) {
+                            final songId = queueIds[index];
+                            final isCurrentSong = songId == currentSongId;
+
+                            return _QueueItem(
+                              key: ValueKey('$index-$songId'),
+                              songId: songId,
+                              index: index,
+                              isCurrentSong: isCurrentSong,
+                              onRemove: () async {
+                                await ref
+                                    .read(queueProvider.notifier)
+                                    .removeAt(index);
+                              },
+                              onTap: () async {
+                                await ref
+                                    .read(queueProvider.notifier)
+                                    .playFromIndex(index);
+                              },
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          ),
         );
       },
     );
@@ -84,9 +99,13 @@ class QueueSheet extends ConsumerWidget {
 // ---------------------------------------------------------------------------
 
 class _QueueSheetHeader extends ConsumerWidget {
-  const _QueueSheetHeader({required this.queueIds});
+  const _QueueSheetHeader({
+    required this.queueIds,
+    required this.onClose,
+  });
 
   final List<String> queueIds;
+  final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -119,7 +138,7 @@ class _QueueSheetHeader extends ConsumerWidget {
                 icon: const Icon(Icons.close),
                 onPressed: () {
                   NavService.dismissKeyboard(context);
-                  Navigator.of(context).pop();
+                  onClose();
                 },
               ),
               const SizedBox(width: 4),

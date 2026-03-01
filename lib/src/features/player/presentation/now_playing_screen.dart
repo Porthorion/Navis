@@ -1139,7 +1139,7 @@ class _ActionRowState extends ConsumerState<_ActionRow>
         IconButton(
           icon: const Icon(Icons.queue_music),
           tooltip: l10n.nowPlayingQueue,
-          onPressed: () => NavService.showQueue(context),
+          onPressed: () => NavService.showQueue(context, ref),
         ),
         IconButton(
           icon: instantMix.refilling
