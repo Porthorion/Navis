@@ -38,6 +38,9 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
   Stream<Duration> get positionStream => Stream<Duration>.empty();
 
   @override
+  Stream<void> get radioStreamErrorStream => const Stream<void>.empty();
+
+  @override
   Future<void> waitUntilReady() async {}
 
   @override

@@ -30,8 +30,19 @@ class RadioMetadataService {
   String? _activeStationId;
   String? _azuracastBaseUrl;
 
+  // ── Dead-stream detection state ─────────────────────────────────────────
+  String? _lastMetadataTitle;
+  int _unchangedCycleCount = 0;
+  bool _isReducedPolling = false;
+
   /// The polling interval for Azuracast API requests.
   static const Duration pollingInterval = Duration(seconds: 5);
+
+  /// Reduced polling interval after dead-stream is detected.
+  static const Duration reducedPollingInterval = Duration(seconds: 30);
+
+  /// Number of unchanged polling cycles before switching to reduced polling.
+  static const int deadStreamThreshold = 5;
 
   /// Start listening for metadata for the given radio station.
   ///
@@ -69,6 +80,9 @@ class RadioMetadataService {
     _icySubscription = null;
     _activeStationId = null;
     _azuracastBaseUrl = null;
+    _lastMetadataTitle = null;
+    _unchangedCycleCount = 0;
+    _isReducedPolling = false;
   }
 
   void _startAzuracastPolling(String stationShortName) {
@@ -114,6 +128,9 @@ class RadioMetadataService {
       final artist = song['artist'] as String?;
       final art = song['art'] as String?;
 
+      // Dead-stream detection: track whether the title has changed.
+      _updateDeadStreamCounter(title, stationShortName);
+
       if (_activeStationId != null) {
         _handler.updateRadioMetadata(
           title: title,
@@ -125,10 +142,48 @@ class RadioMetadataService {
       AppLogger.debug(
         'Azuracast metadata fetch failed: ${error.message}',
       );
+      // Preserve existing metadata on polling failure — do not clear.
     } on Object catch (error, stackTrace) {
       AppLogger.debug(
         'Azuracast metadata fetch failed: $error\n$stackTrace',
       );
+      // Preserve existing metadata on polling failure — do not clear.
+    }
+  }
+
+  /// Track whether the metadata title has changed across polling cycles.
+  /// After [deadStreamThreshold] unchanged cycles, switch to reduced polling.
+  void _updateDeadStreamCounter(String? title, String stationShortName) {
+    if (title == _lastMetadataTitle) {
+      _unchangedCycleCount++;
+      if (_unchangedCycleCount >= deadStreamThreshold && !_isReducedPolling) {
+        _isReducedPolling = true;
+        AppLogger.debug(
+          'RadioMetadataService: Dead stream detected for '
+          '$stationShortName — reducing polling to '
+          '${reducedPollingInterval.inSeconds}s.',
+        );
+        // Restart the timer at a lower frequency.
+        _pollingTimer?.cancel();
+        _pollingTimer = Timer.periodic(reducedPollingInterval, (_) {
+          unawaited(_fetchAzuracastMetadata(stationShortName));
+        });
+      }
+    } else {
+      // Metadata actually changed — reset counters.
+      _lastMetadataTitle = title;
+      _unchangedCycleCount = 0;
+      if (_isReducedPolling) {
+        _isReducedPolling = false;
+        AppLogger.debug(
+          'RadioMetadataService: Stream for $stationShortName '
+          'is live again — restoring normal polling.',
+        );
+        _pollingTimer?.cancel();
+        _pollingTimer = Timer.periodic(pollingInterval, (_) {
+          unawaited(_fetchAzuracastMetadata(stationShortName));
+        });
+      }
     }
   }
 

@@ -101,6 +101,18 @@ class _AppShellState extends ConsumerState<AppShell> {
         );
       }
     });
+    // Global Radio stream error snackbar.
+    ref.listen<AsyncValue<void>>(radioStreamErrorProvider, (prev, next) {
+      if (!mounted) return;
+      if (next.hasValue && prev != null && prev.hasValue) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(l10n.radioStreamUnavailable),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    });
     ref.listen<bool>(
       playerStateProvider.select((snapshot) => snapshot.hasActivePlayback),
       (previous, next) {

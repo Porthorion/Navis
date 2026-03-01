@@ -26,6 +26,11 @@ abstract class NavisPlaybackHandler {
   PlaybackSnapshot get snapshot;
   Stream<PlaybackSnapshot> get snapshotStream;
   Stream<Duration> get positionStream;
+
+  /// Emits when a radio stream encounters a mid-playback error (e.g. HTTP 503,
+  /// connection reset). The UI should show a dismissible error notification.
+  Stream<void> get radioStreamErrorStream;
+
   Future<void> waitUntilReady();
 
   Future<void> replaceQueue(
@@ -377,6 +382,9 @@ class NavisAudioHandler extends BaseAudioHandler
   final StreamController<PlaybackSnapshot> _snapshotController =
       StreamController<PlaybackSnapshot>.broadcast();
 
+  final StreamController<void> _radioStreamErrorController =
+      StreamController<void>.broadcast();
+
   final List<MediaItem> _queueItems = <MediaItem>[];
 
   PlaybackSnapshot _snapshot = const PlaybackSnapshot.idle();
@@ -427,6 +435,10 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Stream<PlaybackSnapshot> get snapshotStream => _snapshotController.stream;
+
+  @override
+  Stream<void> get radioStreamErrorStream =>
+      _radioStreamErrorController.stream;
 
   @override
   Stream<Duration> get positionStream => _player.createPositionStream(
@@ -574,6 +586,11 @@ class NavisAudioHandler extends BaseAudioHandler
       },
       onError: (Object error, StackTrace stackTrace) {
         AppLogger.error('Playback event stream error.', error, stackTrace);
+        // If a radio stream is active, stop it and notify the UI.
+        if (_radioStation != null) {
+          _radioStreamErrorController.add(null);
+          unawaited(stopRadio());
+        }
       },
     );
 
@@ -2229,6 +2246,7 @@ class NavisAudioHandler extends BaseAudioHandler
     await _persistSafely(_persistPosition, context: 'dispose handler');
     await _player.dispose();
     await _snapshotController.close();
+    await _radioStreamErrorController.close();
   }
 
   // ---------------------------------------------------------------------------

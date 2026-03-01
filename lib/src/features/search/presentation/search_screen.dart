@@ -153,7 +153,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           onClear: hasQuery ? _clearSearch : null,
         ),
       ),
-      body: hasQuery ? _buildResults() : _buildRecentSearches(),
+      body: Column(
+        children: <Widget>[
+          if (hasQuery) _SearchFilterChips(),
+          if (hasQuery) _OfflineSearchBanner(),
+          Expanded(
+            child: hasQuery ? _buildResults() : _buildRecentSearches(),
+          ),
+        ],
+      ),
     );
   }
 
@@ -300,6 +308,98 @@ class _SearchBar extends StatelessWidget {
       ),
       onChanged: onChanged,
       onSubmitted: onSubmitted,
+    );
+  }
+}
+
+class _SearchFilterChips extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final selected = ref.watch(searchFilterProvider);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: <Widget>[
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ChoiceChip(
+                label: Text(l10n.searchFilterAll),
+                selected: selected == null,
+                onSelected: (_) =>
+                    ref.read(searchFilterProvider.notifier).select(null),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ChoiceChip(
+                label: Text(l10n.searchArtistsSection),
+                selected: selected == SearchResultType.artists,
+                onSelected: (_) =>
+                    ref.read(searchFilterProvider.notifier).select(
+                        selected == SearchResultType.artists
+                            ? null
+                            : SearchResultType.artists),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ChoiceChip(
+                label: Text(l10n.searchAlbumsSection),
+                selected: selected == SearchResultType.albums,
+                onSelected: (_) =>
+                    ref.read(searchFilterProvider.notifier).select(
+                        selected == SearchResultType.albums
+                            ? null
+                            : SearchResultType.albums),
+              ),
+            ),
+            ChoiceChip(
+              label: Text(l10n.searchSongsSection),
+              selected: selected == SearchResultType.songs,
+              onSelected: (_) =>
+                  ref.read(searchFilterProvider.notifier).select(
+                      selected == SearchResultType.songs
+                          ? null
+                          : SearchResultType.songs),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _OfflineSearchBanner extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isOffline = ref.watch(searchIsOfflineProvider);
+    if (!isOffline) return const SizedBox.shrink();
+
+    final l10n = AppLocalizations.of(context)!;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: Row(
+        children: <Widget>[
+          Icon(
+            Icons.cloud_off,
+            size: 16,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            l10n.searchLocalOfflineBanner,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

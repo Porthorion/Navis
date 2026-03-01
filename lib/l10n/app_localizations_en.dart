@@ -460,6 +460,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get radioPlaybackError => 'Could not play this radio station.';
 
   @override
+  String get radioStreamUnavailable => 'Radio stream unavailable.';
+
+  @override
   String get radioNowPlaying => 'Now playing on radio';
 
   @override
@@ -672,6 +675,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get libraryLikedAlbumsSectionTitle => 'Liked Albums';
+
+  @override
+  String get libraryLikedAlbumsSeeAll => 'See all';
+
+  @override
+  String get libraryLikedAlbumsAllTitle => 'Liked Albums';
 
   @override
   String get libraryLikedSongsSectionTitle => 'Liked Songs';
@@ -1180,6 +1189,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get searchAddToQueue => 'Add to queue';
+
+  @override
+  String get searchFilterAll => 'All';
+
+  @override
+  String get searchLocalOfflineBanner => 'Searching local library (offline)';
 
   @override
   String get playlistsTitle => 'Playlists';
