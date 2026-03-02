@@ -140,6 +140,15 @@ class SyncSettingsScreen extends ConsumerWidget {
                   : l10n.serverSettingsForceFullSync,
             ),
           ),
+          if (isRunning) ...<Widget>[
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: () =>
+                  ref.read(librarySyncControllerProvider.notifier).cancelSync(),
+              icon: const Icon(Icons.cancel_outlined),
+              label: Text(l10n.commonCancel),
+            ),
+          ],
           if (hasFailure) ...<Widget>[
             const SizedBox(height: 8),
             OutlinedButton.icon(
