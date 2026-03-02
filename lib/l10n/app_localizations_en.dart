@@ -579,6 +579,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get commonRetry => 'Retry';
 
   @override
+  String get commonCancel => 'Cancel';
+
+  @override
   String get libraryTitle => 'Library';
 
   @override

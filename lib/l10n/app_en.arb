@@ -231,6 +231,7 @@
   "serverSettingsSignOutError": "Could not complete sign out. Try again.",
   "commonQueued": "Queued",
   "commonRetry": "Retry",
+  "commonCancel": "Cancel",
   "libraryTitle": "Library",
   "libraryTabArtists": "Artists",
   "libraryTabAlbums": "Albums",

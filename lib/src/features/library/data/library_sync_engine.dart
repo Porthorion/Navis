@@ -15,6 +15,13 @@ import 'package:navis/src/utils/connectivity.dart';
 
 typedef LibrarySyncProgressCallback = void Function(LibrarySyncState state);
 
+/// Thrown when a sync operation is cancelled via [DriftLibrarySyncEngine.cancelSync].
+class SyncCancelledException implements Exception {
+  const SyncCancelledException();
+  @override
+  String toString() => 'SyncCancelledException: sync was cancelled.';
+}
+
 class LibrarySyncEngine {
   Future<LibrarySyncState> syncIfStale({
     Iterable<String> priorityAlbumIds = const <String>[],
@@ -155,6 +162,20 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
   final int isolateThreshold;
 
   Future<LibrarySyncState>? _inFlight;
+  bool _cancelled = false;
+
+  /// Cancel any in-progress sync.  The sync will complete with a `failed`
+  /// status and a "Sync cancelled." error message.
+  void cancelSync() {
+    _cancelled = true;
+  }
+
+  /// Throws [SyncCancelledException] if [cancelSync] has been called.
+  void _checkCancelled() {
+    if (_cancelled) {
+      throw const SyncCancelledException();
+    }
+  }
 
   int get _albumConcurrency {
     return switch (networkType) {
@@ -230,6 +251,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       return running;
     }
 
+    _cancelled = false;
     final future = _runSync(
       force: force,
       forceFull: forceFull,
@@ -238,7 +260,10 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       onProgress: onProgress,
     );
     _inFlight = future;
-    return future.whenComplete(() => _inFlight = null);
+    return future.whenComplete(() {
+      _inFlight = null;
+      _cancelled = false;
+    });
   }
 
   Future<LibrarySyncState> _runSync({
@@ -414,41 +439,20 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
         for (final song in starred.songs) song.id: song.starred,
       };
 
-      final albums = await _database.libraryDao.getAllAlbums();
-      for (final album in albums) {
-        if (pendingByType['album']!.contains(album.id)) {
-          continue;
-        }
-        final nextStarred = albumStarredAt[album.id];
-        if (album.starred != nextStarred) {
-          await _database.libraryDao.updateAlbumStarred(album.id, nextStarred);
-        }
-      }
-
-      final artists = await _database.libraryDao.getAllArtists();
-      for (final artist in artists) {
-        if (pendingByType['artist']!.contains(artist.id)) {
-          continue;
-        }
-        final nextStarred = artistStarredAt[artist.id];
-        if (artist.starred != nextStarred) {
-          await _database.libraryDao.updateArtistStarred(
-            artist.id,
-            nextStarred,
-          );
-        }
-      }
-
-      final songs = await _database.libraryDao.getAllSongs();
-      for (final song in songs) {
-        if (pendingByType['song']!.contains(song.id)) {
-          continue;
-        }
-        final nextStarred = songStarredAt[song.id];
-        if (song.starred != nextStarred) {
-          await _database.libraryDao.updateSongStarred(song.id, nextStarred);
-        }
-      }
+      // Use batch reconciliation — a single transaction per entity type
+      // instead of O(n) individual UPDATE statements.
+      await _database.libraryDao.batchReconcileAlbumStarred(
+        albumStarredAt,
+        excludeIds: pendingByType['album']!,
+      );
+      await _database.libraryDao.batchReconcileArtistStarred(
+        artistStarredAt,
+        excludeIds: pendingByType['artist']!,
+      );
+      await _database.libraryDao.batchReconcileSongStarred(
+        songStarredAt,
+        excludeIds: pendingByType['song']!,
+      );
 
       metrics.addDbWriteBatch();
     } on SubsonicNotFoundException {
@@ -576,10 +580,38 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     );
     onProgress?.call(current);
 
-    await _database.libraryDao.replaceArtists(_toArtistCompanions(artists));
+    // Use upsert + stale cleanup instead of destructive replace.  This
+    // prevents Drift reactive streams from briefly seeing an empty library
+    // between DELETE-all and INSERT-all (which could flash-blank the UI or
+    // disrupt the currently-playing song's metadata).
+    final nextArtistIds = artists.map((a) => a.id).toSet();
+    final nextAlbumIds = albums.map((a) => a.id).toSet();
+
+    await _database.libraryDao.upsertArtists(_toArtistCompanions(artists));
     metrics.addDbWriteBatch();
-    await _database.libraryDao.replaceAlbums(await _toAlbumCompanions(albums));
+    await _database.libraryDao.upsertAlbums(await _toAlbumCompanions(albums));
     metrics.addDbWriteBatch();
+
+    // Remove stale artists/albums no longer present on the server.
+    final existingArtists = await _database.libraryDao.getAllArtists();
+    final staleArtistIds = existingArtists
+        .map((a) => a.id)
+        .where((id) => !nextArtistIds.contains(id))
+        .toList(growable: false);
+    for (final staleId in staleArtistIds) {
+      await _database.libraryDao.removeArtistTree(staleId);
+      metrics.addDbWriteBatch();
+    }
+
+    final existingAlbums = await _database.libraryDao.getAllAlbums();
+    final staleAlbumIds = existingAlbums
+        .map((a) => a.id)
+        .where((id) => !nextAlbumIds.contains(id))
+        .toList(growable: false);
+    if (staleAlbumIds.isNotEmpty) {
+      await _database.libraryDao.deleteAlbumsByIds(staleAlbumIds);
+      metrics.addDbWriteBatch();
+    }
 
     current = _withMetrics(
       current.copyWith(stage: LibrarySyncStage.fetchingGenres),
@@ -898,23 +930,48 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     final albumsByArtist = <String, List<Album>>{
       for (final artist in artistDetails) artist.id: artist.albums,
     };
-    final changedAlbums = _dedupeAlbums([
+    final allAlbums = _dedupeAlbums([
       for (final albums in albumsByArtist.values) ...albums,
     ]);
-    await _database.libraryDao.upsertAlbums(
-      await _toAlbumCompanions(changedAlbums),
-    );
-    metrics.addDbWriteBatch();
-    await _database.libraryDao.markAlbumsPendingHydrationByIds(
-      changedAlbums.map((album) => album.id),
-    );
-    metrics.addDbWriteBatch();
 
+    // Only mark albums as pending hydration if their metadata actually
+    // changed or they are new.  This prevents re-fetching songs 1-by-1 for
+    // every album on servers that return all artists from getIndexes
+    // regardless of ifModifiedSince.
+    final existingAlbumsForChanged = <String, AlbumsTableData>{};
     for (final entry in albumsByArtist.entries) {
-      final existingAlbums = await _database.libraryDao.getAlbumsByArtist(
+      final existing = await _database.libraryDao.getAlbumsByArtist(
         entry.key,
       );
+      for (final album in existing) {
+        existingAlbumsForChanged[album.id] = album;
+      }
+    }
+
+    final albumsNeedingHydration = <String>[];
+    for (final album in allAlbums) {
+      final existing = existingAlbumsForChanged[album.id];
+      if (existing == null || _albumMetadataChanged(existing, album)) {
+        albumsNeedingHydration.add(album.id);
+      }
+    }
+
+    await _database.libraryDao.upsertAlbums(
+      await _toAlbumCompanions(allAlbums),
+    );
+    metrics.addDbWriteBatch();
+    if (albumsNeedingHydration.isNotEmpty) {
+      await _database.libraryDao.markAlbumsPendingHydrationByIds(
+        albumsNeedingHydration,
+      );
+      metrics.addDbWriteBatch();
+    }
+
+    for (final entry in albumsByArtist.entries) {
       final nextAlbumIds = entry.value.map((album) => album.id).toSet();
+      final existingAlbums = existingAlbumsForChanged.values.where(
+        (a) => a.artistId == entry.key,
+      );
       final staleAlbumIds = existingAlbums
           .map((album) => album.id)
           .where((id) => !nextAlbumIds.contains(id))
@@ -1118,6 +1175,8 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
           onHydratedChunk: publishProgress,
           onObservedChunk: publishBulkObservedProgress,
         );
+      } on SyncCancelledException {
+        rethrow;
       } on Object catch (error, stackTrace) {
         AppLogger.debug(
           'Bulk song hydration fallback activated due to: $error',
@@ -1137,6 +1196,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     }
 
     while (pendingAlbumIds.isNotEmpty) {
+      _checkCancelled();
       final chunk = await _nextPendingHydrationChunk(
         prioritizedAlbumIds: prioritized,
         limit: writeChunkSize,
@@ -1167,6 +1227,9 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       await _database.libraryDao.markAlbumsSongsHydratedByIds(hydratedAlbumIds);
       metrics.addDbWriteBatch();
       await publishProgress(hydratedAlbumIds);
+      // Yield to the event loop between write batches so the UI can
+      // render frames and respond to user input during long hydrations.
+      await Future<void>.delayed(Duration.zero);
     }
 
     return _withMetrics(
@@ -1346,6 +1409,8 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
         break;
       }
       offset += bulkSearchPageSize;
+      // Yield between bulk search pages for UI responsiveness.
+      await Future<void>.delayed(Duration.zero);
     }
 
     if (importedSongCountsByAlbum.isEmpty) {
@@ -1475,6 +1540,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
   }) async {
     var attempt = 0;
     while (true) {
+      _checkCancelled();
       attempt++;
       final stopwatch = Stopwatch()..start();
       try {
@@ -1484,6 +1550,8 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
           isRetryAttempt: attempt > 1,
         );
         return result;
+      } on SyncCancelledException {
+        rethrow;
       } on Object catch (error) {
         metrics.recordApiAttempt(
           elapsed: stopwatch.elapsed,
@@ -2059,6 +2127,7 @@ DateTime? _parseIsoDate(String? value) {
 
 String _toSafeErrorMessage(Object error) {
   return switch (error) {
+    SyncCancelledException() => 'Sync cancelled.',
     SubsonicAuthException() => 'Authentication failed while syncing metadata.',
     SubsonicConnectionException() =>
       'Connection failed while syncing metadata. Retrying later may help.',

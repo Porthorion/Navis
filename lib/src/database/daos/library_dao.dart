@@ -400,6 +400,97 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
+  /// Efficiently reconcile starred state for all albums in a single
+  /// transaction.  Clears the [starred] column for albums not in
+  /// [starredMap], and sets it for those that are — skipping IDs in
+  /// [excludeIds] (e.g. items with pending offline star operations).
+  Future<void> batchReconcileAlbumStarred(
+    Map<String, DateTime?> starredMap, {
+    Set<String> excludeIds = const <String>{},
+  }) async {
+    await transaction(() async {
+      // 1. Clear starred for all non-excluded albums.
+      if (excludeIds.isNotEmpty) {
+        await (update(albumsTable)..where(
+              (t) => t.starred.isNotNull() & t.id.isNotIn(excludeIds.toList()),
+            ))
+            .write(const AlbumsTableCompanion(starred: Value(null)));
+      } else {
+        await (update(albumsTable)..where(
+              (t) => t.starred.isNotNull(),
+            ))
+            .write(const AlbumsTableCompanion(starred: Value(null)));
+      }
+
+      // 2. Set starred for each album in the server's starred set.
+      for (final entry in starredMap.entries) {
+        if (excludeIds.contains(entry.key)) continue;
+        await (update(albumsTable)..where(
+              (t) => t.id.equals(entry.key),
+            ))
+            .write(AlbumsTableCompanion(starred: Value(entry.value)));
+      }
+    });
+  }
+
+  /// Efficiently reconcile starred state for all artists in a single
+  /// transaction.
+  Future<void> batchReconcileArtistStarred(
+    Map<String, DateTime?> starredMap, {
+    Set<String> excludeIds = const <String>{},
+  }) async {
+    await transaction(() async {
+      if (excludeIds.isNotEmpty) {
+        await (update(artistsTable)..where(
+              (t) => t.starred.isNotNull() & t.id.isNotIn(excludeIds.toList()),
+            ))
+            .write(const ArtistsTableCompanion(starred: Value(null)));
+      } else {
+        await (update(artistsTable)..where(
+              (t) => t.starred.isNotNull(),
+            ))
+            .write(const ArtistsTableCompanion(starred: Value(null)));
+      }
+
+      for (final entry in starredMap.entries) {
+        if (excludeIds.contains(entry.key)) continue;
+        await (update(artistsTable)..where(
+              (t) => t.id.equals(entry.key),
+            ))
+            .write(ArtistsTableCompanion(starred: Value(entry.value)));
+      }
+    });
+  }
+
+  /// Efficiently reconcile starred state for all songs in a single
+  /// transaction.
+  Future<void> batchReconcileSongStarred(
+    Map<String, DateTime?> starredMap, {
+    Set<String> excludeIds = const <String>{},
+  }) async {
+    await transaction(() async {
+      if (excludeIds.isNotEmpty) {
+        await (update(songsTable)..where(
+              (t) => t.starred.isNotNull() & t.id.isNotIn(excludeIds.toList()),
+            ))
+            .write(const SongsTableCompanion(starred: Value(null)));
+      } else {
+        await (update(songsTable)..where(
+              (t) => t.starred.isNotNull(),
+            ))
+            .write(const SongsTableCompanion(starred: Value(null)));
+      }
+
+      for (final entry in starredMap.entries) {
+        if (excludeIds.contains(entry.key)) continue;
+        await (update(songsTable)..where(
+              (t) => t.id.equals(entry.key),
+            ))
+            .write(SongsTableCompanion(starred: Value(entry.value)));
+      }
+    });
+  }
+
   /// Watch songs that have been starred/liked, ordered by starred date
   /// (most recently starred first).
   Stream<List<SongsTableData>> watchStarredSongs({int limit = 5}) {
