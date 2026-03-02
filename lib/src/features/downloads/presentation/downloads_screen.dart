@@ -408,6 +408,54 @@ class _DownloadSettingsTab extends ConsumerStatefulWidget {
 class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
   bool _clearing = false;
 
+  Future<bool> _confirmCellularAutoDownload() async {
+    final l10n = AppLocalizations.of(context)!;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.cacheSettingsAutoDownloadCellularWarningTitle),
+        content: Text(l10n.cacheSettingsAutoDownloadCellularWarning),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(l10n.cancelAction),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(l10n.cacheSettingsAutoDownloadCellularWarningContinue),
+          ),
+        ],
+      ),
+    );
+    return confirm == true;
+  }
+
+  Future<void> _updateWifiOnlyDownloads(bool enabled) async {
+    if (!enabled && ref.read(autoDownloadStarredOnWifiProvider)) {
+      final confirmed = await _confirmCellularAutoDownload();
+      if (!confirmed || !mounted) {
+        return;
+      }
+    }
+    await ref
+        .read(navisDatabaseProvider)
+        .appSettingsDao
+        .updateWifiOnlyDownloads(enabled: enabled);
+  }
+
+  Future<void> _updateAutoDownloadLiked(bool enabled) async {
+    if (enabled && !ref.read(wifiOnlyDownloadsProvider)) {
+      final confirmed = await _confirmCellularAutoDownload();
+      if (!confirmed || !mounted) {
+        return;
+      }
+    }
+    await ref
+        .read(navisDatabaseProvider)
+        .appSettingsDao
+        .updateAutoDownloadStarredOnWifi(enabled: enabled);
+  }
+
   Future<void> _clearDownloads() async {
     final l10n = AppLocalizations.of(context)!;
     final confirm = await showDialog<bool>(
@@ -474,19 +522,13 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
           title: Text(l10n.cacheSettingsWifiOnlyDownloads),
           subtitle: Text(l10n.cacheSettingsWifiOnlyDownloadsSub),
           value: ref.watch(wifiOnlyDownloadsProvider),
-          onChanged: (value) {
-            final dao = ref.read(navisDatabaseProvider).appSettingsDao;
-            dao.updateWifiOnlyDownloads(enabled: value);
-          },
+          onChanged: _updateWifiOnlyDownloads,
         ),
         SwitchListTile(
-          title: Text(l10n.cacheSettingsAutoDownloadStarredOnWifi),
-          subtitle: Text(l10n.cacheSettingsAutoDownloadStarredOnWifiSub),
+          title: Text(l10n.cacheSettingsAutoDownloadStarred),
+          subtitle: Text(l10n.cacheSettingsAutoDownloadStarredSub),
           value: ref.watch(autoDownloadStarredOnWifiProvider),
-          onChanged: (value) {
-            final dao = ref.read(navisDatabaseProvider).appSettingsDao;
-            dao.updateAutoDownloadStarredOnWifi(enabled: value);
-          },
+          onChanged: _updateAutoDownloadLiked,
         ),
         const Divider(),
         permanentStats.when(

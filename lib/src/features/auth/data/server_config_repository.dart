@@ -86,6 +86,10 @@ class ServerConfigRepository {
     );
   }
 
+  Future<void> updateCapabilitiesJson(String? value) {
+    return _serverDao.updateCapabilities(value);
+  }
+
   Future<ServerConfigModel?> _mapRowToModel(ServerConfigTableData? row) async {
     if (row == null) {
       await _credentials.clearPassword();

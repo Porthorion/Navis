@@ -738,15 +738,20 @@ String _formatAudioQuality({
   required MediaItem? mediaItem,
 }) {
   final extras = mediaItem?.extras;
-  final format =
-      (extras?['resolvedFormat'] as String?)?.trim().toUpperCase() ??
+  final resolvedFormat = (extras?['resolvedFormat'] as String?)?.trim();
+  final transcodingApplied = (extras?['transcodingApplied'] as bool?) ?? false;
+  final formatLabel =
+      _formatAudioFormatLabel(
+        resolvedFormat,
+        isTranscoded: transcodingApplied,
+      ) ??
       song?.suffix?.trim().toUpperCase() ??
       _inferAudioFormat(song?.contentType);
   final bitRate = (extras?['resolvedBitRate'] as int?) ?? song?.bitRate;
-  final descriptor = _audioDescriptor(format);
+  final descriptor = _audioDescriptor(formatLabel);
 
   final parts = <String>[
-    if (format != null && format.isNotEmpty) format,
+    if (formatLabel != null && formatLabel.isNotEmpty) formatLabel,
     if (descriptor != null) descriptor,
     if (bitRate != null && bitRate > 0) _formatBitRate(bitRate),
   ];
@@ -755,6 +760,20 @@ String _formatAudioQuality({
     return '-';
   }
   return parts.join(' • ');
+}
+
+String? _formatAudioFormatLabel(String? format, {required bool isTranscoded}) {
+  final normalized = format?.trim();
+  if (normalized != null && normalized.isNotEmpty) {
+    if (normalized.toLowerCase() == 'transcoded') {
+      return 'Transcoded';
+    }
+    return normalized.toUpperCase();
+  }
+  if (isTranscoded) {
+    return 'Transcoded';
+  }
+  return null;
 }
 
 String? _inferAudioFormat(String? contentType) {

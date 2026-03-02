@@ -4,7 +4,10 @@ import android.content.Intent
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.content.pm.Signature
+import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
+import android.provider.Settings
 import androidx.core.content.FileProvider
 import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -15,14 +18,15 @@ import java.util.Locale
 
 class MainActivity : AudioServiceActivity() {
 
-    private val channelName = "com.navis.app/updater"
+    private val updaterChannelName = "com.navis.app/updater"
+    private val powerChannelName = "com.navis.app/power"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
-            channelName
+            updaterChannelName
         ).setMethodCallHandler { call, result ->
             when (call.method) {
                 "installApk" -> {
@@ -36,6 +40,26 @@ class MainActivity : AudioServiceActivity() {
                         result.success(true)
                     } catch (e: Exception) {
                         result.error("INSTALL_ERROR", e.message, null)
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            powerChannelName
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "isIgnoringBatteryOptimizations" -> {
+                    result.success(isIgnoringBatteryOptimizations())
+                }
+                "requestIgnoreBatteryOptimizations" -> {
+                    try {
+                        requestIgnoreBatteryOptimizations()
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("POWER_ERROR", e.message, null)
                     }
                 }
                 else -> result.notImplemented()
@@ -134,5 +158,38 @@ class MainActivity : AudioServiceActivity() {
                 String.format(Locale.US, "%02x", byte.toInt() and 0xff)
             }
         }.toSet()
+    }
+
+    private fun isIgnoringBatteryOptimizations(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            return true
+        }
+        val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+        return powerManager.isIgnoringBatteryOptimizations(applicationContext.packageName)
+    }
+
+    private fun requestIgnoreBatteryOptimizations() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            return
+        }
+
+        val intent = Intent(
+            Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+            Uri.parse("package:${applicationContext.packageName}")
+        ).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+
+        val packageManager = applicationContext.packageManager
+        if (intent.resolveActivity(packageManager) != null) {
+            startActivity(intent)
+            return
+        }
+
+        startActivity(
+            Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+        )
     }
 }

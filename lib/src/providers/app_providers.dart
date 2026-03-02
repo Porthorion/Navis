@@ -24,6 +24,7 @@ import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 import 'package:navis/src/features/player/data/scrobble_service.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/library/presentation/library_browse_models.dart';
+import 'package:navis/src/features/settings/data/battery_optimization_service.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/data/update_repository.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
@@ -66,6 +67,12 @@ final settingsRepositoryProvider = Provider<SettingsRepository>((ref) {
   final database = ref.watch(navisDatabaseProvider);
   return SettingsRepository(database.appSettingsDao);
 });
+
+final batteryOptimizationServiceProvider = Provider<BatteryOptimizationService>(
+  (_) {
+    return const BatteryOptimizationService();
+  },
+);
 
 final appSettingsProvider = StreamProvider<AppSettingsModel>((ref) {
   final repository = ref.watch(settingsRepositoryProvider);
@@ -656,13 +663,15 @@ final albumTileDownloadStateProvider =
         for (final item in queue)
           if (item.songId != null) item.songId!: item,
       };
-      var completeCount = 0.0;
+      var completeCount = 0;
+      var completedProgress = 0.0;
       var inFlightProgress = 0.0;
       var hasQueued = false;
       for (final song in songs) {
         final cacheType = cachedTypes[song.id];
         if (cacheType == CacheType.permanent) {
           completeCount += 1;
+          completedProgress += 1;
           continue;
         }
         final item = queueBySongId[song.id];
@@ -683,12 +692,14 @@ final albumTileDownloadStateProvider =
       final totalTrackCount = songs.length;
       final progress = totalTrackCount == 0
           ? 0.0
-          : ((completeCount + inFlightProgress) / totalTrackCount).clamp(
+          : ((completedProgress + inFlightProgress) / totalTrackCount).clamp(
               0.0,
               1.0,
             );
       return AlbumTileDownloadState(
         fullyDownloaded: completeCount >= totalTrackCount,
+        downloadedTrackCount: completeCount,
+        totalTrackCount: totalTrackCount,
         queued: hasQueued,
         progress: progress,
       );

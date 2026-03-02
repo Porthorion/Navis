@@ -2793,17 +2793,35 @@ abstract class AppLocalizations {
   /// **'Pause downloads when not connected to Wi-Fi.'**
   String get cacheSettingsWifiOnlyDownloadsSub;
 
-  /// No description provided for @cacheSettingsAutoDownloadStarredOnWifi.
+  /// No description provided for @cacheSettingsAutoDownloadStarred.
   ///
   /// In en, this message translates to:
-  /// **'Auto-download liked on Wi-Fi'**
-  String get cacheSettingsAutoDownloadStarredOnWifi;
+  /// **'Auto-download liked'**
+  String get cacheSettingsAutoDownloadStarred;
 
-  /// No description provided for @cacheSettingsAutoDownloadStarredOnWifiSub.
+  /// No description provided for @cacheSettingsAutoDownloadStarredSub.
   ///
   /// In en, this message translates to:
-  /// **'Queue liked albums and songs for download when Wi-Fi becomes available.'**
-  String get cacheSettingsAutoDownloadStarredOnWifiSub;
+  /// **'Queue liked albums and songs for download automatically.'**
+  String get cacheSettingsAutoDownloadStarredSub;
+
+  /// No description provided for @cacheSettingsAutoDownloadCellularWarningTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow liked downloads on mobile data?'**
+  String get cacheSettingsAutoDownloadCellularWarningTitle;
+
+  /// No description provided for @cacheSettingsAutoDownloadCellularWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Your liked library can use a large amount of storage and mobile data when Wi-Fi-only downloads are off.'**
+  String get cacheSettingsAutoDownloadCellularWarning;
+
+  /// No description provided for @cacheSettingsAutoDownloadCellularWarningContinue.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue'**
+  String get cacheSettingsAutoDownloadCellularWarningContinue;
 
   /// No description provided for @cacheBadgeDownloaded.
   ///

@@ -709,8 +709,11 @@
 
   "cacheSettingsWifiOnlyDownloads": "Download on Wi-Fi only",
   "cacheSettingsWifiOnlyDownloadsSub": "Pause downloads when not connected to Wi-Fi.",
-  "cacheSettingsAutoDownloadStarredOnWifi": "Auto-download liked on Wi-Fi",
-  "cacheSettingsAutoDownloadStarredOnWifiSub": "Queue liked albums and songs for download when Wi-Fi becomes available.",
+  "cacheSettingsAutoDownloadStarred": "Auto-download liked",
+  "cacheSettingsAutoDownloadStarredSub": "Queue liked albums and songs for download automatically.",
+  "cacheSettingsAutoDownloadCellularWarningTitle": "Allow liked downloads on mobile data?",
+  "cacheSettingsAutoDownloadCellularWarning": "Your liked library can use a large amount of storage and mobile data when Wi-Fi-only downloads are off.",
+  "cacheSettingsAutoDownloadCellularWarningContinue": "Continue",
 
   "cacheBadgeDownloaded": "Downloaded",
   "cacheBadgeCached": "Cached",

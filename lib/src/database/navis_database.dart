@@ -565,7 +565,7 @@ class NavisDatabase extends _$NavisDatabase {
         rollingCacheBudgetMb: const Value(
           AppSettingsDao.defaultRollingCacheBudgetMb,
         ),
-        wifiOnlyDownloads: const Value(false),
+        wifiOnlyDownloads: const Value(true),
         autoDownloadStarredOnWifi: const Value(false),
         themeMode: const Value('dark'),
         colorSchemeSeed: const Value(null),

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
-import 'package:navis/src/common_widgets/cache_badge.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
 class AlbumDownloadBadge extends ConsumerWidget {
@@ -13,7 +12,13 @@ class AlbumDownloadBadge extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(albumTileDownloadStateProvider(albumId));
     if (state.fullyDownloaded) {
-      return const CacheBadge();
+      return const _CompletedAlbumBadge();
+    }
+    if (state.downloadedTrackCount > 0 && state.totalTrackCount > 0) {
+      return _PartialAlbumBadge(
+        downloadedTrackCount: state.downloadedTrackCount,
+        totalTrackCount: state.totalTrackCount,
+      );
     }
     if (!state.queued) {
       return const SizedBox.shrink();
@@ -47,6 +52,69 @@ class AlbumDownloadBadge extends ConsumerWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CompletedAlbumBadge extends StatelessWidget {
+  const _CompletedAlbumBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.58),
+        shape: BoxShape.circle,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(4),
+        child: Icon(
+          Icons.check,
+          size: 16,
+          color: theme.colorScheme.secondary,
+        ),
+      ),
+    );
+  }
+}
+
+class _PartialAlbumBadge extends StatelessWidget {
+  const _PartialAlbumBadge({
+    required this.downloadedTrackCount,
+    required this.totalTrackCount,
+  });
+
+  final int downloadedTrackCount;
+  final int totalTrackCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final digitCount = totalTrackCount < 100
+        ? 2
+        : totalTrackCount.toString().length;
+    final label =
+        '${downloadedTrackCount.toString().padLeft(digitCount, '0')}/'
+        '${totalTrackCount.toString().padLeft(digitCount, '0')}';
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.62),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        child: Text(
+          label,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: const Color(0xFFFFB84D),
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.2,
+          ),
         ),
       ),
     );

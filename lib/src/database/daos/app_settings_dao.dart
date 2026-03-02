@@ -121,7 +121,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       equalizerBandGains: null,
       loudnessEnabled: false,
       loudnessTargetGainDb: 0,
-      wifiOnlyDownloads: false,
+      wifiOnlyDownloads: true,
       autoDownloadStarredOnWifi: false,
       themeMode: 'dark',
       colorSchemeSeed: null,
@@ -239,7 +239,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
-  /// Targeted update for the auto-download liked content on Wi-Fi flag.
+  /// Targeted update for the auto-download liked content flag.
   Future<void> updateAutoDownloadStarredOnWifi({required bool enabled}) {
     return (update(
       appSettingsTable,
@@ -253,7 +253,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
 
   /// Stream the Wi-Fi-only downloads setting.
   Stream<bool> watchWifiOnlyDownloads() {
-    return watchSettings().map((s) => s?.wifiOnlyDownloads ?? false);
+    return watchSettings().map((s) => s?.wifiOnlyDownloads ?? true);
   }
 
   /// Stream the show liked page setting.

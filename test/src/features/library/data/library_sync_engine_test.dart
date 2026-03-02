@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
@@ -160,6 +161,7 @@ void main() {
     Future<void> saveSession({
       DateTime? lastSynced,
       DateTime? lastFullSyncedAt,
+      String? capabilitiesJson,
     }) {
       return serverConfigRepository.save(
         ServerConfigModel(
@@ -167,6 +169,7 @@ void main() {
           username: 'alice',
           password: 'secret',
           apiVersion: '1.16.1',
+          capabilitiesJson: capabilitiesJson,
           lastSynced: lastSynced,
           lastFullSyncedAt: lastFullSyncedAt,
         ),
@@ -658,6 +661,47 @@ void main() {
     );
 
     test(
+      'stored bulk-song query is reused for small pending hydration batches',
+      () async {
+        await saveSession(
+          capabilitiesJson: jsonEncode(<String, Object?>{
+            'navis': <String, Object?>{
+              'bulkSongSearchWildcardQuery': '',
+            },
+          }),
+        );
+        api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
+        api.fastPathPages[0] = const <Album>[
+          Album(
+            id: 'album-1',
+            name: 'Album 1',
+            artistId: 'artist-1',
+            artist: 'Artist 1',
+            songCount: 1,
+          ),
+        ];
+        api.bulkSongPages[0] = const <Song>[
+          Song(
+            id: 'song-1',
+            title: 'Song 1',
+            albumId: 'album-1',
+            artistId: 'artist-1',
+          ),
+        ];
+
+        final state = await engine.syncNow(forceFull: true);
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(api.calls, contains('searchSongsPage::0:1'));
+        expect(
+          api.calls.where((call) => call.startsWith('getAlbum:')),
+          isEmpty,
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'bulk song fast path hydrates complete albums and falls back for partial albums',
       () async {
         await saveSession();
@@ -854,6 +898,69 @@ void main() {
     );
 
     test(
+      'incremental sync persists play-count-only album metadata changes',
+      () async {
+        await saveSession(
+          lastSynced: DateTime.now().subtract(const Duration(hours: 2)),
+          lastFullSyncedAt: DateTime.now(),
+        );
+        await database.libraryDao.replaceArtists(
+          <ArtistsTableCompanion>[
+            ArtistsTableCompanion.insert(id: 'artist-1', name: 'Artist 1'),
+          ],
+        );
+        await database.libraryDao.upsertAlbums(
+          <AlbumsTableCompanion>[
+            AlbumsTableCompanion.insert(
+              id: 'album-1',
+              name: 'Album 1',
+              artistId: const Value('artist-1'),
+              artistName: const Value('Artist 1'),
+              playCount: const Value(1),
+              songsHydrated: const Value(true),
+            ),
+          ],
+        );
+        api.indexes = const Indexes(
+          indexes: <IndexesIndex>[
+            IndexesIndex(
+              name: 'A',
+              artists: <Artist>[Artist(id: 'artist-1', name: 'Artist 1')],
+            ),
+          ],
+        );
+        api.artistDetails['artist-1'] = const Artist(
+          id: 'artist-1',
+          name: 'Artist 1',
+          albums: <Album>[
+            Album(
+              id: 'album-1',
+              name: 'Album 1',
+              artist: 'Artist 1',
+              artistId: 'artist-1',
+              playCount: 2,
+            ),
+          ],
+        );
+        api.albumDetails['album-1'] = const Album(
+          id: 'album-1',
+          name: 'Album 1',
+          artist: 'Artist 1',
+          artistId: 'artist-1',
+          playCount: 2,
+          songs: <Song>[],
+        );
+
+        final state = await engine.syncNow();
+        final albums = await database.select(database.albumsTable).get();
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(albums.single.playCount, 2);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'incremental mode falls back to rebaseline when indexes unsupported',
       () async {
         await saveSession(
@@ -879,6 +986,54 @@ void main() {
         expect(state.mode, LibrarySyncMode.rebaselineFull);
         expect(api.calls, contains('getArtists'));
         expect(api.calls, contains('getAlbumListPage:0:500'));
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'incremental mode falls back to rebaseline when changed artist fanout is too large',
+      () async {
+        await saveSession(
+          lastSynced: DateTime.now().subtract(const Duration(hours: 3)),
+          lastFullSyncedAt: DateTime.now().subtract(const Duration(hours: 2)),
+        );
+        api.indexes = Indexes(
+          indexes: <IndexesIndex>[
+            IndexesIndex(
+              name: 'A',
+              artists: List<Artist>.generate(
+                49,
+                (index) => Artist(
+                  id: 'artist-${index + 1}',
+                  name: 'Artist ${index + 1}',
+                ),
+              ),
+            ),
+          ],
+        );
+        api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
+        api.fastPathPages[0] = const <Album>[
+          Album(id: 'album-1', name: 'Album 1', artistId: 'artist-1'),
+        ];
+        api.albumDetails['album-1'] = const Album(
+          id: 'album-1',
+          name: 'Album 1',
+          songs: <Song>[Song(id: 'song-1', title: 'Song 1')],
+        );
+
+        final state = await engine.syncIfStale();
+        final config = await serverConfigRepository.getActiveServer();
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(state.mode, LibrarySyncMode.rebaselineFull);
+        expect(api.calls, contains('getIndexes'));
+        expect(api.calls, contains('getArtists'));
+        expect(api.calls, contains('getAlbumListPage:0:500'));
+        expect(
+          api.calls.where((call) => call.startsWith('getArtist:')),
+          isEmpty,
+        );
+        expect(config?.lastFullSyncedAt, isNotNull);
       },
       skip: !sqliteAvailable,
     );

@@ -16,6 +16,9 @@ import 'package:navis/src/features/library/presentation/library_sync_provider.da
 final _disableAutoEnqueue = autoEnqueuePinnedTracksEnabledProvider
     .overrideWithValue(false);
 final _manualSyncInterval = syncIntervalMinutesProvider.overrideWithValue(0);
+final _shortSyncInterval = syncIntervalDurationProvider.overrideWithValue(
+  const Duration(milliseconds: 10),
+);
 
 class _StaticReachabilityController extends ServerReachabilityController {
   _StaticReachabilityController(this._state);
@@ -440,6 +443,58 @@ void main() {
       final finalState = container.read(librarySyncControllerProvider);
       expect(engine.nowCalls, 1);
       expect(finalState.status, LibrarySyncStatus.failed);
+    });
+
+    test('periodic sync still fires while backgrounded', () async {
+      final binding = TestWidgetsFlutterBinding.ensureInitialized();
+      binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+
+      final engine = _FakeLibrarySyncEngine(
+        ({
+          LibrarySyncProgressCallback? onProgress,
+        }) async {
+          return LibrarySyncState(
+            status: LibrarySyncStatus.succeeded,
+            stage: LibrarySyncStage.completed,
+            completedAt: DateTime.now(),
+          );
+        },
+        ({
+          bool forceFull = false,
+          LibrarySyncProgressCallback? onProgress,
+        }) async {
+          return const LibrarySyncState(
+            status: LibrarySyncStatus.succeeded,
+            stage: LibrarySyncStage.completed,
+          );
+        },
+      );
+
+      final container = ProviderContainer(
+        overrides: [
+          _disableAutoEnqueue,
+          _shortSyncInterval,
+          syncIntervalMinutesProvider.overrideWithValue(1),
+          serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
+          serverReachabilityControllerProvider.overrideWith(
+            () => _StaticReachabilityController(
+              const ServerReachabilityState(
+                status: ServerReachabilityStatus.checking,
+              ),
+            ),
+          ),
+          librarySyncEngineProvider.overrideWithValue(engine),
+        ],
+      );
+      addTearDown(() async {
+        container.dispose();
+        binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      });
+
+      container.read(librarySyncControllerProvider);
+      await Future<void>.delayed(const Duration(milliseconds: 35));
+
+      expect(engine.staleCalls, greaterThan(0));
     });
   });
 }

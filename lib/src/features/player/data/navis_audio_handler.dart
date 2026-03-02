@@ -265,6 +265,28 @@ bool navisCanSkipQueueItem({
   return currentIndex > 0;
 }
 
+@visibleForTesting
+Map<String, Object?> navisResolvedPlaybackExtras({
+  required SongsTableData song,
+  required ResolvedPlaybackSource source,
+}) {
+  return <String, Object?>{
+    'albumId': song.albumId,
+    'artistId': song.artistId,
+    'sourceKind': source.kind.name,
+    'localSource': source.isLocal,
+    'cachedFilePath': source.cachedFilePath,
+    'resolvedFormat': source.metadata.format,
+    'resolvedBitRate': source.metadata.bitRate,
+    'transcodingApplied': source.metadata.isTranscoded,
+    'liked': song.starred != null,
+    'replayGainTrackGain': song.replayGainTrackGain,
+    'replayGainAlbumGain': song.replayGainAlbumGain,
+    'replayGainTrackPeak': song.replayGainTrackPeak,
+    'replayGainAlbumPeak': song.replayGainAlbumPeak,
+  };
+}
+
 Future<NavisAudioHandler>? _audioServiceInitFuture;
 
 Future<NavisAudioHandler> initNavisAudioHandler({
@@ -984,24 +1006,14 @@ class NavisAudioHandler extends BaseAudioHandler
       return;
     }
 
-    final resolvedFormat = resolvedSource.uri?.queryParameters['format']
-        ?.trim()
-        .toLowerCase();
-    final fallbackFormat =
-        song.suffix?.trim().toLowerCase() ??
-        song.contentType?.split('/').last.trim().toLowerCase();
-    final resolvedBitRate = int.tryParse(
-      resolvedSource.uri?.queryParameters['maxBitRate'] ?? '',
-    );
-
     try {
       await _rollingCacheManager.registerTrack(
         songId: song.id,
         filePath: cacheFilePath,
-        format: (resolvedFormat?.isNotEmpty ?? false)
-            ? resolvedFormat
-            : fallbackFormat,
-        bitRate: resolvedBitRate,
+        format:
+            resolvedSource.metadata.format ??
+            (resolvedSource.metadata.isTranscoded ? 'transcoded' : null),
+        bitRate: resolvedSource.metadata.bitRate,
       );
       await _rollingCacheManager.enforceBudget(
         maxBytes: _rollingCacheBudgetBytes,
@@ -1168,15 +1180,6 @@ class NavisAudioHandler extends BaseAudioHandler
           preferLockCaching: false,
         );
       }
-      final resolvedFormat = source.uri?.queryParameters['format']
-          ?.trim()
-          .toLowerCase();
-      final fallbackFormat =
-          song.suffix?.trim().toLowerCase() ??
-          song.contentType?.split('/').last.trim().toLowerCase();
-      final resolvedBitRate =
-          int.tryParse(source.uri?.queryParameters['maxBitRate'] ?? '') ??
-          song.bitRate;
       final item = MediaItem(
         id: song.id,
         title: song.title,
@@ -1186,22 +1189,7 @@ class NavisAudioHandler extends BaseAudioHandler
             ? null
             : Duration(seconds: math.max(0, song.duration!)),
         artUri: _sourceResolver.resolveArtUri(song),
-        extras: <String, Object?>{
-          'albumId': song.albumId,
-          'artistId': song.artistId,
-          'sourceKind': source.kind.name,
-          'localSource': source.isLocal,
-          'cachedFilePath': source.cachedFilePath,
-          'resolvedFormat': (resolvedFormat?.isNotEmpty ?? false)
-              ? resolvedFormat
-              : fallbackFormat,
-          'resolvedBitRate': resolvedBitRate,
-          'liked': song.starred != null,
-          'replayGainTrackGain': song.replayGainTrackGain,
-          'replayGainAlbumGain': song.replayGainAlbumGain,
-          'replayGainTrackPeak': song.replayGainTrackPeak,
-          'replayGainAlbumPeak': song.replayGainAlbumPeak,
-        },
+        extras: navisResolvedPlaybackExtras(song: song, source: source),
       );
       prepared.add(
         _PreparedQueueItem(
