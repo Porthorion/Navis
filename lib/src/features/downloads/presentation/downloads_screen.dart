@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -10,6 +8,7 @@ import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/utils/file_utils.dart';
 import 'package:navis/src/utils/format_utils.dart';
 
 class DownloadsScreen extends ConsumerWidget {
@@ -297,29 +296,45 @@ class _DownloadedTrackTile extends ConsumerWidget {
       trailing: IconButton(
         icon: const Icon(Icons.delete_outline),
         tooltip: l10n.downloadsRemoveAction,
-        onPressed: () async {
-          // Delete files.
-          _deleteFileWithSuffixes(track.filePath);
-          await ref
-              .read(navisDatabaseProvider)
-              .cacheDao
-              .removeCachedTrack(track.songId);
-        },
+        onPressed: () => _confirmAndDelete(context, ref, track, l10n),
       ),
       onLongPress: () => _showTrackMenu(context, ref, track, l10n),
     );
   }
 
-  /// Best-effort file + sidecar deletion.
-  void _deleteFileWithSuffixes(String filePath) {
-    for (final suffix in <String>['', '.part', '.mime']) {
-      try {
-        final f = File('$filePath$suffix');
-        if (f.existsSync()) f.deleteSync();
-      } on FileSystemException {
-        // best-effort
-      }
-    }
+  Future<void> _confirmAndDelete(
+    BuildContext context,
+    WidgetRef ref,
+    CachedTracksTableData track,
+    AppLocalizations l10n,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.downloadsRemoveConfirmTitle),
+        content: Text(l10n.downloadsRemoveConfirmContent),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(l10n.cancelAction),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+              foregroundColor: Theme.of(ctx).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(l10n.downloadsRemoveAction),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await deleteFileWithSuffixes(track.filePath);
+    await ref
+        .read(navisDatabaseProvider)
+        .cacheDao
+        .removeCachedTrack(track.songId);
   }
 
   void _showTrackMenu(
@@ -341,8 +356,8 @@ class _DownloadedTrackTile extends ConsumerWidget {
                 subtitle: Text(l10n.downloadsRedownloadOriginalSub),
                 onTap: () async {
                   Navigator.of(sheetContext).pop();
-                  // Delete the existing permanent file first.
-                  _deleteFileWithSuffixes(track.filePath);
+                  // Delete the existing permanent file first (async).
+                  await deleteFileWithSuffixes(track.filePath);
                   await ref
                       .read(navisDatabaseProvider)
                       .cacheDao
@@ -365,13 +380,9 @@ class _DownloadedTrackTile extends ConsumerWidget {
               ListTile(
                 leading: const Icon(Icons.delete_outline),
                 title: Text(l10n.downloadsRemoveAction),
-                onTap: () async {
+                onTap: () {
                   Navigator.of(sheetContext).pop();
-                  _deleteFileWithSuffixes(track.filePath);
-                  await ref
-                      .read(navisDatabaseProvider)
-                      .cacheDao
-                      .removeCachedTrack(track.songId);
+                  _confirmAndDelete(context, ref, track, l10n);
                 },
               ),
             ],
@@ -429,14 +440,7 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
           .watchCachedTracksByType(CacheType.permanent)
           .first;
       for (final track in tracks) {
-        for (final suffix in <String>['', '.part', '.mime']) {
-          try {
-            final f = File('${track.filePath}$suffix');
-            if (f.existsSync()) f.deleteSync();
-          } on FileSystemException {
-            // best-effort
-          }
-        }
+        await deleteFileWithSuffixes(track.filePath);
       }
       if (tracks.isNotEmpty) {
         await db.cacheDao.deleteCachedTracksBySongIds(

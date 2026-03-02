@@ -11,12 +11,13 @@ import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
-import 'package:navis/src/common_widgets/song_cache_badge.dart';
+import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/common_widgets/star_button.dart';
 import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/utils/file_utils.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
@@ -108,7 +109,6 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                     final song = filteredSongs[index];
                     return TrackListTile(
                       song: song,
-                      badge: SongCacheBadge(songId: song.id),
                       onTap: _isQueueActionInFlight
                           ? null
                           : () => unawaited(_playNow(song)),
@@ -118,6 +118,12 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: <Widget>[
+                          SongDownloadStatusIcon(
+                            songId: song.id,
+                            onDownload: _isQueueActionInFlight
+                                ? null
+                                : () => unawaited(_downloadSong(song)),
+                          ),
                           IconButton(
                             icon: const Icon(Icons.more_vert),
                             onPressed: _isQueueActionInFlight
@@ -394,12 +400,39 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                   );
                 },
               ),
-              ListTile(
-                leading: const Icon(Icons.download_outlined),
-                title: Text(l10n.downloadAction),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  unawaited(_downloadSong(song));
+              Consumer(
+                builder: (_, menuRef, __) {
+                  final downloadState = menuRef.watch(
+                    songDownloadStateProvider(song.id),
+                  );
+                  final isDownloaded =
+                      downloadState.status == SongDownloadStatus.downloaded;
+                  if (isDownloaded) {
+                    return ListTile(
+                      leading: Icon(
+                        Icons.delete_outline,
+                        color: Theme.of(this.context).colorScheme.error,
+                      ),
+                      title: Text(
+                        l10n.deleteDownloadAction,
+                        style: TextStyle(
+                          color: Theme.of(this.context).colorScheme.error,
+                        ),
+                      ),
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        unawaited(_deleteDownload(song));
+                      },
+                    );
+                  }
+                  return ListTile(
+                    leading: const Icon(Icons.download_outlined),
+                    title: Text(l10n.downloadAction),
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      unawaited(_downloadSong(song));
+                    },
+                  );
                 },
               ),
             ],
@@ -426,15 +459,51 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
     return l10n.playbackActionFailed;
   }
 
+  Future<void> _deleteDownload(SongsTableData song) async {
+    final l10n = AppLocalizations.of(context)!;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.downloadsRemoveConfirmTitle),
+        content: Text(l10n.downloadsRemoveConfirmContent),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(l10n.cancelAction),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+              foregroundColor: Theme.of(ctx).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(l10n.downloadsRemoveAction),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final cacheDao = ref.read(navisDatabaseProvider).cacheDao;
+    final track = await cacheDao.getCachedTrack(song.id);
+    if (track != null) {
+      await deleteFileWithSuffixes(track.filePath);
+    }
+    await cacheDao.removeCachedTrack(song.id);
+  }
+
   Future<void> _downloadSong(SongsTableData song) async {
     final choice = await showDownloadQualitySheet(context);
     if (choice == null || !mounted) return;
 
     final service = ref.read(downloadServiceProvider);
-    await service.enqueueSong(
-      song.id,
-      quality: choice.quality,
-      format: choice.format,
+    // Fire-and-forget — the service handles errors internally.
+    unawaited(
+      service.enqueueSong(
+        song.id,
+        albumId: widget.albumId,
+        quality: choice.quality,
+        format: choice.format,
+      ),
     );
     if (!mounted) return;
     final l10n = AppLocalizations.of(context)!;
@@ -475,11 +544,21 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
       return;
     }
 
-    // Optimistic update — flip the icon immediately, block re-taps in flight.
+    // Optimistic local update — flip the icon immediately, block re-taps.
     setState(() {
       _isStarred = !isStarred;
       _isStarring = true;
     });
+
+    // Optimistic DB update BEFORE the API call — fires Drift stream
+    // immediately so library/home screens watching liked albums/songs update
+    // without waiting ~300 ms for the server round-trip.
+    final dao = ref.read(navisDatabaseProvider).libraryDao;
+    await dao.updateAlbumStarred(
+      widget.albumId,
+      isStarred ? null : DateTime.now(),
+    );
+
     try {
       if (isStarred) {
         await api.unstar(widget.albumId);
@@ -489,30 +568,27 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
       if (!mounted) {
         return;
       }
-      // Persist star change to local DB so library views update reactively.
-      final dao = ref.read(navisDatabaseProvider).libraryDao;
-      await dao.updateAlbumStarred(
-        widget.albumId,
-        isStarred ? null : DateTime.now(),
-      );
+      // DB already updated above — nothing more to do on success.
     } on SubsonicConnectionException {
-      // Offline — queue for retry and keep the optimistic UI.
+      // Offline — the optimistic DB state is kept; just queue for server sync.
       if (!mounted) return;
-      final dao = ref.read(navisDatabaseProvider);
-      await dao.starSyncDao.queueStarAction(
-        itemId: widget.albumId,
-        itemType: 'album',
-        action: isStarred ? 'unstar' : 'star',
-      );
-      await dao.libraryDao.updateAlbumStarred(
-        widget.albumId,
-        isStarred ? null : DateTime.now(),
-      );
+      await ref
+          .read(navisDatabaseProvider)
+          .starSyncDao
+          .queueStarAction(
+            itemId: widget.albumId,
+            itemType: 'album',
+            action: isStarred ? 'unstar' : 'star',
+          );
     } on Object {
-      // Rollback the optimistic update on failure.
+      // API error — rollback both the optimistic local and DB state.
       if (!mounted) {
         return;
       }
+      await dao.updateAlbumStarred(
+        widget.albumId,
+        isStarred ? DateTime.now() : null,
+      );
       setState(() => _isStarred = isStarred);
       ScaffoldMessenger.of(
         context,

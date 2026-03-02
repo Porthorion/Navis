@@ -447,14 +447,38 @@ final albumProvider = StreamProvider.family<AlbumWithSongs?, String>((
   albumId,
 ) {
   final dao = ref.watch(navisDatabaseProvider).libraryDao;
-  return dao.watchAlbumById(albumId).asyncExpand((album) {
-    if (album == null) {
-      return Stream<AlbumWithSongs?>.value(null);
-    }
-    return dao
-        .watchSongsByAlbum(albumId)
-        .map((songs) => AlbumWithSongs(album: album, songs: songs));
+
+  // Use switchMap semantics: when the album row changes (e.g. starred toggled),
+  // cancel the previous songs subscription and start a fresh one so the outer
+  // stream is never paused.  asyncExpand() would pause watchAlbumById() forever
+  // because watchSongsByAlbum() never completes, silently dropping DB updates.
+  final controller = StreamController<AlbumWithSongs?>();
+  StreamSubscription<List<SongsTableData>>? songsSub;
+
+  final albumSub = dao.watchAlbumById(albumId).listen(
+    (album) {
+      songsSub?.cancel();
+      if (album == null) {
+        controller.add(null);
+        songsSub = null;
+      } else {
+        songsSub = dao.watchSongsByAlbum(albumId).listen(
+          (songs) => controller.add(AlbumWithSongs(album: album, songs: songs)),
+          onError: controller.addError,
+        );
+      }
+    },
+    onError: controller.addError,
+    onDone: controller.close,
+  );
+
+  ref.onDispose(() {
+    albumSub.cancel();
+    songsSub?.cancel();
+    controller.close();
   });
+
+  return controller.stream;
 });
 
 typedef AlbumPageRequest = ({AlbumSortOrder sort, int limit});

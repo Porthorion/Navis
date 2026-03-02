@@ -128,6 +128,20 @@ class CacheDao extends DatabaseAccessor<NavisDatabase> with _$CacheDaoMixin {
     return query.get();
   }
 
+  /// Return a map of songId → CacheType for all cached tracks.
+  ///
+  /// Used for efficient batch dedup checks during album/playlist enqueue.
+  Future<Map<String, CacheType>> getCacheTypesForSongIds(
+    Iterable<String> songIds,
+  ) async {
+    final ids = songIds.where((id) => id.trim().isNotEmpty).toList();
+    if (ids.isEmpty) return {};
+    final query = select(cachedTracksTable)
+      ..where((t) => t.songId.isIn(ids));
+    final rows = await query.get();
+    return {for (final r in rows) r.songId: r.cacheType};
+  }
+
   Future<void> clearCachedTracks() {
     return delete(cachedTracksTable).go();
   }

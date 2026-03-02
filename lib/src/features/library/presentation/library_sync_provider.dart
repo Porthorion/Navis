@@ -336,6 +336,11 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       );
 
       // 4. Find albums that were fully pinned but now have new tracks.
+      //
+      // An album is considered "fully pinned" when nearly every song in it
+      // is already permanently cached. We allow at most 3 uncached songs
+      // (presumably newly added by the sync). This prevents a single
+      // manually-downloaded track from triggering a full album download.
       final service = ref.read(downloadServiceProvider);
       var newTracksQueued = 0;
       for (final entry in albumSongMap.entries) {
@@ -343,14 +348,17 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         final allSongIds = entry.value;
         final pinnedSongIds = albumIdToPermanentSongs[albumId] ?? {};
 
-        // Only auto-enqueue if the album was fully pinned (every known
-        // track at the time of last sync was permanent).
         final knownCached = allSongIds.intersection(pinnedSongIds);
         final newSongIds = allSongIds.difference(pinnedSongIds);
 
-        // The album was "fully pinned" if all previously-known songs were
-        // cached. If the album had 0 cached songs, skip.
-        if (knownCached.length < pinnedSongIds.length || newSongIds.isEmpty) {
+        // Skip unless:
+        //  • at least 2 songs are cached (single downloads → manual intent)
+        //  • at most 3 songs are uncached (truly new from sync, not omitted)
+        //  • no pinned songs were removed from the album
+        if (knownCached.length < 2 ||
+            newSongIds.isEmpty ||
+            newSongIds.length > 3 ||
+            knownCached.length < pinnedSongIds.length) {
           continue;
         }
 

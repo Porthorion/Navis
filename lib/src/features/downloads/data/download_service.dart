@@ -14,14 +14,30 @@ import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/file_utils.dart';
 import 'package:navis/src/utils/notifications/download_notifier.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+
+/// Maximum number of automatic retries before marking a download as failed.
+const int maxRetries = 3;
 
 /// Orchestrates permanent downloads of tracks from a Subsonic server.
 ///
 /// The service processes one download at a time, pulling the next pending item
 /// from the download queue table and streaming it to disk via Dio.
+///
+/// Key design decisions:
+/// * Downloads survive library sync — the `cached_tracks` table has no FK to
+///   `songs`, so deleting + re-inserting songs during sync does not destroy
+///   download records.
+/// * Batch enqueue — `enqueueAlbum` / `enqueuePlaylist` collect all songIds,
+///   dedup in-memory against a single batch DB query, then bulk-insert in one
+///   transaction. This avoids the O(3n) sequential queries of the old design.
+/// * Auto-retry with exponential backoff — failed downloads are retried up to
+///   [maxRetries] times before being marked as permanently failed.
+/// * All file I/O uses async methods (no `Sync` calls) to avoid blocking the
+///   event loop.
 class DownloadService {
   DownloadService({
     required CacheDao cacheDao,
@@ -57,6 +73,10 @@ class DownloadService {
   Future<void> start() async {
     // Recover items left in 'downloading' from a previous app kill.
     await _downloadQueueDao.requeueStuckDownloads();
+
+    // Best-effort cleanup of orphaned permanent files on startup.
+    unawaited(_cleanupOrphanedFiles());
+
     await _queueSubscription?.cancel();
     _queueSubscription = _downloadQueueDao.watchQueue().listen((_) {
       unawaited(_processNext());
@@ -85,6 +105,8 @@ class DownloadService {
   /// entry already exists (e.g., to upgrade to original quality).
   Future<void> enqueueSong(
     String songId, {
+    String? albumId,
+    String? playlistId,
     String? quality,
     String? format,
     int priority = 0,
@@ -126,6 +148,8 @@ class DownloadService {
     await _downloadQueueDao.enqueue(
       DownloadQueueTableCompanion.insert(
         songId: Value(songId),
+        albumId: Value(albumId),
+        playlistId: Value(playlistId),
         quality: Value(quality),
         format: Value(format),
         status: DownloadStatus.queued,
@@ -135,39 +159,111 @@ class DownloadService {
     );
   }
 
-  /// Enqueue all songs for an album. Returns the number newly queued.
+  /// Enqueue all songs for an album using batch operations.
+  ///
+  /// Returns the number of songs newly queued. This method uses batch DB
+  /// queries + a single bulk insert to avoid the O(3n) round-trip overhead
+  /// of the old per-song approach.
   Future<int> enqueueAlbum(
     String albumId, {
     String? quality,
     String? format,
   }) async {
     final songs = await _libraryDao.watchSongsByAlbum(albumId).first;
-    var count = 0;
-    for (final song in songs) {
-      final before = await _downloadQueueDao.findBySongId(song.id);
-      await enqueueSong(song.id, quality: quality, format: format);
-      // Count only if a new entry was actually added.
-      final after = await _downloadQueueDao.findBySongId(song.id);
-      if (before == null && after != null) count++;
-    }
-    return count;
+    if (songs.isEmpty) return 0;
+
+    final songIds = songs.map((s) => s.id).toList();
+    return _batchEnqueue(
+      songIds: songIds,
+      albumId: albumId,
+      quality: quality,
+      format: format,
+    );
   }
 
-  /// Enqueue all songs for a playlist. Returns the number newly queued.
+  /// Enqueue all songs for a playlist using batch operations.
+  ///
+  /// Returns the number of songs newly queued.
   Future<int> enqueuePlaylist(
     String playlistId,
     List<String> songIds, {
     String? quality,
     String? format,
   }) async {
-    var count = 0;
+    if (songIds.isEmpty) return 0;
+    return _batchEnqueue(
+      songIds: songIds,
+      playlistId: playlistId,
+      quality: quality,
+      format: format,
+    );
+  }
+
+  /// Core batch enqueue logic shared by [enqueueAlbum] and [enqueuePlaylist].
+  ///
+  /// 1. Batch-fetch existing queue entries + cache entries (2 queries).
+  /// 2. Filter out songs already queued/downloading or permanently cached.
+  /// 3. Attempt rolling→permanent promotion for compatible cached songs.
+  /// 4. Bulk-insert remaining songs in a single transaction.
+  Future<int> _batchEnqueue({
+    required List<String> songIds,
+    String? albumId,
+    String? playlistId,
+    String? quality,
+    String? format,
+  }) async {
+    // Batch dedup: one query per data source instead of N queries per song.
+    final activeSongIds = await _downloadQueueDao.getActiveSongIds();
+    final cacheTypes = await _cacheDao.getCacheTypesForSongIds(songIds);
+
+    final toEnqueue = <DownloadQueueTableCompanion>[];
+    var promotedCount = 0;
+
     for (final songId in songIds) {
-      final before = await _downloadQueueDao.findBySongId(songId);
-      await enqueueSong(songId, quality: quality, format: format);
-      final after = await _downloadQueueDao.findBySongId(songId);
-      if (before == null && after != null) count++;
+      // Skip if already queued or downloading.
+      if (activeSongIds.contains(songId)) continue;
+
+      // Skip if already permanently cached.
+      final cacheType = cacheTypes[songId];
+      if (cacheType == CacheType.permanent) continue;
+
+      // Try rolling → permanent promotion.
+      if (cacheType == CacheType.rolling) {
+        final cached = await _cacheDao.getCachedTrack(songId);
+        if (cached != null &&
+            _isCacheQualityCompatible(cached, quality, format)) {
+          final promoted = await promoteToPermanent(songId);
+          if (promoted) {
+            promotedCount++;
+            continue;
+          }
+        }
+      }
+
+      toEnqueue.add(
+        DownloadQueueTableCompanion.insert(
+          songId: Value(songId),
+          albumId: Value(albumId),
+          playlistId: Value(playlistId),
+          quality: Value(quality),
+          format: Value(format),
+          status: DownloadStatus.queued,
+          addedAt: DateTime.now(),
+        ),
+      );
     }
-    return count;
+
+    if (toEnqueue.isNotEmpty) {
+      await _downloadQueueDao.enqueueBatch(toEnqueue);
+    }
+
+    if (promotedCount > 0) {
+      AppLogger.info(
+        'DownloadService: Promoted $promotedCount rolling-cached tracks '
+        'to permanent (saved bandwidth).',
+      );
+    }
+    return toEnqueue.length;
   }
 
   /// Promote a rolling-cache track to permanent (no re-download needed).
@@ -177,14 +273,14 @@ class DownloadService {
     if (track.cacheType == CacheType.permanent) return true;
 
     final file = File(track.filePath);
-    if (!file.existsSync()) return false;
+    if (!await file.exists()) return false;
 
     // Copy to permanent directory.
     final permDir = await _permanentDirectory();
     final newPath = p.join(permDir.path, p.basename(track.filePath));
     final destination = File(newPath);
     try {
-      if (!destination.existsSync()) {
+      if (!await destination.exists()) {
         await file.copy(newPath);
       }
     } on FileSystemException catch (e) {
@@ -194,7 +290,7 @@ class DownloadService {
       return false;
     }
     // Clean up rolling cache files.
-    _deleteFileWithSuffixes(track.filePath);
+    await deleteFileWithSuffixes(track.filePath);
 
     await _cacheDao.upsertCachedTrack(
       CachedTracksTableCompanion.insert(
@@ -286,6 +382,10 @@ class DownloadService {
           continue;
         }
         await _downloadItem(item);
+
+        // Yield to the event loop between downloads so the UI stays
+        // responsive and other microtasks can run.
+        await Future<void>.delayed(Duration.zero);
       }
     } finally {
       _processing = false;
@@ -297,7 +397,7 @@ class DownloadService {
     final api = _readApiClient();
     if (api == null) {
       AppLogger.warning('DownloadService: No API client, skipping $songId');
-      await _downloadQueueDao.updateStatus(item.id, DownloadStatus.failed);
+      await _handleFailure(item, 'No API client');
       return;
     }
 
@@ -320,7 +420,7 @@ class DownloadService {
       final songs = await _libraryDao.getSongsByIds(<String>[songId]);
       if (songs.isEmpty) {
         AppLogger.warning('DownloadService: Song $songId not found in library');
-        await _downloadQueueDao.updateStatus(item.id, DownloadStatus.failed);
+        await _handleFailure(item, 'Song not in library');
         return;
       }
       final song = songs.first;
@@ -351,7 +451,7 @@ class DownloadService {
           response.statusCode! >= 200 &&
           response.statusCode! < 300) {
         // Register in cached_tracks as permanent.
-        final stat = destFile.statSync();
+        final stat = await destFile.stat();
         final format = _resolveFormat(song, item);
 
         await _cacheDao.upsertCachedTrack(
@@ -386,49 +486,109 @@ class DownloadService {
           );
         }
 
-        unawaited(DownloadNotifier.dismissProgress());
+        unawaited(DownloadNotifier.dismissProgress().catchError((_) {}));
         unawaited(
-          DownloadNotifier.showComplete(title: 'Downloaded: $songTitle'),
+          DownloadNotifier.showComplete(title: 'Downloaded: $songTitle')
+              .catchError((_) {}),
         );
         AppLogger.info(
           'DownloadService: Completed download for $songId '
           '(${stat.size} bytes)',
         );
       } else {
-        _tryDeleteFile(destFile);
-        await _downloadQueueDao.updateStatus(item.id, DownloadStatus.failed);
-        unawaited(DownloadNotifier.dismissProgress());
-        unawaited(
-          DownloadNotifier.showFailed(title: 'Download failed: $songId'),
-        );
-        AppLogger.warning(
-          'DownloadService: HTTP ${response.statusCode} for $songId',
+        await tryDeleteFile(destFile);
+        await _handleFailure(
+          item,
+          'HTTP ${response.statusCode}',
         );
       }
     } on DioException catch (e) {
-      unawaited(DownloadNotifier.dismissProgress());
+      await DownloadNotifier.dismissProgress().catchError((_) {});
       if (e.type == DioExceptionType.cancel) {
         AppLogger.debug('DownloadService: Download cancelled for $songId');
-        _tryDeleteFile(destFile);
+        await tryDeleteFile(destFile);
         await _downloadQueueDao.updateStatus(item.id, DownloadStatus.queued);
       } else {
         AppLogger.warning('DownloadService: Dio error for $songId: $e');
-        _tryDeleteFile(destFile);
-        await _downloadQueueDao.updateStatus(item.id, DownloadStatus.failed);
-        unawaited(
-          DownloadNotifier.showFailed(title: 'Download failed: $songId'),
-        );
+        await tryDeleteFile(destFile);
+        await _handleFailure(item, e.toString());
       }
     } on Object catch (e, st) {
       AppLogger.warning('DownloadService: Error for $songId: $e\n$st');
-      _tryDeleteFile(destFile);
-      await _downloadQueueDao.updateStatus(item.id, DownloadStatus.failed);
-      unawaited(DownloadNotifier.dismissProgress());
-      unawaited(
-        DownloadNotifier.showFailed(title: 'Download failed: $songId'),
-      );
+      await tryDeleteFile(destFile);
+      await _handleFailure(item, e.toString());
     } finally {
       _activeCancelToken = null;
+    }
+  }
+
+  /// Handle a download failure with automatic retry logic.
+  ///
+  /// If the item has been retried fewer than [maxRetries] times, it is
+  /// re-queued with an incremented retry count and a backoff delay.
+  /// Otherwise it is marked as permanently [DownloadStatus.failed].
+  Future<void> _handleFailure(
+    DownloadQueueTableData item,
+    String reason,
+  ) async {
+    await DownloadNotifier.dismissProgress().catchError((_) {});
+
+    if (item.retryCount < maxRetries) {
+      // Exponential backoff: 5s, 10s, 20s, ...
+      final backoff = Duration(seconds: 5 * (1 << item.retryCount));
+      AppLogger.info(
+        'DownloadService: Retrying ${item.songId} '
+        '(attempt ${item.retryCount + 1}/$maxRetries) '
+        'after ${backoff.inSeconds}s',
+      );
+      await _downloadQueueDao.markForRetry(item.id);
+
+      // Schedule a delayed re-trigger. The queue subscription would
+      // eventually pick it up, but the backoff delay adds some spacing.
+      Future<void>.delayed(backoff, () {
+        unawaited(_processNext());
+      });
+    } else {
+      await _downloadQueueDao.updateStatus(item.id, DownloadStatus.failed);
+      await DownloadNotifier.showFailed(
+        title: 'Download failed: ${item.songId}',
+      ).catchError((_) {});
+      AppLogger.warning(
+        'DownloadService: Permanently failed ${item.songId}: $reason',
+      );
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Orphaned file cleanup
+  // ---------------------------------------------------------------------------
+
+  /// Scan the permanent download directory for files not referenced in the
+  /// `cached_tracks` table and delete them.
+  ///
+  /// This recovers disk space from files orphaned by the old CASCADE FK
+  /// behavior (where sync would delete the DB record but leave the file).
+  Future<void> _cleanupOrphanedFiles() async {
+    try {
+      final permDir = await _permanentDirectory();
+      if (!await permDir.exists()) return;
+
+      final knownEntries = await _cacheDao.getPermanentEntries();
+      final knownPaths = knownEntries.map((e) => e.filePath).toSet();
+
+      await for (final entity in permDir.list()) {
+        if (entity is File && !knownPaths.contains(entity.path)) {
+          AppLogger.info(
+            'DownloadService: Removing orphaned file ${entity.path}',
+          );
+          await entity.delete();
+        }
+      }
+    } on Object catch (e) {
+      // Best-effort — don't crash the service on cleanup failure.
+      AppLogger.warning(
+        'DownloadService: Orphaned file cleanup error: $e',
+      );
     }
   }
 
@@ -439,8 +599,8 @@ class DownloadService {
   Future<Directory> _permanentDirectory() async {
     final root = await getApplicationSupportDirectory();
     final dir = Directory(p.join(root.path, 'audio', 'permanent'));
-    if (!dir.existsSync()) {
-      dir.createSync(recursive: true);
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
     }
     return dir;
   }
@@ -485,27 +645,5 @@ class DownloadService {
     final suffix = song.suffix?.trim();
     if (suffix != null && suffix.isNotEmpty) return suffix;
     return 'bin';
-  }
-
-  /// Best-effort delete of a file (e.g., partial download on failure).
-  void _tryDeleteFile(File? file) {
-    if (file == null) return;
-    try {
-      if (file.existsSync()) file.deleteSync();
-    } on FileSystemException {
-      // best-effort
-    }
-  }
-
-  /// Delete a cache file and its side-car files (.part, .mime).
-  void _deleteFileWithSuffixes(String filePath) {
-    for (final suffix in <String>['', '.part', '.mime']) {
-      try {
-        final f = File('$filePath$suffix');
-        if (f.existsSync()) f.deleteSync();
-      } on FileSystemException {
-        // best-effort
-      }
-    }
   }
 }

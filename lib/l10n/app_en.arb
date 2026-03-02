@@ -891,5 +891,20 @@
   "smartQueueDeepDive": "Deep Dive",
   "smartQueueDeepDiveDesc": "Stay immersed in the same artist and style",
   "smartQueueEnergyFlow": "Energy Flow",
-  "smartQueueEnergyFlowDesc": "Let the mood gradually evolve track by track"
+  "smartQueueEnergyFlowDesc": "Let the mood gradually evolve track by track",
+
+  "songStatusQueued": "Queued for download",
+  "songStatusDownloading": "Downloading…",
+  "songStatusDownloaded": "Downloaded",
+  "songStatusCachedTooltip": "Temporarily cached — will be removed when cache fills up or when the track is downloaded",
+  "downloadsRemoveConfirmTitle": "Remove download?",
+  "downloadsRemoveConfirmContent": "The downloaded file will be permanently deleted.",
+  "deleteDownloadAction": "Delete download",
+  "libraryAlbumMenuPlay": "Play album",
+  "libraryAlbumMenuAddToQueue": "Add to queue",
+  "libraryAlbumMenuLike": "Like album",
+  "libraryAlbumMenuUnlike": "Unlike album",
+  "libraryAlbumMenuDownload": "Download album",
+  "libraryAlbumPlayQueued": "Album queued to play",
+  "libraryAlbumAddedToQueue": "Album added to queue"
 }

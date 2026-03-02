@@ -34,21 +34,20 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
       _isStarred = !isStarred;
       _isStarring = true;
     });
+    // DB update first so all watching streams update immediately (before API ~300ms).
+    final dao = ref.read(navisDatabaseProvider).libraryDao;
+    await dao.updateArtistStarred(
+      widget.artistId,
+      isStarred ? null : DateTime.now(),
+    );
     try {
       if (isStarred) {
         await api.unstar(widget.artistId);
       } else {
         await api.star(widget.artistId);
       }
-      if (!mounted) return;
-      // Persist star change to local DB so library views update reactively.
-      final dao = ref.read(navisDatabaseProvider).libraryDao;
-      await dao.updateArtistStarred(
-        widget.artistId,
-        isStarred ? null : DateTime.now(),
-      );
     } on SubsonicConnectionException {
-      // Offline — queue for retry and keep the optimistic UI.
+      // Offline — queue for retry and keep the optimistic UI (DB already updated).
       if (!mounted) return;
       final db = ref.read(navisDatabaseProvider);
       await db.starSyncDao.queueStarAction(
@@ -56,23 +55,22 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
         itemType: 'artist',
         action: isStarred ? 'unstar' : 'star',
       );
-      await db.libraryDao.updateArtistStarred(
-        widget.artistId,
-        isStarred ? null : DateTime.now(),
-      );
     } on Object catch (error, stackTrace) {
       debugPrint('Star toggle failed: $error\n$stackTrace');
       // Rollback the optimistic update on failure.
-      if (mounted) {
-        setState(() => _isStarred = isStarred);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              AppLocalizations.of(context)!.albumDetailStarFailure,
-            ),
+      if (!mounted) return;
+      await dao.updateArtistStarred(
+        widget.artistId,
+        isStarred ? DateTime.now() : null,
+      );
+      setState(() => _isStarred = isStarred);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            AppLocalizations.of(context)!.albumDetailStarFailure,
           ),
-        );
-      }
+        ),
+      );
     } finally {
       if (mounted) setState(() => _isStarring = false);
     }

@@ -8,7 +8,7 @@ import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
-import 'package:navis/src/common_widgets/song_cache_badge.dart';
+import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
@@ -18,6 +18,7 @@ import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/utils/file_utils.dart';
 
 class PlaylistDetailScreen extends ConsumerStatefulWidget {
   const PlaylistDetailScreen({required this.playlistId, super.key});
@@ -220,7 +221,6 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                       type: MaterialType.transparency,
                       child: TrackListTile(
                         song: song,
-                        badge: SongCacheBadge(songId: song.id),
                         onTap: _isQueueActionInFlight
                             ? null
                             : () => unawaited(_playNow(songs, index)),
@@ -230,6 +230,12 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: <Widget>[
+                            SongDownloadStatusIcon(
+                              songId: song.id,
+                              onDownload: _isQueueActionInFlight
+                                  ? null
+                                  : () => unawaited(_downloadSong(song)),
+                            ),
                             IconButton(
                               icon: const Icon(Icons.more_vert),
                               onPressed: _isQueueActionInFlight
@@ -421,12 +427,39 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                   NavService.goToAlbum(context, ref, song.albumId!);
                 },
               ),
-            ListTile(
-              leading: const Icon(Icons.download_outlined),
-              title: Text(l10n.downloadAction),
-              onTap: () {
-                Navigator.of(sheetContext).pop();
-                unawaited(_downloadSong(song));
+            Consumer(
+              builder: (_, menuRef, __) {
+                final downloadState = menuRef.watch(
+                  songDownloadStateProvider(song.id),
+                );
+                final isDownloaded =
+                    downloadState.status == SongDownloadStatus.downloaded;
+                if (isDownloaded) {
+                  return ListTile(
+                    leading: Icon(
+                      Icons.delete_outline,
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                    title: Text(
+                      l10n.deleteDownloadAction,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                    onTap: () {
+                      Navigator.of(sheetContext).pop();
+                      unawaited(_deleteDownload(song));
+                    },
+                  );
+                }
+                return ListTile(
+                  leading: const Icon(Icons.download_outlined),
+                  title: Text(l10n.downloadAction),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    unawaited(_downloadSong(song));
+                  },
+                );
               },
             ),
             ListTile(
@@ -463,6 +496,38 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(l10n.downloadPlaylistQueued(count))),
     );
+  }
+
+  Future<void> _deleteDownload(SongsTableData song) async {
+    final l10n = AppLocalizations.of(context)!;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.downloadsRemoveConfirmTitle),
+        content: Text(l10n.downloadsRemoveConfirmContent),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(l10n.cancelAction),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+              foregroundColor: Theme.of(ctx).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(l10n.downloadsRemoveAction),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final cacheDao = ref.read(navisDatabaseProvider).cacheDao;
+    final track = await cacheDao.getCachedTrack(song.id);
+    if (track != null) {
+      await deleteFileWithSuffixes(track.filePath);
+    }
+    await cacheDao.removeCachedTrack(song.id);
   }
 
   Future<void> _downloadSong(SongsTableData song) async {

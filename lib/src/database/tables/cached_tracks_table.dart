@@ -1,13 +1,15 @@
 import 'package:drift/drift.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
-import 'package:navis/src/database/tables/songs_table.dart';
 
 class CachedTracksTable extends Table {
   @override
   String get tableName => 'cached_tracks';
 
-  TextColumn get songId =>
-      text().references(SongsTable, #id, onDelete: KeyAction.cascade)();
+  /// Song ID from the Subsonic server.
+  ///
+  /// NOT a foreign key — downloads must survive the songs table being rebuilt
+  /// during library sync. The relationship is purely logical.
+  TextColumn get songId => text()();
 
   TextColumn get filePath => text()();
 
