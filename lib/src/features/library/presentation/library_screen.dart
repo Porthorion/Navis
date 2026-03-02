@@ -233,7 +233,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       ),
       body: Column(
         children: <Widget>[
-          _SyncStatusBanner(syncState: syncState, onRetry: _refreshLibrary),
+          _SyncStatusBanner(
+            syncState: syncState,
+            onRetry: _refreshLibrary,
+            onCancel: () {
+              ref.read(librarySyncControllerProvider.notifier).cancelSync();
+            },
+          ),
           Expanded(
             child: TabBarView(
               controller: tabController,
@@ -1456,10 +1462,15 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 }
 
 class _SyncStatusBanner extends StatelessWidget {
-  const _SyncStatusBanner({required this.syncState, required this.onRetry});
+  const _SyncStatusBanner({
+    required this.syncState,
+    required this.onRetry,
+    this.onCancel,
+  });
 
   final LibrarySyncState syncState;
   final Future<void> Function() onRetry;
+  final VoidCallback? onCancel;
 
   @override
   Widget build(BuildContext context) {
@@ -1508,9 +1519,31 @@ class _SyncStatusBanner extends StatelessWidget {
             LinearProgressIndicator(value: progress),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Text(
-                _runningLabel(l10n, total, processed),
-                style: Theme.of(context).textTheme.bodySmall,
+              child: Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Text(
+                      _runningLabel(l10n, total, processed),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                  if (onCancel != null)
+                    SizedBox(
+                      height: 28,
+                      child: TextButton(
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        onPressed: onCancel,
+                        child: Text(
+                          l10n.commonCancel,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
           ],

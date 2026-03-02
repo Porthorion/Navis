@@ -30,7 +30,12 @@ final syncStaleAfterProvider = Provider<Duration>((ref) {
     // on its own, but syncNow still works.
     return const Duration(hours: 24);
   }
-  return Duration(minutes: minutes);
+  // Subtract a small tolerance so that when the periodic timer fires at
+  // exactly the interval boundary the data is guaranteed to be considered
+  // stale.  Without this, floating-point rounding can cause the check
+  // `now.difference(lastSynced) < staleAfter` to pass, skipping the sync.
+  final toleranceSeconds = (minutes * 60 * 0.05).round().clamp(10, 120);
+  return Duration(seconds: minutes * 60 - toleranceSeconds);
 });
 
 /// Whether auto-enqueue of new tracks for pinned albums runs after sync.
@@ -132,6 +137,15 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       forceFull: forceFull,
       preferIncremental: preferIncremental,
     );
+  }
+
+  /// Cancel a running sync.  The sync will complete with [LibrarySyncStatus.failed]
+  /// and an error message of \"Sync cancelled.\".
+  void cancelSync() {
+    final engine = ref.read(librarySyncEngineProvider);
+    if (engine is DriftLibrarySyncEngine) {
+      engine.cancelSync();
+    }
   }
 
   void setVisibleAlbumIds(Iterable<String> albumIds) {
@@ -386,10 +400,19 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     final wasForeground = _isForeground;
     _isForeground = true;
     if (!wasForeground) {
-      _maybeRunStartupSync();
       // Re-arm the periodic timer in case it drifted while backgrounded.
       final intervalMinutes = ref.read(syncIntervalMinutesProvider);
       _schedulePeriodicSync(intervalMinutes);
+
+      // On resume, run a startup sync for first-time / reconnect scenarios
+      // and also run syncIfStale for periodic interval scenarios.  The
+      // startup-done fingerprint gates _maybeRunStartupSync so it won't
+      // duplicate if it already ran, while syncIfStale checks staleness
+      // independently so the periodic interval actually fires on resume.
+      _maybeRunStartupSync();
+      if (intervalMinutes > 0 && !state.isRunning) {
+        unawaited(syncIfStale());
+      }
     }
   }
 
