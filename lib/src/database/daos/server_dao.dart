@@ -46,5 +46,13 @@ class ServerDao extends DatabaseAccessor<NavisDatabase> with _$ServerDaoMixin {
     );
   }
 
+  Future<void> updateCapabilities(String? value) {
+    return update(serverConfigTable).write(
+      ServerConfigTableCompanion(
+        capabilities: Value(value),
+      ),
+    );
+  }
+
   Future<void> clearServer() => delete(serverConfigTable).go();
 }

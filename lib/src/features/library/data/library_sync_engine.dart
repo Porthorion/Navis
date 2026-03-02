@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 
@@ -112,6 +113,107 @@ class SubsonicLibrarySyncApi implements LibrarySyncApi {
 
   @override
   Future<List<Playlist>> getPlaylists() => _api.getPlaylists();
+}
+
+const _navisCapabilitiesNamespace = 'navis';
+const _bulkSongSearchQueryCapabilityKey = 'bulkSongSearchWildcardQuery';
+
+int _incrementalArtistFanoutFallbackThreshold({
+  required int existingArtistCount,
+  required bool hasKnownBulkSongFastPath,
+}) {
+  final minimumThreshold = hasKnownBulkSongFastPath ? 24 : 48;
+  final maximumThreshold = hasKnownBulkSongFastPath ? 128 : 160;
+  if (existingArtistCount <= 0) {
+    return minimumThreshold;
+  }
+  final ratioThreshold = (existingArtistCount * 0.1).ceil();
+  if (ratioThreshold < minimumThreshold) {
+    return minimumThreshold;
+  }
+  if (ratioThreshold > maximumThreshold) {
+    return maximumThreshold;
+  }
+  return ratioThreshold;
+}
+
+bool _shouldFallbackIncrementalArtistFanout({
+  required int changedArtistCount,
+  required int existingArtistCount,
+  required bool hasKnownBulkSongFastPath,
+}) {
+  if (changedArtistCount <= 0) {
+    return false;
+  }
+  return changedArtistCount >=
+      _incrementalArtistFanoutFallbackThreshold(
+        existingArtistCount: existingArtistCount,
+        hasKnownBulkSongFastPath: hasKnownBulkSongFastPath,
+      );
+}
+
+String? _readStoredBulkSongSearchQuery(String? capabilitiesJson) {
+  if (capabilitiesJson == null || capabilitiesJson.trim().isEmpty) {
+    return null;
+  }
+  try {
+    final decoded = jsonDecode(capabilitiesJson);
+    if (decoded is! Map) {
+      return null;
+    }
+    final navisCapabilities = decoded[_navisCapabilitiesNamespace];
+    if (navisCapabilities is! Map) {
+      return null;
+    }
+    final query = navisCapabilities[_bulkSongSearchQueryCapabilityKey];
+    return query is String ? query : null;
+  } on FormatException {
+    return null;
+  }
+}
+
+String? _mergeStoredBulkSongSearchQuery(
+  String? capabilitiesJson,
+  String? query,
+) {
+  final root = <String, dynamic>{};
+  if (capabilitiesJson != null && capabilitiesJson.trim().isNotEmpty) {
+    try {
+      final decoded = jsonDecode(capabilitiesJson);
+      if (decoded is Map) {
+        for (final entry in decoded.entries) {
+          root['${entry.key}'] = entry.value;
+        }
+      }
+    } on FormatException {
+      root.clear();
+    }
+  }
+
+  final navisCapabilities = <String, dynamic>{};
+  final existingNavisCapabilities = root[_navisCapabilitiesNamespace];
+  if (existingNavisCapabilities is Map) {
+    for (final entry in existingNavisCapabilities.entries) {
+      navisCapabilities['${entry.key}'] = entry.value;
+    }
+  }
+
+  if (query == null) {
+    navisCapabilities.remove(_bulkSongSearchQueryCapabilityKey);
+  } else {
+    navisCapabilities[_bulkSongSearchQueryCapabilityKey] = query;
+  }
+
+  if (navisCapabilities.isEmpty) {
+    root.remove(_navisCapabilitiesNamespace);
+  } else {
+    root[_navisCapabilitiesNamespace] = navisCapabilities;
+  }
+
+  if (root.isEmpty) {
+    return null;
+  }
+  return jsonEncode(root);
 }
 
 class DriftLibrarySyncEngine implements LibrarySyncEngine {
@@ -296,6 +398,9 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       forceFull: forceFull,
       preferIncremental: preferIncremental,
     );
+    final storedBulkSongSearchQuery = _readStoredBulkSongSearchQuery(
+      serverConfig.capabilitiesJson,
+    );
     var state = _withMetrics(
       LibrarySyncState(
         status: LibrarySyncStatus.running,
@@ -341,6 +446,9 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
             metrics,
           ),
           priorityAlbumIds: priorityAlbumIds,
+          serverCapabilitiesJson: serverConfig.capabilitiesJson,
+          storedBulkSongSearchQuery: storedBulkSongSearchQuery,
+          excludedAlbumIds: const <String>{},
           metrics: metrics,
           onProgress: onProgress,
         );
@@ -355,6 +463,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       } else if (mode == LibrarySyncMode.rebaselineFull) {
         state = await _runRebaselineSync(
           state: state,
+          serverConfig: serverConfig,
           priorityAlbumIds: priorityAlbumIds,
           metrics: metrics,
           onProgress: onProgress,
@@ -362,6 +471,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       } else {
         state = await _runFullSync(
           state: state,
+          serverConfig: serverConfig,
           mode: mode,
           priorityAlbumIds: priorityAlbumIds,
           metrics: metrics,
@@ -372,7 +482,8 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       await _reconcileStarredContent(metrics);
 
       final syncedAt = DateTime.now();
-      if (mode == LibrarySyncMode.incremental) {
+      final completedMode = state.mode ?? mode;
+      if (completedMode == LibrarySyncMode.incremental) {
         await _serverConfigRepository.updateLastSynced(syncedAt);
         metrics.addDbWriteBatch();
       } else {
@@ -497,6 +608,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
 
   Future<LibrarySyncState> _runFullSync({
     required LibrarySyncState state,
+    required ServerConfigModel serverConfig,
     required LibrarySyncMode mode,
     required Iterable<String> priorityAlbumIds,
     required _SyncRunMetrics metrics,
@@ -589,7 +701,12 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
 
     await _database.libraryDao.upsertArtists(_toArtistCompanions(artists));
     metrics.addDbWriteBatch();
-    await _database.libraryDao.upsertAlbums(await _toAlbumCompanions(albums));
+    await _database.libraryDao.upsertAlbums(
+      await _toAlbumCompanions(
+        albums,
+        pendingHydrationAlbumIds: albums.map((album) => album.id),
+      ),
+    );
     metrics.addDbWriteBatch();
 
     // Remove stale artists/albums no longer present on the server.
@@ -644,6 +761,11 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
         metrics,
       ),
       priorityAlbumIds: priorityAlbumIds,
+      serverCapabilitiesJson: serverConfig.capabilitiesJson,
+      storedBulkSongSearchQuery: _readStoredBulkSongSearchQuery(
+        serverConfig.capabilitiesJson,
+      ),
+      excludedAlbumIds: const <String>{},
       metrics: metrics,
       onProgress: onProgress,
     );
@@ -663,6 +785,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
 
   Future<LibrarySyncState> _runRebaselineSync({
     required LibrarySyncState state,
+    required ServerConfigModel serverConfig,
     required Iterable<String> priorityAlbumIds,
     required _SyncRunMetrics metrics,
     LibrarySyncProgressCallback? onProgress,
@@ -761,20 +884,39 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       for (final album in existingAlbums) album.id: album,
     };
     final changedOrNewAlbums = <Album>[];
+    final albumsNeedingHydration = <String>[];
     for (final album in albums) {
       final existing = existingAlbumsById[album.id];
       if (existing == null || _albumMetadataChanged(existing, album)) {
         changedOrNewAlbums.add(album);
       }
+      if (existing == null || _albumRequiresSongHydration(existing, album)) {
+        albumsNeedingHydration.add(album.id);
+      }
     }
 
     if (changedOrNewAlbums.isNotEmpty) {
       await _database.libraryDao.upsertAlbums(
-        await _toAlbumCompanions(changedOrNewAlbums),
+        await _toAlbumCompanions(
+          changedOrNewAlbums,
+          pendingHydrationAlbumIds: albumsNeedingHydration,
+        ),
       );
       metrics.addDbWriteBatch();
+    }
+    final hydratedWithoutSongRefresh = changedOrNewAlbums
+        .map((album) => album.id)
+        .where((id) => !albumsNeedingHydration.contains(id))
+        .toList(growable: false);
+    if (hydratedWithoutSongRefresh.isNotEmpty) {
+      await _database.libraryDao.markAlbumsSongsHydratedByIds(
+        hydratedWithoutSongRefresh,
+      );
+      metrics.addDbWriteBatch();
+    }
+    if (albumsNeedingHydration.isNotEmpty) {
       await _database.libraryDao.markAlbumsPendingHydrationByIds(
-        changedOrNewAlbums.map((album) => album.id),
+        albumsNeedingHydration,
       );
       metrics.addDbWriteBatch();
     }
@@ -804,6 +946,11 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
         metrics,
       ),
       priorityAlbumIds: priorityAlbumIds,
+      serverCapabilitiesJson: serverConfig.capabilitiesJson,
+      storedBulkSongSearchQuery: _readStoredBulkSongSearchQuery(
+        serverConfig.capabilitiesJson,
+      ),
+      excludedAlbumIds: hydratedWithoutSongRefresh,
       metrics: metrics,
       onProgress: onProgress,
     );
@@ -867,6 +1014,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       }
       return _runRebaselineSync(
         state: current.copyWith(mode: LibrarySyncMode.rebaselineFull),
+        serverConfig: serverConfig,
         priorityAlbumIds: priorityAlbumIds,
         metrics: metrics,
         onProgress: onProgress,
@@ -874,6 +1022,30 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     }
 
     final changedArtistIds = _extractChangedArtistIds(indexes);
+    final storedBulkSongSearchQuery = _readStoredBulkSongSearchQuery(
+      serverConfig.capabilitiesJson,
+    );
+    final existingArtistCount = await _database.libraryDao.countArtists();
+    if (_shouldFallbackIncrementalArtistFanout(
+      changedArtistCount: changedArtistIds.length,
+      existingArtistCount: existingArtistCount,
+      hasKnownBulkSongFastPath: storedBulkSongSearchQuery != null,
+    )) {
+      AppLogger.info(
+        'Incremental sync fanout too large '
+        '(changedArtists=${changedArtistIds.length}, '
+        'existingArtists=$existingArtistCount, '
+        'knownBulkSongFastPath=${storedBulkSongSearchQuery != null}). '
+        'Switching to fast rebaseline sync.',
+      );
+      return _runRebaselineSync(
+        state: current.copyWith(mode: LibrarySyncMode.rebaselineFull),
+        serverConfig: serverConfig,
+        priorityAlbumIds: priorityAlbumIds,
+        metrics: metrics,
+        onProgress: onProgress,
+      );
+    }
 
     current = _withMetrics(
       current.copyWith(
@@ -948,18 +1120,37 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       }
     }
 
+    final changedOrNewAlbums = <Album>[];
     final albumsNeedingHydration = <String>[];
     for (final album in allAlbums) {
       final existing = existingAlbumsForChanged[album.id];
       if (existing == null || _albumMetadataChanged(existing, album)) {
+        changedOrNewAlbums.add(album);
+      }
+      if (existing == null || _albumRequiresSongHydration(existing, album)) {
         albumsNeedingHydration.add(album.id);
       }
     }
 
-    await _database.libraryDao.upsertAlbums(
-      await _toAlbumCompanions(allAlbums),
-    );
-    metrics.addDbWriteBatch();
+    if (changedOrNewAlbums.isNotEmpty) {
+      await _database.libraryDao.upsertAlbums(
+        await _toAlbumCompanions(
+          changedOrNewAlbums,
+          pendingHydrationAlbumIds: albumsNeedingHydration,
+        ),
+      );
+      metrics.addDbWriteBatch();
+    }
+    final hydratedWithoutSongRefresh = changedOrNewAlbums
+        .map((album) => album.id)
+        .where((id) => !albumsNeedingHydration.contains(id))
+        .toList(growable: false);
+    if (hydratedWithoutSongRefresh.isNotEmpty) {
+      await _database.libraryDao.markAlbumsSongsHydratedByIds(
+        hydratedWithoutSongRefresh,
+      );
+      metrics.addDbWriteBatch();
+    }
     if (albumsNeedingHydration.isNotEmpty) {
       await _database.libraryDao.markAlbumsPendingHydrationByIds(
         albumsNeedingHydration,
@@ -998,6 +1189,11 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
         metrics,
       ),
       priorityAlbumIds: priorityAlbumIds,
+      serverCapabilitiesJson: serverConfig.capabilitiesJson,
+      storedBulkSongSearchQuery: _readStoredBulkSongSearchQuery(
+        serverConfig.capabilitiesJson,
+      ),
+      excludedAlbumIds: hydratedWithoutSongRefresh,
       metrics: metrics,
       onProgress: onProgress,
     );
@@ -1039,11 +1235,15 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
   Future<LibrarySyncState> _hydratePendingSongs({
     required LibrarySyncState state,
     required Iterable<String> priorityAlbumIds,
+    required String? serverCapabilitiesJson,
+    required String? storedBulkSongSearchQuery,
+    required Iterable<String> excludedAlbumIds,
     required _SyncRunMetrics metrics,
     LibrarySyncProgressCallback? onProgress,
   }) async {
     final pendingAlbumIds =
-        (await _database.libraryDao.getPendingHydrationAlbumIds()).toSet();
+        (await _database.libraryDao.getPendingHydrationAlbumIds()).toSet()
+          ..removeAll(_normalizeAlbumIds(excludedAlbumIds));
     final pending = pendingAlbumIds.length;
     if (pending == 0) {
       return _withMetrics(
@@ -1157,6 +1357,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
 
     final bulkQuery = await _probeBulkSongFastPath(
       pendingAlbumIds: pendingAlbumIds,
+      preferredQuery: storedBulkSongSearchQuery,
       metrics: metrics,
     );
     if (bulkQuery != null && pendingAlbumIds.isNotEmpty) {
@@ -1175,9 +1376,31 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
           onHydratedChunk: publishProgress,
           onObservedChunk: publishBulkObservedProgress,
         );
+        final nextCapabilitiesJson = _mergeStoredBulkSongSearchQuery(
+          serverCapabilitiesJson,
+          bulkQuery,
+        );
+        if (nextCapabilitiesJson != serverCapabilitiesJson) {
+          await _serverConfigRepository.updateCapabilitiesJson(
+            nextCapabilitiesJson,
+          );
+          metrics.addDbWriteBatch();
+        }
       } on SyncCancelledException {
         rethrow;
       } on Object catch (error, stackTrace) {
+        if (bulkQuery == storedBulkSongSearchQuery) {
+          final nextCapabilitiesJson = _mergeStoredBulkSongSearchQuery(
+            serverCapabilitiesJson,
+            null,
+          );
+          if (nextCapabilitiesJson != serverCapabilitiesJson) {
+            await _serverConfigRepository.updateCapabilitiesJson(
+              nextCapabilitiesJson,
+            );
+            metrics.addDbWriteBatch();
+          }
+        }
         AppLogger.debug(
           'Bulk song hydration fallback activated due to: $error',
         );
@@ -1272,12 +1495,23 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
 
   Future<String?> _probeBulkSongFastPath({
     required Set<String> pendingAlbumIds,
+    required String? preferredQuery,
     required _SyncRunMetrics metrics,
   }) async {
-    if (pendingAlbumIds.length < writeChunkSize * 2) {
+    if (preferredQuery == null && pendingAlbumIds.length < writeChunkSize * 2) {
       return null;
     }
+    final candidateQueries = <String>[];
+    if (preferredQuery != null) {
+      candidateQueries.add(preferredQuery);
+    }
     for (final query in bulkSearchProbeQueries) {
+      if (candidateQueries.contains(query)) {
+        continue;
+      }
+      candidateQueries.add(query);
+    }
+    for (final query in candidateQueries) {
       try {
         final page = await _withRetry(
           () => _api.searchSongsPage(
@@ -1663,6 +1897,15 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
         current.playCount != next.playCount;
   }
 
+  bool _albumRequiresSongHydration(AlbumsTableData current, Album next) {
+    return current.name != next.name ||
+        current.artistId != next.artistId ||
+        current.artistName != next.artist ||
+        current.songCount != next.songCount ||
+        current.duration != next.duration ||
+        current.coverArt != next.coverArt;
+  }
+
   void _logSyncSummary({
     required LibrarySyncState state,
     required _SyncRunMetrics metrics,
@@ -1702,14 +1945,16 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
   }
 
   Future<List<AlbumsTableCompanion>> _toAlbumCompanions(
-    List<Album> albums,
-  ) async {
+    List<Album> albums, {
+    Iterable<String> pendingHydrationAlbumIds = const <String>[],
+  }) async {
     final payload = albums
         .map((album) => album.toJson())
         .toList(growable: false);
     final rows = payload.length >= isolateThreshold
         ? await _parseAlbumRowsInIsolate(payload)
         : _albumRowsFromJson(payload);
+    final pendingHydrationSet = pendingHydrationAlbumIds.toSet();
 
     return rows
         .map(
@@ -1723,7 +1968,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
             year: Value(row.year),
             genre: Value(row.genre),
             coverArt: Value(row.coverArt),
-            songsHydrated: const Value(false),
+            songsHydrated: Value(!pendingHydrationSet.contains(row.id)),
             starred: Value(row.starred),
             playCount: Value(row.playCount),
             serverCreatedAt: Value(row.created),

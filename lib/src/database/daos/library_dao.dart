@@ -534,6 +534,13 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return select(artistsTable).get();
   }
 
+  Future<int> countArtists() async {
+    final countExpression = artistsTable.id.count();
+    final query = selectOnly(artistsTable)..addColumns([countExpression]);
+    final row = await query.getSingle();
+    return row.read(countExpression) ?? 0;
+  }
+
   Future<List<SongsTableData>> getAllSongs() {
     return select(songsTable).get();
   }

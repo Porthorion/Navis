@@ -1561,12 +1561,22 @@ class AppLocalizationsEn extends AppLocalizations {
       'Pause downloads when not connected to Wi-Fi.';
 
   @override
-  String get cacheSettingsAutoDownloadStarredOnWifi =>
-      'Auto-download liked on Wi-Fi';
+  String get cacheSettingsAutoDownloadStarred => 'Auto-download liked';
 
   @override
-  String get cacheSettingsAutoDownloadStarredOnWifiSub =>
-      'Queue liked albums and songs for download when Wi-Fi becomes available.';
+  String get cacheSettingsAutoDownloadStarredSub =>
+      'Queue liked albums and songs for download automatically.';
+
+  @override
+  String get cacheSettingsAutoDownloadCellularWarningTitle =>
+      'Allow liked downloads on mobile data?';
+
+  @override
+  String get cacheSettingsAutoDownloadCellularWarning =>
+      'Your liked library can use a large amount of storage and mobile data when Wi-Fi-only downloads are off.';
+
+  @override
+  String get cacheSettingsAutoDownloadCellularWarningContinue => 'Continue';
 
   @override
   String get cacheBadgeDownloaded => 'Downloaded';

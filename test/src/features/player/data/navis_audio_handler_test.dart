@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:audio_service/audio_service.dart';
+import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 
@@ -130,6 +131,33 @@ void main() {
         ),
         isTrue,
       );
+    });
+
+    test('resolved playback extras preserve transcode metadata', () {
+      final song = SongsTableData(
+        id: 'song-1',
+        title: 'Song 1',
+        albumId: 'album-1',
+        artistId: 'artist-1',
+        bitRate: 900,
+        suffix: 'flac',
+      );
+      final source = ResolvedPlaybackSource.directStream(
+        songId: song.id,
+        uri: Uri.parse(
+          'https://example.com/rest/stream.view?id=song-1&maxBitRate=192',
+        ),
+        metadata: const ResolvedPlaybackMetadata(
+          bitRate: 192,
+          isTranscoded: true,
+        ),
+      );
+
+      final extras = navisResolvedPlaybackExtras(song: song, source: source);
+
+      expect(extras['resolvedFormat'], isNull);
+      expect(extras['resolvedBitRate'], 192);
+      expect(extras['transcodingApplied'], isTrue);
     });
 
     test(

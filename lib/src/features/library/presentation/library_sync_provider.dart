@@ -12,6 +12,7 @@ import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/notifications/library_sync_notifier.dart';
 
 /// Sync interval in minutes from user settings (0 = manual only).
 /// The staleness window for the sync engine equals this interval so that
@@ -21,6 +22,15 @@ final syncIntervalMinutesProvider = Provider<int>((ref) {
       ref.watch(appSettingsProvider).asData?.value ??
       const AppSettingsModel.defaults();
   return settings.syncIntervalMinutes;
+});
+
+@visibleForTesting
+final syncIntervalDurationProvider = Provider<Duration?>((ref) {
+  final minutes = ref.watch(syncIntervalMinutesProvider);
+  if (minutes <= 0) {
+    return null;
+  }
+  return Duration(minutes: minutes);
 });
 
 final syncStaleAfterProvider = Provider<Duration>((ref) {
@@ -43,6 +53,10 @@ final syncStaleAfterProvider = Provider<Duration>((ref) {
 /// [navisDatabaseProvider] / [downloadServiceProvider].
 @visibleForTesting
 final autoEnqueuePinnedTracksEnabledProvider = Provider<bool>((ref) => true);
+
+final librarySyncNotifierProvider = Provider<LibrarySyncNotifier>((ref) {
+  return const SystemLibrarySyncNotifier();
+});
 
 final librarySyncEngineProvider = Provider<LibrarySyncEngine?>((ref) {
   final api = ref.watch(subsonicApiProvider);
@@ -246,6 +260,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     }
 
     final engine = ref.read(librarySyncEngineProvider);
+    final notifier = ref.read(librarySyncNotifierProvider);
     if (engine == null) {
       state = state.copyWith(
         status: LibrarySyncStatus.failed,
@@ -261,9 +276,26 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       force: force,
       forceFull: forceFull,
       preferIncremental: preferIncremental,
+      onProgressExternal: (progress) {
+        if (progress.status == LibrarySyncStatus.running) {
+          unawaited(notifier.showProgress(progress));
+        }
+      },
     );
     if (!ref.mounted) {
       return result;
+    }
+
+    switch (result.status) {
+      case LibrarySyncStatus.succeeded:
+        unawaited(notifier.showComplete(result));
+      case LibrarySyncStatus.failed:
+        unawaited(notifier.showFailed(result));
+      case LibrarySyncStatus.skipped:
+      case LibrarySyncStatus.idle:
+        unawaited(notifier.dismissProgress());
+      case LibrarySyncStatus.running:
+        break;
     }
 
     // After a successful sync, auto-enqueue new tracks for pinned albums.
@@ -299,11 +331,13 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     required bool force,
     required bool forceFull,
     bool preferIncremental = false,
+    required void Function(LibrarySyncState progress) onProgressExternal,
   }) {
     void updateProgress(LibrarySyncState progress) {
       if (ref.mounted) {
         state = progress;
       }
+      onProgressExternal(progress);
     }
 
     return force
@@ -426,15 +460,15 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
 
   void _schedulePeriodicSync(int minutes) {
     _cancelPeriodicSync();
-    if (minutes <= 0) {
+    final interval = ref.read(syncIntervalDurationProvider);
+    if (interval == null) {
       return; // Manual-only mode — no timer.
     }
-    final interval = Duration(minutes: minutes);
     _periodicSyncTimer = Timer.periodic(interval, (_) {
-      if (!_isForeground) {
-        return; // Don't run while backgrounded.
-      }
-      AppLogger.debug('Periodic sync timer fired (interval: ${minutes}m).');
+      AppLogger.debug(
+        'Periodic sync timer fired (interval: ${minutes}m, '
+        'foreground=$_isForeground).',
+      );
       unawaited(syncIfStale());
     });
   }

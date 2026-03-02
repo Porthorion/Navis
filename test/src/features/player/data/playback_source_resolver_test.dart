@@ -584,6 +584,50 @@ void main() {
         expect(resolved.kind, PlaybackSourceKind.directStream);
         expect(resolved.uri?.queryParameters['maxBitRate'], '192');
         expect(resolved.uri?.queryParameters['format'], 'mp3');
+        expect(resolved.metadata.format, 'mp3');
+        expect(resolved.metadata.bitRate, 192);
+        expect(resolved.metadata.isTranscoded, isTrue);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'marks bitrate-only transcodes without claiming original lossless format',
+      () async {
+        final song = await _insertSong(
+          database,
+          id: 'song-bitrate-only-transcode',
+          title: 'Song Bitrate Only',
+          suffix: 'flac',
+          contentType: 'audio/flac',
+          bitRate: 900,
+        );
+
+        final resolver = PlaybackSourceResolver(
+          cacheDao: database.cacheDao,
+          rollingCacheManager: DriftRollingCacheManager(
+            cacheDao: database.cacheDao,
+          ),
+          readApiClient: () => apiClient,
+          readStreamingQuality: () => const StreamingQuality(
+            label: 'wifi-192-original',
+            maxBitRate: 192,
+          ),
+          readRollingCacheDirectory: () async => rollingDir,
+          readIsWifi: () => false,
+        );
+
+        final resolved = await resolver.resolveForSong(
+          song,
+          preferLockCaching: false,
+        );
+
+        expect(resolved.kind, PlaybackSourceKind.directStream);
+        expect(resolved.uri?.queryParameters['maxBitRate'], '192');
+        expect(resolved.uri?.queryParameters.containsKey('format'), isFalse);
+        expect(resolved.metadata.isTranscoded, isTrue);
+        expect(resolved.metadata.format, isNull);
+        expect(resolved.metadata.bitRate, 192);
       },
       skip: !sqliteAvailable,
     );

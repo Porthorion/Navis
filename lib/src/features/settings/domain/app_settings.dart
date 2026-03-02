@@ -55,7 +55,7 @@ class AppSettingsModel {
       equalizerBandGains = const <double>[],
       loudnessEnabled = false,
       loudnessTargetGainDb = 0,
-      wifiOnlyDownloads = false,
+      wifiOnlyDownloads = true,
       autoDownloadStarredOnWifi = false,
       themeMode = 'dark',
       colorSchemeSeed = null,

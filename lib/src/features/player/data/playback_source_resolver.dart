@@ -14,10 +14,24 @@ import 'package:navis/src/utils/app_logger.dart';
 import 'package:path/path.dart' as p;
 
 @immutable
+class ResolvedPlaybackMetadata {
+  const ResolvedPlaybackMetadata({
+    this.format,
+    this.bitRate,
+    required this.isTranscoded,
+  });
+
+  final String? format;
+  final int? bitRate;
+  final bool isTranscoded;
+}
+
+@immutable
 class ResolvedPlaybackSource {
   const ResolvedPlaybackSource.file({
     required this.songId,
     required this.uri,
+    required this.metadata,
     this.cachedFilePath,
   }) : kind = PlaybackSourceKind.file,
        lockCachingAudioSource = null;
@@ -26,12 +40,14 @@ class ResolvedPlaybackSource {
     required this.songId,
     required this.lockCachingAudioSource,
     required this.cachedFilePath,
+    required this.metadata,
   }) : kind = PlaybackSourceKind.lockCachedStream,
        uri = null;
 
   const ResolvedPlaybackSource.directStream({
     required this.songId,
     required this.uri,
+    required this.metadata,
   }) : kind = PlaybackSourceKind.directStream,
        cachedFilePath = null,
        lockCachingAudioSource = null;
@@ -39,6 +55,7 @@ class ResolvedPlaybackSource {
   final PlaybackSourceKind kind;
   final String songId;
   final Uri? uri;
+  final ResolvedPlaybackMetadata metadata;
   final String? cachedFilePath;
   // ignore: experimental_member_use, reason: LockCachingAudioSource is intentionally surfaced so the audio handler can subscribe to cache completion.
   final LockCachingAudioSource? lockCachingAudioSource;
@@ -96,6 +113,10 @@ class PlaybackSourceResolver {
     bool preferLockCaching = true,
   }) async {
     final quality = _readStreamingQuality();
+    final streamingMetadata = _resolveStreamingMetadata(
+      song: song,
+      quality: quality,
+    );
     final cachedTrack = await _cacheDao.getCachedTrack(song.id);
     if (cachedTrack != null && _shouldUseCachedTrack(cachedTrack, quality)) {
       final file = File(cachedTrack.filePath);
@@ -111,6 +132,10 @@ class PlaybackSourceResolver {
         return ResolvedPlaybackSource.file(
           songId: song.id,
           uri: file.uri,
+          metadata: _resolveCachedTrackMetadata(
+            song: song,
+            cachedTrack: cachedTrack,
+          ),
           cachedFilePath: cachedTrack.filePath,
         );
       }
@@ -149,6 +174,7 @@ class PlaybackSourceResolver {
       return ResolvedPlaybackSource.directStream(
         songId: song.id,
         uri: streamUri,
+        metadata: streamingMetadata,
       );
     }
 
@@ -175,6 +201,7 @@ class PlaybackSourceResolver {
         songId: song.id,
         lockCachingAudioSource: lockCachingSource,
         cachedFilePath: cacheFile.path,
+        metadata: streamingMetadata,
       );
     } on Object catch (error, stackTrace) {
       AppLogger.warning(
@@ -187,6 +214,7 @@ class PlaybackSourceResolver {
       return ResolvedPlaybackSource.directStream(
         songId: song.id,
         uri: streamUri,
+        metadata: streamingMetadata,
       );
     }
   }
@@ -218,7 +246,11 @@ class PlaybackSourceResolver {
     final digest = sha1
         .convert(utf8.encode('${song.id}::$qualitySignature'))
         .toString();
-    final extension = _songFileExtension(song, quality);
+    final extension = _songFileExtension(
+      song,
+      metadata: _resolveStreamingMetadata(song: song, quality: quality),
+      quality: quality,
+    );
 
     return File(p.join(rollingDir.path, '${song.id}_$digest.$extension'));
   }
@@ -228,8 +260,38 @@ class PlaybackSourceResolver {
     required SongsTableData song,
     required StreamingQuality quality,
   }) {
+    final metadata = _resolveStreamingMetadata(song: song, quality: quality);
+
+    return api.streamUrl(
+      id: song.id,
+      maxBitRate: metadata.isTranscoded && metadata.bitRate != song.bitRate
+          ? metadata.bitRate
+          : null,
+      format: _resolveRequestedStreamFormat(song: song, quality: quality),
+    );
+  }
+
+  String? _resolveRequestedStreamFormat({
+    required SongsTableData song,
+    required StreamingQuality quality,
+  }) {
     final requestedFormat = _canonicalAudioFormat(quality.format);
+    if (requestedFormat == null) {
+      return null;
+    }
     final sourceFormat = _inferSourceFormat(song);
+    if (sourceFormat == requestedFormat) {
+      return null;
+    }
+    return requestedFormat;
+  }
+
+  ResolvedPlaybackMetadata _resolveStreamingMetadata({
+    required SongsTableData song,
+    required StreamingQuality quality,
+  }) {
+    final sourceFormat = _inferSourceFormat(song);
+    final requestedFormat = _canonicalAudioFormat(quality.format);
     final requestedBitRate = quality.maxBitRate;
     final sourceBitRate = song.bitRate;
 
@@ -239,12 +301,68 @@ class PlaybackSourceResolver {
     final shouldRequestBitRate =
         requestedBitRate != null &&
         (sourceBitRate == null || sourceBitRate > requestedBitRate);
+    final isTranscoded = shouldRequestFormat || shouldRequestBitRate;
 
-    return api.streamUrl(
-      id: song.id,
-      maxBitRate: shouldRequestBitRate ? requestedBitRate : null,
-      format: shouldRequestFormat ? requestedFormat : null,
+    return ResolvedPlaybackMetadata(
+      format: _resolveDisplayFormat(
+        sourceFormat: sourceFormat,
+        requestedFormat: requestedFormat,
+        isTranscoded: isTranscoded,
+      ),
+      bitRate: shouldRequestBitRate ? requestedBitRate : sourceBitRate,
+      isTranscoded: isTranscoded,
     );
+  }
+
+  ResolvedPlaybackMetadata _resolveCachedTrackMetadata({
+    required SongsTableData song,
+    required CachedTracksTableData cachedTrack,
+  }) {
+    final sourceFormat = _inferSourceFormat(song);
+    final cachedFormat = _canonicalAudioFormat(cachedTrack.format);
+    final resolvedFormat = cachedFormat == 'transcoded'
+        ? null
+        : cachedFormat ?? sourceFormat;
+    final sourceBitRate = song.bitRate;
+    final resolvedBitRate = cachedTrack.bitRate ?? sourceBitRate;
+    final isTranscoded =
+        cachedTrack.cacheType == CacheType.rolling &&
+        ((cachedFormat == 'transcoded') ||
+            (sourceFormat != null &&
+                resolvedFormat != null &&
+                sourceFormat != resolvedFormat) ||
+            (sourceBitRate != null &&
+                resolvedBitRate != null &&
+                resolvedBitRate < sourceBitRate));
+    return ResolvedPlaybackMetadata(
+      format: resolvedFormat,
+      bitRate: resolvedBitRate,
+      isTranscoded: isTranscoded,
+    );
+  }
+
+  String? _resolveDisplayFormat({
+    required String? sourceFormat,
+    required String? requestedFormat,
+    required bool isTranscoded,
+  }) {
+    if (!isTranscoded) {
+      return sourceFormat;
+    }
+    if (requestedFormat != null && requestedFormat.isNotEmpty) {
+      return requestedFormat;
+    }
+    if (sourceFormat != null && _isLossyAudioFormat(sourceFormat)) {
+      return sourceFormat;
+    }
+    return null;
+  }
+
+  bool _isLossyAudioFormat(String format) {
+    return switch (format.toLowerCase()) {
+      'mp3' || 'aac' || 'ogg' || 'opus' || 'm4a' || 'vorbis' => true,
+      _ => false,
+    };
   }
 
   String? _inferSourceFormat(SongsTableData song) {
@@ -276,10 +394,17 @@ class PlaybackSourceResolver {
     };
   }
 
-  String _songFileExtension(SongsTableData song, StreamingQuality quality) {
+  String _songFileExtension(
+    SongsTableData song, {
+    required StreamingQuality quality,
+    required ResolvedPlaybackMetadata metadata,
+  }) {
     final requestedFormat = quality.format?.trim();
     if (requestedFormat != null && requestedFormat.isNotEmpty) {
       return requestedFormat;
+    }
+    if (metadata.isTranscoded) {
+      return metadata.format ?? 'transcoded';
     }
 
     final suffix = song.suffix?.trim();

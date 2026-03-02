@@ -47,8 +47,15 @@ class NotificationBootstrap {
       description: 'Download queue and progress updates',
     );
 
+    const librarySyncChannel = AndroidNotificationChannel(
+      'library_sync',
+      'Library Scan',
+      description: 'Library scan progress and completion updates',
+    );
+
     await androidPlugin.createNotificationChannel(playbackChannel);
     await androidPlugin.createNotificationChannel(downloadsChannel);
+    await androidPlugin.createNotificationChannel(librarySyncChannel);
 
     final granted = await androidPlugin.requestNotificationsPermission();
     if (granted == false) {

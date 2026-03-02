@@ -40,7 +40,7 @@ class AutoDownloadStarredDispatchController extends Notifier<int> {
       (_, _) => unawaited(_triggerIfEligible()),
     );
 
-    Future<void>.microtask(_triggerIfEligible);
+    unawaited(Future<void>.microtask(_triggerIfEligible));
     return 0;
   }
 
@@ -51,12 +51,12 @@ class AutoDownloadStarredDispatchController extends Notifier<int> {
     final networkType = ref.read(networkTypeProvider);
     final wifiOnlyDownloads = ref.read(wifiOnlyDownloadsProvider);
     final autoDownloadEnabled = ref.read(autoDownloadStarredOnWifiProvider);
+    final downloadsAllowedOnCurrentNetwork =
+        reachability.status == ServerReachabilityStatus.online &&
+        networkType != NetworkType.offline &&
+        (!wifiOnlyDownloads || networkType == NetworkType.wifi);
     final eligible =
-        hasSession &&
-        autoDownloadEnabled &&
-        wifiOnlyDownloads &&
-        networkType == NetworkType.wifi &&
-        reachability.status == ServerReachabilityStatus.online;
+        hasSession && autoDownloadEnabled && downloadsAllowedOnCurrentNetwork;
 
     if (!eligible) {
       _wasEligible = false;
