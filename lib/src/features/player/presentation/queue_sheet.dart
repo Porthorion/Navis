@@ -11,7 +11,8 @@ import 'package:navis/src/providers/app_providers.dart'
 import 'package:navis/src/routing/navigation_service.dart';
 
 /// A queue panel. Slide animation and swipe-to-dismiss are driven entirely
-/// by [_QueueOverlay] in app_shell.dart — this widget has no animation logic.
+/// by the shell overlay in `app_shell.dart`; this widget has no animation
+/// logic of its own.
 ///
 /// [scrollController] must be supplied by the overlay so that the overlay's
 /// pointer listener can check the scroll offset when deciding whether a
@@ -19,11 +20,13 @@ import 'package:navis/src/routing/navigation_service.dart';
 class QueueSheet extends ConsumerWidget {
   const QueueSheet({
     required this.scrollController,
+    this.sheetDragActive = false,
     this.onClose,
     super.key,
   });
 
   final ScrollController scrollController;
+  final bool sheetDragActive;
   final VoidCallback? onClose;
 
   @override
@@ -58,6 +61,9 @@ class QueueSheet extends ConsumerWidget {
                     )
                   : ReorderableListView.builder(
                       scrollController: scrollController,
+                      physics: sheetDragActive
+                          ? const NeverScrollableScrollPhysics()
+                          : const ClampingScrollPhysics(),
                       padding: const EdgeInsets.only(bottom: 80),
                       itemCount: queueIds.length,
                       onReorder: (oldIndex, newIndex) async {

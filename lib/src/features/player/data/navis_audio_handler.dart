@@ -26,6 +26,8 @@ abstract class NavisPlaybackHandler {
   PlaybackSnapshot get snapshot;
   Stream<PlaybackSnapshot> get snapshotStream;
   Stream<Duration> get positionStream;
+  MediaItem? get currentMediaItem;
+  Stream<MediaItem?> get mediaItemStream;
 
   /// Emits when a radio stream encounters a mid-playback error (e.g. HTTP 503,
   /// connection reset). The UI should show a dismissible error notification.
@@ -386,6 +388,7 @@ class NavisAudioHandler extends BaseAudioHandler
       StreamController<void>.broadcast();
 
   final List<MediaItem> _queueItems = <MediaItem>[];
+  MediaItem? _currentMediaItem;
 
   PlaybackSnapshot _snapshot = const PlaybackSnapshot.idle();
   Timer? _positionPersistTimer;
@@ -446,7 +449,18 @@ class NavisAudioHandler extends BaseAudioHandler
   );
 
   @override
+  MediaItem? get currentMediaItem => _currentMediaItem;
+
+  @override
+  Stream<MediaItem?> get mediaItemStream => mediaItem;
+
+  @override
   Future<void> waitUntilReady() => _ready;
+
+  void _setCurrentMediaItem(MediaItem? item) {
+    _currentMediaItem = item;
+    mediaItem.add(item);
+  }
 
   AudioPlayer _buildAudioPlayer({required bool enableAndroidDsp}) {
     if (_isAndroidRuntime && enableAndroidDsp) {
@@ -600,7 +614,7 @@ class NavisAudioHandler extends BaseAudioHandler
         unawaited(_completeCrossfade());
       }
       final item = _mediaItemForIndex(index);
-      mediaItem.add(item);
+      _setCurrentMediaItem(item);
       _updateScrobbleSession(item);
       _applyReplayGainVolume();
       _emitSnapshot();
@@ -1154,6 +1168,15 @@ class NavisAudioHandler extends BaseAudioHandler
           preferLockCaching: false,
         );
       }
+      final resolvedFormat = source.uri?.queryParameters['format']
+          ?.trim()
+          .toLowerCase();
+      final fallbackFormat =
+          song.suffix?.trim().toLowerCase() ??
+          song.contentType?.split('/').last.trim().toLowerCase();
+      final resolvedBitRate =
+          int.tryParse(source.uri?.queryParameters['maxBitRate'] ?? '') ??
+          song.bitRate;
       final item = MediaItem(
         id: song.id,
         title: song.title,
@@ -1169,6 +1192,10 @@ class NavisAudioHandler extends BaseAudioHandler
           'sourceKind': source.kind.name,
           'localSource': source.isLocal,
           'cachedFilePath': source.cachedFilePath,
+          'resolvedFormat': (resolvedFormat?.isNotEmpty ?? false)
+              ? resolvedFormat
+              : fallbackFormat,
+          'resolvedBitRate': resolvedBitRate,
           'liked': song.starred != null,
           'replayGainTrackGain': song.replayGainTrackGain,
           'replayGainAlbumGain': song.replayGainAlbumGain,
@@ -1254,7 +1281,7 @@ class NavisAudioHandler extends BaseAudioHandler
     );
 
     queue.add(List<MediaItem>.unmodifiable(_queueItems));
-    mediaItem.add(_queueItems[startIndex]);
+    _setCurrentMediaItem(_queueItems[startIndex]);
 
     // IMPORTANT: Do NOT await _player.play() here.  play() returns a Future
     // that only completes when playback finishes or is interrupted.  Awaiting
@@ -1516,7 +1543,7 @@ class NavisAudioHandler extends BaseAudioHandler
       // Update the mediaItem stream to match whatever is now current.
       final nowIndex = _player.currentIndex;
       if (nowIndex != null && nowIndex >= 0 && nowIndex < _queueItems.length) {
-        mediaItem.add(_queueItems[nowIndex]);
+        _setCurrentMediaItem(_queueItems[nowIndex]);
       }
 
       await _persistSafely(
@@ -2210,7 +2237,7 @@ class NavisAudioHandler extends BaseAudioHandler
       !isLiked ? DateTime.now() : null,
     );
     queue.add(List<MediaItem>.unmodifiable(_queueItems));
-    mediaItem.add(updated);
+    _setCurrentMediaItem(updated);
     _broadcastPlaybackState();
     _emitSnapshot();
 
@@ -2237,7 +2264,7 @@ class NavisAudioHandler extends BaseAudioHandler
         isLiked ? DateTime.now() : null,
       );
       queue.add(List<MediaItem>.unmodifiable(_queueItems));
-      mediaItem.add(rolledBack);
+      _setCurrentMediaItem(rolledBack);
       _broadcastPlaybackState();
       _emitSnapshot();
     }
@@ -2318,7 +2345,7 @@ class NavisAudioHandler extends BaseAudioHandler
       }
 
       queue.add(<MediaItem>[radioMediaItem]);
-      mediaItem.add(radioMediaItem);
+      _setCurrentMediaItem(radioMediaItem);
 
       // Start metadata listening BEFORE play() so Azuracast polling and ICY
       // stream subscription are active from the very beginning.  play() on a
@@ -2352,7 +2379,7 @@ class NavisAudioHandler extends BaseAudioHandler
       await _player.stop();
       await _player.setAudioSources(const <AudioSource>[]);
       queue.add(const <MediaItem>[]);
-      mediaItem.add(null);
+      _setCurrentMediaItem(null);
 
       // Attempt to restore the previous song queue so the user can resume
       // library playback without manual intervention.
@@ -2401,7 +2428,7 @@ class NavisAudioHandler extends BaseAudioHandler
         'streamUrl': current.streamUrl,
       },
     );
-    mediaItem.add(updatedItem);
+    _setCurrentMediaItem(updatedItem);
     _broadcastPlaybackState();
     _emitSnapshot();
   }
@@ -2432,7 +2459,7 @@ class NavisAudioHandler extends BaseAudioHandler
     await _player.setSpeed(1);
     _updateScrobbleSession(null);
     queue.add(const <MediaItem>[]);
-    mediaItem.add(null);
+    _setCurrentMediaItem(null);
     if (persist) {
       await _playQueueDao.clearQueue();
     }

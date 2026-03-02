@@ -29,6 +29,7 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
+    final downloadedOnly = ref.watch(downloadedOnlyFilterProvider);
 
     return Scaffold(
       body: SafeArea(
@@ -39,6 +40,7 @@ class HomeScreen extends ConsumerWidget {
                 .syncNow(preferIncremental: true);
             ref.invalidate(homeRecentlyAddedProvider);
             ref.invalidate(homeRandomAlbumsProvider);
+            ref.invalidate(homeDownloadedRandomAlbumsProvider);
             // Re-check for app updates (and APK availability) on refresh.
             ref.invalidate(updateProvider);
           },
@@ -57,14 +59,18 @@ class HomeScreen extends ConsumerWidget {
               // ── 1. Liked Tracks (vertical list, 5 items + See all) ──
               _HomeSection<List<SongsTableData>>(
                 title: l10n.homeStarredTitle,
-                data: ref.watch(homeLikedSongsProvider),
+                data: ref.watch(
+                  downloadedOnly
+                      ? homeDownloadedLikedSongsProvider
+                      : homeLikedSongsProvider,
+                ),
                 isEmpty: (items) => items.isEmpty,
                 builder: (context, songs) => _SongListSection(
                   songs: songs,
                   onTap: (song) {
-                    ref.read(queueProvider.notifier).replace([
+                    ref.read(queueProvider.notifier).replace(<String>[
                       song.id,
-                    ]).ignore();
+                    ], autoPlay: true).ignore();
                   },
                 ),
                 emptyTitle: l10n.homeStarredEmptyTitle,
@@ -73,23 +79,42 @@ class HomeScreen extends ConsumerWidget {
               ),
 
               // ── 2. Recently Added Albums (horizontal card carousel) ──
-              _HomeSection<List<Album>>(
-                title: l10n.homeRecentlyAddedTitle,
-                data: ref.watch(homeRecentlyAddedProvider),
-                isEmpty: (items) => items.isEmpty,
-                builder: (context, albums) => _ServerAlbumCarousel(
-                  albums: albums,
-                  onTap: (album) => context.push('/library/albums/${album.id}'),
+              if (downloadedOnly)
+                _HomeSection<List<AlbumsTableData>>(
+                  title: l10n.homeRecentlyAddedTitle,
+                  data: ref.watch(homeDownloadedRecentlyAddedAlbumsProvider),
+                  isEmpty: (items) => items.isEmpty,
+                  builder: (context, albums) => _LocalAlbumCarousel(
+                    albums: albums,
+                    onTap: (album) =>
+                        context.push('/library/albums/${album.id}'),
+                  ),
+                  emptyTitle: l10n.libraryDownloadedOnlyEmpty,
+                  emptySubtitle: l10n.libraryDownloadedOnlyEmptySubtitle,
+                )
+              else
+                _HomeSection<List<Album>>(
+                  title: l10n.homeRecentlyAddedTitle,
+                  data: ref.watch(homeRecentlyAddedProvider),
+                  isEmpty: (items) => items.isEmpty,
+                  builder: (context, albums) => _ServerAlbumCarousel(
+                    albums: albums,
+                    onTap: (album) =>
+                        context.push('/library/albums/${album.id}'),
+                  ),
+                  emptyTitle: l10n.homeRecentlyAddedEmptyTitle,
+                  emptySubtitle: l10n.homeRecentlyAddedEmptySubtitle,
+                  onRetry: () => ref.invalidate(homeRecentlyAddedProvider),
                 ),
-                emptyTitle: l10n.homeRecentlyAddedEmptyTitle,
-                emptySubtitle: l10n.homeRecentlyAddedEmptySubtitle,
-                onRetry: () => ref.invalidate(homeRecentlyAddedProvider),
-              ),
 
               // ── 3. Recently Played Albums (horizontal card carousel) ──
               _HomeSection<List<AlbumsTableData>>(
                 title: l10n.homeRecentlyPlayedAlbumsTitle,
-                data: ref.watch(homeRecentlyPlayedAlbumsProvider),
+                data: ref.watch(
+                  downloadedOnly
+                      ? homeDownloadedRecentlyPlayedAlbumsProvider
+                      : homeRecentlyPlayedAlbumsProvider,
+                ),
                 isEmpty: (items) => items.isEmpty,
                 builder: (context, albums) => _LocalAlbumCarousel(
                   albums: albums,
@@ -101,30 +126,51 @@ class HomeScreen extends ConsumerWidget {
               ),
 
               // ── 4. Random Albums (horizontal card carousel) ──
-              _HomeSection<List<Album>>(
-                title: l10n.homeRandomTitle,
-                data: ref.watch(homeRandomAlbumsProvider),
-                isEmpty: (items) => items.isEmpty,
-                builder: (context, albums) => _ServerAlbumCarousel(
-                  albums: albums,
-                  onTap: (album) => context.push('/library/albums/${album.id}'),
+              if (downloadedOnly)
+                _HomeSection<List<AlbumsTableData>>(
+                  title: l10n.homeRandomTitle,
+                  data: ref.watch(homeDownloadedRandomAlbumsProvider),
+                  isEmpty: (items) => items.isEmpty,
+                  builder: (context, albums) => _LocalAlbumCarousel(
+                    albums: albums,
+                    onTap: (album) =>
+                        context.push('/library/albums/${album.id}'),
+                  ),
+                  emptyTitle: l10n.libraryDownloadedOnlyEmpty,
+                  emptySubtitle: l10n.libraryDownloadedOnlyEmptySubtitle,
+                  onRetry: () =>
+                      ref.invalidate(homeDownloadedRandomAlbumsProvider),
+                )
+              else
+                _HomeSection<List<Album>>(
+                  title: l10n.homeRandomTitle,
+                  data: ref.watch(homeRandomAlbumsProvider),
+                  isEmpty: (items) => items.isEmpty,
+                  builder: (context, albums) => _ServerAlbumCarousel(
+                    albums: albums,
+                    onTap: (album) =>
+                        context.push('/library/albums/${album.id}'),
+                  ),
+                  emptyTitle: l10n.homeRandomEmptyTitle,
+                  emptySubtitle: l10n.homeRandomEmptySubtitle,
+                  onRetry: () => ref.invalidate(homeRandomAlbumsProvider),
                 ),
-                emptyTitle: l10n.homeRandomEmptyTitle,
-                emptySubtitle: l10n.homeRandomEmptySubtitle,
-                onRetry: () => ref.invalidate(homeRandomAlbumsProvider),
-              ),
 
               // ── 5. Most Played Tracks (vertical list) ──
               _HomeSection<List<SongsTableData>>(
                 title: l10n.homeMostPlayedTracksTitle,
-                data: ref.watch(homeMostPlayedSongsProvider),
+                data: ref.watch(
+                  downloadedOnly
+                      ? homeDownloadedMostPlayedSongsProvider
+                      : homeMostPlayedSongsProvider,
+                ),
                 isEmpty: (items) => items.isEmpty,
                 builder: (context, songs) => _SongListSection(
                   songs: songs,
                   onTap: (song) {
-                    ref.read(queueProvider.notifier).replace([
+                    ref.read(queueProvider.notifier).replace(<String>[
                       song.id,
-                    ]).ignore();
+                    ], autoPlay: true).ignore();
                   },
                 ),
                 emptyTitle: l10n.homeMostPlayedTracksEmptyTitle,
@@ -133,7 +179,7 @@ class HomeScreen extends ConsumerWidget {
               ),
 
               // ── 6. AudioMuse AI Recommendations ──
-              if (ref.watch(audioMuseAvailableProvider))
+              if (!downloadedOnly && ref.watch(audioMuseAvailableProvider))
                 _HomeSection<List<AudioMuseRecommendation>>(
                   title: l10n.audioMuseHomeRecommendations,
                   data: ref.watch(audioMuseHomeRecommendationsProvider),
@@ -354,13 +400,13 @@ class _ServerAlbumCard extends StatelessWidget {
                   right: 0,
                   bottom: 0,
                   child: DecoratedBox(
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: <Color>[
-                          Color(0x00000000),
-                          Color(0xCC000000),
+                          Colors.black.withValues(alpha: 0),
+                          Colors.black.withValues(alpha: 0.75),
                         ],
                       ),
                     ),
@@ -374,8 +420,8 @@ class _ServerAlbumCard extends StatelessWidget {
                             name,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.95),
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
                             ),
@@ -386,8 +432,8 @@ class _ServerAlbumCard extends StatelessWidget {
                               artist!,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Color(0xCCFFFFFF),
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.75),
                                 fontSize: 11,
                               ),
                             ),
@@ -426,31 +472,31 @@ class _SongListSection extends ConsumerWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          for (final song in songs)
+          for (int i = 0; i < songs.length; i++)
             ListTile(
               leading: SizedBox(
                 width: 48,
                 height: 48,
                 child: CoverArtImage(
-                  coverArtId: song.coverArt,
+                  coverArtId: songs[i].coverArt,
                   size: 160,
                   borderRadius: BorderRadius.circular(6),
                   placeholderIcon: Icons.music_note_outlined,
                 ),
               ),
               title: Text(
-                song.title,
+                songs[i].title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
               subtitle: Text(
-                song.artistName ?? '',
+                songs[i].artistName ?? '',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
               dense: true,
-              onTap: () => onTap(song),
-              onLongPress: () => showSongContextMenu(context, ref, song),
+              onTap: () => onTap(songs[i]),
+              onLongPress: () => showSongContextMenu(context, ref, songs[i]),
             ),
         ],
       ),

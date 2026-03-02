@@ -27,11 +27,10 @@ class TrackListTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final subtitle = <String>[
-      if (song.artistName != null && song.artistName!.isNotEmpty)
-        song.artistName!,
-      if (song.albumName != null && song.albumName!.isNotEmpty) song.albumName!,
-    ].join(' • ');
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final hasArtist = song.artistName != null && song.artistName!.isNotEmpty;
+    final hasAlbum = song.albumName != null && song.albumName!.isNotEmpty;
 
     final leading = showAlbumArt
         ? SizedBox(
@@ -45,22 +44,79 @@ class TrackListTile extends StatelessWidget {
           )
         : (song.track == null ? null : Text('${song.track}'));
 
-    return ListTile(
-      leading: leading,
-      title: Text(song.title),
-      subtitle: subtitle.isEmpty && badge == null
-          ? null
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                if (subtitle.isNotEmpty) Text(subtitle),
-                if (badge != null) ...[
-                  const SizedBox(height: 2),
-                  badge!,
-                ],
-              ],
+    // Build a RichText subtitle: "Artist · Album" with differentiated styling.
+    Widget? subtitleWidget;
+    if (hasArtist || hasAlbum || badge != null) {
+      final subtitleChildren = <InlineSpan>[];
+      if (hasArtist) {
+        subtitleChildren.add(
+          TextSpan(
+            text: song.artistName!,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: cs.onSurface.withValues(alpha: 0.8),
             ),
-      trailing: trailing ?? Text(_formatDuration(song.duration)),
+          ),
+        );
+      }
+      if (hasArtist && hasAlbum) {
+        subtitleChildren.add(
+          TextSpan(
+            text: ' · ',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: cs.onSurface.withValues(alpha: 0.4),
+            ),
+          ),
+        );
+      }
+      if (hasAlbum) {
+        subtitleChildren.add(
+          TextSpan(
+            text: song.albumName!,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: cs.onSurface.withValues(alpha: 0.5),
+            ),
+          ),
+        );
+      }
+
+      subtitleWidget = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          if (subtitleChildren.isNotEmpty)
+            RichText(
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              text: TextSpan(children: subtitleChildren),
+            ),
+          if (badge != null) ...[
+            const SizedBox(height: 2),
+            badge!,
+          ],
+        ],
+      );
+    }
+
+    return ListTile(
+      dense: true,
+      leading: leading,
+      title: Text(
+        song.title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: theme.textTheme.bodyMedium?.copyWith(
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      subtitle: subtitleWidget,
+      trailing:
+          trailing ??
+          Text(
+            _formatDuration(song.duration),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: cs.onSurface.withValues(alpha: 0.5),
+            ),
+          ),
       onTap: onTap,
       onLongPress: onLongPress == null
           ? null

@@ -588,10 +588,9 @@ class _SongResultsSection extends ConsumerWidget {
               trailing: Text(_formatDuration(song.duration)),
               onTap: () {
                 unawaited(
-                  ref.read(queueProvider.notifier).replaceWithSongs(
-                    <Song>[song],
-                    startIndex: 0,
-                  ),
+                  ref.read(queueProvider.notifier).replaceWithSongs(<Song>[
+                    song,
+                  ]),
                 );
               },
               onLongPress: () => _showSongContextMenu(context, ref, song),

@@ -47,6 +47,10 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     final l10n = AppLocalizations.of(context)!;
     final playlistAsync = ref.watch(playlistByIdProvider(widget.playlistId));
     final songsAsync = ref.watch(playlistSongsProvider(widget.playlistId));
+    final downloadedOnly = ref.watch(downloadedOnlyFilterProvider);
+    final downloadedSongIds = downloadedOnly
+        ? ref.watch(downloadedSongIdsProvider).asData?.value ?? const <String>{}
+        : const <String>{};
     // Keep sync alive
     ref.watch(playlistDetailSyncProvider(widget.playlistId));
 
@@ -63,12 +67,20 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
           }
 
           return songsAsync.when(
-            data: (songs) => _buildContent(context, playlist, songs),
+            data: (songs) => _buildContent(
+              context,
+              playlist,
+              songs,
+              downloadedOnly: downloadedOnly,
+              downloadedSongIds: downloadedSongIds,
+            ),
             loading: () => _buildContent(
               context,
               playlist,
               const [],
               isLoading: true,
+              downloadedOnly: downloadedOnly,
+              downloadedSongIds: downloadedSongIds,
             ),
             error: (error, _) => ErrorState(
               title: l10n.playlistDetailLoadError,
@@ -96,8 +108,19 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     PlaylistsTableData playlist,
     List<SongsTableData> songs, {
     bool isLoading = false,
+    required bool downloadedOnly,
+    required Set<String> downloadedSongIds,
   }) {
     final l10n = AppLocalizations.of(context)!;
+    final visibleEntries = songs.indexed
+        .where(
+          (entry) => !downloadedOnly || downloadedSongIds.contains(entry.$2.id),
+        )
+        .map((entry) => (song: entry.$2, playlistIndex: entry.$1))
+        .toList(growable: false);
+    final visibleSongs = visibleEntries
+        .map((entry) => entry.song)
+        .toList(growable: false);
 
     return RefreshIndicator(
       onRefresh: () async {
@@ -135,38 +158,51 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                   child: Text(
                     l10n.playlistDetailMeta(
                       playlist.owner ?? '',
-                      songs.length,
+                      visibleSongs.length,
                     ),
                   ),
                 ),
+                if (downloadedOnly)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Chip(
+                        label: Text(l10n.libraryDownloadedOnlyFilter),
+                        avatar: const Icon(Icons.download_done, size: 18),
+                      ),
+                    ),
+                  ),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   child: Wrap(
                     spacing: 8,
                     children: [
                       FilledButton.tonalIcon(
-                        onPressed: songs.isEmpty || _isQueueActionInFlight
+                        onPressed:
+                            visibleSongs.isEmpty || _isQueueActionInFlight
                             ? null
                             : () => unawaited(
-                                _queuePlaylist(songs, shuffle: false),
+                                _queuePlaylist(visibleSongs, shuffle: false),
                               ),
                         icon: const Icon(Icons.play_arrow_outlined),
                         label: Text(l10n.playlistDetailPlayAction),
                       ),
                       FilledButton.tonalIcon(
-                        onPressed: songs.isEmpty || _isQueueActionInFlight
+                        onPressed:
+                            visibleSongs.isEmpty || _isQueueActionInFlight
                             ? null
                             : () => unawaited(
-                                _queuePlaylist(songs, shuffle: true),
+                                _queuePlaylist(visibleSongs, shuffle: true),
                               ),
                         icon: const Icon(Icons.shuffle_outlined),
                         label: Text(l10n.playlistDetailShuffleAction),
                       ),
                       FilledButton.tonalIcon(
-                        onPressed: songs.isEmpty
+                        onPressed: visibleSongs.isEmpty
                             ? null
                             : () => unawaited(
-                                _downloadPlaylist(playlist, songs),
+                                _downloadPlaylist(playlist, visibleSongs),
                               ),
                         icon: const Icon(Icons.download_outlined),
                         label: Text(l10n.downloadAction),
@@ -178,16 +214,61 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
               ],
             ),
           ),
-          if (songs.isEmpty)
+          if (visibleSongs.isEmpty)
             SliverFillRemaining(
               hasScrollBody: false,
               child: isLoading
                   ? const ShimmerListPage()
+                  : downloadedOnly
+                  ? EmptyState(
+                      title: l10n.libraryDownloadedOnlyEmpty,
+                      subtitle: l10n.libraryDownloadedOnlyEmptySubtitle,
+                      icon: Icons.download_done_outlined,
+                    )
                   : EmptyState(
                       title: l10n.playlistDetailEmptyTitle,
                       subtitle: l10n.playlistDetailEmptySubtitle,
                       icon: Icons.music_note_outlined,
                     ),
+            )
+          else if (downloadedOnly)
+            SliverList(
+              delegate: SliverChildBuilderDelegate((context, index) {
+                final entry = visibleEntries[index];
+                final song = entry.song;
+                return Material(
+                  type: MaterialType.transparency,
+                  child: TrackListTile(
+                    song: song,
+                    onTap: _isQueueActionInFlight
+                        ? null
+                        : () => unawaited(_playNow(visibleSongs, index)),
+                    onLongPress: _isQueueActionInFlight
+                        ? null
+                        : () => _showSongActions(song, entry.playlistIndex),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        SongDownloadStatusIcon(
+                          songId: song.id,
+                          onDownload: _isQueueActionInFlight
+                              ? null
+                              : () => unawaited(_downloadSong(song)),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.more_vert),
+                          onPressed: _isQueueActionInFlight
+                              ? null
+                              : () => _showSongActions(
+                                  song,
+                                  entry.playlistIndex,
+                                ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }, childCount: visibleEntries.length),
             )
           else
             SliverReorderableList(
@@ -360,14 +441,35 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
               title: Text(l10n.librarySongMenuPlayNow),
               onTap: () {
                 Navigator.of(sheetContext).pop();
+                final downloadedOnly = ref.read(downloadedOnlyFilterProvider);
+                final downloadedSongIds = downloadedOnly
+                    ? ref.read(downloadedSongIdsProvider).asData?.value ??
+                          const <String>{}
+                    : const <String>{};
                 final songs =
                     ref
                         .read(playlistSongsProvider(widget.playlistId))
                         .asData
                         ?.value ??
-                    [];
+                    const <SongsTableData>[];
+                final playableEntries = songs.indexed
+                    .where(
+                      (entry) =>
+                          !downloadedOnly ||
+                          downloadedSongIds.contains(entry.$2.id),
+                    )
+                    .toList(growable: false);
+                final playableSongs = playableEntries
+                    .map((entry) => entry.$2)
+                    .toList(growable: false);
+                final visibleIndex = playableEntries.indexWhere(
+                  (entry) => entry.$1 == songIndex,
+                );
+                if (visibleIndex < 0) {
+                  return;
+                }
                 unawaited(
-                  _playNow(songs, songIndex),
+                  _playNow(playableSongs, visibleIndex),
                 );
               },
             ),

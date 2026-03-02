@@ -1,6 +1,9 @@
+import 'dart:math';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/api/models/models.dart';
+import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
@@ -57,6 +60,88 @@ final homeMostPlayedSongsProvider = StreamProvider<List<SongsTableData>>((ref) {
   final dao = ref.watch(navisDatabaseProvider).libraryDao;
   return dao.watchMostPlayedSongs(limit: 5);
 });
+
+final homeDownloadedLikedSongsProvider = StreamProvider<List<SongsTableData>>((
+  ref,
+) {
+  final dao = ref.watch(navisDatabaseProvider).libraryDao;
+  final downloadedSongIds =
+      ref.watch(downloadedSongIdsProvider).asData?.value ?? const <String>{};
+  return dao.watchAllStarredSongs().map(
+    (songs) => songs
+        .where((song) => downloadedSongIds.contains(song.id))
+        .take(5)
+        .toList(growable: false),
+  );
+});
+
+final homeDownloadedRecentlyAddedAlbumsProvider =
+    StreamProvider<List<AlbumsTableData>>((ref) {
+      final dao = ref.watch(navisDatabaseProvider).libraryDao;
+      final downloadedAlbumIds =
+          ref.watch(downloadedContentIdsProvider).asData?.value.albumIds ??
+          const <String>{};
+      return dao
+          .watchAlbumsSorted(sort: AlbumSortOrder.recentlyAdded)
+          .map(
+            (albums) => albums
+                .where((album) => downloadedAlbumIds.contains(album.id))
+                .take(20)
+                .toList(growable: false),
+          );
+    });
+
+final homeDownloadedRecentlyPlayedAlbumsProvider =
+    StreamProvider<List<AlbumsTableData>>((ref) {
+      final dao = ref.watch(navisDatabaseProvider).historyDao;
+      final downloadedAlbumIds =
+          ref.watch(downloadedContentIdsProvider).asData?.value.albumIds ??
+          const <String>{};
+      return dao
+          .watchRecentlyPlayedAlbums(limit: null)
+          .map(
+            (albums) => albums
+                .where((album) => downloadedAlbumIds.contains(album.id))
+                .take(20)
+                .toList(growable: false),
+          );
+    });
+
+final homeDownloadedRandomAlbumsProvider =
+    StreamProvider<List<AlbumsTableData>>((
+      ref,
+    ) {
+      final dao = ref.watch(navisDatabaseProvider).libraryDao;
+      final downloadedAlbumIds =
+          ref.watch(downloadedContentIdsProvider).asData?.value.albumIds ??
+          const <String>{};
+      final random = Random();
+      return dao.watchAlbumsSorted(sort: AlbumSortOrder.name).map((albums) {
+        final filtered = albums
+            .where((album) => downloadedAlbumIds.contains(album.id))
+            .toList(growable: true);
+        filtered.shuffle(random);
+        return filtered.take(20).toList(growable: false);
+      });
+    });
+
+final homeDownloadedMostPlayedSongsProvider =
+    StreamProvider<List<SongsTableData>>((
+      ref,
+    ) {
+      final dao = ref.watch(navisDatabaseProvider).libraryDao;
+      final downloadedSongIds =
+          ref.watch(downloadedSongIdsProvider).asData?.value ??
+          const <String>{};
+      return dao
+          .watchMostPlayedSongs(limit: null)
+          .map(
+            (songs) => songs
+                .where((song) => downloadedSongIds.contains(song.id))
+                .take(5)
+                .toList(growable: false),
+          );
+    });
 
 // ---------------------------------------------------------------------------
 // Kept for backwards compat / possible future use — can be removed later.

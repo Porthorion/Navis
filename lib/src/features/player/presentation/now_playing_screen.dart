@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
@@ -121,6 +122,14 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
 
     final surfaceColor = Theme.of(context).colorScheme.surface;
     final tintColor = artTinted ? _artTintColor : null;
+    final mediaQuery = MediaQuery.of(context);
+    final rootViewPadding = MediaQueryData.fromView(
+      View.of(context),
+    ).viewPadding;
+    final bottomSafeInset = math.max(
+      mediaQuery.padding.bottom,
+      rootViewPadding.bottom,
+    );
 
     return Material(
       color: surfaceColor,
@@ -142,27 +151,20 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
           color: tintColor == null ? surfaceColor : null,
         ),
         child: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              if (constraints.maxHeight < 100) {
-                return const SizedBox.shrink();
-              }
-              return Column(
-                children: <Widget>[
-                  _NowPlayingAppBar(
+          bottom: false,
+          child: Padding(
+            padding: EdgeInsets.only(bottom: bottomSafeInset),
+            child: Column(
+              children: <Widget>[
+                const _NowPlayingHandle(),
+                Expanded(
+                  child: _NowPlayingBody(
+                    playback: playback,
                     song: playback.isRadioMode ? null : song,
-                    onCollapse: widget.onCollapse,
-                    isRadio: playback.isRadioMode,
                   ),
-                  Expanded(
-                    child: _NowPlayingBody(
-                      playback: playback,
-                      song: playback.isRadioMode ? null : song,
-                    ),
-                  ),
-                ],
-              );
-            },
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -170,150 +172,119 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
   }
 }
 
-class _NowPlayingAppBar extends ConsumerWidget {
-  const _NowPlayingAppBar({this.song, this.onCollapse, this.isRadio = false});
-
-  final SongsTableData? song;
-  final VoidCallback? onCollapse;
-  final bool isRadio;
+class _NowPlayingHandle extends StatelessWidget {
+  const _NowPlayingHandle();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context)!;
-
+  Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-      child: Row(
-        children: <Widget>[
-          IconButton(
-            icon: const Icon(Icons.keyboard_arrow_down),
-            onPressed: onCollapse ?? () => Navigator.of(context).maybePop(),
+      padding: const EdgeInsets.only(top: 8, bottom: 6),
+      child: Center(
+        child: Container(
+          width: 36,
+          height: 4,
+          decoration: BoxDecoration(
+            color: Theme.of(
+              context,
+            ).colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(2),
           ),
-          Expanded(
-            child: Text(
-              l10n.nowPlayingTitle,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleSmall,
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.more_vert),
-            tooltip: l10n.nowPlayingMore,
-            onPressed: isRadio
-                ? null
-                : () => _showOverflowMenu(context, ref, song),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showOverflowMenu(
-    BuildContext context,
-    WidgetRef ref,
-    SongsTableData? song,
-  ) {
-    final l10n = AppLocalizations.of(context)!;
-    final playbackSpeed =
-        ref.read(appSettingsProvider).asData?.value.playbackSpeed ?? 1;
-    showModalBottomSheet<void>(
-      context: context,
-      useRootNavigator: true,
-      builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            ListTile(
-              leading: const Icon(Icons.speed),
-              title: Text(l10n.playbackSettingsPlaybackSpeedLabel),
-              subtitle: Text(formatPlaybackSpeed(playbackSpeed)),
-              onTap: () {
-                Navigator.of(sheetContext).pop();
-                _showPlaybackSpeedSheet(context, ref, playbackSpeed);
-              },
-            ),
-            if (song?.albumId != null && song!.albumId!.isNotEmpty)
-              ListTile(
-                leading: const Icon(Icons.album_outlined),
-                title: Text(l10n.nowPlayingGoToAlbum),
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  NavService.goToAlbum(context, ref, song.albumId!);
-                },
-              ),
-            if (song?.artistId != null && song!.artistId!.isNotEmpty)
-              ListTile(
-                leading: const Icon(Icons.person_outline),
-                title: Text(l10n.nowPlayingGoToArtist),
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  NavService.goToArtist(context, ref, song.artistId!);
-                },
-              ),
-            if (song != null)
-              ListTile(
-                leading: const Icon(Icons.playlist_add),
-                title: Text(l10n.librarySongMenuAddToPlaylist),
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  showAddToPlaylistSheet(context, ref, [song.id]);
-                },
-              ),
-            if (song != null)
-              ListTile(
-                leading: const Icon(Icons.download_outlined),
-                title: Text(l10n.downloadAction),
-                onTap: () async {
-                  Navigator.of(sheetContext).pop();
-                  final choice = await showDownloadQualitySheet(context);
-                  if (choice == null || !context.mounted) return;
-                  final service = ref.read(downloadServiceProvider);
-                  await service.enqueueSong(
-                    song.id,
-                    quality: choice.quality,
-                    format: choice.format,
-                  );
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(l10n.downloadSongQueued)),
-                    );
-                  }
-                },
-              ),
-            // Smart Queue — shown when AudioMuse NV plugin is detected.
-            if (song != null &&
-                (ref.watch(smartQueueAvailableProvider).asData?.value ?? false))
-              ListTile(
-                leading: const Icon(Icons.auto_awesome),
-                title: Text(l10n.smartQueueButton),
-                subtitle: Text(l10n.smartQueueSubtitle),
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  showSmartQueueSheet(
-                    context,
-                    ref,
-                    seedSongId: song.id,
-                  );
-                },
-              ),
-          ],
         ),
       ),
     );
   }
+}
 
-  void _showPlaybackSpeedSheet(
-    BuildContext context,
-    WidgetRef ref,
-    double initialSpeed,
-  ) {
-    showModalBottomSheet<void>(
-      context: context,
-      useRootNavigator: true,
-      isScrollControlled: true,
-      builder: (context) => _PlaybackSpeedSheet(initialSpeed: initialSpeed),
-    );
-  }
+void _showNowPlayingSettingsSheet(
+  BuildContext context,
+  WidgetRef ref,
+  SongsTableData? song,
+) {
+  final l10n = AppLocalizations.of(context)!;
+  final playbackSpeed =
+      ref.read(appSettingsProvider).asData?.value.playbackSpeed ?? 1;
+
+  showModalBottomSheet<void>(
+    context: context,
+    useRootNavigator: true,
+    builder: (sheetContext) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          ListTile(
+            leading: const Icon(Icons.speed),
+            title: Text(l10n.playbackSettingsPlaybackSpeedLabel),
+            subtitle: Text(formatPlaybackSpeed(playbackSpeed)),
+            onTap: () {
+              Navigator.of(sheetContext).pop();
+              _showPlaybackSpeedSheet(context, ref, playbackSpeed);
+            },
+          ),
+          if (song?.albumId != null && song!.albumId!.isNotEmpty)
+            ListTile(
+              leading: const Icon(Icons.album_outlined),
+              title: Text(l10n.nowPlayingGoToAlbum),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                NavService.goToAlbum(context, ref, song.albumId!);
+              },
+            ),
+          if (song?.artistId != null && song!.artistId!.isNotEmpty)
+            ListTile(
+              leading: const Icon(Icons.person_outline),
+              title: Text(l10n.nowPlayingGoToArtist),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                NavService.goToArtist(context, ref, song.artistId!);
+              },
+            ),
+          if (song != null)
+            ListTile(
+              leading: const Icon(Icons.playlist_add),
+              title: Text(l10n.librarySongMenuAddToPlaylist),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                showAddToPlaylistSheet(context, ref, [song.id]);
+              },
+            ),
+          if (song != null)
+            ListTile(
+              leading: const Icon(Icons.download_outlined),
+              title: Text(l10n.downloadAction),
+              onTap: () async {
+                Navigator.of(sheetContext).pop();
+                final choice = await showDownloadQualitySheet(context);
+                if (choice == null || !context.mounted) return;
+                final service = ref.read(downloadServiceProvider);
+                await service.enqueueSong(
+                  song.id,
+                  quality: choice.quality,
+                  format: choice.format,
+                );
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(l10n.downloadSongQueued)),
+                  );
+                }
+              },
+            ),
+        ],
+      ),
+    ),
+  );
+}
+
+void _showPlaybackSpeedSheet(
+  BuildContext context,
+  WidgetRef ref,
+  double initialSpeed,
+) {
+  showModalBottomSheet<void>(
+    context: context,
+    useRootNavigator: true,
+    isScrollControlled: true,
+    builder: (context) => _PlaybackSpeedSheet(initialSpeed: initialSpeed),
+  );
 }
 
 class _NowPlayingBody extends ConsumerStatefulWidget {
@@ -364,6 +335,13 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
     final playback = widget.playback;
     final isRadio = playback.isRadioMode;
     final radioMeta = playback.radioStation;
+    final albumDetails =
+        !isRadio && song?.albumId != null && song!.albumId!.isNotEmpty
+        ? ref.watch(albumProvider(song.albumId!)).asData?.value?.album
+        : null;
+    final currentMediaItem = ref.watch(currentMediaItemProvider).asData?.value;
+    final playbackSpeed =
+        ref.watch(appSettingsProvider).asData?.value.playbackSpeed ?? 1;
 
     final title = isRadio
         ? (radioMeta?.nowPlayingTitle ??
@@ -377,113 +355,114 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
         ? l10n.radioLive
         : (song?.albumName ?? l10n.nowPlayingUnknownAlbum);
 
-    return ClipRect(
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          // During the expand/collapse animation the available height can be
-          // very small (even <2 px). Rendering the full Column at that size
-          // causes a RenderFlex overflow. Skip the layout entirely when there
-          // isn't enough room — the content is invisible at that point anyway.
-          // The fixed-height children (TrackInfo, SeekBar, TransportControls,
-          // ActionRow, spacers) need ~300 px; use 350 as a safe threshold.
-          if (constraints.maxHeight < 350) {
-            return const SizedBox.shrink();
-          }
-
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Column(
-              children: <Widget>[
-                const SizedBox(height: 8),
-                Expanded(
-                  child: Center(
-                    child: isRadio
-                        ? _RadioCoverArt(artUrl: radioMeta?.nowPlayingArtUrl)
-                        : (_showLyrics && playback.currentSongId != null
-                              ? _InlineLyrics(
-                                  songId: playback.currentSongId!,
-                                )
-                              : GestureDetector(
-                                  onTap: _togglePlayPause,
-                                  onHorizontalDragEnd: _handleHorizontalSwipe,
-                                  child: _CoverArt(
-                                    coverArtId: song?.coverArt,
-                                    semanticLabel: song?.title,
-                                  ),
-                                )),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _TrackInfo(
-                  title: title,
-                  artist: artist,
-                  album: album,
-                  onTitleTap: isRadio
-                      ? (radioMeta?.nowPlayingTitle != null &&
-                                radioMeta!.nowPlayingTitle!.isNotEmpty
-                            ? () => NavService.goToSearch(
-                                context,
-                                ref,
-                                radioMeta.nowPlayingTitle!,
-                              )
-                            : null)
-                      : null,
-                  onArtistTap: isRadio
-                      ? (radioMeta?.nowPlayingArtist != null &&
-                                radioMeta!.nowPlayingArtist!.isNotEmpty
-                            ? () => NavService.goToSearch(
-                                context,
-                                ref,
-                                radioMeta.nowPlayingArtist!,
-                              )
-                            : null)
-                      : (song?.artistId != null && song!.artistId!.isNotEmpty
-                            ? () => NavService.goToArtist(
-                                context,
-                                ref,
-                                song.artistId!,
-                              )
-                            : (song?.artistName != null &&
-                                      song!.artistName!.isNotEmpty
-                                  ? () => NavService.goToSearch(
-                                      context,
-                                      ref,
-                                      song.artistName!,
-                                    )
-                                  : null)),
-                  onAlbumTap: isRadio
-                      ? null
-                      : (song?.albumId != null && song!.albumId!.isNotEmpty
-                            ? () => NavService.goToAlbum(
-                                context,
-                                ref,
-                                song.albumId!,
-                              )
-                            : null),
-                ),
-                const SizedBox(height: 16),
-                if (!isRadio) ...[
-                  _SeekBar(playback: playback),
-                  const SizedBox(height: 8),
-                ],
-                _TransportControls(
-                  playback: playback,
-                  isRadio: isRadio,
-                ),
-                const SizedBox(height: 8),
-                if (!isRadio)
-                  _ActionRow(
-                    songId: playback.currentSongId,
-                    isLiked: playback.isCurrentSongLiked,
-                    showLyrics: _showLyrics,
-                    onLyricsToggle: () =>
-                        setState(() => _showLyrics = !_showLyrics),
-                  ),
-                const SizedBox(height: 8),
-              ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(
+        children: <Widget>[
+          const SizedBox(height: 8),
+          Expanded(
+            child: Center(
+              child: isRadio
+                  ? _RadioCoverArt(artUrl: radioMeta?.nowPlayingArtUrl)
+                  : AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      switchInCurve: Curves.easeOut,
+                      switchOutCurve: Curves.easeIn,
+                      child: _showLyrics && playback.currentSongId != null
+                          ? _InlineLyrics(
+                              key: const ValueKey('lyrics'),
+                              songId: playback.currentSongId!,
+                            )
+                          : GestureDetector(
+                              key: const ValueKey('cover'),
+                              onTap: _togglePlayPause,
+                              onHorizontalDragEnd: _handleHorizontalSwipe,
+                              child: _CoverArt(
+                                coverArtId: song?.coverArt,
+                                semanticLabel: song?.title,
+                              ),
+                            ),
+                    ),
             ),
-          );
-        },
+          ),
+          const SizedBox(height: 16),
+          _TrackInfo(
+            title: title,
+            artist: artist,
+            album: album,
+            onTitleTap: isRadio
+                ? (radioMeta?.nowPlayingTitle != null &&
+                          radioMeta!.nowPlayingTitle!.isNotEmpty
+                      ? () => NavService.goToSearch(
+                          context,
+                          ref,
+                          radioMeta.nowPlayingTitle!,
+                        )
+                      : null)
+                : null,
+            onArtistTap: isRadio
+                ? (radioMeta?.nowPlayingArtist != null &&
+                          radioMeta!.nowPlayingArtist!.isNotEmpty
+                      ? () => NavService.goToSearch(
+                          context,
+                          ref,
+                          radioMeta.nowPlayingArtist!,
+                        )
+                      : null)
+                : (song?.artistId != null && song!.artistId!.isNotEmpty
+                      ? () => NavService.goToArtist(
+                          context,
+                          ref,
+                          song.artistId!,
+                        )
+                      : (song?.artistName != null &&
+                                song!.artistName!.isNotEmpty
+                            ? () => NavService.goToSearch(
+                                context,
+                                ref,
+                                song.artistName!,
+                              )
+                            : null)),
+            onAlbumTap: isRadio
+                ? null
+                : (song?.albumId != null && song!.albumId!.isNotEmpty
+                      ? () => NavService.goToAlbum(
+                          context,
+                          ref,
+                          song.albumId!,
+                        )
+                      : null),
+          ),
+          if (!isRadio) ...[
+            const SizedBox(height: 12),
+            _NowPlayingInfoPanel(
+              song: song,
+              album: albumDetails,
+              playback: playback,
+              currentMediaItem: currentMediaItem,
+              playbackSpeed: playbackSpeed,
+            ),
+          ],
+          const SizedBox(height: 16),
+          if (!isRadio) ...[
+            _SeekBar(playback: playback),
+            const SizedBox(height: 8),
+          ],
+          _TransportControls(
+            playback: playback,
+            isRadio: isRadio,
+          ),
+          const SizedBox(height: 8),
+          if (!isRadio)
+            _ActionRow(
+              song: song,
+              songId: playback.currentSongId,
+              isLiked: playback.isCurrentSongLiked,
+              showLyrics: _showLyrics,
+              onLyricsToggle: () => setState(() => _showLyrics = !_showLyrics),
+            ),
+          const SizedBox(height: 8),
+        ],
       ),
     );
   }
@@ -497,15 +476,20 @@ class _CoverArt extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final artSize = screenWidth - 48;
-    final clampedSize = artSize.clamp(200.0, 400.0);
+    final mq = MediaQuery.of(context).size;
+    final widthBased = mq.width - 48;
+    // Use 42% of screen height as a cap so controls aren't squeezed.
+    final heightBased = mq.height * 0.42;
+    final artSize = (widthBased < heightBased ? widthBased : heightBased).clamp(
+      180.0,
+      600.0,
+    );
 
     return CoverArtImage(
       coverArtId: coverArtId,
       size: 640,
-      width: clampedSize,
-      height: clampedSize,
+      width: artSize,
+      height: artSize,
       borderRadius: BorderRadius.circular(12),
       placeholderIcon: Icons.music_note_outlined,
       semanticLabel: semanticLabel,
@@ -520,24 +504,28 @@ class _RadioCoverArt extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final artSize = screenWidth - 48;
-    final clampedSize = artSize.clamp(200.0, 400.0);
+    final mq = MediaQuery.of(context).size;
+    final widthBased = mq.width - 48;
+    final heightBased = mq.height * 0.42;
+    final artSize = (widthBased < heightBased ? widthBased : heightBased).clamp(
+      180.0,
+      600.0,
+    );
 
     if (artUrl != null) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(12),
         child: Image.network(
           artUrl!,
-          width: clampedSize,
-          height: clampedSize,
+          width: artSize,
+          height: artSize,
           fit: BoxFit.cover,
-          errorBuilder: (_, _, _) => _radioPlaceholder(context, clampedSize),
+          errorBuilder: (_, _, _) => _radioPlaceholder(context, artSize),
         ),
       );
     }
 
-    return _radioPlaceholder(context, clampedSize);
+    return _radioPlaceholder(context, artSize);
   }
 
   Widget _radioPlaceholder(BuildContext context, double size) {
@@ -629,6 +617,217 @@ class _TrackInfo extends StatelessWidget {
       ],
     );
   }
+}
+
+class _NowPlayingInfoPanel extends StatefulWidget {
+  const _NowPlayingInfoPanel({
+    required this.song,
+    required this.album,
+    required this.playback,
+    required this.currentMediaItem,
+    required this.playbackSpeed,
+  });
+
+  final SongsTableData? song;
+  final AlbumsTableData? album;
+  final PlaybackSnapshot playback;
+  final MediaItem? currentMediaItem;
+  final double playbackSpeed;
+
+  @override
+  State<_NowPlayingInfoPanel> createState() => _NowPlayingInfoPanelState();
+}
+
+class _NowPlayingInfoPanelState extends State<_NowPlayingInfoPanel> {
+  int _pageIndex = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final pages = <_NowPlayingInfoPage>[
+      _NowPlayingInfoPage(
+        icon: Icons.info_outline,
+        semanticLabel: l10n.nowPlayingAudioQuality,
+        value: _formatAudioQuality(
+          song: widget.song,
+          mediaItem: widget.currentMediaItem,
+        ),
+      ),
+      _NowPlayingInfoPage(
+        icon: Icons.queue_music_outlined,
+        semanticLabel: l10n.queueTitle,
+        value: _formatQueuePosition(l10n, widget.playback),
+      ),
+      _NowPlayingInfoPage(
+        icon: Icons.calendar_today_outlined,
+        semanticLabel: l10n.nowPlayingReleaseDate,
+        value: _formatReleaseDate(widget.song, widget.album),
+      ),
+      _NowPlayingInfoPage(
+        icon: Icons.speed_outlined,
+        semanticLabel: l10n.playbackSettingsPlaybackSpeedLabel,
+        value: _formatPlaybackRate(widget.playbackSpeed),
+      ),
+    ];
+    final activeIndex = _pageIndex % pages.length;
+    final page = pages[activeIndex];
+    final colors = Theme.of(context).colorScheme;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: () =>
+            setState(() => _pageIndex = (_pageIndex + 1) % pages.length),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          child: Column(
+            children: <Widget>[
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 220),
+                switchInCurve: Curves.easeOut,
+                switchOutCurve: Curves.easeIn,
+                child: Row(
+                  key: ValueKey<String>('${page.semanticLabel}:${page.value}'),
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Icon(
+                      page.icon,
+                      size: 14,
+                      color: colors.onSurfaceVariant.withValues(alpha: 0.72),
+                    ),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        page.value,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: colors.onSurfaceVariant.withValues(
+                            alpha: 0.82,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NowPlayingInfoPage {
+  const _NowPlayingInfoPage({
+    required this.icon,
+    required this.semanticLabel,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String semanticLabel;
+  final String value;
+}
+
+String _formatAudioQuality({
+  required SongsTableData? song,
+  required MediaItem? mediaItem,
+}) {
+  final extras = mediaItem?.extras;
+  final format =
+      (extras?['resolvedFormat'] as String?)?.trim().toUpperCase() ??
+      song?.suffix?.trim().toUpperCase() ??
+      _inferAudioFormat(song?.contentType);
+  final bitRate = (extras?['resolvedBitRate'] as int?) ?? song?.bitRate;
+  final descriptor = _audioDescriptor(format);
+
+  final parts = <String>[
+    if (format != null && format.isNotEmpty) format,
+    if (descriptor != null) descriptor,
+    if (bitRate != null && bitRate > 0) _formatBitRate(bitRate),
+  ];
+
+  if (parts.isEmpty) {
+    return '-';
+  }
+  return parts.join(' • ');
+}
+
+String? _inferAudioFormat(String? contentType) {
+  if (contentType == null || !contentType.contains('/')) {
+    return null;
+  }
+  final subtype = contentType.split('/').last.trim();
+  if (subtype.isEmpty) {
+    return null;
+  }
+  return subtype.toUpperCase();
+}
+
+String? _audioDescriptor(String? format) {
+  if (format == null || format.isEmpty) {
+    return null;
+  }
+
+  return switch (format.toLowerCase()) {
+    'flac' || 'alac' || 'wav' || 'aiff' || 'ape' => 'Lossless',
+    'mp3' || 'aac' || 'ogg' || 'opus' || 'm4a' => 'Compressed',
+    _ => null,
+  };
+}
+
+String _formatBitRate(int bitRate) {
+  if (bitRate >= 1024) {
+    final mbps = bitRate / 1024;
+    final text = mbps % 1 == 0
+        ? mbps.toStringAsFixed(0)
+        : mbps.toStringAsFixed(1);
+    return '$text Mb/s';
+  }
+  return '$bitRate Kb/s';
+}
+
+String _formatReleaseDate(SongsTableData? song, AlbumsTableData? album) {
+  final createdAt = song?.createdAt;
+  if (createdAt != null) {
+    return _formatDate(createdAt);
+  }
+  final year = album?.year;
+  if (year != null) {
+    return year.toString();
+  }
+  return '-';
+}
+
+String _formatQueuePosition(
+  AppLocalizations l10n,
+  PlaybackSnapshot playback,
+) {
+  final total = playback.queueSongIds.length;
+  if (total <= 0) {
+    return '-';
+  }
+
+  final current = ((playback.currentIndex ?? 0) + 1).clamp(1, total);
+  return l10n.nowPlayingQueuePosition(current, total);
+}
+
+String _formatDate(DateTime date) {
+  final day = date.day.toString().padLeft(2, '0');
+  final month = date.month.toString().padLeft(2, '0');
+  return '$day/$month/${date.year}';
+}
+
+String _formatPlaybackRate(double playbackSpeed) {
+  if ((playbackSpeed - 1).abs() < 0.001) {
+    return '-';
+  }
+  final speedValue = formatPlaybackSpeed(playbackSpeed).replaceAll('×', '');
+  return 'x$speedValue';
 }
 
 class _SeekBar extends ConsumerStatefulWidget {
@@ -870,6 +1069,7 @@ class _TransportControls extends ConsumerWidget {
 class _InlineLyrics extends ConsumerWidget {
   const _InlineLyrics({
     required this.songId,
+    super.key,
   });
 
   final String songId;
@@ -1054,12 +1254,14 @@ class _PlaybackSpeedSheetState extends ConsumerState<_PlaybackSpeedSheet> {
 
 class _ActionRow extends ConsumerStatefulWidget {
   const _ActionRow({
+    this.song,
     this.songId,
     this.isLiked = false,
     this.showLyrics = false,
     this.onLyricsToggle,
   });
 
+  final SongsTableData? song;
   final String? songId;
   final bool isLiked;
   final bool showLyrics;
@@ -1105,111 +1307,123 @@ class _ActionRowState extends ConsumerState<_ActionRow>
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final instantMix = ref.watch(instantMixProvider);
+    final smartQueue = ref.watch(smartQueueProvider);
+    final smartQueueAvailable =
+        ref.watch(smartQueueAvailableProvider).asData?.value ?? false;
+    final mixActive = instantMix.active || smartQueue.active;
+    final mixLoading = instantMix.refilling || smartQueue.refilling;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    final mixIcon = mixLoading
+        ? SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: mixActive
+                  ? colorScheme.primary
+                  : colorScheme.onSurfaceVariant,
+            ),
+          )
+        : Icon(
+            smartQueue.active && smartQueue.profile != null
+                ? smartQueue.profile!.icon
+                : (instantMix.active
+                      ? Icons.explore
+                      : (smartQueueAvailable
+                            ? Icons.auto_awesome_outlined
+                            : Icons.explore_outlined)),
+            color: mixActive
+                ? colorScheme.primary
+                : colorScheme.onSurfaceVariant,
+          );
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: <Widget>[
-        ScaleTransition(
-          scale: _likeScale,
-          child: IconButton(
-            icon: Icon(widget.isLiked ? Icons.favorite : Icons.favorite_border),
-            color: widget.isLiked
-                ? Theme.of(context).colorScheme.primary
-                : null,
-            tooltip: l10n.nowPlayingStar,
-            onPressed: widget.songId == null
-                ? null
-                : () {
-                    HapticFeedback.lightImpact();
-                    final handler = ref.read(audioHandlerProvider);
-                    handler?.toggleLike();
-                  },
+        _NowPlayingActionButton(
+          icon: Icon(
+            Icons.queue_music_outlined,
+            color: colorScheme.onSurfaceVariant,
           ),
+          label: l10n.nowPlayingQueue,
+          onTap: () => NavService.showQueue(context, ref),
         ),
-        IconButton(
+        _NowPlayingActionButton(
+          icon: mixIcon,
+          label: l10n.nowPlayingInstantMixLabel,
+          onTap: widget.songId == null
+              ? null
+              : () {
+                  if (smartQueueAvailable) {
+                    showMixModeSheet(context, seedSongId: widget.songId!);
+                  } else {
+                    ref.read(instantMixProvider.notifier).toggle(widget.songId);
+                  }
+                },
+        ),
+        _NowPlayingActionButton(
+          icon: ScaleTransition(
+            scale: _likeScale,
+            child: Icon(
+              widget.isLiked ? Icons.favorite : Icons.favorite_border,
+              color: widget.isLiked
+                  ? colorScheme.primary
+                  : colorScheme.onSurfaceVariant,
+            ),
+          ),
+          label: l10n.nowPlayingStar,
+          onTap: widget.songId == null
+              ? null
+              : () {
+                  HapticFeedback.lightImpact();
+                  final handler = ref.read(audioHandlerProvider);
+                  handler?.toggleLike();
+                },
+        ),
+        _NowPlayingActionButton(
           icon: Icon(
             widget.showLyrics ? Icons.lyrics : Icons.lyrics_outlined,
             color: widget.showLyrics
-                ? Theme.of(context).colorScheme.primary
-                : null,
+                ? colorScheme.primary
+                : colorScheme.onSurfaceVariant,
           ),
-          tooltip: l10n.nowPlayingLyrics,
-          onPressed: widget.songId == null ? null : widget.onLyricsToggle,
+          label: l10n.nowPlayingLyrics,
+          onTap: widget.songId == null ? null : widget.onLyricsToggle,
         ),
-        IconButton(
-          icon: const Icon(Icons.queue_music),
-          tooltip: l10n.nowPlayingQueue,
-          onPressed: () => NavService.showQueue(context, ref),
+        _NowPlayingActionButton(
+          icon: Icon(
+            Icons.settings_outlined,
+            color: colorScheme.onSurfaceVariant,
+          ),
+          label: l10n.settingsTitle,
+          onTap: () => _showNowPlayingSettingsSheet(context, ref, widget.song),
         ),
-        IconButton(
-          icon: instantMix.refilling
-              ? SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: instantMix.active
-                        ? Theme.of(context).colorScheme.primary
-                        : null,
-                  ),
-                )
-              : Icon(
-                  instantMix.active ? Icons.explore : Icons.explore_outlined,
-                  color: instantMix.active
-                      ? Theme.of(context).colorScheme.primary
-                      : null,
-                ),
-          tooltip: instantMix.active
-              ? l10n.nowPlayingInstantMixActive
-              : l10n.nowPlayingInstantMix,
-          onPressed: widget.songId == null
-              ? null
-              : () =>
-                    ref.read(instantMixProvider.notifier).toggle(widget.songId),
-        ),
-        // Smart Queue button — visible only when AudioMuse NV plugin detected.
-        if (ref.watch(smartQueueAvailableProvider).asData?.value ?? false)
-          _SmartQueueButton(songId: widget.songId),
       ],
     );
   }
 }
 
-/// An [IconButton] that shows the Smart Queue sheet or stops an active session.
-class _SmartQueueButton extends ConsumerWidget {
-  const _SmartQueueButton({this.songId});
+class _NowPlayingActionButton extends StatelessWidget {
+  const _NowPlayingActionButton({
+    required this.icon,
+    required this.label,
+    this.onTap,
+  });
 
-  final String? songId;
+  final Widget icon;
+  final String label;
+  final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context)!;
-    final sq = ref.watch(smartQueueProvider);
-
-    return IconButton(
-      icon: sq.refilling
-          ? SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: sq.active ? Theme.of(context).colorScheme.primary : null,
-              ),
-            )
-          : Icon(
-              sq.active ? Icons.auto_awesome : Icons.auto_awesome_outlined,
-              color: sq.active ? Theme.of(context).colorScheme.primary : null,
-            ),
-      tooltip: sq.active ? l10n.smartQueueActive : l10n.smartQueueButton,
-      onPressed: songId == null
-          ? null
-          : () {
-              if (sq.active) {
-                ref.read(smartQueueProvider.notifier).deactivate();
-              } else {
-                showSmartQueueSheet(context, ref, seedSongId: songId!);
-              }
-            },
+  Widget build(BuildContext context) {
+    return Opacity(
+      opacity: onTap == null ? 0.42 : 1,
+      child: IconButton(
+        tooltip: label,
+        onPressed: onTap,
+        icon: icon,
+      ),
     );
   }
 }

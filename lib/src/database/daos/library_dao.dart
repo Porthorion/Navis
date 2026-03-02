@@ -154,6 +154,16 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
+  Stream<List<AlbumsTableData>> watchAlbumsSorted({
+    required AlbumSortOrder sort,
+    bool likedOnly = false,
+  }) {
+    if (!likedOnly) {
+      return _orderedAlbumsQuery(sort).watch();
+    }
+    return _watchAlbumsCustom(sort: sort, likedOnly: true);
+  }
+
   Stream<AlbumsTableData?> watchAlbumById(String albumId) {
     final query = select(albumsTable)
       ..where((table) => table.id.equals(albumId))
@@ -510,11 +520,13 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   }
 
   /// Watch songs ordered by play count descending.
-  Stream<List<SongsTableData>> watchMostPlayedSongs({int limit = 5}) {
+  Stream<List<SongsTableData>> watchMostPlayedSongs({int? limit = 5}) {
     final query = select(songsTable)
       ..where((t) => t.playCount.isBiggerThanValue(0))
-      ..orderBy([(t) => OrderingTerm.desc(t.playCount)])
-      ..limit(limit);
+      ..orderBy([(t) => OrderingTerm.desc(t.playCount)]);
+    if (limit != null) {
+      query.limit(limit);
+    }
     return query.watch();
   }
 

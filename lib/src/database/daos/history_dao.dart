@@ -62,20 +62,20 @@ class HistoryDao extends DatabaseAccessor<NavisDatabase>
   ///
   /// Joins play_history → songs → albums, deduplicates by album ID and
   /// returns distinct albums in most-recently-played order.
-  Stream<List<AlbumsTableData>> watchRecentlyPlayedAlbums({int limit = 20}) {
-    final query =
-        select(playHistoryTable).join([
-            innerJoin(
-              songsTable,
-              songsTable.id.equalsExp(playHistoryTable.songId),
-            ),
-            innerJoin(
-              albumsTable,
-              albumsTable.id.equalsExp(songsTable.albumId),
-            ),
-          ])
-          ..orderBy([OrderingTerm.desc(playHistoryTable.playedAt)])
-          ..limit(limit * 5);
+  Stream<List<AlbumsTableData>> watchRecentlyPlayedAlbums({int? limit = 20}) {
+    final query = select(playHistoryTable).join([
+      innerJoin(
+        songsTable,
+        songsTable.id.equalsExp(playHistoryTable.songId),
+      ),
+      innerJoin(
+        albumsTable,
+        albumsTable.id.equalsExp(songsTable.albumId),
+      ),
+    ])..orderBy([OrderingTerm.desc(playHistoryTable.playedAt)]);
+    if (limit != null) {
+      query.limit(limit * 5);
+    }
 
     return query.watch().map((rows) {
       final seen = <String>{};
@@ -84,7 +84,7 @@ class HistoryDao extends DatabaseAccessor<NavisDatabase>
         final album = row.readTable(albumsTable);
         if (seen.add(album.id)) {
           albums.add(album);
-          if (albums.length >= limit) break;
+          if (limit != null && albums.length >= limit) break;
         }
       }
       return albums;

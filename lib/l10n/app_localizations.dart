@@ -2031,11 +2031,23 @@ abstract class AppLocalizations {
   /// **'Queue'**
   String get nowPlayingQueue;
 
+  /// No description provided for @nowPlayingQueuePosition.
+  ///
+  /// In en, this message translates to:
+  /// **'Playing {current} of {total}'**
+  String nowPlayingQueuePosition(int current, int total);
+
   /// No description provided for @nowPlayingInstantMix.
   ///
   /// In en, this message translates to:
   /// **'Start Instant Mix'**
   String get nowPlayingInstantMix;
+
+  /// No description provided for @nowPlayingInstantMixLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Instant Mix'**
+  String get nowPlayingInstantMixLabel;
 
   /// No description provided for @nowPlayingInstantMixStop.
   ///
@@ -2048,6 +2060,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Instant Mix — tap to stop'**
   String get nowPlayingInstantMixActive;
+
+  /// No description provided for @nowPlayingInstantMixDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Classic similar-song queueing'**
+  String get nowPlayingInstantMixDescription;
 
   /// No description provided for @nowPlayingInstantMixStarted.
   ///
@@ -2066,6 +2084,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Couldn\'t start Instant Mix.'**
   String get nowPlayingInstantMixError;
+
+  /// No description provided for @nowPlayingMixTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Queue modes'**
+  String get nowPlayingMixTitle;
+
+  /// No description provided for @nowPlayingMixSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose how similar tracks should be added next.'**
+  String get nowPlayingMixSubtitle;
 
   /// No description provided for @nowPlayingMore.
   ///
@@ -2090,6 +2120,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Audio quality'**
   String get nowPlayingAudioQuality;
+
+  /// No description provided for @nowPlayingReleaseDate.
+  ///
+  /// In en, this message translates to:
+  /// **'Release date'**
+  String get nowPlayingReleaseDate;
 
   /// No description provided for @lyricsTitle.
   ///

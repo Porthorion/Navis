@@ -55,6 +55,10 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final album = ref.watch(albumProvider(widget.albumId));
+    final downloadedOnly = ref.watch(downloadedOnlyFilterProvider);
+    final downloadedSongIds = downloadedOnly
+        ? ref.watch(downloadedSongIdsProvider).asData?.value ?? const <String>{}
+        : const <String>{};
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.albumDetailTitle)),
@@ -69,9 +73,17 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
           }
           final details = data.album;
           final songs = data.songs;
-          final filteredSongs = _showLikedOnly
-              ? songs.where((song) => song.starred != null).toList()
-              : songs;
+          final filteredSongs = songs
+              .where((song) {
+                if (_showLikedOnly && song.starred == null) {
+                  return false;
+                }
+                if (downloadedOnly && !downloadedSongIds.contains(song.id)) {
+                  return false;
+                }
+                return true;
+              })
+              .toList(growable: false);
           final isStarred = _isStarred || details.starred != null;
           final coverArtHeroTag = buildCoverArtHeroTag(
             coverArtId: details.coverArt,
@@ -80,7 +92,13 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
           final tracksSliver = filteredSongs.isEmpty
               ? SliverFillRemaining(
                   hasScrollBody: false,
-                  child: _showLikedOnly && isStarred
+                  child: downloadedOnly
+                      ? EmptyState(
+                          title: l10n.libraryDownloadedOnlyEmpty,
+                          subtitle: l10n.libraryDownloadedOnlyEmptySubtitle,
+                          icon: Icons.download_done_outlined,
+                        )
+                      : _showLikedOnly && isStarred
                       ? Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: <Widget>[
@@ -197,6 +215,20 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                           ),
                         ),
                       ),
+                    if (downloadedOnly)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Chip(
+                            label: Text(l10n.libraryDownloadedOnlyFilter),
+                            avatar: const Icon(
+                              Icons.download_done,
+                              size: 18,
+                            ),
+                          ),
+                        ),
+                      ),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       child: Wrap(
@@ -307,9 +339,9 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
     }
 
     await _runQueueAction(() async {
-      await ref
-          .read(queueProvider.notifier)
-          .replace(<String>[song.id], startIndex: 0, autoPlay: true);
+      await ref.read(queueProvider.notifier).replace(<String>[
+        song.id,
+      ], autoPlay: true);
     });
   }
 
