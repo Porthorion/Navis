@@ -2201,6 +2201,19 @@ class NavisAudioHandler extends BaseAudioHandler
     final extras = <String, Object?>{...?current.extras};
     final isLiked = extras['liked'] as bool? ?? false;
 
+    // Optimistic update — update DB and UI immediately before the API call.
+    extras['liked'] = !isLiked;
+    final updated = current.copyWith(extras: extras);
+    _queueItems[index] = updated;
+    await _libraryDao.updateSongStarred(
+      current.id,
+      !isLiked ? DateTime.now() : null,
+    );
+    queue.add(List<MediaItem>.unmodifiable(_queueItems));
+    mediaItem.add(updated);
+    _broadcastPlaybackState();
+    _emitSnapshot();
+
     try {
       if (isLiked) {
         await api.unstar(current.id);
@@ -2208,26 +2221,26 @@ class NavisAudioHandler extends BaseAudioHandler
         await api.star(current.id);
       }
     } on SubsonicConnectionException {
-      // Offline — queue for retry and keep the optimistic UI.
+      // Offline — queue for retry and keep the optimistic UI (DB already updated).
       await _starSyncDao.queueStarAction(
         itemId: current.id,
         itemType: 'song',
         action: isLiked ? 'unstar' : 'star',
       );
+    } on Object {
+      // API error — rollback the optimistic update.
+      extras['liked'] = isLiked;
+      final rolledBack = current.copyWith(extras: extras);
+      _queueItems[index] = rolledBack;
+      await _libraryDao.updateSongStarred(
+        current.id,
+        isLiked ? DateTime.now() : null,
+      );
+      queue.add(List<MediaItem>.unmodifiable(_queueItems));
+      mediaItem.add(rolledBack);
+      _broadcastPlaybackState();
+      _emitSnapshot();
     }
-
-    extras['liked'] = !isLiked;
-    final updated = current.copyWith(extras: extras);
-    _queueItems[index] = updated;
-    final likedNow = extras['liked'] as bool? ?? false;
-    await _libraryDao.updateSongStarred(
-      current.id,
-      likedNow ? DateTime.now() : null,
-    );
-    queue.add(List<MediaItem>.unmodifiable(_queueItems));
-    mediaItem.add(updated);
-    _broadcastPlaybackState();
-    _emitSnapshot();
   }
 
   Future<void> disposeHandler() async {

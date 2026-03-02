@@ -1942,4 +1942,48 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get smartQueueEnergyFlowDesc =>
       'Let the mood gradually evolve track by track';
+
+  @override
+  String get songStatusQueued => 'Queued for download';
+
+  @override
+  String get songStatusDownloading => 'Downloading…';
+
+  @override
+  String get songStatusDownloaded => 'Downloaded';
+
+  @override
+  String get songStatusCachedTooltip =>
+      'Temporarily cached — will be removed when cache fills up or when the track is downloaded';
+
+  @override
+  String get downloadsRemoveConfirmTitle => 'Remove download?';
+
+  @override
+  String get downloadsRemoveConfirmContent =>
+      'The downloaded file will be permanently deleted.';
+
+  @override
+  String get deleteDownloadAction => 'Delete download';
+
+  @override
+  String get libraryAlbumMenuPlay => 'Play album';
+
+  @override
+  String get libraryAlbumMenuAddToQueue => 'Add to queue';
+
+  @override
+  String get libraryAlbumMenuLike => 'Like album';
+
+  @override
+  String get libraryAlbumMenuUnlike => 'Unlike album';
+
+  @override
+  String get libraryAlbumMenuDownload => 'Download album';
+
+  @override
+  String get libraryAlbumPlayQueued => 'Album queued to play';
+
+  @override
+  String get libraryAlbumAddedToQueue => 'Album added to queue';
 }

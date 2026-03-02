@@ -69,7 +69,7 @@ class NavisDatabase extends _$NavisDatabase {
   static QueryExecutor _openConnection() => driftDatabase(name: 'navis.sqlite');
 
   @override
-  int get schemaVersion => 24;
+  int get schemaVersion => 25;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -159,6 +159,9 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 24 && to >= 24) {
       await from23To24(migrator);
+    }
+    if (from < 25 && to >= 25) {
+      await from24To25(migrator);
     }
   }
 
@@ -472,6 +475,72 @@ class NavisDatabase extends _$NavisDatabase {
     if (!await _columnExists('albums', 'synced_at')) {
       await migrator.addColumn(albumsTable, albumsTable.syncedAt);
     }
+  }
+
+  /// Migration v24 → v25:
+  /// 1. Recreate `cached_tracks` without the CASCADE FK to `songs` so that
+  ///    library sync (which deletes + re-inserts songs) no longer destroys
+  ///    download records.
+  /// 2. Recreate `download_queue` without FKs and add `retry_count` column.
+  Future<void> from24To25(Migrator migrator) async {
+    // --- cached_tracks: drop CASCADE FK ---
+    await customStatement('PRAGMA foreign_keys = OFF;');
+
+    await customStatement('''
+      CREATE TABLE IF NOT EXISTS cached_tracks_new (
+        song_id TEXT NOT NULL PRIMARY KEY,
+        file_path TEXT NOT NULL,
+        file_size INTEGER NOT NULL,
+        format TEXT NOT NULL,
+        bit_rate INTEGER,
+        last_accessed_at INTEGER NOT NULL,
+        cache_type TEXT NOT NULL,
+        download_status TEXT NOT NULL
+      );
+    ''');
+    await customStatement('''
+      INSERT OR IGNORE INTO cached_tracks_new
+        (song_id, file_path, file_size, format, bit_rate,
+         last_accessed_at, cache_type, download_status)
+      SELECT song_id, file_path, file_size, format, bit_rate,
+             last_accessed_at, cache_type, download_status
+      FROM cached_tracks;
+    ''');
+    await customStatement('DROP TABLE IF EXISTS cached_tracks;');
+    await customStatement(
+      'ALTER TABLE cached_tracks_new RENAME TO cached_tracks;',
+    );
+
+    // --- download_queue: drop FKs, add retry_count ---
+    await customStatement('''
+      CREATE TABLE IF NOT EXISTS download_queue_new (
+        id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+        song_id TEXT,
+        album_id TEXT,
+        playlist_id TEXT,
+        quality TEXT,
+        format TEXT,
+        status TEXT NOT NULL,
+        progress REAL NOT NULL DEFAULT 0,
+        added_at INTEGER NOT NULL,
+        priority INTEGER NOT NULL DEFAULT 0,
+        retry_count INTEGER NOT NULL DEFAULT 0
+      );
+    ''');
+    await customStatement('''
+      INSERT OR IGNORE INTO download_queue_new
+        (id, song_id, album_id, playlist_id, quality, format,
+         status, progress, added_at, priority, retry_count)
+      SELECT id, song_id, album_id, playlist_id, quality, format,
+             status, progress, added_at, priority, 0
+      FROM download_queue;
+    ''');
+    await customStatement('DROP TABLE IF EXISTS download_queue;');
+    await customStatement(
+      'ALTER TABLE download_queue_new RENAME TO download_queue;',
+    );
+
+    await customStatement('PRAGMA foreign_keys = ON;');
   }
 
   Future<void> _ensureAppSettingsDefaults() {

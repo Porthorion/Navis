@@ -3458,6 +3458,90 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Let the mood gradually evolve track by track'**
   String get smartQueueEnergyFlowDesc;
+
+  /// No description provided for @songStatusQueued.
+  ///
+  /// In en, this message translates to:
+  /// **'Queued for download'**
+  String get songStatusQueued;
+
+  /// No description provided for @songStatusDownloading.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading…'**
+  String get songStatusDownloading;
+
+  /// No description provided for @songStatusDownloaded.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloaded'**
+  String get songStatusDownloaded;
+
+  /// No description provided for @songStatusCachedTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Temporarily cached — will be removed when cache fills up or when the track is downloaded'**
+  String get songStatusCachedTooltip;
+
+  /// No description provided for @downloadsRemoveConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove download?'**
+  String get downloadsRemoveConfirmTitle;
+
+  /// No description provided for @downloadsRemoveConfirmContent.
+  ///
+  /// In en, this message translates to:
+  /// **'The downloaded file will be permanently deleted.'**
+  String get downloadsRemoveConfirmContent;
+
+  /// No description provided for @deleteDownloadAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete download'**
+  String get deleteDownloadAction;
+
+  /// No description provided for @libraryAlbumMenuPlay.
+  ///
+  /// In en, this message translates to:
+  /// **'Play album'**
+  String get libraryAlbumMenuPlay;
+
+  /// No description provided for @libraryAlbumMenuAddToQueue.
+  ///
+  /// In en, this message translates to:
+  /// **'Add to queue'**
+  String get libraryAlbumMenuAddToQueue;
+
+  /// No description provided for @libraryAlbumMenuLike.
+  ///
+  /// In en, this message translates to:
+  /// **'Like album'**
+  String get libraryAlbumMenuLike;
+
+  /// No description provided for @libraryAlbumMenuUnlike.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlike album'**
+  String get libraryAlbumMenuUnlike;
+
+  /// No description provided for @libraryAlbumMenuDownload.
+  ///
+  /// In en, this message translates to:
+  /// **'Download album'**
+  String get libraryAlbumMenuDownload;
+
+  /// No description provided for @libraryAlbumPlayQueued.
+  ///
+  /// In en, this message translates to:
+  /// **'Album queued to play'**
+  String get libraryAlbumPlayQueued;
+
+  /// No description provided for @libraryAlbumAddedToQueue.
+  ///
+  /// In en, this message translates to:
+  /// **'Album added to queue'**
+  String get libraryAlbumAddedToQueue;
 }
 
 class _AppLocalizationsDelegate

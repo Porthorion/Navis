@@ -1,17 +1,22 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/album_context_menu.dart';
 import 'package:navis/src/common_widgets/album_download_badge.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
-import 'package:navis/src/common_widgets/song_cache_badge.dart';
+import 'package:navis/src/common_widgets/song_context_menu.dart';
+import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/common_widgets/track_list_tile.dart';
+import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
 class GenreDetailScreen extends ConsumerWidget {
@@ -71,6 +76,8 @@ class GenreDetailScreen extends ConsumerWidget {
                         album: album,
                         badge: AlbumDownloadBadge(albumId: album.id),
                         onTap: () => context.go('/library/albums/${album.id}'),
+                        onLongPress: () =>
+                            showAlbumContextMenu(context, ref, album.id),
                       );
                     },
                   );
@@ -104,9 +111,42 @@ class GenreDetailScreen extends ConsumerWidget {
                     physics: const AlwaysScrollableScrollPhysics(),
                     itemCount: items.length,
                     itemBuilder: (context, index) {
+                      final song = items[index];
                       return TrackListTile(
-                        song: items[index],
-                        badge: SongCacheBadge(songId: items[index].id),
+                        song: song,
+                        onTap: () => ref.read(queueProvider.notifier).replace(
+                          <String>[song.id],
+                        ).ignore(),
+                        onLongPress: () =>
+                            showSongContextMenu(context, ref, song),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            SongDownloadStatusIcon(
+                              songId: song.id,
+                              onDownload: () => unawaited(() async {
+                                final choice = await showDownloadQualitySheet(
+                                  context,
+                                );
+                                if (choice == null || !context.mounted) return;
+                                unawaited(
+                                  ref
+                                      .read(downloadServiceProvider)
+                                      .enqueueSong(
+                                        song.id,
+                                        quality: choice.quality,
+                                        format: choice.format,
+                                      ),
+                                );
+                              }()),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.more_vert),
+                              onPressed: () =>
+                                  showSongContextMenu(context, ref, song),
+                            ),
+                          ],
+                        ),
                       );
                     },
                   );

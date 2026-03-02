@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/subsonic_error.dart';
+import 'package:navis/src/common_widgets/album_context_menu.dart';
 import 'package:navis/src/common_widgets/album_download_badge.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
@@ -13,10 +14,12 @@ import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
-import 'package:navis/src/common_widgets/song_cache_badge.dart';
+import 'package:navis/src/common_widgets/song_context_menu.dart';
+import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_browse_models.dart';
 import 'package:navis/src/features/library/presentation/radio_screen.dart';
@@ -612,7 +615,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                                   .registerAlbumInteraction(album.id);
                               context.go('/library/albums/${album.id}');
                             },
-                            onLongPress: () => _showAlbumMenu(context, album),
+                            onLongPress: () =>
+                                showAlbumContextMenu(context, ref, album.id),
                           ),
                         );
                       }, childCount: filteredItems.length),
@@ -833,7 +837,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
               .registerAlbumInteraction(album.id);
           context.go('/library/albums/${album.id}');
         },
-        onLongPress: () => _showAlbumMenu(context, album),
+        onLongPress: () => showAlbumContextMenu(context, ref, album.id),
       ),
     );
   }
@@ -953,7 +957,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                               .registerAlbumInteraction(album.id);
                           context.go('/library/albums/${album.id}?likedOnly=1');
                         },
-                        onLongPress: () => _showAlbumMenu(context, album),
+                        onLongPress: () =>
+                            showAlbumContextMenu(context, ref, album.id),
                       ),
                     );
                   }, childCount: albums.length),
@@ -976,18 +981,51 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                   return TrackListTile(
                     song: song,
                     showAlbumArt: true,
-                    badge: SongCacheBadge(songId: song.id),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        SongDownloadStatusIcon(
+                          songId: song.id,
+                          onDownload: () => unawaited(_downloadLikedSong(song)),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.more_vert),
+                          onPressed: () =>
+                              showSongContextMenu(this.context, ref, song),
+                        ),
+                      ],
+                    ),
                     onTap: () {
                       ref.read(queueProvider.notifier).replace([
                         song.id,
                       ]).ignore();
                     },
+                    onLongPress: () =>
+                        showSongContextMenu(this.context, ref, song),
                   );
                 }, childCount: songs.length),
               ),
           ],
         ],
       ),
+    );
+  }
+
+  Future<void> _downloadLikedSong(SongsTableData song) async {
+    final choice = await showDownloadQualitySheet(context);
+    if (choice == null || !mounted) return;
+    final service = ref.read(downloadServiceProvider);
+    unawaited(
+      service.enqueueSong(
+        song.id,
+        quality: choice.quality,
+        format: choice.format,
+      ),
+    );
+    if (!mounted) return;
+    final l10n = AppLocalizations.of(context)!;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(l10n.downloadSongQueued)),
     );
   }
 
@@ -1318,17 +1356,18 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     final api = ref.read(subsonicApiProvider);
     if (api == null) return;
     final isStarred = album.starred != null;
+    // DB update first so all watching streams update immediately (before API ~300ms).
+    final dao = ref.read(navisDatabaseProvider).libraryDao;
+    await dao.updateAlbumStarred(
+      album.id,
+      isStarred ? null : DateTime.now(),
+    );
     try {
       if (isStarred) {
         await api.unstar(album.id);
       } else {
         await api.star(album.id);
       }
-      final dao = ref.read(navisDatabaseProvider).libraryDao;
-      await dao.updateAlbumStarred(
-        album.id,
-        isStarred ? null : DateTime.now(),
-      );
     } on SubsonicConnectionException {
       if (!mounted) return;
       final db = ref.read(navisDatabaseProvider);
@@ -1337,12 +1376,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         itemType: 'album',
         action: isStarred ? 'unstar' : 'star',
       );
-      await db.libraryDao.updateAlbumStarred(
-        album.id,
-        isStarred ? null : DateTime.now(),
-      );
     } on Object {
       if (!mounted) return;
+      // Rollback the optimistic DB update on failure.
+      await dao.updateAlbumStarred(
+        album.id,
+        isStarred ? DateTime.now() : null,
+      );
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.albumDetailStarFailure)),
       );
@@ -1354,17 +1394,18 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     final api = ref.read(subsonicApiProvider);
     if (api == null) return;
     final isStarred = artist.starred != null;
+    // DB update first so all watching streams update immediately (before API ~300ms).
+    final dao = ref.read(navisDatabaseProvider).libraryDao;
+    await dao.updateArtistStarred(
+      artist.id,
+      isStarred ? null : DateTime.now(),
+    );
     try {
       if (isStarred) {
         await api.unstar(artist.id);
       } else {
         await api.star(artist.id);
       }
-      final dao = ref.read(navisDatabaseProvider).libraryDao;
-      await dao.updateArtistStarred(
-        artist.id,
-        isStarred ? null : DateTime.now(),
-      );
     } on SubsonicConnectionException {
       if (!mounted) return;
       final db = ref.read(navisDatabaseProvider);
@@ -1373,46 +1414,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         itemType: 'artist',
         action: isStarred ? 'unstar' : 'star',
       );
-      await db.libraryDao.updateArtistStarred(
-        artist.id,
-        isStarred ? null : DateTime.now(),
-      );
     } on Object {
       if (!mounted) return;
+      // Rollback the optimistic DB update on failure.
+      await dao.updateArtistStarred(
+        artist.id,
+        isStarred ? DateTime.now() : null,
+      );
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.albumDetailStarFailure)),
       );
     }
-  }
-
-  Future<void> _showAlbumMenu(
-    BuildContext context,
-    AlbumsTableData album,
-  ) async {
-    final l10n = AppLocalizations.of(context)!;
-    await showModalBottomSheet<void>(
-      context: context,
-      builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              ListTile(
-                leading: const Icon(Icons.open_in_new_outlined),
-                title: Text(l10n.libraryAlbumMenuOpen),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  ref
-                      .read(librarySyncControllerProvider.notifier)
-                      .registerAlbumInteraction(album.id);
-                  this.context.go('/library/albums/${album.id}');
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
   }
 
   Future<void> _showArtistMenu(
@@ -2223,7 +2235,7 @@ class LikedAlbumsAllScreen extends ConsumerWidget {
                             );
                           },
                           onLongPress: () =>
-                              _showAlbumMenu(context, ref, album, l10n),
+                              showAlbumContextMenu(context, ref, album.id),
                         ),
                       );
                     }, childCount: albums.length),
@@ -2232,35 +2244,6 @@ class LikedAlbumsAllScreen extends ConsumerWidget {
               ],
             );
           },
-        ),
-      ),
-    );
-  }
-
-  Future<void> _showAlbumMenu(
-    BuildContext context,
-    WidgetRef ref,
-    AlbumsTableData album,
-    AppLocalizations l10n,
-  ) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      builder: (_) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.open_in_new_outlined),
-              title: Text(l10n.libraryAlbumMenuOpen),
-              onTap: () {
-                Navigator.of(context).pop();
-                ref
-                    .read(librarySyncControllerProvider.notifier)
-                    .registerAlbumInteraction(album.id);
-                GoRouter.of(context).push('/library/albums/${album.id}');
-              },
-            ),
-          ],
         ),
       ),
     );

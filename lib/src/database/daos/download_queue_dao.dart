@@ -93,7 +93,52 @@ class DownloadQueueDao extends DatabaseAccessor<NavisDatabase>
           const DownloadQueueTableCompanion(
             status: Value(DownloadStatus.queued),
             progress: Value(0),
+            retryCount: Value(0),
           ),
         );
+  }
+
+  /// Return the set of songIds that are currently queued or downloading.
+  Future<Set<String>> getActiveSongIds() async {
+    final query = selectOnly(downloadQueueTable)
+      ..where(
+        downloadQueueTable.status.isIn([
+          DownloadStatus.queued.name,
+          DownloadStatus.downloading.name,
+        ]),
+      )
+      ..addColumns([downloadQueueTable.songId]);
+    final rows = await query.get();
+    return rows
+        .map((r) => r.read(downloadQueueTable.songId))
+        .whereType<String>()
+        .toSet();
+  }
+
+  /// Batch-insert multiple queue items in a single transaction.
+  Future<void> enqueueBatch(
+    List<DownloadQueueTableCompanion> companions,
+  ) async {
+    if (companions.isEmpty) return;
+    await batch((b) {
+      b.insertAll(downloadQueueTable, companions);
+    });
+  }
+
+  /// Increment the retry count for a queue item.
+  Future<void> incrementRetryCount(int id) {
+    return customStatement(
+      'UPDATE download_queue SET retry_count = retry_count + 1 WHERE id = ?',
+      [id],
+    );
+  }
+
+  /// Update status and increment retry count atomically.
+  Future<void> markForRetry(int id) async {
+    await customStatement(
+      'UPDATE download_queue SET status = ?, progress = 0, '
+      'retry_count = retry_count + 1 WHERE id = ?',
+      [DownloadStatus.queued.name, id],
+    );
   }
 }

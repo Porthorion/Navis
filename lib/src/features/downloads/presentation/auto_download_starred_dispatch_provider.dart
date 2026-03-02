@@ -73,11 +73,17 @@ class AutoDownloadStarredDispatchController extends Notifier<int> {
       final service = ref.read(downloadServiceProvider);
       final likedAlbums = await db.libraryDao.getLikedAlbums();
       final likedSongs = await db.libraryDao.getAllStarredSongs();
+
+      // Use batch enqueue — each call does a single bulk insert internally,
+      // so sequential awaits here are fine (2 DB round-trips per album, not
+      // 3n). This also avoids blocking the UI because the service only writes
+      // to the DB; actual downloading is handled by the background loop.
       for (final album in likedAlbums) {
         await service.enqueueAlbum(album.id);
       }
       for (final song in likedSongs) {
-        await service.enqueueSong(song.id);
+        // Fire-and-forget individual songs — enqueueSong is lightweight.
+        unawaited(service.enqueueSong(song.id));
       }
     } finally {
       _isDispatching = false;

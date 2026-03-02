@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
+import 'package:navis/src/common_widgets/album_context_menu.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
+import 'package:navis/src/common_widgets/song_context_menu.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
@@ -221,14 +224,14 @@ class _HomeSection<T> extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Carousel for [Album] objects coming from the server API.
-class _ServerAlbumCarousel extends StatelessWidget {
+class _ServerAlbumCarousel extends ConsumerWidget {
   const _ServerAlbumCarousel({required this.albums, required this.onTap});
 
   final List<Album> albums;
   final void Function(Album album) onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return SizedBox(
       height: 150,
       child: ListView.separated(
@@ -247,6 +250,7 @@ class _ServerAlbumCarousel extends StatelessWidget {
               context: 'album',
             ),
             onTap: () => onTap(album),
+            onLongPress: () => showAlbumContextMenu(context, ref, album.id),
           );
         },
       ),
@@ -255,14 +259,14 @@ class _ServerAlbumCarousel extends StatelessWidget {
 }
 
 /// Carousel for [AlbumsTableData] objects from the local database.
-class _LocalAlbumCarousel extends StatelessWidget {
+class _LocalAlbumCarousel extends ConsumerWidget {
   const _LocalAlbumCarousel({required this.albums, required this.onTap});
 
   final List<AlbumsTableData> albums;
   final void Function(AlbumsTableData album) onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return SizedBox(
       height: 150,
       child: ListView.separated(
@@ -280,6 +284,7 @@ class _LocalAlbumCarousel extends StatelessWidget {
               context: 'album',
             ),
             onTap: () => onTap(album),
+            onLongPress: () => showAlbumContextMenu(context, ref, album.id),
           );
         },
       ),
@@ -296,6 +301,7 @@ class _ServerAlbumCard extends StatelessWidget {
     this.coverArtId,
     this.heroTag,
     this.onTap,
+    this.onLongPress,
   });
 
   final String name;
@@ -303,6 +309,7 @@ class _ServerAlbumCard extends StatelessWidget {
   final String? coverArtId;
   final String? heroTag;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -318,6 +325,12 @@ class _ServerAlbumCard extends StatelessWidget {
           ),
           child: InkWell(
             onTap: onTap,
+            onLongPress: onLongPress == null
+                ? null
+                : () {
+                    HapticFeedback.mediumImpact();
+                    onLongPress!();
+                  },
             child: Stack(
               fit: StackFit.expand,
               children: <Widget>[
@@ -397,7 +410,7 @@ class _ServerAlbumCard extends StatelessWidget {
 // Song list section (vertical list of song tiles)
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _SongListSection extends StatelessWidget {
+class _SongListSection extends ConsumerWidget {
   const _SongListSection({
     required this.songs,
     required this.onTap,
@@ -407,7 +420,7 @@ class _SongListSection extends StatelessWidget {
   final void Function(SongsTableData song) onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Column(
@@ -437,6 +450,7 @@ class _SongListSection extends StatelessWidget {
               ),
               dense: true,
               onTap: () => onTap(song),
+              onLongPress: () => showSongContextMenu(context, ref, song),
             ),
         ],
       ),
