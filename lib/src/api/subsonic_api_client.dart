@@ -384,7 +384,11 @@ class SubsonicApiClient {
       query: {'id': id},
       cancelToken: cancelToken,
     );
-    return Playlist.fromJson(_asMap(root['playlist']));
+    final playlist = _asMap(root['playlist']);
+    return Playlist.fromJson(<String, dynamic>{
+      ...playlist,
+      'entries': _asMapList(playlist['entry']),
+    });
   }
 
   Future<Playlist> createPlaylist(
@@ -403,7 +407,10 @@ class SubsonicApiClient {
 
     final playlist = _asMap(root['playlist']);
     if (playlist.isNotEmpty) {
-      return Playlist.fromJson(playlist);
+      return Playlist.fromJson(<String, dynamic>{
+        ...playlist,
+        'entries': _asMapList(playlist['entry']),
+      });
     }
 
     return Playlist(id: 'created', name: name, entries: const <Song>[]);
@@ -434,7 +441,10 @@ class SubsonicApiClient {
 
     final playlist = _asMap(root['playlist']);
     if (playlist.isNotEmpty) {
-      return Playlist.fromJson(playlist);
+      return Playlist.fromJson(<String, dynamic>{
+        ...playlist,
+        'entries': _asMapList(playlist['entry']),
+      });
     }
 
     return Playlist(id: id, name: name ?? 'playlist', entries: const <Song>[]);

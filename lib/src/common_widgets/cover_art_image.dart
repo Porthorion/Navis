@@ -138,8 +138,23 @@ class CoverArtImage extends ConsumerWidget {
         shape: circular ? BoxShape.circle : BoxShape.rectangle,
       ),
       alignment: Alignment.center,
-      child: Icon(placeholderIcon),
+      child: Icon(
+        placeholderIcon,
+        size: _placeholderIconSize,
+        color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(
+          alpha: 0.5,
+        ),
+      ),
     );
+  }
+
+  /// Scale the placeholder icon relative to the container but keep a sane min.
+  double get _placeholderIconSize {
+    final w = width ?? 48;
+    final h = height ?? 48;
+    final dim = w < h ? w : h;
+    final scaled = dim * 0.4;
+    return scaled < 20 ? 20 : scaled;
   }
 
   /// Compute a memory-cache dimension to keep decoded images small in RAM.

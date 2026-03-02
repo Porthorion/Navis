@@ -1092,13 +1092,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String get nowPlayingQueue => 'Queue';
 
   @override
+  String nowPlayingQueuePosition(int current, int total) {
+    return 'Playing $current of $total';
+  }
+
+  @override
   String get nowPlayingInstantMix => 'Start Instant Mix';
+
+  @override
+  String get nowPlayingInstantMixLabel => 'Instant Mix';
 
   @override
   String get nowPlayingInstantMixStop => 'Stop Instant Mix';
 
   @override
   String get nowPlayingInstantMixActive => 'Instant Mix — tap to stop';
+
+  @override
+  String get nowPlayingInstantMixDescription => 'Classic similar-song queueing';
 
   @override
   String nowPlayingInstantMixStarted(int count) {
@@ -1120,6 +1131,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get nowPlayingInstantMixError => 'Couldn\'t start Instant Mix.';
 
   @override
+  String get nowPlayingMixTitle => 'Queue modes';
+
+  @override
+  String get nowPlayingMixSubtitle =>
+      'Choose how similar tracks should be added next.';
+
+  @override
   String get nowPlayingMore => 'More options';
 
   @override
@@ -1130,6 +1148,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get nowPlayingAudioQuality => 'Audio quality';
+
+  @override
+  String get nowPlayingReleaseDate => 'Release date';
 
   @override
   String get lyricsTitle => 'Lyrics';

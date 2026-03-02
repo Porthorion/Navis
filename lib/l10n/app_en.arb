@@ -494,9 +494,18 @@
   "nowPlayingStar": "Like",
   "nowPlayingLyrics": "Lyrics",
   "nowPlayingQueue": "Queue",
+  "nowPlayingQueuePosition": "Playing {current} of {total}",
+  "@nowPlayingQueuePosition": {
+    "placeholders": {
+      "current": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
   "nowPlayingInstantMix": "Start Instant Mix",
+  "nowPlayingInstantMixLabel": "Instant Mix",
   "nowPlayingInstantMixStop": "Stop Instant Mix",
   "nowPlayingInstantMixActive": "Instant Mix — tap to stop",
+  "nowPlayingInstantMixDescription": "Classic similar-song queueing",
   "nowPlayingInstantMixStarted": "{count, plural, =0{No similar tracks found.} =1{Instant Mix started — 1 similar track queued.} other{Instant Mix started — {count} similar tracks queued.}}",
   "@nowPlayingInstantMixStarted": {
     "placeholders": {
@@ -505,10 +514,13 @@
   },
   "nowPlayingInstantMixUnsupported": "Your server doesn\u0027t support Instant Mix.",
   "nowPlayingInstantMixError": "Couldn\u0027t start Instant Mix.",
+  "nowPlayingMixTitle": "Queue modes",
+  "nowPlayingMixSubtitle": "Choose how similar tracks should be added next.",
   "nowPlayingMore": "More options",
   "nowPlayingGoToAlbum": "Go to album",
   "nowPlayingGoToArtist": "Go to artist",
   "nowPlayingAudioQuality": "Audio quality",
+  "nowPlayingReleaseDate": "Release date",
   "lyricsTitle": "Lyrics",
   "lyricsNoneAvailable": "No lyrics available",
   "lyricsError": "Could not load lyrics. Check your connection.",

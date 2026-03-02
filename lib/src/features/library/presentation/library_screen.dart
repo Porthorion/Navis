@@ -69,10 +69,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   String? _activeYearDecade;
   bool _isYearRailScrubbing = false;
   TabController? _tabController;
+  late final ProviderSubscription<int> _libraryScrollSubscription;
+  late final ProviderSubscription<bool> _downloadedOnlySubscription;
+  int _lastLibraryScrollRequest = 0;
 
   @override
   void initState() {
     super.initState();
+    _downloadedOnly = ref.read(downloadedOnlyFilterProvider);
     _albumsScrollController.addListener(_onAlbumsScroll);
     _artistsItemPositionsListener.itemPositions.addListener(
       _onArtistsViewportChanged,
@@ -80,10 +84,43 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     _yearItemPositionsListener.itemPositions.addListener(
       _onYearViewportChanged,
     );
+    _lastLibraryScrollRequest = ref.read(libraryScrollToTopRequestProvider);
+    _libraryScrollSubscription = ref.listenManual<int>(
+      libraryScrollToTopRequestProvider,
+      (previous, next) {
+        if (!mounted || next == _lastLibraryScrollRequest) {
+          return;
+        }
+        _lastLibraryScrollRequest = next;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) {
+            return;
+          }
+          _scrollCurrentTabToTop();
+        });
+      },
+    );
+    _downloadedOnlySubscription = ref.listenManual<bool>(
+      downloadedOnlyFilterProvider,
+      (previous, next) {
+        if (!mounted || next == _downloadedOnly) {
+          return;
+        }
+        setState(() {
+          _downloadedOnly = next;
+          _loadedAlbumPages = 1;
+          _cachedAlbums = null;
+          _yearListItems = const <_YearListItem>[];
+          _cachedYearSectionsSource = null;
+        });
+      },
+    );
   }
 
   @override
   void dispose() {
+    _libraryScrollSubscription.close();
+    _downloadedOnlySubscription.close();
     _tabController?.dispose();
     _albumsScrollController
       ..removeListener(_onAlbumsScroll)
@@ -106,6 +143,42 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         .syncNow(preferIncremental: true);
   }
 
+  void _updateDownloadedOnly(bool value) {
+    if (ref.read(downloadedOnlyFilterProvider) == value) {
+      return;
+    }
+    ref.read(downloadedOnlyFilterProvider.notifier).enabled = value;
+  }
+
+  void _animateScrollControllerToTop(ScrollController controller) {
+    if (!controller.hasClients) {
+      return;
+    }
+
+    final position = controller.position;
+    if (!position.hasContentDimensions) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        _animateScrollControllerToTop(controller);
+      });
+      return;
+    }
+
+    if (position.pixels <= position.minScrollExtent) {
+      return;
+    }
+
+    unawaited(
+      controller.animateTo(
+        position.minScrollExtent,
+        duration: const Duration(milliseconds: 450),
+        curve: Curves.easeOutCubic,
+      ),
+    );
+  }
+
   /// Scrolls whichever tab is currently selected back to the top.
   void _scrollCurrentTabToTop() {
     final tab = _tabController?.index ?? 0;
@@ -121,12 +194,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
             ),
           );
         }
-      } else if (_albumsScrollController.hasClients) {
-        _albumsScrollController.animateTo(
-          0,
-          duration: const Duration(milliseconds: 450),
-          curve: Curves.easeOutCubic,
-        );
+      } else {
+        _animateScrollControllerToTop(_albumsScrollController);
       }
       return;
     }
@@ -135,13 +204,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
     if (ref.read(showLikedPageProvider)) {
       if (tab == offset) {
-        if (_likedScrollController.hasClients) {
-          _likedScrollController.animateTo(
-            0,
-            duration: const Duration(milliseconds: 450),
-            curve: Curves.easeOutCubic,
-          );
-        }
+        _animateScrollControllerToTop(_likedScrollController);
         return;
       }
       offset++;
@@ -167,13 +230,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     if (ref.read(showPlaylistsPageProvider)) {
       if (tab == offset) {
         // Playlists
-        if (_playlistsScrollController.hasClients) {
-          _playlistsScrollController.animateTo(
-            0,
-            duration: const Duration(milliseconds: 450),
-            curve: Curves.easeOutCubic,
-          );
-        }
+        _animateScrollControllerToTop(_playlistsScrollController);
         return;
       }
       offset++;
@@ -182,13 +239,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     if (ref.read(showRadioPageProvider)) {
       if (tab == offset) {
         // Radio
-        if (_radioScrollController.hasClients) {
-          _radioScrollController.animateTo(
-            0,
-            duration: const Duration(milliseconds: 450),
-            curve: Curves.easeOutCubic,
-          );
-        }
+        _animateScrollControllerToTop(_radioScrollController);
       }
     }
   }
@@ -209,19 +260,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         (showRadioTab ? 1 : 0);
     final tabController = _ensureTabController(tabCount);
 
-    // Scroll the active tab to top when the Library nav icon is re-tapped.
-    ref.listen<int>(libraryScrollToTopRequestProvider, (prev, next) {
-      if (!mounted) return;
-      _scrollCurrentTabToTop();
-    });
-
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.libraryTitle),
         bottom: TabBar(
           controller: tabController,
-          isScrollable: true,
-          tabAlignment: TabAlignment.start,
+          isScrollable: tabCount > 3,
+          tabAlignment: tabCount > 3 ? TabAlignment.start : TabAlignment.fill,
           tabs: <Widget>[
             Tab(text: l10n.libraryTabAlbums),
             if (showLikedTab) Tab(text: l10n.libraryTabLiked),
@@ -306,7 +351,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
               FilterChip(
                 label: Text(l10n.libraryDownloadedOnlyFilter),
                 selected: _downloadedOnly,
-                onSelected: (value) => setState(() => _downloadedOnly = value),
+                onSelected: _updateDownloadedOnly,
                 avatar: Icon(
                   _downloadedOnly
                       ? Icons.download_done
@@ -471,7 +516,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     }
     final sortOrder = _toAlbumSortOrder(_albumSort);
     final albumsAsync = ref.watch(
-      pagedAlbumsProvider((sort: sortOrder, limit: limit)),
+      _downloadedOnly
+          ? sortedAlbumsProvider((sort: sortOrder, likedOnly: false))
+          : pagedAlbumsProvider((sort: sortOrder, limit: limit)),
     );
 
     // Preserve previous album data while loading a new page to avoid
@@ -572,9 +619,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                       }
                     },
                     downloadedOnly: _downloadedOnly,
-                    onDownloadedOnlyChanged: (value) {
-                      setState(() => _downloadedOnly = value);
-                    },
+                    onDownloadedOnlyChanged: _updateDownloadedOnly,
                   ),
                 ),
                 if (filteredItems.isEmpty)
@@ -703,13 +748,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
             });
           },
           downloadedOnly: _downloadedOnly,
-          onDownloadedOnlyChanged: (value) {
-            setState(() {
-              _downloadedOnly = value;
-              _yearListItems = const <_YearListItem>[];
-              _cachedYearSectionsSource = null;
-            });
-          },
+          onDownloadedOnlyChanged: _updateDownloadedOnly,
         ),
         Expanded(
           child: RefreshIndicator(
@@ -855,14 +894,36 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     // Full list used only for the total count; data is not rendered directly.
     final likedAlbumsAllAsync = ref.watch(likedAlbumsProvider);
     final likedSongsAsync = ref.watch(likedSongsProvider);
+    final downloadedContentIds = _downloadedOnly
+        ? ref.watch(downloadedContentIdsProvider).asData?.value
+        : null;
+    final downloadedSongIds = _downloadedOnly
+        ? ref.watch(downloadedSongIdsProvider).asData?.value
+        : null;
 
     final isLoading =
         likedAlbumsRecentAsync.isLoading || likedSongsAsync.isLoading;
-    final albums =
-        likedAlbumsRecentAsync.asData?.value ?? const <AlbumsTableData>[];
-    final totalAlbumCount =
-        likedAlbumsAllAsync.asData?.value.length ?? albums.length;
-    final songs = likedSongsAsync.asData?.value ?? const <SongsTableData>[];
+    final albums = _downloadedOnly
+        ? (likedAlbumsRecentAsync.asData?.value ?? const <AlbumsTableData>[])
+              .where(
+                (album) =>
+                    downloadedContentIds?.albumIds.contains(album.id) ?? false,
+              )
+              .toList(growable: false)
+        : likedAlbumsRecentAsync.asData?.value ?? const <AlbumsTableData>[];
+    final totalAlbumCount = _downloadedOnly
+        ? (likedAlbumsAllAsync.asData?.value ?? const <AlbumsTableData>[])
+              .where(
+                (album) =>
+                    downloadedContentIds?.albumIds.contains(album.id) ?? false,
+              )
+              .length
+        : likedAlbumsAllAsync.asData?.value.length ?? albums.length;
+    final songs = _downloadedOnly
+        ? (likedSongsAsync.asData?.value ?? const <SongsTableData>[])
+              .where((song) => downloadedSongIds?.contains(song.id) ?? false)
+              .toList(growable: false)
+        : likedSongsAsync.asData?.value ?? const <SongsTableData>[];
     final error = likedAlbumsRecentAsync.error ?? likedSongsAsync.error;
 
     if (error != null && albums.isEmpty && songs.isEmpty) {
@@ -907,9 +968,15 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
             SliverFillRemaining(
               hasScrollBody: false,
               child: EmptyState(
-                title: l10n.libraryLikedEmptyTitle,
-                subtitle: l10n.libraryLikedEmptySubtitle,
-                icon: Icons.favorite_border_outlined,
+                title: _downloadedOnly
+                    ? l10n.libraryDownloadedOnlyEmpty
+                    : l10n.libraryLikedEmptyTitle,
+                subtitle: _downloadedOnly
+                    ? l10n.libraryDownloadedOnlyEmptySubtitle
+                    : l10n.libraryLikedEmptySubtitle,
+                icon: _downloadedOnly
+                    ? Icons.download_done_outlined
+                    : Icons.favorite_border_outlined,
               ),
             )
           else ...<Widget>[
@@ -1002,9 +1069,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                       ],
                     ),
                     onTap: () {
-                      ref.read(queueProvider.notifier).replace([
+                      ref.read(queueProvider.notifier).replace(<String>[
                         song.id,
-                      ]).ignore();
+                      ], autoPlay: true).ignore();
                     },
                     onLongPress: () =>
                         showSongContextMenu(this.context, ref, song),
@@ -1880,15 +1947,42 @@ class _LibraryPlaylistsTab extends ConsumerStatefulWidget {
 
 class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
     with AutomaticKeepAliveClientMixin {
+  late final ProviderSubscription<AsyncValue<void>> _playlistSyncSubscription;
+
   @override
   bool get wantKeepAlive => true;
 
   @override
   void initState() {
     super.initState();
-    // No microtask invalidation here — ref.watch(playlistSyncProvider) in
-    // build already starts the fetch on first mount. The keepalive mixin
-    // prevents unnecessary remounts when switching tabs.
+    _playlistSyncSubscription = ref.listenManual<AsyncValue<void>>(
+      playlistSyncProvider,
+      (prev, next) {
+        if (!mounted) {
+          return;
+        }
+        if (next is AsyncError && (prev == null || prev is! AsyncError)) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) {
+              return;
+            }
+            final l10n = AppLocalizations.of(context)!;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(l10n.playlistsLoadError),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          });
+        }
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _playlistSyncSubscription.close();
+    super.dispose();
   }
 
   @override
@@ -1897,19 +1991,6 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
     final l10n = AppLocalizations.of(context)!;
     final playlistsAsync = ref.watch(playlistListProvider);
     ref.watch(playlistSyncProvider);
-
-    // Show sync errors as a dismissible snackbar rather than crashing the page.
-    ref.listen<AsyncValue<void>>(playlistSyncProvider, (prev, next) {
-      if (!mounted) return;
-      if (next is AsyncError && (prev == null || prev is! AsyncError)) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(l10n.playlistsLoadError),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    });
 
     return Stack(
       children: [
@@ -2194,6 +2275,10 @@ class LikedAlbumsAllScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final likedAlbumsAsync = ref.watch(likedAlbumsProvider);
+    final downloadedOnly = ref.watch(downloadedOnlyFilterProvider);
+    final downloadedContentIds = downloadedOnly
+        ? ref.watch(downloadedContentIdsProvider).asData?.value
+        : null;
 
     Future<void> refresh() {
       return ref
@@ -2219,16 +2304,31 @@ class LikedAlbumsAllScreen extends ConsumerWidget {
             ],
           ),
           data: (albums) {
-            if (albums.isEmpty) {
+            final filteredAlbums = downloadedOnly
+                ? albums
+                      .where(
+                        (album) =>
+                            downloadedContentIds?.albumIds.contains(album.id) ??
+                            false,
+                      )
+                      .toList(growable: false)
+                : albums;
+            if (filteredAlbums.isEmpty) {
               return ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 children: [
                   SizedBox(
                     height: MediaQuery.of(context).size.height * 0.6,
                     child: EmptyState(
-                      title: l10n.libraryLikedEmptyTitle,
-                      subtitle: l10n.libraryLikedEmptySubtitle,
-                      icon: Icons.favorite_border_outlined,
+                      title: downloadedOnly
+                          ? l10n.libraryDownloadedOnlyEmpty
+                          : l10n.libraryLikedEmptyTitle,
+                      subtitle: downloadedOnly
+                          ? l10n.libraryDownloadedOnlyEmptySubtitle
+                          : l10n.libraryLikedEmptySubtitle,
+                      icon: downloadedOnly
+                          ? Icons.download_done_outlined
+                          : Icons.favorite_border_outlined,
                     ),
                   ),
                 ],
@@ -2248,7 +2348,7 @@ class LikedAlbumsAllScreen extends ConsumerWidget {
                           mainAxisSpacing: 8,
                         ),
                     delegate: SliverChildBuilderDelegate((context, index) {
-                      final album = albums[index];
+                      final album = filteredAlbums[index];
                       return RepaintBoundary(
                         child: AlbumCard(
                           key: ValueKey('liked-all-album-${album.id}'),
@@ -2271,7 +2371,7 @@ class LikedAlbumsAllScreen extends ConsumerWidget {
                               showAlbumContextMenu(context, ref, album.id),
                         ),
                       );
-                    }, childCount: albums.length),
+                    }, childCount: filteredAlbums.length),
                   ),
                 ),
               ],

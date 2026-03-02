@@ -37,12 +37,20 @@ class AppShell extends ConsumerStatefulWidget {
 }
 
 class _AppShellState extends ConsumerState<AppShell> {
+  final ValueNotifier<double> _playerSheetProgress = ValueNotifier<double>(0);
+
   // NOTE: We intentionally do NOT use WidgetsBindingObserver.didPopRoute()
   // for back-button handling. That observer fires BEFORE the Navigator
   // processes the event, which means it would consume back presses that
   // should dismiss higher-priority UI first. Instead we let Navigator-owned
   // routes (dialogs, bottom sheets, etc.) handle back normally and only apply
   // shell back behavior when this shell route is actually current.
+
+  @override
+  void dispose() {
+    _playerSheetProgress.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -117,6 +125,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       playerStateProvider.select((snapshot) => snapshot.hasActivePlayback),
       (previous, next) {
         if (!next) {
+          _playerSheetProgress.value = 0;
           ref.read(playerOverlayStackProvider.notifier).clear();
         }
       },
@@ -188,133 +197,131 @@ class _AppShellState extends ConsumerState<AppShell> {
           // Keep the expanded player at full height even if a hidden text field
           // elsewhere (e.g. Search) still has keyboard insets in flight.
           resizeToAvoidBottomInset: !(showPlayer && isExpanded),
-          body: LayoutBuilder(
-            builder: (context, constraints) {
-              final bodyHeight = constraints.maxHeight;
-
-              return Stack(
+          body: Stack(
+            children: <Widget>[
+              Column(
                 children: <Widget>[
-                  Column(
-                    children: <Widget>[
-                      if (showOfflineBanner)
-                        Material(
-                          color: Theme.of(context).colorScheme.errorContainer,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
+                  if (showOfflineBanner)
+                    Material(
+                      color: Theme.of(context).colorScheme.errorContainer,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        child: Row(
+                          children: <Widget>[
+                            Icon(
+                              Icons.cloud_off_outlined,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onErrorContainer,
                             ),
-                            child: Row(
-                              children: <Widget>[
-                                Icon(
-                                  Icons.cloud_off_outlined,
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                l10n.serverOfflineBanner,
+                                style: TextStyle(
                                   color: Theme.of(
                                     context,
                                   ).colorScheme.onErrorContainer,
                                 ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Text(
-                                    l10n.serverOfflineBanner,
-                                    style: TextStyle(
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.onErrorContainer,
-                                    ),
-                                  ),
-                                ),
-                              ],
+                              ),
                             ),
-                          ),
-                        ),
-                      Expanded(
-                        child: NavigatorPopHandler<Object?>(
-                          // When a shell-managed player overlay is visible, the
-                          // nested branch navigator must not consume system back
-                          // before the shell dismisses that overlay.
-                          enabled: !hasPlayerOverlay,
-                          onPopWithResult: (result) {
-                            final router = GoRouter.of(context);
-                            if (!router.canPop()) {
-                              return;
-                            }
-                            NavService.clearExitPrompt();
-                            router.pop(result);
-                          },
-                          child: navigationShell,
-                        ),
-                      ),
-                      if (showPlayer && !isExpanded)
-                        SizedBox(
-                          height: ExpandablePlayerSheet.miniPlayerHeight,
-                        ),
-                    ],
-                  ),
-                  if (showPlayer)
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      child: ExpandablePlayerSheet(
-                        maxHeight: bodyHeight,
-                        isExpanded: isExpanded,
-                        onExpand: () {
-                          // Dismiss the keyboard (e.g. search bar) before expanding
-                          // so the Now Playing screen isn't squished.
-                          NavService.dismissKeyboard(context);
-                          ref
-                              .read(playerOverlayStackProvider.notifier)
-                              .expand();
-                        },
-                        onCollapse: () => ref
-                            .read(playerOverlayStackProvider.notifier)
-                            .collapse(),
-                        onSwipeUp: () => NavService.showQueue(context, ref),
-                        miniPlayer: _MiniPlayerStrip(
-                          playback: playback,
-                          songTitle: playback.isRadioMode
-                              ? (playback.radioStation!.nowPlayingTitle ??
-                                    playback.radioStation!.stationName)
-                              : currentSongAsync.asData?.value?.title,
-                          songArtist: playback.isRadioMode
-                              ? (playback.radioStation!.nowPlayingArtist ??
-                                    playback.radioStation!.stationName)
-                              : currentSongAsync.asData?.value?.artistName,
-                          coverArtId: playback.isRadioMode
-                              ? null
-                              : currentSongAsync.asData?.value?.coverArt,
-                          isRadio: playback.isRadioMode,
-                          radioArtUrl: playback.radioStation?.nowPlayingArtUrl,
-                          onTap: () {
-                            // Dismiss keyboard before expanding.
-                            NavService.dismissKeyboard(context);
-                            ref
-                                .read(playerOverlayStackProvider.notifier)
-                                .expand();
-                          },
-                        ),
-                        fullPlayer: NowPlayingScreen(
-                          onCollapse: () => ref
-                              .read(playerOverlayStackProvider.notifier)
-                              .collapse(),
+                          ],
                         ),
                       ),
                     ),
-                  if (showPlayer && showQueueOverlay)
-                    Positioned.fill(
-                      child: _QueueOverlay(
-                        onDismiss: () => ref
-                            .read(playerOverlayStackProvider.notifier)
-                            .hideQueue(),
-                      ),
+                  Expanded(
+                    child: NavigatorPopHandler<Object?>(
+                      // When a shell-managed player overlay is visible, the
+                      // nested branch navigator must not consume system back
+                      // before the shell dismisses that overlay.
+                      enabled: !hasPlayerOverlay,
+                      onPopWithResult: (result) {
+                        final router = GoRouter.of(context);
+                        if (!router.canPop()) {
+                          return;
+                        }
+                        NavService.clearExitPrompt();
+                        router.pop(result);
+                      },
+                      child: navigationShell,
+                    ),
+                  ),
+                  if (showPlayer && !isExpanded)
+                    SizedBox(
+                      height: ExpandablePlayerSheet.miniPlayerHeight,
                     ),
                 ],
-              );
-            },
+              ),
+              if (showPlayer)
+                Positioned.fill(
+                  child: ExpandablePlayerSheet(
+                    isExpanded: isExpanded,
+                    onProgressChanged: (value) {
+                      final clamped = value.clamp(0.0, 1.0);
+                      if ((_playerSheetProgress.value - clamped).abs() >
+                          0.001) {
+                        _playerSheetProgress.value = clamped;
+                      }
+                    },
+                    onExpand: () {
+                      // Dismiss the keyboard (e.g. search bar) before expanding
+                      // so the Now Playing screen isn't squished.
+                      NavService.dismissKeyboard(context);
+                      ref.read(playerOverlayStackProvider.notifier).expand();
+                    },
+                    onCollapse: () => ref
+                        .read(playerOverlayStackProvider.notifier)
+                        .collapse(),
+                    onSwipeUp: () => NavService.showQueue(context, ref),
+                    miniPlayer: _MiniPlayerStrip(
+                      playback: playback,
+                      songTitle: playback.isRadioMode
+                          ? (playback.radioStation!.nowPlayingTitle ??
+                                playback.radioStation!.stationName)
+                          : currentSongAsync.asData?.value?.title,
+                      songArtist: playback.isRadioMode
+                          ? (playback.radioStation!.nowPlayingArtist ??
+                                playback.radioStation!.stationName)
+                          : currentSongAsync.asData?.value?.artistName,
+                      coverArtId: playback.isRadioMode
+                          ? null
+                          : currentSongAsync.asData?.value?.coverArt,
+                      isRadio: playback.isRadioMode,
+                      radioArtUrl: playback.radioStation?.nowPlayingArtUrl,
+                      onTap: () {
+                        // Dismiss keyboard before expanding.
+                        NavService.dismissKeyboard(context);
+                        ref.read(playerOverlayStackProvider.notifier).expand();
+                      },
+                    ),
+                    fullPlayer: NowPlayingScreen(
+                      onCollapse: () => ref
+                          .read(playerOverlayStackProvider.notifier)
+                          .collapse(),
+                    ),
+                  ),
+                ),
+              if (showPlayer && showQueueOverlay)
+                Positioned.fill(
+                  child: _QueueOverlay(
+                    onDismiss: () => ref
+                        .read(playerOverlayStackProvider.notifier)
+                        .hideQueue(),
+                  ),
+                ),
+            ],
           ),
-          bottomNavigationBar: showPlayer && isExpanded
-              ? null
-              : NavigationBar(
+          bottomNavigationBar: ValueListenableBuilder<double>(
+            valueListenable: _playerSheetProgress,
+            builder: (context, progress, _) {
+              final reveal = showPlayer ? (1 - progress).clamp(0.0, 1.0) : 1.0;
+
+              return _BottomNavReveal(
+                reveal: reveal,
+                child: NavigationBar(
                   selectedIndex: selectedIndex,
                   labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
                   onDestinationSelected: (index) {
@@ -357,6 +364,47 @@ class _AppShellState extends ConsumerState<AppShell> {
                     ),
                   ],
                 ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BottomNavReveal extends StatelessWidget {
+  const _BottomNavReveal({
+    required this.reveal,
+    required this.child,
+  });
+
+  final double reveal;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final clamped = reveal.clamp(0.0, 1.0);
+    if (clamped <= 0.001) {
+      return const SizedBox.shrink();
+    }
+
+    final opacity = Curves.easeOut.transform(clamped);
+    final slideOffset = (1 - clamped) * 24;
+
+    return IgnorePointer(
+      ignoring: clamped < 0.98,
+      child: ClipRect(
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          heightFactor: clamped,
+          child: Transform.translate(
+            offset: Offset(0, slideOffset),
+            child: Opacity(
+              opacity: opacity,
+              child: child,
+            ),
+          ),
         ),
       ),
     );
@@ -375,12 +423,10 @@ class _QueueOverlay extends StatefulWidget {
 class _QueueOverlayState extends State<_QueueOverlay>
     with SingleTickerProviderStateMixin {
   static const double _sheetHeightFactor = 0.95;
-  static const Duration _openDuration = Duration(milliseconds: 280);
-  static const Duration _closeDuration = Duration(milliseconds: 160);
-  static const double _flingVelocityThreshold = 400.0;
+  static const Duration _closeDuration = Duration(milliseconds: 280);
+  static const double _flingVelocityThreshold = 300.0;
 
   late final AnimationController _controller;
-  late final Animation<Offset> _slideAnimation;
 
   // Scroll controller shared with the queue list so we know when the list
   // is at the top and a downward drag should move the sheet instead.
@@ -394,15 +440,21 @@ class _QueueOverlayState extends State<_QueueOverlay>
   bool _draggingSheet = false;
   bool _dismissing = false;
 
+  // Cumulative displacement tracking — distinguishes horizontal swipes
+  // (e.g. Dismissible swipe-to-delete) from vertical sheet drags.
+  double _cumulativeDx = 0.0;
+  double _cumulativeDy = 0.0;
+
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: _openDuration);
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 1),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
-    _controller.forward();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+      reverseDuration: _closeDuration,
+    );
+    // Open with a spring fling — matches the player sheet's feel.
+    _controller.fling(velocity: 2.5);
   }
 
   @override
@@ -415,9 +467,15 @@ class _QueueOverlayState extends State<_QueueOverlay>
   void _dismiss() {
     if (_dismissing) return;
     _dismissing = true;
-    _controller
-        .animateTo(0.0, duration: _closeDuration, curve: Curves.easeInCubic)
-        .whenComplete(widget.onDismiss);
+    _controller.fling(velocity: -2.5).whenComplete(widget.onDismiss);
+  }
+
+  void _setDraggingSheet(bool value) {
+    if (_draggingSheet == value || !mounted) {
+      _draggingSheet = value;
+      return;
+    }
+    setState(() => _draggingSheet = value);
   }
 
   // ---- Raw pointer handlers -----------------------------------------------
@@ -427,27 +485,36 @@ class _QueueOverlayState extends State<_QueueOverlay>
     _activePointer = event.pointer;
     _velocityTracker = VelocityTracker.withKind(event.kind);
     _velocityTracker!.addPosition(event.timeStamp, event.position);
-    _draggingSheet = false;
+    _setDraggingSheet(false);
+    _cumulativeDx = 0.0;
+    _cumulativeDy = 0.0;
   }
 
   void _onPointerMove(PointerMoveEvent event) {
     if (_dismissing || event.pointer != _activePointer) return;
     _velocityTracker?.addPosition(event.timeStamp, event.position);
 
+    final dx = event.delta.dx;
     final dy = event.delta.dy;
 
-    if (dy < 0) {
-      // Upward movement — stop any sheet drag and let the list scroll.
-      _draggingSheet = false;
-      return;
-    }
+    _cumulativeDx += dx.abs();
+    _cumulativeDy += dy.abs();
 
-    // Downward movement — start sheet drag only when the list is at the top.
     if (!_draggingSheet) {
+      // Capture the sheet only when the list is already at the top and the
+      // gesture is clearly vertical. Once captured, keep control until
+      // pointer-up so the user can reverse direction mid-swipe.
+      if (_cumulativeDx > _cumulativeDy * 1.5 && _cumulativeDx > 10) {
+        // Horizontal movement dominates — let the child handle it.
+        return;
+      }
+      if (dy <= 0) {
+        return;
+      }
       final atTop =
           !_scrollController.hasClients || _scrollController.offset <= 0.0;
       if (!atTop) return;
-      _draggingSheet = true;
+      _setDraggingSheet(true);
     }
 
     final sheetHeight = MediaQuery.of(context).size.height * _sheetHeightFactor;
@@ -457,34 +524,29 @@ class _QueueOverlayState extends State<_QueueOverlay>
   void _onPointerUp(PointerUpEvent event) {
     if (event.pointer != _activePointer) return;
     _activePointer = null;
-    if (!_draggingSheet || _dismissing) {
-      _draggingSheet = false;
-      return;
-    }
-    _draggingSheet = false;
+    final wasDragging = _draggingSheet;
+    _setDraggingSheet(false);
+    if (_dismissing || !wasDragging) return;
 
     final velocity = _velocityTracker?.getVelocity().pixelsPerSecond.dy ?? 0.0;
-    if (velocity > _flingVelocityThreshold || _controller.value < 0.5) {
+    if (velocity > _flingVelocityThreshold || _controller.value < 0.7) {
       _dismiss();
     } else {
-      _controller.animateTo(
-        1.0,
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOutCubic,
-      );
+      _controller.fling(velocity: 2.5);
     }
   }
 
   void _onPointerCancel(PointerCancelEvent event) {
     if (event.pointer != _activePointer) return;
     _activePointer = null;
-    _draggingSheet = false;
-    if (!_dismissing) {
-      _controller.animateTo(
-        1.0,
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOutCubic,
-      );
+    final wasDragging = _draggingSheet;
+    _setDraggingSheet(false);
+    if (_dismissing) return;
+    // If the sheet was being dragged and is already partially down, dismiss.
+    if (wasDragging && _controller.value < 0.85) {
+      _dismiss();
+    } else if (_controller.value < 0.99) {
+      _controller.fling(velocity: 2.5);
     }
   }
 
@@ -492,45 +554,54 @@ class _QueueOverlayState extends State<_QueueOverlay>
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: <Widget>[
-        // Scrim — fades in/out with the sheet; tap to dismiss.
-        Positioned.fill(
-          child: FadeTransition(
-            opacity: Tween<double>(begin: 0, end: 0.45).animate(_controller),
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: _dismiss,
-              child: const ColoredBox(color: Colors.black),
-            ),
-          ),
-        ),
-        // Sheet — slides up from the bottom.
-        Align(
-          alignment: Alignment.bottomCenter,
-          child: FractionallySizedBox(
-            heightFactor: _sheetHeightFactor,
-            widthFactor: 1.0,
-            child: SlideTransition(
-              position: _slideAnimation,
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        final progress = _controller.value;
+        return Stack(
+          children: <Widget>[
+            // Scrim — fades in/out with the sheet; tap to dismiss.
+            Positioned.fill(
               child: IgnorePointer(
-                ignoring: _dismissing,
-                child: Listener(
-                  behavior: HitTestBehavior.translucent,
-                  onPointerDown: _onPointerDown,
-                  onPointerMove: _onPointerMove,
-                  onPointerUp: _onPointerUp,
-                  onPointerCancel: _onPointerCancel,
-                  child: QueueSheet(
-                    scrollController: _scrollController,
-                    onClose: _dismiss,
+                ignoring: progress < 0.01,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: _dismiss,
+                  child: ColoredBox(
+                    color: Colors.black.withValues(alpha: progress * 0.45),
                   ),
                 ),
               ),
             ),
-          ),
-        ),
-      ],
+            // Sheet — slides up from the bottom with 1:1 finger tracking.
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: FractionallySizedBox(
+                heightFactor: _sheetHeightFactor,
+                widthFactor: 1.0,
+                child: FractionalTranslation(
+                  translation: Offset(0, 1 - progress),
+                  child: IgnorePointer(
+                    ignoring: _dismissing,
+                    child: Listener(
+                      behavior: HitTestBehavior.translucent,
+                      onPointerDown: _onPointerDown,
+                      onPointerMove: _onPointerMove,
+                      onPointerUp: _onPointerUp,
+                      onPointerCancel: _onPointerCancel,
+                      child: QueueSheet(
+                        scrollController: _scrollController,
+                        sheetDragActive: _draggingSheet,
+                        onClose: _dismiss,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

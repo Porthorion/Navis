@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:audio_service/audio_service.dart' show MediaItem;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -455,22 +456,28 @@ final albumProvider = StreamProvider.family<AlbumWithSongs?, String>((
   final controller = StreamController<AlbumWithSongs?>();
   StreamSubscription<List<SongsTableData>>? songsSub;
 
-  final albumSub = dao.watchAlbumById(albumId).listen(
-    (album) {
-      songsSub?.cancel();
-      if (album == null) {
-        controller.add(null);
-        songsSub = null;
-      } else {
-        songsSub = dao.watchSongsByAlbum(albumId).listen(
-          (songs) => controller.add(AlbumWithSongs(album: album, songs: songs)),
-          onError: controller.addError,
-        );
-      }
-    },
-    onError: controller.addError,
-    onDone: controller.close,
-  );
+  final albumSub = dao
+      .watchAlbumById(albumId)
+      .listen(
+        (album) {
+          songsSub?.cancel();
+          if (album == null) {
+            controller.add(null);
+            songsSub = null;
+          } else {
+            songsSub = dao
+                .watchSongsByAlbum(albumId)
+                .listen(
+                  (songs) => controller.add(
+                    AlbumWithSongs(album: album, songs: songs),
+                  ),
+                  onError: controller.addError,
+                );
+          }
+        },
+        onError: controller.addError,
+        onDone: controller.close,
+      );
 
   ref.onDispose(() {
     albumSub.cancel();
@@ -483,6 +490,7 @@ final albumProvider = StreamProvider.family<AlbumWithSongs?, String>((
 
 typedef AlbumPageRequest = ({AlbumSortOrder sort, int limit});
 typedef LikedAlbumPageRequest = ({AlbumSortOrder sort, int limit});
+typedef AlbumListRequest = ({AlbumSortOrder sort, bool likedOnly});
 typedef AlbumYearSectionsRequest = ({bool likedOnly, bool downloadedOnly});
 
 final albumPageSizeProvider = Provider<int>((_) => 60);
@@ -519,6 +527,18 @@ final likedPagedAlbumsProvider =
         sort: request.sort,
         limit: request.limit,
         likedOnly: true,
+      );
+    });
+
+final sortedAlbumsProvider =
+    StreamProvider.family<List<AlbumsTableData>, AlbumListRequest>((
+      ref,
+      request,
+    ) {
+      final dao = ref.watch(navisDatabaseProvider).libraryDao;
+      return dao.watchAlbumsSorted(
+        sort: request.sort,
+        likedOnly: request.likedOnly,
       );
     });
 
@@ -746,6 +766,16 @@ final playerStateProvider = Provider<PlaybackSnapshot>((ref) {
   return snapshot ?? const PlaybackSnapshot.idle();
 });
 
+final currentMediaItemProvider = StreamProvider<MediaItem?>((ref) async* {
+  final handler = ref.watch(audioHandlerProvider);
+  if (handler == null) {
+    yield null;
+    return;
+  }
+  yield handler.currentMediaItem;
+  yield* handler.mediaItemStream;
+});
+
 /// Emits an event whenever a radio stream encounters a mid-playback error.
 /// Consumed by AppShell to display a dismissible snackbar.
 final radioStreamErrorProvider = StreamProvider<void>((ref) {
@@ -910,6 +940,29 @@ final cachedSongTypesProvider = StreamProvider<Map<String, CacheType>>((ref) {
   return dao.watchCachedTracks().map(
     (tracks) => {for (final t in tracks) t.songId: t.cacheType},
   );
+});
+
+class DownloadedOnlyFilterController extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  bool get enabled => state;
+
+  set enabled(bool value) => state = value;
+}
+
+final downloadedOnlyFilterProvider =
+    NotifierProvider<DownloadedOnlyFilterController, bool>(
+      DownloadedOnlyFilterController.new,
+    );
+
+final downloadedSongIdsProvider = StreamProvider<Set<String>>((ref) {
+  final dao = ref.watch(navisDatabaseProvider).cacheDao;
+  return dao
+      .watchCachedTracksByType(CacheType.permanent)
+      .map(
+        (tracks) => tracks.map((track) => track.songId).toSet(),
+      );
 });
 
 /// Provides the set of album IDs and artist IDs that have permanently cached
