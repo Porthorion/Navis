@@ -1028,7 +1028,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                           ref
                               .read(librarySyncControllerProvider.notifier)
                               .registerAlbumInteraction(album.id);
-                          context.go('/library/albums/${album.id}?likedOnly=1');
+                          context.go('/library/albums/${album.id}');
                         },
                         onLongPress: () =>
                             showAlbumContextMenu(context, ref, album.id),
@@ -1948,6 +1948,7 @@ class _LibraryPlaylistsTab extends ConsumerStatefulWidget {
 class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
     with AutomaticKeepAliveClientMixin {
   late final ProviderSubscription<AsyncValue<void>> _playlistSyncSubscription;
+  List<PlaylistsTableData> _cachedPlaylists = const <PlaylistsTableData>[];
 
   @override
   bool get wantKeepAlive => true;
@@ -1990,7 +1991,14 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
     super.build(context); // required by AutomaticKeepAliveClientMixin
     final l10n = AppLocalizations.of(context)!;
     final playlistsAsync = ref.watch(playlistListProvider);
-    ref.watch(playlistSyncProvider);
+    final playlistSyncAsync = ref.watch(playlistSyncProvider);
+
+    playlistsAsync.whenData((playlists) {
+      _cachedPlaylists = playlists;
+    });
+
+    final effectivePlaylists =
+        playlistsAsync.asData?.value ?? _cachedPlaylists;
 
     return Stack(
       children: [
@@ -2000,8 +2008,8 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
             await ref.read(playlistSyncProvider.future);
           },
           child: playlistsAsync.when(
-            data: (playlists) {
-              if (playlists.isEmpty) {
+            data: (_) {
+              if (effectivePlaylists.isEmpty) {
                 return ListView(
                   children: [
                     SizedBox(
@@ -2019,16 +2027,22 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
               return ListView.builder(
                 controller: widget.scrollController,
                 padding: const EdgeInsets.only(bottom: 80),
-                itemCount: playlists.length,
+                itemCount: effectivePlaylists.length,
                 itemBuilder: (context, index) {
-                  final playlist = playlists[index];
+                  final playlist = effectivePlaylists[index];
                   return ListTile(
-                    leading: ClipRRect(
-                      borderRadius: BorderRadius.circular(6),
-                      child: CoverArtImage(
-                        coverArtId: playlist.coverArt,
-                        size: 48,
-                        semanticLabel: playlist.name,
+                    minLeadingWidth: 48,
+                    horizontalTitleGap: 12,
+                    leading: SizedBox(
+                      width: 48,
+                      height: 48,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: CoverArtImage(
+                          coverArtId: playlist.coverArt,
+                          size: 48,
+                          semanticLabel: playlist.name,
+                        ),
                       ),
                     ),
                     title: Text(playlist.name),
@@ -2043,7 +2057,44 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
                 },
               );
             },
-            loading: () => const ShimmerListPage(count: 8),
+            loading: () {
+              if (effectivePlaylists.isNotEmpty) {
+                return ListView.builder(
+                  controller: widget.scrollController,
+                  padding: const EdgeInsets.only(bottom: 80),
+                  itemCount: effectivePlaylists.length,
+                  itemBuilder: (context, index) {
+                    final playlist = effectivePlaylists[index];
+                    return ListTile(
+                      minLeadingWidth: 48,
+                      horizontalTitleGap: 12,
+                      leading: SizedBox(
+                        width: 48,
+                        height: 48,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: CoverArtImage(
+                            coverArtId: playlist.coverArt,
+                            size: 48,
+                            semanticLabel: playlist.name,
+                          ),
+                        ),
+                      ),
+                      title: Text(playlist.name),
+                      subtitle: playlist.songCount != null
+                          ? Text(l10n.playlistsSongCount(playlist.songCount!))
+                          : null,
+                      onTap: () => context.push(
+                        '/library/playlists/${playlist.id}',
+                      ),
+                      onLongPress: () =>
+                          _showPlaylistActions(context, playlist),
+                    );
+                  },
+                );
+              }
+              return const ShimmerListPage(count: 8);
+            },
             error: (error, _) => ListView(
               physics: const AlwaysScrollableScrollPhysics(),
               children: [
@@ -2056,6 +2107,8 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
             ),
           ),
         ),
+        if (playlistSyncAsync.isLoading)
+          const Positioned(top: 0, left: 0, right: 0, child: LinearProgressIndicator()),
         Positioned(
           bottom: 16,
           right: 16,
@@ -2363,9 +2416,7 @@ class LikedAlbumsAllScreen extends ConsumerWidget {
                             ref
                                 .read(librarySyncControllerProvider.notifier)
                                 .registerAlbumInteraction(album.id);
-                            context.push(
-                              '/library/albums/${album.id}?likedOnly=1',
-                            );
+                            context.push('/library/albums/${album.id}');
                           },
                           onLongPress: () =>
                               showAlbumContextMenu(context, ref, album.id),

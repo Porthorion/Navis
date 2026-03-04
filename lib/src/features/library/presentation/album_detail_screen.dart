@@ -43,6 +43,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
   bool _isStarring = false;
   bool _isQueueActionInFlight = false;
   late bool _showLikedOnly = widget.likedOnly;
+  bool _showDownloadedOnly = false;
 
   @override
   void initState() {
@@ -56,8 +57,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final album = ref.watch(albumProvider(widget.albumId));
-    final downloadedOnly = ref.watch(downloadedOnlyFilterProvider);
-    final downloadedSongIds = downloadedOnly
+    final downloadedSongIds = _showDownloadedOnly
         ? ref.watch(downloadedSongIdsProvider).asData?.value ?? const <String>{}
         : const <String>{};
 
@@ -79,7 +79,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                 if (_showLikedOnly && song.starred == null) {
                   return false;
                 }
-                if (downloadedOnly && !downloadedSongIds.contains(song.id)) {
+                if (_showDownloadedOnly && !downloadedSongIds.contains(song.id)) {
                   return false;
                 }
                 return true;
@@ -95,13 +95,13 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
           final tracksSliver = renderItems.isEmpty
               ? SliverFillRemaining(
                   hasScrollBody: false,
-                  child: downloadedOnly
+                  child: _showDownloadedOnly
                       ? EmptyState(
                           title: l10n.libraryDownloadedOnlyEmpty,
                           subtitle: l10n.libraryDownloadedOnlyEmptySubtitle,
                           icon: Icons.download_done_outlined,
                         )
-                      : _showLikedOnly && isStarred
+                      : _showLikedOnly
                       ? Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: <Widget>[
@@ -208,34 +208,6 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                         ),
                       ),
                     ),
-                    if (_showLikedOnly)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: ActionChip(
-                            label: Text(l10n.libraryLikedOnlyFilter),
-                            avatar: const Icon(Icons.favorite, size: 18),
-                            onPressed: filteredSongs.isEmpty && isStarred
-                                ? () => setState(() => _showLikedOnly = false)
-                                : null,
-                          ),
-                        ),
-                      ),
-                    if (downloadedOnly)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Chip(
-                            label: Text(l10n.libraryDownloadedOnlyFilter),
-                            avatar: const Icon(
-                              Icons.download_done,
-                              size: 18,
-                            ),
-                          ),
-                        ),
-                      ),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       child: Wrap(
@@ -300,7 +272,62 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 6),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+                      child: Row(
+                        children: <Widget>[
+                          Icon(
+                            Icons.filter_list,
+                            size: 16,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            l10n.albumDetailFilterLabel,
+                            style: Theme.of(
+                              context,
+                            ).textTheme.labelSmall?.copyWith(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                      child: Wrap(
+                        spacing: 8,
+                        children: <Widget>[
+                          FilterChip(
+                            label: Text(l10n.libraryLikedOnlyFilter),
+                            avatar: Icon(
+                              _showLikedOnly
+                                  ? Icons.favorite
+                                  : Icons.favorite_border,
+                              size: 18,
+                            ),
+                            selected: _showLikedOnly,
+                            onSelected: (value) =>
+                                setState(() => _showLikedOnly = value),
+                          ),
+                          FilterChip(
+                            label: Text(l10n.libraryDownloadedOnlyFilter),
+                            avatar: Icon(
+                              _showDownloadedOnly
+                                  ? Icons.download_done
+                                  : Icons.download_outlined,
+                              size: 18,
+                            ),
+                            selected: _showDownloadedOnly,
+                            onSelected: (value) =>
+                                setState(() => _showDownloadedOnly = value),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
