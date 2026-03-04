@@ -899,15 +899,8 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   }
 
   String _likedAlbumPredicate(String albumAlias) {
-    return '''
-      $albumAlias.starred IS NOT NULL
-      OR EXISTS (
-        SELECT 1
-        FROM songs liked_songs
-        WHERE liked_songs.album_id = $albumAlias.id
-          AND liked_songs.starred IS NOT NULL
-      )
-    ''';
+    // Only explicitly starred albums — liked songs have their own section.
+    return '$albumAlias.starred IS NOT NULL';
   }
 
   String _albumOrderSql(AlbumSortOrder sort, bool includeUnknownYearsLast) {
