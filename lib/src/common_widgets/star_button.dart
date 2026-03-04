@@ -8,13 +8,19 @@ class StarButton extends StatefulWidget {
     this.onPressed,
     this.tooltip,
     this.label,
+    this.starredLabel,
     this.compact = false,
   });
 
   final bool isStarred;
   final VoidCallback? onPressed;
   final String? tooltip;
+
+  /// Label shown when [isStarred] is false (or always, if [starredLabel] is null).
   final String? label;
+
+  /// Label shown when [isStarred] is true. Falls back to [label] if null.
+  final String? starredLabel;
   final bool compact;
 
   @override
@@ -87,10 +93,12 @@ class _StarButtonState extends State<StarButton>
         icon: icon,
       );
     }
+    final effectiveLabel =
+        (widget.isStarred ? widget.starredLabel : null) ?? widget.label ?? '';
     return OutlinedButton.icon(
       onPressed: widget.onPressed == null ? null : _handlePress,
       icon: icon,
-      label: Text(widget.label ?? ''),
+      label: Text(effectiveLabel),
       style: OutlinedButton.styleFrom(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       ),

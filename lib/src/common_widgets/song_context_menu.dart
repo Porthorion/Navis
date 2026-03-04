@@ -7,6 +7,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
+import 'package:navis/src/features/library/domain/toggle_song_star.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -32,6 +33,9 @@ Future<void> showSongContextMenu(
           );
           final isDownloaded =
               downloadState.status == SongDownloadStatus.downloaded;
+          final isLiked =
+              menuRef.watch(songStarredProvider(song.id)).asData?.value ??
+                  song.starred != null;
 
           return SafeArea(
             child: Column(
@@ -65,6 +69,18 @@ Future<void> showSongContextMenu(
                     unawaited(
                       ref.read(queueProvider.notifier).playNext(song.id),
                     );
+                  },
+                ),
+                ListTile(
+                  leading: Icon(
+                    isLiked ? Icons.favorite : Icons.favorite_border,
+                  ),
+                  title: Text(
+                    isLiked ? l10n.actionLiked : l10n.actionLike,
+                  ),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    unawaited(toggleSongStar(song.id, ref));
                   },
                 ),
                 if (song.artistId != null && song.artistId!.isNotEmpty)

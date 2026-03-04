@@ -410,6 +410,20 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
+  /// One-shot fetch of the current [starred] value for a single song.
+  Future<DateTime?> getSongStarred(String songId) async {
+    final row = await (select(songsTable)
+          ..where((t) => t.id.equals(songId)))
+        .getSingleOrNull();
+    return row?.starred;
+  }
+
+  /// Reactive stream emitting `true` when the song is starred.
+  Stream<bool> watchSongStarred(String songId) {
+    final query = select(songsTable)..where((t) => t.id.equals(songId));
+    return query.watchSingleOrNull().map((row) => row?.starred != null);
+  }
+
   /// Efficiently reconcile starred state for all albums in a single
   /// transaction.  Clears the [starred] column for albums not in
   /// [starredMap], and sets it for those that are — skipping IDs in

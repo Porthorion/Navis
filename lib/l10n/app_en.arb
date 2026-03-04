@@ -926,9 +926,9 @@
   "deleteDownloadAction": "Delete download",
   "libraryAlbumMenuPlay": "Play album",
   "libraryAlbumMenuAddToQueue": "Add to queue",
-  "libraryAlbumMenuLike": "Like album",
-  "libraryAlbumMenuUnlike": "Unlike album",
   "libraryAlbumMenuDownload": "Download album",
   "libraryAlbumPlayQueued": "Album queued to play",
-  "libraryAlbumAddedToQueue": "Album added to queue"
+  "libraryAlbumAddedToQueue": "Album added to queue",
+  "actionLike": "Like",
+  "actionLiked": "Liked"
 }

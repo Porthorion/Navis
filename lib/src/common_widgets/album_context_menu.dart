@@ -83,8 +83,8 @@ Future<void> showAlbumContextMenu(
                   ),
                   title: Text(
                     isStarred
-                        ? l10n.libraryAlbumMenuUnlike
-                        : l10n.libraryAlbumMenuLike,
+                        ? l10n.actionLiked
+                        : l10n.actionLike,
                   ),
                   onTap: () {
                     Navigator.of(sheetContext).pop();
