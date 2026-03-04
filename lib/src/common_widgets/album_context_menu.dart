@@ -79,7 +79,7 @@ Future<void> showAlbumContextMenu(
                 ),
                 ListTile(
                   leading: Icon(
-                    isStarred ? Icons.favorite : Icons.favorite_border_outlined,
+                    isStarred ? Icons.favorite : Icons.favorite_border,
                   ),
                   title: Text(
                     isStarred

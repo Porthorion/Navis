@@ -59,6 +59,11 @@ abstract class NavisPlaybackHandler {
   Future<void> applyRuntimeSettings();
   Future<void> toggleLike();
 
+  /// Synchronise the liked state of every queue item whose id matches
+  /// [songId].  Call this after an external star/unstar (e.g. from a context
+  /// menu) so the now-playing UI reflects the change immediately.
+  Future<void> syncSongLikedState(String songId, {required bool liked});
+
   /// Start playing a radio stream from the given URL.
   ///
   /// Radio playback is independent from the song queue: the existing queue
@@ -2199,6 +2204,32 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> toggleLike() => _runSerialized(_toggleCurrentSongLike);
+
+  @override
+  Future<void> syncSongLikedState(String songId, {required bool liked}) =>
+      _runSerialized(() => _syncSongLikedState(songId, liked: liked));
+
+  Future<void> _syncSongLikedState(
+    String songId, {
+    required bool liked,
+  }) async {
+    await _ready;
+    var updated = false;
+    for (var i = 0; i < _queueItems.length; i++) {
+      final item = _queueItems[i];
+      if (item.id == songId) {
+        final extras = <String, Object?>{...?item.extras};
+        extras['liked'] = liked;
+        _queueItems[i] = item.copyWith(extras: extras);
+        updated = true;
+      }
+    }
+    if (updated) {
+      queue.add(List<MediaItem>.unmodifiable(_queueItems));
+      _broadcastPlaybackState();
+      _emitSnapshot();
+    }
+  }
 
   Future<void> _toggleCurrentSongLike() async {
     await _ready;

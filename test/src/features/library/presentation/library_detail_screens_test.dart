@@ -98,6 +98,12 @@ class _DelayedReplaceHandler implements NavisPlaybackHandler {
   Future<void> toggleLike() async {}
 
   @override
+  Future<void> syncSongLikedState(
+    String songId, {
+    required bool liked,
+  }) async {}
+
+  @override
   Future<void> playRadioStream({
     required String stationId,
     required String stationName,
