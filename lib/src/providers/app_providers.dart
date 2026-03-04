@@ -596,6 +596,15 @@ final songByIdProvider = StreamProvider.family<SongsTableData?, String>((
   return dao.watchSongById(songId);
 });
 
+/// Emits `true` when the song with [songId] is starred/liked.
+final songStarredProvider = StreamProvider.family<bool, String>((
+  ref,
+  songId,
+) {
+  final dao = ref.watch(navisDatabaseProvider).libraryDao;
+  return dao.watchSongStarred(songId);
+});
+
 final genresProvider = StreamProvider<List<GenresTableData>>((ref) {
   final dao = ref.watch(navisDatabaseProvider).libraryDao;
   return dao.watchGenres();

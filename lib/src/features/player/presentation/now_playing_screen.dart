@@ -1391,7 +1391,7 @@ class _ActionRowState extends ConsumerState<_ActionRow>
                   : colorScheme.onSurfaceVariant,
             ),
           ),
-          label: l10n.nowPlayingStar,
+          label: widget.isLiked ? l10n.actionLiked : l10n.actionLike,
           onTap: widget.songId == null
               ? null
               : () {

@@ -16,6 +16,7 @@ import 'package:navis/src/common_widgets/star_button.dart';
 import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
+import 'package:navis/src/features/library/domain/toggle_song_star.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/utils/file_utils.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
@@ -268,7 +269,8 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                             onPressed: _isStarring
                                 ? null
                                 : () => _toggleStar(isStarred: isStarred),
-                            label: l10n.albumDetailStarAction,
+                            label: l10n.actionLike,
+                            starredLabel: l10n.actionLiked,
                           ),
                           OutlinedButton.icon(
                             onPressed: () async {
@@ -415,6 +417,25 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                 onTap: () {
                   Navigator.of(context).pop();
                   unawaited(_playNext(song));
+                },
+              ),
+              Consumer(
+                builder: (_, likeRef, __) {
+                  final isLiked =
+                      likeRef.watch(songStarredProvider(song.id)).asData?.value ??
+                          song.starred != null;
+                  return ListTile(
+                    leading: Icon(
+                      isLiked ? Icons.favorite : Icons.favorite_border,
+                    ),
+                    title: Text(
+                      isLiked ? l10n.actionLiked : l10n.actionLike,
+                    ),
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      unawaited(toggleSongStar(song.id, ref));
+                    },
+                  );
                 },
               ),
               if (song.artistId != null && song.artistId!.isNotEmpty)

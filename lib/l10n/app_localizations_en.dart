@@ -2012,12 +2012,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get libraryAlbumMenuAddToQueue => 'Add to queue';
 
   @override
-  String get libraryAlbumMenuLike => 'Like album';
-
-  @override
-  String get libraryAlbumMenuUnlike => 'Unlike album';
-
-  @override
   String get libraryAlbumMenuDownload => 'Download album';
 
   @override
@@ -2025,4 +2019,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get libraryAlbumAddedToQueue => 'Album added to queue';
+
+  @override
+  String get actionLike => 'Like';
+
+  @override
+  String get actionLiked => 'Liked';
 }

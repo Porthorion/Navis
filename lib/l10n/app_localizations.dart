@@ -3579,18 +3579,6 @@ abstract class AppLocalizations {
   /// **'Add to queue'**
   String get libraryAlbumMenuAddToQueue;
 
-  /// No description provided for @libraryAlbumMenuLike.
-  ///
-  /// In en, this message translates to:
-  /// **'Like album'**
-  String get libraryAlbumMenuLike;
-
-  /// No description provided for @libraryAlbumMenuUnlike.
-  ///
-  /// In en, this message translates to:
-  /// **'Unlike album'**
-  String get libraryAlbumMenuUnlike;
-
   /// No description provided for @libraryAlbumMenuDownload.
   ///
   /// In en, this message translates to:
@@ -3608,6 +3596,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Album added to queue'**
   String get libraryAlbumAddedToQueue;
+
+  /// No description provided for @actionLike.
+  ///
+  /// In en, this message translates to:
+  /// **'Like'**
+  String get actionLike;
+
+  /// No description provided for @actionLiked.
+  ///
+  /// In en, this message translates to:
+  /// **'Liked'**
+  String get actionLiked;
 }
 
 class _AppLocalizationsDelegate
