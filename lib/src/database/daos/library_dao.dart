@@ -412,9 +412,9 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
 
   /// One-shot fetch of the current [starred] value for a single song.
   Future<DateTime?> getSongStarred(String songId) async {
-    final row = await (select(songsTable)
-          ..where((t) => t.id.equals(songId)))
-        .getSingleOrNull();
+    final row = await (select(
+      songsTable,
+    )..where((t) => t.id.equals(songId))).getSingleOrNull();
     return row?.starred;
   }
 

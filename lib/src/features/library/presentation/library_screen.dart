@@ -1997,8 +1997,7 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
       _cachedPlaylists = playlists;
     });
 
-    final effectivePlaylists =
-        playlistsAsync.asData?.value ?? _cachedPlaylists;
+    final effectivePlaylists = playlistsAsync.asData?.value ?? _cachedPlaylists;
 
     return Stack(
       children: [
@@ -2108,7 +2107,12 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
           ),
         ),
         if (playlistSyncAsync.isLoading)
-          const Positioned(top: 0, left: 0, right: 0, child: LinearProgressIndicator()),
+          const Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: LinearProgressIndicator(),
+          ),
         Positioned(
           bottom: 16,
           right: 16,

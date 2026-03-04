@@ -488,8 +488,9 @@ class DownloadService {
 
         unawaited(DownloadNotifier.dismissProgress().catchError((_) {}));
         unawaited(
-          DownloadNotifier.showComplete(title: 'Downloaded: $songTitle')
-              .catchError((_) {}),
+          DownloadNotifier.showComplete(
+            title: 'Downloaded: $songTitle',
+          ).catchError((_) {}),
         );
         AppLogger.info(
           'DownloadService: Completed download for $songId '

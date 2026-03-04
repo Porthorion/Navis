@@ -136,8 +136,7 @@ class CacheDao extends DatabaseAccessor<NavisDatabase> with _$CacheDaoMixin {
   ) async {
     final ids = songIds.where((id) => id.trim().isNotEmpty).toList();
     if (ids.isEmpty) return {};
-    final query = select(cachedTracksTable)
-      ..where((t) => t.songId.isIn(ids));
+    final query = select(cachedTracksTable)..where((t) => t.songId.isIn(ids));
     final rows = await query.get();
     return {for (final r in rows) r.songId: r.cacheType};
   }
