@@ -79,7 +79,8 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                 if (_showLikedOnly && song.starred == null) {
                   return false;
                 }
-                if (_showDownloadedOnly && !downloadedSongIds.contains(song.id)) {
+                if (_showDownloadedOnly &&
+                    !downloadedSongIds.contains(song.id)) {
                   return false;
                 }
                 return true;
@@ -280,18 +281,21 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                           Icon(
                             Icons.filter_list,
                             size: 16,
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
                           ),
                           const SizedBox(width: 4),
                           Text(
                             l10n.albumDetailFilterLabel,
-                            style: Theme.of(
-                              context,
-                            ).textTheme.labelSmall?.copyWith(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
-                            ),
+                            style:
+                                Theme.of(
+                                  context,
+                                ).textTheme.labelSmall?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
                           ),
                         ],
                       ),
@@ -449,8 +453,11 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
               Consumer(
                 builder: (_, likeRef, __) {
                   final isLiked =
-                      likeRef.watch(songStarredProvider(song.id)).asData?.value ??
-                          song.starred != null;
+                      likeRef
+                          .watch(songStarredProvider(song.id))
+                          .asData
+                          ?.value ??
+                      song.starred != null;
                   return ListTile(
                     leading: Icon(
                       isLiked ? Icons.favorite : Icons.favorite_border,
@@ -465,8 +472,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                           if (this.context.mounted) {
                             ScaffoldMessenger.of(this.context).showSnackBar(
                               SnackBar(
-                                content:
-                                    Text(l10n.albumDetailStarFailure),
+                                content: Text(l10n.albumDetailStarFailure),
                               ),
                             );
                           }
@@ -709,9 +715,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
     final isMultiDisc = discNumbers.length > 1;
 
     if (!isMultiDisc) {
-      return songs
-          .map((s) => _SongItem(song: s))
-          .toList(growable: false);
+      return songs.map((s) => _SongItem(song: s)).toList(growable: false);
     }
 
     final items = <_AlbumRenderItem>[];

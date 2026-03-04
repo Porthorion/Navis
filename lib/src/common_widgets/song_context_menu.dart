@@ -36,7 +36,7 @@ Future<void> showSongContextMenu(
               downloadState.status == SongDownloadStatus.downloaded;
           final isLiked =
               menuRef.watch(songStarredProvider(song.id)).asData?.value ??
-                  song.starred != null;
+              song.starred != null;
 
           return SafeArea(
             child: Column(
@@ -86,8 +86,7 @@ Future<void> showSongContextMenu(
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content:
-                                  Text(l10n.albumDetailStarFailure),
+                              content: Text(l10n.albumDetailStarFailure),
                             ),
                           );
                         }
