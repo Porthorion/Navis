@@ -1710,7 +1710,7 @@ abstract class AppLocalizations {
   /// No description provided for @albumDetailLikedTracksEmptySubtitle.
   ///
   /// In en, this message translates to:
-  /// **'This album is liked, but none of its individual tracks are liked yet.'**
+  /// **'None of the tracks in this album have been liked yet.'**
   String get albumDetailLikedTracksEmptySubtitle;
 
   /// No description provided for @albumDetailShowAllTracksAction.
@@ -1718,6 +1718,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Show all tracks'**
   String get albumDetailShowAllTracksAction;
+
+  /// Label above the filter chips in the album detail screen
+  ///
+  /// In en, this message translates to:
+  /// **'Filters'**
+  String get albumDetailFilterLabel;
 
   /// No description provided for @albumDetailLoadErrorTitle.
   ///

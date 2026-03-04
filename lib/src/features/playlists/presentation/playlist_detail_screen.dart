@@ -277,59 +277,37 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
               itemCount: songs.length,
               itemBuilder: (context, index) {
                 final song = songs[index];
-                return ReorderableDragStartListener(
+                return Material(
                   key: ValueKey('${widget.playlistId}-${song.id}-$index'),
-                  index: index,
-                  child: Dismissible(
-                    key: ValueKey(
-                      'dismiss-${widget.playlistId}-${song.id}-$index',
-                    ),
-                    direction: DismissDirection.endToStart,
-                    background: Container(
-                      color: Theme.of(context).colorScheme.errorContainer,
-                      alignment: Alignment.centerRight,
-                      padding: const EdgeInsets.only(right: 16),
-                      child: Icon(
-                        Icons.delete_outline,
-                        color: Theme.of(context).colorScheme.onErrorContainer,
-                      ),
-                    ),
-                    confirmDismiss: (_) async {
-                      await _removeTrack(index);
-                      return false;
-                    },
-                    child: Material(
-                      type: MaterialType.transparency,
-                      child: TrackListTile(
-                        song: song,
-                        onTap: _isQueueActionInFlight
-                            ? null
-                            : () => unawaited(_playNow(songs, index)),
-                        onLongPress: _isQueueActionInFlight
-                            ? null
-                            : () => _showSongActions(song, index),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: <Widget>[
-                            SongDownloadStatusIcon(
-                              songId: song.id,
-                              onDownload: _isQueueActionInFlight
-                                  ? null
-                                  : () => unawaited(_downloadSong(song)),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.more_vert),
-                              onPressed: _isQueueActionInFlight
-                                  ? null
-                                  : () => _showSongActions(song, index),
-                            ),
-                            ReorderableDragStartListener(
-                              index: index,
-                              child: const Icon(Icons.drag_handle),
-                            ),
-                          ],
+                  type: MaterialType.transparency,
+                  child: TrackListTile(
+                    song: song,
+                    onTap: _isQueueActionInFlight
+                        ? null
+                        : () => unawaited(_playNow(songs, index)),
+                    onLongPress: _isQueueActionInFlight
+                        ? null
+                        : () => _showSongActions(song, index),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        SongDownloadStatusIcon(
+                          songId: song.id,
+                          onDownload: _isQueueActionInFlight
+                              ? null
+                              : () => unawaited(_downloadSong(song)),
                         ),
-                      ),
+                        IconButton(
+                          icon: const Icon(Icons.more_vert),
+                          onPressed: _isQueueActionInFlight
+                              ? null
+                              : () => _showSongActions(song, index),
+                        ),
+                        ReorderableDragStartListener(
+                          index: index,
+                          child: const Icon(Icons.drag_handle),
+                        ),
+                      ],
                     ),
                   ),
                 );

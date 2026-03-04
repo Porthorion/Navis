@@ -42,7 +42,19 @@ class TrackListTile extends StatelessWidget {
               borderRadius: BorderRadius.circular(6),
             ),
           )
-        : (song.track == null ? null : Text('${song.track}'));
+        : (song.track == null
+              ? null
+              : SizedBox(
+                  width: 32,
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '${song.track}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ));
 
     // Build a RichText subtitle: "Artist · Album" with differentiated styling.
     Widget? subtitleWidget;
@@ -99,6 +111,8 @@ class TrackListTile extends StatelessWidget {
 
     return ListTile(
       dense: true,
+      minLeadingWidth: showAlbumArt ? 48 : 32,
+      horizontalTitleGap: 12,
       leading: leading,
       title: Text(
         song.title,

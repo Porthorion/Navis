@@ -923,10 +923,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get albumDetailLikedTracksEmptySubtitle =>
-      'This album is liked, but none of its individual tracks are liked yet.';
+      'None of the tracks in this album have been liked yet.';
 
   @override
   String get albumDetailShowAllTracksAction => 'Show all tracks';
+
+  @override
+  String get albumDetailFilterLabel => 'Filters';
 
   @override
   String get albumDetailLoadErrorTitle => 'Could not load album details';

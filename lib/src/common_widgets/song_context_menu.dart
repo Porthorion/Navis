@@ -24,6 +24,7 @@ Future<void> showSongContextMenu(
 ) async {
   await showModalBottomSheet<void>(
     context: context,
+    isScrollControlled: true,
     builder: (sheetContext) {
       return Consumer(
         builder: (ctx, menuRef, _) {
