@@ -1773,6 +1773,12 @@ abstract class AppLocalizations {
   /// **'Could not update like status.'**
   String get albumDetailStarFailure;
 
+  /// No description provided for @albumDetailDiscHeader.
+  ///
+  /// In en, this message translates to:
+  /// **'Disc {number}'**
+  String albumDetailDiscHeader(int number);
+
   /// No description provided for @cacheBadgeLabel.
   ///
   /// In en, this message translates to:
