@@ -433,7 +433,18 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                     ),
                     onTap: () {
                       Navigator.of(context).pop();
-                      unawaited(toggleSongStar(song.id, ref));
+                      unawaited(
+                        toggleSongStar(song.id, ref).catchError((_) {
+                          if (this.context.mounted) {
+                            ScaffoldMessenger.of(this.context).showSnackBar(
+                              SnackBar(
+                                content:
+                                    Text(l10n.albumDetailStarFailure),
+                              ),
+                            );
+                          }
+                        }),
+                      );
                     },
                   );
                 },
@@ -664,9 +675,9 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
   List<_AlbumRenderItem> _buildRenderItems(List<SongsTableData> songs) {
     if (songs.isEmpty) return const <_AlbumRenderItem>[];
 
-    final discNumbers = <int?>{};
+    final discNumbers = <int>{};
     for (final song in songs) {
-      discNumbers.add(song.discNumber);
+      discNumbers.add(song.discNumber ?? 1);
     }
     final isMultiDisc = discNumbers.length > 1;
 
@@ -680,7 +691,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
     int? currentDisc;
     var isFirst = true;
     for (final song in songs) {
-      final disc = song.discNumber ?? 0;
+      final disc = song.discNumber ?? 1;
       if (disc != currentDisc) {
         items.add(_DiscHeader(discNumber: disc, isFirst: isFirst));
         currentDisc = disc;

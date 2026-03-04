@@ -199,6 +199,12 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
   }
 
   @override
+  Future<void> syncSongLikedState(String songId, {required bool liked}) async {
+    _snapshot = _snapshot.copyWith(isCurrentSongLiked: liked);
+    _controller.add(_snapshot);
+  }
+
+  @override
   Future<void> playRadioStream({
     required String stationId,
     required String stationName,

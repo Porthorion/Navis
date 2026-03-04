@@ -80,7 +80,18 @@ Future<void> showSongContextMenu(
                   ),
                   onTap: () {
                     Navigator.of(sheetContext).pop();
-                    unawaited(toggleSongStar(song.id, ref));
+                    unawaited(
+                      toggleSongStar(song.id, ref).catchError((_) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content:
+                                  Text(l10n.albumDetailStarFailure),
+                            ),
+                          );
+                        }
+                      }),
+                    );
                   },
                 ),
                 if (song.artistId != null && song.artistId!.isNotEmpty)
