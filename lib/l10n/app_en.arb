@@ -451,6 +451,14 @@
   "albumDetailPlayActionQueued": "Album queued for playback.",
   "albumDetailShuffleActionQueued": "Album shuffled into queue.",
   "albumDetailStarFailure": "Could not update like status.",
+  "albumDetailDiscHeader": "Disc {number}",
+  "@albumDetailDiscHeader": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
   "cacheBadgeLabel": "Cached",
   "miniPlayerUnknownTrack": "Unknown track",
   "miniPlayerUnknownArtist": "Unknown artist",

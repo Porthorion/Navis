@@ -956,6 +956,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get albumDetailStarFailure => 'Could not update like status.';
 
   @override
+  String albumDetailDiscHeader(int number) {
+    return 'Disc $number';
+  }
+
+  @override
   String get cacheBadgeLabel => 'Cached';
 
   @override

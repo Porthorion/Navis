@@ -89,7 +89,9 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
             coverArtId: details.coverArt,
             context: 'album',
           );
-          final tracksSliver = filteredSongs.isEmpty
+          // ── Build render items with disc headers for multi-disc ──
+          final renderItems = _buildRenderItems(filteredSongs);
+          final tracksSliver = renderItems.isEmpty
               ? SliverFillRemaining(
                   hasScrollBody: false,
                   child: downloadedOnly
@@ -124,34 +126,38 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                 )
               : SliverList(
                   delegate: SliverChildBuilderDelegate((context, index) {
-                    final song = filteredSongs[index];
-                    return TrackListTile(
-                      song: song,
-                      onTap: _isQueueActionInFlight
-                          ? null
-                          : () => unawaited(_playNow(song)),
-                      onLongPress: _isQueueActionInFlight
-                          ? null
-                          : () => unawaited(_showSongActions(song)),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          SongDownloadStatusIcon(
-                            songId: song.id,
-                            onDownload: _isQueueActionInFlight
-                                ? null
-                                : () => unawaited(_downloadSong(song)),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.more_vert),
-                            onPressed: _isQueueActionInFlight
-                                ? null
-                                : () => unawaited(_showSongActions(song)),
-                          ),
-                        ],
+                    final item = renderItems[index];
+                    return switch (item) {
+                      _DiscHeader(:final discNumber, :final isFirst) =>
+                        _buildDiscHeader(context, l10n, discNumber, isFirst),
+                      _SongItem(:final song) => TrackListTile(
+                        song: song,
+                        onTap: _isQueueActionInFlight
+                            ? null
+                            : () => unawaited(_playNow(song)),
+                        onLongPress: _isQueueActionInFlight
+                            ? null
+                            : () => unawaited(_showSongActions(song)),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            SongDownloadStatusIcon(
+                              songId: song.id,
+                              onDownload: _isQueueActionInFlight
+                                  ? null
+                                  : () => unawaited(_downloadSong(song)),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.more_vert),
+                              onPressed: _isQueueActionInFlight
+                                  ? null
+                                  : () => unawaited(_showSongActions(song)),
+                            ),
+                          ],
+                        ),
                       ),
-                    );
-                  }, childCount: filteredSongs.length),
+                    };
+                  }, childCount: renderItems.length),
                 );
 
           return CustomScrollView(
@@ -631,6 +637,59 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
       }
     }
   }
+
+  /// Pre-processes [songs] into a flat list of render items.
+  /// Inserts [_DiscHeader]s when there are multiple distinct disc numbers.
+  List<_AlbumRenderItem> _buildRenderItems(List<SongsTableData> songs) {
+    if (songs.isEmpty) return const <_AlbumRenderItem>[];
+
+    final discNumbers = <int?>{};
+    for (final song in songs) {
+      discNumbers.add(song.discNumber);
+    }
+    final isMultiDisc = discNumbers.length > 1;
+
+    if (!isMultiDisc) {
+      return songs
+          .map((s) => _SongItem(song: s))
+          .toList(growable: false);
+    }
+
+    final items = <_AlbumRenderItem>[];
+    int? currentDisc;
+    var isFirst = true;
+    for (final song in songs) {
+      final disc = song.discNumber ?? 0;
+      if (disc != currentDisc) {
+        items.add(_DiscHeader(discNumber: disc, isFirst: isFirst));
+        currentDisc = disc;
+        isFirst = false;
+      }
+      items.add(_SongItem(song: song));
+    }
+    return items;
+  }
+
+  Widget _buildDiscHeader(
+    BuildContext context,
+    AppLocalizations l10n,
+    int discNumber,
+    bool isFirst,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        if (!isFirst) const Divider(height: 1),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          child: Text(
+            l10n.albumDetailDiscHeader(discNumber),
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _AudioMuseSimilarAlbums extends ConsumerWidget {
@@ -685,4 +744,21 @@ class _AudioMuseSimilarAlbums extends ConsumerWidget {
       error: (_, _) => const SizedBox.shrink(),
     );
   }
+}
+
+// ── Render-item types for disc-grouped track lists ─────────────────────────
+
+sealed class _AlbumRenderItem {
+  const _AlbumRenderItem();
+}
+
+final class _DiscHeader extends _AlbumRenderItem {
+  const _DiscHeader({required this.discNumber, required this.isFirst});
+  final int discNumber;
+  final bool isFirst;
+}
+
+final class _SongItem extends _AlbumRenderItem {
+  const _SongItem({required this.song});
+  final SongsTableData song;
 }
