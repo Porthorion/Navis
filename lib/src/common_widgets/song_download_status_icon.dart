@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/utils/file_utils.dart';
 
 /// The resolved download/cache state of a single song.
 enum SongDownloadStatus {
@@ -83,7 +84,7 @@ final songDownloadStateProvider = Provider.family<SongDownloadState, String>((
 });
 
 /// An icon widget that replaces both the old download button and the
-/// [SongCacheBadge] tag.
+/// prior cache-status indicator.
 ///
 /// Shows:
 /// * **Download icon** — song is not cached/queued/downloaded (tappable).
@@ -158,17 +159,17 @@ class SongDownloadStatusIcon extends ConsumerWidget {
         ),
       ),
       SongDownloadStatus.downloaded => Tooltip(
-        message: l10n.songStatusDownloaded,
-        child: SizedBox(
-          width: size + 16,
-          height: size + 16,
-          child: Center(
-            child: Icon(
-              Icons.check_circle,
-              size: size,
-              color: Colors.green,
-            ),
+        message: l10n.deleteDownloadAction,
+        child: IconButton(
+          icon: Icon(
+            Icons.check_circle,
+            size: size,
+            color: Colors.green,
           ),
+          tooltip: l10n.deleteDownloadAction,
+          onPressed: () => _confirmAndDeleteDownload(context, ref, songId),
+          constraints: const BoxConstraints(),
+          padding: const EdgeInsets.all(8),
         ),
       ),
       SongDownloadStatus.cached => Tooltip(
@@ -187,4 +188,43 @@ class SongDownloadStatusIcon extends ConsumerWidget {
       ),
     };
   }
+}
+
+Future<void> _confirmAndDeleteDownload(
+  BuildContext context,
+  WidgetRef ref,
+  String songId,
+) async {
+  if (!context.mounted) return;
+  final l10n = AppLocalizations.of(context)!;
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(l10n.downloadsRemoveConfirmTitle),
+      content: Text(l10n.downloadsRemoveConfirmContent),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: Text(l10n.cancelAction),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: Theme.of(ctx).colorScheme.error,
+            foregroundColor: Theme.of(ctx).colorScheme.onError,
+          ),
+          onPressed: () => Navigator.of(ctx).pop(true),
+          child: Text(l10n.downloadsRemoveAction),
+        ),
+      ],
+    ),
+  );
+
+  if (confirmed != true || !context.mounted) return;
+
+  final cacheDao = ref.read(navisDatabaseProvider).cacheDao;
+  final track = await cacheDao.getCachedTrack(songId);
+  if (track != null) {
+    await deleteFileWithSuffixes(track.filePath);
+  }
+  await cacheDao.removeCachedTrack(songId);
 }
