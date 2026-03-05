@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/expandable_player_sheet.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
@@ -973,12 +974,12 @@ class _MiniRadioArt extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
       child: url != null && url.isNotEmpty
-          ? Image.network(
-              url,
+          ? CachedNetworkImage(
+              imageUrl: url,
               width: 48,
               height: 48,
               fit: BoxFit.cover,
-              errorBuilder: (_, _, _) => _placeholder(),
+              errorWidget: (_, _, _) => _placeholder(),
             )
           : _placeholder(),
     );

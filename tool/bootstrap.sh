@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-required_flutter_min="3.32.0"
+required_flutter_min="3.41.0"
 required_flutter_baseline_prefix="3.41"
 
 check_cmd() {

@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/subsonic_error.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
 import 'package:navis/src/features/player/presentation/smart_queue_notifier.dart';
@@ -515,12 +516,12 @@ class _RadioCoverArt extends StatelessWidget {
     if (artUrl != null) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(12),
-        child: Image.network(
-          artUrl!,
+        child: CachedNetworkImage(
+          imageUrl: artUrl!,
           width: artSize,
           height: artSize,
           fit: BoxFit.cover,
-          errorBuilder: (_, _, _) => _radioPlaceholder(context, artSize),
+          errorWidget: (_, _, _) => _radioPlaceholder(context, artSize),
         ),
       );
     }

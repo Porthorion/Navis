@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_error.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:navis/src/common_widgets/album_download_badge.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
@@ -248,10 +249,10 @@ class _ArtistImageHeader extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: <Widget>[
-          Image.network(
-            imageUrl,
+          CachedNetworkImage(
+            imageUrl: imageUrl,
             fit: BoxFit.cover,
-            errorBuilder: (_, _, _) => const SizedBox.shrink(),
+            errorWidget: (_, _, _) => const SizedBox.shrink(),
           ),
           // Gradient overlay — fades to scaffold background at the bottom
           // so the artist name blends in naturally.
