@@ -581,6 +581,7 @@ class _QueueOverlayState extends State<_QueueOverlay>
   int? _activePointer;
   bool _draggingSheet = false;
   bool _dismissing = false;
+  bool _queueReorderActive = false;
 
   // Cumulative displacement tracking — distinguishes horizontal swipes
   // (e.g. Dismissible swipe-to-delete) from vertical sheet drags.
@@ -620,10 +621,26 @@ class _QueueOverlayState extends State<_QueueOverlay>
     setState(() => _draggingSheet = value);
   }
 
+  void _setQueueReorderActive(bool value) {
+    if (_queueReorderActive == value) return;
+    if (!mounted) {
+      _queueReorderActive = value;
+      return;
+    }
+    setState(() => _queueReorderActive = value);
+
+    // Lock sheet-dismiss gestures while list reordering is active.
+    if (value) {
+      _activePointer = null;
+      _velocityTracker = null;
+      _setDraggingSheet(false);
+    }
+  }
+
   // ---- Raw pointer handlers -----------------------------------------------
 
   void _onPointerDown(PointerDownEvent event) {
-    if (_dismissing) return;
+    if (_dismissing || _queueReorderActive) return;
     _activePointer = event.pointer;
     _velocityTracker = VelocityTracker.withKind(event.kind);
     _velocityTracker!.addPosition(event.timeStamp, event.position);
@@ -633,7 +650,9 @@ class _QueueOverlayState extends State<_QueueOverlay>
   }
 
   void _onPointerMove(PointerMoveEvent event) {
-    if (_dismissing || event.pointer != _activePointer) return;
+    if (_dismissing || _queueReorderActive || event.pointer != _activePointer) {
+      return;
+    }
     _velocityTracker?.addPosition(event.timeStamp, event.position);
 
     final dx = event.delta.dx;
@@ -664,6 +683,7 @@ class _QueueOverlayState extends State<_QueueOverlay>
   }
 
   void _onPointerUp(PointerUpEvent event) {
+    if (_queueReorderActive) return;
     if (event.pointer != _activePointer) return;
     _activePointer = null;
     final wasDragging = _draggingSheet;
@@ -679,6 +699,7 @@ class _QueueOverlayState extends State<_QueueOverlay>
   }
 
   void _onPointerCancel(PointerCancelEvent event) {
+    if (_queueReorderActive) return;
     if (event.pointer != _activePointer) return;
     _activePointer = null;
     final wasDragging = _draggingSheet;
@@ -734,6 +755,7 @@ class _QueueOverlayState extends State<_QueueOverlay>
                       child: QueueSheet(
                         scrollController: _scrollController,
                         sheetDragActive: _draggingSheet,
+                        onReorderDragChanged: _setQueueReorderActive,
                         onClose: _dismiss,
                       ),
                     ),
