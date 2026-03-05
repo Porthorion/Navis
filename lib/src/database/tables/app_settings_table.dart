@@ -123,6 +123,42 @@ class AppSettingsTable extends Table {
   /// Playback speed multiplier (0.5–2.0). Default 1.0.
   RealColumn get playbackSpeed => real().withDefault(const Constant(1))();
 
+  /// Album grid column count override. Null = auto (computed from width).
+  /// Valid explicit values: 1–4.
+  IntColumn get albumGridDensity => integer().nullable()();
+
+  /// Border radius (logical px) for cover art in library cards, carousels, etc.
+  /// 0 = square, 24 = very rounded. Default 12.
+  RealColumn get coverArtBorderRadius =>
+      real().withDefault(const Constant(12))();
+
+  /// Border radius (logical px) for the Now Playing album art. Default 16.
+  RealColumn get nowPlayingArtBorderRadius =>
+      real().withDefault(const Constant(16))();
+
+  /// Cover art shape preset: 'square' or 'rounded'. Default 'square'.
+  TextColumn get coverArtShape =>
+      text().withDefault(const Constant('square'))();
+
+  /// Now Playing art shape preset: 'square', 'rounded', or 'circle'. Default 'rounded'.
+  TextColumn get nowPlayingArtShape =>
+      text().withDefault(const Constant('rounded'))();
+
+  /// Artist card shape preset: 'square', 'rounded', or 'circle'. Default 'circle'.
+  TextColumn get artistCardShape =>
+      text().withDefault(const Constant('circle'))();
+
+  /// Artist view layout: 'list' or 'grid'. Default 'grid'.
+  TextColumn get artistViewMode =>
+      text().withDefault(const Constant('grid'))();
+
+  /// JSON-encoded ordered list of home section IDs (e.g. ["recently_added",…]).
+  /// Null = default order.
+  TextColumn get homeSectionOrder => text().nullable()();
+
+  /// JSON-encoded list of hidden home section IDs. Null = none hidden.
+  TextColumn get homeSectionsHidden => text().nullable()();
+
   DateTimeColumn get updatedAt => dateTime()();
 
   @override

@@ -581,4 +581,30 @@ void main() {
       },
     );
   });
+
+  group('computeGridCrossAxisCount', () {
+    test('returns override when provided', () {
+      expect(computeGridCrossAxisCount(3, 600), 3);
+    });
+
+    test('clamps override to [1, 5]', () {
+      expect(computeGridCrossAxisCount(0, 600), 1);
+      expect(computeGridCrossAxisCount(10, 600), 5);
+    });
+
+    test('auto-computes from width when override is null', () {
+      // 360px / 180 = 2
+      expect(computeGridCrossAxisCount(null, 360), 2);
+      // 900px / 180 = 5
+      expect(computeGridCrossAxisCount(null, 900), 5);
+    });
+
+    test('clamps auto-computed to at least 1', () {
+      expect(computeGridCrossAxisCount(null, 100), 1);
+    });
+
+    test('clamps auto-computed to at most 5', () {
+      expect(computeGridCrossAxisCount(null, 2000), 5);
+    });
+  });
 }

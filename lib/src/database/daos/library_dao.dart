@@ -50,13 +50,24 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   }
 
   Stream<List<AlbumsTableData>> watchAlbumsByArtist(String artistId) {
-    final query = select(albumsTable)
-      ..where((table) => table.artistId.equals(artistId))
-      ..orderBy([
-        (table) => OrderingTerm.asc(table.year),
-        (table) => OrderingTerm.asc(table.name),
-      ]);
-    return query.watch();
+    return customSelect(
+      '''
+      SELECT al.*
+      FROM albums al
+      WHERE al.artist_id = ?1
+         OR (
+           (al.artist_id IS NULL OR al.artist_id = '')
+           AND LOWER(COALESCE(al.artist_name, '')) = LOWER(
+             COALESCE((SELECT name FROM artists WHERE id = ?1 LIMIT 1), '')
+           )
+         )
+      ORDER BY al.year ASC, al.name ASC
+      ''',
+      variables: <Variable<Object>>[Variable<String>(artistId)],
+      readsFrom: {albumsTable, artistsTable},
+    ).watch().map(
+      (rows) => rows.map((row) => albumsTable.map(row.data)).toList(),
+    );
   }
 
   Stream<ArtistsTableData?> watchArtistById(String artistId) {
@@ -649,9 +660,24 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   }
 
   Future<List<AlbumsTableData>> getAlbumsByArtist(String artistId) {
-    final query = select(albumsTable)
-      ..where((table) => table.artistId.equals(artistId));
-    return query.get();
+    return customSelect(
+      '''
+      SELECT al.*
+      FROM albums al
+      WHERE al.artist_id = ?1
+         OR (
+           (al.artist_id IS NULL OR al.artist_id = '')
+           AND LOWER(COALESCE(al.artist_name, '')) = LOWER(
+             COALESCE((SELECT name FROM artists WHERE id = ?1 LIMIT 1), '')
+           )
+         )
+      ORDER BY al.year ASC, al.name ASC
+      ''',
+      variables: <Variable<Object>>[Variable<String>(artistId)],
+      readsFrom: {albumsTable, artistsTable},
+    ).get().then(
+      (rows) => rows.map((row) => albumsTable.map(row.data)).toList(),
+    );
   }
 
   Future<void> deleteAlbumsByIds(Iterable<String> albumIds) async {

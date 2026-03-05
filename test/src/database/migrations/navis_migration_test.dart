@@ -20,8 +20,8 @@ void main() {
           .customSelect('PRAGMA user_version;')
           .getSingle();
 
-      expect(database.schemaVersion, 26);
-      expect(pragmaRow.read<int>('user_version'), 26);
+      expect(database.schemaVersion, 28);
+      expect(pragmaRow.read<int>('user_version'), 28);
     },
     skip: !sqliteAvailable,
   );
@@ -218,7 +218,7 @@ void main() {
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 26);
+      expect(versionRow.read<int>('user_version'), 28);
 
       final albums = await migrated.select(migrated.albumsTable).get();
       final albumsById = {for (final album in albums) album.id: album};
@@ -258,6 +258,13 @@ void main() {
         AppSettingsDao.defaultRollingCacheBudgetMb,
       );
       expect(settings.autoDownloadStarredOnWifi, isFalse);
+      expect(settings.albumGridDensity, isNull);
+      expect(settings.coverArtShape, 'square');
+      expect(settings.nowPlayingArtShape, 'rounded');
+      expect(settings.artistCardShape, 'circle');
+      expect(settings.artistViewMode, 'grid');
+      expect(settings.homeSectionOrder, isNull);
+      expect(settings.homeSectionsHidden, isNull);
     },
     skip: !sqliteAvailable,
   );

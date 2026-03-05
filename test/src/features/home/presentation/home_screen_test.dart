@@ -122,4 +122,24 @@ void main() {
     expect(find.text('Liked tracks'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  group('HomeSectionIds', () {
+    test('defaultOrder contains all section IDs', () {
+      expect(HomeSectionIds.defaultOrder, containsAll(<String>[
+        HomeSectionIds.likedTracks,
+        HomeSectionIds.recentlyAdded,
+        HomeSectionIds.recentlyPlayed,
+        HomeSectionIds.randomAlbums,
+        HomeSectionIds.mostPlayed,
+        HomeSectionIds.audiomuseRecs,
+      ]));
+    });
+
+    test('defaultOrder has no duplicates', () {
+      expect(
+        HomeSectionIds.defaultOrder.toSet().length,
+        HomeSectionIds.defaultOrder.length,
+      );
+    });
+  });
 }

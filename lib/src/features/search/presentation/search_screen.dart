@@ -461,6 +461,8 @@ class _ArtistResultsSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
+    final artistShape = ref.watch(artistCardShapeProvider);
+    final artistRadius = coverArtShapeToRadius(artistShape);
     final visible = expanded ? artists : artists.take(5).toList();
 
     return Column(
@@ -474,16 +476,21 @@ class _ArtistResultsSection extends ConsumerWidget {
         ),
         ...visible.map(
           (artist) => ListTile(
-            leading: CircleAvatar(
-              child: artist.coverArt != null
-                  ? CoverArtImage(
-                      coverArtId: artist.coverArt,
-                      size: 80,
-                      width: 40,
-                      height: 40,
-                      borderRadius: BorderRadius.circular(20),
-                    )
-                  : const Icon(Icons.person),
+            leading: ClipRRect(
+              borderRadius: artistRadius,
+              child: SizedBox(
+                width: 40,
+                height: 40,
+                child: artist.coverArt != null
+                    ? CoverArtImage(
+                        coverArtId: artist.coverArt,
+                        size: 80,
+                        width: 40,
+                        height: 40,
+                        borderRadius: artistRadius,
+                      )
+                    : const Icon(Icons.person),
+              ),
             ),
             title: Text(artist.name),
             subtitle: artist.albumCount != null
@@ -511,6 +518,8 @@ class _AlbumResultsSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
+    final coverShape = ref.watch(coverArtShapeProvider);
+    final coverRadius = coverArtShapeToRadius(coverShape);
     final visible = expanded ? albums : albums.take(5).toList();
 
     return Column(
@@ -529,7 +538,7 @@ class _AlbumResultsSection extends ConsumerWidget {
               size: 80,
               width: 48,
               height: 48,
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: coverRadius,
             ),
             title: Text(album.name),
             subtitle: Text(album.artist ?? ''),
@@ -555,6 +564,8 @@ class _SongResultsSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
+    final coverShape = ref.watch(coverArtShapeProvider);
+    final coverRadius = coverArtShapeToRadius(coverShape);
     final visible = expanded ? songs : songs.take(5).toList();
 
     return Column(
@@ -576,7 +587,7 @@ class _SongResultsSection extends ConsumerWidget {
                 size: 80,
                 width: 48,
                 height: 48,
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: coverRadius,
               ),
               title: Text(song.title),
               subtitle: Text(

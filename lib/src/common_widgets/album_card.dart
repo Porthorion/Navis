@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/providers/app_providers.dart';
 
 /// Size presets for [AlbumCard].
 enum AlbumCardSize {
@@ -20,7 +22,7 @@ enum AlbumCardSize {
 ///
 /// Album art fills the entire card.  The title and artist name are overlaid
 /// at the bottom on top of a gradient that fades from transparent to black.
-class AlbumCard extends StatelessWidget {
+class AlbumCard extends ConsumerWidget {
   const AlbumCard({
     required this.album,
     super.key,
@@ -41,7 +43,9 @@ class AlbumCard extends StatelessWidget {
   final VoidCallback? onLongPress;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final shape = ref.watch(coverArtShapeProvider);
+    final cardBorderRadius = coverArtShapeToRadius(shape);
     final cardWidth = size == AlbumCardSize.compact
         ? size.extent
         : double.infinity;
@@ -54,7 +58,7 @@ class AlbumCard extends StatelessWidget {
           clipBehavior: Clip.antiAlias,
           margin: EdgeInsets.zero,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: cardBorderRadius,
           ),
           child: InkWell(
             onTap: onTap,

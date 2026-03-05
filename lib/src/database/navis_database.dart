@@ -69,7 +69,7 @@ class NavisDatabase extends _$NavisDatabase {
   static QueryExecutor _openConnection() => driftDatabase(name: 'navis.sqlite');
 
   @override
-  int get schemaVersion => 26;
+  int get schemaVersion => 28;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -165,6 +165,12 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 26 && to >= 26) {
       await from25To26(migrator);
+    }
+    if (from < 27 && to >= 27) {
+      await from26To27(migrator);
+    }
+    if (from < 28 && to >= 28) {
+      await from27To28(migrator);
     }
   }
 
@@ -549,6 +555,69 @@ class NavisDatabase extends _$NavisDatabase {
   Future<void> from25To26(Migrator migrator) async {
     if (!await _columnExists('app_settings', 'app_locale')) {
       await migrator.addColumn(appSettingsTable, appSettingsTable.appLocale);
+    }
+  }
+
+  Future<void> from26To27(Migrator migrator) async {
+    if (!await _columnExists('app_settings', 'album_grid_density')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.albumGridDensity,
+      );
+    }
+    if (!await _columnExists('app_settings', 'cover_art_border_radius')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.coverArtBorderRadius,
+      );
+    }
+    if (!await _columnExists(
+      'app_settings',
+      'now_playing_art_border_radius',
+    )) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.nowPlayingArtBorderRadius,
+      );
+    }
+    if (!await _columnExists('app_settings', 'artist_view_mode')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.artistViewMode,
+      );
+    }
+    if (!await _columnExists('app_settings', 'home_section_order')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.homeSectionOrder,
+      );
+    }
+    if (!await _columnExists('app_settings', 'home_sections_hidden')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.homeSectionsHidden,
+      );
+    }
+  }
+
+  Future<void> from27To28(Migrator migrator) async {
+    if (!await _columnExists('app_settings', 'cover_art_shape')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.coverArtShape,
+      );
+    }
+    if (!await _columnExists('app_settings', 'now_playing_art_shape')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.nowPlayingArtShape,
+      );
+    }
+    if (!await _columnExists('app_settings', 'artist_card_shape')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.artistCardShape,
+      );
     }
   }
 

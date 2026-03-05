@@ -25,6 +25,7 @@ import 'package:navis/src/features/player/presentation/queue_sheet.dart';
 import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
 import 'package:navis/src/features/library/presentation/star_sync_dispatch_provider.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
+import 'package:navis/src/features/home/presentation/home_scroll_provider.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart'
     show searchFocusRequestProvider;
 import 'package:navis/src/providers/app_providers.dart';
@@ -374,6 +375,13 @@ class _AppShellState extends ConsumerState<AppShell> {
                     // Trigger focus request whenever the Search tab is tapped.
                     if (branchIndex == _searchBranchIndex) {
                       ref.read(searchFocusRequestProvider.notifier).increment();
+                    }
+                    // Scroll to top when Home is tapped while already on Home.
+                    if (branchIndex == _homeBranchIndex &&
+                        branchIndex == navigationShell.currentIndex) {
+                      ref
+                          .read(homeScrollToTopRequestProvider.notifier)
+                          .request();
                     }
                     // Scroll to top when Library is tapped while already on Library.
                     if (branchIndex == _libraryBranchIndex &&

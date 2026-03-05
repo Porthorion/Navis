@@ -10,6 +10,7 @@ import 'package:navis/src/common_widgets/album_download_badge.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/artist_card.dart';
+import 'package:navis/src/common_widgets/artist_grid_card.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
@@ -31,6 +32,18 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 enum _AlbumSort { recentlyAdded, newest, name, artist, byYear }
+
+/// Computes the effective album grid column count.
+///
+/// When [densityOverride] is non-null, returns that value clamped to [1, 5].
+/// Otherwise, auto-computes from [availableWidth] as `floor(width / 180)`
+/// clamped to [1, 5].
+int computeGridCrossAxisCount(int? densityOverride, double availableWidth) {
+  if (densityOverride != null) {
+    return densityOverride.clamp(1, 5);
+  }
+  return (availableWidth / 180).floor().clamp(1, 5);
+}
 
 class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
@@ -335,6 +348,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     final artists = ref.watch(
       _artistsLikedOnly ? likedArtistsProvider : artistsProvider,
     );
+    final isGridMode = ref.watch(artistViewModeProvider) == 'grid';
     // Watch downloaded content IDs so filter updates reactively.
     if (_downloadedOnly) {
       ref.watch(downloadedContentIdsProvider);
@@ -344,32 +358,55 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       children: <Widget>[
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
+          child: Row(
             children: <Widget>[
-              FilterChip(
-                label: Text(l10n.libraryDownloadedOnlyFilter),
-                selected: _downloadedOnly,
-                onSelected: _updateDownloadedOnly,
-                avatar: Icon(
-                  _downloadedOnly
-                      ? Icons.download_done
-                      : Icons.download_outlined,
-                  size: 18,
+              Expanded(
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: <Widget>[
+                    FilterChip(
+                      label: Text(l10n.libraryDownloadedOnlyFilter),
+                      selected: _downloadedOnly,
+                      onSelected: _updateDownloadedOnly,
+                      avatar: Icon(
+                        _downloadedOnly
+                            ? Icons.download_done
+                            : Icons.download_outlined,
+                        size: 18,
+                      ),
+                    ),
+                    FilterChip(
+                      label: Text(l10n.libraryLikedOnlyFilter),
+                      selected: _artistsLikedOnly,
+                      onSelected: (value) =>
+                          setState(() => _artistsLikedOnly = value),
+                      avatar: Icon(
+                        _artistsLikedOnly
+                            ? Icons.favorite
+                            : Icons.favorite_border_outlined,
+                        size: 18,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              FilterChip(
-                label: Text(l10n.libraryLikedOnlyFilter),
-                selected: _artistsLikedOnly,
-                onSelected: (value) =>
-                    setState(() => _artistsLikedOnly = value),
-                avatar: Icon(
-                  _artistsLikedOnly
-                      ? Icons.favorite
-                      : Icons.favorite_border_outlined,
-                  size: 18,
+              IconButton(
+                icon: Icon(
+                  isGridMode ? Icons.view_list : Icons.grid_view,
                 ),
+                tooltip: isGridMode
+                    ? l10n.libraryTabArtists
+                    : l10n.libraryTabArtists,
+                onPressed: () async {
+                  final repo = ref.read(settingsRepositoryProvider);
+                  final settings = await repo.getSettings();
+                  await repo.saveSettings(
+                    settings.copyWith(
+                      artistViewMode: isGridMode ? 'list' : 'grid',
+                    ),
+                  );
+                },
               ),
             ],
           ),
@@ -405,6 +442,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                       ),
                     ],
                   );
+                }
+
+                if (isGridMode) {
+                  return _buildArtistsGrid(context, filteredItems);
                 }
 
                 _ensureArtistListCache(filteredItems);
@@ -642,8 +683,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                     padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                     sliver: SliverGrid(
                       gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
+                          SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: computeGridCrossAxisCount(
+                              ref.watch(albumGridDensityProvider),
+                              MediaQuery.sizeOf(context).width - 24,
+                            ),
                             childAspectRatio: 1,
                             crossAxisSpacing: 8,
                             mainAxisSpacing: 8,
@@ -1006,8 +1050,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
                 sliver: SliverGrid(
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: computeGridCrossAxisCount(
+                      ref.watch(albumGridDensityProvider),
+                      MediaQuery.sizeOf(context).width - 24,
+                    ),
                     childAspectRatio: 1,
                     crossAxisSpacing: 8,
                     mainAxisSpacing: 8,
@@ -1227,6 +1274,48 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       }
     }
     return indexByLetter;
+  }
+
+  Widget _buildArtistsGrid(
+    BuildContext context,
+    List<ArtistsTableData> artists,
+  ) {
+    final crossAxisCount = computeGridCrossAxisCount(
+      ref.watch(albumGridDensityProvider),
+      MediaQuery.sizeOf(context).width - 24,
+    );
+
+    return CustomScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      slivers: <Widget>[
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 80),
+          sliver: SliverGrid(
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: crossAxisCount,
+              childAspectRatio: 0.8,
+              crossAxisSpacing: 4,
+              mainAxisSpacing: 4,
+            ),
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                final artist = artists[index];
+                return RepaintBoundary(
+                  child: ArtistGridCard(
+                    key: ValueKey(artist.id),
+                    artist: artist,
+                    onTap: () =>
+                        context.go('/library/artists/${artist.id}'),
+                    onLongPress: () => _showArtistMenu(context, artist),
+                  ),
+                );
+              },
+              childCount: artists.length,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   void _ensureArtistListCache(List<ArtistsTableData> artists) {
@@ -2398,8 +2487,11 @@ class LikedAlbumsAllScreen extends ConsumerWidget {
                   padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
                   sliver: SliverGrid(
                     gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
+                        SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: computeGridCrossAxisCount(
+                            ref.watch(albumGridDensityProvider),
+                            MediaQuery.sizeOf(context).width - 24,
+                          ),
                           childAspectRatio: 1,
                           crossAxisSpacing: 8,
                           mainAxisSpacing: 8,
