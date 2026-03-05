@@ -21,12 +21,14 @@ class QueueSheet extends ConsumerWidget {
   const QueueSheet({
     required this.scrollController,
     this.sheetDragActive = false,
+    this.onReorderDragChanged,
     this.onClose,
     super.key,
   });
 
   final ScrollController scrollController;
   final bool sheetDragActive;
+  final ValueChanged<bool>? onReorderDragChanged;
   final VoidCallback? onClose;
 
   @override
@@ -66,6 +68,8 @@ class QueueSheet extends ConsumerWidget {
                           : const ClampingScrollPhysics(),
                       padding: const EdgeInsets.only(bottom: 80),
                       itemCount: queueIds.length,
+                      onReorderStart: (_) => onReorderDragChanged?.call(true),
+                      onReorderEnd: (_) => onReorderDragChanged?.call(false),
                       onReorder: (oldIndex, newIndex) async {
                         await ref.read(reorderQueueProvider)(
                           oldIndex,

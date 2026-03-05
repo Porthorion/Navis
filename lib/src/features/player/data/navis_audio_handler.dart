@@ -1560,21 +1560,25 @@ class NavisAudioHandler extends BaseAudioHandler
       if (oldIndex < 0 || oldIndex >= _queueItems.length) {
         return;
       }
-      if (newIndex < 0 || newIndex >= _queueItems.length) {
+      // ReorderableListView can report newIndex == length when dragging to
+      // the end; treat that as a valid destination.
+      if (newIndex < 0 || newIndex > _queueItems.length) {
         return;
       }
-      if (oldIndex == newIndex) {
+
+      final adjustedIndex =
+          oldIndex < newIndex ? newIndex - 1 : newIndex.clamp(0, _queueItems.length - 1);
+      if (oldIndex == adjustedIndex) {
         return;
       }
 
       // Reorder the in-memory queue items to match the new order.
       final movedItem = _queueItems.removeAt(oldIndex);
-      final adjustedIndex = oldIndex < newIndex ? newIndex - 1 : newIndex;
       _queueItems.insert(adjustedIndex, movedItem);
 
       // Move the audio source in the player's playlist — this does NOT
       // interrupt playback; just_audio tracks the current item internally.
-      await _player.moveAudioSource(oldIndex, newIndex);
+      await _player.moveAudioSource(oldIndex, adjustedIndex);
 
       queue.add(List<MediaItem>.unmodifiable(_queueItems));
       await _persistSafely(
