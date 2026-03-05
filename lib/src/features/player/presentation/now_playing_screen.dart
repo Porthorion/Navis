@@ -211,69 +211,97 @@ void _showNowPlayingSettingsSheet(
   showModalBottomSheet<void>(
     context: context,
     useRootNavigator: true,
-    builder: (sheetContext) => SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          ListTile(
-            leading: const Icon(Icons.speed),
-            title: Text(l10n.playbackSettingsPlaybackSpeedLabel),
-            subtitle: Text(formatPlaybackSpeed(playbackSpeed)),
-            onTap: () {
-              Navigator.of(sheetContext).pop();
-              _showPlaybackSpeedSheet(context, ref, playbackSpeed);
-            },
+    builder: (sheetContext) => Consumer(
+      builder: (context, sheetRef, _) {
+        final currentSongRating = song == null
+            ? null
+            : sheetRef.watch(songRatingProvider(song.id)).asData?.value;
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              ListTile(
+                leading: const Icon(Icons.speed),
+                title: Text(l10n.playbackSettingsPlaybackSpeedLabel),
+                subtitle: Text(formatPlaybackSpeed(playbackSpeed)),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _showPlaybackSpeedSheet(context, ref, playbackSpeed);
+                },
+              ),
+              if (song != null)
+                ListTile(
+                  leading: const Icon(Icons.star_outline),
+                  title: Text(l10n.ratingTitle),
+                  subtitle: Text(l10n.ratingHint),
+                  trailing: RatingWidget(
+                    rating: currentSongRating,
+                    compact: true,
+                    onChanged: (next) {
+                      unawaited(
+                        setSongRating(song.id, next, sheetRef).catchError((_) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(l10n.ratingUpdateFailed)),
+                            );
+                          }
+                        }),
+                      );
+                    },
+                  ),
+                ),
+              if (song?.albumId != null && song!.albumId!.isNotEmpty)
+                ListTile(
+                  leading: const Icon(Icons.album_outlined),
+                  title: Text(l10n.nowPlayingGoToAlbum),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    NavService.goToAlbum(context, ref, song.albumId!);
+                  },
+                ),
+              if (song?.artistId != null && song!.artistId!.isNotEmpty)
+                ListTile(
+                  leading: const Icon(Icons.person_outline),
+                  title: Text(l10n.nowPlayingGoToArtist),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    NavService.goToArtist(context, ref, song.artistId!);
+                  },
+                ),
+              if (song != null)
+                ListTile(
+                  leading: const Icon(Icons.playlist_add),
+                  title: Text(l10n.librarySongMenuAddToPlaylist),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    showAddToPlaylistSheet(context, ref, [song.id]);
+                  },
+                ),
+              if (song != null)
+                ListTile(
+                  leading: const Icon(Icons.download_outlined),
+                  title: Text(l10n.downloadAction),
+                  onTap: () async {
+                    Navigator.of(sheetContext).pop();
+                    final choice = await showDownloadQualitySheet(context);
+                    if (choice == null || !context.mounted) return;
+                    final service = ref.read(downloadServiceProvider);
+                    await service.enqueueSong(
+                      song.id,
+                      quality: choice.quality,
+                      format: choice.format,
+                    );
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(l10n.downloadSongQueued)),
+                      );
+                    }
+                  },
+                ),
+            ],
           ),
-          if (song?.albumId != null && song!.albumId!.isNotEmpty)
-            ListTile(
-              leading: const Icon(Icons.album_outlined),
-              title: Text(l10n.nowPlayingGoToAlbum),
-              onTap: () {
-                Navigator.of(sheetContext).pop();
-                NavService.goToAlbum(context, ref, song.albumId!);
-              },
-            ),
-          if (song?.artistId != null && song!.artistId!.isNotEmpty)
-            ListTile(
-              leading: const Icon(Icons.person_outline),
-              title: Text(l10n.nowPlayingGoToArtist),
-              onTap: () {
-                Navigator.of(sheetContext).pop();
-                NavService.goToArtist(context, ref, song.artistId!);
-              },
-            ),
-          if (song != null)
-            ListTile(
-              leading: const Icon(Icons.playlist_add),
-              title: Text(l10n.librarySongMenuAddToPlaylist),
-              onTap: () {
-                Navigator.of(sheetContext).pop();
-                showAddToPlaylistSheet(context, ref, [song.id]);
-              },
-            ),
-          if (song != null)
-            ListTile(
-              leading: const Icon(Icons.download_outlined),
-              title: Text(l10n.downloadAction),
-              onTap: () async {
-                Navigator.of(sheetContext).pop();
-                final choice = await showDownloadQualitySheet(context);
-                if (choice == null || !context.mounted) return;
-                final service = ref.read(downloadServiceProvider);
-                await service.enqueueSong(
-                  song.id,
-                  quality: choice.quality,
-                  format: choice.format,
-                );
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(l10n.downloadSongQueued)),
-                  );
-                }
-              },
-            ),
-        ],
-      ),
+        );
+      },
     ),
   );
 }
