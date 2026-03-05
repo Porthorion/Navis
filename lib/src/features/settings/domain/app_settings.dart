@@ -23,6 +23,7 @@ class AppSettingsModel {
     required this.autoDownloadStarredOnWifi,
     required this.themeMode,
     required this.colorSchemeSeed,
+    required this.appLocale,
     required this.crossfadeEnabled,
     required this.crossfadeDurationSeconds,
     required this.crossfadeType,
@@ -59,6 +60,7 @@ class AppSettingsModel {
       autoDownloadStarredOnWifi = false,
       themeMode = 'dark',
       colorSchemeSeed = null,
+      appLocale = null,
       crossfadeEnabled = false,
       crossfadeDurationSeconds = 5,
       crossfadeType = 'normal',
@@ -95,6 +97,7 @@ class AppSettingsModel {
   final bool autoDownloadStarredOnWifi;
   final String themeMode;
   final int? colorSchemeSeed;
+  final String? appLocale;
   final bool crossfadeEnabled;
   final int crossfadeDurationSeconds;
   final String crossfadeType;
@@ -136,6 +139,7 @@ class AppSettingsModel {
     bool? autoDownloadStarredOnWifi,
     String? themeMode,
     int? colorSchemeSeed,
+    String? appLocale,
     bool? crossfadeEnabled,
     int? crossfadeDurationSeconds,
     String? crossfadeType,
@@ -155,6 +159,7 @@ class AppSettingsModel {
     bool clearCellularBitRate = false,
     bool clearCellularFormat = false,
     bool clearColorSchemeSeed = false,
+    bool clearAppLocale = false,
     bool clearAudioMuseServerUrl = false,
     bool clearAudioMuseApiKey = false,
   }) {
@@ -188,6 +193,7 @@ class AppSettingsModel {
       colorSchemeSeed: clearColorSchemeSeed
           ? null
           : colorSchemeSeed ?? this.colorSchemeSeed,
+        appLocale: clearAppLocale ? null : appLocale ?? this.appLocale,
       crossfadeEnabled: crossfadeEnabled ?? this.crossfadeEnabled,
       crossfadeDurationSeconds:
           crossfadeDurationSeconds ?? this.crossfadeDurationSeconds,

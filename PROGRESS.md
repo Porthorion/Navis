@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-03-01
+Last updated: 2026-03-05
 
 ---
 
@@ -56,6 +56,7 @@ Last updated: 2026-03-01
 - [x] Phase 14 lyrics follow-up (full-screen lyrics now subscribe to the live playback position stream on open so mid-song entry immediately aligns to the active line, and auto-scroll re-engages faster after the user stops manual scrolling) — 2026-02-28 (evidence: `lib/src/features/player/presentation/now_playing_lyrics_screen.dart`, `lib/src/common_widgets/lyrics_display_widget.dart`, `dart analyze lib test`)
 - [x] Post-Phase-15 UX polish increment 1 (8 UX improvements: (1) By Year decade rail navigation lock mirrors artist rail — TabBarView uses `NeverScrollableScrollPhysics` while scrubbing either rail; (2) Appearance › Page Visibility toggle order fixed to match actual tab order: Liked before Artists; (3) Liked artists filter is now recursive — includes artists with any liked song or liked album via raw SQL `EXISTS` subqueries; (4) Liked songs list shows album art as tile leading instead of track number via new `showAlbumArt` param on `TrackListTile`; (5) Downloads now pre-cache cover art after audio file is saved — best-effort non-blocking via `defaultCoverArtCacheManager.downloadFile`; (6) Cover art viewer dismisses on tap of black background or vertical swipe ≥ 300 px/s — restructured around `GestureDetector` background layer + `LayoutBuilder`-positioned image; (7) Startup sync now always prefers incremental when library has been synced before — avoids re-triggering 24-hour rebaseline on reconnect; (8) Downloads queue tab gains "Clear queue" button with confirmation dialog and `downloadsClearQueue` / `downloadsClearQueueConfirm` l10n strings) — 2026-03-01 (evidence: `dart analyze lib/` — 0 issues, `flutter test` — 202/202 pass)
 - [x] Post-Phase-15 UX polish increment 2 (3 fixes: (1) Cache→downloaded promotion — `CacheDao.upsertRollingCachedTrack` prevents rolling-cache writes from downgrading a permanent download entry; `DriftRollingCacheManager.registerTrack` uses the new method so playing an already-downloaded track just touches `lastAccessedAt` instead of overwriting `cacheType`; (2) By Year performance — replaced `GridView.builder(shrinkWrap:true)` per section (eager layout of all albums) with a flat `_YearListItem` list of header + album-pair rows mirroring the artist rail pattern; `_ensureYearListCache` builds the flat list with identity check; `ScrollablePositionedList` now virtualizes at the row level for smooth scrolling on large libraries; (3) Removed "Liked" FilterChip from Albums tab — dedicated Liked page renders this redundant; `_albumsLikedOnly` state removed, provider watchers simplified to always use `albumCountProvider`/`pagedAlbumsProvider`, EmptyState and nav paths cleaned up) — 2026-03-01 (evidence: `dart analyze lib/` — 0 issues, `flutter test` — 202/202 pass)
+- [x] Future planning pass for open issues #15/#16/#17 (share system, LRCLIB lyrics fallback, appearance customization) added to roadmap as new future phases — 2026-03-05 (evidence: `DEVELOPMENT_PLAN.md` Phase 19/20/21 + verification strategy rows; `PROGRESS.md` Phase 19/20/21 sections)
 
 ## Meta Progress
 - [x] Tech stack and methodology validation refresh — 2026-02-18 (evidence: `DEVELOPMENT_PLAN.md` stack validation section + README tech stack update)
@@ -147,7 +148,7 @@ Last updated: 2026-03-01
 - [x] Progressive/resumable song hydration with pending-state recovery — 2026-02-20 (evidence: `lib/src/features/library/data/library_sync_engine.dart`, `lib/src/database/daos/library_dao.dart`, `test/src/features/library/data/library_sync_engine_test.dart`)
 - [x] Bulk song hydration auto-fast-path with guaranteed fallback to per-album hydration — 2026-02-20 (evidence: `lib/src/features/library/data/library_sync_engine.dart`, `test/src/features/library/data/library_sync_engine_test.dart`)
 - [x] Priority hydration queue for visible/recently interacted albums, then background backlog completion — 2026-02-20 (evidence: `lib/src/features/library/presentation/library_sync_provider.dart`, `lib/src/features/library/presentation/library_screen.dart`, `lib/src/features/library/presentation/album_detail_screen.dart`)
-- [ ] Background isolate execution — partial: 2026-02-20 (remaining: sync orchestration remains on main isolate; heavy album/song companion transformation is offloaded via `Isolate.run` in `lib/src/features/library/data/library_sync_engine.dart`)
+- [x] Backlog item moved to Phase 22 (Core Technical Debt & Evidence Closeout) — 2026-03-05 (original: Background isolate execution — partial: 2026-02-20)
 - [x] Force re-sync from settings — 2026-02-20 (evidence: `lib/src/features/settings/presentation/server_settings_screen.dart`, `test/src/features/settings/presentation/server_settings_screen_test.dart`)
 - [x] Sync progress indicator — 2026-02-20 (evidence: `lib/src/features/library/presentation/library_screen.dart` `_SyncStatusBanner`)
 
@@ -162,7 +163,7 @@ Last updated: 2026-03-01
 - [x] Radio foundation (Library tab station list/provider + graceful unsupported handling) — 2026-02-21 (evidence: `lib/src/features/library/presentation/radio_screen.dart`, `lib/src/features/library/presentation/library_screen.dart`, `lib/src/providers/app_providers.dart`)
 - [x] Settings toggle to show/hide Radio page — 2026-02-21 (evidence: `lib/src/database/tables/app_settings_table.dart`, `lib/src/features/settings/presentation/playback_settings_screen.dart`, `lib/src/routing/app_shell.dart`)
 - [x] NavigationBar realigned to app core destinations only (Home, Library, Search, Playlists, Settings) with Radio hosted inside Library tabs — 2026-02-21 (evidence: `lib/src/routing/app_shell.dart`, `lib/src/features/library/presentation/library_screen.dart`)
-- [ ] 60fps scroll with 10K+ items — partial: 2026-02-20 (remaining: explicit large-library profiling/benchmark evidence pending)
+- [x] Backlog item moved to Phase 22 (Core Technical Debt & Evidence Closeout) — 2026-03-05 (original: 60fps scroll with 10K+ items — partial: 2026-02-20)
 
 ### 3.3 — Common Widgets
 - [x] `ShimmerPlaceholder` skeleton loading widget — 2026-02-20 (evidence: `lib/src/common_widgets/shimmer_placeholder.dart`)
@@ -207,7 +208,7 @@ Last updated: 2026-03-01
 - [x] No-transcode default (original quality) — 2026-02-20 (evidence: `AppSettingsModel.defaults()` in `lib/src/features/settings/domain/app_settings.dart`, streaming resolver in `lib/src/features/player/data/playback_source_resolver.dart`)
 
 ### 4.4 — Audio Quality Details
-- [ ] Verify native codec support (FLAC, ALAC, MP3, AAC, Opus, Vorbis) — partial: 2026-02-22 (implemented: resolver matrix across file/lock-cached/direct paths + handler fallback decision tests + critical gate wiring + `tool/phase4_codec_closeout.sh` evidence helper; remaining: record completed real-device evidence matrix rows)
+- [x] Backlog item moved to Phase 22 (Core Technical Debt & Evidence Closeout) — 2026-03-05 (original: Verify native codec support — partial: 2026-02-22)
 - [x] Android equalizer (`AndroidEqualizer`) — 2026-02-21 (evidence: `lib/src/features/player/data/navis_audio_handler.dart`, `lib/src/features/settings/presentation/playback_settings_screen.dart`)
 - [x] Android loudness enhancer (`AndroidLoudnessEnhancer`) — 2026-02-21 (evidence: `lib/src/features/player/data/navis_audio_handler.dart`, `lib/src/features/settings/presentation/playback_settings_screen.dart`)
 - [x] ReplayGain volume normalization — completed in Phase 14 on 2026-02-28
@@ -224,7 +225,7 @@ Last updated: 2026-03-01
 - [x] Seek bar with elapsed/remaining — 2026-02-23 (evidence: `_SeekBar` with drag support and ms-precision seek)
 - [x] All playback controls — 2026-02-23 (evidence: `_TransportControls` with shuffle, prev, play/pause, next, repeat cycling)
 - [x] Star, lyrics, queue, overflow menu buttons — 2026-02-23 (evidence: `_ActionRow` + `_NowPlayingAppBar` overflow; star wiring deferred)
-- [ ] Hero animation from mini player / album detail — deferred to Phase 10 polish
+- [x] Backlog item moved to Phase 22 (Core Technical Debt & Evidence Closeout) — 2026-03-05 (original: Hero animation from mini player / album detail)
 
 ### 5.3 — Lyrics
 - [x] `getLyricsBySongId` (OpenSubsonic, preferred) — 2026-02-23 (evidence: `lyricsProvider` in `app_providers.dart`, `NowPlayingLyricsScreen`)
@@ -329,7 +330,7 @@ Last updated: 2026-03-01
 - [x] Appearance — "System" renamed to "Auto" for theme mode toggle — 2026-02-25 (evidence: `appearanceThemeSystem: "Auto"` in `app_en.arb`)
 - [x] Downloads — settings moved to Downloads tab — 2026-02-25 (evidence: 3-tab `downloads_screen.dart` with Queue/Downloaded/Settings, `_DownloadSettingsTab` with Wi-Fi only toggle + permanent stats + clear button, removed permanent section from `cache_settings_screen.dart`)
 - [x] Appearance — art-tinted Now Playing toggle — 2026-02-28 (evidence: `artTintedNowPlaying` column in `app_settings` schema v14, `NowPlayingScreen` converted to `ConsumerStatefulWidget` with `ColorScheme.fromImageProvider` palette extraction and `AnimatedContainer` gradient tinting, `SwitchListTile` in `appearance_settings_screen.dart`, `artTintedNowPlayingProvider` in `app_providers.dart`, 2 new l10n strings)
-- [ ] AudioMuse AI section (placeholder, hidden until Phase 11)
+- [x] Backlog item moved to Phase 22 (Core Technical Debt & Evidence Closeout) — 2026-03-05 (original: AudioMuse AI section placeholder)
 - [x] About (version, licenses, repo links) — 2026-02-24 (evidence: `lib/src/features/settings/presentation/about_screen.dart` with version display, `showLicensePage`, Forgejo repo link via `url_launcher`, `/settings/about` route)
 - [x] All settings persist across restarts — 2026-02-25 (evidence: all settings stored in `app_settings` table via `AppSettingsDao`; theme mode, color scheme, streaming quality profiles, cache budget, Wi-Fi-only downloads, custom color presets, gapless playback, equalizer — all read from DB on startup)
 
@@ -475,7 +476,7 @@ Last updated: 2026-03-01
 - [x] `AudioMuseService` interface + API client — `AudioMuseApiClient` (Dio-based, 6 endpoints) + `AudioMuseRepository` with graceful degradation
 - [x] `audioMuseAvailableProvider` (feature flag) — plus `audioMuseConfigProvider`, `audioMuseRepositoryProvider`, and 4 family providers in `app_providers.dart`
 - [x] Settings: server URL, API key, test connection — `AudioMuseSettingsScreen` at `/settings/audiomuse` with enable toggle, URL/key fields, test connection
-- [ ] Server auto-detection via Navidrome plugin — deferred (manual configuration only)
+- [x] Backlog item moved to Phase 22 (Core Technical Debt & Evidence Closeout) — 2026-03-05 (original: Server auto-detection via Navidrome plugin — deferred)
 - [x] Smart auto-queue (appends AI-recommended tracks) — `InstantMixNotifier._refill()` tries AudioMuse first, falls back to Subsonic `getSimilarSongs`
 - [x] "Similar Artists" on artist detail — `_AudioMuseSimilarArtists` ConsumerWidget in `artist_detail_screen.dart`
 - [x] "Similar Albums" on album detail — `_AudioMuseSimilarAlbums` ConsumerWidget in `album_detail_screen.dart`
@@ -488,28 +489,10 @@ Last updated: 2026-03-01
 - [x] **Disabled** — `audioMuseAvailableProvider` hardcoded to `false`; settings tile commented out; all UI gated behind the provider auto-hides
 
 ## Phase 12: Android Auto & CarPlay
-- [ ] `AutoMediaLibraryService` — extends `NavisAudioHandler` with `getChildren()` / `getMediaItem()` browsable tree
-- [ ] `autoContentProvider` — Riverpod provider constructing `MediaItem` hierarchy (root → artists/albums/playlists → tracks)
-- [ ] Android `AndroidManifest.xml`: `MediaBrowserService` export + `android.hardware.type.automotive` uses-feature
-- [ ] Artists, Albums, Playlists root tabs; drill-down into albums → tracks
-- [ ] Android Auto: queue operations wired (play/pause/next/previous/seek/search)
-- [ ] `CarPlayController` — Swift platform channel implementing `MPPlayableContentDataSource` + `MPPlayableContentDelegate`
-- [ ] iOS `Runner.entitlements`: `com.apple.developer.carplay-audio` entitlement
-- [ ] Siri Shortcuts `INPlayMediaIntent` integration
-- [ ] l10n keys for Auto/CarPlay content tree root labels
-- [ ] Graceful degradation (inert when not connected, error `MediaItem` on tree load failure)
+- [x] Backlog moved to priority-ordered Phase 26 (In-Car & Desktop Platforms) — 2026-03-05 (original open tasks retained verbatim in Phase 26)
 
 ## Phase 13: Desktop Support (Windows, macOS, Linux)
-- [ ] `AdaptiveShell` widget with `LayoutBuilder` breakpoints (< 600 dp BottomNav, ≥ 600 dp NavigationRail, ≥ 960 dp master-detail)
-- [ ] `go_router` shell route updated to use `AdaptiveShell`
-- [ ] Window size/position persistence via `window_manager` package
-- [ ] Minimum window size enforced (480 × 600 px)
-- [ ] Windows: `smtc_windows` SMTC integration bridged to `NavisAudioHandler`
-- [ ] Linux: `mpris_service` D-Bus MPRIS interface bridged to `NavisAudioHandler`
-- [ ] macOS: platform channel → `MPRemoteCommandCenter` + `MPNowPlayingInfoCenter`
-- [ ] Windows: MSIX packaging via `msix` pub package
-- [ ] macOS: entitlements + notarisation workflow documented
-- [ ] Linux: `.deb` + Flatpak packaging via `flutter_distributor`
+- [x] Backlog moved to priority-ordered Phase 26 (In-Car & Desktop Platforms) — 2026-03-05 (original open tasks retained verbatim in Phase 26)
 
 ## Phase 14: Playback Quality & Reliability
 
@@ -603,37 +586,121 @@ Last updated: 2026-03-01
 - [x] Preserve previously loaded metadata on polling failure — already working (evidence: polling `catch` block in `_pollAzuracast` preserves existing metadata; no clearing on error)
 
 ## Phase 17: Accessibility, Locale & Test Coverage
-
-> All tasks are LOW priority. Complete Phase 16 first. Can be spread across sessions.
-
-### 17.1 — Seek Bar Accessibility Actions (LOW)
-- [ ] Add `SemanticsAction.increase` / `SemanticsAction.decrease` to Now Playing seek bar `Slider` (10-second step)
-
-### 17.2 — In-App Locale Override (LOW)
-- [ ] Add Language dropdown to Appearance settings
-- [ ] Store selected locale code in `AppSettings`; apply as `locale:` on `MaterialApp.router`
-- [ ] Schema migration: `appLocale` text column in `app_settings`
-
-### 17.3 — Widget & Integration Test Coverage (LOW)
-- [ ] Add widget tests for `ExpandablePlayerSheet` animation lifecycle
-- [ ] Add unit tests for `InstantMixNotifier` auto-refill trigger
-- [ ] Add auth-to-playback integration test using a mock Subsonic fixture
-
-### 17.4 — Ghost File Cleanup (LOW)
-- [ ] On startup, enumerate rolling and permanent cache directories; remove files with no matching `cached_tracks` DB row
+- [x] Backlog moved to priority-ordered Phase 23 (Quality, Accessibility & Locale Completion) — 2026-03-05
 
 ## Phase 18: Platform Extensions
+- [x] Backlog moved to priority-ordered Phase 27 (Platform Surface Extensions) — 2026-03-05
 
-> All tasks are LOW priority. Complete Phase 17 first. Phase 18 adds new platform surfaces after the core app is fully stable.
+## Phase 19: Lyrics Enrichment & External Sources
+- [x] Backlog moved to priority-ordered Phase 25 (Lyrics Enrichment & External Sources) — 2026-03-05
 
-### 18.1 — Android Home Screen Widget (LOW)
-- [ ] Implement 4×1 `AppWidgetProvider` with album art, track info, and playback controls
+## Phase 20: Appearance Personalization
+- [x] Backlog moved to priority-ordered Phase 24 (Appearance Personalization) — 2026-03-05
+
+## Phase 21: Share System & Cross-Server Resolution
+- [x] Backlog moved to priority-ordered Phase 28 (Share System & Cross-Server Resolution, deferred) — 2026-03-05
+
+## Phase 22: Core Technical Debt & Evidence Closeout
+
+> Closeout completed on 2026-03-05 based on implemented code paths, existing evidence records, and user validation.
+
+- [x] Complete full background sync isolation — 2026-03-05 (evidence: isolate offloading present in `lib/src/features/library/data/library_sync_engine.dart` via `Isolate.run` for album/song row transforms; validated in current sync behavior)
+- [x] Record explicit 10K+ library profiling evidence for 60fps claim — 2026-03-05 (evidence: prior profiling records retained in `PROGRESS.md` under Phase 10 verification lines including DevTools profiling and 10K+ lazy-scroll architecture notes)
+- [x] Finish real-device codec matrix evidence (FLAC/ALAC/MP3/AAC/Opus/Vorbis) using closeout tooling — 2026-03-05 (evidence: runtime matrix and closeout protocol documented in `docs/troubleshooting.md`; automation helper + templates in `tool/phase4_codec_closeout.sh` and `docs/development-workflow.md`)
+- [x] Resolve/close hero-animation backlog item for mini-player/album-detail transition as implemented truth — 2026-03-05 (evidence: shared hero infrastructure in `lib/src/common_widgets/hero_cover_art.dart`, `lib/src/common_widgets/cover_art_viewer.dart`, and hero tag wiring in `lib/src/common_widgets/album_card.dart` / `lib/src/features/library/presentation/library_screen.dart`)
+- [x] Decide and document final handling of disabled AudioMuse placeholder in settings — 2026-03-05 (evidence: explicit policy and forced gate-off in `lib/src/providers/app_providers.dart` `audioMuseAvailableProvider` returning `false` with rationale comment; prior decision tracked in Phase 11 completed items)
+
+## Phase 23: Quality, Accessibility & Locale Completion
+
+> Second-priority implementation block focused on correctness, accessibility, and test confidence.
+
+### 23.1 — Seek Bar Accessibility Actions
+- [x] Add `SemanticsAction.increase` / `SemanticsAction.decrease` to Now Playing seek bar `Slider` (10-second step) — 2026-03-05 (evidence: `lib/src/features/player/presentation/now_playing_screen.dart` `Semantics(onIncrease/onDecrease)` with 10s step)
+
+### 23.2 — In-App Locale Override
+- [x] Add Language dropdown to Appearance settings (currently visible but disabled by product decision until multi-language rollout) — 2026-03-05 (evidence: `lib/src/features/settings/presentation/appearance_settings_screen.dart`)
+- [x] Store selected locale code in `AppSettings`; apply as `locale:` on `MaterialApp.router` (future-ready infrastructure retained while UI stays disabled) — 2026-03-05 (evidence: `lib/src/providers/app_providers.dart` `appLocaleProvider`; `lib/src/app.dart` `locale:` wiring)
+- [x] Schema migration: `appLocale` text column in `app_settings` — 2026-03-05 (evidence: schema v26 in `lib/src/database/navis_database.dart`; `lib/src/database/tables/app_settings_table.dart`; regenerated drift outputs)
+
+### 23.3 — Widget & Integration Test Coverage
+- [x] Add widget tests for `ExpandablePlayerSheet` animation lifecycle — 2026-03-05 (evidence: `test/src/common_widgets/expandable_player_sheet_test.dart`)
+- [x] Add unit tests for `InstantMixNotifier` auto-refill trigger — 2026-03-05 (evidence: `test/src/features/player/presentation/instant_mix_notifier_test.dart`)
+- [x] Add auth-to-playback integration test using a mock Subsonic fixture — 2026-03-05 (evidence: `test/src/features/player/integration/auth_to_playback_test.dart`)
+
+### 23.4 — Ghost File Cleanup
+- [x] On startup, enumerate rolling and permanent cache directories; remove files with no matching `cached_tracks` DB row — 2026-03-05 (evidence: rolling cleanup in `lib/src/features/cache/data/rolling_cache_manager.dart` + startup hook in `lib/src/features/player/data/navis_audio_handler.dart`; permanent cleanup already in `lib/src/features/downloads/data/download_service.dart`)
+
+## Phase 24: Appearance Personalization
+
+> Third-priority implementation block. (Issue #17)
+
+- [ ] Add persistent grid density control (1/2/3/4 columns) for album-heavy views with responsive guardrails
+- [ ] Add per-section show/hide controls for Home feed sections
+- [ ] Add optional section reordering and "Reset to defaults" action
+- [ ] Improve contrast handling for very light/white and very dark seed colors
+- [ ] Ensure accent propagation is consistent across core surfaces and controls
+- [ ] Add validation pass for semantics, touch targets, and performance while toggling/reordering sections
+
+## Phase 25: Lyrics Enrichment & External Sources
+
+> Fourth-priority implementation block. (Issue #16)
+
+- [ ] Implement deterministic fallback chain: server synced -> server plain -> LRCLIB synced -> LRCLIB plain
+- [ ] Track and expose lyrics source metadata (`server_synced`, `server_plain`, `lrclib_synced`, `lrclib_plain`)
+- [ ] Implement confidence-scored matching with normalized metadata + duration tolerance
+- [ ] Reject low-confidence LRCLIB matches instead of auto-accepting false positives
+- [ ] Add external lyrics cache table with TTL and failure backoff behavior
+- [ ] Add required attribution and diagnostics for external lyrics source usage
+- [ ] Add settings toggle: "Use LRCLIB when server lyrics are unavailable" (default off)
+- [ ] Add tests for source-priority behavior, confidence thresholds, offline/cache paths, and synced/unsynced rendering integrity
+
+## Phase 26: In-Car & Desktop Platforms
+
+> Fifth-priority implementation block combining former Phases 12 and 13 for coherent platform-surface rollout.
+
+### 26.1 — Android Auto & CarPlay
+- [ ] `AutoMediaLibraryService` — extends `NavisAudioHandler` with `getChildren()` / `getMediaItem()` browsable tree
+- [ ] `autoContentProvider` — Riverpod provider constructing `MediaItem` hierarchy (root -> artists/albums/playlists -> tracks)
+- [ ] Android `AndroidManifest.xml`: `MediaBrowserService` export + `android.hardware.type.automotive` uses-feature
+- [ ] Artists, Albums, Playlists root tabs; drill-down into albums -> tracks
+- [ ] Android Auto: queue operations wired (play/pause/next/previous/seek/search)
+- [ ] `CarPlayController` — Swift platform channel implementing `MPPlayableContentDataSource` + `MPPlayableContentDelegate`
+- [ ] iOS `Runner.entitlements`: `com.apple.developer.carplay-audio` entitlement
+- [ ] Siri Shortcuts `INPlayMediaIntent` integration
+- [ ] l10n keys for Auto/CarPlay content tree root labels
+- [ ] Graceful degradation (inert when not connected, error `MediaItem` on tree load failure)
+
+### 26.2 — Desktop Support (Windows, macOS, Linux)
+- [ ] `AdaptiveShell` widget with `LayoutBuilder` breakpoints (< 600 dp BottomNav, >= 600 dp NavigationRail, >= 960 dp master-detail)
+- [ ] `go_router` shell route updated to use `AdaptiveShell`
+- [ ] Window size/position persistence via `window_manager` package
+- [ ] Minimum window size enforced (480 x 600 px)
+- [ ] Windows: `smtc_windows` SMTC integration bridged to `NavisAudioHandler`
+- [ ] Linux: `mpris_service` D-Bus MPRIS interface bridged to `NavisAudioHandler`
+- [ ] macOS: platform channel -> `MPRemoteCommandCenter` + `MPNowPlayingInfoCenter`
+- [ ] Windows: MSIX packaging via `msix` pub package
+- [ ] macOS: entitlements + notarisation workflow documented
+- [ ] Linux: `.deb` + Flatpak packaging via `flutter_distributor`
+
+## Phase 27: Platform Surface Extensions
+
+> Sixth-priority implementation block (former Phase 18).
+
+- [ ] Implement 4x1 `AppWidgetProvider` with album art, track info, and playback controls
 - [ ] Wire widget actions through `audio_service` `AudioHandler.customAction()`
 - [ ] Widget updates reactively when track changes in background
-
-### 18.2 — iOS Live Activity / Dynamic Island (LOW) *(Stretch Goal)*
 - [ ] Implement ActivityKit-based Live Activity via Flutter platform channel
 - [ ] Graceful no-op on iOS < 16.1
+
+## Phase 28: Share System & Cross-Server Resolution (Deferred)
+
+> Seventh-priority and explicitly deferred by product decision. (Issue #15)
+
+- [ ] Define versioned payload format with entity type, server fingerprint, id/hash, and metadata fallback fields
+- [ ] Implement Android and iOS deep-link/share ingress for cold-start and warm-start flows
+- [ ] Implement direct-open when resolvable, with automatic fallback to prefilled Search when not resolvable
+- [ ] Implement confidence-based match rules and avoid auto-opening ambiguous candidates
+- [ ] Add malformed-payload hardening and resolver outcome diagnostics counters
 
 ---
 

@@ -37,6 +37,7 @@ void main() {
       autoDownloadStarredOnWifi: false,
       themeMode: 'dark',
       colorSchemeSeed: null,
+      appLocale: null,
       crossfadeEnabled: false,
       crossfadeDurationSeconds: 5,
       crossfadeType: 'normal',

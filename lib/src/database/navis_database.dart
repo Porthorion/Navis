@@ -69,7 +69,7 @@ class NavisDatabase extends _$NavisDatabase {
   static QueryExecutor _openConnection() => driftDatabase(name: 'navis.sqlite');
 
   @override
-  int get schemaVersion => 25;
+  int get schemaVersion => 26;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -162,6 +162,9 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 25 && to >= 25) {
       await from24To25(migrator);
+    }
+    if (from < 26 && to >= 26) {
+      await from25To26(migrator);
     }
   }
 
@@ -541,6 +544,12 @@ class NavisDatabase extends _$NavisDatabase {
     );
 
     await customStatement('PRAGMA foreign_keys = ON;');
+  }
+
+  Future<void> from25To26(Migrator migrator) async {
+    if (!await _columnExists('app_settings', 'app_locale')) {
+      await migrator.addColumn(appSettingsTable, appSettingsTable.appLocale);
+    }
   }
 
   Future<void> _ensureAppSettingsDefaults() {

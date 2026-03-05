@@ -17,6 +17,8 @@ class AppearanceSettingsScreen extends ConsumerWidget {
     final currentSeed = ref.watch(colorSchemeSeedProvider);
     final customPresetsAsync = ref.watch(customColorPresetsProvider);
     final customPresets = customPresetsAsync.asData?.value ?? <int>[];
+    final appLocale = ref.watch(appLocaleProvider);
+    final languageSelectionEnabled = AppLocalizations.supportedLocales.length > 1;
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -40,6 +42,46 @@ class AppearanceSettingsScreen extends ConsumerWidget {
               final db = ref.read(navisDatabaseProvider);
               await db.appSettingsDao.updateThemeMode(mode);
             },
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+            child: Text(
+              l10n.appearanceLanguageLabel,
+              style: theme.textTheme.titleSmall?.copyWith(
+                color: theme.colorScheme.primary,
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: DropdownButtonFormField<String?>(
+              value: appLocale,
+              decoration: InputDecoration(
+                border: OutlineInputBorder(),
+                helperText: languageSelectionEnabled
+                    ? null
+                    : 'Language switching is disabled in this build.',
+              ),
+              items: <DropdownMenuItem<String?>>[
+                DropdownMenuItem<String?>(
+                  value: null,
+                  child: Text(l10n.appearanceLanguageSystemDefault),
+                ),
+                ...AppLocalizations.supportedLocales.map(
+                  (locale) => DropdownMenuItem<String?>(
+                    value: locale.languageCode,
+                    child: Text(_localeLabel(locale)),
+                  ),
+                ),
+              ],
+              onChanged: languageSelectionEnabled
+                  ? (localeCode) async {
+                      final db = ref.read(navisDatabaseProvider);
+                      await db.appSettingsDao.updateAppLocale(localeCode);
+                    }
+                  : null,
+            ),
           ),
           const Divider(height: 32),
 
@@ -206,6 +248,15 @@ class AppearanceSettingsScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+}
+
+String _localeLabel(Locale locale) {
+  switch (locale.languageCode) {
+    case 'en':
+      return 'English';
+    default:
+      return locale.languageCode;
   }
 }
 

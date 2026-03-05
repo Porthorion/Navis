@@ -531,6 +531,7 @@ class NavisAudioHandler extends BaseAudioHandler
         try {
           await _rollingCacheManager.pruneMissingFiles();
           await _rollingCacheManager.pruneMissingPermanentFiles();
+          await _rollingCacheManager.cleanupOrphanedRollingFiles();
           await _rollingCacheManager.enforceBudget(
             maxBytes: _rollingCacheBudgetBytes,
           );

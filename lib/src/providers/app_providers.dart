@@ -1084,6 +1084,14 @@ final colorSchemeSeedProvider = Provider<int?>((ref) {
   return settings.colorSchemeSeed;
 });
 
+/// Current locale override code (null = follow system locale).
+final appLocaleProvider = Provider<String?>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.appLocale;
+});
+
 /// Whether the Now Playing screen background should be tinted with album art.
 final artTintedNowPlayingProvider = Provider<bool>((ref) {
   final settings =
