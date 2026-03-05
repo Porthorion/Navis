@@ -534,6 +534,8 @@ Last updated: 2026-07-07
 
 > Work HIGH tasks before MEDIUM, MEDIUM before LOW.
 
+- [x] Scope decision: deeper genre-browsing expansion (`getSongsByGenre`-driven discovery UI) is out of scope for now — 2026-03-05
+
 ### 15.1 — Starred / Favorites Screen (HIGH)
 - [x] Add Favorites screen listing starred albums, artists, and songs from `getStarred2()` — 2026-03-01 (evidence: `lib/src/features/library/presentation/library_screen.dart` `_buildLikedTab()` — starred albums grid + starred songs list + loading shimmer)
 - [x] Wire access point (Library tab or Home tile) — 2026-03-01 (evidence: `showLikedPageProvider` appearance toggle; Home "Liked Tracks" carousel via `homeLikedSongsProvider` in `lib/src/features/home/presentation/home_screen.dart`)
@@ -561,6 +563,20 @@ Last updated: 2026-07-07
 - [x] Add "Auto-download starred on Wi-Fi" toggle in Settings > Downloads (default off) — 2026-03-01 (evidence: `autoDownloadStarredOnWifiProvider` in `lib/src/providers/app_providers.dart`; settings toggle wired in playback settings screen)
 - [x] Trigger download enqueue in `ServerReachabilityProvider` when transitioning to Wi-Fi — 2026-03-01 (evidence: `AutoDownloadStarredDispatchController` in `lib/src/features/downloads/presentation/auto_download_starred_dispatch_provider.dart`; controller listened in `lib/src/routing/app_shell.dart`)
 - [x] Schema migration: `autoDownloadStarred` boolean column in `app_settings` — 2026-03-01 (evidence: `autoDownloadStarredOnWifi` column in `AppSettingsDao`; guarded schema migration)
+
+### 15.8 — Rating UX/UI (HIGH)
+- [ ] Add rating controls (0-5, including clear) in key surfaces: Now Playing, track context menu, album detail
+- [ ] Render existing server ratings in list/detail UI where available
+- [ ] Wire optimistic `setRating()` updates with rollback + user-visible error feedback on failure
+- [ ] Persist rating updates into local Drift-backed models used by offline/library views
+- [ ] Add tests for rating provider logic and at least one widget interaction flow
+
+### 15.9 — Rich Album Metadata (MEDIUM)
+- [ ] Fetch `getAlbumInfo2(id)` for album detail enrichment
+- [ ] Display metadata sections conditionally (hide when absent)
+- [ ] Persist enriched metadata locally for offline revisit and reduced refetch churn
+- [ ] Add album-detail refresh action for metadata re-fetch
+- [ ] Add tests for parse/persist/render paths
 
 ## Phase 16: Search & Offline Sync
 

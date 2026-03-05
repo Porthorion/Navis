@@ -1650,6 +1650,8 @@ Update all widgets that only need is-playing state or current song metadata to w
 
 Work through tasks in priority order: HIGH → MEDIUM → LOW.
 
+Scope guard: deeper genre-browsing expansion (`getSongsByGenre`-driven UI surfaces) is out of scope for the current roadmap and should not be scheduled in this phase.
+
 ### 15.1 — Starred / Favorites Screen (HIGH)
 
 Add a dedicated **Favorites** screen that surfaces all starred content. Access point: a "Favorites" tab within the Library screen (alongside Albums, Artists), or a "Favorites" tile in the Home screen navigating to the full screen.
@@ -1710,6 +1712,27 @@ When the device connects to Wi-Fi (and Wi-Fi-only downloads is enabled), automat
 - Trigger in `ServerReachabilityProvider` when transitioning to online via Wi-Fi.
 - Feeds the existing `DownloadService` queue — no separate download path.
 - Schema migration: add `autoDownloadStarred` boolean column to `app_settings`.
+
+### 15.8 — Rating UX/UI (HIGH)
+
+Add first-class rating support so users can both view existing server ratings and update them from key surfaces.
+
+- Wire `setRating(id, rating)` to rating controls on Song, Album, and Artist related contexts where actionable today (at minimum: Now Playing, track context menu, album detail).
+- Show existing rating values from server metadata in list/detail UI (do not show a stale default when no rating exists).
+- Define a clear rating interaction model: 0 (clear) and 1-5 star values.
+- Ensure optimistic UI with rollback/error feedback on network failure, matching existing star/unstar UX standards.
+- Persist and sync rating changes into local Drift rows used by offline/library rendering.
+- Add focused tests for provider/controller logic and one widget-level rating interaction path.
+
+### 15.9 — Rich Album Metadata (MEDIUM)
+
+Enrich album detail with server-provided metadata from `getAlbumInfo2(id)` where available.
+
+- Fetch and display richer album fields (for example: notes/description, external links, and metadata payload that is not present in base `getAlbum`).
+- Keep current album detail layout resilient: hide sections when metadata is absent instead of showing placeholders.
+- Cache enriched metadata locally to reduce repeated API calls and support offline revisit.
+- Add manual refresh affordance on album detail to re-pull metadata when needed.
+- Add tests for metadata parsing, DAO persistence, and the conditional UI states (present vs absent).
 
 ---
 
