@@ -17,57 +17,65 @@ class NotificationBootstrap {
       }
       return;
     }
-
-    const androidInitSettings = AndroidInitializationSettings(
-      '@drawable/ic_stat_navis_light',
-    );
-    const initSettings = InitializationSettings(android: androidInitSettings);
-
-    await _plugin.initialize(settings: initSettings);
-
-    final androidPlugin = _plugin
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >();
-
-    if (androidPlugin == null) {
-      return;
-    }
-
-    const playbackChannel = AndroidNotificationChannel(
-      'playback',
-      'Playback',
-      description: 'Media playback controls and status',
-      importance: Importance.low,
-    );
-
-    const downloadsChannel = AndroidNotificationChannel(
-      'downloads',
-      'Downloads',
-      description: 'Download queue and progress updates',
-    );
-
-    const librarySyncChannel = AndroidNotificationChannel(
-      'library_sync',
-      'Library Scan',
-      description: 'Library scan progress and completion updates',
-    );
-
-    await androidPlugin.createNotificationChannel(playbackChannel);
-    await androidPlugin.createNotificationChannel(downloadsChannel);
-    await androidPlugin.createNotificationChannel(librarySyncChannel);
-
-    final granted = await androidPlugin.requestNotificationsPermission();
-    if (granted == false) {
-      AppLogger.warning(
-        'Android notification permission denied. Notifications are disabled.',
+    try {
+      const androidInitSettings = AndroidInitializationSettings(
+        'ic_stat_navis_light',
       );
-    } else {
-      AppLogger.info('Android notification channels initialized.');
-    }
+      const initSettings = InitializationSettings(android: androidInitSettings);
 
-    if (kDebugMode) {
-      AppLogger.info('Notification bootstrap completed.');
+      await _plugin.initialize(settings: initSettings);
+
+      final androidPlugin = _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
+
+      if (androidPlugin == null) {
+        return;
+      }
+
+      const playbackChannel = AndroidNotificationChannel(
+        'playback',
+        'Playback',
+        description: 'Media playback controls and status',
+        importance: Importance.low,
+      );
+
+      const downloadsChannel = AndroidNotificationChannel(
+        'downloads',
+        'Downloads',
+        description: 'Download queue and progress updates',
+      );
+
+      const librarySyncChannel = AndroidNotificationChannel(
+        'library_sync',
+        'Library Scan',
+        description: 'Library scan progress and completion updates',
+      );
+
+      await androidPlugin.createNotificationChannel(playbackChannel);
+      await androidPlugin.createNotificationChannel(downloadsChannel);
+      await androidPlugin.createNotificationChannel(librarySyncChannel);
+
+      final granted = await androidPlugin.requestNotificationsPermission();
+      if (granted == false) {
+        AppLogger.warning(
+          'Android notification permission denied. Notifications are disabled.',
+        );
+      } else {
+        AppLogger.info('Android notification channels initialized.');
+      }
+
+      if (kDebugMode) {
+        AppLogger.info('Notification bootstrap completed.');
+      }
+    } on Object catch (error, stackTrace) {
+      // Startup must not be blocked by notification setup failures.
+      AppLogger.error(
+        'Notification bootstrap failed. Continuing app startup without notifications.',
+        error,
+        stackTrace,
+      );
     }
   }
 }
