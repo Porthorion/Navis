@@ -1567,9 +1567,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       unawaited(
         Scrollable.ensureVisible(
           targetContext,
-          duration: animate
-              ? const Duration(milliseconds: 180)
-              : Duration.zero,
+          duration: animate ? const Duration(milliseconds: 180) : Duration.zero,
           curve: Curves.easeOut,
           alignment: 0,
         ),

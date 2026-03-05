@@ -226,23 +226,25 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                           if (details.artistId != null &&
                               details.artistId!.isNotEmpty)
                             InkWell(
-                              onTap: () =>
-                                  context.go('/library/artists/${details.artistId}'),
+                              onTap: () => context.go(
+                                '/library/artists/${details.artistId}',
+                              ),
                               child: Text(
                                 details.artistName ??
                                     l10n.albumDetailUnknownArtist,
                                 style: Theme.of(context).textTheme.bodyLarge
                                     ?.copyWith(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .primary,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.primary,
                                       decoration: TextDecoration.underline,
                                     ),
                               ),
                             )
                           else
                             Text(
-                              details.artistName ?? l10n.albumDetailUnknownArtist,
+                              details.artistName ??
+                                  l10n.albumDetailUnknownArtist,
                               style: Theme.of(context).textTheme.bodyLarge,
                             ),
                           Text(
@@ -261,7 +263,9 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                             size: 16,
                             color: isStarred
                                 ? Theme.of(context).colorScheme.primary
-                                : Theme.of(context).colorScheme.onSurfaceVariant,
+                                : Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
                           ),
                           const SizedBox(width: 6),
                           Text(
@@ -437,13 +441,17 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                 children: <Widget>[
                                   Text(
                                     l10n.albumDetailAboutSection,
-                                    style: Theme.of(context).textTheme.titleSmall,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.titleSmall,
                                   ),
                                   if (hasNotes) ...<Widget>[
                                     const SizedBox(height: 8),
                                     Text(
                                       notes,
-                                      style: Theme.of(context).textTheme.bodyMedium,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodyMedium,
                                     ),
                                   ],
                                   if (hasLinks) ...<Widget>[
@@ -452,18 +460,32 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                       spacing: 8,
                                       runSpacing: 8,
                                       children: <Widget>[
-                                        if ((info.lastFmUrl ?? '').trim().isNotEmpty)
+                                        if ((info.lastFmUrl ?? '')
+                                            .trim()
+                                            .isNotEmpty)
                                           ActionChip(
-                                            avatar: const Icon(Icons.open_in_new, size: 16),
+                                            avatar: const Icon(
+                                              Icons.open_in_new,
+                                              size: 16,
+                                            ),
                                             label: Text(l10n.albumDetailLastFm),
                                             onPressed: () => unawaited(
-                                              _openExternalLink(info.lastFmUrl!),
+                                              _openExternalLink(
+                                                info.lastFmUrl!,
+                                              ),
                                             ),
                                           ),
-                                        if ((info.musicBrainzId ?? '').trim().isNotEmpty)
+                                        if ((info.musicBrainzId ?? '')
+                                            .trim()
+                                            .isNotEmpty)
                                           ActionChip(
-                                            avatar: const Icon(Icons.album_outlined, size: 16),
-                                            label: Text(l10n.albumDetailMusicBrainz),
+                                            avatar: const Icon(
+                                              Icons.album_outlined,
+                                              size: 16,
+                                            ),
+                                            label: Text(
+                                              l10n.albumDetailMusicBrainz,
+                                            ),
                                             onPressed: () => unawaited(
                                               _openExternalLink(
                                                 'https://musicbrainz.org/release-group/${info.musicBrainzId}',
@@ -558,168 +580,174 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
-              ListTile(
-                leading: const Icon(Icons.play_arrow_outlined),
-                title: Text(l10n.librarySongMenuPlayNow),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  unawaited(_playNow(song));
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.queue_music_outlined),
-                title: Text(l10n.librarySongMenuAddToQueue),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  unawaited(
-                    () async {
-                      final messenger = ScaffoldMessenger.of(this.context);
-                      final localizations = AppLocalizations.of(this.context)!;
-                      try {
-                        await ref.read(queueProvider.notifier).add(song.id);
-                      } on Object catch (error) {
-                        if (!mounted) {
-                          return;
-                        }
-                        messenger.showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              _playbackErrorMessage(localizations, error),
-                            ),
-                          ),
-                        );
-                        return;
-                      }
-                      if (!mounted) {
-                        return;
-                      }
-                    }(),
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.playlist_add_outlined),
-                title: Text(l10n.librarySongMenuPlayNext),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  unawaited(_playNext(song));
-                },
-              ),
-              Consumer(
-                builder: (_, likeRef, __) {
-                  final isLiked =
-                      likeRef
-                          .watch(songStarredProvider(song.id))
-                          .asData
-                          ?.value ??
-                      song.starred != null;
-                  return ListTile(
-                    leading: Icon(
-                      isLiked ? Icons.favorite : Icons.favorite_border,
-                    ),
-                    title: Text(
-                      isLiked ? l10n.actionLiked : l10n.actionLike,
-                    ),
-                    onTap: () {
-                      unawaited(
-                        toggleSongStar(song.id, ref).catchError((_) {
-                          if (this.context.mounted) {
-                            ScaffoldMessenger.of(this.context).showSnackBar(
-                              SnackBar(
-                                content: Text(l10n.albumDetailStarFailure),
-                              ),
-                            );
-                          }
-                        }),
-                      );
-                    },
-                  );
-                },
-              ),
-              Consumer(
-                builder: (_, ratingRef, __) {
-                  final rating =
-                      ratingRef.watch(songRatingProvider(song.id)).asData?.value;
-                  return ListTile(
-                    leading: const Icon(Icons.star_outline),
-                    title: Text(l10n.ratingTitle),
-                    subtitle: Text(l10n.ratingHint),
-                    trailing: RatingWidget(
-                      rating: rating,
-                      compact: true,
-                      onChanged: (next) {
-                        unawaited(
-                          setSongRating(song.id, next, ref).catchError((_) {
-                            if (this.context.mounted) {
-                              ScaffoldMessenger.of(this.context).showSnackBar(
-                                SnackBar(
-                                  content: Text(l10n.ratingUpdateFailed),
-                                ),
-                              );
-                            }
-                          }),
-                        );
-                      },
-                    ),
-                  );
-                },
-              ),
-              if (song.artistId != null && song.artistId!.isNotEmpty)
-                ListTile(
-                  leading: const Icon(Icons.person_outline),
-                  title: Text(l10n.librarySongMenuOpenArtist),
-                  onTap: () {
-                    Navigator.of(context).pop();
-                    this.context.go('/library/artists/${song.artistId}');
-                  },
-                ),
-              ListTile(
-                leading: const Icon(Icons.playlist_add),
-                title: Text(l10n.librarySongMenuAddToPlaylist),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  showAddToPlaylistSheet(
-                    this.context,
-                    ref,
-                    [song.id],
-                  );
-                },
-              ),
-              Consumer(
-                builder: (_, menuRef, __) {
-                  final downloadState = menuRef.watch(
-                    songDownloadStateProvider(song.id),
-                  );
-                  final isDownloaded =
-                      downloadState.status == SongDownloadStatus.downloaded;
-                  if (isDownloaded) {
-                    return ListTile(
-                      leading: Icon(
-                        Icons.delete_outline,
-                        color: Theme.of(this.context).colorScheme.error,
-                      ),
-                      title: Text(
-                        l10n.deleteDownloadAction,
-                        style: TextStyle(
-                          color: Theme.of(this.context).colorScheme.error,
-                        ),
-                      ),
-                      onTap: () {
-                        Navigator.of(context).pop();
-                        unawaited(_deleteDownload(song));
-                      },
-                    );
-                  }
-                  return ListTile(
-                    leading: const Icon(Icons.download_outlined),
-                    title: Text(l10n.downloadAction),
+                  ListTile(
+                    leading: const Icon(Icons.play_arrow_outlined),
+                    title: Text(l10n.librarySongMenuPlayNow),
                     onTap: () {
                       Navigator.of(context).pop();
-                      unawaited(_downloadSong(song));
+                      unawaited(_playNow(song));
                     },
-                  );
-                },
-              ),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.queue_music_outlined),
+                    title: Text(l10n.librarySongMenuAddToQueue),
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      unawaited(
+                        () async {
+                          final messenger = ScaffoldMessenger.of(this.context);
+                          final localizations = AppLocalizations.of(
+                            this.context,
+                          )!;
+                          try {
+                            await ref.read(queueProvider.notifier).add(song.id);
+                          } on Object catch (error) {
+                            if (!mounted) {
+                              return;
+                            }
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  _playbackErrorMessage(localizations, error),
+                                ),
+                              ),
+                            );
+                            return;
+                          }
+                          if (!mounted) {
+                            return;
+                          }
+                        }(),
+                      );
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.playlist_add_outlined),
+                    title: Text(l10n.librarySongMenuPlayNext),
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      unawaited(_playNext(song));
+                    },
+                  ),
+                  Consumer(
+                    builder: (_, likeRef, __) {
+                      final isLiked =
+                          likeRef
+                              .watch(songStarredProvider(song.id))
+                              .asData
+                              ?.value ??
+                          song.starred != null;
+                      return ListTile(
+                        leading: Icon(
+                          isLiked ? Icons.favorite : Icons.favorite_border,
+                        ),
+                        title: Text(
+                          isLiked ? l10n.actionLiked : l10n.actionLike,
+                        ),
+                        onTap: () {
+                          unawaited(
+                            toggleSongStar(song.id, ref).catchError((_) {
+                              if (this.context.mounted) {
+                                ScaffoldMessenger.of(this.context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(l10n.albumDetailStarFailure),
+                                  ),
+                                );
+                              }
+                            }),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                  Consumer(
+                    builder: (_, ratingRef, __) {
+                      final rating = ratingRef
+                          .watch(songRatingProvider(song.id))
+                          .asData
+                          ?.value;
+                      return ListTile(
+                        leading: const Icon(Icons.star_outline),
+                        title: Text(l10n.ratingTitle),
+                        subtitle: Text(l10n.ratingHint),
+                        trailing: RatingWidget(
+                          rating: rating,
+                          compact: true,
+                          onChanged: (next) {
+                            unawaited(
+                              setSongRating(song.id, next, ref).catchError((_) {
+                                if (this.context.mounted) {
+                                  ScaffoldMessenger.of(
+                                    this.context,
+                                  ).showSnackBar(
+                                    SnackBar(
+                                      content: Text(l10n.ratingUpdateFailed),
+                                    ),
+                                  );
+                                }
+                              }),
+                            );
+                          },
+                        ),
+                      );
+                    },
+                  ),
+                  if (song.artistId != null && song.artistId!.isNotEmpty)
+                    ListTile(
+                      leading: const Icon(Icons.person_outline),
+                      title: Text(l10n.librarySongMenuOpenArtist),
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        this.context.go('/library/artists/${song.artistId}');
+                      },
+                    ),
+                  ListTile(
+                    leading: const Icon(Icons.playlist_add),
+                    title: Text(l10n.librarySongMenuAddToPlaylist),
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      showAddToPlaylistSheet(
+                        this.context,
+                        ref,
+                        [song.id],
+                      );
+                    },
+                  ),
+                  Consumer(
+                    builder: (_, menuRef, __) {
+                      final downloadState = menuRef.watch(
+                        songDownloadStateProvider(song.id),
+                      );
+                      final isDownloaded =
+                          downloadState.status == SongDownloadStatus.downloaded;
+                      if (isDownloaded) {
+                        return ListTile(
+                          leading: Icon(
+                            Icons.delete_outline,
+                            color: Theme.of(this.context).colorScheme.error,
+                          ),
+                          title: Text(
+                            l10n.deleteDownloadAction,
+                            style: TextStyle(
+                              color: Theme.of(this.context).colorScheme.error,
+                            ),
+                          ),
+                          onTap: () {
+                            Navigator.of(context).pop();
+                            unawaited(_deleteDownload(song));
+                          },
+                        );
+                      }
+                      return ListTile(
+                        leading: const Icon(Icons.download_outlined),
+                        title: Text(l10n.downloadAction),
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          unawaited(_downloadSong(song));
+                        },
+                      );
+                    },
+                  ),
                 ],
               ),
             ),

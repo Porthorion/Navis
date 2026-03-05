@@ -42,7 +42,8 @@ LrclibMatchScore scoreCandidate({
   if (normalizeMetadata(expected.title) == normalizeMetadata(candidate.title)) {
     score += 0.4;
   }
-  if (normalizeMetadata(expected.artist) == normalizeMetadata(candidate.artist)) {
+  if (normalizeMetadata(expected.artist) ==
+      normalizeMetadata(candidate.artist)) {
     score += 0.3;
   }
 

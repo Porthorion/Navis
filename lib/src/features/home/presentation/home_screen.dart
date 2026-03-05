@@ -662,4 +662,3 @@ class _UpdateBanner extends ConsumerWidget {
     );
   }
 }
-

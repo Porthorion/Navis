@@ -214,9 +214,7 @@ class _PlaybackSettingsScreenState
                 leading: const Icon(Icons.star_outline),
                 title: Text(l10n.ratingTitle),
                 subtitle: Text(
-                  currentSongId == null
-                      ? l10n.ratingNoValue
-                      : l10n.ratingHint,
+                  currentSongId == null ? l10n.ratingNoValue : l10n.ratingHint,
                 ),
                 trailing: currentSongId == null
                     ? Text(

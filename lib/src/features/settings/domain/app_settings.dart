@@ -80,7 +80,7 @@ class AppSettingsModel {
       audioMuseApiKey = null,
       audioMuseEnabled = false,
       syncIntervalMinutes = 60,
-    useLrclib = true,
+      useLrclib = true,
       replayGainMode = 'off',
       replayGainPreamp = 0.0,
       playbackSpeed = 1.0,
@@ -125,7 +125,7 @@ class AppSettingsModel {
   final String? audioMuseApiKey;
   final bool audioMuseEnabled;
   final int syncIntervalMinutes;
-    final bool useLrclib;
+  final bool useLrclib;
 
   /// ReplayGain mode: 'off', 'track', or 'album'.
   final String replayGainMode;
@@ -260,7 +260,7 @@ class AppSettingsModel {
           : audioMuseApiKey ?? this.audioMuseApiKey,
       audioMuseEnabled: audioMuseEnabled ?? this.audioMuseEnabled,
       syncIntervalMinutes: syncIntervalMinutes ?? this.syncIntervalMinutes,
-    useLrclib: useLrclib ?? this.useLrclib,
+      useLrclib: useLrclib ?? this.useLrclib,
       replayGainMode: replayGainMode ?? this.replayGainMode,
       replayGainPreamp: replayGainPreamp ?? this.replayGainPreamp,
       playbackSpeed: playbackSpeed ?? this.playbackSpeed,

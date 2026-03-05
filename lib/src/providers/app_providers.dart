@@ -927,7 +927,9 @@ final lyricsProvider = FutureProvider.family<LyricsResolution, String>((
   final now = DateTime.now();
   if (cached != null &&
       cached.lastFailedAt != null &&
-      now.isBefore(cached.lastFailedAt!.add(_externalLyricsBackoff(cached.failureCount)))) {
+      now.isBefore(
+        cached.lastFailedAt!.add(_externalLyricsBackoff(cached.failureCount)),
+      )) {
     return const LyricsResolution(
       lyrics: LyricsList(),
       source: LyricsSource.lrclibPlain,

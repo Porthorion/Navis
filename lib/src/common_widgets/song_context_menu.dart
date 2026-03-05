@@ -39,8 +39,10 @@ Future<void> showSongContextMenu(
           final isLiked =
               menuRef.watch(songStarredProvider(song.id)).asData?.value ??
               song.starred != null;
-            final rating =
-              menuRef.watch(songRatingProvider(song.id)).asData?.value;
+          final rating = menuRef
+              .watch(songRatingProvider(song.id))
+              .asData
+              ?.value;
 
           final maxHeight = MediaQuery.of(sheetContext).size.height * 0.85;
           return SafeArea(
@@ -50,131 +52,137 @@ Future<void> showSongContextMenu(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
-                ListTile(
-                  leading: const Icon(Icons.play_arrow_outlined),
-                  title: Text(l10n.librarySongMenuPlayNow),
-                  onTap: () {
-                    Navigator.of(sheetContext).pop();
-                    unawaited(
-                      ref.read(queueProvider.notifier).replace(<String>[
-                        song.id,
-                      ]),
-                    );
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.queue_music_outlined),
-                  title: Text(l10n.librarySongMenuAddToQueue),
-                  onTap: () {
-                    Navigator.of(sheetContext).pop();
-                    unawaited(ref.read(queueProvider.notifier).add(song.id));
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.playlist_add_outlined),
-                  title: Text(l10n.librarySongMenuPlayNext),
-                  onTap: () {
-                    Navigator.of(sheetContext).pop();
-                    unawaited(
-                      ref.read(queueProvider.notifier).playNext(song.id),
-                    );
-                  },
-                ),
-                ListTile(
-                  leading: Icon(
-                    isLiked ? Icons.favorite : Icons.favorite_border,
-                  ),
-                  title: Text(
-                    isLiked ? l10n.actionLiked : l10n.actionLike,
-                  ),
-                  onTap: () {
-                    unawaited(
-                      toggleSongStar(song.id, ref).catchError((_) {
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(l10n.albumDetailStarFailure),
-                            ),
-                          );
-                        }
-                      }),
-                    );
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.star_outline),
-                  title: Text(l10n.ratingTitle),
-                  subtitle: Text(l10n.ratingHint),
-                  trailing: RatingWidget(
-                    rating: rating,
-                    compact: true,
-                    onChanged: (next) {
-                      unawaited(
-                        setSongRating(song.id, next, ref).catchError((_) {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(l10n.ratingUpdateFailed)),
-                            );
-                          }
-                        }),
-                      );
-                    },
-                  ),
-                ),
-                if (song.artistId != null && song.artistId!.isNotEmpty)
-                  ListTile(
-                    leading: const Icon(Icons.person_outline),
-                    title: Text(l10n.librarySongMenuOpenArtist),
-                    onTap: () {
-                      Navigator.of(sheetContext).pop();
-                      context.push('/library/artists/${song.artistId}');
-                    },
-                  ),
-                if (song.albumId != null && song.albumId!.isNotEmpty)
-                  ListTile(
-                    leading: const Icon(Icons.album_outlined),
-                    title: Text(l10n.librarySongMenuOpenAlbum),
-                    onTap: () {
-                      Navigator.of(sheetContext).pop();
-                      context.push('/library/albums/${song.albumId}');
-                    },
-                  ),
-                ListTile(
-                  leading: const Icon(Icons.playlist_add),
-                  title: Text(l10n.librarySongMenuAddToPlaylist),
-                  onTap: () {
-                    Navigator.of(sheetContext).pop();
-                    showAddToPlaylistSheet(context, ref, <String>[song.id]);
-                  },
-                ),
-                if (isDownloaded)
-                  ListTile(
-                    leading: Icon(
-                      Icons.delete_outline,
-                      color: Theme.of(context).colorScheme.error,
+                    ListTile(
+                      leading: const Icon(Icons.play_arrow_outlined),
+                      title: Text(l10n.librarySongMenuPlayNow),
+                      onTap: () {
+                        Navigator.of(sheetContext).pop();
+                        unawaited(
+                          ref.read(queueProvider.notifier).replace(<String>[
+                            song.id,
+                          ]),
+                        );
+                      },
                     ),
-                    title: Text(
-                      l10n.deleteDownloadAction,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
+                    ListTile(
+                      leading: const Icon(Icons.queue_music_outlined),
+                      title: Text(l10n.librarySongMenuAddToQueue),
+                      onTap: () {
+                        Navigator.of(sheetContext).pop();
+                        unawaited(
+                          ref.read(queueProvider.notifier).add(song.id),
+                        );
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.playlist_add_outlined),
+                      title: Text(l10n.librarySongMenuPlayNext),
+                      onTap: () {
+                        Navigator.of(sheetContext).pop();
+                        unawaited(
+                          ref.read(queueProvider.notifier).playNext(song.id),
+                        );
+                      },
+                    ),
+                    ListTile(
+                      leading: Icon(
+                        isLiked ? Icons.favorite : Icons.favorite_border,
+                      ),
+                      title: Text(
+                        isLiked ? l10n.actionLiked : l10n.actionLike,
+                      ),
+                      onTap: () {
+                        unawaited(
+                          toggleSongStar(song.id, ref).catchError((_) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(l10n.albumDetailStarFailure),
+                                ),
+                              );
+                            }
+                          }),
+                        );
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.star_outline),
+                      title: Text(l10n.ratingTitle),
+                      subtitle: Text(l10n.ratingHint),
+                      trailing: RatingWidget(
+                        rating: rating,
+                        compact: true,
+                        onChanged: (next) {
+                          unawaited(
+                            setSongRating(song.id, next, ref).catchError((_) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(l10n.ratingUpdateFailed),
+                                  ),
+                                );
+                              }
+                            }),
+                          );
+                        },
                       ),
                     ),
-                    onTap: () {
-                      Navigator.of(sheetContext).pop();
-                      unawaited(
-                        _confirmAndDeleteDownload(context, ref, song.id),
-                      );
-                    },
-                  )
-                else
-                  ListTile(
-                    leading: const Icon(Icons.download_outlined),
-                    title: Text(l10n.downloadAction),
-                    onTap: () {
-                      Navigator.of(sheetContext).pop();
-                      unawaited(_downloadSongFromMenu(context, ref, song.id));
-                    },
-                  ),
+                    if (song.artistId != null && song.artistId!.isNotEmpty)
+                      ListTile(
+                        leading: const Icon(Icons.person_outline),
+                        title: Text(l10n.librarySongMenuOpenArtist),
+                        onTap: () {
+                          Navigator.of(sheetContext).pop();
+                          context.push('/library/artists/${song.artistId}');
+                        },
+                      ),
+                    if (song.albumId != null && song.albumId!.isNotEmpty)
+                      ListTile(
+                        leading: const Icon(Icons.album_outlined),
+                        title: Text(l10n.librarySongMenuOpenAlbum),
+                        onTap: () {
+                          Navigator.of(sheetContext).pop();
+                          context.push('/library/albums/${song.albumId}');
+                        },
+                      ),
+                    ListTile(
+                      leading: const Icon(Icons.playlist_add),
+                      title: Text(l10n.librarySongMenuAddToPlaylist),
+                      onTap: () {
+                        Navigator.of(sheetContext).pop();
+                        showAddToPlaylistSheet(context, ref, <String>[song.id]);
+                      },
+                    ),
+                    if (isDownloaded)
+                      ListTile(
+                        leading: Icon(
+                          Icons.delete_outline,
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                        title: Text(
+                          l10n.deleteDownloadAction,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
+                        onTap: () {
+                          Navigator.of(sheetContext).pop();
+                          unawaited(
+                            _confirmAndDeleteDownload(context, ref, song.id),
+                          );
+                        },
+                      )
+                    else
+                      ListTile(
+                        leading: const Icon(Icons.download_outlined),
+                        title: Text(l10n.downloadAction),
+                        onTap: () {
+                          Navigator.of(sheetContext).pop();
+                          unawaited(
+                            _downloadSongFromMenu(context, ref, song.id),
+                          );
+                        },
+                      ),
                   ],
                 ),
               ),

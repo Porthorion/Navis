@@ -1894,7 +1894,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
         current.genre != next.genre ||
         current.coverArt != next.coverArt ||
         current.starred != next.starred ||
-          current.userRating != next.userRating ||
+        current.userRating != next.userRating ||
         current.playCount != next.playCount;
   }
 

@@ -745,17 +745,21 @@ class _NowPlayingInfoPanelState extends ConsumerState<_NowPlayingInfoPanel> {
                                     () => _showInlineRatingEditor = false,
                                   );
                                   unawaited(
-                                    setSongRating(currentSongId, next, ref)
-                                        .catchError((_) {
+                                    setSongRating(
+                                      currentSongId,
+                                      next,
+                                      ref,
+                                    ).catchError((_) {
                                       if (context.mounted) {
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(
-                                              SnackBar(
-                                                content: Text(
-                                                  l10n.ratingUpdateFailed,
-                                                ),
-                                              ),
-                                            );
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              l10n.ratingUpdateFailed,
+                                            ),
+                                          ),
+                                        );
                                       }
                                     }),
                                   );
@@ -776,13 +780,15 @@ class _NowPlayingInfoPanelState extends ConsumerState<_NowPlayingInfoPanel> {
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   textAlign: TextAlign.center,
-                                  style: Theme.of(
-                                    context,
-                                  ).textTheme.bodySmall?.copyWith(
-                                    color: colors.onSurfaceVariant.withValues(
-                                      alpha: 0.82,
-                                    ),
-                                  ),
+                                  style:
+                                      Theme.of(
+                                        context,
+                                      ).textTheme.bodySmall?.copyWith(
+                                        color: colors.onSurfaceVariant
+                                            .withValues(
+                                              alpha: 0.82,
+                                            ),
+                                      ),
                                 ),
                               ),
                       ),
@@ -1313,7 +1319,9 @@ bool _showExternalLyricsMeta(LyricsResolution resolution) {
 
 String _formatPreferenceSummary(AppLocalizations l10n, SongsTableData? song) {
   if (song == null) return '-';
-  final likedText = song.starred == null ? l10n.ratingNotLiked : l10n.actionLiked;
+  final likedText = song.starred == null
+      ? l10n.ratingNotLiked
+      : l10n.actionLiked;
   final rating = song.userRating;
   if (rating == null || rating <= 0) {
     return '$likedText • ${l10n.ratingNoValue}';
