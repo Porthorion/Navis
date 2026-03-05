@@ -575,6 +575,13 @@ class _PlaybackSettingsScreenState
         replayGainMode: _replayGainMode,
         replayGainPreamp: _normalizeReplayGainPreamp(_replayGainPreamp),
         playbackSpeed: _normalizePlaybackSpeed(_playbackSpeed),
+        albumGridDensity: currentSettings.albumGridDensity,
+        coverArtShape: currentSettings.coverArtShape,
+        nowPlayingArtShape: currentSettings.nowPlayingArtShape,
+        artistCardShape: currentSettings.artistCardShape,
+        artistViewMode: currentSettings.artistViewMode,
+        homeSectionOrder: currentSettings.homeSectionOrder,
+        homeSectionsHidden: currentSettings.homeSectionsHidden,
       );
       await ref.read(settingsRepositoryProvider).saveSettings(settings);
       final handler = ref.read(audioHandlerProvider);

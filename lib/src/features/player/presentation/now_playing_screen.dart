@@ -469,14 +469,16 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
   }
 }
 
-class _CoverArt extends StatelessWidget {
+class _CoverArt extends ConsumerWidget {
   const _CoverArt({this.coverArtId, this.semanticLabel});
 
   final String? coverArtId;
   final String? semanticLabel;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final npShape = ref.watch(nowPlayingArtShapeProvider);
+    final npRadius = coverArtShapeToRadius(npShape);
     final mq = MediaQuery.of(context).size;
     final widthBased = mq.width - 48;
     // Use 42% of screen height as a cap so controls aren't squeezed.
@@ -491,20 +493,22 @@ class _CoverArt extends StatelessWidget {
       size: 640,
       width: artSize,
       height: artSize,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: npRadius,
       placeholderIcon: Icons.music_note_outlined,
       semanticLabel: semanticLabel,
     );
   }
 }
 
-class _RadioCoverArt extends StatelessWidget {
+class _RadioCoverArt extends ConsumerWidget {
   const _RadioCoverArt({this.artUrl});
 
   final String? artUrl;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final npShape = ref.watch(nowPlayingArtShapeProvider);
+    final npRadius = coverArtShapeToRadius(npShape);
     final mq = MediaQuery.of(context).size;
     final widthBased = mq.width - 48;
     final heightBased = mq.height * 0.42;
@@ -515,27 +519,32 @@ class _RadioCoverArt extends StatelessWidget {
 
     if (artUrl != null) {
       return ClipRRect(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: npRadius,
         child: CachedNetworkImage(
           imageUrl: artUrl!,
           width: artSize,
           height: artSize,
           fit: BoxFit.cover,
-          errorWidget: (_, _, _) => _radioPlaceholder(context, artSize),
+          errorWidget: (_, _, _) =>
+              _radioPlaceholder(context, artSize, npRadius),
         ),
       );
     }
 
-    return _radioPlaceholder(context, artSize);
+    return _radioPlaceholder(context, artSize, npRadius);
   }
 
-  Widget _radioPlaceholder(BuildContext context, double size) {
+  Widget _radioPlaceholder(
+    BuildContext context,
+    double size,
+    BorderRadius borderRadius,
+  ) {
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.primaryContainer,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: borderRadius,
       ),
       child: Icon(
         Icons.radio,

@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/features/home/presentation/home_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 
@@ -20,6 +21,19 @@ class AppearanceSettingsScreen extends ConsumerWidget {
     final appLocale = ref.watch(appLocaleProvider);
     final languageSelectionEnabled = AppLocalizations.supportedLocales.length > 1;
     final theme = Theme.of(context);
+    final allowedHomeSectionIds = HomeSectionIds.defaultOrder.toSet();
+    final persistedOrder = ref.watch(homeSectionOrderProvider);
+    final persistedHidden = ref.watch(homeSectionsHiddenProvider) ??
+        <String>[];
+    final sanitizedOrder = <String>[
+      ...?persistedOrder?.where(allowedHomeSectionIds.contains),
+      ...HomeSectionIds.defaultOrder.where(
+        (id) => !(persistedOrder?.contains(id) ?? false),
+      ),
+    ];
+    final sanitizedHidden = persistedHidden
+        .where(allowedHomeSectionIds.contains)
+        .toList(growable: false);
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.appearanceTitle)),
@@ -194,6 +208,149 @@ class AppearanceSettingsScreen extends ConsumerWidget {
               final db = ref.read(navisDatabaseProvider);
               await db.appSettingsDao.updateDynamicAlbumColorEnabled(
                 enabled: enabled,
+              );
+            },
+          ),
+          const Divider(height: 32),
+
+          // ── Grid Density ────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+            child: Text(
+              l10n.appearanceGridDensityLabel,
+              style: theme.textTheme.titleSmall?.copyWith(
+                color: theme.colorScheme.primary,
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Text(
+              l10n.appearanceGridDensitySub,
+              style: theme.textTheme.bodySmall,
+            ),
+          ),
+          _GridDensitySelector(
+            current: ref.watch(albumGridDensityProvider),
+            onChanged: (density) async {
+              final db = ref.read(navisDatabaseProvider);
+              await db.appSettingsDao.updateAlbumGridDensity(density);
+            },
+          ),
+          const Divider(height: 32),
+
+          // ── Cover Art Shape ─────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+            child: Text(
+              l10n.appearanceCoverArtShapeLabel,
+              style: theme.textTheme.titleSmall?.copyWith(
+                color: theme.colorScheme.primary,
+              ),
+            ),
+          ),
+          _ShapeSelector(
+            label: l10n.appearanceCoverArtShapeSubLabel,
+            value: ref.watch(coverArtShapeProvider),
+            includeCircle: false,
+            onChanged: (shape) async {
+              final db = ref.read(navisDatabaseProvider);
+              await db.appSettingsDao.updateCoverArtShape(shape);
+            },
+          ),
+          _ShapeSelector(
+            label: l10n.appearanceNpArtShapeLabel,
+            value: ref.watch(nowPlayingArtShapeProvider),
+            onChanged: (shape) async {
+              final db = ref.read(navisDatabaseProvider);
+              await db.appSettingsDao.updateNowPlayingArtShape(shape);
+            },
+          ),
+          _ShapeSelector(
+            label: l10n.appearanceArtistCardShapeLabel,
+            value: ref.watch(artistCardShapeProvider),
+            onChanged: (shape) async {
+              final db = ref.read(navisDatabaseProvider);
+              await db.appSettingsDao.updateArtistCardShape(shape);
+            },
+          ),
+          const Divider(height: 32),
+
+          // ── Artist View Mode ────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+            child: Text(
+              l10n.appearanceArtistViewModeLabel,
+              style: theme.textTheme.titleSmall?.copyWith(
+                color: theme.colorScheme.primary,
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: SegmentedButton<String>(
+              segments: <ButtonSegment<String>>[
+                ButtonSegment<String>(
+                  value: 'list',
+                  label: Text(l10n.appearanceArtistViewModeList),
+                  icon: const Icon(Icons.view_list),
+                ),
+                ButtonSegment<String>(
+                  value: 'grid',
+                  label: Text(l10n.appearanceArtistViewModeGrid),
+                  icon: const Icon(Icons.grid_view),
+                ),
+              ],
+              selected: {ref.watch(artistViewModeProvider)},
+              onSelectionChanged: (selection) async {
+                if (selection.isNotEmpty) {
+                  final db = ref.read(navisDatabaseProvider);
+                  await db.appSettingsDao.updateArtistViewMode(
+                    selection.first,
+                  );
+                }
+              },
+              showSelectedIcon: false,
+            ),
+          ),
+          const Divider(height: 32),
+
+          // ── Home Sections (drag to reorder + visibility toggle) ─
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+            child: Text(
+              l10n.appearanceHomeSectionsLabel,
+              style: theme.textTheme.titleSmall?.copyWith(
+                color: theme.colorScheme.primary,
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Text(
+              l10n.appearanceHomeSectionsSub,
+              style: theme.textTheme.bodySmall,
+            ),
+          ),
+          _HomeSectionReorder(
+            order: sanitizedOrder,
+            hidden: sanitizedHidden,
+            onReorder: (newOrder) async {
+              final db = ref.read(navisDatabaseProvider);
+              await db.appSettingsDao.updateHomeSectionOrder(
+                jsonEncode(newOrder),
+              );
+            },
+            onToggleVisibility: (sectionId, visible) async {
+              final db = ref.read(navisDatabaseProvider);
+              final current = List<String>.from(sanitizedHidden);
+              if (visible) {
+                current.remove(sectionId);
+              } else {
+                if (!current.contains(sectionId)) current.add(sectionId);
+              }
+              await db.appSettingsDao.updateHomeSectionsHidden(
+                current.isEmpty ? null : jsonEncode(current),
               );
             },
           ),
@@ -640,6 +797,214 @@ class _HueSlider extends StatelessWidget {
           onChanged: onChanged,
         ),
       ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Grid density selector
+// ---------------------------------------------------------------------------
+
+class _GridDensitySelector extends StatelessWidget {
+  const _GridDensitySelector({
+    required this.current,
+    required this.onChanged,
+  });
+
+  final int? current;
+  final ValueChanged<int?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final presets = <(int? value, String label)>[
+      (null, l10n.appearanceGridDensityAuto),
+      (2, l10n.appearanceGridDensityCozy),
+      (3, l10n.appearanceGridDensityCompact),
+      (4, l10n.appearanceGridDensitySpaciousLabel),
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: SegmentedButton<int?>(
+        segments: presets
+            .map(
+              (e) =>
+                  ButtonSegment<int?>(value: e.$1, label: Text(e.$2)),
+            )
+            .toList(),
+        selected: {current},
+        onSelectionChanged: (selection) {
+          if (selection.isNotEmpty) onChanged(selection.first);
+        },
+        showSelectedIcon: false,
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Shape selector: square / rounded / circle
+// ---------------------------------------------------------------------------
+
+class _ShapeSelector extends ConsumerWidget {
+  const _ShapeSelector({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+    this.includeCircle = true,
+  });
+
+  final String label;
+  final String value;
+  final ValueChanged<String> onChanged;
+  final bool includeCircle;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    final selectedValue = includeCircle
+        ? value
+        : (value == 'square' ? 'square' : 'rounded');
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(label, style: theme.textTheme.bodyMedium),
+          const SizedBox(height: 8),
+          SegmentedButton<String>(
+            segments: <ButtonSegment<String>>[
+              ButtonSegment<String>(
+                value: 'square',
+                label: Text(l10n.shapeSquare),
+                icon: const Icon(Icons.crop_square),
+              ),
+              ButtonSegment<String>(
+                value: 'rounded',
+                label: Text(l10n.shapeRounded),
+                icon: const Icon(Icons.rounded_corner),
+              ),
+              if (includeCircle)
+                ButtonSegment<String>(
+                  value: 'circle',
+                  label: Text(l10n.shapeCircle),
+                  icon: const Icon(Icons.circle_outlined),
+                ),
+            ],
+            selected: {selectedValue},
+            onSelectionChanged: (selection) {
+              if (selection.isNotEmpty) onChanged(selection.first);
+            },
+            showSelectedIcon: false,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Home section reorder + visibility toggle
+// ---------------------------------------------------------------------------
+
+class _HomeSectionReorder extends StatefulWidget {
+  const _HomeSectionReorder({
+    required this.order,
+    required this.hidden,
+    required this.onReorder,
+    required this.onToggleVisibility,
+  });
+
+  final List<String> order;
+  final List<String> hidden;
+  final ValueChanged<List<String>> onReorder;
+  final void Function(String sectionId, bool visible) onToggleVisibility;
+
+  @override
+  State<_HomeSectionReorder> createState() => _HomeSectionReorderState();
+}
+
+class _HomeSectionReorderState extends State<_HomeSectionReorder> {
+  late List<String> _localOrder;
+
+  @override
+  void initState() {
+    super.initState();
+    _localOrder = List<String>.from(widget.order);
+  }
+
+  @override
+  void didUpdateWidget(covariant _HomeSectionReorder oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.order != widget.order) {
+      _localOrder = List<String>.from(widget.order);
+    }
+  }
+
+  String _sectionLabel(String id, AppLocalizations l10n) {
+    switch (id) {
+      case HomeSectionIds.likedTracks:
+        return l10n.homeSectionLikedTracks;
+      case HomeSectionIds.recentlyAdded:
+        return l10n.homeSectionRecentlyAdded;
+      case HomeSectionIds.recentlyPlayed:
+        return l10n.homeSectionRecentlyPlayed;
+      case HomeSectionIds.randomAlbums:
+        return l10n.homeSectionRandomAlbums;
+      case HomeSectionIds.mostPlayed:
+        return l10n.homeSectionMostPlayed;
+      default:
+        return id;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+
+    return ReorderableListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      buildDefaultDragHandles: false,
+      itemCount: _localOrder.length,
+      onReorder: (oldIndex, newIndex) {
+        setState(() {
+          if (newIndex > oldIndex) newIndex--;
+          final item = _localOrder.removeAt(oldIndex);
+          _localOrder.insert(newIndex, item);
+        });
+        widget.onReorder(_localOrder);
+      },
+      itemBuilder: (context, index) {
+        final id = _localOrder[index];
+        final isHidden = widget.hidden.contains(id);
+        return Material(
+          key: ValueKey(id),
+          color: Colors.transparent,
+          child: ListTile(
+            leading: ReorderableDragStartListener(
+              index: index,
+              child: const Icon(Icons.drag_handle),
+            ),
+            title: Text(
+              _sectionLabel(id, l10n),
+              style: isHidden
+                  ? theme.textTheme.bodyLarge?.copyWith(
+                      color: theme.colorScheme.onSurface.withAlpha(100),
+                    )
+                  : null,
+            ),
+            trailing: Switch(
+              value: !isHidden,
+              onChanged: (visible) =>
+                  widget.onToggleVisibility(id, visible),
+            ),
+          ),
+        );
+      },
     );
   }
 }

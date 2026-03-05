@@ -63,6 +63,13 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     required String replayGainMode,
     required double replayGainPreamp,
     required double playbackSpeed,
+    int? albumGridDensity,
+    required String coverArtShape,
+    required String nowPlayingArtShape,
+    required String artistCardShape,
+    required String artistViewMode,
+    String? homeSectionOrder,
+    String? homeSectionsHidden,
   }) {
     return into(appSettingsTable).insertOnConflictUpdate(
       AppSettingsTableCompanion.insert(
@@ -101,6 +108,13 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         replayGainMode: Value(replayGainMode),
         replayGainPreamp: Value(replayGainPreamp),
         playbackSpeed: Value(playbackSpeed),
+        albumGridDensity: Value(albumGridDensity),
+        coverArtShape: Value(coverArtShape),
+        nowPlayingArtShape: Value(nowPlayingArtShape),
+        artistCardShape: Value(artistCardShape),
+        artistViewMode: Value(artistViewMode),
+        homeSectionOrder: Value(homeSectionOrder),
+        homeSectionsHidden: Value(homeSectionsHidden),
         updatedAt: DateTime.now(),
       ),
     );
@@ -140,6 +154,13 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       replayGainMode: 'off',
       replayGainPreamp: 0,
       playbackSpeed: 1,
+      albumGridDensity: null,
+      coverArtShape: 'square',
+      nowPlayingArtShape: 'rounded',
+      artistCardShape: 'circle',
+      artistViewMode: 'grid',
+      homeSectionOrder: null,
+      homeSectionsHidden: null,
     );
   }
 
@@ -443,5 +464,93 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   Future<int> getSyncIntervalMinutes() async {
     final s = await getSettings();
     return s?.syncIntervalMinutes ?? defaultSyncIntervalMinutes;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Appearance personalization helpers
+  // ---------------------------------------------------------------------------
+
+  /// Targeted update for album grid density (null = auto).
+  Future<void> updateAlbumGridDensity(int? density) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        albumGridDensity: Value(density),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Targeted update for library cover art shape ('square', 'rounded', 'circle').
+  Future<void> updateCoverArtShape(String shape) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        coverArtShape: Value(shape),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Targeted update for Now Playing art shape ('square', 'rounded', 'circle').
+  Future<void> updateNowPlayingArtShape(String shape) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        nowPlayingArtShape: Value(shape),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Targeted update for artist card shape ('square', 'rounded', 'circle').
+  Future<void> updateArtistCardShape(String shape) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        artistCardShape: Value(shape),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Targeted update for artist view mode ('grid' or 'list').
+  Future<void> updateArtistViewMode(String mode) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        artistViewMode: Value(mode),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Targeted update for home section order (JSON string list, or null for default).
+  Future<void> updateHomeSectionOrder(String? json) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        homeSectionOrder: Value(json),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Targeted update for hidden home sections (JSON string list, or null for none).
+  Future<void> updateHomeSectionsHidden(String? json) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        homeSectionsHidden: Value(json),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
   }
 }

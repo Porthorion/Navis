@@ -827,6 +827,32 @@
   "appearanceShowLikedPageTitle": "Show Liked tab",
   "appearanceShowLikedPageSubtitle": "Show the Liked tab in the Library screen.",
 
+  "appearanceGridDensityLabel": "Grid density",
+  "appearanceGridDensitySub": "Number of columns in album and artist grids.",
+  "appearanceGridDensityAuto": "Auto",
+  "appearanceGridDensityCompact": "Compact",
+  "appearanceGridDensityCozy": "Cozy",
+  "appearanceGridDensitySpaciousLabel": "Spacious",
+  "appearanceCoverArtShapeLabel": "Cover art shape",
+  "appearanceCoverArtShapeSubLabel": "Library & carousel art",
+  "appearanceNpArtShapeLabel": "Now Playing art",
+  "appearanceArtistCardShapeLabel": "Artist card art",
+  "shapeSquare": "Square",
+  "shapeRounded": "Rounded",
+  "shapeCircle": "Circle",
+  "appearanceArtistViewModeLabel": "Artist view mode",
+  "appearanceArtistViewModeGrid": "Grid",
+  "appearanceArtistViewModeList": "List",
+
+  "appearanceHomeSectionsLabel": "Home sections",
+  "appearanceHomeSectionsSub": "Drag to reorder, toggle to show or hide.",
+  "homeSectionLikedTracks": "Liked tracks",
+  "homeSectionRecentlyAdded": "Recently added",
+  "homeSectionRecentlyPlayed": "Recently played",
+  "homeSectionRandomAlbums": "Random albums",
+  "homeSectionMostPlayed": "Most played",
+  "homeSectionAudiomuseRecs": "AudioMuse recommendations",
+
   "cacheSettingsCoverArtSizeLabel": "Storage used: {size}",
   "@cacheSettingsCoverArtSizeLabel": {
     "placeholders": {

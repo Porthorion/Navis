@@ -52,6 +52,13 @@ void main() {
       replayGainMode: 'off',
       replayGainPreamp: 0,
       playbackSpeed: 1,
+      albumGridDensity: null,
+      coverArtShape: 'rounded',
+      nowPlayingArtShape: 'rounded',
+      artistCardShape: 'circle',
+      artistViewMode: 'grid',
+      homeSectionOrder: null,
+      homeSectionsHidden: null,
     );
 
     setUp(() {

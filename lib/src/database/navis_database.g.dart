@@ -1012,6 +1012,111 @@ class $AppSettingsTableTable extends AppSettingsTable
     requiredDuringInsert: false,
     defaultValue: const Constant(1),
   );
+  static const VerificationMeta _albumGridDensityMeta = const VerificationMeta(
+    'albumGridDensity',
+  );
+  @override
+  late final GeneratedColumn<int> albumGridDensity = GeneratedColumn<int>(
+    'album_grid_density',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _coverArtBorderRadiusMeta =
+      const VerificationMeta('coverArtBorderRadius');
+  @override
+  late final GeneratedColumn<double> coverArtBorderRadius =
+      GeneratedColumn<double>(
+        'cover_art_border_radius',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(12),
+      );
+  static const VerificationMeta _nowPlayingArtBorderRadiusMeta =
+      const VerificationMeta('nowPlayingArtBorderRadius');
+  @override
+  late final GeneratedColumn<double> nowPlayingArtBorderRadius =
+      GeneratedColumn<double>(
+        'now_playing_art_border_radius',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(16),
+      );
+  static const VerificationMeta _coverArtShapeMeta = const VerificationMeta(
+    'coverArtShape',
+  );
+  @override
+  late final GeneratedColumn<String> coverArtShape = GeneratedColumn<String>(
+    'cover_art_shape',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('square'),
+  );
+  static const VerificationMeta _nowPlayingArtShapeMeta =
+      const VerificationMeta('nowPlayingArtShape');
+  @override
+  late final GeneratedColumn<String> nowPlayingArtShape =
+      GeneratedColumn<String>(
+        'now_playing_art_shape',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant('rounded'),
+      );
+  static const VerificationMeta _artistCardShapeMeta = const VerificationMeta(
+    'artistCardShape',
+  );
+  @override
+  late final GeneratedColumn<String> artistCardShape = GeneratedColumn<String>(
+    'artist_card_shape',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('circle'),
+  );
+  static const VerificationMeta _artistViewModeMeta = const VerificationMeta(
+    'artistViewMode',
+  );
+  @override
+  late final GeneratedColumn<String> artistViewMode = GeneratedColumn<String>(
+    'artist_view_mode',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('grid'),
+  );
+  static const VerificationMeta _homeSectionOrderMeta = const VerificationMeta(
+    'homeSectionOrder',
+  );
+  @override
+  late final GeneratedColumn<String> homeSectionOrder = GeneratedColumn<String>(
+    'home_section_order',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _homeSectionsHiddenMeta =
+      const VerificationMeta('homeSectionsHidden');
+  @override
+  late final GeneratedColumn<String> homeSectionsHidden =
+      GeneratedColumn<String>(
+        'home_sections_hidden',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _updatedAtMeta = const VerificationMeta(
     'updatedAt',
   );
@@ -1063,6 +1168,15 @@ class $AppSettingsTableTable extends AppSettingsTable
     replayGainMode,
     replayGainPreamp,
     playbackSpeed,
+    albumGridDensity,
+    coverArtBorderRadius,
+    nowPlayingArtBorderRadius,
+    coverArtShape,
+    nowPlayingArtShape,
+    artistCardShape,
+    artistViewMode,
+    homeSectionOrder,
+    homeSectionsHidden,
     updatedAt,
   ];
   @override
@@ -1404,6 +1518,87 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
       );
     }
+    if (data.containsKey('album_grid_density')) {
+      context.handle(
+        _albumGridDensityMeta,
+        albumGridDensity.isAcceptableOrUnknown(
+          data['album_grid_density']!,
+          _albumGridDensityMeta,
+        ),
+      );
+    }
+    if (data.containsKey('cover_art_border_radius')) {
+      context.handle(
+        _coverArtBorderRadiusMeta,
+        coverArtBorderRadius.isAcceptableOrUnknown(
+          data['cover_art_border_radius']!,
+          _coverArtBorderRadiusMeta,
+        ),
+      );
+    }
+    if (data.containsKey('now_playing_art_border_radius')) {
+      context.handle(
+        _nowPlayingArtBorderRadiusMeta,
+        nowPlayingArtBorderRadius.isAcceptableOrUnknown(
+          data['now_playing_art_border_radius']!,
+          _nowPlayingArtBorderRadiusMeta,
+        ),
+      );
+    }
+    if (data.containsKey('cover_art_shape')) {
+      context.handle(
+        _coverArtShapeMeta,
+        coverArtShape.isAcceptableOrUnknown(
+          data['cover_art_shape']!,
+          _coverArtShapeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('now_playing_art_shape')) {
+      context.handle(
+        _nowPlayingArtShapeMeta,
+        nowPlayingArtShape.isAcceptableOrUnknown(
+          data['now_playing_art_shape']!,
+          _nowPlayingArtShapeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('artist_card_shape')) {
+      context.handle(
+        _artistCardShapeMeta,
+        artistCardShape.isAcceptableOrUnknown(
+          data['artist_card_shape']!,
+          _artistCardShapeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('artist_view_mode')) {
+      context.handle(
+        _artistViewModeMeta,
+        artistViewMode.isAcceptableOrUnknown(
+          data['artist_view_mode']!,
+          _artistViewModeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('home_section_order')) {
+      context.handle(
+        _homeSectionOrderMeta,
+        homeSectionOrder.isAcceptableOrUnknown(
+          data['home_section_order']!,
+          _homeSectionOrderMeta,
+        ),
+      );
+    }
+    if (data.containsKey('home_sections_hidden')) {
+      context.handle(
+        _homeSectionsHiddenMeta,
+        homeSectionsHidden.isAcceptableOrUnknown(
+          data['home_sections_hidden']!,
+          _homeSectionsHiddenMeta,
+        ),
+      );
+    }
     if (data.containsKey('updated_at')) {
       context.handle(
         _updatedAtMeta,
@@ -1573,6 +1768,42 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.double,
         data['${effectivePrefix}playback_speed'],
       )!,
+      albumGridDensity: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}album_grid_density'],
+      ),
+      coverArtBorderRadius: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}cover_art_border_radius'],
+      )!,
+      nowPlayingArtBorderRadius: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}now_playing_art_border_radius'],
+      )!,
+      coverArtShape: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cover_art_shape'],
+      )!,
+      nowPlayingArtShape: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}now_playing_art_shape'],
+      )!,
+      artistCardShape: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}artist_card_shape'],
+      )!,
+      artistViewMode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}artist_view_mode'],
+      )!,
+      homeSectionOrder: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}home_section_order'],
+      ),
+      homeSectionsHidden: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}home_sections_hidden'],
+      ),
       updatedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
@@ -1671,6 +1902,36 @@ class AppSettingsTableData extends DataClass
 
   /// Playback speed multiplier (0.5–2.0). Default 1.0.
   final double playbackSpeed;
+
+  /// Album grid column count override. Null = auto (computed from width).
+  /// Valid explicit values: 1–4.
+  final int? albumGridDensity;
+
+  /// Border radius (logical px) for cover art in library cards, carousels, etc.
+  /// 0 = square, 24 = very rounded. Default 12.
+  final double coverArtBorderRadius;
+
+  /// Border radius (logical px) for the Now Playing album art. Default 16.
+  final double nowPlayingArtBorderRadius;
+
+  /// Cover art shape preset: 'square' or 'rounded'. Default 'square'.
+  final String coverArtShape;
+
+  /// Now Playing art shape preset: 'square', 'rounded', or 'circle'. Default 'rounded'.
+  final String nowPlayingArtShape;
+
+  /// Artist card shape preset: 'square', 'rounded', or 'circle'. Default 'circle'.
+  final String artistCardShape;
+
+  /// Artist view layout: 'list' or 'grid'. Default 'grid'.
+  final String artistViewMode;
+
+  /// JSON-encoded ordered list of home section IDs (e.g. ["recently_added",…]).
+  /// Null = default order.
+  final String? homeSectionOrder;
+
+  /// JSON-encoded list of hidden home section IDs. Null = none hidden.
+  final String? homeSectionsHidden;
   final DateTime updatedAt;
   const AppSettingsTableData({
     required this.id,
@@ -1711,6 +1972,15 @@ class AppSettingsTableData extends DataClass
     required this.replayGainMode,
     required this.replayGainPreamp,
     required this.playbackSpeed,
+    this.albumGridDensity,
+    required this.coverArtBorderRadius,
+    required this.nowPlayingArtBorderRadius,
+    required this.coverArtShape,
+    required this.nowPlayingArtShape,
+    required this.artistCardShape,
+    required this.artistViewMode,
+    this.homeSectionOrder,
+    this.homeSectionsHidden,
     required this.updatedAt,
   });
   @override
@@ -1780,6 +2050,23 @@ class AppSettingsTableData extends DataClass
     map['replay_gain_mode'] = Variable<String>(replayGainMode);
     map['replay_gain_preamp'] = Variable<double>(replayGainPreamp);
     map['playback_speed'] = Variable<double>(playbackSpeed);
+    if (!nullToAbsent || albumGridDensity != null) {
+      map['album_grid_density'] = Variable<int>(albumGridDensity);
+    }
+    map['cover_art_border_radius'] = Variable<double>(coverArtBorderRadius);
+    map['now_playing_art_border_radius'] = Variable<double>(
+      nowPlayingArtBorderRadius,
+    );
+    map['cover_art_shape'] = Variable<String>(coverArtShape);
+    map['now_playing_art_shape'] = Variable<String>(nowPlayingArtShape);
+    map['artist_card_shape'] = Variable<String>(artistCardShape);
+    map['artist_view_mode'] = Variable<String>(artistViewMode);
+    if (!nullToAbsent || homeSectionOrder != null) {
+      map['home_section_order'] = Variable<String>(homeSectionOrder);
+    }
+    if (!nullToAbsent || homeSectionsHidden != null) {
+      map['home_sections_hidden'] = Variable<String>(homeSectionsHidden);
+    }
     map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
   }
@@ -1846,6 +2133,21 @@ class AppSettingsTableData extends DataClass
       replayGainMode: Value(replayGainMode),
       replayGainPreamp: Value(replayGainPreamp),
       playbackSpeed: Value(playbackSpeed),
+      albumGridDensity: albumGridDensity == null && nullToAbsent
+          ? const Value.absent()
+          : Value(albumGridDensity),
+      coverArtBorderRadius: Value(coverArtBorderRadius),
+      nowPlayingArtBorderRadius: Value(nowPlayingArtBorderRadius),
+      coverArtShape: Value(coverArtShape),
+      nowPlayingArtShape: Value(nowPlayingArtShape),
+      artistCardShape: Value(artistCardShape),
+      artistViewMode: Value(artistViewMode),
+      homeSectionOrder: homeSectionOrder == null && nullToAbsent
+          ? const Value.absent()
+          : Value(homeSectionOrder),
+      homeSectionsHidden: homeSectionsHidden == null && nullToAbsent
+          ? const Value.absent()
+          : Value(homeSectionsHidden),
       updatedAt: Value(updatedAt),
     );
   }
@@ -1916,6 +2218,23 @@ class AppSettingsTableData extends DataClass
       replayGainMode: serializer.fromJson<String>(json['replayGainMode']),
       replayGainPreamp: serializer.fromJson<double>(json['replayGainPreamp']),
       playbackSpeed: serializer.fromJson<double>(json['playbackSpeed']),
+      albumGridDensity: serializer.fromJson<int?>(json['albumGridDensity']),
+      coverArtBorderRadius: serializer.fromJson<double>(
+        json['coverArtBorderRadius'],
+      ),
+      nowPlayingArtBorderRadius: serializer.fromJson<double>(
+        json['nowPlayingArtBorderRadius'],
+      ),
+      coverArtShape: serializer.fromJson<String>(json['coverArtShape']),
+      nowPlayingArtShape: serializer.fromJson<String>(
+        json['nowPlayingArtShape'],
+      ),
+      artistCardShape: serializer.fromJson<String>(json['artistCardShape']),
+      artistViewMode: serializer.fromJson<String>(json['artistViewMode']),
+      homeSectionOrder: serializer.fromJson<String?>(json['homeSectionOrder']),
+      homeSectionsHidden: serializer.fromJson<String?>(
+        json['homeSectionsHidden'],
+      ),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
   }
@@ -1969,6 +2288,17 @@ class AppSettingsTableData extends DataClass
       'replayGainMode': serializer.toJson<String>(replayGainMode),
       'replayGainPreamp': serializer.toJson<double>(replayGainPreamp),
       'playbackSpeed': serializer.toJson<double>(playbackSpeed),
+      'albumGridDensity': serializer.toJson<int?>(albumGridDensity),
+      'coverArtBorderRadius': serializer.toJson<double>(coverArtBorderRadius),
+      'nowPlayingArtBorderRadius': serializer.toJson<double>(
+        nowPlayingArtBorderRadius,
+      ),
+      'coverArtShape': serializer.toJson<String>(coverArtShape),
+      'nowPlayingArtShape': serializer.toJson<String>(nowPlayingArtShape),
+      'artistCardShape': serializer.toJson<String>(artistCardShape),
+      'artistViewMode': serializer.toJson<String>(artistViewMode),
+      'homeSectionOrder': serializer.toJson<String?>(homeSectionOrder),
+      'homeSectionsHidden': serializer.toJson<String?>(homeSectionsHidden),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
   }
@@ -2012,6 +2342,15 @@ class AppSettingsTableData extends DataClass
     String? replayGainMode,
     double? replayGainPreamp,
     double? playbackSpeed,
+    Value<int?> albumGridDensity = const Value.absent(),
+    double? coverArtBorderRadius,
+    double? nowPlayingArtBorderRadius,
+    String? coverArtShape,
+    String? nowPlayingArtShape,
+    String? artistCardShape,
+    String? artistViewMode,
+    Value<String?> homeSectionOrder = const Value.absent(),
+    Value<String?> homeSectionsHidden = const Value.absent(),
     DateTime? updatedAt,
   }) => AppSettingsTableData(
     id: id ?? this.id,
@@ -2074,6 +2413,22 @@ class AppSettingsTableData extends DataClass
     replayGainMode: replayGainMode ?? this.replayGainMode,
     replayGainPreamp: replayGainPreamp ?? this.replayGainPreamp,
     playbackSpeed: playbackSpeed ?? this.playbackSpeed,
+    albumGridDensity: albumGridDensity.present
+        ? albumGridDensity.value
+        : this.albumGridDensity,
+    coverArtBorderRadius: coverArtBorderRadius ?? this.coverArtBorderRadius,
+    nowPlayingArtBorderRadius:
+        nowPlayingArtBorderRadius ?? this.nowPlayingArtBorderRadius,
+    coverArtShape: coverArtShape ?? this.coverArtShape,
+    nowPlayingArtShape: nowPlayingArtShape ?? this.nowPlayingArtShape,
+    artistCardShape: artistCardShape ?? this.artistCardShape,
+    artistViewMode: artistViewMode ?? this.artistViewMode,
+    homeSectionOrder: homeSectionOrder.present
+        ? homeSectionOrder.value
+        : this.homeSectionOrder,
+    homeSectionsHidden: homeSectionsHidden.present
+        ? homeSectionsHidden.value
+        : this.homeSectionsHidden,
     updatedAt: updatedAt ?? this.updatedAt,
   );
   AppSettingsTableData copyWithCompanion(AppSettingsTableCompanion data) {
@@ -2186,6 +2541,33 @@ class AppSettingsTableData extends DataClass
       playbackSpeed: data.playbackSpeed.present
           ? data.playbackSpeed.value
           : this.playbackSpeed,
+      albumGridDensity: data.albumGridDensity.present
+          ? data.albumGridDensity.value
+          : this.albumGridDensity,
+      coverArtBorderRadius: data.coverArtBorderRadius.present
+          ? data.coverArtBorderRadius.value
+          : this.coverArtBorderRadius,
+      nowPlayingArtBorderRadius: data.nowPlayingArtBorderRadius.present
+          ? data.nowPlayingArtBorderRadius.value
+          : this.nowPlayingArtBorderRadius,
+      coverArtShape: data.coverArtShape.present
+          ? data.coverArtShape.value
+          : this.coverArtShape,
+      nowPlayingArtShape: data.nowPlayingArtShape.present
+          ? data.nowPlayingArtShape.value
+          : this.nowPlayingArtShape,
+      artistCardShape: data.artistCardShape.present
+          ? data.artistCardShape.value
+          : this.artistCardShape,
+      artistViewMode: data.artistViewMode.present
+          ? data.artistViewMode.value
+          : this.artistViewMode,
+      homeSectionOrder: data.homeSectionOrder.present
+          ? data.homeSectionOrder.value
+          : this.homeSectionOrder,
+      homeSectionsHidden: data.homeSectionsHidden.present
+          ? data.homeSectionsHidden.value
+          : this.homeSectionsHidden,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
   }
@@ -2231,6 +2613,15 @@ class AppSettingsTableData extends DataClass
           ..write('replayGainMode: $replayGainMode, ')
           ..write('replayGainPreamp: $replayGainPreamp, ')
           ..write('playbackSpeed: $playbackSpeed, ')
+          ..write('albumGridDensity: $albumGridDensity, ')
+          ..write('coverArtBorderRadius: $coverArtBorderRadius, ')
+          ..write('nowPlayingArtBorderRadius: $nowPlayingArtBorderRadius, ')
+          ..write('coverArtShape: $coverArtShape, ')
+          ..write('nowPlayingArtShape: $nowPlayingArtShape, ')
+          ..write('artistCardShape: $artistCardShape, ')
+          ..write('artistViewMode: $artistViewMode, ')
+          ..write('homeSectionOrder: $homeSectionOrder, ')
+          ..write('homeSectionsHidden: $homeSectionsHidden, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
@@ -2276,6 +2667,15 @@ class AppSettingsTableData extends DataClass
     replayGainMode,
     replayGainPreamp,
     playbackSpeed,
+    albumGridDensity,
+    coverArtBorderRadius,
+    nowPlayingArtBorderRadius,
+    coverArtShape,
+    nowPlayingArtShape,
+    artistCardShape,
+    artistViewMode,
+    homeSectionOrder,
+    homeSectionsHidden,
     updatedAt,
   ]);
   @override
@@ -2320,6 +2720,15 @@ class AppSettingsTableData extends DataClass
           other.replayGainMode == this.replayGainMode &&
           other.replayGainPreamp == this.replayGainPreamp &&
           other.playbackSpeed == this.playbackSpeed &&
+          other.albumGridDensity == this.albumGridDensity &&
+          other.coverArtBorderRadius == this.coverArtBorderRadius &&
+          other.nowPlayingArtBorderRadius == this.nowPlayingArtBorderRadius &&
+          other.coverArtShape == this.coverArtShape &&
+          other.nowPlayingArtShape == this.nowPlayingArtShape &&
+          other.artistCardShape == this.artistCardShape &&
+          other.artistViewMode == this.artistViewMode &&
+          other.homeSectionOrder == this.homeSectionOrder &&
+          other.homeSectionsHidden == this.homeSectionsHidden &&
           other.updatedAt == this.updatedAt);
 }
 
@@ -2362,6 +2771,15 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<String> replayGainMode;
   final Value<double> replayGainPreamp;
   final Value<double> playbackSpeed;
+  final Value<int?> albumGridDensity;
+  final Value<double> coverArtBorderRadius;
+  final Value<double> nowPlayingArtBorderRadius;
+  final Value<String> coverArtShape;
+  final Value<String> nowPlayingArtShape;
+  final Value<String> artistCardShape;
+  final Value<String> artistViewMode;
+  final Value<String?> homeSectionOrder;
+  final Value<String?> homeSectionsHidden;
   final Value<DateTime> updatedAt;
   const AppSettingsTableCompanion({
     this.id = const Value.absent(),
@@ -2402,6 +2820,15 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.replayGainMode = const Value.absent(),
     this.replayGainPreamp = const Value.absent(),
     this.playbackSpeed = const Value.absent(),
+    this.albumGridDensity = const Value.absent(),
+    this.coverArtBorderRadius = const Value.absent(),
+    this.nowPlayingArtBorderRadius = const Value.absent(),
+    this.coverArtShape = const Value.absent(),
+    this.nowPlayingArtShape = const Value.absent(),
+    this.artistCardShape = const Value.absent(),
+    this.artistViewMode = const Value.absent(),
+    this.homeSectionOrder = const Value.absent(),
+    this.homeSectionsHidden = const Value.absent(),
     this.updatedAt = const Value.absent(),
   });
   AppSettingsTableCompanion.insert({
@@ -2443,6 +2870,15 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.replayGainMode = const Value.absent(),
     this.replayGainPreamp = const Value.absent(),
     this.playbackSpeed = const Value.absent(),
+    this.albumGridDensity = const Value.absent(),
+    this.coverArtBorderRadius = const Value.absent(),
+    this.nowPlayingArtBorderRadius = const Value.absent(),
+    this.coverArtShape = const Value.absent(),
+    this.nowPlayingArtShape = const Value.absent(),
+    this.artistCardShape = const Value.absent(),
+    this.artistViewMode = const Value.absent(),
+    this.homeSectionOrder = const Value.absent(),
+    this.homeSectionsHidden = const Value.absent(),
     required DateTime updatedAt,
   }) : updatedAt = Value(updatedAt);
   static Insertable<AppSettingsTableData> custom({
@@ -2484,6 +2920,15 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<String>? replayGainMode,
     Expression<double>? replayGainPreamp,
     Expression<double>? playbackSpeed,
+    Expression<int>? albumGridDensity,
+    Expression<double>? coverArtBorderRadius,
+    Expression<double>? nowPlayingArtBorderRadius,
+    Expression<String>? coverArtShape,
+    Expression<String>? nowPlayingArtShape,
+    Expression<String>? artistCardShape,
+    Expression<String>? artistViewMode,
+    Expression<String>? homeSectionOrder,
+    Expression<String>? homeSectionsHidden,
     Expression<DateTime>? updatedAt,
   }) {
     return RawValuesInsertable({
@@ -2539,6 +2984,19 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       if (replayGainMode != null) 'replay_gain_mode': replayGainMode,
       if (replayGainPreamp != null) 'replay_gain_preamp': replayGainPreamp,
       if (playbackSpeed != null) 'playback_speed': playbackSpeed,
+      if (albumGridDensity != null) 'album_grid_density': albumGridDensity,
+      if (coverArtBorderRadius != null)
+        'cover_art_border_radius': coverArtBorderRadius,
+      if (nowPlayingArtBorderRadius != null)
+        'now_playing_art_border_radius': nowPlayingArtBorderRadius,
+      if (coverArtShape != null) 'cover_art_shape': coverArtShape,
+      if (nowPlayingArtShape != null)
+        'now_playing_art_shape': nowPlayingArtShape,
+      if (artistCardShape != null) 'artist_card_shape': artistCardShape,
+      if (artistViewMode != null) 'artist_view_mode': artistViewMode,
+      if (homeSectionOrder != null) 'home_section_order': homeSectionOrder,
+      if (homeSectionsHidden != null)
+        'home_sections_hidden': homeSectionsHidden,
       if (updatedAt != null) 'updated_at': updatedAt,
     });
   }
@@ -2582,6 +3040,15 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<String>? replayGainMode,
     Value<double>? replayGainPreamp,
     Value<double>? playbackSpeed,
+    Value<int?>? albumGridDensity,
+    Value<double>? coverArtBorderRadius,
+    Value<double>? nowPlayingArtBorderRadius,
+    Value<String>? coverArtShape,
+    Value<String>? nowPlayingArtShape,
+    Value<String>? artistCardShape,
+    Value<String>? artistViewMode,
+    Value<String?>? homeSectionOrder,
+    Value<String?>? homeSectionsHidden,
     Value<DateTime>? updatedAt,
   }) {
     return AppSettingsTableCompanion(
@@ -2627,6 +3094,16 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       replayGainMode: replayGainMode ?? this.replayGainMode,
       replayGainPreamp: replayGainPreamp ?? this.replayGainPreamp,
       playbackSpeed: playbackSpeed ?? this.playbackSpeed,
+      albumGridDensity: albumGridDensity ?? this.albumGridDensity,
+      coverArtBorderRadius: coverArtBorderRadius ?? this.coverArtBorderRadius,
+      nowPlayingArtBorderRadius:
+          nowPlayingArtBorderRadius ?? this.nowPlayingArtBorderRadius,
+      coverArtShape: coverArtShape ?? this.coverArtShape,
+      nowPlayingArtShape: nowPlayingArtShape ?? this.nowPlayingArtShape,
+      artistCardShape: artistCardShape ?? this.artistCardShape,
+      artistViewMode: artistViewMode ?? this.artistViewMode,
+      homeSectionOrder: homeSectionOrder ?? this.homeSectionOrder,
+      homeSectionsHidden: homeSectionsHidden ?? this.homeSectionsHidden,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
@@ -2760,6 +3237,37 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     if (playbackSpeed.present) {
       map['playback_speed'] = Variable<double>(playbackSpeed.value);
     }
+    if (albumGridDensity.present) {
+      map['album_grid_density'] = Variable<int>(albumGridDensity.value);
+    }
+    if (coverArtBorderRadius.present) {
+      map['cover_art_border_radius'] = Variable<double>(
+        coverArtBorderRadius.value,
+      );
+    }
+    if (nowPlayingArtBorderRadius.present) {
+      map['now_playing_art_border_radius'] = Variable<double>(
+        nowPlayingArtBorderRadius.value,
+      );
+    }
+    if (coverArtShape.present) {
+      map['cover_art_shape'] = Variable<String>(coverArtShape.value);
+    }
+    if (nowPlayingArtShape.present) {
+      map['now_playing_art_shape'] = Variable<String>(nowPlayingArtShape.value);
+    }
+    if (artistCardShape.present) {
+      map['artist_card_shape'] = Variable<String>(artistCardShape.value);
+    }
+    if (artistViewMode.present) {
+      map['artist_view_mode'] = Variable<String>(artistViewMode.value);
+    }
+    if (homeSectionOrder.present) {
+      map['home_section_order'] = Variable<String>(homeSectionOrder.value);
+    }
+    if (homeSectionsHidden.present) {
+      map['home_sections_hidden'] = Variable<String>(homeSectionsHidden.value);
+    }
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
@@ -2807,6 +3315,15 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('replayGainMode: $replayGainMode, ')
           ..write('replayGainPreamp: $replayGainPreamp, ')
           ..write('playbackSpeed: $playbackSpeed, ')
+          ..write('albumGridDensity: $albumGridDensity, ')
+          ..write('coverArtBorderRadius: $coverArtBorderRadius, ')
+          ..write('nowPlayingArtBorderRadius: $nowPlayingArtBorderRadius, ')
+          ..write('coverArtShape: $coverArtShape, ')
+          ..write('nowPlayingArtShape: $nowPlayingArtShape, ')
+          ..write('artistCardShape: $artistCardShape, ')
+          ..write('artistViewMode: $artistViewMode, ')
+          ..write('homeSectionOrder: $homeSectionOrder, ')
+          ..write('homeSectionsHidden: $homeSectionsHidden, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
@@ -10013,6 +10530,15 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<String> replayGainMode,
       Value<double> replayGainPreamp,
       Value<double> playbackSpeed,
+      Value<int?> albumGridDensity,
+      Value<double> coverArtBorderRadius,
+      Value<double> nowPlayingArtBorderRadius,
+      Value<String> coverArtShape,
+      Value<String> nowPlayingArtShape,
+      Value<String> artistCardShape,
+      Value<String> artistViewMode,
+      Value<String?> homeSectionOrder,
+      Value<String?> homeSectionsHidden,
       required DateTime updatedAt,
     });
 typedef $$AppSettingsTableTableUpdateCompanionBuilder =
@@ -10055,6 +10581,15 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<String> replayGainMode,
       Value<double> replayGainPreamp,
       Value<double> playbackSpeed,
+      Value<int?> albumGridDensity,
+      Value<double> coverArtBorderRadius,
+      Value<double> nowPlayingArtBorderRadius,
+      Value<String> coverArtShape,
+      Value<String> nowPlayingArtShape,
+      Value<String> artistCardShape,
+      Value<String> artistViewMode,
+      Value<String?> homeSectionOrder,
+      Value<String?> homeSectionsHidden,
       Value<DateTime> updatedAt,
     });
 
@@ -10254,6 +10789,51 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<double> get playbackSpeed => $composableBuilder(
     column: $table.playbackSpeed,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get albumGridDensity => $composableBuilder(
+    column: $table.albumGridDensity,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get coverArtBorderRadius => $composableBuilder(
+    column: $table.coverArtBorderRadius,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get nowPlayingArtBorderRadius => $composableBuilder(
+    column: $table.nowPlayingArtBorderRadius,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get coverArtShape => $composableBuilder(
+    column: $table.coverArtShape,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get nowPlayingArtShape => $composableBuilder(
+    column: $table.nowPlayingArtShape,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get artistCardShape => $composableBuilder(
+    column: $table.artistCardShape,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get artistViewMode => $composableBuilder(
+    column: $table.artistViewMode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get homeSectionOrder => $composableBuilder(
+    column: $table.homeSectionOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get homeSectionsHidden => $composableBuilder(
+    column: $table.homeSectionsHidden,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -10462,6 +11042,51 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get albumGridDensity => $composableBuilder(
+    column: $table.albumGridDensity,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get coverArtBorderRadius => $composableBuilder(
+    column: $table.coverArtBorderRadius,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get nowPlayingArtBorderRadius => $composableBuilder(
+    column: $table.nowPlayingArtBorderRadius,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get coverArtShape => $composableBuilder(
+    column: $table.coverArtShape,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get nowPlayingArtShape => $composableBuilder(
+    column: $table.nowPlayingArtShape,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get artistCardShape => $composableBuilder(
+    column: $table.artistCardShape,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get artistViewMode => $composableBuilder(
+    column: $table.artistViewMode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get homeSectionOrder => $composableBuilder(
+    column: $table.homeSectionOrder,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get homeSectionsHidden => $composableBuilder(
+    column: $table.homeSectionsHidden,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
@@ -10661,6 +11286,51 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<int> get albumGridDensity => $composableBuilder(
+    column: $table.albumGridDensity,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get coverArtBorderRadius => $composableBuilder(
+    column: $table.coverArtBorderRadius,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get nowPlayingArtBorderRadius => $composableBuilder(
+    column: $table.nowPlayingArtBorderRadius,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get coverArtShape => $composableBuilder(
+    column: $table.coverArtShape,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get nowPlayingArtShape => $composableBuilder(
+    column: $table.nowPlayingArtShape,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get artistCardShape => $composableBuilder(
+    column: $table.artistCardShape,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get artistViewMode => $composableBuilder(
+    column: $table.artistViewMode,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get homeSectionOrder => $composableBuilder(
+    column: $table.homeSectionOrder,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get homeSectionsHidden => $composableBuilder(
+    column: $table.homeSectionsHidden,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 }
@@ -10740,6 +11410,15 @@ class $$AppSettingsTableTableTableManager
                 Value<String> replayGainMode = const Value.absent(),
                 Value<double> replayGainPreamp = const Value.absent(),
                 Value<double> playbackSpeed = const Value.absent(),
+                Value<int?> albumGridDensity = const Value.absent(),
+                Value<double> coverArtBorderRadius = const Value.absent(),
+                Value<double> nowPlayingArtBorderRadius = const Value.absent(),
+                Value<String> coverArtShape = const Value.absent(),
+                Value<String> nowPlayingArtShape = const Value.absent(),
+                Value<String> artistCardShape = const Value.absent(),
+                Value<String> artistViewMode = const Value.absent(),
+                Value<String?> homeSectionOrder = const Value.absent(),
+                Value<String?> homeSectionsHidden = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
               }) => AppSettingsTableCompanion(
                 id: id,
@@ -10780,6 +11459,15 @@ class $$AppSettingsTableTableTableManager
                 replayGainMode: replayGainMode,
                 replayGainPreamp: replayGainPreamp,
                 playbackSpeed: playbackSpeed,
+                albumGridDensity: albumGridDensity,
+                coverArtBorderRadius: coverArtBorderRadius,
+                nowPlayingArtBorderRadius: nowPlayingArtBorderRadius,
+                coverArtShape: coverArtShape,
+                nowPlayingArtShape: nowPlayingArtShape,
+                artistCardShape: artistCardShape,
+                artistViewMode: artistViewMode,
+                homeSectionOrder: homeSectionOrder,
+                homeSectionsHidden: homeSectionsHidden,
                 updatedAt: updatedAt,
               ),
           createCompanionCallback:
@@ -10822,6 +11510,15 @@ class $$AppSettingsTableTableTableManager
                 Value<String> replayGainMode = const Value.absent(),
                 Value<double> replayGainPreamp = const Value.absent(),
                 Value<double> playbackSpeed = const Value.absent(),
+                Value<int?> albumGridDensity = const Value.absent(),
+                Value<double> coverArtBorderRadius = const Value.absent(),
+                Value<double> nowPlayingArtBorderRadius = const Value.absent(),
+                Value<String> coverArtShape = const Value.absent(),
+                Value<String> nowPlayingArtShape = const Value.absent(),
+                Value<String> artistCardShape = const Value.absent(),
+                Value<String> artistViewMode = const Value.absent(),
+                Value<String?> homeSectionOrder = const Value.absent(),
+                Value<String?> homeSectionsHidden = const Value.absent(),
                 required DateTime updatedAt,
               }) => AppSettingsTableCompanion.insert(
                 id: id,
@@ -10862,6 +11559,15 @@ class $$AppSettingsTableTableTableManager
                 replayGainMode: replayGainMode,
                 replayGainPreamp: replayGainPreamp,
                 playbackSpeed: playbackSpeed,
+                albumGridDensity: albumGridDensity,
+                coverArtBorderRadius: coverArtBorderRadius,
+                nowPlayingArtBorderRadius: nowPlayingArtBorderRadius,
+                coverArtShape: coverArtShape,
+                nowPlayingArtShape: nowPlayingArtShape,
+                artistCardShape: artistCardShape,
+                artistViewMode: artistViewMode,
+                homeSectionOrder: homeSectionOrder,
+                homeSectionsHidden: homeSectionsHidden,
                 updatedAt: updatedAt,
               ),
           withReferenceMapper: (p0) => p0

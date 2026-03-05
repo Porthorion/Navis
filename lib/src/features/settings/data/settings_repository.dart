@@ -56,6 +56,13 @@ class SettingsRepository {
       replayGainMode: settings.replayGainMode,
       replayGainPreamp: settings.replayGainPreamp,
       playbackSpeed: settings.playbackSpeed,
+      albumGridDensity: settings.albumGridDensity,
+      coverArtShape: settings.coverArtShape,
+      nowPlayingArtShape: settings.nowPlayingArtShape,
+      artistCardShape: settings.artistCardShape,
+      artistViewMode: settings.artistViewMode,
+      homeSectionOrder: _encodeStringList(settings.homeSectionOrder),
+      homeSectionsHidden: _encodeStringList(settings.homeSectionsHidden),
     );
   }
 
@@ -100,6 +107,13 @@ class SettingsRepository {
       replayGainMode: row.replayGainMode,
       replayGainPreamp: row.replayGainPreamp,
       playbackSpeed: row.playbackSpeed,
+      albumGridDensity: row.albumGridDensity,
+      coverArtShape: row.coverArtShape,
+      nowPlayingArtShape: row.nowPlayingArtShape,
+      artistCardShape: row.artistCardShape,
+      artistViewMode: row.artistViewMode,
+      homeSectionOrder: _decodeStringList(row.homeSectionOrder),
+      homeSectionsHidden: _decodeStringList(row.homeSectionsHidden),
     );
   }
 
@@ -125,6 +139,28 @@ class SettingsRepository {
           .toList(growable: false);
     } on FormatException {
       return const <double>[];
+    }
+  }
+
+  String? _encodeStringList(List<String>? values) {
+    if (values == null || values.isEmpty) {
+      return null;
+    }
+    return jsonEncode(values);
+  }
+
+  List<String>? _decodeStringList(String? raw) {
+    if (raw == null || raw.trim().isEmpty) {
+      return null;
+    }
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) {
+        return null;
+      }
+      return decoded.cast<String>().toList(growable: false);
+    } on FormatException {
+      return null;
     }
   }
 }

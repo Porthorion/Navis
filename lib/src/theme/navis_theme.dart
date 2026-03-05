@@ -34,6 +34,10 @@ ThemeData buildDarkTheme(Color seedColor) {
   );
 }
 
+// OLED surface constants – extracted for consistency.
+const Color _oledContainer = Color(0xFF0A0A0A);
+const Color _oledContainerHighest = Color(0xFF121212);
+
 /// Build an OLED (pure black) [ThemeData] from a seed color.
 ///
 /// Uses true `#000000` backgrounds and surfaces for maximum battery savings
@@ -50,16 +54,16 @@ ThemeData buildOledTheme(Color seedColor) {
       surface: Colors.black,
       onSurface: Colors.white,
       surfaceContainerLowest: Colors.black,
-      surfaceContainerLow: const Color(0xFF0A0A0A),
-      surfaceContainer: const Color(0xFF0A0A0A),
-      surfaceContainerHigh: const Color(0xFF0A0A0A),
-      surfaceContainerHighest: const Color(0xFF121212),
+      surfaceContainerLow: _oledContainer,
+      surfaceContainer: _oledContainer,
+      surfaceContainerHigh: _oledContainer,
+      surfaceContainerHighest: _oledContainerHighest,
+      // Ensure "on" colors for container variants stay readable
+      onSurfaceVariant: baseScheme.onSurfaceVariant.withAlpha(230),
     ),
     scaffoldBackgroundColor: Colors.black,
-    cardColor: const Color(0xFF0A0A0A),
-    dialogTheme: const DialogThemeData(
-      backgroundColor: Color(0xFF0A0A0A),
-    ),
+    cardColor: _oledContainer,
+    dialogTheme: const DialogThemeData(backgroundColor: _oledContainer),
     appBarTheme: const AppBarTheme(
       backgroundColor: Colors.black,
       surfaceTintColor: Colors.transparent,
@@ -72,7 +76,7 @@ ThemeData buildOledTheme(Color seedColor) {
       surfaceTintColor: Colors.transparent,
     ),
     bottomSheetTheme: const BottomSheetThemeData(
-      backgroundColor: Color(0xFF0A0A0A),
+      backgroundColor: _oledContainer,
     ),
   );
 }

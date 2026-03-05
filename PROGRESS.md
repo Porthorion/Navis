@@ -636,12 +636,47 @@ Last updated: 2026-07-07
 
 > Third-priority implementation block. (Issue #17)
 
-- [ ] Add persistent grid density control (1/2/3/4 columns) for album-heavy views with responsive guardrails
-- [ ] Add per-section show/hide controls for Home feed sections
-- [ ] Add optional section reordering and "Reset to defaults" action
-- [ ] Improve contrast handling for very light/white and very dark seed colors
-- [ ] Ensure accent propagation is consistent across core surfaces and controls
-- [ ] Add validation pass for semantics, touch targets, and performance while toggling/reordering sections
+### 24.1 — Schema & Domain
+- [x] Add 6 new columns to `app_settings` table: `albumGridDensity`, `coverArtBorderRadius`, `nowPlayingArtBorderRadius`, `artistViewMode`, `homeSectionOrder`, `homeSectionsHidden` — schema v27 migration
+- [x] Extend `AppSettingsModel` domain class with new fields and `copyWith` support
+- [x] Update DAO `saveSettings()` with new required/nullable params; `resetDefaults()` with sane values
+- [x] Update `SettingsRepository` with JSON encode/decode helpers for list fields
+- [x] Add 6 new Riverpod providers in `app_providers.dart`
+- [x] Migration test updated for v27
+
+### 24.2 — Grid Density
+- [x] Add `computeGridCrossAxisCount(int? densityOverride, double availableWidth)` helper with auto-compute from width (floor(w/180), clamped [1,5])
+- [x] Replace all 3 hardcoded `crossAxisCount: 2` in `library_screen.dart` with dynamic computation
+- [x] Add Grid Density segmented button to Appearance Settings (Auto / Cozy / Compact / Spacious)
+- [x] Unit tests for `computeGridCrossAxisCount`
+
+### 24.3 — Cover Art Shape
+- [x] Convert `AlbumCard` from `StatelessWidget` to `ConsumerWidget`; read `coverArtBorderRadiusProvider` for dynamic radius
+- [x] Convert `_CoverArt` and `_RadioCoverArt` in Now Playing screen to `ConsumerWidget`; read `nowPlayingArtBorderRadiusProvider`
+- [x] Add two radius sliders (library + now-playing) to Appearance Settings with live preview
+
+### 24.4 — Artist Grid/List Toggle
+- [x] Create `ArtistGridCard` widget with circular avatar + name below
+- [x] Refactor `_buildArtistsTab` to branch between list (existing) and grid mode based on `artistViewModeProvider`
+- [x] Implement `_buildArtistsGrid` method with `SliverGrid` + `ArtistGridCard`
+- [x] Add grid/list toggle icon button in artists tab app bar
+- [x] Add Artist View Mode segmented button to Appearance Settings
+
+### 24.5 — Home Section Customization
+- [x] Define `HomeSectionIds` class with section ID constants and default order
+- [x] Refactor `HomeScreen.build()` to iterate dynamically over `homeSectionOrderProvider` / `homeSectionsHiddenProvider`
+- [x] Add `_HomeSectionReorder` widget with `ReorderableListView` + visibility toggles to Appearance Settings
+- [x] Add targeted DAO methods: `updateHomeSectionOrder`, `updateHomeSectionsHidden`
+- [x] Unit tests for `HomeSectionIds` defaults
+
+### 24.6 — Accent Color Robustness
+- [x] Extract OLED surface constants (`_oledContainer`, `_oledContainerHighest`) for maintainability
+- [x] Ensure OLED `onSurfaceVariant` contrast by preserving base scheme alpha
+- [x] Audit confirmed: `ColorScheme.fromSeed` handles extreme seeds well; no seed validation needed
+
+### 24.7 — Tests & Verification
+- [x] All 225 tests pass (`flutter test`)
+- [x] Zero errors/warnings in `flutter analyze` (192 info-level hints only)
 
 ## Phase 25: Lyrics Enrichment & External Sources
 

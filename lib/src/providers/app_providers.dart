@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:audio_service/audio_service.dart' show MediaItem;
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/widgets.dart' show BorderRadius;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:navis/src/api/models/models.dart';
@@ -1106,6 +1107,78 @@ final dynamicAlbumColorEnabledProvider = Provider<bool>((ref) {
       ref.watch(appSettingsProvider).asData?.value ??
       const AppSettingsModel.defaults();
   return settings.dynamicAlbumColorEnabled;
+});
+
+/// Album grid density override. Null = auto-compute from screen width.
+final albumGridDensityProvider = Provider<int?>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.albumGridDensity;
+});
+
+/// Converts a shape preset string to a [BorderRadius].
+///
+/// - 'square'  → [BorderRadius.zero]
+/// - 'circle'  → very large radius (effectively circular)
+/// - 'rounded' or any other → [BorderRadius.circular(12)]
+BorderRadius coverArtShapeToRadius(String shape) {
+  switch (shape) {
+    case 'square':
+      return BorderRadius.zero;
+    case 'circle':
+      return BorderRadius.circular(9999);
+    default:
+      return BorderRadius.circular(12);
+  }
+}
+
+/// Shape preset for cover art in library / carousel cards.
+final coverArtShapeProvider = Provider<String>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.coverArtShape == 'square' ? 'square' : 'rounded';
+});
+
+/// Shape preset for the Now Playing album art.
+final nowPlayingArtShapeProvider = Provider<String>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.nowPlayingArtShape;
+});
+
+/// Shape preset for artist cards.
+final artistCardShapeProvider = Provider<String>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.artistCardShape;
+});
+
+/// Artist view layout: 'list' or 'grid'.
+final artistViewModeProvider = Provider<String>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.artistViewMode;
+});
+
+/// Ordered list of home section IDs (null = default order).
+final homeSectionOrderProvider = Provider<List<String>?>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.homeSectionOrder;
+});
+
+/// Hidden home section IDs (null = none hidden).
+final homeSectionsHiddenProvider = Provider<List<String>?>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.homeSectionsHidden;
 });
 
 /// Custom color presets stored as a JSON list of ARGB32 ints.

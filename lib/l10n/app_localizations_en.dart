@@ -1815,6 +1815,80 @@ class AppLocalizationsEn extends AppLocalizations {
       'Show the Liked tab in the Library screen.';
 
   @override
+  String get appearanceGridDensityLabel => 'Grid density';
+
+  @override
+  String get appearanceGridDensitySub =>
+      'Number of columns in album and artist grids.';
+
+  @override
+  String get appearanceGridDensityAuto => 'Auto';
+
+  @override
+  String get appearanceGridDensityCompact => 'Compact';
+
+  @override
+  String get appearanceGridDensityCozy => 'Cozy';
+
+  @override
+  String get appearanceGridDensitySpaciousLabel => 'Spacious';
+
+  @override
+  String get appearanceCoverArtShapeLabel => 'Cover art shape';
+
+  @override
+  String get appearanceCoverArtShapeSubLabel => 'Library & carousel art';
+
+  @override
+  String get appearanceNpArtShapeLabel => 'Now Playing art';
+
+  @override
+  String get appearanceArtistCardShapeLabel => 'Artist card art';
+
+  @override
+  String get shapeSquare => 'Square';
+
+  @override
+  String get shapeRounded => 'Rounded';
+
+  @override
+  String get shapeCircle => 'Circle';
+
+  @override
+  String get appearanceArtistViewModeLabel => 'Artist view mode';
+
+  @override
+  String get appearanceArtistViewModeGrid => 'Grid';
+
+  @override
+  String get appearanceArtistViewModeList => 'List';
+
+  @override
+  String get appearanceHomeSectionsLabel => 'Home sections';
+
+  @override
+  String get appearanceHomeSectionsSub =>
+      'Drag to reorder, toggle to show or hide.';
+
+  @override
+  String get homeSectionLikedTracks => 'Liked tracks';
+
+  @override
+  String get homeSectionRecentlyAdded => 'Recently added';
+
+  @override
+  String get homeSectionRecentlyPlayed => 'Recently played';
+
+  @override
+  String get homeSectionRandomAlbums => 'Random albums';
+
+  @override
+  String get homeSectionMostPlayed => 'Most played';
+
+  @override
+  String get homeSectionAudiomuseRecs => 'AudioMuse recommendations';
+
+  @override
   String cacheSettingsCoverArtSizeLabel(String size) {
     return 'Storage used: $size';
   }

@@ -3249,6 +3249,150 @@ abstract class AppLocalizations {
   /// **'Show the Liked tab in the Library screen.'**
   String get appearanceShowLikedPageSubtitle;
 
+  /// No description provided for @appearanceGridDensityLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Grid density'**
+  String get appearanceGridDensityLabel;
+
+  /// No description provided for @appearanceGridDensitySub.
+  ///
+  /// In en, this message translates to:
+  /// **'Number of columns in album and artist grids.'**
+  String get appearanceGridDensitySub;
+
+  /// No description provided for @appearanceGridDensityAuto.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto'**
+  String get appearanceGridDensityAuto;
+
+  /// No description provided for @appearanceGridDensityCompact.
+  ///
+  /// In en, this message translates to:
+  /// **'Compact'**
+  String get appearanceGridDensityCompact;
+
+  /// No description provided for @appearanceGridDensityCozy.
+  ///
+  /// In en, this message translates to:
+  /// **'Cozy'**
+  String get appearanceGridDensityCozy;
+
+  /// No description provided for @appearanceGridDensitySpaciousLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Spacious'**
+  String get appearanceGridDensitySpaciousLabel;
+
+  /// No description provided for @appearanceCoverArtShapeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cover art shape'**
+  String get appearanceCoverArtShapeLabel;
+
+  /// No description provided for @appearanceCoverArtShapeSubLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Library & carousel art'**
+  String get appearanceCoverArtShapeSubLabel;
+
+  /// No description provided for @appearanceNpArtShapeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Now Playing art'**
+  String get appearanceNpArtShapeLabel;
+
+  /// No description provided for @appearanceArtistCardShapeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Artist card art'**
+  String get appearanceArtistCardShapeLabel;
+
+  /// No description provided for @shapeSquare.
+  ///
+  /// In en, this message translates to:
+  /// **'Square'**
+  String get shapeSquare;
+
+  /// No description provided for @shapeRounded.
+  ///
+  /// In en, this message translates to:
+  /// **'Rounded'**
+  String get shapeRounded;
+
+  /// No description provided for @shapeCircle.
+  ///
+  /// In en, this message translates to:
+  /// **'Circle'**
+  String get shapeCircle;
+
+  /// No description provided for @appearanceArtistViewModeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Artist view mode'**
+  String get appearanceArtistViewModeLabel;
+
+  /// No description provided for @appearanceArtistViewModeGrid.
+  ///
+  /// In en, this message translates to:
+  /// **'Grid'**
+  String get appearanceArtistViewModeGrid;
+
+  /// No description provided for @appearanceArtistViewModeList.
+  ///
+  /// In en, this message translates to:
+  /// **'List'**
+  String get appearanceArtistViewModeList;
+
+  /// No description provided for @appearanceHomeSectionsLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Home sections'**
+  String get appearanceHomeSectionsLabel;
+
+  /// No description provided for @appearanceHomeSectionsSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Drag to reorder, toggle to show or hide.'**
+  String get appearanceHomeSectionsSub;
+
+  /// No description provided for @homeSectionLikedTracks.
+  ///
+  /// In en, this message translates to:
+  /// **'Liked tracks'**
+  String get homeSectionLikedTracks;
+
+  /// No description provided for @homeSectionRecentlyAdded.
+  ///
+  /// In en, this message translates to:
+  /// **'Recently added'**
+  String get homeSectionRecentlyAdded;
+
+  /// No description provided for @homeSectionRecentlyPlayed.
+  ///
+  /// In en, this message translates to:
+  /// **'Recently played'**
+  String get homeSectionRecentlyPlayed;
+
+  /// No description provided for @homeSectionRandomAlbums.
+  ///
+  /// In en, this message translates to:
+  /// **'Random albums'**
+  String get homeSectionRandomAlbums;
+
+  /// No description provided for @homeSectionMostPlayed.
+  ///
+  /// In en, this message translates to:
+  /// **'Most played'**
+  String get homeSectionMostPlayed;
+
+  /// No description provided for @homeSectionAudiomuseRecs.
+  ///
+  /// In en, this message translates to:
+  /// **'AudioMuse recommendations'**
+  String get homeSectionAudiomuseRecs;
+
   /// No description provided for @cacheSettingsCoverArtSizeLabel.
   ///
   /// In en, this message translates to:

@@ -38,6 +38,13 @@ class AppSettingsModel {
     required this.replayGainMode,
     required this.replayGainPreamp,
     required this.playbackSpeed,
+    required this.albumGridDensity,
+    required this.coverArtShape,
+    required this.nowPlayingArtShape,
+    required this.artistCardShape,
+    required this.artistViewMode,
+    required this.homeSectionOrder,
+    required this.homeSectionsHidden,
   });
 
   const AppSettingsModel.defaults()
@@ -74,7 +81,14 @@ class AppSettingsModel {
       syncIntervalMinutes = 60,
       replayGainMode = 'off',
       replayGainPreamp = 0.0,
-      playbackSpeed = 1.0;
+      playbackSpeed = 1.0,
+      albumGridDensity = null,
+      coverArtShape = 'square',
+      nowPlayingArtShape = 'rounded',
+      artistCardShape = 'circle',
+      artistViewMode = 'grid',
+      homeSectionOrder = null,
+      homeSectionsHidden = null;
 
   final int? wifiMaxBitRate;
   final String? wifiFormat;
@@ -119,6 +133,27 @@ class AppSettingsModel {
   /// Playback speed multiplier (0.5–2.0).
   final double playbackSpeed;
 
+  /// Album grid column count override. Null = auto-compute from screen width.
+  final int? albumGridDensity;
+
+  /// Shape preset for cover art in library/carousel cards: 'square', 'rounded', or 'circle'.
+  final String coverArtShape;
+
+  /// Shape preset for the Now Playing album art: 'square', 'rounded', or 'circle'.
+  final String nowPlayingArtShape;
+
+  /// Shape preset for artist cards: 'square', 'rounded', or 'circle'.
+  final String artistCardShape;
+
+  /// Artist view layout: 'list' or 'grid'.
+  final String artistViewMode;
+
+  /// Ordered list of home section IDs, or null for default order.
+  final List<String>? homeSectionOrder;
+
+  /// List of hidden home section IDs, or null meaning none hidden.
+  final List<String>? homeSectionsHidden;
+
   AppSettingsModel copyWith({
     int? wifiMaxBitRate,
     String? wifiFormat,
@@ -154,6 +189,13 @@ class AppSettingsModel {
     String? replayGainMode,
     double? replayGainPreamp,
     double? playbackSpeed,
+    int? albumGridDensity,
+    String? coverArtShape,
+    String? nowPlayingArtShape,
+    String? artistCardShape,
+    String? artistViewMode,
+    List<String>? homeSectionOrder,
+    List<String>? homeSectionsHidden,
     bool clearWifiBitRate = false,
     bool clearWifiFormat = false,
     bool clearCellularBitRate = false,
@@ -162,6 +204,9 @@ class AppSettingsModel {
     bool clearAppLocale = false,
     bool clearAudioMuseServerUrl = false,
     bool clearAudioMuseApiKey = false,
+    bool clearAlbumGridDensity = false,
+    bool clearHomeSectionOrder = false,
+    bool clearHomeSectionsHidden = false,
   }) {
     return AppSettingsModel(
       wifiMaxBitRate: clearWifiBitRate
@@ -214,6 +259,19 @@ class AppSettingsModel {
       replayGainMode: replayGainMode ?? this.replayGainMode,
       replayGainPreamp: replayGainPreamp ?? this.replayGainPreamp,
       playbackSpeed: playbackSpeed ?? this.playbackSpeed,
+      albumGridDensity: clearAlbumGridDensity
+          ? null
+          : albumGridDensity ?? this.albumGridDensity,
+      coverArtShape: coverArtShape ?? this.coverArtShape,
+      nowPlayingArtShape: nowPlayingArtShape ?? this.nowPlayingArtShape,
+      artistCardShape: artistCardShape ?? this.artistCardShape,
+      artistViewMode: artistViewMode ?? this.artistViewMode,
+      homeSectionOrder: clearHomeSectionOrder
+          ? null
+          : homeSectionOrder ?? this.homeSectionOrder,
+      homeSectionsHidden: clearHomeSectionsHidden
+          ? null
+          : homeSectionsHidden ?? this.homeSectionsHidden,
     );
   }
 }
