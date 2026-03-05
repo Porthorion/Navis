@@ -64,6 +64,9 @@ class AppSettingsTable extends Table {
   /// JSON-encoded list of custom color presets (ARGB32 ints).
   TextColumn get customColorPresets => text().nullable()();
 
+    /// Locale override code (e.g. 'en'). Null means follow system locale.
+    TextColumn get appLocale => text().nullable()();
+
   /// Cross-fade between tracks in the queue.
   BoolColumn get crossfadeEnabled =>
       boolean().withDefault(const Constant(false))();

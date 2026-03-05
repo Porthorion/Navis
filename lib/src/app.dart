@@ -67,9 +67,13 @@ class _NavisAppState extends ConsumerState<NavisApp> {
     final router = ref.watch(appRouterProvider);
     final themeModeName = ref.watch(themeModeProvider);
     final colorSeed = ref.watch(effectiveColorSchemeSeedProvider);
+    final localeCode = ref.watch(appLocaleProvider);
     final seedColor = colorSeed != null ? Color(colorSeed) : Colors.blue;
     final resolvedThemeMode = resolveThemeMode(themeModeName);
     final isOled = themeModeName == 'oled';
+    final appLocale = localeCode == null || localeCode.trim().isEmpty
+      ? null
+      : Locale(localeCode);
 
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
@@ -77,6 +81,7 @@ class _NavisAppState extends ConsumerState<NavisApp> {
           AppLocalizations.of(context)?.appName ?? 'Navis',
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
+      locale: appLocale,
       theme: buildLightTheme(seedColor),
       darkTheme: isOled ? buildOledTheme(seedColor) : buildDarkTheme(seedColor),
       themeMode: resolvedThemeMode,

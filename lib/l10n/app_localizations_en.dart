@@ -1611,6 +1611,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearanceThemeSystem => 'Auto';
 
   @override
+  String get appearanceLanguageLabel => 'Language';
+
+  @override
+  String get appearanceLanguageSystemDefault => 'System default';
+
+  @override
   String get appearanceColorSchemeLabel => 'Color scheme';
 
   @override

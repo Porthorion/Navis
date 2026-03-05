@@ -734,6 +734,8 @@
   "appearanceThemeDark": "Dark",
   "appearanceThemeOled": "OLED",
   "appearanceThemeSystem": "Auto",
+  "appearanceLanguageLabel": "Language",
+  "appearanceLanguageSystemDefault": "System default",
   "appearanceColorSchemeLabel": "Color scheme",
   "appearanceColorSchemeSub": "Choose a seed color for the app's color palette.",
   "appearanceColorDefault": "Default",

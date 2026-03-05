@@ -2883,6 +2883,18 @@ abstract class AppLocalizations {
   /// **'Auto'**
   String get appearanceThemeSystem;
 
+  /// No description provided for @appearanceLanguageLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Language'**
+  String get appearanceLanguageLabel;
+
+  /// No description provided for @appearanceLanguageSystemDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'System default'**
+  String get appearanceLanguageSystemDefault;
+
   /// No description provided for @appearanceColorSchemeLabel.
   ///
   /// In en, this message translates to:

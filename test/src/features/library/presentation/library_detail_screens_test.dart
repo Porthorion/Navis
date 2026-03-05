@@ -31,6 +31,12 @@ class _DelayedReplaceHandler implements NavisPlaybackHandler {
   Stream<Duration> get positionStream => const Stream<Duration>.empty();
 
   @override
+  MediaItem? get currentMediaItem => null;
+
+  @override
+  Stream<MediaItem?> get mediaItemStream => const Stream<MediaItem?>.empty();
+
+  @override
   Stream<void> get radioStreamErrorStream => const Stream<void>.empty();
 
   @override

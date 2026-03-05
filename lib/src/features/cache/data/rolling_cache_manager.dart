@@ -6,6 +6,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
 abstract class RollingCacheManager {
   Future<void> registerTrack({
@@ -25,6 +26,9 @@ abstract class RollingCacheManager {
   /// Remove permanent cache DB entries whose backing files no longer exist on
   /// disk (e.g. deleted by the OS, manual cleanup, or filesystem corruption).
   Future<void> pruneMissingPermanentFiles();
+
+  /// Remove rolling-cache files that are not referenced in the DB.
+  Future<void> cleanupOrphanedRollingFiles();
 }
 
 class DriftRollingCacheManager implements RollingCacheManager {
@@ -142,6 +146,44 @@ class DriftRollingCacheManager implements RollingCacheManager {
       await _cacheDao.deleteCachedTracksBySongIds(staleIds);
       AppLogger.info(
         'Pruned ${staleIds.length} permanent cache entries with missing files.',
+      );
+    }
+  }
+
+  @override
+  Future<void> cleanupOrphanedRollingFiles() async {
+    try {
+      final tempDir = await getTemporaryDirectory();
+      final rollingDir = Directory(p.join(tempDir.path, 'audio', 'rolling'));
+      if (!rollingDir.existsSync()) {
+        return;
+      }
+
+      final knownEntries = await _cacheDao.getRollingEntriesOrderedByLastAccessed();
+      final knownPaths = knownEntries.map((entry) => entry.filePath).toSet();
+      var removed = 0;
+
+      await for (final entity in rollingDir.list()) {
+        if (entity is! File) {
+          continue;
+        }
+        final path = entity.path;
+        if (path.endsWith('.part') || path.endsWith('.mime')) {
+          continue;
+        }
+        if (knownPaths.contains(path)) {
+          continue;
+        }
+        await _deleteCacheFileSet(path);
+        removed += 1;
+      }
+
+      if (removed > 0) {
+        AppLogger.info('Pruned $removed orphaned rolling cache file(s).');
+      }
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning(
+        'Orphaned rolling cache cleanup failed: $error\n$stackTrace',
       );
     }
   }

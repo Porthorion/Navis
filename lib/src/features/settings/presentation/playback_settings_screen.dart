@@ -560,6 +560,7 @@ class _PlaybackSettingsScreenState
         autoDownloadStarredOnWifi: currentSettings.autoDownloadStarredOnWifi,
         themeMode: ref.read(themeModeProvider),
         colorSchemeSeed: ref.read(colorSchemeSeedProvider),
+        appLocale: ref.read(appLocaleProvider),
         crossfadeEnabled: _crossfadeEnabled,
         crossfadeDurationSeconds: _crossfadeDurationSeconds,
         crossfadeType: _crossfadeType,

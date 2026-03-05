@@ -48,6 +48,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     required bool autoDownloadStarredOnWifi,
     required String themeMode,
     int? colorSchemeSeed,
+    String? appLocale,
     required bool crossfadeEnabled,
     required int crossfadeDurationSeconds,
     required String crossfadeType,
@@ -85,6 +86,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         autoDownloadStarredOnWifi: Value(autoDownloadStarredOnWifi),
         themeMode: Value(themeMode),
         colorSchemeSeed: Value(colorSchemeSeed),
+        appLocale: Value(appLocale),
         crossfadeEnabled: Value(crossfadeEnabled),
         crossfadeDurationSeconds: Value(crossfadeDurationSeconds),
         crossfadeType: Value(crossfadeType),
@@ -125,6 +127,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       autoDownloadStarredOnWifi: false,
       themeMode: 'dark',
       colorSchemeSeed: null,
+      appLocale: null,
       crossfadeEnabled: false,
       crossfadeDurationSeconds: 5,
       crossfadeType: 'normal',
@@ -294,6 +297,18 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
+  /// Targeted update for locale override code.
+  Future<void> updateAppLocale(String? localeCode) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        appLocale: Value(localeCode),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
   /// Stream the current theme mode.
   Stream<String> watchThemeMode() {
     return watchSettings().map((s) => s?.themeMode ?? 'dark');
@@ -302,6 +317,11 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   /// Stream the current color scheme seed.
   Stream<int?> watchColorSchemeSeed() {
     return watchSettings().map((s) => s?.colorSchemeSeed);
+  }
+
+  /// Stream the current locale override code.
+  Stream<String?> watchAppLocale() {
+    return watchSettings().map((s) => s?.appLocale);
   }
 
   // ---------------------------------------------------------------------------

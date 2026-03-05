@@ -32,6 +32,16 @@ A Flutter-based Subsonic/OpenSubsonic music player client targeting Android and 
 - [Phase 16: Search & Offline Sync](#phase-16-search--offline-sync)
 - [Phase 17: Accessibility, Locale & Test Coverage](#phase-17-accessibility-locale--test-coverage)
 - [Phase 18: Platform Extensions](#phase-18-platform-extensions)
+- [Phase 19: Lyrics Enrichment & External Sources](#phase-19-lyrics-enrichment--external-sources)
+- [Phase 20: Appearance Personalization](#phase-20-appearance-personalization)
+- [Phase 21: Share System & Cross-Server Resolution](#phase-21-share-system--cross-server-resolution)
+- [Phase 22: Core Technical Debt & Evidence Closeout](#phase-22-core-technical-debt--evidence-closeout)
+- [Phase 23: Quality, Accessibility & Locale Completion](#phase-23-quality-accessibility--locale-completion)
+- [Phase 24: Appearance Personalization (Priority Execution)](#phase-24-appearance-personalization-priority-execution)
+- [Phase 25: Lyrics Enrichment & External Sources (Priority Execution)](#phase-25-lyrics-enrichment--external-sources-priority-execution)
+- [Phase 26: In-Car & Desktop Platforms (Priority Execution)](#phase-26-in-car--desktop-platforms-priority-execution)
+- [Phase 27: Platform Surface Extensions (Priority Execution)](#phase-27-platform-surface-extensions-priority-execution)
+- [Phase 28: Share System & Cross-Server Resolution (Deferred Priority)](#phase-28-share-system--cross-server-resolution-deferred-priority)
 - [AI Agent Development Guidelines](#ai-agent-development-guidelines)
 - [Verification Strategy](#verification-strategy)
 - [Key Technical Decisions](#key-technical-decisions)
@@ -1475,6 +1485,8 @@ This phase is developed after the core app (Phases 0–10) is complete and stabl
 
 ## Phase 12: Android Auto & CarPlay
 
+**Status (2026-03-05)**: Backlog moved to **Phase 26** for priority-ordered execution. This section is retained for historical planning context.
+
 **Goal**: Extend media playback to in-car displays. `audio_service` already provides the `MediaItem` foundation — this phase builds the browsable media tree and platform integrations for Android Auto and Apple CarPlay.
 
 This phase is developed after the core app (Phases 0–10) is complete and stable. Android Auto and CarPlay integration is entirely modular — the app works fully without it.
@@ -1518,6 +1530,8 @@ This phase is developed after the core app (Phases 0–10) is complete and stabl
 ---
 
 ## Phase 13: Desktop Support (Windows, macOS, Linux)
+
+**Status (2026-03-05)**: Backlog moved to **Phase 26** for priority-ordered execution. This section is retained for historical planning context.
 
 **Goal**: First-class desktop builds with an adaptive layout for large screens, platform-native audio OS integration (SMTC / MPRIS / macOS media keys), and distributable packaging for each platform.
 
@@ -1740,6 +1754,8 @@ Improve radio stream failure modes:
 
 ## Phase 17: Accessibility, Locale & Test Coverage
 
+**Status (2026-03-05)**: Backlog moved to **Phase 23** for priority-ordered execution. This section is retained for historical planning context.
+
 **Development order note**: All tasks in this phase are LOW priority. Complete Phase 16 before starting Phase 17. Tasks can be distributed across sessions as capacity allows.
 
 ### 17.1 — Seek Bar Accessibility Actions (LOW)
@@ -1749,6 +1765,8 @@ The Now Playing seek bar `Slider` already exposes `semanticFormatterCallback` (P
 ### 17.2 — In-App Locale Override (LOW)
 
 Add a "Language" dropdown to Appearance settings that allows users to override the display locale explicitly, independent of the system locale. Store the selected locale code (e.g., `"en"`, `"fr"`) in `AppSettings`. Apply by passing the stored locale as `locale:` on `MaterialApp.router`. Supported locales enumerate from `AppLocalizations.supportedLocales`. Schema migration required.
+
+Current product decision (2026-03-05): keep the Language control visible but disabled (non-changeable) while only English is supported. Keep persistence and wiring in place for future multi-language rollout.
 
 ### 17.3 — Widget & Integration Test Coverage (LOW)
 
@@ -1766,6 +1784,8 @@ Add missing test coverage for:
 
 ## Phase 18: Platform Extensions
 
+**Status (2026-03-05)**: Backlog moved to **Phase 27** for priority-ordered execution. This section is retained for historical planning context.
+
 **Development order note**: All tasks are LOW priority. Complete Phase 17 before starting Phase 18. Phase 18 adds new platform surfaces — the core app must be fully stable before investing in platform extensions.
 
 ### 18.1 — Android Home Screen Widget (LOW)
@@ -1781,6 +1801,252 @@ Use the `home_widget` pub package or a native Android implementation bridged via
 ### 18.2 — iOS Live Activity / Dynamic Island (LOW) *(Stretch Goal)*
 
 Implement a Live Activity via the ActivityKit framework using a Flutter platform channel. Displays current track title, artist, and playback controls on the Dynamic Island and Lock Screen for iOS 16.1+. Graceful no-op on unsupported iOS versions. This is a stretch goal dependent on Flutter's evolving ActivityKit support.
+
+---
+
+## Phase 19: Lyrics Enrichment & External Sources
+
+**Status (2026-03-05)**: Backlog moved to **Phase 25** for priority-ordered execution. This section is retained for historical planning context.
+
+**Issue mapping**: Forgejo issue #16 (LRCLIB support)
+
+**Development order note**: This phase is future work and should start only after Phase 18. It is independent from share-system work.
+
+### 19.1 — Lyrics Source Priority Pipeline (HIGH)
+
+Extend the lyrics flow with deterministic source priority so behavior is predictable and debuggable:
+
+1. Subsonic/OpenSubsonic synced lyrics (`getLyricsBySongId`)
+2. Subsonic/OpenSubsonic plain lyrics (`getLyrics` fallback)
+3. LRCLIB synced lyrics
+4. LRCLIB plain lyrics
+
+Requirements:
+- Keep existing `LyricsUnsupportedException` and `LyricsNetworkException` semantics.
+- Add source metadata (`server_synced`, `server_plain`, `lrclib_synced`, `lrclib_plain`) so UI and diagnostics can explain where lyrics came from.
+- Never replace already-loaded synced lyrics with plain lyrics unless explicitly refreshed.
+
+### 19.2 — Strict Match Heuristics for LRCLIB (HIGH)
+
+Issue #16 requires strict matching with low false positives. Implement a confidence-scored matcher:
+
+- Normalize title/artist/album (trim, case-fold, punctuation folding, featuring-artist noise removal).
+- Duration tolerance window (for example +/- 2 to 3 seconds).
+- Penalize karaoke/live/remix suffix mismatches unless song metadata also contains those markers.
+- Require minimum confidence threshold before accepting LRCLIB result.
+- If below threshold, return "no lyrics found" rather than low-confidence lyrics.
+
+This keeps behavior conservative across heterogeneous servers and metadata quality.
+
+### 19.3 — Caching, Attribution, and Rate Control (MEDIUM)
+
+Add a dedicated local cache for LRCLIB results to avoid repeated network lookups:
+
+- Drift table for external lyrics cache (song key, normalized query signature, lyrics payload, synced flag, fetchedAt, source).
+- TTL-based invalidation (for example 14 to 30 days).
+- Backoff/rate limiting for repeated failed lookups per song.
+- Attribution in UI/footer where required by LRCLIB terms.
+
+### 19.4 — UX and Control Surface (MEDIUM)
+
+Add an explicit settings toggle in Playback or Lyrics settings:
+
+- "Use LRCLIB when server lyrics are unavailable" (default off for conservative rollout).
+- Optional developer diagnostics line in full lyrics screen (source + confidence bucket).
+
+### 19.5 — Test Matrix (MEDIUM)
+
+Add tests for:
+
+- Source-priority order and fallback transitions.
+- High-confidence accept vs low-confidence reject.
+- Synced vs unsynced rendering and seek behavior unchanged.
+- Offline behavior and cache-hit behavior.
+
+---
+
+## Phase 20: Appearance Personalization
+
+**Status (2026-03-05)**: Backlog moved to **Phase 24** for priority-ordered execution. This section is retained for historical planning context.
+
+**Issue mapping**: Forgejo issue #17 (appearance customization enhancements)
+
+**Development order note**: This phase is future work and can proceed independently from share-system work.
+
+### 20.1 — Configurable Grid Density (HIGH)
+
+Implement user-selectable album tile count/density for library-style grids:
+
+- Options: 1, 2, 3, 4 columns (or adaptive presets mapped to those densities).
+- Respect responsive breakpoints so small devices do not produce unusable card widths.
+- Apply to album-heavy views (Library albums tab, liked albums, genre albums, artist album grids where appropriate).
+- Persist setting in `app_settings` and migrate schema accordingly.
+
+### 20.2 — Home Section Customization (HIGH)
+
+Add section visibility and ordering controls for Home:
+
+- Toggle each section on/off (recently played, recently added, most played, random, liked, etc.).
+- Optional drag-to-reorder section order.
+- "Reset to default layout" action.
+- Preserve empty-state behavior when all sections are hidden.
+
+### 20.3 — Accent Color Robustness for Extremes (HIGH)
+
+Issue #17 notes light/white/dark accents not applying well. Add contrast-safe color sanitization:
+
+- Clamp generated on-colors to WCAG-friendly contrast targets.
+- Detect near-white and near-black seed colors and shift tone/chroma to keep component legibility.
+- Ensure selected accent propagates consistently to app bars, chips, controls, and Now Playing tint interactions.
+- Add visual regression snapshots for extreme palettes.
+
+### 20.4 — UX and Accessibility Validation (MEDIUM)
+
+Validate that all personalization controls remain accessible:
+
+- Touch target sizing and labels for density/section controls.
+- Stable navigation and no jank when toggling many sections.
+- Screen-reader clarity for "hidden" and "shown" states.
+
+---
+
+## Phase 21: Share System & Cross-Server Resolution
+
+**Status (2026-03-05)**: Backlog moved to **Phase 28** and remains explicitly deferred. This section is retained for historical planning context.
+
+**Issue mapping**: Forgejo issue #15 (Share System)
+
+**Status**: Deferred future implementation by product decision. Keep planned, do not execute in current phase sequence.
+
+### 21.1 — Share Payload Contract (HIGH)
+
+Define a durable share payload format that can survive cross-server mismatches:
+
+- Include entity type (`song`/`album`/`artist`), server URL fingerprint, entity ID/hash, and human fallback metadata (title/artist/album/duration).
+- Version payload schema to support future expansion without breaking older links.
+
+### 21.2 — Inbound Link/Intent Ingestion (HIGH)
+
+Implement platform ingestion for:
+
+- Android app links / intent filters.
+- iOS universal links / URL scheme handling.
+- Cold-start and warm-start routing paths.
+
+### 21.3 — Resolver Pipeline (HIGH)
+
+Resolution flow for incoming shares:
+
+1. If source server fingerprint matches active server and ID/hash resolves, open target directly.
+2. If direct resolve fails, attempt server lookup from metadata.
+3. If still unresolved, navigate to Search with prefilled query and context hint.
+
+This preserves the issue requirement: open exact content when possible, otherwise fallback cleanly to search.
+
+### 21.4 — Cross-Server Conflict Strategy (MEDIUM)
+
+Because Subsonic IDs are server-local, define deterministic fallback behavior:
+
+- Prefer exact metadata+duration proximity over fuzzy title-only match.
+- Avoid auto-opening low-confidence matches.
+- Surface "best match" result list when multiple candidates score similarly.
+
+### 21.5 — Reliability, Security, and Telemetry (MEDIUM)
+
+- Validate and sanitize all inbound payload fields.
+- Protect against malformed deep links and unsupported entity types.
+- Add lightweight diagnostics counters (resolved-direct / resolved-fallback / unresolved) for QA visibility.
+
+---
+
+## Phase 22: Core Technical Debt & Evidence Closeout
+
+**Priority**: P1 (highest remaining)
+
+This phase consolidates incomplete core items moved from earlier phases so foundational quality debt is closed before net-new feature surfaces.
+
+**Moved from earlier phases**:
+- Phase 3.1: Background sync isolate completion.
+- Phase 3.2: 10K+ library profiling evidence capture.
+- Phase 4.4: Device codec matrix verification evidence.
+- Phase 5.2: Hero transition backlog closeout.
+- Phase 9/11: AudioMuse placeholder and auto-detection decision closeout.
+
+**Execution outcomes required**:
+- Background sync path is isolate-safe end-to-end under heavy library churn.
+- Performance claims include explicit profiler artifacts for large libraries.
+- Codec compatibility evidence is documented using closeout tooling and sample sets.
+- Deferred UI/backlog placeholders are either completed or explicitly archived with rationale.
+
+## Phase 23: Quality, Accessibility & Locale Completion
+
+**Priority**: P2
+
+Canonical execution phase for former Phase 17 work.
+
+**Scope**:
+- Seek bar semantics increase/decrease actions (10-second increments).
+- In-app locale override with persisted app locale and schema migration.
+- Widget/integration coverage for expandable player and queue refill behaviors.
+- Startup ghost-file cleanup for cache directories versus DB truth.
+
+## Phase 24: Appearance Personalization (Priority Execution)
+
+**Priority**: P3
+
+Canonical execution phase for former Phase 20 work (Issue #17).
+
+**Scope**:
+- Configurable grid density with responsive guardrails.
+- Home section show/hide, optional reorder, and reset defaults.
+- Accent color robustness for extreme light/dark seeds.
+- Accessibility and interaction validation for personalization controls.
+
+## Phase 25: Lyrics Enrichment & External Sources (Priority Execution)
+
+**Priority**: P4
+
+Canonical execution phase for former Phase 19 work (Issue #16).
+
+**Scope**:
+- Deterministic lyrics source chain: server synced -> server plain -> LRCLIB synced -> LRCLIB plain.
+- Source metadata exposure for diagnostics and user transparency.
+- Strict confidence-scored LRCLIB matching to minimize false positives.
+- External cache, attribution, rate control, and test matrix.
+
+## Phase 26: In-Car & Desktop Platforms (Priority Execution)
+
+**Priority**: P5
+
+Canonical execution phase combining former Phases 12 and 13.
+
+**Scope**:
+- Android Auto media tree, search, and queue integration.
+- CarPlay content tree and entitlement/platform-channel work.
+- Desktop adaptive shell and platform media key integrations (SMTC/MPRIS/macOS media center).
+- Packaging/distribution workflow hardening for Windows/macOS/Linux.
+
+## Phase 27: Platform Surface Extensions (Priority Execution)
+
+**Priority**: P6
+
+Canonical execution phase for former Phase 18 work.
+
+**Scope**:
+- Android home screen playback widget with reactive updates.
+- iOS Live Activity / Dynamic Island stretch implementation (guarded by platform support).
+
+## Phase 28: Share System & Cross-Server Resolution (Deferred Priority)
+
+**Priority**: P7 (deferred by product decision)
+
+Canonical execution phase for former Phase 21 work (Issue #15).
+
+**Scope**:
+- Versioned share payload contract and platform ingress paths.
+- Deterministic resolver pipeline with direct-open then fallback search.
+- Cross-server confidence strategy and ambiguity handling.
+- Reliability/security hardening and resolver diagnostics telemetry.
 
 ---
 
@@ -1893,6 +2159,9 @@ Global verification rule for every phase completion:
 | 16 | Starring a song offline queues the action in `star_sync_queue`; reconnecting to the server flushes the queue and the server reflects the correct star state. Search screen returns local drift results with offline banner when server is unreachable. Search type filter chips correctly restrict results to the selected type. Radio stream error produces a dismissible snackbar and stops gracefully; station name displays when ICY metadata is unavailable; previously loaded metadata is not cleared on polling failure. |
 | 17 | Seek bar responds to TalkBack / VoiceOver increase/decrease gesture with 10-second step. Language override in Appearance settings changes display locale immediately on selection. `ExpandablePlayerSheet` and `InstantMixNotifier` tests pass. Startup ghost file scan completes without errors and removes orphaned cache files on a device with a simulated orphan. |
 | 18 | Android home screen widget displays current track and responds to play/pause/skip. Widget updates when the track changes while the app is in the background. |
+| 19 | For songs missing server lyrics, LRCLIB fallback resolves lyrics using strict confidence rules (duration + normalized metadata) and prefers synced lyrics over plain text. Source attribution and cache behavior are visible and deterministic. |
+| 20 | User-selected album grid density (1/2/3/4) persists across restarts, Home sections can be hidden/reordered and reset, and extreme accent colors remain legible across core surfaces without contrast regressions. |
+| 21 | Shared links open the exact entity when resolvable; otherwise route to prefilled Search fallback. Cold-start and warm-start deep-link ingestion works on Android and iOS, and malformed payloads fail safely without crashes. |
 
 ---
 

@@ -38,6 +38,12 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
   Stream<Duration> get positionStream => Stream<Duration>.empty();
 
   @override
+  MediaItem? get currentMediaItem => null;
+
+  @override
+  Stream<MediaItem?> get mediaItemStream => const Stream<MediaItem?>.empty();
+
+  @override
   Stream<void> get radioStreamErrorStream => const Stream<void>.empty();
 
   @override
@@ -292,6 +298,7 @@ void main() {
                   autoDownloadStarredOnWifi: false,
                   themeMode: 'dark',
                   colorSchemeSeed: null,
+                  appLocale: null,
                   crossfadeEnabled: false,
                   crossfadeDurationSeconds: 5,
                   crossfadeType: 'normal',

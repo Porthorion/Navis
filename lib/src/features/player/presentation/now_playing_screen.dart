@@ -849,6 +849,8 @@ String _formatPlaybackRate(double playbackSpeed) {
   return 'x$speedValue';
 }
 
+const _kSeekSemanticsStepMs = 10000;
+
 class _SeekBar extends ConsumerStatefulWidget {
   const _SeekBar({required this.playback});
 
@@ -876,6 +878,11 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
             ? positionMs.toDouble().clamp(0, durationMs.toDouble())
             : 0.0);
     final sliderMax = durationMs > 0 ? durationMs.toDouble() : 1.0;
+    final sliderCurrentMs = sliderValue.round();
+    final increasedMs =
+      (sliderCurrentMs + _kSeekSemanticsStepMs).clamp(0, durationMs);
+    final decreasedMs =
+      (sliderCurrentMs - _kSeekSemanticsStepMs).clamp(0, durationMs);
 
     return Column(
       children: <Widget>[
@@ -885,23 +892,57 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
             thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
             overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
           ),
-          child: Slider(
-            value: sliderValue.clamp(0, sliderMax),
-            max: sliderMax,
-            semanticFormatterCallback: (value) {
-              final pos = Duration(milliseconds: value.round());
-              return '${_formatDuration(pos)} of ${_formatDuration(widget.playback.duration)}';
-            },
-            onChanged: (value) {
-              setState(() => _draggingValue = value);
-            },
-            onChangeEnd: (value) {
-              setState(() => _draggingValue = null);
+          child: Semantics(
+            container: true,
+            slider: true,
+            value:
+                '${_formatDuration(Duration(milliseconds: sliderValue.round()))} of ${_formatDuration(duration)}',
+            increasedValue:
+              '${_formatDuration(Duration(milliseconds: increasedMs))} of ${_formatDuration(duration)}',
+            decreasedValue:
+              '${_formatDuration(Duration(milliseconds: decreasedMs))} of ${_formatDuration(duration)}',
+            onIncrease: () {
               final handler = ref.read(audioHandlerProvider);
-              unawaited(
-                handler?.seek(Duration(milliseconds: value.round())),
-              );
+              if (handler == null) {
+                return;
+              }
+              final currentMs = (_draggingValue ?? sliderValue).round();
+              final targetMs =
+                  (currentMs + _kSeekSemanticsStepMs).clamp(0, durationMs);
+              setState(() => _draggingValue = null);
+              unawaited(handler.seek(Duration(milliseconds: targetMs)));
             },
+            onDecrease: () {
+              final handler = ref.read(audioHandlerProvider);
+              if (handler == null) {
+                return;
+              }
+              final currentMs = (_draggingValue ?? sliderValue).round();
+              final targetMs =
+                  (currentMs - _kSeekSemanticsStepMs).clamp(0, durationMs);
+              setState(() => _draggingValue = null);
+              unawaited(handler.seek(Duration(milliseconds: targetMs)));
+            },
+            child: ExcludeSemantics(
+              child: Slider(
+                value: sliderValue.clamp(0, sliderMax),
+                max: sliderMax,
+                semanticFormatterCallback: (value) {
+                  final pos = Duration(milliseconds: value.round());
+                  return '${_formatDuration(pos)} of ${_formatDuration(widget.playback.duration)}';
+                },
+                onChanged: (value) {
+                  setState(() => _draggingValue = value);
+                },
+                onChangeEnd: (value) {
+                  setState(() => _draggingValue = null);
+                  final handler = ref.read(audioHandlerProvider);
+                  unawaited(
+                    handler?.seek(Duration(milliseconds: value.round())),
+                  );
+                },
+              ),
+            ),
           ),
         ),
         Padding(
