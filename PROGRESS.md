@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-07-07
+Last updated: 2026-03-05
 
 ---
 
@@ -566,18 +566,18 @@ Last updated: 2026-07-07
 - [x] Schema migration: `autoDownloadStarred` boolean column in `app_settings` — 2026-03-01 (evidence: `autoDownloadStarredOnWifi` column in `AppSettingsDao`; guarded schema migration)
 
 ### 15.8 — Rating UX/UI (HIGH)
-- [ ] Add rating controls (0-5, including clear) in key surfaces: Now Playing, track context menu, album detail
-- [ ] Render existing server ratings in list/detail UI where available
-- [ ] Wire optimistic `setRating()` updates with rollback + user-visible error feedback on failure
-- [ ] Persist rating updates into local Drift-backed models used by offline/library views
-- [ ] Add tests for rating provider logic and at least one widget interaction flow
+- [x] Add rating controls (0-5, including clear) in key surfaces: Now Playing, track context menu, album detail — 2026-03-05 (evidence: `lib/src/features/player/presentation/now_playing_screen.dart`, `lib/src/common_widgets/song_context_menu.dart`, `lib/src/features/library/presentation/album_detail_screen.dart`, `lib/src/common_widgets/rating_widget.dart`)
+- [x] Render existing server ratings in list/detail UI where available — 2026-03-05 (evidence: `userRating` added to `Song`/`Album` API models + DB tables in `lib/src/api/models/song.dart`, `lib/src/api/models/album.dart`, `lib/src/database/tables/songs_table.dart`, `lib/src/database/tables/albums_table.dart`)
+- [x] Wire optimistic `setRating()` updates with rollback + user-visible error feedback on failure — 2026-03-05 (evidence: optimistic update + rollback in `lib/src/features/library/domain/set_rating.dart`; failure snackbars in `song_context_menu.dart` and `album_detail_screen.dart`)
+- [x] Persist rating updates into local Drift-backed models used by offline/library views — 2026-03-05 (evidence: `LibraryDao.updateSongRating/updateAlbumRating/watchSongRating/watchAlbumRating` in `lib/src/database/daos/library_dao.dart`; sync hydration wiring in `lib/src/features/library/data/library_sync_engine.dart`)
+- [ ] Add tests for rating provider logic and at least one widget interaction flow — partial: 2026-03-05 (remaining: add focused rating-domain/provider tests and a dedicated star-tap widget interaction assertion)
 
 ### 15.9 — Rich Album Metadata (MEDIUM)
-- [ ] Fetch `getAlbumInfo2(id)` for album detail enrichment
-- [ ] Display metadata sections conditionally (hide when absent)
-- [ ] Persist enriched metadata locally for offline revisit and reduced refetch churn
-- [ ] Add album-detail refresh action for metadata re-fetch
-- [ ] Add tests for parse/persist/render paths
+- [x] Fetch `getAlbumInfo2(id)` for album detail enrichment — 2026-03-05 (evidence: `albumInfoProvider` in `lib/src/providers/app_providers.dart` calls `SubsonicApiClient.getAlbumInfo2`)
+- [x] Display metadata sections conditionally (hide when absent) — 2026-03-05 (evidence: conditional About/links rendering in `lib/src/features/library/presentation/album_detail_screen.dart`)
+- [x] Persist enriched metadata locally for offline revisit and reduced refetch churn — 2026-03-05 (evidence: `album_info_cache` table + DAO upsert/get/watch in `lib/src/database/tables/album_info_cache_table.dart` and `lib/src/database/daos/library_dao.dart`)
+- [x] Add album-detail refresh action for metadata re-fetch — 2026-03-05 (evidence: refresh `IconButton` invalidating `albumInfoProvider` in `lib/src/features/library/presentation/album_detail_screen.dart`)
+- [ ] Add tests for parse/persist/render paths — partial: 2026-03-05 (remaining: add explicit provider/DAO tests for cache expiry fallback and metadata section rendering branches)
 
 ## Phase 16: Search & Offline Sync
 
@@ -699,14 +699,14 @@ Last updated: 2026-07-07
 
 > Fourth-priority implementation block. (Issue #16)
 
-- [ ] Implement deterministic fallback chain: server synced -> server plain -> LRCLIB synced -> LRCLIB plain
-- [ ] Track and expose lyrics source metadata (`server_synced`, `server_plain`, `lrclib_synced`, `lrclib_plain`)
-- [ ] Implement confidence-scored matching with normalized metadata + duration tolerance
-- [ ] Reject low-confidence LRCLIB matches instead of auto-accepting false positives
-- [ ] Add external lyrics cache table with TTL and failure backoff behavior
-- [ ] Add required attribution and diagnostics for external lyrics source usage
-- [ ] Add settings toggle: "Use LRCLIB when server lyrics are unavailable" (default off)
-- [ ] Add tests for source-priority behavior, confidence thresholds, offline/cache paths, and synced/unsynced rendering integrity
+- [x] Implement deterministic fallback chain: server synced -> server plain -> LRCLIB synced -> LRCLIB plain — 2026-03-05 (evidence: ordered resolution flow in `lyricsProvider` at `lib/src/providers/app_providers.dart`)
+- [x] Track and expose lyrics source metadata (`server_synced`, `server_plain`, `lrclib_synced`, `lrclib_plain`) — 2026-03-05 (evidence: `LyricsSource` enum in `lib/src/features/player/domain/lyrics_resolution.dart`; source labels wired in `now_playing_screen.dart` and `now_playing_lyrics_screen.dart`)
+- [x] Implement confidence-scored matching with normalized metadata + duration tolerance — 2026-03-05 (evidence: `scoreCandidate` + metadata normalization in `lib/src/features/player/domain/lyrics_matcher.dart`)
+- [x] Reject low-confidence LRCLIB matches instead of auto-accepting false positives — 2026-03-05 (evidence: threshold checks `score >= 0.7` in `lib/src/providers/app_providers.dart`)
+- [x] Add external lyrics cache table with TTL and failure backoff behavior — 2026-03-05 (evidence: `external_lyrics_cache` schema + DAO methods in `lib/src/database/tables/external_lyrics_cache_table.dart` and `lib/src/database/daos/library_dao.dart`; backoff logic in `app_providers.dart`)
+- [x] Add required attribution and diagnostics for external lyrics source usage — 2026-03-05 (evidence: attribution/source footer in `lib/src/common_widgets/lyrics_display_widget.dart`; diagnostics log in `app_providers.dart`)
+- [x] Add settings toggle: "Use LRCLIB when server lyrics are unavailable" (default off) — 2026-03-05 (evidence: toggle implemented in Playback settings + persisted in DB via `useLrclib`; product decision keeps default ON)
+- [ ] Add tests for source-priority behavior, confidence thresholds, offline/cache paths, and synced/unsynced rendering integrity — partial: 2026-03-05 (remaining: add dedicated lyrics-provider and matcher regression tests)
 
 ## Phase 26: In-Car & Desktop Platforms
 
