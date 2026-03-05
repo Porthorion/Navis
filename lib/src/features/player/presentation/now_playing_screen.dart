@@ -13,9 +13,12 @@ import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart
 import 'package:navis/src/features/player/presentation/smart_queue_notifier.dart';
 import 'package:navis/src/features/player/presentation/smart_queue_sheet.dart';
 import 'package:navis/src/common_widgets/lyrics_display_widget.dart';
+import 'package:navis/src/common_widgets/rating_widget.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
+import 'package:navis/src/features/library/domain/set_rating.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -629,7 +632,7 @@ class _TrackInfo extends StatelessWidget {
   }
 }
 
-class _NowPlayingInfoPanel extends StatefulWidget {
+class _NowPlayingInfoPanel extends ConsumerStatefulWidget {
   const _NowPlayingInfoPanel({
     required this.song,
     required this.album,
@@ -645,11 +648,13 @@ class _NowPlayingInfoPanel extends StatefulWidget {
   final double playbackSpeed;
 
   @override
-  State<_NowPlayingInfoPanel> createState() => _NowPlayingInfoPanelState();
+  ConsumerState<_NowPlayingInfoPanel> createState() =>
+      _NowPlayingInfoPanelState();
 }
 
-class _NowPlayingInfoPanelState extends State<_NowPlayingInfoPanel> {
+class _NowPlayingInfoPanelState extends ConsumerState<_NowPlayingInfoPanel> {
   int _pageIndex = 0;
+  bool _showInlineRatingEditor = false;
 
   @override
   Widget build(BuildContext context) {
@@ -678,17 +683,32 @@ class _NowPlayingInfoPanelState extends State<_NowPlayingInfoPanel> {
         semanticLabel: l10n.playbackSettingsPlaybackSpeedLabel,
         value: _formatPlaybackRate(widget.playbackSpeed),
       ),
+      _NowPlayingInfoPage(
+        icon: Icons.star_border,
+        semanticLabel: l10n.ratingTitle,
+        value: _formatPreferenceSummary(l10n, widget.song),
+        isRatingPage: true,
+      ),
     ];
     final activeIndex = _pageIndex % pages.length;
     final page = pages[activeIndex];
     final colors = Theme.of(context).colorScheme;
+    final currentSongId = widget.song?.id;
+    final inlineRating = currentSongId == null
+        ? null
+        : ref.watch(songRatingProvider(currentSongId)).asData?.value;
+    final isRatingPage = page.isRatingPage;
+    final showInlineEditor =
+        isRatingPage && _showInlineRatingEditor && currentSongId != null;
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
-        onTap: () =>
-            setState(() => _pageIndex = (_pageIndex + 1) % pages.length),
+        onTap: () => setState(() {
+          _pageIndex = (_pageIndex + 1) % pages.length;
+          _showInlineRatingEditor = false;
+        }),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           child: Column(
@@ -698,7 +718,9 @@ class _NowPlayingInfoPanelState extends State<_NowPlayingInfoPanel> {
                 switchInCurve: Curves.easeOut,
                 switchOutCurve: Curves.easeIn,
                 child: Row(
-                  key: ValueKey<String>('${page.semanticLabel}:${page.value}'),
+                  key: ValueKey<String>(
+                    '${page.semanticLabel}:${page.value}:$showInlineEditor',
+                  ),
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
                     Icon(
@@ -707,17 +729,62 @@ class _NowPlayingInfoPanelState extends State<_NowPlayingInfoPanel> {
                       color: colors.onSurfaceVariant.withValues(alpha: 0.72),
                     ),
                     const SizedBox(width: 6),
-                    Flexible(
-                      child: Text(
-                        page.value,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colors.onSurfaceVariant.withValues(
-                            alpha: 0.82,
-                          ),
+                    AnimatedSize(
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.easeOut,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: showInlineEditor ? 132 : 210,
                         ),
+                        child: showInlineEditor
+                            ? RatingWidget(
+                                rating: inlineRating,
+                                compact: true,
+                                onChanged: (next) {
+                                  setState(
+                                    () => _showInlineRatingEditor = false,
+                                  );
+                                  unawaited(
+                                    setSongRating(currentSongId, next, ref)
+                                        .catchError((_) {
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                  l10n.ratingUpdateFailed,
+                                                ),
+                                              ),
+                                            );
+                                      }
+                                    }),
+                                  );
+                                },
+                              )
+                            : GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onLongPress:
+                                    isRatingPage && currentSongId != null
+                                    ? () {
+                                        setState(
+                                          () => _showInlineRatingEditor = true,
+                                        );
+                                      }
+                                    : null,
+                                child: Text(
+                                  page.value,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.center,
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.bodySmall?.copyWith(
+                                    color: colors.onSurfaceVariant.withValues(
+                                      alpha: 0.82,
+                                    ),
+                                  ),
+                                ),
+                              ),
                       ),
                     ),
                   ],
@@ -736,11 +803,13 @@ class _NowPlayingInfoPage {
     required this.icon,
     required this.semanticLabel,
     required this.value,
+    this.isRatingPage = false,
   });
 
   final IconData icon;
   final String semanticLabel;
   final String value;
+  final bool isRatingPage;
 }
 
 String _formatAudioQuality({
@@ -1154,15 +1223,22 @@ class _InlineLyrics extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
     final lyricsAsync = ref.watch(lyricsProvider(songId));
     final position =
         ref.watch(playbackPositionProvider).asData?.value ??
         ref.watch(playerStateProvider).position;
 
     return lyricsAsync.when(
-      data: (lyrics) => LyricsDisplayWidget(
-        lyrics: lyrics,
+      data: (resolution) => LyricsDisplayWidget(
+        lyrics: resolution.lyrics,
         currentPosition: position,
+        sourceLabel: _showExternalLyricsMeta(resolution)
+            ? _lyricsSourceLabel(context, resolution.source)
+            : null,
+        attribution: _showExternalLyricsMeta(resolution)
+            ? l10n.lyricsAttributionLrclib
+            : null,
         onSeek: (seekPosition) {
           final handler = ref.read(audioHandlerProvider);
           handler?.seek(seekPosition);
@@ -1212,6 +1288,37 @@ class _InlineLyrics extends ConsumerWidget {
       },
     );
   }
+}
+
+String _lyricsSourceLabel(BuildContext context, LyricsSource source) {
+  final l10n = AppLocalizations.of(context)!;
+  return switch (source) {
+    LyricsSource.serverSynced => l10n.lyricsSourceServerSynced,
+    LyricsSource.serverPlain => l10n.lyricsSourceServerPlain,
+    LyricsSource.lrclibSynced => l10n.lyricsSourceLrclibSynced,
+    LyricsSource.lrclibPlain => l10n.lyricsSourceLrclibPlain,
+  };
+}
+
+bool _showExternalLyricsMeta(LyricsResolution resolution) {
+  if (!resolution.isExternal) {
+    return false;
+  }
+  if (resolution.lyrics.structuredLyrics.isNotEmpty) {
+    final lines = resolution.lyrics.structuredLyrics.first.line;
+    return lines.any((line) => (line.value ?? '').trim().isNotEmpty);
+  }
+  return (resolution.lyrics.value ?? '').trim().isNotEmpty;
+}
+
+String _formatPreferenceSummary(AppLocalizations l10n, SongsTableData? song) {
+  if (song == null) return '-';
+  final likedText = song.starred == null ? l10n.ratingNotLiked : l10n.actionLiked;
+  final rating = song.userRating;
+  if (rating == null || rating <= 0) {
+    return '$likedText • ${l10n.ratingNoValue}';
+  }
+  return '$likedText • ${l10n.ratingValueShort(rating)}';
 }
 
 class _PlaybackSpeedSheet extends ConsumerStatefulWidget {

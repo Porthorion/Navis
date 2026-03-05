@@ -6,6 +6,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/widgets.dart' show BorderRadius;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:navis/src/api/lrclib_client.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
@@ -23,6 +24,8 @@ import 'package:navis/src/features/downloads/data/download_service.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 import 'package:navis/src/features/player/data/scrobble_service.dart';
+import 'package:navis/src/features/player/domain/lyrics_matcher.dart';
+import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/library/presentation/library_browse_models.dart';
 import 'package:navis/src/features/settings/data/battery_optimization_service.dart';
@@ -80,6 +83,10 @@ final appSettingsProvider = StreamProvider<AppSettingsModel>((ref) {
   return repository.watchSettings();
 });
 
+final lrclibClientProvider = Provider<LrclibClient>((_) {
+  return LrclibClient();
+});
+
 final showRadioPageProvider = Provider<bool>((ref) {
   final settings =
       ref.watch(appSettingsProvider).asData?.value ??
@@ -106,6 +113,13 @@ final showLikedPageProvider = Provider<bool>((ref) {
       ref.watch(appSettingsProvider).asData?.value ??
       const AppSettingsModel.defaults();
   return settings.showLikedPage;
+});
+
+final useLrclibProvider = Provider<bool>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.useLrclib;
 });
 
 final activeStreamingQualityProvider = Provider<StreamingQuality>((ref) {
@@ -606,6 +620,19 @@ final songStarredProvider = StreamProvider.family<bool, String>((
   return dao.watchSongStarred(songId);
 });
 
+final songRatingProvider = StreamProvider.family<int?, String>((ref, songId) {
+  final dao = ref.watch(navisDatabaseProvider).libraryDao;
+  return dao.watchSongRating(songId);
+});
+
+final albumRatingProvider = StreamProvider.family<int?, String>((
+  ref,
+  albumId,
+) {
+  final dao = ref.watch(navisDatabaseProvider).libraryDao;
+  return dao.watchAlbumRating(albumId);
+});
+
 final genresProvider = StreamProvider<List<GenresTableData>>((ref) {
   final dao = ref.watch(navisDatabaseProvider).libraryDao;
   return dao.watchGenres();
@@ -834,60 +861,220 @@ final playbackPositionProvider = StreamProvider<Duration>((ref) {
   return handler.positionStream;
 });
 
-final lyricsProvider = FutureProvider.family<LyricsList, String>((
+final lyricsProvider = FutureProvider.family<LyricsResolution, String>((
   ref,
   songId,
 ) async {
   final api = ref.watch(subsonicApiProvider);
+  final dao = ref.read(navisDatabaseProvider).libraryDao;
+  final song = (await dao.getSongsByIds(<String>[songId])).firstOrNull;
+
+  // 1) Server synced -> server plain
+  if (api != null) {
+    try {
+      final serverLyrics = await api.getLyricsBySongId(songId);
+      final source = _resolveServerLyricsSource(serverLyrics);
+      if (source != null) {
+        return LyricsResolution(lyrics: serverLyrics, source: source);
+      }
+    } on SubsonicNotFoundException {
+      // Continue fallback chain.
+    } on SubsonicApiException {
+      // Continue fallback chain.
+    } on SubsonicConnectionException {
+      // Continue fallback chain to allow cache hits.
+    }
+
+    if (song != null && song.artistName != null && song.title.isNotEmpty) {
+      try {
+        final legacy = await api.getLyrics(
+          artist: song.artistName,
+          title: song.title,
+        );
+        if (_hasAnyLyrics(legacy)) {
+          return LyricsResolution(
+            lyrics: legacy,
+            source: LyricsSource.serverPlain,
+          );
+        }
+      } on SubsonicException {
+        // Continue fallback chain.
+      }
+    }
+  }
+
+  // 2) External cache before network request to respect LRCLIB resources.
+  final cached = await dao.getExternalLyricsCache(songId);
+  final cachedResolution = cached == null
+      ? null
+      : _lyricsResolutionFromExternalCache(cached);
+  if (cachedResolution != null) {
+    return cachedResolution;
+  }
+
+  // 3) LRCLIB synced -> LRCLIB plain (opt-in; default true per product decision).
+  if (!ref.read(useLrclibProvider) ||
+      song == null ||
+      song.artistName == null ||
+      song.artistName!.isEmpty ||
+      song.title.isEmpty) {
+    return const LyricsResolution(
+      lyrics: LyricsList(),
+      source: LyricsSource.serverPlain,
+    );
+  }
+
+  final now = DateTime.now();
+  if (cached != null &&
+      cached.lastFailedAt != null &&
+      now.isBefore(cached.lastFailedAt!.add(_externalLyricsBackoff(cached.failureCount)))) {
+    return const LyricsResolution(
+      lyrics: LyricsList(),
+      source: LyricsSource.lrclibPlain,
+    );
+  }
+
+  final expected = LrclibMatchCandidate(
+    artist: song.artistName!,
+    title: song.title,
+    album: song.albumName,
+    durationSeconds: song.duration,
+  );
+  final lrclib = ref.read(lrclibClientProvider);
+
+  try {
+    LrclibLyrics? best;
+    var bestScore = 0.0;
+
+    final direct = await lrclib.getLyrics(
+      artist: song.artistName!,
+      title: song.title,
+      album: song.albumName,
+      duration: song.duration,
+    );
+    if (direct != null) {
+      final score = scoreCandidate(
+        expected: expected,
+        candidate: LrclibMatchCandidate(
+          artist: direct.artistName,
+          title: direct.trackName,
+          album: direct.albumName,
+          durationSeconds: direct.duration,
+        ),
+      ).value;
+      if (score >= 0.7) {
+        best = direct;
+        bestScore = score;
+      }
+    }
+
+    if (best == null) {
+      final candidates = await lrclib.searchLyrics(
+        artist: song.artistName!,
+        title: song.title,
+      );
+      for (final candidate in candidates) {
+        final score = scoreCandidate(
+          expected: expected,
+          candidate: LrclibMatchCandidate(
+            artist: candidate.artistName,
+            title: candidate.trackName,
+            album: candidate.albumName,
+            durationSeconds: candidate.duration,
+          ),
+        ).value;
+        if (score > bestScore && score >= 0.7) {
+          best = candidate;
+          bestScore = score;
+        }
+      }
+    }
+
+    if (best == null) {
+      await dao.recordExternalLyricsFailure(songId);
+      return const LyricsResolution(
+        lyrics: LyricsList(),
+        source: LyricsSource.lrclibPlain,
+      );
+    }
+
+    final parsedSynced = _tryParseLrc(best.syncedLyrics);
+    final source = parsedSynced != null
+        ? LyricsSource.lrclibSynced
+        : LyricsSource.lrclibPlain;
+    final resolvedLyrics = parsedSynced ?? LyricsList(value: best.plainLyrics);
+
+    await dao.upsertExternalLyricsCache(
+      songId: songId,
+      source: source.name,
+      syncedLyrics: best.syncedLyrics,
+      plainLyrics: best.plainLyrics,
+      ttlSeconds: 31536000,
+      failureCount: 0,
+      lastFailedAt: null,
+    );
+    AppLogger.info('Lyrics source resolved: ${source.name} for song=$songId');
+    return LyricsResolution(lyrics: resolvedLyrics, source: source);
+  } on Object {
+    await dao.recordExternalLyricsFailure(songId);
+    throw const LyricsNetworkException();
+  }
+});
+
+final albumInfoProvider = FutureProvider.family<AlbumInfo?, String>((
+  ref,
+  albumId,
+) async {
+  final dao = ref.read(navisDatabaseProvider).libraryDao;
+  final cached = await dao.getAlbumInfoCache(albumId);
+  final now = DateTime.now();
+  if (cached != null && now.difference(cached.fetchedAt).inDays < 7) {
+    return AlbumInfo(
+      notes: cached.notes,
+      musicBrainzId: cached.musicBrainzId,
+      lastFmUrl: cached.lastFmUrl,
+      smallImageUrl: cached.smallImageUrl,
+      mediumImageUrl: cached.mediumImageUrl,
+      largeImageUrl: cached.largeImageUrl,
+    );
+  }
+
+  final api = ref.watch(subsonicApiProvider);
   if (api == null) {
-    return const LyricsList();
+    if (cached == null) return null;
+    return AlbumInfo(
+      notes: cached.notes,
+      musicBrainzId: cached.musicBrainzId,
+      lastFmUrl: cached.lastFmUrl,
+      smallImageUrl: cached.smallImageUrl,
+      mediumImageUrl: cached.mediumImageUrl,
+      largeImageUrl: cached.largeImageUrl,
+    );
   }
 
-  // Whether the OpenSubsonic lyrics endpoint is unsupported by this server.
-  var openSubsonicUnsupported = false;
-
-  // Try OpenSubsonic getLyricsBySongId first.
   try {
-    return await api.getLyricsBySongId(songId);
-  } on SubsonicNotFoundException {
-    // Endpoint unsupported — fall through to legacy.
-    openSubsonicUnsupported = true;
-  } on SubsonicApiException {
-    // Other API error (e.g. malformed response) — fall through to legacy.
-    openSubsonicUnsupported = true;
-  } on SubsonicConnectionException {
-    // Network error — propagate as typed lyrics exception.
-    throw const LyricsNetworkException();
-  } on Exception {
-    // Unknown exception — treat as network error.
-    throw const LyricsNetworkException();
-  }
-
-  // Legacy fallback: getLyrics(artist, title).
-  try {
-    final dao = ref.read(navisDatabaseProvider).libraryDao;
-    final songs = await dao.getSongsByIds(<String>[songId]);
-    if (songs.isEmpty) {
-      return const LyricsList();
-    }
-    final song = songs.first;
-    final artist = song.artistName;
-    final title = song.title;
-    if (artist == null || title.isEmpty) {
-      return const LyricsList();
-    }
-    return await api.getLyrics(artist: artist, title: title);
-  } on SubsonicConnectionException {
-    throw const LyricsNetworkException();
-  } on SubsonicNotFoundException {
-    // Both endpoints unsupported — server doesn't support lyrics at all.
-    throw const LyricsUnsupportedException();
-  } on SubsonicApiException {
-    // If both endpoints failed with API errors, it's an unsupported server.
-    if (openSubsonicUnsupported) {
-      throw const LyricsUnsupportedException();
-    }
-    throw const LyricsNetworkException();
+    final info = await api.getAlbumInfo2(albumId);
+    await dao.upsertAlbumInfoCache(
+      albumId: albumId,
+      notes: info.notes,
+      musicBrainzId: info.musicBrainzId,
+      lastFmUrl: info.lastFmUrl,
+      smallImageUrl: info.smallImageUrl,
+      mediumImageUrl: info.mediumImageUrl,
+      largeImageUrl: info.largeImageUrl,
+      fetchedAt: now,
+    );
+    return info;
+  } on Object {
+    if (cached == null) rethrow;
+    return AlbumInfo(
+      notes: cached.notes,
+      musicBrainzId: cached.musicBrainzId,
+      lastFmUrl: cached.lastFmUrl,
+      smallImageUrl: cached.smallImageUrl,
+      mediumImageUrl: cached.mediumImageUrl,
+      largeImageUrl: cached.largeImageUrl,
+    );
   }
 });
 
@@ -1314,15 +1501,6 @@ final audioMuseSimilarAlbumsProvider = FutureProvider.autoDispose
       },
     );
 
-/// AI-powered home screen recommendations ("You might also like").
-/// Returns an empty list when AudioMuse is unavailable.
-final audioMuseHomeRecommendationsProvider =
-    FutureProvider<List<AudioMuseRecommendation>>((ref) async {
-      final repo = ref.watch(audioMuseRepositoryProvider);
-      if (repo == null) return const [];
-      return repo.getHomeRecommendations();
-    });
-
 /// AI-powered song recommendations for smart auto-queue.
 final audioMuseSongRecommendationsProvider = FutureProvider.autoDispose
     .family<List<AudioMuseRecommendation>, String>((ref, seedSongId) async {
@@ -1330,6 +1508,129 @@ final audioMuseSongRecommendationsProvider = FutureProvider.autoDispose
       if (repo == null) return const [];
       return repo.getRecommendations(seedSongId: seedSongId);
     });
+
+LyricsSource? _resolveServerLyricsSource(LyricsList lyrics) {
+  if (lyrics.structuredLyrics.isNotEmpty) {
+    final first = lyrics.structuredLyrics.first;
+    final hasSynced = first.line.any((line) => line.start != null);
+    if (hasSynced) {
+      return LyricsSource.serverSynced;
+    }
+    final hasUnsyncedLine = first.line.any(
+      (line) => (line.value ?? '').trim().isNotEmpty,
+    );
+    if (hasUnsyncedLine) {
+      return LyricsSource.serverPlain;
+    }
+  }
+  if ((lyrics.value ?? '').trim().isNotEmpty) {
+    return LyricsSource.serverPlain;
+  }
+  return null;
+}
+
+bool _hasAnyLyrics(LyricsList lyrics) {
+  return _resolveServerLyricsSource(lyrics) != null;
+}
+
+Duration _externalLyricsBackoff(int failureCount) {
+  if (failureCount <= 0) {
+    return Duration.zero;
+  }
+  final minutes = failureCount * failureCount;
+  final cappedMinutes = minutes > 1440 ? 1440 : minutes;
+  return Duration(minutes: cappedMinutes);
+}
+
+LyricsResolution? _lyricsResolutionFromExternalCache(
+  ExternalLyricsCacheTableData cache,
+) {
+  final source = switch (cache.source) {
+    'lrclibSynced' || 'lrclib_synced' => LyricsSource.lrclibSynced,
+    'lrclibPlain' || 'lrclib_plain' => LyricsSource.lrclibPlain,
+    _ => null,
+  };
+  if (source == null) {
+    return null;
+  }
+
+  final synced = _tryParseLrc(cache.syncedLyrics);
+  if (synced != null) {
+    return LyricsResolution(
+      lyrics: synced,
+      source: LyricsSource.lrclibSynced,
+    );
+  }
+
+  final plain = cache.plainLyrics;
+  if (plain != null && plain.trim().isNotEmpty) {
+    return LyricsResolution(
+      lyrics: LyricsList(value: plain),
+      source: LyricsSource.lrclibPlain,
+    );
+  }
+  return null;
+}
+
+LyricsList? _tryParseLrc(String? lrc) {
+  if (lrc == null || lrc.trim().isEmpty) {
+    return null;
+  }
+  final regex = RegExp(r'^\[(\d{1,2}):(\d{2})(?:[\.:](\d{1,3}))?\](.*)$');
+  final parsed = <LyricLine>[];
+
+  for (final raw in lrc.split('\n')) {
+    final line = raw.trim();
+    final match = regex.firstMatch(line);
+    if (match == null) {
+      continue;
+    }
+
+    final minutes = int.tryParse(match.group(1) ?? '') ?? 0;
+    final seconds = int.tryParse(match.group(2) ?? '') ?? 0;
+    final fractionText = match.group(3);
+    final fraction = int.tryParse(fractionText ?? '') ?? 0;
+    final millis = fractionText == null
+        ? 0
+        : fractionText.length == 3
+        ? fraction
+        : fraction * 10;
+    final start = minutes * 60000 + seconds * 1000 + millis;
+    parsed.add(
+      LyricLine(
+        start: start,
+        value: (match.group(4) ?? '').trim(),
+      ),
+    );
+  }
+
+  if (parsed.isEmpty) {
+    return null;
+  }
+
+  parsed.sort((a, b) => (a.start ?? 0).compareTo(b.start ?? 0));
+  final lines = <LyricLine>[];
+  for (var i = 0; i < parsed.length; i++) {
+    final current = parsed[i];
+    final nextStart = i + 1 < parsed.length ? parsed[i + 1].start : null;
+    final duration = (current.start != null && nextStart != null)
+        ? (nextStart - current.start!).clamp(0, 60000)
+        : null;
+    lines.add(
+      LyricLine(
+        start: current.start,
+        duration: duration,
+        value: current.value,
+      ),
+    );
+  }
+
+  return LyricsList(
+    structuredLyrics: <StructuredLyrics>[
+      StructuredLyrics(synced: true, line: lines),
+    ],
+  );
+}
 
 List<AlbumYearSection> _buildAlbumYearSections(List<AlbumsTableData> albums) {
   if (albums.isEmpty) {

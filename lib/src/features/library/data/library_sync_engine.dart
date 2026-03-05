@@ -1894,6 +1894,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
         current.genre != next.genre ||
         current.coverArt != next.coverArt ||
         current.starred != next.starred ||
+          current.userRating != next.userRating ||
         current.playCount != next.playCount;
   }
 
@@ -1970,6 +1971,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
             coverArt: Value(row.coverArt),
             songsHydrated: Value(!pendingHydrationSet.contains(row.id)),
             starred: Value(row.starred),
+            userRating: Value(row.userRating),
             playCount: Value(row.playCount),
             serverCreatedAt: Value(row.created),
           ),
@@ -2010,6 +2012,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
             size: Value(row.size),
             coverArt: Value(row.coverArt),
             starred: Value(row.starred),
+            userRating: Value(row.userRating),
             playCount: Value(row.playCount),
             createdAt: Value(row.createdAt),
             replayGainTrackGain: Value(row.replayGainTrackGain),
@@ -2229,6 +2232,7 @@ class _AlbumRow {
     this.genre,
     this.coverArt,
     this.starred,
+    this.userRating,
     this.playCount,
     this.created,
   });
@@ -2243,6 +2247,7 @@ class _AlbumRow {
   final String? genre;
   final String? coverArt;
   final DateTime? starred;
+  final int? userRating;
   final int? playCount;
 
   /// When the album was added to the server library (`created` from the API).
@@ -2266,6 +2271,7 @@ class _SongRow {
     this.size,
     this.coverArt,
     this.starred,
+    this.userRating,
     this.playCount,
     this.createdAt,
     this.replayGainTrackGain,
@@ -2289,6 +2295,7 @@ class _SongRow {
   final int? size;
   final String? coverArt;
   final DateTime? starred;
+  final int? userRating;
   final int? playCount;
   final DateTime? createdAt;
   final double? replayGainTrackGain;
@@ -2323,6 +2330,7 @@ List<_AlbumRow> _albumRowsFromJson(List<Map<String, dynamic>> payload) {
           genre: json['genre'] as String?,
           coverArt: json['coverArt'] as String?,
           starred: _parseIsoDate(json['starred'] as String?),
+          userRating: json['userRating'] as int?,
           playCount: json['playCount'] as int?,
           created: _parseIsoDate(json['created'] as String?),
         ),
@@ -2351,6 +2359,7 @@ List<_SongRow> _songRowsFromJson(List<Map<String, dynamic>> payload) {
             size: json['size'] as int?,
             coverArt: json['coverArt'] as String?,
             starred: _parseIsoDate(json['starred'] as String?),
+            userRating: json['userRating'] as int?,
             playCount: json['playCount'] as int?,
             createdAt: _parseIsoDate(json['created'] as String?),
             replayGainTrackGain: (rg?['trackGain'] as num?)?.toDouble(),

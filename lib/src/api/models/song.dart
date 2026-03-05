@@ -23,6 +23,7 @@ abstract class Song with _$Song {
     int? size,
     String? coverArt,
     DateTime? starred,
+    int? userRating,
     int? playCount,
     DateTime? created,
     ReplayGain? replayGain,

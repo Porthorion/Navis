@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/rating_widget.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/library/domain/set_rating.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
 import 'package:navis/src/features/library/domain/toggle_song_star.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
@@ -37,11 +39,17 @@ Future<void> showSongContextMenu(
           final isLiked =
               menuRef.watch(songStarredProvider(song.id)).asData?.value ??
               song.starred != null;
+            final rating =
+              menuRef.watch(songRatingProvider(song.id)).asData?.value;
 
+          final maxHeight = MediaQuery.of(sheetContext).size.height * 0.85;
           return SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: maxHeight),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
                 ListTile(
                   leading: const Icon(Icons.play_arrow_outlined),
                   title: Text(l10n.librarySongMenuPlayNow),
@@ -80,7 +88,6 @@ Future<void> showSongContextMenu(
                     isLiked ? l10n.actionLiked : l10n.actionLike,
                   ),
                   onTap: () {
-                    Navigator.of(sheetContext).pop();
                     unawaited(
                       toggleSongStar(song.id, ref).catchError((_) {
                         if (context.mounted) {
@@ -93,6 +100,26 @@ Future<void> showSongContextMenu(
                       }),
                     );
                   },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.star_outline),
+                  title: Text(l10n.ratingTitle),
+                  subtitle: Text(l10n.ratingHint),
+                  trailing: RatingWidget(
+                    rating: rating,
+                    compact: true,
+                    onChanged: (next) {
+                      unawaited(
+                        setSongRating(song.id, next, ref).catchError((_) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(l10n.ratingUpdateFailed)),
+                            );
+                          }
+                        }),
+                      );
+                    },
+                  ),
                 ),
                 if (song.artistId != null && song.artistId!.isNotEmpty)
                   ListTile(
@@ -148,7 +175,9 @@ Future<void> showSongContextMenu(
                       unawaited(_downloadSongFromMenu(context, ref, song.id));
                     },
                   ),
-              ],
+                  ],
+                ),
+              ),
             ),
           );
         },

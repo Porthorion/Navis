@@ -80,6 +80,8 @@
   "playbackSettingsCellularFormatLabel": "Preferred format",
   "playbackSettingsScrobbleTitle": "Enable scrobbling",
   "playbackSettingsScrobbleSubtitle": "Send now-playing and listened-track updates to the server.",
+  "playbackSettingsLrclibTitle": "Use LRCLIB fallback",
+  "playbackSettingsLrclibSubtitle": "When server lyrics are unavailable, try LRCLIB and cache per song.",
   "playbackSettingsGaplessTitle": "Enable gapless playback",
   "playbackSettingsGaplessSubtitle": "Preload tracks to reduce gaps between songs.",
   "playbackSettingsShowRadioPageTitle": "Show Radio page",
@@ -453,6 +455,9 @@
   "albumDetailPlayActionQueued": "Album queued for playback.",
   "albumDetailShuffleActionQueued": "Album shuffled into queue.",
   "albumDetailStarFailure": "Could not update like status.",
+  "albumDetailAboutSection": "About this album",
+  "albumDetailLastFm": "Last.fm",
+  "albumDetailMusicBrainz": "MusicBrainz",
   "albumDetailDiscHeader": "Disc {number}",
   "@albumDetailDiscHeader": {
     "placeholders": {
@@ -535,6 +540,25 @@
   "lyricsNoneAvailable": "No lyrics available",
   "lyricsError": "Could not load lyrics. Check your connection.",
   "lyricsUnsupported": "Lyrics not supported by this server.",
+  "lyricsSourceServerSynced": "Lyrics source: Server (synced)",
+  "lyricsSourceServerPlain": "Lyrics source: Server",
+  "lyricsSourceLrclibSynced": "Lyrics source: LRCLIB (synced)",
+  "lyricsSourceLrclibPlain": "Lyrics source: LRCLIB",
+  "lyricsAttributionLrclib": "Lyrics provided by LRCLIB",
+
+  "ratingTitle": "Rating",
+  "ratingHint": "Tap a star to set or clear",
+  "ratingNoValue": "No rating",
+  "ratingNotLiked": "Not liked",
+  "ratingValueShort": "{rating}/5",
+  "@ratingValueShort": {
+    "placeholders": {
+      "rating": {
+        "type": "int"
+      }
+    }
+  },
+  "ratingUpdateFailed": "Could not update rating.",
   "queueSaveAsPlaylist": "Save as playlist",
   "queueSaveAsPlaylistName": "Playlist name",
   "queueSaveAsPlaylistSaved": "Playlist saved",
@@ -851,7 +875,6 @@
   "homeSectionRecentlyPlayed": "Recently played",
   "homeSectionRandomAlbums": "Random albums",
   "homeSectionMostPlayed": "Most played",
-  "homeSectionAudiomuseRecs": "AudioMuse recommendations",
 
   "cacheSettingsCoverArtSizeLabel": "Storage used: {size}",
   "@cacheSettingsCoverArtSizeLabel": {
@@ -897,7 +920,6 @@
   "audioMuseTestConnectionFailed": "Could not connect to AudioMuse server.",
   "audioMuseSimilarArtists": "AI Similar Artists",
   "audioMuseSimilarAlbums": "You might also like",
-  "audioMuseHomeRecommendations": "Recommended for you",
   "audioMuseSmartQueue": "Smart Queue",
   "audioMuseSmartQueueActive": "AI auto-queue is active",
   "audioMuseSmartQueueStopped": "AI auto-queue stopped",

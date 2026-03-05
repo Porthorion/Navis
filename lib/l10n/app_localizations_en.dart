@@ -210,6 +210,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Send now-playing and listened-track updates to the server.';
 
   @override
+  String get playbackSettingsLrclibTitle => 'Use LRCLIB fallback';
+
+  @override
+  String get playbackSettingsLrclibSubtitle =>
+      'When server lyrics are unavailable, try LRCLIB and cache per song.';
+
+  @override
   String get playbackSettingsGaplessTitle => 'Enable gapless playback';
 
   @override
@@ -959,6 +966,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get albumDetailStarFailure => 'Could not update like status.';
 
   @override
+  String get albumDetailAboutSection => 'About this album';
+
+  @override
+  String get albumDetailLastFm => 'Last.fm';
+
+  @override
+  String get albumDetailMusicBrainz => 'MusicBrainz';
+
+  @override
   String albumDetailDiscHeader(int number) {
     return 'Disc $number';
   }
@@ -1171,6 +1187,41 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get lyricsUnsupported => 'Lyrics not supported by this server.';
+
+  @override
+  String get lyricsSourceServerSynced => 'Lyrics source: Server (synced)';
+
+  @override
+  String get lyricsSourceServerPlain => 'Lyrics source: Server';
+
+  @override
+  String get lyricsSourceLrclibSynced => 'Lyrics source: LRCLIB (synced)';
+
+  @override
+  String get lyricsSourceLrclibPlain => 'Lyrics source: LRCLIB';
+
+  @override
+  String get lyricsAttributionLrclib => 'Lyrics provided by LRCLIB';
+
+  @override
+  String get ratingTitle => 'Rating';
+
+  @override
+  String get ratingHint => 'Tap a star to set or clear';
+
+  @override
+  String get ratingNoValue => 'No rating';
+
+  @override
+  String get ratingNotLiked => 'Not liked';
+
+  @override
+  String ratingValueShort(int rating) {
+    return '$rating/5';
+  }
+
+  @override
+  String get ratingUpdateFailed => 'Could not update rating.';
 
   @override
   String get queueSaveAsPlaylist => 'Save as playlist';
@@ -1886,9 +1937,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeSectionMostPlayed => 'Most played';
 
   @override
-  String get homeSectionAudiomuseRecs => 'AudioMuse recommendations';
-
-  @override
   String cacheSettingsCoverArtSizeLabel(String size) {
     return 'Storage used: $size';
   }
@@ -1963,9 +2011,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get audioMuseSimilarAlbums => 'You might also like';
-
-  @override
-  String get audioMuseHomeRecommendations => 'Recommended for you';
 
   @override
   String get audioMuseSmartQueue => 'Smart Queue';

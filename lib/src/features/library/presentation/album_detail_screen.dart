@@ -8,6 +8,7 @@ import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/cover_art_viewer.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
+import 'package:navis/src/common_widgets/rating_widget.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
@@ -16,6 +17,7 @@ import 'package:navis/src/common_widgets/star_button.dart';
 import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
+import 'package:navis/src/features/library/domain/set_rating.dart';
 import 'package:navis/src/features/library/domain/toggle_song_star.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/utils/file_utils.dart';
@@ -23,6 +25,7 @@ import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class AlbumDetailScreen extends ConsumerStatefulWidget {
   const AlbumDetailScreen({
@@ -41,6 +44,7 @@ class AlbumDetailScreen extends ConsumerStatefulWidget {
 class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
   bool _isStarred = false;
   bool _isStarring = false;
+  bool _isUpdatingRating = false;
   bool _isQueueActionInFlight = false;
   late bool _showLikedOnly = widget.likedOnly;
   bool _showDownloadedOnly = false;
@@ -62,7 +66,16 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
         : const <String>{};
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.albumDetailTitle)),
+      appBar: AppBar(
+        title: Text(l10n.albumDetailTitle),
+        actions: <Widget>[
+          IconButton(
+            tooltip: l10n.commonRetry,
+            onPressed: () => ref.invalidate(albumInfoProvider(widget.albumId)),
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
+      ),
       body: album.when(
         data: (data) {
           if (data == null) {
@@ -87,6 +100,10 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
               })
               .toList(growable: false);
           final isStarred = _isStarred || details.starred != null;
+          final albumInfoAsync = ref.watch(albumInfoProvider(widget.albumId));
+          final albumRating =
+              ref.watch(albumRatingProvider(widget.albumId)).asData?.value ??
+              details.userRating;
           final coverArtHeroTag = buildCoverArtHeroTag(
             coverArtId: details.coverArt,
             context: 'album',
@@ -201,12 +218,76 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                     ),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                      child: Text(
-                        l10n.albumDetailMeta(
-                          details.artistName ?? l10n.albumDetailUnknownArtist,
-                          details.year?.toString() ?? '-',
-                          filteredSongs.length,
-                        ),
+                      child: Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 6,
+                        runSpacing: 4,
+                        children: <Widget>[
+                          if (details.artistId != null &&
+                              details.artistId!.isNotEmpty)
+                            InkWell(
+                              onTap: () =>
+                                  context.go('/library/artists/${details.artistId}'),
+                              child: Text(
+                                details.artistName ??
+                                    l10n.albumDetailUnknownArtist,
+                                style: Theme.of(context).textTheme.bodyLarge
+                                    ?.copyWith(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .primary,
+                                      decoration: TextDecoration.underline,
+                                    ),
+                              ),
+                            )
+                          else
+                            Text(
+                              details.artistName ?? l10n.albumDetailUnknownArtist,
+                              style: Theme.of(context).textTheme.bodyLarge,
+                            ),
+                          Text(
+                            '• ${details.year?.toString() ?? '-'} • ${filteredSongs.length}',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                      child: Row(
+                        children: <Widget>[
+                          Icon(
+                            isStarred ? Icons.favorite : Icons.favorite_border,
+                            size: 16,
+                            color: isStarred
+                                ? Theme.of(context).colorScheme.primary
+                                : Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            isStarred ? l10n.actionLiked : l10n.actionLike,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          const SizedBox(width: 16),
+                          Text(
+                            l10n.ratingTitle,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          const SizedBox(width: 8),
+                          Opacity(
+                            opacity: _isUpdatingRating ? 0.6 : 1,
+                            child: RatingWidget(
+                              rating: albumRating,
+                              compact: true,
+                              iconSize: 16,
+                              onChanged: _isUpdatingRating
+                                  ? (_) {}
+                                  : (next) => unawaited(
+                                      _updateAlbumRating(next),
+                                    ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     Padding(
@@ -332,6 +413,75 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                         ],
                       ),
                     ),
+                    albumInfoAsync.when(
+                      data: (info) {
+                        if (info == null) {
+                          return const SizedBox.shrink();
+                        }
+                        final notes = _stripHtml(info.notes ?? '');
+                        final hasNotes = notes.trim().isNotEmpty;
+                        final hasLinks =
+                            (info.lastFmUrl ?? '').trim().isNotEmpty ||
+                            (info.musicBrainzId ?? '').trim().isNotEmpty;
+                        if (!hasNotes && !hasLinks) {
+                          return const SizedBox.shrink();
+                        }
+
+                        return Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                          child: Card(
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  Text(
+                                    l10n.albumDetailAboutSection,
+                                    style: Theme.of(context).textTheme.titleSmall,
+                                  ),
+                                  if (hasNotes) ...<Widget>[
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      notes,
+                                      style: Theme.of(context).textTheme.bodyMedium,
+                                    ),
+                                  ],
+                                  if (hasLinks) ...<Widget>[
+                                    const SizedBox(height: 10),
+                                    Wrap(
+                                      spacing: 8,
+                                      runSpacing: 8,
+                                      children: <Widget>[
+                                        if ((info.lastFmUrl ?? '').trim().isNotEmpty)
+                                          ActionChip(
+                                            avatar: const Icon(Icons.open_in_new, size: 16),
+                                            label: Text(l10n.albumDetailLastFm),
+                                            onPressed: () => unawaited(
+                                              _openExternalLink(info.lastFmUrl!),
+                                            ),
+                                          ),
+                                        if ((info.musicBrainzId ?? '').trim().isNotEmpty)
+                                          ActionChip(
+                                            avatar: const Icon(Icons.album_outlined, size: 16),
+                                            label: Text(l10n.albumDetailMusicBrainz),
+                                            onPressed: () => unawaited(
+                                              _openExternalLink(
+                                                'https://musicbrainz.org/release-group/${info.musicBrainzId}',
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                      loading: () => const SizedBox.shrink(),
+                      error: (_, _) => const SizedBox.shrink(),
+                    ),
                   ],
                 ),
               ),
@@ -397,12 +547,17 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
   Future<void> _showSongActions(SongsTableData song) async {
     await showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
       builder: (context) {
         final l10n = AppLocalizations.of(this.context)!;
+        final maxHeight = MediaQuery.of(context).size.height * 0.85;
         return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: maxHeight),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
               ListTile(
                 leading: const Icon(Icons.play_arrow_outlined),
                 title: Text(l10n.librarySongMenuPlayNow),
@@ -466,7 +621,6 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                       isLiked ? l10n.actionLiked : l10n.actionLike,
                     ),
                     onTap: () {
-                      Navigator.of(context).pop();
                       unawaited(
                         toggleSongStar(song.id, ref).catchError((_) {
                           if (this.context.mounted) {
@@ -479,6 +633,34 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                         }),
                       );
                     },
+                  );
+                },
+              ),
+              Consumer(
+                builder: (_, ratingRef, __) {
+                  final rating =
+                      ratingRef.watch(songRatingProvider(song.id)).asData?.value;
+                  return ListTile(
+                    leading: const Icon(Icons.star_outline),
+                    title: Text(l10n.ratingTitle),
+                    subtitle: Text(l10n.ratingHint),
+                    trailing: RatingWidget(
+                      rating: rating,
+                      compact: true,
+                      onChanged: (next) {
+                        unawaited(
+                          setSongRating(song.id, next, ref).catchError((_) {
+                            if (this.context.mounted) {
+                              ScaffoldMessenger.of(this.context).showSnackBar(
+                                SnackBar(
+                                  content: Text(l10n.ratingUpdateFailed),
+                                ),
+                              );
+                            }
+                          }),
+                        );
+                      },
+                    ),
                   );
                 },
               ),
@@ -538,7 +720,9 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                   );
                 },
               ),
-            ],
+                ],
+              ),
+            ),
           ),
         );
       },
@@ -701,6 +885,45 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
         setState(() => _isStarring = false);
       }
     }
+  }
+
+  Future<void> _updateAlbumRating(int rating) async {
+    final l10n = AppLocalizations.of(context)!;
+    setState(() => _isUpdatingRating = true);
+    try {
+      await setAlbumRating(widget.albumId, rating, ref);
+    } on Object {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.ratingUpdateFailed)));
+    } finally {
+      if (mounted) {
+        setState(() => _isUpdatingRating = false);
+      }
+    }
+  }
+
+  Future<void> _openExternalLink(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  String _stripHtml(String input) {
+    return input
+        .replaceAll(RegExp(r'<[^>]+>'), ' ')
+        .replaceAll('&amp;', '&')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&apos;', "'")
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
   }
 
   /// Pre-processes [songs] into a flat list of render items.

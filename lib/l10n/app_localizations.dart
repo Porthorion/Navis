@@ -460,6 +460,18 @@ abstract class AppLocalizations {
   /// **'Send now-playing and listened-track updates to the server.'**
   String get playbackSettingsScrobbleSubtitle;
 
+  /// No description provided for @playbackSettingsLrclibTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Use LRCLIB fallback'**
+  String get playbackSettingsLrclibTitle;
+
+  /// No description provided for @playbackSettingsLrclibSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'When server lyrics are unavailable, try LRCLIB and cache per song.'**
+  String get playbackSettingsLrclibSubtitle;
+
   /// No description provided for @playbackSettingsGaplessTitle.
   ///
   /// In en, this message translates to:
@@ -1779,6 +1791,24 @@ abstract class AppLocalizations {
   /// **'Could not update like status.'**
   String get albumDetailStarFailure;
 
+  /// No description provided for @albumDetailAboutSection.
+  ///
+  /// In en, this message translates to:
+  /// **'About this album'**
+  String get albumDetailAboutSection;
+
+  /// No description provided for @albumDetailLastFm.
+  ///
+  /// In en, this message translates to:
+  /// **'Last.fm'**
+  String get albumDetailLastFm;
+
+  /// No description provided for @albumDetailMusicBrainz.
+  ///
+  /// In en, this message translates to:
+  /// **'MusicBrainz'**
+  String get albumDetailMusicBrainz;
+
   /// No description provided for @albumDetailDiscHeader.
   ///
   /// In en, this message translates to:
@@ -2162,6 +2192,72 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Lyrics not supported by this server.'**
   String get lyricsUnsupported;
+
+  /// No description provided for @lyricsSourceServerSynced.
+  ///
+  /// In en, this message translates to:
+  /// **'Lyrics source: Server (synced)'**
+  String get lyricsSourceServerSynced;
+
+  /// No description provided for @lyricsSourceServerPlain.
+  ///
+  /// In en, this message translates to:
+  /// **'Lyrics source: Server'**
+  String get lyricsSourceServerPlain;
+
+  /// No description provided for @lyricsSourceLrclibSynced.
+  ///
+  /// In en, this message translates to:
+  /// **'Lyrics source: LRCLIB (synced)'**
+  String get lyricsSourceLrclibSynced;
+
+  /// No description provided for @lyricsSourceLrclibPlain.
+  ///
+  /// In en, this message translates to:
+  /// **'Lyrics source: LRCLIB'**
+  String get lyricsSourceLrclibPlain;
+
+  /// No description provided for @lyricsAttributionLrclib.
+  ///
+  /// In en, this message translates to:
+  /// **'Lyrics provided by LRCLIB'**
+  String get lyricsAttributionLrclib;
+
+  /// No description provided for @ratingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Rating'**
+  String get ratingTitle;
+
+  /// No description provided for @ratingHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap a star to set or clear'**
+  String get ratingHint;
+
+  /// No description provided for @ratingNoValue.
+  ///
+  /// In en, this message translates to:
+  /// **'No rating'**
+  String get ratingNoValue;
+
+  /// No description provided for @ratingNotLiked.
+  ///
+  /// In en, this message translates to:
+  /// **'Not liked'**
+  String get ratingNotLiked;
+
+  /// No description provided for @ratingValueShort.
+  ///
+  /// In en, this message translates to:
+  /// **'{rating}/5'**
+  String ratingValueShort(int rating);
+
+  /// No description provided for @ratingUpdateFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not update rating.'**
+  String get ratingUpdateFailed;
 
   /// No description provided for @queueSaveAsPlaylist.
   ///
@@ -3387,12 +3483,6 @@ abstract class AppLocalizations {
   /// **'Most played'**
   String get homeSectionMostPlayed;
 
-  /// No description provided for @homeSectionAudiomuseRecs.
-  ///
-  /// In en, this message translates to:
-  /// **'AudioMuse recommendations'**
-  String get homeSectionAudiomuseRecs;
-
   /// No description provided for @cacheSettingsCoverArtSizeLabel.
   ///
   /// In en, this message translates to:
@@ -3518,12 +3608,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'You might also like'**
   String get audioMuseSimilarAlbums;
-
-  /// No description provided for @audioMuseHomeRecommendations.
-  ///
-  /// In en, this message translates to:
-  /// **'Recommended for you'**
-  String get audioMuseHomeRecommendations;
 
   /// No description provided for @audioMuseSmartQueue.
   ///

@@ -44,6 +44,7 @@ Widget _buildLibraryScreen({required List<Object?> overrides}) {
     showRadioPageProvider.overrideWithValue(false),
     showArtistsPageProvider.overrideWithValue(true),
     showPlaylistsPageProvider.overrideWithValue(false),
+    artistViewModeProvider.overrideWithValue('list'),
     ...overrides,
   ];
   return ProviderScope(
@@ -57,7 +58,7 @@ Widget _buildLibraryScreen({required List<Object?> overrides}) {
 }
 
 Future<void> _switchToArtistsTab(WidgetTester tester) async {
-  if (find.byType(ScrollablePositionedList).evaluate().isNotEmpty) {
+  if (find.byKey(const Key('artistAlphabetRail')).evaluate().isNotEmpty) {
     return;
   }
   await tester.tap(find.text('Artists'));

@@ -13,8 +13,10 @@ import 'package:navis/src/database/daos/star_sync_dao.dart';
 import 'package:navis/src/database/tables/albums_table.dart';
 import 'package:navis/src/database/tables/app_settings_table.dart';
 import 'package:navis/src/database/tables/artists_table.dart';
+import 'package:navis/src/database/tables/album_info_cache_table.dart';
 import 'package:navis/src/database/tables/cached_tracks_table.dart';
 import 'package:navis/src/database/tables/download_queue_table.dart';
+import 'package:navis/src/database/tables/external_lyrics_cache_table.dart';
 import 'package:navis/src/database/tables/genres_table.dart';
 import 'package:navis/src/database/tables/play_history_table.dart';
 import 'package:navis/src/database/tables/play_queue_items_table.dart';
@@ -38,6 +40,8 @@ part 'navis_database.g.dart';
     AlbumsTable,
     SongsTable,
     GenresTable,
+    AlbumInfoCacheTable,
+    ExternalLyricsCacheTable,
     PlaylistsTable,
     PlaylistSongsTable,
     CachedTracksTable,
@@ -69,7 +73,7 @@ class NavisDatabase extends _$NavisDatabase {
   static QueryExecutor _openConnection() => driftDatabase(name: 'navis.sqlite');
 
   @override
-  int get schemaVersion => 28;
+  int get schemaVersion => 29;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -171,6 +175,9 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 28 && to >= 28) {
       await from27To28(migrator);
+    }
+    if (from < 29 && to >= 29) {
+      await from28To29(migrator);
     }
   }
 
@@ -621,6 +628,24 @@ class NavisDatabase extends _$NavisDatabase {
     }
   }
 
+  Future<void> from28To29(Migrator migrator) async {
+    if (!await _columnExists('songs', 'user_rating')) {
+      await migrator.addColumn(songsTable, songsTable.userRating);
+    }
+    if (!await _columnExists('albums', 'user_rating')) {
+      await migrator.addColumn(albumsTable, albumsTable.userRating);
+    }
+    if (!await _tableExists('album_info_cache')) {
+      await migrator.createTable(albumInfoCacheTable);
+    }
+    if (!await _tableExists('external_lyrics_cache')) {
+      await migrator.createTable(externalLyricsCacheTable);
+    }
+    if (!await _columnExists('app_settings', 'use_lrclib')) {
+      await migrator.addColumn(appSettingsTable, appSettingsTable.useLrclib);
+    }
+  }
+
   Future<void> _ensureAppSettingsDefaults() {
     return into(appSettingsTable).insert(
       AppSettingsTableCompanion.insert(
@@ -645,6 +670,7 @@ class NavisDatabase extends _$NavisDatabase {
         ),
         wifiOnlyDownloads: const Value(true),
         autoDownloadStarredOnWifi: const Value(false),
+        useLrclib: const Value(true),
         themeMode: const Value('dark'),
         colorSchemeSeed: const Value(null),
         updatedAt: DateTime.now(),

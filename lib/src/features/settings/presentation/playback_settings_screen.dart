@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/rating_widget.dart';
+import 'package:navis/src/features/library/domain/set_rating.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/format_utils.dart';
@@ -42,6 +46,7 @@ class _PlaybackSettingsScreenState
   int? _cellularBitRate;
   String? _cellularFormat;
   bool _scrobbleEnabled = true;
+  bool _useLrclib = true;
   bool _gaplessEnabled = true;
   bool _equalizerEnabled = false;
   List<double> _equalizerBandGains = List<double>.filled(5, 0);
@@ -91,6 +96,11 @@ class _PlaybackSettingsScreenState
   }
 
   Widget _buildForm(BuildContext context, AppLocalizations l10n) {
+    final currentSongId = ref.watch(currentSongProvider);
+    final currentSongRating = currentSongId == null
+        ? null
+        : ref.watch(songRatingProvider(currentSongId)).asData?.value;
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: <Widget>[
@@ -189,6 +199,37 @@ class _PlaybackSettingsScreenState
                     : (value) => setState(() => _scrobbleEnabled = value),
                 title: Text(l10n.playbackSettingsScrobbleTitle),
                 subtitle: Text(l10n.playbackSettingsScrobbleSubtitle),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: _useLrclib,
+                onChanged: _isSaving
+                    ? null
+                    : (value) => setState(() => _useLrclib = value),
+                title: Text(l10n.playbackSettingsLrclibTitle),
+                subtitle: Text(l10n.playbackSettingsLrclibSubtitle),
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.star_outline),
+                title: Text(l10n.ratingTitle),
+                subtitle: Text(
+                  currentSongId == null
+                      ? l10n.ratingNoValue
+                      : l10n.ratingHint,
+                ),
+                trailing: currentSongId == null
+                    ? Text(
+                        '-',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      )
+                    : RatingWidget(
+                        rating: currentSongRating,
+                        compact: true,
+                        onChanged: (next) {
+                          unawaited(setSongRating(currentSongId, next, ref));
+                        },
+                      ),
               ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
@@ -516,6 +557,7 @@ class _PlaybackSettingsScreenState
     _cellularBitRate = settings.cellularMaxBitRate;
     _cellularFormat = settings.cellularFormat;
     _scrobbleEnabled = settings.scrobbleEnabled;
+    _useLrclib = settings.useLrclib;
     _gaplessEnabled = settings.gaplessEnabled;
     _equalizerEnabled = settings.equalizerEnabled;
     _equalizerBandGains = _normalizeBandGains(settings.equalizerBandGains);
@@ -572,6 +614,7 @@ class _PlaybackSettingsScreenState
         audioMuseApiKey: currentSettings.audioMuseApiKey,
         audioMuseEnabled: currentSettings.audioMuseEnabled,
         syncIntervalMinutes: currentSettings.syncIntervalMinutes,
+        useLrclib: _useLrclib,
         replayGainMode: _replayGainMode,
         replayGainPreamp: _normalizeReplayGainPreamp(_replayGainPreamp),
         playbackSpeed: _normalizePlaybackSpeed(_playbackSpeed),

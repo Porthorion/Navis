@@ -310,6 +310,7 @@ void main() {
                   audioMuseApiKey: null,
                   audioMuseEnabled: false,
                   syncIntervalMinutes: 60,
+                  useLrclib: true,
                   replayGainMode: 'off',
                   replayGainPreamp: 0,
                   playbackSpeed: 1,

@@ -14,7 +14,6 @@ import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/database/navis_database.dart';
-import 'package:navis/src/features/audiomuse/domain/audiomuse_models.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/home/presentation/home_scroll_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
@@ -32,7 +31,6 @@ class HomeSectionIds {
   static const String recentlyPlayed = 'recently_played';
   static const String randomAlbums = 'random_albums';
   static const String mostPlayed = 'most_played';
-  static const String audiomuseRecs = 'audiomuse_recs';
 
   static const List<String> defaultOrder = <String>[
     likedTracks,
@@ -254,22 +252,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             emptyTitle: l10n.homeMostPlayedTracksEmptyTitle,
             emptySubtitle: l10n.homeMostPlayedTracksEmptySubtitle,
             onRetry: () => ref.invalidate(homeMostPlayedSongsProvider),
-          ),
-        ];
-
-      case HomeSectionIds.audiomuseRecs:
-        if (downloadedOnly || !ref.watch(audioMuseAvailableProvider)) {
-          return const <Widget>[];
-        }
-        return <Widget>[
-          _HomeSection<List<AudioMuseRecommendation>>(
-            title: l10n.audioMuseHomeRecommendations,
-            data: ref.watch(audioMuseHomeRecommendationsProvider),
-            isEmpty: (items) => items.isEmpty,
-            builder: (context, recs) => _AudioMuseRecsSection(recs: recs),
-            emptyTitle: l10n.audioMuseHomeRecommendations,
-            emptySubtitle: l10n.audioMuseNotConfigured,
-            onRetry: () => ref.invalidate(audioMuseHomeRecommendationsProvider),
           ),
         ];
 
@@ -681,30 +663,3 @@ class _UpdateBanner extends ConsumerWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// AudioMuse AI Recommendations section
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _AudioMuseRecsSection extends StatelessWidget {
-  const _AudioMuseRecsSection({required this.recs});
-
-  final List<AudioMuseRecommendation> recs;
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 6,
-      children: recs.map((rec) {
-        return ActionChip(
-          avatar: const Icon(Icons.auto_awesome, size: 16),
-          label: Text(
-            rec.artist != null ? '${rec.title} — ${rec.artist}' : rec.title,
-            overflow: TextOverflow.ellipsis,
-          ),
-          onPressed: () => context.go('/library/albums/${rec.id}'),
-        );
-      }).toList(),
-    );
-  }
-}

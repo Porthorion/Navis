@@ -8,6 +8,10 @@ mixin _$LibraryDaoMixin on DatabaseAccessor<NavisDatabase> {
   $AlbumsTableTable get albumsTable => attachedDatabase.albumsTable;
   $SongsTableTable get songsTable => attachedDatabase.songsTable;
   $GenresTableTable get genresTable => attachedDatabase.genresTable;
+  $AlbumInfoCacheTableTable get albumInfoCacheTable =>
+      attachedDatabase.albumInfoCacheTable;
+  $ExternalLyricsCacheTableTable get externalLyricsCacheTable =>
+      attachedDatabase.externalLyricsCacheTable;
   LibraryDaoManager get managers => LibraryDaoManager(this);
 }
 
@@ -22,4 +26,14 @@ class LibraryDaoManager {
       $$SongsTableTableTableManager(_db.attachedDatabase, _db.songsTable);
   $$GenresTableTableTableManager get genresTable =>
       $$GenresTableTableTableManager(_db.attachedDatabase, _db.genresTable);
+  $$AlbumInfoCacheTableTableTableManager get albumInfoCacheTable =>
+      $$AlbumInfoCacheTableTableTableManager(
+        _db.attachedDatabase,
+        _db.albumInfoCacheTable,
+      );
+  $$ExternalLyricsCacheTableTableTableManager get externalLyricsCacheTable =>
+      $$ExternalLyricsCacheTableTableTableManager(
+        _db.attachedDatabase,
+        _db.externalLyricsCacheTable,
+      );
 }

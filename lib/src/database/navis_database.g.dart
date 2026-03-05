@@ -976,6 +976,21 @@ class $AppSettingsTableTable extends AppSettingsTable
     requiredDuringInsert: false,
     defaultValue: const Constant(60),
   );
+  static const VerificationMeta _useLrclibMeta = const VerificationMeta(
+    'useLrclib',
+  );
+  @override
+  late final GeneratedColumn<bool> useLrclib = GeneratedColumn<bool>(
+    'use_lrclib',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("use_lrclib" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
   static const VerificationMeta _replayGainModeMeta = const VerificationMeta(
     'replayGainMode',
   );
@@ -1165,6 +1180,7 @@ class $AppSettingsTableTable extends AppSettingsTable
     audioMuseApiKey,
     audioMuseEnabled,
     syncIntervalMinutes,
+    useLrclib,
     replayGainMode,
     replayGainPreamp,
     playbackSpeed,
@@ -1491,6 +1507,12 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
       );
     }
+    if (data.containsKey('use_lrclib')) {
+      context.handle(
+        _useLrclibMeta,
+        useLrclib.isAcceptableOrUnknown(data['use_lrclib']!, _useLrclibMeta),
+      );
+    }
     if (data.containsKey('replay_gain_mode')) {
       context.handle(
         _replayGainModeMeta,
@@ -1756,6 +1778,10 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.int,
         data['${effectivePrefix}sync_interval_minutes'],
       )!,
+      useLrclib: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}use_lrclib'],
+      )!,
       replayGainMode: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}replay_gain_mode'],
@@ -1894,6 +1920,9 @@ class AppSettingsTableData extends DataClass
   /// 0 = manual only (disabled). Default 60 (1 hour).
   final int syncIntervalMinutes;
 
+  /// Whether LRCLIB fallback is used when server lyrics are unavailable.
+  final bool useLrclib;
+
   /// ReplayGain mode: 'off', 'track', or 'album'. Default 'off'.
   final String replayGainMode;
 
@@ -1969,6 +1998,7 @@ class AppSettingsTableData extends DataClass
     this.audioMuseApiKey,
     required this.audioMuseEnabled,
     required this.syncIntervalMinutes,
+    required this.useLrclib,
     required this.replayGainMode,
     required this.replayGainPreamp,
     required this.playbackSpeed,
@@ -2047,6 +2077,7 @@ class AppSettingsTableData extends DataClass
     }
     map['audio_muse_enabled'] = Variable<bool>(audioMuseEnabled);
     map['sync_interval_minutes'] = Variable<int>(syncIntervalMinutes);
+    map['use_lrclib'] = Variable<bool>(useLrclib);
     map['replay_gain_mode'] = Variable<String>(replayGainMode);
     map['replay_gain_preamp'] = Variable<double>(replayGainPreamp);
     map['playback_speed'] = Variable<double>(playbackSpeed);
@@ -2130,6 +2161,7 @@ class AppSettingsTableData extends DataClass
           : Value(audioMuseApiKey),
       audioMuseEnabled: Value(audioMuseEnabled),
       syncIntervalMinutes: Value(syncIntervalMinutes),
+      useLrclib: Value(useLrclib),
       replayGainMode: Value(replayGainMode),
       replayGainPreamp: Value(replayGainPreamp),
       playbackSpeed: Value(playbackSpeed),
@@ -2215,6 +2247,7 @@ class AppSettingsTableData extends DataClass
       syncIntervalMinutes: serializer.fromJson<int>(
         json['syncIntervalMinutes'],
       ),
+      useLrclib: serializer.fromJson<bool>(json['useLrclib']),
       replayGainMode: serializer.fromJson<String>(json['replayGainMode']),
       replayGainPreamp: serializer.fromJson<double>(json['replayGainPreamp']),
       playbackSpeed: serializer.fromJson<double>(json['playbackSpeed']),
@@ -2285,6 +2318,7 @@ class AppSettingsTableData extends DataClass
       'audioMuseApiKey': serializer.toJson<String?>(audioMuseApiKey),
       'audioMuseEnabled': serializer.toJson<bool>(audioMuseEnabled),
       'syncIntervalMinutes': serializer.toJson<int>(syncIntervalMinutes),
+      'useLrclib': serializer.toJson<bool>(useLrclib),
       'replayGainMode': serializer.toJson<String>(replayGainMode),
       'replayGainPreamp': serializer.toJson<double>(replayGainPreamp),
       'playbackSpeed': serializer.toJson<double>(playbackSpeed),
@@ -2339,6 +2373,7 @@ class AppSettingsTableData extends DataClass
     Value<String?> audioMuseApiKey = const Value.absent(),
     bool? audioMuseEnabled,
     int? syncIntervalMinutes,
+    bool? useLrclib,
     String? replayGainMode,
     double? replayGainPreamp,
     double? playbackSpeed,
@@ -2410,6 +2445,7 @@ class AppSettingsTableData extends DataClass
         : this.audioMuseApiKey,
     audioMuseEnabled: audioMuseEnabled ?? this.audioMuseEnabled,
     syncIntervalMinutes: syncIntervalMinutes ?? this.syncIntervalMinutes,
+    useLrclib: useLrclib ?? this.useLrclib,
     replayGainMode: replayGainMode ?? this.replayGainMode,
     replayGainPreamp: replayGainPreamp ?? this.replayGainPreamp,
     playbackSpeed: playbackSpeed ?? this.playbackSpeed,
@@ -2532,6 +2568,7 @@ class AppSettingsTableData extends DataClass
       syncIntervalMinutes: data.syncIntervalMinutes.present
           ? data.syncIntervalMinutes.value
           : this.syncIntervalMinutes,
+      useLrclib: data.useLrclib.present ? data.useLrclib.value : this.useLrclib,
       replayGainMode: data.replayGainMode.present
           ? data.replayGainMode.value
           : this.replayGainMode,
@@ -2610,6 +2647,7 @@ class AppSettingsTableData extends DataClass
           ..write('audioMuseApiKey: $audioMuseApiKey, ')
           ..write('audioMuseEnabled: $audioMuseEnabled, ')
           ..write('syncIntervalMinutes: $syncIntervalMinutes, ')
+          ..write('useLrclib: $useLrclib, ')
           ..write('replayGainMode: $replayGainMode, ')
           ..write('replayGainPreamp: $replayGainPreamp, ')
           ..write('playbackSpeed: $playbackSpeed, ')
@@ -2664,6 +2702,7 @@ class AppSettingsTableData extends DataClass
     audioMuseApiKey,
     audioMuseEnabled,
     syncIntervalMinutes,
+    useLrclib,
     replayGainMode,
     replayGainPreamp,
     playbackSpeed,
@@ -2717,6 +2756,7 @@ class AppSettingsTableData extends DataClass
           other.audioMuseApiKey == this.audioMuseApiKey &&
           other.audioMuseEnabled == this.audioMuseEnabled &&
           other.syncIntervalMinutes == this.syncIntervalMinutes &&
+          other.useLrclib == this.useLrclib &&
           other.replayGainMode == this.replayGainMode &&
           other.replayGainPreamp == this.replayGainPreamp &&
           other.playbackSpeed == this.playbackSpeed &&
@@ -2768,6 +2808,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<String?> audioMuseApiKey;
   final Value<bool> audioMuseEnabled;
   final Value<int> syncIntervalMinutes;
+  final Value<bool> useLrclib;
   final Value<String> replayGainMode;
   final Value<double> replayGainPreamp;
   final Value<double> playbackSpeed;
@@ -2817,6 +2858,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.audioMuseApiKey = const Value.absent(),
     this.audioMuseEnabled = const Value.absent(),
     this.syncIntervalMinutes = const Value.absent(),
+    this.useLrclib = const Value.absent(),
     this.replayGainMode = const Value.absent(),
     this.replayGainPreamp = const Value.absent(),
     this.playbackSpeed = const Value.absent(),
@@ -2867,6 +2909,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.audioMuseApiKey = const Value.absent(),
     this.audioMuseEnabled = const Value.absent(),
     this.syncIntervalMinutes = const Value.absent(),
+    this.useLrclib = const Value.absent(),
     this.replayGainMode = const Value.absent(),
     this.replayGainPreamp = const Value.absent(),
     this.playbackSpeed = const Value.absent(),
@@ -2917,6 +2960,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<String>? audioMuseApiKey,
     Expression<bool>? audioMuseEnabled,
     Expression<int>? syncIntervalMinutes,
+    Expression<bool>? useLrclib,
     Expression<String>? replayGainMode,
     Expression<double>? replayGainPreamp,
     Expression<double>? playbackSpeed,
@@ -2981,6 +3025,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       if (audioMuseEnabled != null) 'audio_muse_enabled': audioMuseEnabled,
       if (syncIntervalMinutes != null)
         'sync_interval_minutes': syncIntervalMinutes,
+      if (useLrclib != null) 'use_lrclib': useLrclib,
       if (replayGainMode != null) 'replay_gain_mode': replayGainMode,
       if (replayGainPreamp != null) 'replay_gain_preamp': replayGainPreamp,
       if (playbackSpeed != null) 'playback_speed': playbackSpeed,
@@ -3037,6 +3082,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<String?>? audioMuseApiKey,
     Value<bool>? audioMuseEnabled,
     Value<int>? syncIntervalMinutes,
+    Value<bool>? useLrclib,
     Value<String>? replayGainMode,
     Value<double>? replayGainPreamp,
     Value<double>? playbackSpeed,
@@ -3091,6 +3137,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       audioMuseApiKey: audioMuseApiKey ?? this.audioMuseApiKey,
       audioMuseEnabled: audioMuseEnabled ?? this.audioMuseEnabled,
       syncIntervalMinutes: syncIntervalMinutes ?? this.syncIntervalMinutes,
+      useLrclib: useLrclib ?? this.useLrclib,
       replayGainMode: replayGainMode ?? this.replayGainMode,
       replayGainPreamp: replayGainPreamp ?? this.replayGainPreamp,
       playbackSpeed: playbackSpeed ?? this.playbackSpeed,
@@ -3228,6 +3275,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     if (syncIntervalMinutes.present) {
       map['sync_interval_minutes'] = Variable<int>(syncIntervalMinutes.value);
     }
+    if (useLrclib.present) {
+      map['use_lrclib'] = Variable<bool>(useLrclib.value);
+    }
     if (replayGainMode.present) {
       map['replay_gain_mode'] = Variable<String>(replayGainMode.value);
     }
@@ -3312,6 +3362,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('audioMuseApiKey: $audioMuseApiKey, ')
           ..write('audioMuseEnabled: $audioMuseEnabled, ')
           ..write('syncIntervalMinutes: $syncIntervalMinutes, ')
+          ..write('useLrclib: $useLrclib, ')
           ..write('replayGainMode: $replayGainMode, ')
           ..write('replayGainPreamp: $replayGainPreamp, ')
           ..write('playbackSpeed: $playbackSpeed, ')
@@ -3822,6 +3873,17 @@ class $AlbumsTableTable extends AlbumsTable
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _userRatingMeta = const VerificationMeta(
+    'userRating',
+  );
+  @override
+  late final GeneratedColumn<int> userRating = GeneratedColumn<int>(
+    'user_rating',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _playCountMeta = const VerificationMeta(
     'playCount',
   );
@@ -3869,6 +3931,7 @@ class $AlbumsTableTable extends AlbumsTable
     coverArt,
     songsHydrated,
     starred,
+    userRating,
     playCount,
     syncedAt,
     serverCreatedAt,
@@ -3955,6 +4018,12 @@ class $AlbumsTableTable extends AlbumsTable
         starred.isAcceptableOrUnknown(data['starred']!, _starredMeta),
       );
     }
+    if (data.containsKey('user_rating')) {
+      context.handle(
+        _userRatingMeta,
+        userRating.isAcceptableOrUnknown(data['user_rating']!, _userRatingMeta),
+      );
+    }
     if (data.containsKey('play_count')) {
       context.handle(
         _playCountMeta,
@@ -4029,6 +4098,10 @@ class $AlbumsTableTable extends AlbumsTable
         DriftSqlType.dateTime,
         data['${effectivePrefix}starred'],
       ),
+      userRating: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}user_rating'],
+      ),
       playCount: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}play_count'],
@@ -4062,6 +4135,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
   final String? coverArt;
   final bool songsHydrated;
   final DateTime? starred;
+  final int? userRating;
   final int? playCount;
 
   /// When this album was first persisted to the local database (synced from
@@ -4084,6 +4158,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     this.coverArt,
     required this.songsHydrated,
     this.starred,
+    this.userRating,
     this.playCount,
     this.syncedAt,
     this.serverCreatedAt,
@@ -4117,6 +4192,9 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     map['songs_hydrated'] = Variable<bool>(songsHydrated);
     if (!nullToAbsent || starred != null) {
       map['starred'] = Variable<DateTime>(starred);
+    }
+    if (!nullToAbsent || userRating != null) {
+      map['user_rating'] = Variable<int>(userRating);
     }
     if (!nullToAbsent || playCount != null) {
       map['play_count'] = Variable<int>(playCount);
@@ -4157,6 +4235,9 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       starred: starred == null && nullToAbsent
           ? const Value.absent()
           : Value(starred),
+      userRating: userRating == null && nullToAbsent
+          ? const Value.absent()
+          : Value(userRating),
       playCount: playCount == null && nullToAbsent
           ? const Value.absent()
           : Value(playCount),
@@ -4186,6 +4267,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       coverArt: serializer.fromJson<String?>(json['coverArt']),
       songsHydrated: serializer.fromJson<bool>(json['songsHydrated']),
       starred: serializer.fromJson<DateTime?>(json['starred']),
+      userRating: serializer.fromJson<int?>(json['userRating']),
       playCount: serializer.fromJson<int?>(json['playCount']),
       syncedAt: serializer.fromJson<DateTime?>(json['syncedAt']),
       serverCreatedAt: serializer.fromJson<DateTime?>(json['serverCreatedAt']),
@@ -4206,6 +4288,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       'coverArt': serializer.toJson<String?>(coverArt),
       'songsHydrated': serializer.toJson<bool>(songsHydrated),
       'starred': serializer.toJson<DateTime?>(starred),
+      'userRating': serializer.toJson<int?>(userRating),
       'playCount': serializer.toJson<int?>(playCount),
       'syncedAt': serializer.toJson<DateTime?>(syncedAt),
       'serverCreatedAt': serializer.toJson<DateTime?>(serverCreatedAt),
@@ -4224,6 +4307,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     Value<String?> coverArt = const Value.absent(),
     bool? songsHydrated,
     Value<DateTime?> starred = const Value.absent(),
+    Value<int?> userRating = const Value.absent(),
     Value<int?> playCount = const Value.absent(),
     Value<DateTime?> syncedAt = const Value.absent(),
     Value<DateTime?> serverCreatedAt = const Value.absent(),
@@ -4239,6 +4323,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     coverArt: coverArt.present ? coverArt.value : this.coverArt,
     songsHydrated: songsHydrated ?? this.songsHydrated,
     starred: starred.present ? starred.value : this.starred,
+    userRating: userRating.present ? userRating.value : this.userRating,
     playCount: playCount.present ? playCount.value : this.playCount,
     syncedAt: syncedAt.present ? syncedAt.value : this.syncedAt,
     serverCreatedAt: serverCreatedAt.present
@@ -4262,6 +4347,9 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
           ? data.songsHydrated.value
           : this.songsHydrated,
       starred: data.starred.present ? data.starred.value : this.starred,
+      userRating: data.userRating.present
+          ? data.userRating.value
+          : this.userRating,
       playCount: data.playCount.present ? data.playCount.value : this.playCount,
       syncedAt: data.syncedAt.present ? data.syncedAt.value : this.syncedAt,
       serverCreatedAt: data.serverCreatedAt.present
@@ -4284,6 +4372,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
           ..write('coverArt: $coverArt, ')
           ..write('songsHydrated: $songsHydrated, ')
           ..write('starred: $starred, ')
+          ..write('userRating: $userRating, ')
           ..write('playCount: $playCount, ')
           ..write('syncedAt: $syncedAt, ')
           ..write('serverCreatedAt: $serverCreatedAt')
@@ -4304,6 +4393,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     coverArt,
     songsHydrated,
     starred,
+    userRating,
     playCount,
     syncedAt,
     serverCreatedAt,
@@ -4323,6 +4413,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
           other.coverArt == this.coverArt &&
           other.songsHydrated == this.songsHydrated &&
           other.starred == this.starred &&
+          other.userRating == this.userRating &&
           other.playCount == this.playCount &&
           other.syncedAt == this.syncedAt &&
           other.serverCreatedAt == this.serverCreatedAt);
@@ -4340,6 +4431,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
   final Value<String?> coverArt;
   final Value<bool> songsHydrated;
   final Value<DateTime?> starred;
+  final Value<int?> userRating;
   final Value<int?> playCount;
   final Value<DateTime?> syncedAt;
   final Value<DateTime?> serverCreatedAt;
@@ -4356,6 +4448,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     this.coverArt = const Value.absent(),
     this.songsHydrated = const Value.absent(),
     this.starred = const Value.absent(),
+    this.userRating = const Value.absent(),
     this.playCount = const Value.absent(),
     this.syncedAt = const Value.absent(),
     this.serverCreatedAt = const Value.absent(),
@@ -4373,6 +4466,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     this.coverArt = const Value.absent(),
     this.songsHydrated = const Value.absent(),
     this.starred = const Value.absent(),
+    this.userRating = const Value.absent(),
     this.playCount = const Value.absent(),
     this.syncedAt = const Value.absent(),
     this.serverCreatedAt = const Value.absent(),
@@ -4391,6 +4485,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     Expression<String>? coverArt,
     Expression<bool>? songsHydrated,
     Expression<DateTime>? starred,
+    Expression<int>? userRating,
     Expression<int>? playCount,
     Expression<DateTime>? syncedAt,
     Expression<DateTime>? serverCreatedAt,
@@ -4408,6 +4503,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
       if (coverArt != null) 'cover_art': coverArt,
       if (songsHydrated != null) 'songs_hydrated': songsHydrated,
       if (starred != null) 'starred': starred,
+      if (userRating != null) 'user_rating': userRating,
       if (playCount != null) 'play_count': playCount,
       if (syncedAt != null) 'synced_at': syncedAt,
       if (serverCreatedAt != null) 'server_created_at': serverCreatedAt,
@@ -4427,6 +4523,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     Value<String?>? coverArt,
     Value<bool>? songsHydrated,
     Value<DateTime?>? starred,
+    Value<int?>? userRating,
     Value<int?>? playCount,
     Value<DateTime?>? syncedAt,
     Value<DateTime?>? serverCreatedAt,
@@ -4444,6 +4541,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
       coverArt: coverArt ?? this.coverArt,
       songsHydrated: songsHydrated ?? this.songsHydrated,
       starred: starred ?? this.starred,
+      userRating: userRating ?? this.userRating,
       playCount: playCount ?? this.playCount,
       syncedAt: syncedAt ?? this.syncedAt,
       serverCreatedAt: serverCreatedAt ?? this.serverCreatedAt,
@@ -4487,6 +4585,9 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     if (starred.present) {
       map['starred'] = Variable<DateTime>(starred.value);
     }
+    if (userRating.present) {
+      map['user_rating'] = Variable<int>(userRating.value);
+    }
     if (playCount.present) {
       map['play_count'] = Variable<int>(playCount.value);
     }
@@ -4516,6 +4617,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
           ..write('coverArt: $coverArt, ')
           ..write('songsHydrated: $songsHydrated, ')
           ..write('starred: $starred, ')
+          ..write('userRating: $userRating, ')
           ..write('playCount: $playCount, ')
           ..write('syncedAt: $syncedAt, ')
           ..write('serverCreatedAt: $serverCreatedAt, ')
@@ -4692,6 +4794,17 @@ class $SongsTableTable extends SongsTable
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _userRatingMeta = const VerificationMeta(
+    'userRating',
+  );
+  @override
+  late final GeneratedColumn<int> userRating = GeneratedColumn<int>(
+    'user_rating',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _playCountMeta = const VerificationMeta(
     'playCount',
   );
@@ -4775,6 +4888,7 @@ class $SongsTableTable extends SongsTable
     size,
     coverArt,
     starred,
+    userRating,
     playCount,
     createdAt,
     replayGainTrackGain,
@@ -4886,6 +5000,12 @@ class $SongsTableTable extends SongsTable
       context.handle(
         _starredMeta,
         starred.isAcceptableOrUnknown(data['starred']!, _starredMeta),
+      );
+    }
+    if (data.containsKey('user_rating')) {
+      context.handle(
+        _userRatingMeta,
+        userRating.isAcceptableOrUnknown(data['user_rating']!, _userRatingMeta),
       );
     }
     if (data.containsKey('play_count')) {
@@ -5005,6 +5125,10 @@ class $SongsTableTable extends SongsTable
         DriftSqlType.dateTime,
         data['${effectivePrefix}starred'],
       ),
+      userRating: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}user_rating'],
+      ),
       playCount: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}play_count'],
@@ -5054,6 +5178,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
   final int? size;
   final String? coverArt;
   final DateTime? starred;
+  final int? userRating;
   final int? playCount;
   final DateTime? createdAt;
 
@@ -5084,6 +5209,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     this.size,
     this.coverArt,
     this.starred,
+    this.userRating,
     this.playCount,
     this.createdAt,
     this.replayGainTrackGain,
@@ -5134,6 +5260,9 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     }
     if (!nullToAbsent || starred != null) {
       map['starred'] = Variable<DateTime>(starred);
+    }
+    if (!nullToAbsent || userRating != null) {
+      map['user_rating'] = Variable<int>(userRating);
     }
     if (!nullToAbsent || playCount != null) {
       map['play_count'] = Variable<int>(playCount);
@@ -5197,6 +5326,9 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       starred: starred == null && nullToAbsent
           ? const Value.absent()
           : Value(starred),
+      userRating: userRating == null && nullToAbsent
+          ? const Value.absent()
+          : Value(userRating),
       playCount: playCount == null && nullToAbsent
           ? const Value.absent()
           : Value(playCount),
@@ -5239,6 +5371,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       size: serializer.fromJson<int?>(json['size']),
       coverArt: serializer.fromJson<String?>(json['coverArt']),
       starred: serializer.fromJson<DateTime?>(json['starred']),
+      userRating: serializer.fromJson<int?>(json['userRating']),
       playCount: serializer.fromJson<int?>(json['playCount']),
       createdAt: serializer.fromJson<DateTime?>(json['createdAt']),
       replayGainTrackGain: serializer.fromJson<double?>(
@@ -5274,6 +5407,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       'size': serializer.toJson<int?>(size),
       'coverArt': serializer.toJson<String?>(coverArt),
       'starred': serializer.toJson<DateTime?>(starred),
+      'userRating': serializer.toJson<int?>(userRating),
       'playCount': serializer.toJson<int?>(playCount),
       'createdAt': serializer.toJson<DateTime?>(createdAt),
       'replayGainTrackGain': serializer.toJson<double?>(replayGainTrackGain),
@@ -5299,6 +5433,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     Value<int?> size = const Value.absent(),
     Value<String?> coverArt = const Value.absent(),
     Value<DateTime?> starred = const Value.absent(),
+    Value<int?> userRating = const Value.absent(),
     Value<int?> playCount = const Value.absent(),
     Value<DateTime?> createdAt = const Value.absent(),
     Value<double?> replayGainTrackGain = const Value.absent(),
@@ -5321,6 +5456,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     size: size.present ? size.value : this.size,
     coverArt: coverArt.present ? coverArt.value : this.coverArt,
     starred: starred.present ? starred.value : this.starred,
+    userRating: userRating.present ? userRating.value : this.userRating,
     playCount: playCount.present ? playCount.value : this.playCount,
     createdAt: createdAt.present ? createdAt.value : this.createdAt,
     replayGainTrackGain: replayGainTrackGain.present
@@ -5359,6 +5495,9 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       size: data.size.present ? data.size.value : this.size,
       coverArt: data.coverArt.present ? data.coverArt.value : this.coverArt,
       starred: data.starred.present ? data.starred.value : this.starred,
+      userRating: data.userRating.present
+          ? data.userRating.value
+          : this.userRating,
       playCount: data.playCount.present ? data.playCount.value : this.playCount,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       replayGainTrackGain: data.replayGainTrackGain.present
@@ -5394,6 +5533,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
           ..write('size: $size, ')
           ..write('coverArt: $coverArt, ')
           ..write('starred: $starred, ')
+          ..write('userRating: $userRating, ')
           ..write('playCount: $playCount, ')
           ..write('createdAt: $createdAt, ')
           ..write('replayGainTrackGain: $replayGainTrackGain, ')
@@ -5421,6 +5561,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     size,
     coverArt,
     starred,
+    userRating,
     playCount,
     createdAt,
     replayGainTrackGain,
@@ -5447,6 +5588,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
           other.size == this.size &&
           other.coverArt == this.coverArt &&
           other.starred == this.starred &&
+          other.userRating == this.userRating &&
           other.playCount == this.playCount &&
           other.createdAt == this.createdAt &&
           other.replayGainTrackGain == this.replayGainTrackGain &&
@@ -5471,6 +5613,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
   final Value<int?> size;
   final Value<String?> coverArt;
   final Value<DateTime?> starred;
+  final Value<int?> userRating;
   final Value<int?> playCount;
   final Value<DateTime?> createdAt;
   final Value<double?> replayGainTrackGain;
@@ -5494,6 +5637,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     this.size = const Value.absent(),
     this.coverArt = const Value.absent(),
     this.starred = const Value.absent(),
+    this.userRating = const Value.absent(),
     this.playCount = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.replayGainTrackGain = const Value.absent(),
@@ -5518,6 +5662,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     this.size = const Value.absent(),
     this.coverArt = const Value.absent(),
     this.starred = const Value.absent(),
+    this.userRating = const Value.absent(),
     this.playCount = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.replayGainTrackGain = const Value.absent(),
@@ -5543,6 +5688,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     Expression<int>? size,
     Expression<String>? coverArt,
     Expression<DateTime>? starred,
+    Expression<int>? userRating,
     Expression<int>? playCount,
     Expression<DateTime>? createdAt,
     Expression<double>? replayGainTrackGain,
@@ -5567,6 +5713,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
       if (size != null) 'size': size,
       if (coverArt != null) 'cover_art': coverArt,
       if (starred != null) 'starred': starred,
+      if (userRating != null) 'user_rating': userRating,
       if (playCount != null) 'play_count': playCount,
       if (createdAt != null) 'created_at': createdAt,
       if (replayGainTrackGain != null)
@@ -5597,6 +5744,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     Value<int?>? size,
     Value<String?>? coverArt,
     Value<DateTime?>? starred,
+    Value<int?>? userRating,
     Value<int?>? playCount,
     Value<DateTime?>? createdAt,
     Value<double?>? replayGainTrackGain,
@@ -5621,6 +5769,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
       size: size ?? this.size,
       coverArt: coverArt ?? this.coverArt,
       starred: starred ?? this.starred,
+      userRating: userRating ?? this.userRating,
       playCount: playCount ?? this.playCount,
       createdAt: createdAt ?? this.createdAt,
       replayGainTrackGain: replayGainTrackGain ?? this.replayGainTrackGain,
@@ -5679,6 +5828,9 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     if (starred.present) {
       map['starred'] = Variable<DateTime>(starred.value);
     }
+    if (userRating.present) {
+      map['user_rating'] = Variable<int>(userRating.value);
+    }
     if (playCount.present) {
       map['play_count'] = Variable<int>(playCount.value);
     }
@@ -5729,6 +5881,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
           ..write('size: $size, ')
           ..write('coverArt: $coverArt, ')
           ..write('starred: $starred, ')
+          ..write('userRating: $userRating, ')
           ..write('playCount: $playCount, ')
           ..write('createdAt: $createdAt, ')
           ..write('replayGainTrackGain: $replayGainTrackGain, ')
@@ -6002,6 +6155,1105 @@ class GenresTableCompanion extends UpdateCompanion<GenresTableData> {
           ..write('name: $name, ')
           ..write('songCount: $songCount, ')
           ..write('albumCount: $albumCount, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $AlbumInfoCacheTableTable extends AlbumInfoCacheTable
+    with TableInfo<$AlbumInfoCacheTableTable, AlbumInfoCacheTableData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AlbumInfoCacheTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _albumIdMeta = const VerificationMeta(
+    'albumId',
+  );
+  @override
+  late final GeneratedColumn<String> albumId = GeneratedColumn<String>(
+    'album_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _notesMeta = const VerificationMeta('notes');
+  @override
+  late final GeneratedColumn<String> notes = GeneratedColumn<String>(
+    'notes',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _musicBrainzIdMeta = const VerificationMeta(
+    'musicBrainzId',
+  );
+  @override
+  late final GeneratedColumn<String> musicBrainzId = GeneratedColumn<String>(
+    'music_brainz_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastFmUrlMeta = const VerificationMeta(
+    'lastFmUrl',
+  );
+  @override
+  late final GeneratedColumn<String> lastFmUrl = GeneratedColumn<String>(
+    'last_fm_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _smallImageUrlMeta = const VerificationMeta(
+    'smallImageUrl',
+  );
+  @override
+  late final GeneratedColumn<String> smallImageUrl = GeneratedColumn<String>(
+    'small_image_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _mediumImageUrlMeta = const VerificationMeta(
+    'mediumImageUrl',
+  );
+  @override
+  late final GeneratedColumn<String> mediumImageUrl = GeneratedColumn<String>(
+    'medium_image_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _largeImageUrlMeta = const VerificationMeta(
+    'largeImageUrl',
+  );
+  @override
+  late final GeneratedColumn<String> largeImageUrl = GeneratedColumn<String>(
+    'large_image_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _fetchedAtMeta = const VerificationMeta(
+    'fetchedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> fetchedAt = GeneratedColumn<DateTime>(
+    'fetched_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    albumId,
+    notes,
+    musicBrainzId,
+    lastFmUrl,
+    smallImageUrl,
+    mediumImageUrl,
+    largeImageUrl,
+    fetchedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'album_info_cache';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AlbumInfoCacheTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('album_id')) {
+      context.handle(
+        _albumIdMeta,
+        albumId.isAcceptableOrUnknown(data['album_id']!, _albumIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_albumIdMeta);
+    }
+    if (data.containsKey('notes')) {
+      context.handle(
+        _notesMeta,
+        notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
+      );
+    }
+    if (data.containsKey('music_brainz_id')) {
+      context.handle(
+        _musicBrainzIdMeta,
+        musicBrainzId.isAcceptableOrUnknown(
+          data['music_brainz_id']!,
+          _musicBrainzIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_fm_url')) {
+      context.handle(
+        _lastFmUrlMeta,
+        lastFmUrl.isAcceptableOrUnknown(data['last_fm_url']!, _lastFmUrlMeta),
+      );
+    }
+    if (data.containsKey('small_image_url')) {
+      context.handle(
+        _smallImageUrlMeta,
+        smallImageUrl.isAcceptableOrUnknown(
+          data['small_image_url']!,
+          _smallImageUrlMeta,
+        ),
+      );
+    }
+    if (data.containsKey('medium_image_url')) {
+      context.handle(
+        _mediumImageUrlMeta,
+        mediumImageUrl.isAcceptableOrUnknown(
+          data['medium_image_url']!,
+          _mediumImageUrlMeta,
+        ),
+      );
+    }
+    if (data.containsKey('large_image_url')) {
+      context.handle(
+        _largeImageUrlMeta,
+        largeImageUrl.isAcceptableOrUnknown(
+          data['large_image_url']!,
+          _largeImageUrlMeta,
+        ),
+      );
+    }
+    if (data.containsKey('fetched_at')) {
+      context.handle(
+        _fetchedAtMeta,
+        fetchedAt.isAcceptableOrUnknown(data['fetched_at']!, _fetchedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_fetchedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {albumId};
+  @override
+  AlbumInfoCacheTableData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AlbumInfoCacheTableData(
+      albumId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}album_id'],
+      )!,
+      notes: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}notes'],
+      ),
+      musicBrainzId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}music_brainz_id'],
+      ),
+      lastFmUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_fm_url'],
+      ),
+      smallImageUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}small_image_url'],
+      ),
+      mediumImageUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}medium_image_url'],
+      ),
+      largeImageUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}large_image_url'],
+      ),
+      fetchedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}fetched_at'],
+      )!,
+    );
+  }
+
+  @override
+  $AlbumInfoCacheTableTable createAlias(String alias) {
+    return $AlbumInfoCacheTableTable(attachedDatabase, alias);
+  }
+}
+
+class AlbumInfoCacheTableData extends DataClass
+    implements Insertable<AlbumInfoCacheTableData> {
+  final String albumId;
+  final String? notes;
+  final String? musicBrainzId;
+  final String? lastFmUrl;
+  final String? smallImageUrl;
+  final String? mediumImageUrl;
+  final String? largeImageUrl;
+  final DateTime fetchedAt;
+  const AlbumInfoCacheTableData({
+    required this.albumId,
+    this.notes,
+    this.musicBrainzId,
+    this.lastFmUrl,
+    this.smallImageUrl,
+    this.mediumImageUrl,
+    this.largeImageUrl,
+    required this.fetchedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['album_id'] = Variable<String>(albumId);
+    if (!nullToAbsent || notes != null) {
+      map['notes'] = Variable<String>(notes);
+    }
+    if (!nullToAbsent || musicBrainzId != null) {
+      map['music_brainz_id'] = Variable<String>(musicBrainzId);
+    }
+    if (!nullToAbsent || lastFmUrl != null) {
+      map['last_fm_url'] = Variable<String>(lastFmUrl);
+    }
+    if (!nullToAbsent || smallImageUrl != null) {
+      map['small_image_url'] = Variable<String>(smallImageUrl);
+    }
+    if (!nullToAbsent || mediumImageUrl != null) {
+      map['medium_image_url'] = Variable<String>(mediumImageUrl);
+    }
+    if (!nullToAbsent || largeImageUrl != null) {
+      map['large_image_url'] = Variable<String>(largeImageUrl);
+    }
+    map['fetched_at'] = Variable<DateTime>(fetchedAt);
+    return map;
+  }
+
+  AlbumInfoCacheTableCompanion toCompanion(bool nullToAbsent) {
+    return AlbumInfoCacheTableCompanion(
+      albumId: Value(albumId),
+      notes: notes == null && nullToAbsent
+          ? const Value.absent()
+          : Value(notes),
+      musicBrainzId: musicBrainzId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(musicBrainzId),
+      lastFmUrl: lastFmUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastFmUrl),
+      smallImageUrl: smallImageUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(smallImageUrl),
+      mediumImageUrl: mediumImageUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(mediumImageUrl),
+      largeImageUrl: largeImageUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(largeImageUrl),
+      fetchedAt: Value(fetchedAt),
+    );
+  }
+
+  factory AlbumInfoCacheTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AlbumInfoCacheTableData(
+      albumId: serializer.fromJson<String>(json['albumId']),
+      notes: serializer.fromJson<String?>(json['notes']),
+      musicBrainzId: serializer.fromJson<String?>(json['musicBrainzId']),
+      lastFmUrl: serializer.fromJson<String?>(json['lastFmUrl']),
+      smallImageUrl: serializer.fromJson<String?>(json['smallImageUrl']),
+      mediumImageUrl: serializer.fromJson<String?>(json['mediumImageUrl']),
+      largeImageUrl: serializer.fromJson<String?>(json['largeImageUrl']),
+      fetchedAt: serializer.fromJson<DateTime>(json['fetchedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'albumId': serializer.toJson<String>(albumId),
+      'notes': serializer.toJson<String?>(notes),
+      'musicBrainzId': serializer.toJson<String?>(musicBrainzId),
+      'lastFmUrl': serializer.toJson<String?>(lastFmUrl),
+      'smallImageUrl': serializer.toJson<String?>(smallImageUrl),
+      'mediumImageUrl': serializer.toJson<String?>(mediumImageUrl),
+      'largeImageUrl': serializer.toJson<String?>(largeImageUrl),
+      'fetchedAt': serializer.toJson<DateTime>(fetchedAt),
+    };
+  }
+
+  AlbumInfoCacheTableData copyWith({
+    String? albumId,
+    Value<String?> notes = const Value.absent(),
+    Value<String?> musicBrainzId = const Value.absent(),
+    Value<String?> lastFmUrl = const Value.absent(),
+    Value<String?> smallImageUrl = const Value.absent(),
+    Value<String?> mediumImageUrl = const Value.absent(),
+    Value<String?> largeImageUrl = const Value.absent(),
+    DateTime? fetchedAt,
+  }) => AlbumInfoCacheTableData(
+    albumId: albumId ?? this.albumId,
+    notes: notes.present ? notes.value : this.notes,
+    musicBrainzId: musicBrainzId.present
+        ? musicBrainzId.value
+        : this.musicBrainzId,
+    lastFmUrl: lastFmUrl.present ? lastFmUrl.value : this.lastFmUrl,
+    smallImageUrl: smallImageUrl.present
+        ? smallImageUrl.value
+        : this.smallImageUrl,
+    mediumImageUrl: mediumImageUrl.present
+        ? mediumImageUrl.value
+        : this.mediumImageUrl,
+    largeImageUrl: largeImageUrl.present
+        ? largeImageUrl.value
+        : this.largeImageUrl,
+    fetchedAt: fetchedAt ?? this.fetchedAt,
+  );
+  AlbumInfoCacheTableData copyWithCompanion(AlbumInfoCacheTableCompanion data) {
+    return AlbumInfoCacheTableData(
+      albumId: data.albumId.present ? data.albumId.value : this.albumId,
+      notes: data.notes.present ? data.notes.value : this.notes,
+      musicBrainzId: data.musicBrainzId.present
+          ? data.musicBrainzId.value
+          : this.musicBrainzId,
+      lastFmUrl: data.lastFmUrl.present ? data.lastFmUrl.value : this.lastFmUrl,
+      smallImageUrl: data.smallImageUrl.present
+          ? data.smallImageUrl.value
+          : this.smallImageUrl,
+      mediumImageUrl: data.mediumImageUrl.present
+          ? data.mediumImageUrl.value
+          : this.mediumImageUrl,
+      largeImageUrl: data.largeImageUrl.present
+          ? data.largeImageUrl.value
+          : this.largeImageUrl,
+      fetchedAt: data.fetchedAt.present ? data.fetchedAt.value : this.fetchedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AlbumInfoCacheTableData(')
+          ..write('albumId: $albumId, ')
+          ..write('notes: $notes, ')
+          ..write('musicBrainzId: $musicBrainzId, ')
+          ..write('lastFmUrl: $lastFmUrl, ')
+          ..write('smallImageUrl: $smallImageUrl, ')
+          ..write('mediumImageUrl: $mediumImageUrl, ')
+          ..write('largeImageUrl: $largeImageUrl, ')
+          ..write('fetchedAt: $fetchedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    albumId,
+    notes,
+    musicBrainzId,
+    lastFmUrl,
+    smallImageUrl,
+    mediumImageUrl,
+    largeImageUrl,
+    fetchedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AlbumInfoCacheTableData &&
+          other.albumId == this.albumId &&
+          other.notes == this.notes &&
+          other.musicBrainzId == this.musicBrainzId &&
+          other.lastFmUrl == this.lastFmUrl &&
+          other.smallImageUrl == this.smallImageUrl &&
+          other.mediumImageUrl == this.mediumImageUrl &&
+          other.largeImageUrl == this.largeImageUrl &&
+          other.fetchedAt == this.fetchedAt);
+}
+
+class AlbumInfoCacheTableCompanion
+    extends UpdateCompanion<AlbumInfoCacheTableData> {
+  final Value<String> albumId;
+  final Value<String?> notes;
+  final Value<String?> musicBrainzId;
+  final Value<String?> lastFmUrl;
+  final Value<String?> smallImageUrl;
+  final Value<String?> mediumImageUrl;
+  final Value<String?> largeImageUrl;
+  final Value<DateTime> fetchedAt;
+  final Value<int> rowid;
+  const AlbumInfoCacheTableCompanion({
+    this.albumId = const Value.absent(),
+    this.notes = const Value.absent(),
+    this.musicBrainzId = const Value.absent(),
+    this.lastFmUrl = const Value.absent(),
+    this.smallImageUrl = const Value.absent(),
+    this.mediumImageUrl = const Value.absent(),
+    this.largeImageUrl = const Value.absent(),
+    this.fetchedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AlbumInfoCacheTableCompanion.insert({
+    required String albumId,
+    this.notes = const Value.absent(),
+    this.musicBrainzId = const Value.absent(),
+    this.lastFmUrl = const Value.absent(),
+    this.smallImageUrl = const Value.absent(),
+    this.mediumImageUrl = const Value.absent(),
+    this.largeImageUrl = const Value.absent(),
+    required DateTime fetchedAt,
+    this.rowid = const Value.absent(),
+  }) : albumId = Value(albumId),
+       fetchedAt = Value(fetchedAt);
+  static Insertable<AlbumInfoCacheTableData> custom({
+    Expression<String>? albumId,
+    Expression<String>? notes,
+    Expression<String>? musicBrainzId,
+    Expression<String>? lastFmUrl,
+    Expression<String>? smallImageUrl,
+    Expression<String>? mediumImageUrl,
+    Expression<String>? largeImageUrl,
+    Expression<DateTime>? fetchedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (albumId != null) 'album_id': albumId,
+      if (notes != null) 'notes': notes,
+      if (musicBrainzId != null) 'music_brainz_id': musicBrainzId,
+      if (lastFmUrl != null) 'last_fm_url': lastFmUrl,
+      if (smallImageUrl != null) 'small_image_url': smallImageUrl,
+      if (mediumImageUrl != null) 'medium_image_url': mediumImageUrl,
+      if (largeImageUrl != null) 'large_image_url': largeImageUrl,
+      if (fetchedAt != null) 'fetched_at': fetchedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AlbumInfoCacheTableCompanion copyWith({
+    Value<String>? albumId,
+    Value<String?>? notes,
+    Value<String?>? musicBrainzId,
+    Value<String?>? lastFmUrl,
+    Value<String?>? smallImageUrl,
+    Value<String?>? mediumImageUrl,
+    Value<String?>? largeImageUrl,
+    Value<DateTime>? fetchedAt,
+    Value<int>? rowid,
+  }) {
+    return AlbumInfoCacheTableCompanion(
+      albumId: albumId ?? this.albumId,
+      notes: notes ?? this.notes,
+      musicBrainzId: musicBrainzId ?? this.musicBrainzId,
+      lastFmUrl: lastFmUrl ?? this.lastFmUrl,
+      smallImageUrl: smallImageUrl ?? this.smallImageUrl,
+      mediumImageUrl: mediumImageUrl ?? this.mediumImageUrl,
+      largeImageUrl: largeImageUrl ?? this.largeImageUrl,
+      fetchedAt: fetchedAt ?? this.fetchedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (albumId.present) {
+      map['album_id'] = Variable<String>(albumId.value);
+    }
+    if (notes.present) {
+      map['notes'] = Variable<String>(notes.value);
+    }
+    if (musicBrainzId.present) {
+      map['music_brainz_id'] = Variable<String>(musicBrainzId.value);
+    }
+    if (lastFmUrl.present) {
+      map['last_fm_url'] = Variable<String>(lastFmUrl.value);
+    }
+    if (smallImageUrl.present) {
+      map['small_image_url'] = Variable<String>(smallImageUrl.value);
+    }
+    if (mediumImageUrl.present) {
+      map['medium_image_url'] = Variable<String>(mediumImageUrl.value);
+    }
+    if (largeImageUrl.present) {
+      map['large_image_url'] = Variable<String>(largeImageUrl.value);
+    }
+    if (fetchedAt.present) {
+      map['fetched_at'] = Variable<DateTime>(fetchedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AlbumInfoCacheTableCompanion(')
+          ..write('albumId: $albumId, ')
+          ..write('notes: $notes, ')
+          ..write('musicBrainzId: $musicBrainzId, ')
+          ..write('lastFmUrl: $lastFmUrl, ')
+          ..write('smallImageUrl: $smallImageUrl, ')
+          ..write('mediumImageUrl: $mediumImageUrl, ')
+          ..write('largeImageUrl: $largeImageUrl, ')
+          ..write('fetchedAt: $fetchedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ExternalLyricsCacheTableTable extends ExternalLyricsCacheTable
+    with
+        TableInfo<
+          $ExternalLyricsCacheTableTable,
+          ExternalLyricsCacheTableData
+        > {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ExternalLyricsCacheTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _songIdMeta = const VerificationMeta('songId');
+  @override
+  late final GeneratedColumn<String> songId = GeneratedColumn<String>(
+    'song_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sourceMeta = const VerificationMeta('source');
+  @override
+  late final GeneratedColumn<String> source = GeneratedColumn<String>(
+    'source',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _syncedLyricsMeta = const VerificationMeta(
+    'syncedLyrics',
+  );
+  @override
+  late final GeneratedColumn<String> syncedLyrics = GeneratedColumn<String>(
+    'synced_lyrics',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _plainLyricsMeta = const VerificationMeta(
+    'plainLyrics',
+  );
+  @override
+  late final GeneratedColumn<String> plainLyrics = GeneratedColumn<String>(
+    'plain_lyrics',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _fetchedAtMeta = const VerificationMeta(
+    'fetchedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> fetchedAt = GeneratedColumn<DateTime>(
+    'fetched_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _ttlSecondsMeta = const VerificationMeta(
+    'ttlSeconds',
+  );
+  @override
+  late final GeneratedColumn<int> ttlSeconds = GeneratedColumn<int>(
+    'ttl_seconds',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(86400),
+  );
+  static const VerificationMeta _failureCountMeta = const VerificationMeta(
+    'failureCount',
+  );
+  @override
+  late final GeneratedColumn<int> failureCount = GeneratedColumn<int>(
+    'failure_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _lastFailedAtMeta = const VerificationMeta(
+    'lastFailedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastFailedAt = GeneratedColumn<DateTime>(
+    'last_failed_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    songId,
+    source,
+    syncedLyrics,
+    plainLyrics,
+    fetchedAt,
+    ttlSeconds,
+    failureCount,
+    lastFailedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'external_lyrics_cache';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ExternalLyricsCacheTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('song_id')) {
+      context.handle(
+        _songIdMeta,
+        songId.isAcceptableOrUnknown(data['song_id']!, _songIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_songIdMeta);
+    }
+    if (data.containsKey('source')) {
+      context.handle(
+        _sourceMeta,
+        source.isAcceptableOrUnknown(data['source']!, _sourceMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sourceMeta);
+    }
+    if (data.containsKey('synced_lyrics')) {
+      context.handle(
+        _syncedLyricsMeta,
+        syncedLyrics.isAcceptableOrUnknown(
+          data['synced_lyrics']!,
+          _syncedLyricsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('plain_lyrics')) {
+      context.handle(
+        _plainLyricsMeta,
+        plainLyrics.isAcceptableOrUnknown(
+          data['plain_lyrics']!,
+          _plainLyricsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('fetched_at')) {
+      context.handle(
+        _fetchedAtMeta,
+        fetchedAt.isAcceptableOrUnknown(data['fetched_at']!, _fetchedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_fetchedAtMeta);
+    }
+    if (data.containsKey('ttl_seconds')) {
+      context.handle(
+        _ttlSecondsMeta,
+        ttlSeconds.isAcceptableOrUnknown(data['ttl_seconds']!, _ttlSecondsMeta),
+      );
+    }
+    if (data.containsKey('failure_count')) {
+      context.handle(
+        _failureCountMeta,
+        failureCount.isAcceptableOrUnknown(
+          data['failure_count']!,
+          _failureCountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_failed_at')) {
+      context.handle(
+        _lastFailedAtMeta,
+        lastFailedAt.isAcceptableOrUnknown(
+          data['last_failed_at']!,
+          _lastFailedAtMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {songId};
+  @override
+  ExternalLyricsCacheTableData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ExternalLyricsCacheTableData(
+      songId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}song_id'],
+      )!,
+      source: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source'],
+      )!,
+      syncedLyrics: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}synced_lyrics'],
+      ),
+      plainLyrics: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}plain_lyrics'],
+      ),
+      fetchedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}fetched_at'],
+      )!,
+      ttlSeconds: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}ttl_seconds'],
+      )!,
+      failureCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}failure_count'],
+      )!,
+      lastFailedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_failed_at'],
+      ),
+    );
+  }
+
+  @override
+  $ExternalLyricsCacheTableTable createAlias(String alias) {
+    return $ExternalLyricsCacheTableTable(attachedDatabase, alias);
+  }
+}
+
+class ExternalLyricsCacheTableData extends DataClass
+    implements Insertable<ExternalLyricsCacheTableData> {
+  final String songId;
+  final String source;
+  final String? syncedLyrics;
+  final String? plainLyrics;
+  final DateTime fetchedAt;
+  final int ttlSeconds;
+  final int failureCount;
+  final DateTime? lastFailedAt;
+  const ExternalLyricsCacheTableData({
+    required this.songId,
+    required this.source,
+    this.syncedLyrics,
+    this.plainLyrics,
+    required this.fetchedAt,
+    required this.ttlSeconds,
+    required this.failureCount,
+    this.lastFailedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['song_id'] = Variable<String>(songId);
+    map['source'] = Variable<String>(source);
+    if (!nullToAbsent || syncedLyrics != null) {
+      map['synced_lyrics'] = Variable<String>(syncedLyrics);
+    }
+    if (!nullToAbsent || plainLyrics != null) {
+      map['plain_lyrics'] = Variable<String>(plainLyrics);
+    }
+    map['fetched_at'] = Variable<DateTime>(fetchedAt);
+    map['ttl_seconds'] = Variable<int>(ttlSeconds);
+    map['failure_count'] = Variable<int>(failureCount);
+    if (!nullToAbsent || lastFailedAt != null) {
+      map['last_failed_at'] = Variable<DateTime>(lastFailedAt);
+    }
+    return map;
+  }
+
+  ExternalLyricsCacheTableCompanion toCompanion(bool nullToAbsent) {
+    return ExternalLyricsCacheTableCompanion(
+      songId: Value(songId),
+      source: Value(source),
+      syncedLyrics: syncedLyrics == null && nullToAbsent
+          ? const Value.absent()
+          : Value(syncedLyrics),
+      plainLyrics: plainLyrics == null && nullToAbsent
+          ? const Value.absent()
+          : Value(plainLyrics),
+      fetchedAt: Value(fetchedAt),
+      ttlSeconds: Value(ttlSeconds),
+      failureCount: Value(failureCount),
+      lastFailedAt: lastFailedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastFailedAt),
+    );
+  }
+
+  factory ExternalLyricsCacheTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ExternalLyricsCacheTableData(
+      songId: serializer.fromJson<String>(json['songId']),
+      source: serializer.fromJson<String>(json['source']),
+      syncedLyrics: serializer.fromJson<String?>(json['syncedLyrics']),
+      plainLyrics: serializer.fromJson<String?>(json['plainLyrics']),
+      fetchedAt: serializer.fromJson<DateTime>(json['fetchedAt']),
+      ttlSeconds: serializer.fromJson<int>(json['ttlSeconds']),
+      failureCount: serializer.fromJson<int>(json['failureCount']),
+      lastFailedAt: serializer.fromJson<DateTime?>(json['lastFailedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'songId': serializer.toJson<String>(songId),
+      'source': serializer.toJson<String>(source),
+      'syncedLyrics': serializer.toJson<String?>(syncedLyrics),
+      'plainLyrics': serializer.toJson<String?>(plainLyrics),
+      'fetchedAt': serializer.toJson<DateTime>(fetchedAt),
+      'ttlSeconds': serializer.toJson<int>(ttlSeconds),
+      'failureCount': serializer.toJson<int>(failureCount),
+      'lastFailedAt': serializer.toJson<DateTime?>(lastFailedAt),
+    };
+  }
+
+  ExternalLyricsCacheTableData copyWith({
+    String? songId,
+    String? source,
+    Value<String?> syncedLyrics = const Value.absent(),
+    Value<String?> plainLyrics = const Value.absent(),
+    DateTime? fetchedAt,
+    int? ttlSeconds,
+    int? failureCount,
+    Value<DateTime?> lastFailedAt = const Value.absent(),
+  }) => ExternalLyricsCacheTableData(
+    songId: songId ?? this.songId,
+    source: source ?? this.source,
+    syncedLyrics: syncedLyrics.present ? syncedLyrics.value : this.syncedLyrics,
+    plainLyrics: plainLyrics.present ? plainLyrics.value : this.plainLyrics,
+    fetchedAt: fetchedAt ?? this.fetchedAt,
+    ttlSeconds: ttlSeconds ?? this.ttlSeconds,
+    failureCount: failureCount ?? this.failureCount,
+    lastFailedAt: lastFailedAt.present ? lastFailedAt.value : this.lastFailedAt,
+  );
+  ExternalLyricsCacheTableData copyWithCompanion(
+    ExternalLyricsCacheTableCompanion data,
+  ) {
+    return ExternalLyricsCacheTableData(
+      songId: data.songId.present ? data.songId.value : this.songId,
+      source: data.source.present ? data.source.value : this.source,
+      syncedLyrics: data.syncedLyrics.present
+          ? data.syncedLyrics.value
+          : this.syncedLyrics,
+      plainLyrics: data.plainLyrics.present
+          ? data.plainLyrics.value
+          : this.plainLyrics,
+      fetchedAt: data.fetchedAt.present ? data.fetchedAt.value : this.fetchedAt,
+      ttlSeconds: data.ttlSeconds.present
+          ? data.ttlSeconds.value
+          : this.ttlSeconds,
+      failureCount: data.failureCount.present
+          ? data.failureCount.value
+          : this.failureCount,
+      lastFailedAt: data.lastFailedAt.present
+          ? data.lastFailedAt.value
+          : this.lastFailedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ExternalLyricsCacheTableData(')
+          ..write('songId: $songId, ')
+          ..write('source: $source, ')
+          ..write('syncedLyrics: $syncedLyrics, ')
+          ..write('plainLyrics: $plainLyrics, ')
+          ..write('fetchedAt: $fetchedAt, ')
+          ..write('ttlSeconds: $ttlSeconds, ')
+          ..write('failureCount: $failureCount, ')
+          ..write('lastFailedAt: $lastFailedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    songId,
+    source,
+    syncedLyrics,
+    plainLyrics,
+    fetchedAt,
+    ttlSeconds,
+    failureCount,
+    lastFailedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ExternalLyricsCacheTableData &&
+          other.songId == this.songId &&
+          other.source == this.source &&
+          other.syncedLyrics == this.syncedLyrics &&
+          other.plainLyrics == this.plainLyrics &&
+          other.fetchedAt == this.fetchedAt &&
+          other.ttlSeconds == this.ttlSeconds &&
+          other.failureCount == this.failureCount &&
+          other.lastFailedAt == this.lastFailedAt);
+}
+
+class ExternalLyricsCacheTableCompanion
+    extends UpdateCompanion<ExternalLyricsCacheTableData> {
+  final Value<String> songId;
+  final Value<String> source;
+  final Value<String?> syncedLyrics;
+  final Value<String?> plainLyrics;
+  final Value<DateTime> fetchedAt;
+  final Value<int> ttlSeconds;
+  final Value<int> failureCount;
+  final Value<DateTime?> lastFailedAt;
+  final Value<int> rowid;
+  const ExternalLyricsCacheTableCompanion({
+    this.songId = const Value.absent(),
+    this.source = const Value.absent(),
+    this.syncedLyrics = const Value.absent(),
+    this.plainLyrics = const Value.absent(),
+    this.fetchedAt = const Value.absent(),
+    this.ttlSeconds = const Value.absent(),
+    this.failureCount = const Value.absent(),
+    this.lastFailedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ExternalLyricsCacheTableCompanion.insert({
+    required String songId,
+    required String source,
+    this.syncedLyrics = const Value.absent(),
+    this.plainLyrics = const Value.absent(),
+    required DateTime fetchedAt,
+    this.ttlSeconds = const Value.absent(),
+    this.failureCount = const Value.absent(),
+    this.lastFailedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : songId = Value(songId),
+       source = Value(source),
+       fetchedAt = Value(fetchedAt);
+  static Insertable<ExternalLyricsCacheTableData> custom({
+    Expression<String>? songId,
+    Expression<String>? source,
+    Expression<String>? syncedLyrics,
+    Expression<String>? plainLyrics,
+    Expression<DateTime>? fetchedAt,
+    Expression<int>? ttlSeconds,
+    Expression<int>? failureCount,
+    Expression<DateTime>? lastFailedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (songId != null) 'song_id': songId,
+      if (source != null) 'source': source,
+      if (syncedLyrics != null) 'synced_lyrics': syncedLyrics,
+      if (plainLyrics != null) 'plain_lyrics': plainLyrics,
+      if (fetchedAt != null) 'fetched_at': fetchedAt,
+      if (ttlSeconds != null) 'ttl_seconds': ttlSeconds,
+      if (failureCount != null) 'failure_count': failureCount,
+      if (lastFailedAt != null) 'last_failed_at': lastFailedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ExternalLyricsCacheTableCompanion copyWith({
+    Value<String>? songId,
+    Value<String>? source,
+    Value<String?>? syncedLyrics,
+    Value<String?>? plainLyrics,
+    Value<DateTime>? fetchedAt,
+    Value<int>? ttlSeconds,
+    Value<int>? failureCount,
+    Value<DateTime?>? lastFailedAt,
+    Value<int>? rowid,
+  }) {
+    return ExternalLyricsCacheTableCompanion(
+      songId: songId ?? this.songId,
+      source: source ?? this.source,
+      syncedLyrics: syncedLyrics ?? this.syncedLyrics,
+      plainLyrics: plainLyrics ?? this.plainLyrics,
+      fetchedAt: fetchedAt ?? this.fetchedAt,
+      ttlSeconds: ttlSeconds ?? this.ttlSeconds,
+      failureCount: failureCount ?? this.failureCount,
+      lastFailedAt: lastFailedAt ?? this.lastFailedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (songId.present) {
+      map['song_id'] = Variable<String>(songId.value);
+    }
+    if (source.present) {
+      map['source'] = Variable<String>(source.value);
+    }
+    if (syncedLyrics.present) {
+      map['synced_lyrics'] = Variable<String>(syncedLyrics.value);
+    }
+    if (plainLyrics.present) {
+      map['plain_lyrics'] = Variable<String>(plainLyrics.value);
+    }
+    if (fetchedAt.present) {
+      map['fetched_at'] = Variable<DateTime>(fetchedAt.value);
+    }
+    if (ttlSeconds.present) {
+      map['ttl_seconds'] = Variable<int>(ttlSeconds.value);
+    }
+    if (failureCount.present) {
+      map['failure_count'] = Variable<int>(failureCount.value);
+    }
+    if (lastFailedAt.present) {
+      map['last_failed_at'] = Variable<DateTime>(lastFailedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ExternalLyricsCacheTableCompanion(')
+          ..write('songId: $songId, ')
+          ..write('source: $source, ')
+          ..write('syncedLyrics: $syncedLyrics, ')
+          ..write('plainLyrics: $plainLyrics, ')
+          ..write('fetchedAt: $fetchedAt, ')
+          ..write('ttlSeconds: $ttlSeconds, ')
+          ..write('failureCount: $failureCount, ')
+          ..write('lastFailedAt: $lastFailedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -10095,6 +11347,10 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
   late final $AlbumsTableTable albumsTable = $AlbumsTableTable(this);
   late final $SongsTableTable songsTable = $SongsTableTable(this);
   late final $GenresTableTable genresTable = $GenresTableTable(this);
+  late final $AlbumInfoCacheTableTable albumInfoCacheTable =
+      $AlbumInfoCacheTableTable(this);
+  late final $ExternalLyricsCacheTableTable externalLyricsCacheTable =
+      $ExternalLyricsCacheTableTable(this);
   late final $PlaylistsTableTable playlistsTable = $PlaylistsTableTable(this);
   late final $PlaylistSongsTableTable playlistSongsTable =
       $PlaylistSongsTableTable(this);
@@ -10139,6 +11395,8 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
     albumsTable,
     songsTable,
     genresTable,
+    albumInfoCacheTable,
+    externalLyricsCacheTable,
     playlistsTable,
     playlistSongsTable,
     cachedTracksTable,
@@ -10527,6 +11785,7 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<String?> audioMuseApiKey,
       Value<bool> audioMuseEnabled,
       Value<int> syncIntervalMinutes,
+      Value<bool> useLrclib,
       Value<String> replayGainMode,
       Value<double> replayGainPreamp,
       Value<double> playbackSpeed,
@@ -10578,6 +11837,7 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<String?> audioMuseApiKey,
       Value<bool> audioMuseEnabled,
       Value<int> syncIntervalMinutes,
+      Value<bool> useLrclib,
       Value<String> replayGainMode,
       Value<double> replayGainPreamp,
       Value<double> playbackSpeed,
@@ -10774,6 +12034,11 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<int> get syncIntervalMinutes => $composableBuilder(
     column: $table.syncIntervalMinutes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get useLrclib => $composableBuilder(
+    column: $table.useLrclib,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -11027,6 +12292,11 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get useLrclib => $composableBuilder(
+    column: $table.useLrclib,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get replayGainMode => $composableBuilder(
     column: $table.replayGainMode,
     builder: (column) => ColumnOrderings(column),
@@ -11271,6 +12541,9 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get useLrclib =>
+      $composableBuilder(column: $table.useLrclib, builder: (column) => column);
+
   GeneratedColumn<String> get replayGainMode => $composableBuilder(
     column: $table.replayGainMode,
     builder: (column) => column,
@@ -11407,6 +12680,7 @@ class $$AppSettingsTableTableTableManager
                 Value<String?> audioMuseApiKey = const Value.absent(),
                 Value<bool> audioMuseEnabled = const Value.absent(),
                 Value<int> syncIntervalMinutes = const Value.absent(),
+                Value<bool> useLrclib = const Value.absent(),
                 Value<String> replayGainMode = const Value.absent(),
                 Value<double> replayGainPreamp = const Value.absent(),
                 Value<double> playbackSpeed = const Value.absent(),
@@ -11456,6 +12730,7 @@ class $$AppSettingsTableTableTableManager
                 audioMuseApiKey: audioMuseApiKey,
                 audioMuseEnabled: audioMuseEnabled,
                 syncIntervalMinutes: syncIntervalMinutes,
+                useLrclib: useLrclib,
                 replayGainMode: replayGainMode,
                 replayGainPreamp: replayGainPreamp,
                 playbackSpeed: playbackSpeed,
@@ -11507,6 +12782,7 @@ class $$AppSettingsTableTableTableManager
                 Value<String?> audioMuseApiKey = const Value.absent(),
                 Value<bool> audioMuseEnabled = const Value.absent(),
                 Value<int> syncIntervalMinutes = const Value.absent(),
+                Value<bool> useLrclib = const Value.absent(),
                 Value<String> replayGainMode = const Value.absent(),
                 Value<double> replayGainPreamp = const Value.absent(),
                 Value<double> playbackSpeed = const Value.absent(),
@@ -11556,6 +12832,7 @@ class $$AppSettingsTableTableTableManager
                 audioMuseApiKey: audioMuseApiKey,
                 audioMuseEnabled: audioMuseEnabled,
                 syncIntervalMinutes: syncIntervalMinutes,
+                useLrclib: useLrclib,
                 replayGainMode: replayGainMode,
                 replayGainPreamp: replayGainPreamp,
                 playbackSpeed: playbackSpeed,
@@ -12014,6 +13291,7 @@ typedef $$AlbumsTableTableCreateCompanionBuilder =
       Value<String?> coverArt,
       Value<bool> songsHydrated,
       Value<DateTime?> starred,
+      Value<int?> userRating,
       Value<int?> playCount,
       Value<DateTime?> syncedAt,
       Value<DateTime?> serverCreatedAt,
@@ -12032,6 +13310,7 @@ typedef $$AlbumsTableTableUpdateCompanionBuilder =
       Value<String?> coverArt,
       Value<bool> songsHydrated,
       Value<DateTime?> starred,
+      Value<int?> userRating,
       Value<int?> playCount,
       Value<DateTime?> syncedAt,
       Value<DateTime?> serverCreatedAt,
@@ -12137,6 +13416,11 @@ class $$AlbumsTableTableFilterComposer
 
   ColumnFilters<DateTime> get starred => $composableBuilder(
     column: $table.starred,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get userRating => $composableBuilder(
+    column: $table.userRating,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -12263,6 +13547,11 @@ class $$AlbumsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get userRating => $composableBuilder(
+    column: $table.userRating,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get playCount => $composableBuilder(
     column: $table.playCount,
     builder: (column) => ColumnOrderings(column),
@@ -12344,6 +13633,11 @@ class $$AlbumsTableTableAnnotationComposer
 
   GeneratedColumn<DateTime> get starred =>
       $composableBuilder(column: $table.starred, builder: (column) => column);
+
+  GeneratedColumn<int> get userRating => $composableBuilder(
+    column: $table.userRating,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<int> get playCount =>
       $composableBuilder(column: $table.playCount, builder: (column) => column);
@@ -12444,6 +13738,7 @@ class $$AlbumsTableTableTableManager
                 Value<String?> coverArt = const Value.absent(),
                 Value<bool> songsHydrated = const Value.absent(),
                 Value<DateTime?> starred = const Value.absent(),
+                Value<int?> userRating = const Value.absent(),
                 Value<int?> playCount = const Value.absent(),
                 Value<DateTime?> syncedAt = const Value.absent(),
                 Value<DateTime?> serverCreatedAt = const Value.absent(),
@@ -12460,6 +13755,7 @@ class $$AlbumsTableTableTableManager
                 coverArt: coverArt,
                 songsHydrated: songsHydrated,
                 starred: starred,
+                userRating: userRating,
                 playCount: playCount,
                 syncedAt: syncedAt,
                 serverCreatedAt: serverCreatedAt,
@@ -12478,6 +13774,7 @@ class $$AlbumsTableTableTableManager
                 Value<String?> coverArt = const Value.absent(),
                 Value<bool> songsHydrated = const Value.absent(),
                 Value<DateTime?> starred = const Value.absent(),
+                Value<int?> userRating = const Value.absent(),
                 Value<int?> playCount = const Value.absent(),
                 Value<DateTime?> syncedAt = const Value.absent(),
                 Value<DateTime?> serverCreatedAt = const Value.absent(),
@@ -12494,6 +13791,7 @@ class $$AlbumsTableTableTableManager
                 coverArt: coverArt,
                 songsHydrated: songsHydrated,
                 starred: starred,
+                userRating: userRating,
                 playCount: playCount,
                 syncedAt: syncedAt,
                 serverCreatedAt: serverCreatedAt,
@@ -12603,6 +13901,7 @@ typedef $$SongsTableTableCreateCompanionBuilder =
       Value<int?> size,
       Value<String?> coverArt,
       Value<DateTime?> starred,
+      Value<int?> userRating,
       Value<int?> playCount,
       Value<DateTime?> createdAt,
       Value<double?> replayGainTrackGain,
@@ -12628,6 +13927,7 @@ typedef $$SongsTableTableUpdateCompanionBuilder =
       Value<int?> size,
       Value<String?> coverArt,
       Value<DateTime?> starred,
+      Value<int?> userRating,
       Value<int?> playCount,
       Value<DateTime?> createdAt,
       Value<double?> replayGainTrackGain,
@@ -12856,6 +14156,11 @@ class $$SongsTableTableFilterComposer
 
   ColumnFilters<DateTime> get starred => $composableBuilder(
     column: $table.starred,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get userRating => $composableBuilder(
+    column: $table.userRating,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -13110,6 +14415,11 @@ class $$SongsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get userRating => $composableBuilder(
+    column: $table.userRating,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get playCount => $composableBuilder(
     column: $table.playCount,
     builder: (column) => ColumnOrderings(column),
@@ -13240,6 +14550,11 @@ class $$SongsTableTableAnnotationComposer
 
   GeneratedColumn<DateTime> get starred =>
       $composableBuilder(column: $table.starred, builder: (column) => column);
+
+  GeneratedColumn<int> get userRating => $composableBuilder(
+    column: $table.userRating,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<int> get playCount =>
       $composableBuilder(column: $table.playCount, builder: (column) => column);
@@ -13467,6 +14782,7 @@ class $$SongsTableTableTableManager
                 Value<int?> size = const Value.absent(),
                 Value<String?> coverArt = const Value.absent(),
                 Value<DateTime?> starred = const Value.absent(),
+                Value<int?> userRating = const Value.absent(),
                 Value<int?> playCount = const Value.absent(),
                 Value<DateTime?> createdAt = const Value.absent(),
                 Value<double?> replayGainTrackGain = const Value.absent(),
@@ -13490,6 +14806,7 @@ class $$SongsTableTableTableManager
                 size: size,
                 coverArt: coverArt,
                 starred: starred,
+                userRating: userRating,
                 playCount: playCount,
                 createdAt: createdAt,
                 replayGainTrackGain: replayGainTrackGain,
@@ -13515,6 +14832,7 @@ class $$SongsTableTableTableManager
                 Value<int?> size = const Value.absent(),
                 Value<String?> coverArt = const Value.absent(),
                 Value<DateTime?> starred = const Value.absent(),
+                Value<int?> userRating = const Value.absent(),
                 Value<int?> playCount = const Value.absent(),
                 Value<DateTime?> createdAt = const Value.absent(),
                 Value<double?> replayGainTrackGain = const Value.absent(),
@@ -13538,6 +14856,7 @@ class $$SongsTableTableTableManager
                 size: size,
                 coverArt: coverArt,
                 starred: starred,
+                userRating: userRating,
                 playCount: playCount,
                 createdAt: createdAt,
                 replayGainTrackGain: replayGainTrackGain,
@@ -13895,6 +15214,573 @@ typedef $$GenresTableTableProcessedTableManager =
         BaseReferences<_$NavisDatabase, $GenresTableTable, GenresTableData>,
       ),
       GenresTableData,
+      PrefetchHooks Function()
+    >;
+typedef $$AlbumInfoCacheTableTableCreateCompanionBuilder =
+    AlbumInfoCacheTableCompanion Function({
+      required String albumId,
+      Value<String?> notes,
+      Value<String?> musicBrainzId,
+      Value<String?> lastFmUrl,
+      Value<String?> smallImageUrl,
+      Value<String?> mediumImageUrl,
+      Value<String?> largeImageUrl,
+      required DateTime fetchedAt,
+      Value<int> rowid,
+    });
+typedef $$AlbumInfoCacheTableTableUpdateCompanionBuilder =
+    AlbumInfoCacheTableCompanion Function({
+      Value<String> albumId,
+      Value<String?> notes,
+      Value<String?> musicBrainzId,
+      Value<String?> lastFmUrl,
+      Value<String?> smallImageUrl,
+      Value<String?> mediumImageUrl,
+      Value<String?> largeImageUrl,
+      Value<DateTime> fetchedAt,
+      Value<int> rowid,
+    });
+
+class $$AlbumInfoCacheTableTableFilterComposer
+    extends Composer<_$NavisDatabase, $AlbumInfoCacheTableTable> {
+  $$AlbumInfoCacheTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get albumId => $composableBuilder(
+    column: $table.albumId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get notes => $composableBuilder(
+    column: $table.notes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get musicBrainzId => $composableBuilder(
+    column: $table.musicBrainzId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastFmUrl => $composableBuilder(
+    column: $table.lastFmUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get smallImageUrl => $composableBuilder(
+    column: $table.smallImageUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get mediumImageUrl => $composableBuilder(
+    column: $table.mediumImageUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get largeImageUrl => $composableBuilder(
+    column: $table.largeImageUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get fetchedAt => $composableBuilder(
+    column: $table.fetchedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$AlbumInfoCacheTableTableOrderingComposer
+    extends Composer<_$NavisDatabase, $AlbumInfoCacheTableTable> {
+  $$AlbumInfoCacheTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get albumId => $composableBuilder(
+    column: $table.albumId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get notes => $composableBuilder(
+    column: $table.notes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get musicBrainzId => $composableBuilder(
+    column: $table.musicBrainzId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastFmUrl => $composableBuilder(
+    column: $table.lastFmUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get smallImageUrl => $composableBuilder(
+    column: $table.smallImageUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get mediumImageUrl => $composableBuilder(
+    column: $table.mediumImageUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get largeImageUrl => $composableBuilder(
+    column: $table.largeImageUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get fetchedAt => $composableBuilder(
+    column: $table.fetchedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$AlbumInfoCacheTableTableAnnotationComposer
+    extends Composer<_$NavisDatabase, $AlbumInfoCacheTableTable> {
+  $$AlbumInfoCacheTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get albumId =>
+      $composableBuilder(column: $table.albumId, builder: (column) => column);
+
+  GeneratedColumn<String> get notes =>
+      $composableBuilder(column: $table.notes, builder: (column) => column);
+
+  GeneratedColumn<String> get musicBrainzId => $composableBuilder(
+    column: $table.musicBrainzId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lastFmUrl =>
+      $composableBuilder(column: $table.lastFmUrl, builder: (column) => column);
+
+  GeneratedColumn<String> get smallImageUrl => $composableBuilder(
+    column: $table.smallImageUrl,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get mediumImageUrl => $composableBuilder(
+    column: $table.mediumImageUrl,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get largeImageUrl => $composableBuilder(
+    column: $table.largeImageUrl,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get fetchedAt =>
+      $composableBuilder(column: $table.fetchedAt, builder: (column) => column);
+}
+
+class $$AlbumInfoCacheTableTableTableManager
+    extends
+        RootTableManager<
+          _$NavisDatabase,
+          $AlbumInfoCacheTableTable,
+          AlbumInfoCacheTableData,
+          $$AlbumInfoCacheTableTableFilterComposer,
+          $$AlbumInfoCacheTableTableOrderingComposer,
+          $$AlbumInfoCacheTableTableAnnotationComposer,
+          $$AlbumInfoCacheTableTableCreateCompanionBuilder,
+          $$AlbumInfoCacheTableTableUpdateCompanionBuilder,
+          (
+            AlbumInfoCacheTableData,
+            BaseReferences<
+              _$NavisDatabase,
+              $AlbumInfoCacheTableTable,
+              AlbumInfoCacheTableData
+            >,
+          ),
+          AlbumInfoCacheTableData,
+          PrefetchHooks Function()
+        > {
+  $$AlbumInfoCacheTableTableTableManager(
+    _$NavisDatabase db,
+    $AlbumInfoCacheTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AlbumInfoCacheTableTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AlbumInfoCacheTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$AlbumInfoCacheTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> albumId = const Value.absent(),
+                Value<String?> notes = const Value.absent(),
+                Value<String?> musicBrainzId = const Value.absent(),
+                Value<String?> lastFmUrl = const Value.absent(),
+                Value<String?> smallImageUrl = const Value.absent(),
+                Value<String?> mediumImageUrl = const Value.absent(),
+                Value<String?> largeImageUrl = const Value.absent(),
+                Value<DateTime> fetchedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AlbumInfoCacheTableCompanion(
+                albumId: albumId,
+                notes: notes,
+                musicBrainzId: musicBrainzId,
+                lastFmUrl: lastFmUrl,
+                smallImageUrl: smallImageUrl,
+                mediumImageUrl: mediumImageUrl,
+                largeImageUrl: largeImageUrl,
+                fetchedAt: fetchedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String albumId,
+                Value<String?> notes = const Value.absent(),
+                Value<String?> musicBrainzId = const Value.absent(),
+                Value<String?> lastFmUrl = const Value.absent(),
+                Value<String?> smallImageUrl = const Value.absent(),
+                Value<String?> mediumImageUrl = const Value.absent(),
+                Value<String?> largeImageUrl = const Value.absent(),
+                required DateTime fetchedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => AlbumInfoCacheTableCompanion.insert(
+                albumId: albumId,
+                notes: notes,
+                musicBrainzId: musicBrainzId,
+                lastFmUrl: lastFmUrl,
+                smallImageUrl: smallImageUrl,
+                mediumImageUrl: mediumImageUrl,
+                largeImageUrl: largeImageUrl,
+                fetchedAt: fetchedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$AlbumInfoCacheTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NavisDatabase,
+      $AlbumInfoCacheTableTable,
+      AlbumInfoCacheTableData,
+      $$AlbumInfoCacheTableTableFilterComposer,
+      $$AlbumInfoCacheTableTableOrderingComposer,
+      $$AlbumInfoCacheTableTableAnnotationComposer,
+      $$AlbumInfoCacheTableTableCreateCompanionBuilder,
+      $$AlbumInfoCacheTableTableUpdateCompanionBuilder,
+      (
+        AlbumInfoCacheTableData,
+        BaseReferences<
+          _$NavisDatabase,
+          $AlbumInfoCacheTableTable,
+          AlbumInfoCacheTableData
+        >,
+      ),
+      AlbumInfoCacheTableData,
+      PrefetchHooks Function()
+    >;
+typedef $$ExternalLyricsCacheTableTableCreateCompanionBuilder =
+    ExternalLyricsCacheTableCompanion Function({
+      required String songId,
+      required String source,
+      Value<String?> syncedLyrics,
+      Value<String?> plainLyrics,
+      required DateTime fetchedAt,
+      Value<int> ttlSeconds,
+      Value<int> failureCount,
+      Value<DateTime?> lastFailedAt,
+      Value<int> rowid,
+    });
+typedef $$ExternalLyricsCacheTableTableUpdateCompanionBuilder =
+    ExternalLyricsCacheTableCompanion Function({
+      Value<String> songId,
+      Value<String> source,
+      Value<String?> syncedLyrics,
+      Value<String?> plainLyrics,
+      Value<DateTime> fetchedAt,
+      Value<int> ttlSeconds,
+      Value<int> failureCount,
+      Value<DateTime?> lastFailedAt,
+      Value<int> rowid,
+    });
+
+class $$ExternalLyricsCacheTableTableFilterComposer
+    extends Composer<_$NavisDatabase, $ExternalLyricsCacheTableTable> {
+  $$ExternalLyricsCacheTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get songId => $composableBuilder(
+    column: $table.songId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get syncedLyrics => $composableBuilder(
+    column: $table.syncedLyrics,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get plainLyrics => $composableBuilder(
+    column: $table.plainLyrics,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get fetchedAt => $composableBuilder(
+    column: $table.fetchedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get ttlSeconds => $composableBuilder(
+    column: $table.ttlSeconds,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get failureCount => $composableBuilder(
+    column: $table.failureCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastFailedAt => $composableBuilder(
+    column: $table.lastFailedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ExternalLyricsCacheTableTableOrderingComposer
+    extends Composer<_$NavisDatabase, $ExternalLyricsCacheTableTable> {
+  $$ExternalLyricsCacheTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get songId => $composableBuilder(
+    column: $table.songId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get syncedLyrics => $composableBuilder(
+    column: $table.syncedLyrics,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get plainLyrics => $composableBuilder(
+    column: $table.plainLyrics,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get fetchedAt => $composableBuilder(
+    column: $table.fetchedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get ttlSeconds => $composableBuilder(
+    column: $table.ttlSeconds,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get failureCount => $composableBuilder(
+    column: $table.failureCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastFailedAt => $composableBuilder(
+    column: $table.lastFailedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ExternalLyricsCacheTableTableAnnotationComposer
+    extends Composer<_$NavisDatabase, $ExternalLyricsCacheTableTable> {
+  $$ExternalLyricsCacheTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get songId =>
+      $composableBuilder(column: $table.songId, builder: (column) => column);
+
+  GeneratedColumn<String> get source =>
+      $composableBuilder(column: $table.source, builder: (column) => column);
+
+  GeneratedColumn<String> get syncedLyrics => $composableBuilder(
+    column: $table.syncedLyrics,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get plainLyrics => $composableBuilder(
+    column: $table.plainLyrics,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get fetchedAt =>
+      $composableBuilder(column: $table.fetchedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get ttlSeconds => $composableBuilder(
+    column: $table.ttlSeconds,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get failureCount => $composableBuilder(
+    column: $table.failureCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get lastFailedAt => $composableBuilder(
+    column: $table.lastFailedAt,
+    builder: (column) => column,
+  );
+}
+
+class $$ExternalLyricsCacheTableTableTableManager
+    extends
+        RootTableManager<
+          _$NavisDatabase,
+          $ExternalLyricsCacheTableTable,
+          ExternalLyricsCacheTableData,
+          $$ExternalLyricsCacheTableTableFilterComposer,
+          $$ExternalLyricsCacheTableTableOrderingComposer,
+          $$ExternalLyricsCacheTableTableAnnotationComposer,
+          $$ExternalLyricsCacheTableTableCreateCompanionBuilder,
+          $$ExternalLyricsCacheTableTableUpdateCompanionBuilder,
+          (
+            ExternalLyricsCacheTableData,
+            BaseReferences<
+              _$NavisDatabase,
+              $ExternalLyricsCacheTableTable,
+              ExternalLyricsCacheTableData
+            >,
+          ),
+          ExternalLyricsCacheTableData,
+          PrefetchHooks Function()
+        > {
+  $$ExternalLyricsCacheTableTableTableManager(
+    _$NavisDatabase db,
+    $ExternalLyricsCacheTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ExternalLyricsCacheTableTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$ExternalLyricsCacheTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$ExternalLyricsCacheTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> songId = const Value.absent(),
+                Value<String> source = const Value.absent(),
+                Value<String?> syncedLyrics = const Value.absent(),
+                Value<String?> plainLyrics = const Value.absent(),
+                Value<DateTime> fetchedAt = const Value.absent(),
+                Value<int> ttlSeconds = const Value.absent(),
+                Value<int> failureCount = const Value.absent(),
+                Value<DateTime?> lastFailedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ExternalLyricsCacheTableCompanion(
+                songId: songId,
+                source: source,
+                syncedLyrics: syncedLyrics,
+                plainLyrics: plainLyrics,
+                fetchedAt: fetchedAt,
+                ttlSeconds: ttlSeconds,
+                failureCount: failureCount,
+                lastFailedAt: lastFailedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String songId,
+                required String source,
+                Value<String?> syncedLyrics = const Value.absent(),
+                Value<String?> plainLyrics = const Value.absent(),
+                required DateTime fetchedAt,
+                Value<int> ttlSeconds = const Value.absent(),
+                Value<int> failureCount = const Value.absent(),
+                Value<DateTime?> lastFailedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ExternalLyricsCacheTableCompanion.insert(
+                songId: songId,
+                source: source,
+                syncedLyrics: syncedLyrics,
+                plainLyrics: plainLyrics,
+                fetchedAt: fetchedAt,
+                ttlSeconds: ttlSeconds,
+                failureCount: failureCount,
+                lastFailedAt: lastFailedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ExternalLyricsCacheTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NavisDatabase,
+      $ExternalLyricsCacheTableTable,
+      ExternalLyricsCacheTableData,
+      $$ExternalLyricsCacheTableTableFilterComposer,
+      $$ExternalLyricsCacheTableTableOrderingComposer,
+      $$ExternalLyricsCacheTableTableAnnotationComposer,
+      $$ExternalLyricsCacheTableTableCreateCompanionBuilder,
+      $$ExternalLyricsCacheTableTableUpdateCompanionBuilder,
+      (
+        ExternalLyricsCacheTableData,
+        BaseReferences<
+          _$NavisDatabase,
+          $ExternalLyricsCacheTableTable,
+          ExternalLyricsCacheTableData
+        >,
+      ),
+      ExternalLyricsCacheTableData,
       PrefetchHooks Function()
     >;
 typedef $$PlaylistsTableTableCreateCompanionBuilder =
@@ -17083,6 +18969,13 @@ class $NavisDatabaseManager {
       $$SongsTableTableTableManager(_db, _db.songsTable);
   $$GenresTableTableTableManager get genresTable =>
       $$GenresTableTableTableManager(_db, _db.genresTable);
+  $$AlbumInfoCacheTableTableTableManager get albumInfoCacheTable =>
+      $$AlbumInfoCacheTableTableTableManager(_db, _db.albumInfoCacheTable);
+  $$ExternalLyricsCacheTableTableTableManager get externalLyricsCacheTable =>
+      $$ExternalLyricsCacheTableTableTableManager(
+        _db,
+        _db.externalLyricsCacheTable,
+      );
   $$PlaylistsTableTableTableManager get playlistsTable =>
       $$PlaylistsTableTableTableManager(_db, _db.playlistsTable);
   $$PlaylistSongsTableTableTableManager get playlistSongsTable =>

@@ -44,6 +44,8 @@ class SongsTable extends Table {
 
   DateTimeColumn get starred => dateTime().nullable()();
 
+  IntColumn get userRating => integer().nullable()();
+
   IntColumn get playCount => integer().nullable()();
 
   DateTimeColumn get createdAt => dateTime().nullable()();

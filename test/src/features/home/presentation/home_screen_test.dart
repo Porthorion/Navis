@@ -133,7 +133,6 @@ void main() {
           HomeSectionIds.recentlyPlayed,
           HomeSectionIds.randomAlbums,
           HomeSectionIds.mostPlayed,
-          HomeSectionIds.audiomuseRecs,
         ]),
       );
     });

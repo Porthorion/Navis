@@ -42,6 +42,7 @@ A Flutter-based Subsonic/OpenSubsonic music player client targeting Android and 
 - [Phase 26: In-Car & Desktop Platforms (Priority Execution)](#phase-26-in-car--desktop-platforms-priority-execution)
 - [Phase 27: Platform Surface Extensions (Priority Execution)](#phase-27-platform-surface-extensions-priority-execution)
 - [Phase 28: Share System & Cross-Server Resolution (Deferred Priority)](#phase-28-share-system--cross-server-resolution-deferred-priority)
+- [Phase 29: ListenBrainz Scrobbling (Future Priority)](#phase-29-listenbrainz-scrobbling-future-priority)
 - [AI Agent Development Guidelines](#ai-agent-development-guidelines)
 - [Verification Strategy](#verification-strategy)
 - [Key Technical Decisions](#key-technical-decisions)
@@ -2077,6 +2078,19 @@ Issue #15 status note: closed because it was migrated to documentation.
 - Cross-server confidence strategy and ambiguity handling.
 - Reliability/security hardening and resolver diagnostics telemetry.
 
+## Phase 29: ListenBrainz Scrobbling (Future Priority)
+
+**Priority**: P8
+
+Future roadmap phase for multi-destination scrobbling support.
+
+**Scope**:
+- Add ListenBrainz credentials and enable/disable controls in the existing Playback settings page (alongside current scrobbling controls).
+- Implement now-playing and listened-track submissions to ListenBrainz with resilient retry/queue behavior.
+- Keep Subsonic/Navidrome scrobbling behavior intact; allow enabling one or both destinations without regressions.
+- Add clear status/error UX so users can test and validate ListenBrainz connectivity from settings.
+- Add unit/integration tests for dual-destination scrobble dispatch and offline replay semantics.
+
 ---
 
 ## AI Agent Development Guidelines
@@ -2227,3 +2241,4 @@ These are explicitly out of scope for the initial development but designed to be
 - **Persistent log file**: Add a developer-only setting to write logs to a file for troubleshooting. Ship with it disabled.
 - **Analytics / crash reporting**: Optional, privacy-respecting crash reporting (e.g., Sentry self-hosted). Must be opt-in given the GPL-3.0 license and privacy-conscious user base.
 - **Radio stream playback (Azuracast)**: Stream live radio from Azuracast stations via HLS or direct MP3/AAC mount-point URLs. Display real-time "Now Playing" metadata (title, artist, album art) using Azuracast's WebSocket or polling API (`/api/nowplaying/{station}`). Integrate with the existing `audio_service` pipeline — create a `RadioAudioSource` that wraps an HLS/Icecast URI, feed metadata updates into `MediaItem` so lock-screen and notification controls stay current. Add a Radio tab or section in the library with station list, favorites, and a mini status indicator. Keep radio playback independent from the queue so switching back to library tracks resumes where the user left off. Consider supporting generic Icecast/Shoutcast streams long-term.
+- **ListenBrainz scrobbling**: Promoted to **Phase 29**. Add optional dual-destination scrobbling with Playback settings controls and robust offline retry behavior.

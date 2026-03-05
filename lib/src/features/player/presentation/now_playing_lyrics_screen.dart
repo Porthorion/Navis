@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/lyrics_display_widget.dart';
+import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
 class NowPlayingLyricsScreen extends ConsumerWidget {
@@ -54,9 +55,15 @@ class _LyricsContent extends ConsumerWidget {
     final lyricsAsync = ref.watch(lyricsProvider(songId));
 
     return lyricsAsync.when(
-      data: (lyrics) => LyricsDisplayWidget(
-        lyrics: lyrics,
+      data: (resolution) => LyricsDisplayWidget(
+        lyrics: resolution.lyrics,
         currentPosition: position,
+        sourceLabel: _showExternalLyricsMeta(resolution)
+            ? _lyricsSourceLabel(context, resolution.source)
+            : null,
+        attribution: _showExternalLyricsMeta(resolution)
+            ? l10n.lyricsAttributionLrclib
+            : null,
         onSeek: (seekPosition) {
           final handler = ref.read(audioHandlerProvider);
           handler?.seek(seekPosition);
@@ -105,4 +112,25 @@ class _LyricsContent extends ConsumerWidget {
       },
     );
   }
+}
+
+String _lyricsSourceLabel(BuildContext context, LyricsSource source) {
+  final l10n = AppLocalizations.of(context)!;
+  return switch (source) {
+    LyricsSource.serverSynced => l10n.lyricsSourceServerSynced,
+    LyricsSource.serverPlain => l10n.lyricsSourceServerPlain,
+    LyricsSource.lrclibSynced => l10n.lyricsSourceLrclibSynced,
+    LyricsSource.lrclibPlain => l10n.lyricsSourceLrclibPlain,
+  };
+}
+
+bool _showExternalLyricsMeta(LyricsResolution resolution) {
+  if (!resolution.isExternal) {
+    return false;
+  }
+  if (resolution.lyrics.structuredLyrics.isNotEmpty) {
+    final lines = resolution.lyrics.structuredLyrics.first.line;
+    return lines.any((line) => (line.value ?? '').trim().isNotEmpty);
+  }
+  return (resolution.lyrics.value ?? '').trim().isNotEmpty;
 }

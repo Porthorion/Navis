@@ -61,6 +61,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   final ScrollController _likedScrollController = ScrollController();
   final ScrollController _playlistsScrollController = ScrollController();
   final ScrollController _radioScrollController = ScrollController();
+  final ScrollController _artistsGridScrollController = ScrollController();
   final ItemScrollController _artistsItemScrollController =
       ItemScrollController();
   final ItemPositionsListener _artistsItemPositionsListener =
@@ -71,6 +72,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   List<ArtistsTableData>? _cachedArtists;
   List<_ArtistListItem> _artistListItems = const <_ArtistListItem>[];
   Map<String, int> _artistLetterStartIndex = const <String, int>{};
+  Map<String, GlobalKey> _artistGridSectionKeys = const <String, GlobalKey>{};
   String? _activeArtistLetter;
   bool _isArtistRailScrubbing = false;
   int _loadedAlbumPages = 1;
@@ -94,6 +96,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     _artistsItemPositionsListener.itemPositions.addListener(
       _onArtistsViewportChanged,
     );
+    _artistsGridScrollController.addListener(_onArtistsGridScrolled);
     _yearItemPositionsListener.itemPositions.addListener(
       _onYearViewportChanged,
     );
@@ -139,6 +142,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       ..removeListener(_onAlbumsScroll)
       ..dispose();
     _likedScrollController.dispose();
+    _artistsGridScrollController
+      ..removeListener(_onArtistsGridScrolled)
+      ..dispose();
     _playlistsScrollController.dispose();
     _radioScrollController.dispose();
     _artistsItemPositionsListener.itemPositions.removeListener(
@@ -444,14 +450,47 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                   );
                 }
 
-                if (isGridMode) {
-                  return _buildArtistsGrid(context, filteredItems);
-                }
-
                 _ensureArtistListCache(filteredItems);
                 final letters = _artistLetterStartIndex.keys.toList(
                   growable: false,
                 );
+
+                if (isGridMode) {
+                  return Stack(
+                    children: <Widget>[
+                      _buildArtistsGrid(context, filteredItems),
+                      Positioned(
+                        right: 0,
+                        top: 8,
+                        bottom: 8,
+                        child: _SectionRail(
+                          railKey: const Key('artistAlphabetRail'),
+                          activeLabelKey: const Key('artistRailActiveLetter'),
+                          labels: letters,
+                          activeLabel: _activeArtistLetter,
+                          onLabelSelected: _scrollToArtistLetter,
+                          onInteractionStart: () {
+                            if (_isArtistRailScrubbing) {
+                              return;
+                            }
+                            setState(() => _isArtistRailScrubbing = true);
+                          },
+                          onInteractionEnd: () {
+                            if (!_isArtistRailScrubbing) {
+                              return;
+                            }
+                            setState(() => _isArtistRailScrubbing = false);
+                          },
+                        ),
+                      ),
+                      if (_isArtistRailScrubbing && _activeArtistLetter != null)
+                        _RailOverlay(
+                          overlayKey: const Key('artistAlphabetOverlay'),
+                          label: _activeArtistLetter!,
+                        ),
+                    ],
+                  );
+                }
 
                 return Stack(
                   children: <Widget>[
@@ -1279,26 +1318,45 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     BuildContext context,
     List<ArtistsTableData> artists,
   ) {
+    final grouped = _groupArtistsByInitial(artists);
+    final letters = grouped.keys.toList(growable: false)..sort();
+    _artistGridSectionKeys = <String, GlobalKey>{
+      for (final letter in letters)
+        letter: _artistGridSectionKeys[letter] ?? GlobalKey(),
+    };
+
     final crossAxisCount = computeGridCrossAxisCount(
       ref.watch(albumGridDensityProvider),
-      MediaQuery.sizeOf(context).width - 24,
+      MediaQuery.sizeOf(context).width - 64,
     );
 
     return CustomScrollView(
+      controller: _artistsGridScrollController,
       physics: const AlwaysScrollableScrollPhysics(),
       slivers: <Widget>[
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 80),
-          sliver: SliverGrid(
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: crossAxisCount,
-              childAspectRatio: 0.8,
-              crossAxisSpacing: 4,
-              mainAxisSpacing: 4,
+        for (final letter in letters) ...<Widget>[
+          SliverToBoxAdapter(
+            key: _artistGridSectionKeys[letter],
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+              child: Text(
+                letter,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
             ),
-            delegate: SliverChildBuilderDelegate(
-              (context, index) {
-                final artist = artists[index];
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 40, 8),
+            sliver: SliverGrid(
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: crossAxisCount,
+                childAspectRatio: 0.72,
+                crossAxisSpacing: 4,
+                mainAxisSpacing: 4,
+              ),
+              delegate: SliverChildBuilderDelegate((context, index) {
+                final byLetter = grouped[letter] ?? const <ArtistsTableData>[];
+                final artist = byLetter[index];
                 return RepaintBoundary(
                   child: ArtistGridCard(
                     key: ValueKey(artist.id),
@@ -1307,13 +1365,45 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                     onLongPress: () => _showArtistMenu(context, artist),
                   ),
                 );
-              },
-              childCount: artists.length,
+              }, childCount: grouped[letter]?.length ?? 0),
             ),
           ),
-        ),
+        ],
+        const SliverToBoxAdapter(child: SizedBox(height: 72)),
       ],
     );
+  }
+
+  void _onArtistsGridScrolled() {
+    if (!_artistsGridScrollController.hasClients || _isArtistRailScrubbing) {
+      return;
+    }
+    final entries = _artistGridSectionKeys.entries.toList(growable: false)
+      ..sort((a, b) => a.key.compareTo(b.key));
+    if (entries.isEmpty) {
+      return;
+    }
+
+    String? nextActive;
+    for (final entry in entries) {
+      final context = entry.value.currentContext;
+      if (context == null) {
+        continue;
+      }
+      final box = context.findRenderObject() as RenderBox?;
+      if (box == null || !box.attached) {
+        continue;
+      }
+      final dy = box.localToGlobal(Offset.zero).dy;
+      if (dy <= 140) {
+        nextActive = entry.key;
+      }
+    }
+    nextActive ??= entries.first.key;
+
+    if (nextActive != _activeArtistLetter && mounted) {
+      setState(() => _activeArtistLetter = nextActive);
+    }
   }
 
   void _ensureArtistListCache(List<ArtistsTableData> artists) {
@@ -1468,6 +1558,25 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     if (mounted) {
       setState(() => _activeArtistLetter = letter);
     }
+    final isGridMode = ref.read(artistViewModeProvider) == 'grid';
+    if (isGridMode) {
+      final targetContext = _artistGridSectionKeys[letter]?.currentContext;
+      if (targetContext == null) {
+        return;
+      }
+      unawaited(
+        Scrollable.ensureVisible(
+          targetContext,
+          duration: animate
+              ? const Duration(milliseconds: 180)
+              : Duration.zero,
+          curve: Curves.easeOut,
+          alignment: 0,
+        ),
+      );
+      return;
+    }
+
     final sectionIndex = _artistLetterStartIndex[letter];
     if (sectionIndex == null || !_artistsItemScrollController.isAttached) {
       return;

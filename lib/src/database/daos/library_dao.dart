@@ -1,7 +1,9 @@
 import 'package:drift/drift.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/database/tables/album_info_cache_table.dart';
 import 'package:navis/src/database/tables/albums_table.dart';
 import 'package:navis/src/database/tables/artists_table.dart';
+import 'package:navis/src/database/tables/external_lyrics_cache_table.dart';
 import 'package:navis/src/database/tables/genres_table.dart';
 import 'package:navis/src/database/tables/songs_table.dart';
 
@@ -11,7 +13,16 @@ enum AlbumSortOrder { recentlyAdded, newest, name, artist }
 
 enum SongSortOrder { newest, oldest, name }
 
-@DriftAccessor(tables: [ArtistsTable, AlbumsTable, SongsTable, GenresTable])
+@DriftAccessor(
+  tables: [
+    ArtistsTable,
+    AlbumsTable,
+    SongsTable,
+    GenresTable,
+    AlbumInfoCacheTable,
+    ExternalLyricsCacheTable,
+  ],
+)
 class LibraryDao extends DatabaseAccessor<NavisDatabase>
     with _$LibraryDaoMixin {
   LibraryDao(super.db);
@@ -418,6 +429,125 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   Future<void> updateSongStarred(String songId, DateTime? starred) {
     return (update(songsTable)..where((t) => t.id.equals(songId))).write(
       SongsTableCompanion(starred: Value(starred)),
+    );
+  }
+
+  Future<void> updateSongRating(String songId, int? rating) {
+    return (update(songsTable)..where((t) => t.id.equals(songId))).write(
+      SongsTableCompanion(userRating: Value(rating)),
+    );
+  }
+
+  Future<void> updateAlbumRating(String albumId, int? rating) {
+    return (update(albumsTable)..where((t) => t.id.equals(albumId))).write(
+      AlbumsTableCompanion(userRating: Value(rating)),
+    );
+  }
+
+  Future<int?> getSongRating(String songId) async {
+    final row = await (select(
+      songsTable,
+    )..where((t) => t.id.equals(songId))).getSingleOrNull();
+    return row?.userRating;
+  }
+
+  Future<int?> getAlbumRating(String albumId) async {
+    final row = await (select(
+      albumsTable,
+    )..where((t) => t.id.equals(albumId))).getSingleOrNull();
+    return row?.userRating;
+  }
+
+  Stream<int?> watchSongRating(String songId) {
+    final query = select(songsTable)..where((t) => t.id.equals(songId));
+    return query.watchSingleOrNull().map((row) => row?.userRating);
+  }
+
+  Stream<int?> watchAlbumRating(String albumId) {
+    final query = select(albumsTable)..where((t) => t.id.equals(albumId));
+    return query.watchSingleOrNull().map((row) => row?.userRating);
+  }
+
+  Future<void> upsertAlbumInfoCache({
+    required String albumId,
+    String? notes,
+    String? musicBrainzId,
+    String? lastFmUrl,
+    String? smallImageUrl,
+    String? mediumImageUrl,
+    String? largeImageUrl,
+    DateTime? fetchedAt,
+  }) {
+    return into(albumInfoCacheTable).insertOnConflictUpdate(
+      AlbumInfoCacheTableCompanion.insert(
+        albumId: albumId,
+        notes: Value(notes),
+        musicBrainzId: Value(musicBrainzId),
+        lastFmUrl: Value(lastFmUrl),
+        smallImageUrl: Value(smallImageUrl),
+        mediumImageUrl: Value(mediumImageUrl),
+        largeImageUrl: Value(largeImageUrl),
+        fetchedAt: fetchedAt ?? DateTime.now(),
+      ),
+    );
+  }
+
+  Future<AlbumInfoCacheTableData?> getAlbumInfoCache(String albumId) {
+    return (select(
+      albumInfoCacheTable,
+    )..where((t) => t.albumId.equals(albumId))).getSingleOrNull();
+  }
+
+  Stream<AlbumInfoCacheTableData?> watchAlbumInfoCache(String albumId) {
+    final query = select(
+      albumInfoCacheTable,
+    )..where((t) => t.albumId.equals(albumId));
+    return query.watchSingleOrNull();
+  }
+
+  Future<ExternalLyricsCacheTableData?> getExternalLyricsCache(String songId) {
+    return (select(
+      externalLyricsCacheTable,
+    )..where((t) => t.songId.equals(songId))).getSingleOrNull();
+  }
+
+  Future<void> upsertExternalLyricsCache({
+    required String songId,
+    required String source,
+    String? syncedLyrics,
+    String? plainLyrics,
+    int ttlSeconds = 86400,
+    int failureCount = 0,
+    DateTime? lastFailedAt,
+  }) {
+    return into(externalLyricsCacheTable).insertOnConflictUpdate(
+      ExternalLyricsCacheTableCompanion.insert(
+        songId: songId,
+        source: source,
+        syncedLyrics: Value(syncedLyrics),
+        plainLyrics: Value(plainLyrics),
+        fetchedAt: DateTime.now(),
+        ttlSeconds: Value(ttlSeconds),
+        failureCount: Value(failureCount),
+        lastFailedAt: Value(lastFailedAt),
+      ),
+    );
+  }
+
+  Future<void> recordExternalLyricsFailure(String songId) async {
+    final existing = await getExternalLyricsCache(songId);
+    final nextFailures = (existing?.failureCount ?? 0) + 1;
+    await into(externalLyricsCacheTable).insertOnConflictUpdate(
+      ExternalLyricsCacheTableCompanion.insert(
+        songId: songId,
+        source: existing?.source ?? 'none',
+        syncedLyrics: Value(existing?.syncedLyrics),
+        plainLyrics: Value(existing?.plainLyrics),
+        fetchedAt: DateTime.now(),
+        ttlSeconds: Value(existing?.ttlSeconds ?? 86400),
+        failureCount: Value(nextFailures),
+        lastFailedAt: Value(DateTime.now()),
+      ),
     );
   }
 

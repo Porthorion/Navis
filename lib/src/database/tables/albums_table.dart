@@ -32,6 +32,8 @@ class AlbumsTable extends Table {
 
   DateTimeColumn get starred => dateTime().nullable()();
 
+  IntColumn get userRating => integer().nullable()();
+
   IntColumn get playCount => integer().nullable()();
 
   /// When this album was first persisted to the local database (synced from

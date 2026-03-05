@@ -12,12 +12,16 @@ class LyricsDisplayWidget extends StatefulWidget {
     required this.lyrics,
     required this.currentPosition,
     this.onSeek,
+    this.sourceLabel,
+    this.attribution,
     super.key,
   });
 
   final LyricsList lyrics;
   final Duration currentPosition;
   final void Function(Duration position)? onSeek;
+  final String? sourceLabel;
+  final String? attribution;
 
   @override
   State<LyricsDisplayWidget> createState() => _LyricsDisplayWidgetState();
@@ -152,6 +156,7 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
   Widget _buildSyncedLyrics(BuildContext context) {
     final structuredLyrics = widget.lyrics.structuredLyrics.first;
     final lines = structuredLyrics.line;
+    final hasFooter = _hasFooter;
 
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) {
@@ -174,8 +179,11 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
             itemScrollController: _itemScrollController,
             itemPositionsListener: _itemPositionsListener,
             padding: const EdgeInsets.symmetric(vertical: 100),
-            itemCount: lines.length,
+            itemCount: lines.length + (hasFooter ? 1 : 0),
             itemBuilder: (context, index) {
+              if (hasFooter && index == lines.length) {
+                return _buildFooter(context);
+              }
               final line = lines[index];
               final isActive = index == _currentLineIndex;
 
@@ -229,13 +237,61 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
 
   Widget _buildUnsyncedLyrics(BuildContext context) {
     final unsyncedLyrics = widget.lyrics.value ?? '';
+    final hasFooter = _hasFooter;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
-      child: Text(
-        unsyncedLyrics,
-        textAlign: TextAlign.center,
-        style: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.8),
+      child: Column(
+        children: <Widget>[
+          Text(
+            unsyncedLyrics,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.8),
+          ),
+          if (hasFooter) ...<Widget>[
+            const SizedBox(height: 20),
+            _buildFooter(context),
+          ],
+        ],
+      ),
+    );
+  }
+
+  bool get _hasFooter {
+    final source = widget.sourceLabel;
+    final attribution = widget.attribution;
+    return (source != null && source.trim().isNotEmpty) ||
+        (attribution != null && attribution.trim().isNotEmpty);
+  }
+
+  Widget _buildFooter(BuildContext context) {
+    final source = widget.sourceLabel;
+    final attribution = widget.attribution;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+      child: Column(
+        children: <Widget>[
+          if (source != null && source.trim().isNotEmpty)
+            Text(
+              source,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurfaceVariant.withValues(alpha: 0.85),
+              ),
+              textAlign: TextAlign.center,
+            ),
+          if (attribution != null && attribution.trim().isNotEmpty)
+            Text(
+              attribution,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurfaceVariant.withValues(alpha: 0.75),
+              ),
+              textAlign: TextAlign.center,
+            ),
+        ],
       ),
     );
   }

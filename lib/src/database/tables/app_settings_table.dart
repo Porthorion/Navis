@@ -114,6 +114,9 @@ class AppSettingsTable extends Table {
   IntColumn get syncIntervalMinutes =>
       integer().withDefault(const Constant(60))();
 
+    /// Whether LRCLIB fallback is used when server lyrics are unavailable.
+    BoolColumn get useLrclib => boolean().withDefault(const Constant(true))();
+
   /// ReplayGain mode: 'off', 'track', or 'album'. Default 'off'.
   TextColumn get replayGainMode => text().withDefault(const Constant('off'))();
 

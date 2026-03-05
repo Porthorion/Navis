@@ -17,6 +17,7 @@ abstract class Album with _$Album {
     String? genre,
     String? coverArt,
     DateTime? starred,
+    int? userRating,
     int? playCount,
 
     /// When the album was added to the Subsonic server library.
