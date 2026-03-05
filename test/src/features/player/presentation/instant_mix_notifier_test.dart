@@ -48,9 +48,10 @@ void main() {
   }
 
   test('deactivates when queue is cleared', () async {
-    final snapshotState = NotifierProvider<_SnapshotController, PlaybackSnapshot>(
-      _SnapshotController.new,
-    );
+    final snapshotState =
+        NotifierProvider<_SnapshotController, PlaybackSnapshot>(
+          _SnapshotController.new,
+        );
 
     final container = ProviderContainer(
       overrides: [
@@ -66,18 +67,22 @@ void main() {
     addTearDown(container.dispose);
 
     final notifier = container.read(instantMixProvider.notifier);
-    container.read(snapshotState.notifier).setSnapshot(
-      snapshot(
-        queueSongIds: const <String>['a', 'b', 'c', 'd'],
-        currentSongId: 'a',
-        currentIndex: 0,
-      ),
-    );
+    container
+        .read(snapshotState.notifier)
+        .setSnapshot(
+          snapshot(
+            queueSongIds: const <String>['a', 'b', 'c', 'd'],
+            currentSongId: 'a',
+            currentIndex: 0,
+          ),
+        );
     await notifier.activate('a');
 
-    container.read(snapshotState.notifier).setSnapshot(
-      const PlaybackSnapshot.idle(),
-    );
+    container
+        .read(snapshotState.notifier)
+        .setSnapshot(
+          const PlaybackSnapshot.idle(),
+        );
     await Future<void>.delayed(Duration.zero);
 
     final state = container.read(instantMixProvider);
@@ -86,9 +91,10 @@ void main() {
   });
 
   test('auto-refill path updates seed when remaining tracks <= 3', () async {
-    final snapshotState = NotifierProvider<_SnapshotController, PlaybackSnapshot>(
-      _SnapshotController.new,
-    );
+    final snapshotState =
+        NotifierProvider<_SnapshotController, PlaybackSnapshot>(
+          _SnapshotController.new,
+        );
 
     final container = ProviderContainer(
       overrides: [
@@ -104,22 +110,26 @@ void main() {
     addTearDown(container.dispose);
 
     final notifier = container.read(instantMixProvider.notifier);
-    container.read(snapshotState.notifier).setSnapshot(
-      snapshot(
-        queueSongIds: const <String>['seed-a', 'b', 'c', 'd', 'e'],
-        currentSongId: 'seed-a',
-        currentIndex: 0,
-      ),
-    );
+    container
+        .read(snapshotState.notifier)
+        .setSnapshot(
+          snapshot(
+            queueSongIds: const <String>['seed-a', 'b', 'c', 'd', 'e'],
+            currentSongId: 'seed-a',
+            currentIndex: 0,
+          ),
+        );
     await notifier.activate('seed-a');
 
-    container.read(snapshotState.notifier).setSnapshot(
-      snapshot(
-        queueSongIds: const <String>['seed-a', 'b', 'c', 'd'],
-        currentSongId: 'seed-b',
-        currentIndex: 0,
-      ),
-    );
+    container
+        .read(snapshotState.notifier)
+        .setSnapshot(
+          snapshot(
+            queueSongIds: const <String>['seed-a', 'b', 'c', 'd'],
+            currentSongId: 'seed-b',
+            currentIndex: 0,
+          ),
+        );
     await Future<void>.delayed(const Duration(milliseconds: 10));
 
     final state = container.read(instantMixProvider);
@@ -128,9 +138,10 @@ void main() {
   });
 
   test('does not auto-refill while radio mode is active', () async {
-    final snapshotState = NotifierProvider<_SnapshotController, PlaybackSnapshot>(
-      _SnapshotController.new,
-    );
+    final snapshotState =
+        NotifierProvider<_SnapshotController, PlaybackSnapshot>(
+          _SnapshotController.new,
+        );
 
     final container = ProviderContainer(
       overrides: [
@@ -146,23 +157,27 @@ void main() {
     addTearDown(container.dispose);
 
     final notifier = container.read(instantMixProvider.notifier);
-    container.read(snapshotState.notifier).setSnapshot(
-      snapshot(
-        queueSongIds: const <String>['seed-a', 'b', 'c', 'd'],
-        currentSongId: 'seed-a',
-        currentIndex: 0,
-      ),
-    );
+    container
+        .read(snapshotState.notifier)
+        .setSnapshot(
+          snapshot(
+            queueSongIds: const <String>['seed-a', 'b', 'c', 'd'],
+            currentSongId: 'seed-a',
+            currentIndex: 0,
+          ),
+        );
     await notifier.activate('seed-a');
 
-    container.read(snapshotState.notifier).setSnapshot(
-      snapshot(
-        queueSongIds: const <String>['seed-a', 'b', 'c', 'd'],
-        currentSongId: 'seed-radio',
-        currentIndex: 0,
-        radioMode: true,
-      ),
-    );
+    container
+        .read(snapshotState.notifier)
+        .setSnapshot(
+          snapshot(
+            queueSongIds: const <String>['seed-a', 'b', 'c', 'd'],
+            currentSongId: 'seed-radio',
+            currentIndex: 0,
+            radioMode: true,
+          ),
+        );
     await Future<void>.delayed(const Duration(milliseconds: 10));
 
     final state = container.read(instantMixProvider);

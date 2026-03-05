@@ -682,16 +682,15 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                   SliverPadding(
                     padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                     sliver: SliverGrid(
-                      gridDelegate:
-                          SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: computeGridCrossAxisCount(
-                              ref.watch(albumGridDensityProvider),
-                              MediaQuery.sizeOf(context).width - 24,
-                            ),
-                            childAspectRatio: 1,
-                            crossAxisSpacing: 8,
-                            mainAxisSpacing: 8,
-                          ),
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: computeGridCrossAxisCount(
+                          ref.watch(albumGridDensityProvider),
+                          MediaQuery.sizeOf(context).width - 24,
+                        ),
+                        childAspectRatio: 1,
+                        crossAxisSpacing: 8,
+                        mainAxisSpacing: 8,
+                      ),
                       delegate: SliverChildBuilderDelegate((context, index) {
                         final album = filteredItems[index];
                         return RepaintBoundary(
@@ -1304,8 +1303,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                   child: ArtistGridCard(
                     key: ValueKey(artist.id),
                     artist: artist,
-                    onTap: () =>
-                        context.go('/library/artists/${artist.id}'),
+                    onTap: () => context.go('/library/artists/${artist.id}'),
                     onLongPress: () => _showArtistMenu(context, artist),
                   ),
                 );
@@ -2486,16 +2484,15 @@ class LikedAlbumsAllScreen extends ConsumerWidget {
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
                   sliver: SliverGrid(
-                    gridDelegate:
-                        SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: computeGridCrossAxisCount(
-                            ref.watch(albumGridDensityProvider),
-                            MediaQuery.sizeOf(context).width - 24,
-                          ),
-                          childAspectRatio: 1,
-                          crossAxisSpacing: 8,
-                          mainAxisSpacing: 8,
-                        ),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: computeGridCrossAxisCount(
+                        ref.watch(albumGridDensityProvider),
+                        MediaQuery.sizeOf(context).width - 24,
+                      ),
+                      childAspectRatio: 1,
+                      crossAxisSpacing: 8,
+                      mainAxisSpacing: 8,
+                    ),
                     delegate: SliverChildBuilderDelegate((context, index) {
                       final album = filteredAlbums[index];
                       return RepaintBoundary(

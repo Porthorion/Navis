@@ -889,10 +889,14 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
             : 0.0);
     final sliderMax = durationMs > 0 ? durationMs.toDouble() : 1.0;
     final sliderCurrentMs = sliderValue.round();
-    final increasedMs =
-      (sliderCurrentMs + _kSeekSemanticsStepMs).clamp(0, durationMs);
-    final decreasedMs =
-      (sliderCurrentMs - _kSeekSemanticsStepMs).clamp(0, durationMs);
+    final increasedMs = (sliderCurrentMs + _kSeekSemanticsStepMs).clamp(
+      0,
+      durationMs,
+    );
+    final decreasedMs = (sliderCurrentMs - _kSeekSemanticsStepMs).clamp(
+      0,
+      durationMs,
+    );
 
     return Column(
       children: <Widget>[
@@ -908,17 +912,19 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
             value:
                 '${_formatDuration(Duration(milliseconds: sliderValue.round()))} of ${_formatDuration(duration)}',
             increasedValue:
-              '${_formatDuration(Duration(milliseconds: increasedMs))} of ${_formatDuration(duration)}',
+                '${_formatDuration(Duration(milliseconds: increasedMs))} of ${_formatDuration(duration)}',
             decreasedValue:
-              '${_formatDuration(Duration(milliseconds: decreasedMs))} of ${_formatDuration(duration)}',
+                '${_formatDuration(Duration(milliseconds: decreasedMs))} of ${_formatDuration(duration)}',
             onIncrease: () {
               final handler = ref.read(audioHandlerProvider);
               if (handler == null) {
                 return;
               }
               final currentMs = (_draggingValue ?? sliderValue).round();
-              final targetMs =
-                  (currentMs + _kSeekSemanticsStepMs).clamp(0, durationMs);
+              final targetMs = (currentMs + _kSeekSemanticsStepMs).clamp(
+                0,
+                durationMs,
+              );
               setState(() => _draggingValue = null);
               unawaited(handler.seek(Duration(milliseconds: targetMs)));
             },
@@ -928,8 +934,10 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
                 return;
               }
               final currentMs = (_draggingValue ?? sliderValue).round();
-              final targetMs =
-                  (currentMs - _kSeekSemanticsStepMs).clamp(0, durationMs);
+              final targetMs = (currentMs - _kSeekSemanticsStepMs).clamp(
+                0,
+                durationMs,
+              );
               setState(() => _draggingValue = null);
               unawaited(handler.seek(Duration(milliseconds: targetMs)));
             },

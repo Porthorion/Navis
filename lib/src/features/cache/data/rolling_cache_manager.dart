@@ -159,7 +159,8 @@ class DriftRollingCacheManager implements RollingCacheManager {
         return;
       }
 
-      final knownEntries = await _cacheDao.getRollingEntriesOrderedByLastAccessed();
+      final knownEntries = await _cacheDao
+          .getRollingEntriesOrderedByLastAccessed();
       final knownPaths = knownEntries.map((entry) => entry.filePath).toSet();
       var removed = 0;
 

@@ -19,12 +19,12 @@ class AppearanceSettingsScreen extends ConsumerWidget {
     final customPresetsAsync = ref.watch(customColorPresetsProvider);
     final customPresets = customPresetsAsync.asData?.value ?? <int>[];
     final appLocale = ref.watch(appLocaleProvider);
-    final languageSelectionEnabled = AppLocalizations.supportedLocales.length > 1;
+    final languageSelectionEnabled =
+        AppLocalizations.supportedLocales.length > 1;
     final theme = Theme.of(context);
     final allowedHomeSectionIds = HomeSectionIds.defaultOrder.toSet();
     final persistedOrder = ref.watch(homeSectionOrderProvider);
-    final persistedHidden = ref.watch(homeSectionsHiddenProvider) ??
-        <String>[];
+    final persistedHidden = ref.watch(homeSectionsHiddenProvider) ?? <String>[];
     final sanitizedOrder = <String>[
       ...?persistedOrder?.where(allowedHomeSectionIds.contains),
       ...HomeSectionIds.defaultOrder.where(
@@ -829,8 +829,7 @@ class _GridDensitySelector extends StatelessWidget {
       child: SegmentedButton<int?>(
         segments: presets
             .map(
-              (e) =>
-                  ButtonSegment<int?>(value: e.$1, label: Text(e.$2)),
+              (e) => ButtonSegment<int?>(value: e.$1, label: Text(e.$2)),
             )
             .toList(),
         selected: {current},
@@ -999,8 +998,7 @@ class _HomeSectionReorderState extends State<_HomeSectionReorder> {
             ),
             trailing: Switch(
               value: !isHidden,
-              onChanged: (visible) =>
-                  widget.onToggleVisibility(id, visible),
+              onChanged: (visible) => widget.onToggleVisibility(id, visible),
             ),
           ),
         );

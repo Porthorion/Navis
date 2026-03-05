@@ -72,8 +72,8 @@ class _NavisAppState extends ConsumerState<NavisApp> {
     final resolvedThemeMode = resolveThemeMode(themeModeName);
     final isOled = themeModeName == 'oled';
     final appLocale = localeCode == null || localeCode.trim().isEmpty
-      ? null
-      : Locale(localeCode);
+        ? null
+        : Locale(localeCode);
 
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,

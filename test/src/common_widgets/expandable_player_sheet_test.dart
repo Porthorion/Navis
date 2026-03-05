@@ -114,12 +114,20 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.fling(find.byKey(const Key('mini-player')), const Offset(0, -600), 1200);
+    await tester.fling(
+      find.byKey(const Key('mini-player')),
+      const Offset(0, -600),
+      1200,
+    );
     await tester.pumpAndSettle();
 
     expect(progress.value, closeTo(1, 0.01));
 
-    await tester.fling(find.byKey(const Key('full-player')), const Offset(0, 600), 1200);
+    await tester.fling(
+      find.byKey(const Key('full-player')),
+      const Offset(0, 600),
+      1200,
+    );
     await tester.pumpAndSettle();
 
     expect(progress.value, closeTo(0, 0.01));

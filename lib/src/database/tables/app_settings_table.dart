@@ -64,8 +64,8 @@ class AppSettingsTable extends Table {
   /// JSON-encoded list of custom color presets (ARGB32 ints).
   TextColumn get customColorPresets => text().nullable()();
 
-    /// Locale override code (e.g. 'en'). Null means follow system locale.
-    TextColumn get appLocale => text().nullable()();
+  /// Locale override code (e.g. 'en'). Null means follow system locale.
+  TextColumn get appLocale => text().nullable()();
 
   /// Cross-fade between tracks in the queue.
   BoolColumn get crossfadeEnabled =>
@@ -149,8 +149,7 @@ class AppSettingsTable extends Table {
       text().withDefault(const Constant('circle'))();
 
   /// Artist view layout: 'list' or 'grid'. Default 'grid'.
-  TextColumn get artistViewMode =>
-      text().withDefault(const Constant('grid'))();
+  TextColumn get artistViewMode => text().withDefault(const Constant('grid'))();
 
   /// JSON-encoded ordered list of home section IDs (e.g. ["recently_added",…]).
   /// Null = default order.

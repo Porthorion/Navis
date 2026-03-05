@@ -125,14 +125,17 @@ void main() {
 
   group('HomeSectionIds', () {
     test('defaultOrder contains all section IDs', () {
-      expect(HomeSectionIds.defaultOrder, containsAll(<String>[
-        HomeSectionIds.likedTracks,
-        HomeSectionIds.recentlyAdded,
-        HomeSectionIds.recentlyPlayed,
-        HomeSectionIds.randomAlbums,
-        HomeSectionIds.mostPlayed,
-        HomeSectionIds.audiomuseRecs,
-      ]));
+      expect(
+        HomeSectionIds.defaultOrder,
+        containsAll(<String>[
+          HomeSectionIds.likedTracks,
+          HomeSectionIds.recentlyAdded,
+          HomeSectionIds.recentlyPlayed,
+          HomeSectionIds.randomAlbums,
+          HomeSectionIds.mostPlayed,
+          HomeSectionIds.audiomuseRecs,
+        ]),
+      );
     });
 
     test('defaultOrder has no duplicates', () {

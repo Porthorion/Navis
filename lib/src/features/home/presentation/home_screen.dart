@@ -159,8 +159,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               isEmpty: (items) => items.isEmpty,
               builder: (context, albums) => _LocalAlbumCarousel(
                 albums: albums,
-                onTap: (album) =>
-                    context.push('/library/albums/${album.id}'),
+                onTap: (album) => context.push('/library/albums/${album.id}'),
               ),
               emptyTitle: l10n.libraryDownloadedOnlyEmpty,
               emptySubtitle: l10n.libraryDownloadedOnlyEmptySubtitle,
@@ -174,8 +173,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             isEmpty: (items) => items.isEmpty,
             builder: (context, albums) => _ServerAlbumCarousel(
               albums: albums,
-              onTap: (album) =>
-                  context.push('/library/albums/${album.id}'),
+              onTap: (album) => context.push('/library/albums/${album.id}'),
             ),
             emptyTitle: l10n.homeRecentlyAddedEmptyTitle,
             emptySubtitle: l10n.homeRecentlyAddedEmptySubtitle,
@@ -195,13 +193,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             isEmpty: (items) => items.isEmpty,
             builder: (context, albums) => _LocalAlbumCarousel(
               albums: albums,
-              onTap: (album) =>
-                  context.push('/library/albums/${album.id}'),
+              onTap: (album) => context.push('/library/albums/${album.id}'),
             ),
             emptyTitle: l10n.homeRecentlyPlayedAlbumsEmptyTitle,
             emptySubtitle: l10n.homeRecentlyPlayedAlbumsEmptySubtitle,
-            onRetry: () =>
-                ref.invalidate(homeRecentlyPlayedAlbumsProvider),
+            onRetry: () => ref.invalidate(homeRecentlyPlayedAlbumsProvider),
           ),
         ];
 
@@ -214,13 +210,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               isEmpty: (items) => items.isEmpty,
               builder: (context, albums) => _LocalAlbumCarousel(
                 albums: albums,
-                onTap: (album) =>
-                    context.push('/library/albums/${album.id}'),
+                onTap: (album) => context.push('/library/albums/${album.id}'),
               ),
               emptyTitle: l10n.libraryDownloadedOnlyEmpty,
               emptySubtitle: l10n.libraryDownloadedOnlyEmptySubtitle,
-              onRetry: () =>
-                  ref.invalidate(homeDownloadedRandomAlbumsProvider),
+              onRetry: () => ref.invalidate(homeDownloadedRandomAlbumsProvider),
             ),
           ];
         }
@@ -231,8 +225,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             isEmpty: (items) => items.isEmpty,
             builder: (context, albums) => _ServerAlbumCarousel(
               albums: albums,
-              onTap: (album) =>
-                  context.push('/library/albums/${album.id}'),
+              onTap: (album) => context.push('/library/albums/${album.id}'),
             ),
             emptyTitle: l10n.homeRandomEmptyTitle,
             emptySubtitle: l10n.homeRandomEmptySubtitle,
@@ -273,12 +266,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             title: l10n.audioMuseHomeRecommendations,
             data: ref.watch(audioMuseHomeRecommendationsProvider),
             isEmpty: (items) => items.isEmpty,
-            builder: (context, recs) =>
-                _AudioMuseRecsSection(recs: recs),
+            builder: (context, recs) => _AudioMuseRecsSection(recs: recs),
             emptyTitle: l10n.audioMuseHomeRecommendations,
             emptySubtitle: l10n.audioMuseNotConfigured,
-            onRetry: () =>
-                ref.invalidate(audioMuseHomeRecommendationsProvider),
+            onRetry: () => ref.invalidate(audioMuseHomeRecommendationsProvider),
           ),
         ];
 

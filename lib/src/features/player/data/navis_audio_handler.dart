@@ -1566,8 +1566,9 @@ class NavisAudioHandler extends BaseAudioHandler
         return;
       }
 
-      final adjustedIndex =
-          oldIndex < newIndex ? newIndex - 1 : newIndex.clamp(0, _queueItems.length - 1);
+      final adjustedIndex = oldIndex < newIndex
+          ? newIndex - 1
+          : newIndex.clamp(0, _queueItems.length - 1);
       if (oldIndex == adjustedIndex) {
         return;
       }

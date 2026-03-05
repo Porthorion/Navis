@@ -126,60 +126,63 @@ class _RecordingPlaybackHandler implements NavisPlaybackHandler {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('authenticated context can persist remote song fixture and trigger playback queue', () async {
-    final db = createTestDatabase();
-    addTearDown(db.close);
+  test(
+    'authenticated context can persist remote song fixture and trigger playback queue',
+    () async {
+      final db = createTestDatabase();
+      addTearDown(db.close);
 
-    final handler = _RecordingPlaybackHandler();
-    final container = ProviderContainer(
-      overrides: [
-        ...withTestDatabase(db),
-        networkTypeProvider.overrideWith((_) => NetworkType.wifi),
-        audioHandlerProvider.overrideWithValue(handler),
-        serverConfigStateProvider.overrideWithValue(
-          const AsyncData(
-            ServerConfigModel(
-              url: 'https://example.com',
-              username: 'alice',
-              password: 'secret',
-              apiVersion: '1.16.1',
+      final handler = _RecordingPlaybackHandler();
+      final container = ProviderContainer(
+        overrides: [
+          ...withTestDatabase(db),
+          networkTypeProvider.overrideWith((_) => NetworkType.wifi),
+          audioHandlerProvider.overrideWithValue(handler),
+          serverConfigStateProvider.overrideWithValue(
+            const AsyncData(
+              ServerConfigModel(
+                url: 'https://example.com',
+                username: 'alice',
+                password: 'secret',
+                apiVersion: '1.16.1',
+              ),
             ),
           ),
-        ),
-      ],
-    );
-    addTearDown(container.dispose);
+        ],
+      );
+      addTearDown(container.dispose);
 
-    final api = container.read(subsonicApiProvider);
-    expect(api, isNotNull);
+      final api = container.read(subsonicApiProvider);
+      expect(api, isNotNull);
 
-    final fixtureSong = Song(
-      id: 'remote-song-1',
-      title: 'Fixture Song',
-      album: 'Fixture Album',
-      albumId: 'fixture-album-1',
-      artist: 'Fixture Artist',
-      artistId: 'fixture-artist-1',
-      track: 1,
-      duration: 180,
-      coverArt: 'cover-1',
-      bitRate: 320,
-      suffix: 'mp3',
-      contentType: 'audio/mpeg',
-      size: 1,
-    );
+      final fixtureSong = Song(
+        id: 'remote-song-1',
+        title: 'Fixture Song',
+        album: 'Fixture Album',
+        albumId: 'fixture-album-1',
+        artist: 'Fixture Artist',
+        artistId: 'fixture-artist-1',
+        track: 1,
+        duration: 180,
+        coverArt: 'cover-1',
+        bitRate: 320,
+        suffix: 'mp3',
+        contentType: 'audio/mpeg',
+        size: 1,
+      );
 
-    final queue = container.read(queueProvider.notifier);
-    await queue.replaceWithSongs(<Song>[fixtureSong]);
+      final queue = container.read(queueProvider.notifier);
+      await queue.replaceWithSongs(<Song>[fixtureSong]);
 
-    expect(handler.replaceQueueCalls, 1);
-    expect(handler.playCalls, 1);
-    expect(handler.lastQueue, <String>['remote-song-1']);
+      expect(handler.replaceQueueCalls, 1);
+      expect(handler.playCalls, 1);
+      expect(handler.lastQueue, <String>['remote-song-1']);
 
-    final persisted = await db.libraryDao.getSongsByIds(
-      const <String>['remote-song-1'],
-    );
-    expect(persisted, isNotEmpty);
-    expect(persisted.first.title, 'Fixture Song');
-  });
+      final persisted = await db.libraryDao.getSongsByIds(
+        const <String>['remote-song-1'],
+      );
+      expect(persisted, isNotEmpty);
+      expect(persisted.first.title, 'Fixture Song');
+    },
+  );
 }

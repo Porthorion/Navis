@@ -238,7 +238,7 @@ class AppSettingsModel {
       colorSchemeSeed: clearColorSchemeSeed
           ? null
           : colorSchemeSeed ?? this.colorSchemeSeed,
-        appLocale: clearAppLocale ? null : appLocale ?? this.appLocale,
+      appLocale: clearAppLocale ? null : appLocale ?? this.appLocale,
       crossfadeEnabled: crossfadeEnabled ?? this.crossfadeEnabled,
       crossfadeDurationSeconds:
           crossfadeDurationSeconds ?? this.crossfadeDurationSeconds,

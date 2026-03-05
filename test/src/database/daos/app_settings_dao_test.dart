@@ -163,10 +163,10 @@ void main() {
         replayGainMode: 'off',
         replayGainPreamp: 0,
         playbackSpeed: 1,
-coverArtShape: 'rounded',
-          nowPlayingArtShape: 'rounded',
-          artistCardShape: 'circle',
-          artistViewMode: 'grid',
+        coverArtShape: 'rounded',
+        nowPlayingArtShape: 'rounded',
+        artistCardShape: 'circle',
+        artistViewMode: 'grid',
       );
 
       await database.appSettingsDao.resetDefaults();
