@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 /// Manages download-progress and completion notifications on the
@@ -48,6 +49,8 @@ class DownloadNotifier {
       'downloads',
       'Downloads',
       channelDescription: 'Download queue and progress updates',
+      icon: '@drawable/ic_stat_navis_light',
+      color: const Color(0xFFFFFFFF),
       importance: Importance.low,
       priority: Priority.low,
       onlyAlertOnce: true,
@@ -80,6 +83,8 @@ class DownloadNotifier {
       'downloads',
       'Downloads',
       channelDescription: 'Download queue and progress updates',
+      icon: '@drawable/ic_stat_navis_light',
+      color: const Color(0xFFFFFFFF),
       importance: Importance.defaultImportance,
       priority: Priority.defaultPriority,
     );
@@ -99,6 +104,8 @@ class DownloadNotifier {
       'downloads',
       'Downloads',
       channelDescription: 'Download queue and progress updates',
+      icon: '@drawable/ic_stat_navis_light',
+      color: const Color(0xFFFFFFFF),
       importance: Importance.defaultImportance,
       priority: Priority.defaultPriority,
     );

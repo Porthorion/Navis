@@ -19,7 +19,7 @@ class NotificationBootstrap {
     }
 
     const androidInitSettings = AndroidInitializationSettings(
-      '@mipmap/ic_launcher',
+      '@drawable/ic_stat_navis_light',
     );
     const initSettings = InitializationSettings(android: androidInitSettings);
 

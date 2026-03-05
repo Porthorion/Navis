@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 
@@ -49,6 +50,8 @@ class SystemLibrarySyncNotifier implements LibrarySyncNotifier {
       'library_sync',
       'Library Scan',
       channelDescription: 'Library scan progress and completion updates',
+      icon: '@drawable/ic_stat_navis_light',
+      color: const Color(0xFFFFFFFF),
       importance: Importance.low,
       priority: Priority.low,
       onlyAlertOnce: true,
@@ -90,6 +93,8 @@ class SystemLibrarySyncNotifier implements LibrarySyncNotifier {
       'library_sync',
       'Library Scan',
       channelDescription: 'Library scan progress and completion updates',
+      icon: '@drawable/ic_stat_navis_light',
+      color: const Color(0xFFFFFFFF),
       importance: Importance.defaultImportance,
       priority: Priority.defaultPriority,
     );
@@ -111,6 +116,8 @@ class SystemLibrarySyncNotifier implements LibrarySyncNotifier {
       'library_sync',
       'Library Scan',
       channelDescription: 'Library scan progress and completion updates',
+      icon: '@drawable/ic_stat_navis_light',
+      color: const Color(0xFFFFFFFF),
       importance: Importance.defaultImportance,
       priority: Priority.defaultPriority,
     );

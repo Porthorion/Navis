@@ -327,6 +327,7 @@ Future<NavisAudioHandler> initNavisAudioHandler({
     config: AudioServiceConfig(
       androidNotificationChannelId: 'playback',
       androidNotificationChannelName: 'Playback',
+      androidNotificationIcon: 'drawable/ic_stat_navis_light',
       androidNotificationOngoing: false,
       androidStopForegroundOnPause: false,
     ),

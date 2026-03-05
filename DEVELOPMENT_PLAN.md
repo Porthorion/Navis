@@ -1809,6 +1809,7 @@ Implement a Live Activity via the ActivityKit framework using a Flutter platform
 **Status (2026-03-05)**: Backlog moved to **Phase 25** for priority-ordered execution. This section is retained for historical planning context.
 
 **Issue mapping**: Forgejo issue #16 (LRCLIB support)
+**Issue status note (2026-03-05)**: closed because it was migrated to documentation.
 
 **Development order note**: This phase is future work and should start only after Phase 18. It is independent from share-system work.
 
@@ -1870,6 +1871,7 @@ Add tests for:
 **Status (2026-03-05)**: Backlog moved to **Phase 24** for priority-ordered execution. This section is retained for historical planning context.
 
 **Issue mapping**: Forgejo issue #17 (appearance customization enhancements)
+**Issue status note (2026-03-05)**: closed because it was migrated to documentation.
 
 **Development order note**: This phase is future work and can proceed independently from share-system work.
 
@@ -1915,6 +1917,7 @@ Validate that all personalization controls remain accessible:
 **Status (2026-03-05)**: Backlog moved to **Phase 28** and remains explicitly deferred. This section is retained for historical planning context.
 
 **Issue mapping**: Forgejo issue #15 (Share System)
+**Issue status note (2026-03-05)**: closed because it was migrated to documentation.
 
 **Status**: Deferred future implementation by product decision. Keep planned, do not execute in current phase sequence.
 
@@ -1995,6 +1998,7 @@ Canonical execution phase for former Phase 17 work.
 **Priority**: P3
 
 Canonical execution phase for former Phase 20 work (Issue #17).
+Issue #17 status note: closed because it was migrated to documentation.
 
 **Scope**:
 - Configurable grid density with responsive guardrails.
@@ -2007,6 +2011,7 @@ Canonical execution phase for former Phase 20 work (Issue #17).
 **Priority**: P4
 
 Canonical execution phase for former Phase 19 work (Issue #16).
+Issue #16 status note: closed because it was migrated to documentation.
 
 **Scope**:
 - Deterministic lyrics source chain: server synced -> server plain -> LRCLIB synced -> LRCLIB plain.
@@ -2041,6 +2046,7 @@ Canonical execution phase for former Phase 18 work.
 **Priority**: P7 (deferred by product decision)
 
 Canonical execution phase for former Phase 21 work (Issue #15).
+Issue #15 status note: closed because it was migrated to documentation.
 
 **Scope**:
 - Versioned share payload contract and platform ingress paths.
