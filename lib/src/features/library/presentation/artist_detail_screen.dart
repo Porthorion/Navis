@@ -7,6 +7,7 @@ import 'package:navis/src/api/subsonic_error.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:navis/src/common_widgets/album_download_badge.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
+import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
@@ -146,7 +147,7 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                 ),
-                // ── Bio + similar artists ───────────────────────────────────
+                // ── Bio ─────────────────────────────────────────────────────
                 artistInfo.when(
                   data: (info) {
                     if (info == null) {
@@ -160,9 +161,6 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                   ),
                   error: (_, _) => const SizedBox.shrink(),
                 ),
-                // ── AI Similar Artists (AudioMuse) ──────────────────────────
-                if (ref.watch(audioMuseAvailableProvider))
-                  _AudioMuseSimilarArtists(artistId: widget.artistId),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                   child: Text(
@@ -203,7 +201,7 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                               size: AlbumCardSize.library,
                               badge: AlbumDownloadBadge(albumId: album.id),
                               onTap: () =>
-                                  context.go('/library/albums/${album.id}'),
+                                  context.push('/library/albums/${album.id}'),
                             ),
                           );
                         },
@@ -219,6 +217,32 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                         ref.invalidate(albumsByArtistProvider(widget.artistId)),
                   ),
                 ),
+                // ── Similar Artists (below albums for navigation continuity) ─
+                artistInfo.when(
+                  data: (info) {
+                    final similar = info?.similarArtists ?? const <Artist>[];
+                    if (similar.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
+                    return _SimilarArtistsSection(
+                      title: l10n.artistDetailSimilarSection,
+                      artists: similar
+                          .map(
+                            (artist) => _SimilarArtistEntry(
+                              id: artist.id,
+                              name: artist.name,
+                              coverArt: artist.coverArt,
+                            ),
+                          )
+                          .toList(growable: false),
+                    );
+                  },
+                  loading: () => const SizedBox.shrink(),
+                  error: (_, _) => const SizedBox.shrink(),
+                ),
+                if (ref.watch(audioMuseAvailableProvider))
+                  _AudioMuseSimilarArtists(artistId: widget.artistId),
+                const SizedBox(height: 12),
               ],
             ),
           );
@@ -282,8 +306,7 @@ class _ArtistInfoSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    if ((info.biography == null || info.biography!.trim().isEmpty) &&
-        info.similarArtists.isEmpty) {
+    if (info.biography == null || info.biography!.trim().isEmpty) {
       return const SizedBox.shrink();
     }
 
@@ -302,26 +325,131 @@ class _ArtistInfoSection extends StatelessWidget {
             Text(info.biography!),
             const SizedBox(height: 12),
           ],
-          if (info.similarArtists.isNotEmpty) ...<Widget>[
-            Text(
-              l10n.artistDetailSimilarSection,
+        ],
+      ),
+    );
+  }
+}
+
+class _SimilarArtistEntry {
+  const _SimilarArtistEntry({
+    required this.id,
+    required this.name,
+    this.coverArt,
+  });
+
+  final String id;
+  final String name;
+  final String? coverArt;
+}
+
+class _SimilarArtistsSection extends StatelessWidget {
+  const _SimilarArtistsSection({
+    required this.title,
+    required this.artists,
+  });
+
+  final String title;
+  final List<_SimilarArtistEntry> artists;
+
+  @override
+  Widget build(BuildContext context) {
+    if (artists.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              title,
               style: Theme.of(context).textTheme.titleMedium,
             ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              children: <Widget>[
-                for (final artist in info.similarArtists)
-                  ActionChip(
-                    label: Text(artist.name),
-                    onPressed: () =>
-                        context.go('/library/artists/${artist.id}'),
-                  ),
-              ],
+          ),
+          const SizedBox(height: 8),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final crossAxisCount = (constraints.maxWidth / 120).floor().clamp(
+                2,
+                3,
+              );
+              final maxVisible = crossAxisCount * 2;
+              final visibleArtists = artists.take(maxVisible).toList(
+                growable: false,
+              );
+
+              return GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: visibleArtists.length,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: crossAxisCount,
+                  childAspectRatio: 0.78,
+                  crossAxisSpacing: 6,
+                  mainAxisSpacing: 6,
+                ),
+                itemBuilder: (context, index) {
+                  final artist = visibleArtists[index];
+                  return _SimilarArtistCard(artist: artist);
+                },
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SimilarArtistCard extends StatelessWidget {
+  const _SimilarArtistCard({required this.artist});
+
+  final _SimilarArtistEntry artist;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () => context.push('/library/artists/${artist.id}'),
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: Column(
+          children: <Widget>[
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final side = constraints.maxWidth < constraints.maxHeight
+                      ? constraints.maxWidth
+                      : constraints.maxHeight;
+                  return SizedBox(
+                    width: side,
+                    height: side,
+                    child: CoverArtImage(
+                      coverArtId: artist.coverArt,
+                      size: 200,
+                      width: side,
+                      height: side,
+                      borderRadius: BorderRadius.circular(999),
+                      placeholderIcon: Icons.person_outline,
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              artist.name,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
-        ],
+        ),
       ),
     );
   }
@@ -342,36 +470,16 @@ class _AudioMuseSimilarArtists extends ConsumerWidget {
     return asyncRecs.when(
       data: (recs) {
         if (recs.isEmpty) return const SizedBox.shrink();
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Row(
-                children: <Widget>[
-                  const Icon(Icons.auto_awesome, size: 18),
-                  const SizedBox(width: 6),
-                  Text(
-                    l10n.audioMuseSimilarArtists,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 4,
-                children: <Widget>[
-                  for (final rec in recs)
-                    ActionChip(
-                      avatar: const Icon(Icons.auto_awesome, size: 16),
-                      label: Text(rec.title),
-                      onPressed: () => context.go('/library/artists/${rec.id}'),
-                    ),
-                ],
-              ),
-            ],
-          ),
+        return _SimilarArtistsSection(
+          title: l10n.audioMuseSimilarArtists,
+          artists: recs
+              .map(
+                (rec) => _SimilarArtistEntry(
+                  id: rec.id,
+                  name: rec.title,
+                ),
+              )
+              .toList(growable: false),
         );
       },
       loading: () => const Padding(
