@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-03-05
+Last updated: 2026-07-07
 
 ---
 
@@ -58,6 +58,7 @@ Last updated: 2026-03-05
 - [x] Post-Phase-15 UX polish increment 2 (3 fixes: (1) Cache→downloaded promotion — `CacheDao.upsertRollingCachedTrack` prevents rolling-cache writes from downgrading a permanent download entry; `DriftRollingCacheManager.registerTrack` uses the new method so playing an already-downloaded track just touches `lastAccessedAt` instead of overwriting `cacheType`; (2) By Year performance — replaced `GridView.builder(shrinkWrap:true)` per section (eager layout of all albums) with a flat `_YearListItem` list of header + album-pair rows mirroring the artist rail pattern; `_ensureYearListCache` builds the flat list with identity check; `ScrollablePositionedList` now virtualizes at the row level for smooth scrolling on large libraries; (3) Removed "Liked" FilterChip from Albums tab — dedicated Liked page renders this redundant; `_albumsLikedOnly` state removed, provider watchers simplified to always use `albumCountProvider`/`pagedAlbumsProvider`, EmptyState and nav paths cleaned up) — 2026-03-01 (evidence: `dart analyze lib/` — 0 issues, `flutter test` — 202/202 pass)
 - [x] Future planning pass for open issues #15/#16/#17 (share system, LRCLIB lyrics fallback, appearance customization) added to roadmap as new future phases — 2026-03-05 (evidence: `DEVELOPMENT_PLAN.md` Phase 19/20/21 + verification strategy rows; `PROGRESS.md` Phase 19/20/21 sections)
 - [x] Closed issue follow-up notes for #15/#16/#17 in planning docs — 2026-03-05 (comment: closed because it was migrated to documentation; evidence: `DEVELOPMENT_PLAN.md` issue-mapping notes for Phases 19/20/21 and priority execution Phases 24/25/28)
+- [x] Flutter 3.41.4 / Dart 3.11 upgrade + dependency refresh — 2026-07-07 (SDK constraints updated to `sdk: ^3.11.0`, `flutter: ">=3.41.0"`; `tool/bootstrap.sh` minimum bumped to 3.41.0; removed unused `cupertino_icons`; bumped `flutter_local_notifications` 20→21, `flutter_riverpod` 3.0→3.2.1, `dio` 5.9.0→5.9.2, `build_runner` 2.9→2.12.2, `riverpod_lint` 3.0→3.1.3, `drift`/`drift_dev` to 2.31.0; `custom_lint` temporarily disabled due to analyzer ^8.0.0 conflict with riverpod_lint 3.1+; migrated 3 `Image.network` sites to `CachedNetworkImage` in now_playing_screen, app_shell, artist_detail_screen; code regenerated; version bumped to 0.4.13+413; evidence: `flutter analyze` — 0 errors, `flutter test` — 218/218 pass, fat APK 72.4 MB)
 
 ## Meta Progress
 - [x] Tech stack and methodology validation refresh — 2026-02-18 (evidence: `DEVELOPMENT_PLAN.md` stack validation section + README tech stack update)
