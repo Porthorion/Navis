@@ -45,6 +45,15 @@ int computeGridCrossAxisCount(int? densityOverride, double availableWidth) {
   return (availableWidth / 180).floor().clamp(1, 5);
 }
 
+/// Computes artist grid columns for circular cards.
+///
+/// Artist tiles must stay denser than album tiles so the view never degrades
+/// to one oversized card per row on phones.
+int computeArtistGridCrossAxisCount(double availableWidth) {
+  final usableWidth = availableWidth - 52; // matches grid horizontal padding
+  return (usableWidth / 150).floor().clamp(2, 6);
+}
+
 class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
 
@@ -1325,52 +1334,56 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         letter: _artistGridSectionKeys[letter] ?? GlobalKey(),
     };
 
-    final crossAxisCount = computeGridCrossAxisCount(
-      ref.watch(albumGridDensityProvider),
-      MediaQuery.sizeOf(context).width - 64,
-    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final crossAxisCount = computeArtistGridCrossAxisCount(
+          constraints.maxWidth,
+        );
 
-    return CustomScrollView(
-      controller: _artistsGridScrollController,
-      physics: const AlwaysScrollableScrollPhysics(),
-      slivers: <Widget>[
-        for (final letter in letters) ...<Widget>[
-          SliverToBoxAdapter(
-            key: _artistGridSectionKeys[letter],
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
-              child: Text(
-                letter,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-            ),
-          ),
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 40, 8),
-            sliver: SliverGrid(
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: crossAxisCount,
-                childAspectRatio: 0.72,
-                crossAxisSpacing: 4,
-                mainAxisSpacing: 4,
-              ),
-              delegate: SliverChildBuilderDelegate((context, index) {
-                final byLetter = grouped[letter] ?? const <ArtistsTableData>[];
-                final artist = byLetter[index];
-                return RepaintBoundary(
-                  child: ArtistGridCard(
-                    key: ValueKey(artist.id),
-                    artist: artist,
-                    onTap: () => context.go('/library/artists/${artist.id}'),
-                    onLongPress: () => _showArtistMenu(context, artist),
+        return CustomScrollView(
+          controller: _artistsGridScrollController,
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: <Widget>[
+            for (final letter in letters) ...<Widget>[
+              SliverToBoxAdapter(
+                key: _artistGridSectionKeys[letter],
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+                  child: Text(
+                    letter,
+                    style: Theme.of(context).textTheme.titleMedium,
                   ),
-                );
-              }, childCount: grouped[letter]?.length ?? 0),
-            ),
-          ),
-        ],
-        const SliverToBoxAdapter(child: SizedBox(height: 72)),
-      ],
+                ),
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 40, 8),
+                sliver: SliverGrid(
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: crossAxisCount,
+                    childAspectRatio: 0.72,
+                    crossAxisSpacing: 4,
+                    mainAxisSpacing: 4,
+                  ),
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    final byLetter = grouped[letter] ??
+                        const <ArtistsTableData>[];
+                    final artist = byLetter[index];
+                    return RepaintBoundary(
+                      child: ArtistGridCard(
+                        key: ValueKey(artist.id),
+                        artist: artist,
+                        onTap: () => context.go('/library/artists/${artist.id}'),
+                        onLongPress: () => _showArtistMenu(context, artist),
+                      ),
+                    );
+                  }, childCount: grouped[letter]?.length ?? 0),
+                ),
+              ),
+            ],
+            const SliverToBoxAdapter(child: SizedBox(height: 72)),
+          ],
+        );
+      },
     );
   }
 
