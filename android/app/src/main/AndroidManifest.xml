@@ -53,6 +53,11 @@
             android:exported="true"
             android:foregroundServiceType="mediaPlayback"
             tools:ignore="Instantiatable">
+            <!-- Static resource reference prevents shrinkers from dropping the
+                 icon that audio_service resolves by string at runtime. -->
+            <meta-data
+                android:name="com.ryanheise.audioservice.notification_icon"
+                android:resource="@drawable/ic_stat_navis_light" />
             <intent-filter>
                 <action android:name="android.media.browse.MediaBrowserService" />
             </intent-filter>
