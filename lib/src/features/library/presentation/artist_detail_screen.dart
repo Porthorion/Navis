@@ -378,9 +378,11 @@ class _SimilarArtistsSection extends StatelessWidget {
                 3,
               );
               final maxVisible = crossAxisCount * 2;
-              final visibleArtists = artists.take(maxVisible).toList(
-                growable: false,
-              );
+              final visibleArtists = artists
+                  .take(maxVisible)
+                  .toList(
+                    growable: false,
+                  );
 
               return GridView.builder(
                 shrinkWrap: true,

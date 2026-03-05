@@ -1365,14 +1365,15 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                     mainAxisSpacing: 4,
                   ),
                   delegate: SliverChildBuilderDelegate((context, index) {
-                    final byLetter = grouped[letter] ??
-                        const <ArtistsTableData>[];
+                    final byLetter =
+                        grouped[letter] ?? const <ArtistsTableData>[];
                     final artist = byLetter[index];
                     return RepaintBoundary(
                       child: ArtistGridCard(
                         key: ValueKey(artist.id),
                         artist: artist,
-                        onTap: () => context.go('/library/artists/${artist.id}'),
+                        onTap: () =>
+                            context.go('/library/artists/${artist.id}'),
                         onLongPress: () => _showArtistMenu(context, artist),
                       ),
                     );
