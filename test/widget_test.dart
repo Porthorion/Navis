@@ -45,7 +45,7 @@ class _StaticAudioBootstrapController extends AudioBootstrapController {
 
 void main() {
   testWidgets('shows login screen while unauthenticated', (
-    WidgetTester tester,
+    tester,
   ) async {
     await tester.pumpWidget(
       ProviderScope(
@@ -70,7 +70,7 @@ void main() {
   });
 
   testWidgets('shows playback bootstrap loading gate when required', (
-    WidgetTester tester,
+    tester,
   ) async {
     await tester.pumpWidget(
       ProviderScope(
@@ -93,7 +93,7 @@ void main() {
   });
 
   testWidgets('shows retry action when playback bootstrap fails', (
-    WidgetTester tester,
+    tester,
   ) async {
     var retried = false;
     await tester.pumpWidget(

@@ -884,11 +884,11 @@ String _formatAudioQuality({
       song?.suffix?.trim().toUpperCase() ??
       _inferAudioFormat(song?.contentType);
   final bitRate = (extras?['resolvedBitRate'] as int?) ?? song?.bitRate;
-  final descriptor = _audioDescriptor(formatLabel);
+  final descriptor = transcodingApplied ? 'Transcoded' : null;
 
   final parts = <String>[
-    if (formatLabel != null && formatLabel.isNotEmpty) formatLabel,
     ?descriptor,
+    if (formatLabel != null && formatLabel.isNotEmpty) formatLabel,
     if (bitRate != null && bitRate > 0) _formatBitRate(bitRate),
   ];
 
@@ -921,18 +921,6 @@ String? _inferAudioFormat(String? contentType) {
     return null;
   }
   return subtype.toUpperCase();
-}
-
-String? _audioDescriptor(String? format) {
-  if (format == null || format.isEmpty) {
-    return null;
-  }
-
-  return switch (format.toLowerCase()) {
-    'flac' || 'alac' || 'wav' || 'aiff' || 'ape' => 'Lossless',
-    'mp3' || 'aac' || 'ogg' || 'opus' || 'm4a' => 'Compressed',
-    _ => null,
-  };
 }
 
 String _formatBitRate(int bitRate) {

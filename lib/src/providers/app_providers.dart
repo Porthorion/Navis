@@ -463,28 +463,74 @@ Future<void> _hydrateArtistFromServer(Ref ref, String artistId) async {
     return;
   }
 
-  await db.libraryDao.upsertAlbums(
-    detail.albums
-        .map(
-          (album) => AlbumsTableCompanion.insert(
-            id: album.id,
-            name: album.name,
-            artistId: Value(album.artistId ?? detail.id),
-            artistName: Value(album.artist ?? detail.name),
-            songCount: Value(album.songCount),
-            duration: Value(album.duration),
-            year: Value(album.year),
-            genre: Value(album.genre),
-            coverArt: Value(album.coverArt),
-            songsHydrated: const Value(false),
-            starred: Value(album.starred),
-            userRating: Value(album.userRating),
-            playCount: Value(album.playCount),
-            serverCreatedAt: Value(album.created),
-          ),
-        )
-        .toList(growable: false),
-  );
+  final totalCandidates = detail.albums.length;
+  final fallbackAlbums = detail.albums
+      .where((album) {
+        final id = album.id.trim();
+        final name = album.name.trim();
+        if (id.isEmpty || name.isEmpty) {
+          return false;
+        }
+        final songCount = album.songCount;
+        if (songCount != null && songCount <= 0) {
+          // Avoid creating empty placeholder albums from partial server data.
+          return false;
+        }
+        return true;
+      })
+      .map(
+        (album) => AlbumsTableCompanion.insert(
+          id: album.id,
+          name: album.name,
+          artistId: Value(album.artistId ?? detail.id),
+          artistName: Value(album.artist ?? detail.name),
+          songCount: Value(album.songCount),
+          duration: Value(album.duration),
+          year: Value(album.year),
+          genre: Value(album.genre),
+          coverArt: Value(album.coverArt),
+          // Keep this absent so existing hydrated rows are not downgraded.
+          starred: Value(album.starred),
+          userRating: Value(album.userRating),
+          playCount: Value(album.playCount),
+          serverCreatedAt: Value(album.created),
+        ),
+      )
+      .toList(growable: false);
+
+  final skippedCandidates = totalCandidates - fallbackAlbums.length;
+  if (skippedCandidates > 0) {
+    AppLogger.debug(
+      'Artist fallback hydration filtered $skippedCandidates/$totalCandidates '
+      'empty candidate albums for artist=$artistId',
+    );
+  }
+
+  if (fallbackAlbums.isEmpty) {
+    AppLogger.debug(
+      'Artist fallback hydration skipped all candidate albums for artist=$artistId',
+    );
+  } else {
+    await db.libraryDao.upsertAlbums(fallbackAlbums);
+  }
+
+  final existingArtistAlbums = await db.libraryDao.getAlbumsByArtist(artistId);
+  final staleEmptyAlbumIds = existingArtistAlbums
+      .where(
+        (album) =>
+            !album.songsHydrated &&
+            album.songCount != null &&
+            album.songCount! <= 0,
+      )
+      .map((album) => album.id)
+      .toList(growable: false);
+  if (staleEmptyAlbumIds.isNotEmpty) {
+    await db.libraryDao.deleteAlbumsByIds(staleEmptyAlbumIds);
+    AppLogger.debug(
+      'Artist fallback hydration pruned ${staleEmptyAlbumIds.length} empty '
+      'albums for artist=$artistId',
+    );
+  }
 }
 
 Future<void> _hydrateAlbumFromServer(Ref ref, String albumId) async {
