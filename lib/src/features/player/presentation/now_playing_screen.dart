@@ -106,6 +106,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
         ? const AsyncValue<SongsTableData?>.data(null)
         : ref.watch(songByIdProvider(currentSongId));
     final song = songAsync.asData?.value;
+    final currentMediaItem = ref.watch(currentMediaItemProvider).asData?.value;
     final artTinted = ref.watch(artTintedNowPlayingProvider);
 
     // Trigger color extraction when art-tinted mode is on.
@@ -115,7 +116,12 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
         if (playback.isRadioMode) {
           _extractArtColorFromUrl(playback.radioStation?.nowPlayingArtUrl);
         } else {
-          _extractArtColor(song?.coverArt);
+          final coverArtId = song?.coverArt;
+          if (coverArtId != null && coverArtId.trim().isNotEmpty) {
+            _extractArtColor(coverArtId);
+          } else {
+            _extractArtColorFromUrl(currentMediaItem?.artUri?.toString());
+          }
         }
       });
     } else if (!artTinted && _artTintColor != null) {
@@ -379,13 +385,23 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
         ? (radioMeta?.nowPlayingTitle ??
               radioMeta?.stationName ??
               l10n.radioTitle)
-        : (song?.title ?? l10n.nowPlayingUnknownTrack);
+        : (song?.title ??
+              currentMediaItem?.title ??
+              l10n.nowPlayingUnknownTrack);
     final artist = isRadio
         ? (radioMeta?.nowPlayingArtist ?? radioMeta?.stationName ?? '')
-        : (song?.artistName ?? l10n.nowPlayingUnknownArtist);
+        : (song?.artistName ??
+              currentMediaItem?.artist ??
+              l10n.nowPlayingUnknownArtist);
     final album = isRadio
         ? l10n.radioLive
-        : (song?.albumName ?? l10n.nowPlayingUnknownAlbum);
+        : (song?.albumName ??
+              currentMediaItem?.album ??
+              l10n.nowPlayingUnknownAlbum);
+    final coverArtId = song?.coverArt;
+    final mediaArtUrl = currentMediaItem?.artUri?.toString();
+    final hasCoverArtId = coverArtId != null && coverArtId.trim().isNotEmpty;
+    final hasMediaArtUrl = mediaArtUrl != null && mediaArtUrl.trim().isNotEmpty;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -409,10 +425,17 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
                               key: const ValueKey('cover'),
                               onTap: _togglePlayPause,
                               onHorizontalDragEnd: _handleHorizontalSwipe,
-                              child: _CoverArt(
-                                coverArtId: song?.coverArt,
-                                semanticLabel: song?.title,
-                              ),
+                              child: hasCoverArtId
+                                  ? _CoverArt(
+                                      coverArtId: coverArtId,
+                                      semanticLabel: title,
+                                    )
+                                  : (hasMediaArtUrl
+                                        ? _RadioCoverArt(artUrl: mediaArtUrl)
+                                        : _CoverArt(
+                                            coverArtId: null,
+                                            semanticLabel: title,
+                                          )),
                             ),
                     ),
             ),

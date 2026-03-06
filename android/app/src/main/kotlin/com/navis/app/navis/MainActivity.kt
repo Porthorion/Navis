@@ -6,6 +6,9 @@ import android.content.pm.PackageManager
 import android.content.pm.Signature
 import android.net.Uri
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.os.Process
 import android.os.PowerManager
 import android.provider.Settings
 import androidx.core.content.FileProvider
@@ -111,6 +114,27 @@ class MainActivity : AudioServiceActivity() {
         }
 
         startActivity(intent)
+
+        // Ensure we don't keep a stale pre-update task/process around in
+        // Recents after handing off to Package Installer.
+        closeTaskAfterInstallerLaunch()
+    }
+
+    private fun closeTaskAfterInstallerLaunch() {
+        Handler(Looper.getMainLooper()).postDelayed({
+            runCatching {
+                moveTaskToBack(true)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    finishAndRemoveTask()
+                } else {
+                    finish()
+                }
+            }
+
+            runCatching {
+                Process.killProcess(Process.myPid())
+            }
+        }, 250)
     }
 
     private fun getArchivePackageInfo(filePath: String): PackageInfo? {

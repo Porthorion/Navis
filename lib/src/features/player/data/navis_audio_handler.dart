@@ -643,7 +643,14 @@ class NavisAudioHandler extends BaseAudioHandler
         unawaited(_completeCrossfade());
       }
       final item = _mediaItemForIndex(index);
-      _setCurrentMediaItem(item);
+      if (item != null) {
+        _setCurrentMediaItem(item);
+      } else if (_queueItems.isEmpty ||
+          _player.processingState == ProcessingState.idle) {
+        // Clear only when playback has no active queue/source. Keep the last
+        // known item during transient index gaps so UI metadata stays stable.
+        _setCurrentMediaItem(null);
+      }
       _updateScrobbleSession(item);
       _applyReplayGainVolume();
       _emitSnapshot();
@@ -2080,7 +2087,8 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   void _emitSnapshot() {
-    final currentItem = _mediaItemForIndex(_player.currentIndex);
+    final currentItem =
+        _mediaItemForIndex(_player.currentIndex) ?? _currentMediaItem;
     final isLiked = currentItem?.extras?['liked'] as bool? ?? false;
     _snapshot = PlaybackSnapshot(
       queueSongIds: _radioStation != null

@@ -185,6 +185,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     final currentSongAsync = currentSongId == null
         ? const AsyncValue.data(null)
         : ref.watch(songByIdProvider(currentSongId));
+    final currentMediaItem = ref.watch(currentMediaItemProvider).asData?.value;
     final showPlayer = playback.hasActivePlayback;
     final isExpanded = ref.watch(playerSheetExpandedProvider);
     final showQueueOverlay = ref.watch(queueOverlayVisibleProvider);
@@ -325,14 +326,19 @@ class _AppShellState extends ConsumerState<AppShell> {
                       songTitle: playback.isRadioMode
                           ? (playback.radioStation!.nowPlayingTitle ??
                                 playback.radioStation!.stationName)
-                          : currentSongAsync.asData?.value?.title,
+                          : (currentSongAsync.asData?.value?.title ??
+                                currentMediaItem?.title),
                       songArtist: playback.isRadioMode
                           ? (playback.radioStation!.nowPlayingArtist ??
                                 playback.radioStation!.stationName)
-                          : currentSongAsync.asData?.value?.artistName,
+                          : (currentSongAsync.asData?.value?.artistName ??
+                                currentMediaItem?.artist),
                       coverArtId: playback.isRadioMode
                           ? null
                           : currentSongAsync.asData?.value?.coverArt,
+                      coverArtUrl: playback.isRadioMode
+                          ? null
+                          : currentMediaItem?.artUri?.toString(),
                       isRadio: playback.isRadioMode,
                       radioArtUrl: playback.radioStation?.nowPlayingArtUrl,
                       onTap: () {
@@ -790,6 +796,7 @@ class _MiniPlayerStrip extends ConsumerWidget {
     this.songTitle,
     this.songArtist,
     this.coverArtId,
+    this.coverArtUrl,
     this.isRadio = false,
     this.radioArtUrl,
   });
@@ -799,6 +806,7 @@ class _MiniPlayerStrip extends ConsumerWidget {
   final String? songTitle;
   final String? songArtist;
   final String? coverArtId;
+  final String? coverArtUrl;
   final bool isRadio;
   final String? radioArtUrl;
 
@@ -861,6 +869,8 @@ class _MiniPlayerStrip extends ConsumerWidget {
                       // ── Cover art ───────────────────────────────────────────
                       if (isRadio)
                         _MiniRadioArt(artUrl: radioArtUrl, colorScheme: cs)
+                      else if (coverArtId == null || coverArtId!.trim().isEmpty)
+                        _MiniRemoteArt(artUrl: coverArtUrl, colorScheme: cs)
                       else
                         CoverArtImage(
                           coverArtId: coverArtId,
@@ -1022,6 +1032,44 @@ class _MiniRadioArt extends StatelessWidget {
       color: colorScheme.primaryContainer,
       alignment: Alignment.center,
       child: Icon(Icons.radio, color: colorScheme.onPrimaryContainer),
+    );
+  }
+}
+
+/// Remote/non-library fallback cover art in the mini player.
+class _MiniRemoteArt extends StatelessWidget {
+  const _MiniRemoteArt({
+    required this.artUrl,
+    required this.colorScheme,
+  });
+
+  final String? artUrl;
+  final ColorScheme colorScheme;
+
+  @override
+  Widget build(BuildContext context) {
+    final url = artUrl;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: url != null && url.isNotEmpty
+          ? CachedNetworkImage(
+              imageUrl: url,
+              width: 48,
+              height: 48,
+              fit: BoxFit.cover,
+              errorWidget: (_, _, _) => _placeholder(),
+            )
+          : _placeholder(),
+    );
+  }
+
+  Widget _placeholder() {
+    return Container(
+      width: 48,
+      height: 48,
+      color: colorScheme.secondaryContainer,
+      alignment: Alignment.center,
+      child: Icon(Icons.music_note, color: colorScheme.onSecondaryContainer),
     );
   }
 }
