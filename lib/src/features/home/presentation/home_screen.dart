@@ -18,7 +18,6 @@ import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/home/presentation/home_scroll_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
-import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/features/settings/presentation/update_dialog.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -627,7 +626,7 @@ class _UpdateBanner extends ConsumerWidget {
     }
 
     return updateAsync.when(
-      data: (UpdateInfo? info) {
+      data: (info) {
         if (info == null) return const SizedBox.shrink();
         return MaterialBanner(
           content: Text(l10n.updateAvailableBody(info.tagName)),

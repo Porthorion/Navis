@@ -32,7 +32,7 @@ class ExpandablePlayerSheet extends StatefulWidget {
   static const miniPlayerHeight = 64.0;
 
   /// Velocity threshold (px / s) for a fling gesture.
-  static const double _flingThreshold = 300.0;
+  static const double _flingThreshold = 300;
 
   @override
   State<ExpandablePlayerSheet> createState() => _ExpandablePlayerSheetState();
@@ -107,7 +107,7 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
   Offset get _slideOffset => Offset(0, 1 - _progress);
 
   /// Mini player fades out over the first 30 % of the expansion.
-  double get _miniOpacity => (1 - (_progress / 0.30).clamp(0.0, 1.0));
+  double get _miniOpacity => 1 - (_progress / 0.30).clamp(0.0, 1.0);
 
   // -- Gesture handling -----------------------------------------------------
 

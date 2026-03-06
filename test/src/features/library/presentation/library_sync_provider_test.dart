@@ -12,7 +12,6 @@ import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 
 // Test overrides for @visibleForTesting providers.
-// ignore: invalid_use_of_visible_for_testing_member
 final _disableAutoEnqueue = autoEnqueuePinnedTracksEnabledProvider
     .overrideWithValue(false);
 final _manualSyncInterval = syncIntervalMinutesProvider.overrideWithValue(0);
@@ -88,7 +87,7 @@ void main() {
     test('startup trigger runs once when authenticated', () async {
       final engine = _FakeLibrarySyncEngine(
         ({
-          LibrarySyncProgressCallback? onProgress,
+          onProgress,
         }) async {
           final state = LibrarySyncState(
             status: LibrarySyncStatus.succeeded,
@@ -100,8 +99,8 @@ void main() {
           return state;
         },
         ({
-          bool forceFull = false,
-          LibrarySyncProgressCallback? onProgress,
+          forceFull = false,
+          onProgress,
         }) async {
           final state = LibrarySyncState(
             status: LibrarySyncStatus.succeeded,
@@ -152,7 +151,7 @@ void main() {
       final completer = Completer<LibrarySyncState>();
       final engine = _FakeLibrarySyncEngine(
         ({
-          LibrarySyncProgressCallback? onProgress,
+          onProgress,
         }) async {
           return const LibrarySyncState(
             status: LibrarySyncStatus.skipped,
@@ -160,8 +159,8 @@ void main() {
           );
         },
         ({
-          bool forceFull = false,
-          LibrarySyncProgressCallback? onProgress,
+          forceFull = false,
+          onProgress,
         }) async {
           onProgress?.call(
             LibrarySyncState(
@@ -219,7 +218,7 @@ void main() {
     test('syncNow transitions through running to failed state', () async {
       final engine = _FakeLibrarySyncEngine(
         ({
-          LibrarySyncProgressCallback? onProgress,
+          onProgress,
         }) async {
           return const LibrarySyncState(
             status: LibrarySyncStatus.skipped,
@@ -227,8 +226,8 @@ void main() {
           );
         },
         ({
-          bool forceFull = false,
-          LibrarySyncProgressCallback? onProgress,
+          forceFull = false,
+          onProgress,
         }) async {
           onProgress?.call(
             LibrarySyncState(
@@ -276,7 +275,7 @@ void main() {
       () async {
         final engine = _FakeLibrarySyncEngine(
           ({
-            LibrarySyncProgressCallback? onProgress,
+            onProgress,
           }) async {
             return const LibrarySyncState(
               status: LibrarySyncStatus.succeeded,
@@ -284,8 +283,8 @@ void main() {
             );
           },
           ({
-            bool forceFull = false,
-            LibrarySyncProgressCallback? onProgress,
+            forceFull = false,
+            onProgress,
           }) async {
             return const LibrarySyncState(
               status: LibrarySyncStatus.succeeded,
@@ -335,7 +334,7 @@ void main() {
     test('unauthenticated state does not trigger startup sync', () async {
       final engine = _FakeLibrarySyncEngine(
         ({
-          LibrarySyncProgressCallback? onProgress,
+          onProgress,
         }) async {
           return const LibrarySyncState(
             status: LibrarySyncStatus.succeeded,
@@ -343,8 +342,8 @@ void main() {
           );
         },
         ({
-          bool forceFull = false,
-          LibrarySyncProgressCallback? onProgress,
+          forceFull = false,
+          onProgress,
         }) async {
           return const LibrarySyncState(
             status: LibrarySyncStatus.succeeded,
@@ -383,7 +382,7 @@ void main() {
       var attempt = 0;
       final engine = _FakeLibrarySyncEngine(
         ({
-          LibrarySyncProgressCallback? onProgress,
+          onProgress,
         }) async {
           return const LibrarySyncState(
             status: LibrarySyncStatus.skipped,
@@ -391,8 +390,8 @@ void main() {
           );
         },
         ({
-          bool forceFull = false,
-          LibrarySyncProgressCallback? onProgress,
+          forceFull = false,
+          onProgress,
         }) async {
           attempt++;
           if (attempt == 1) {
@@ -451,7 +450,7 @@ void main() {
 
       final engine = _FakeLibrarySyncEngine(
         ({
-          LibrarySyncProgressCallback? onProgress,
+          onProgress,
         }) async {
           return LibrarySyncState(
             status: LibrarySyncStatus.succeeded,
@@ -460,8 +459,8 @@ void main() {
           );
         },
         ({
-          bool forceFull = false,
-          LibrarySyncProgressCallback? onProgress,
+          forceFull = false,
+          onProgress,
         }) async {
           return const LibrarySyncState(
             status: LibrarySyncStatus.succeeded,

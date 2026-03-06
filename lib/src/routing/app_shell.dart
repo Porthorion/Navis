@@ -574,7 +574,7 @@ class _QueueOverlayState extends State<_QueueOverlay>
     with SingleTickerProviderStateMixin {
   static const double _sheetHeightFactor = 0.95;
   static const Duration _closeDuration = Duration(milliseconds: 280);
-  static const double _flingVelocityThreshold = 300.0;
+  static const double _flingVelocityThreshold = 300;
 
   late final AnimationController _controller;
 
@@ -593,8 +593,8 @@ class _QueueOverlayState extends State<_QueueOverlay>
 
   // Cumulative displacement tracking — distinguishes horizontal swipes
   // (e.g. Dismissible swipe-to-delete) from vertical sheet drags.
-  double _cumulativeDx = 0.0;
-  double _cumulativeDy = 0.0;
+  double _cumulativeDx = 0;
+  double _cumulativeDy = 0;
 
   @override
   void initState() {
@@ -749,7 +749,7 @@ class _QueueOverlayState extends State<_QueueOverlay>
               alignment: Alignment.bottomCenter,
               child: FractionallySizedBox(
                 heightFactor: _sheetHeightFactor,
-                widthFactor: 1.0,
+                widthFactor: 1,
                 child: FractionalTranslation(
                   translation: Offset(0, 1 - progress),
                   child: IgnorePointer(

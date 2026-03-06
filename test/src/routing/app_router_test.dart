@@ -325,13 +325,13 @@ void main() {
 
     final configuredLocations = <String>{};
     void collect(RouteBase route, [String prefix = '']) {
-      if (route case GoRoute(path: final path, routes: final routes)) {
+      if (route case GoRoute(:final path, routes: final routes)) {
         final full = path.startsWith('/') ? path : '$prefix/$path';
         configuredLocations.add(full.replaceAll('//', '/'));
         for (final child in routes) {
           collect(child, full);
         }
-      } else if (route case StatefulShellRoute(branches: final branches)) {
+      } else if (route case StatefulShellRoute(:final branches)) {
         for (final branch in branches) {
           for (final route in branch.routes) {
             collect(route, prefix);

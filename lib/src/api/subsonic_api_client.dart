@@ -429,9 +429,9 @@ class SubsonicApiClient {
       '/rest/updatePlaylist.view',
       query: {
         'playlistId': id,
-        if (name != null) 'name': name,
-        if (comment != null) 'comment': comment,
-        if (isPublic != null) 'public': isPublic,
+        'name': ?name,
+        'comment': ?comment,
+        'public': ?isPublic,
         if (songIdsToAdd.isNotEmpty) 'songIdToAdd': songIdsToAdd,
         if (songIndexesToRemove.isNotEmpty)
           'songIndexToRemove': songIndexesToRemove,
@@ -484,7 +484,7 @@ class SubsonicApiClient {
       ..['id'] = id
       ..addAll({
         if (maxBitRate != null) 'maxBitRate': '$maxBitRate',
-        if (format != null) 'format': format,
+        'format': ?format,
       });
     return _buildMediaUri('/rest/stream.view', query);
   }
@@ -521,8 +521,8 @@ class SubsonicApiClient {
     final root = await _readRoot(
       '/rest/getLyrics.view',
       query: {
-        if (artist != null) 'artist': artist,
-        if (title != null) 'title': title,
+        'artist': ?artist,
+        'title': ?title,
       },
       cancelToken: cancelToken,
     );

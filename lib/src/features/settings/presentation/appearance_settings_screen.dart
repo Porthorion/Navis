@@ -70,7 +70,7 @@ class AppearanceSettingsScreen extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: DropdownButtonFormField<String?>(
-              value: appLocale,
+              initialValue: appLocale,
               decoration: InputDecoration(
                 border: OutlineInputBorder(),
                 helperText: languageSelectionEnabled
@@ -119,15 +119,15 @@ class AppearanceSettingsScreen extends ConsumerWidget {
           _ColorSchemeGrid(
             currentSeed: currentSeed,
             customPresets: customPresets,
-            onSelected: (int? seed) async {
+            onSelected: (seed) async {
               final db = ref.read(navisDatabaseProvider);
               await db.appSettingsDao.updateColorSchemeSeed(seed);
             },
-            onCustomColorPicked: (int colorValue) async {
+            onCustomColorPicked: (colorValue) async {
               final db = ref.read(navisDatabaseProvider);
               await db.appSettingsDao.updateColorSchemeSeed(colorValue);
             },
-            onSavePreset: (int colorValue) async {
+            onSavePreset: (colorValue) async {
               final db = ref.read(navisDatabaseProvider);
               final updated = List<int>.from(customPresets);
               if (!updated.contains(colorValue)) {
@@ -146,7 +146,7 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                   );
               }
             },
-            onDeletePreset: (int colorValue) async {
+            onDeletePreset: (colorValue) async {
               final confirmed = await showDialog<bool>(
                 context: context,
                 builder: (dialogContext) => AlertDialog(

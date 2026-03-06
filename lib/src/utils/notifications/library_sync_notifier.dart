@@ -94,7 +94,7 @@ class SystemLibrarySyncNotifier implements LibrarySyncNotifier {
       'Library Scan',
       channelDescription: 'Library scan progress and completion updates',
       icon: 'ic_stat_navis_light',
-      color: const Color(0xFFFFFFFF),
+      color: Color(0xFFFFFFFF),
       importance: Importance.defaultImportance,
       priority: Priority.defaultPriority,
     );
@@ -117,7 +117,7 @@ class SystemLibrarySyncNotifier implements LibrarySyncNotifier {
       'Library Scan',
       channelDescription: 'Library scan progress and completion updates',
       icon: 'ic_stat_navis_light',
-      color: const Color(0xFFFFFFFF),
+      color: Color(0xFFFFFFFF),
       importance: Importance.defaultImportance,
       priority: Priority.defaultPriority,
     );

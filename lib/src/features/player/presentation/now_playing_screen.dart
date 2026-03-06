@@ -865,7 +865,7 @@ String _formatAudioQuality({
 
   final parts = <String>[
     if (formatLabel != null && formatLabel.isNotEmpty) formatLabel,
-    if (descriptor != null) descriptor,
+    ?descriptor,
     if (bitRate != null && bitRate > 0) _formatBitRate(bitRate),
   ];
 

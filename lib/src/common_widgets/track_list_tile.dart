@@ -63,7 +63,7 @@ class TrackListTile extends StatelessWidget {
       if (hasArtist) {
         subtitleChildren.add(
           TextSpan(
-            text: song.artistName!,
+            text: song.artistName,
             style: theme.textTheme.bodySmall?.copyWith(
               color: cs.onSurface.withValues(alpha: 0.8),
             ),
@@ -83,7 +83,7 @@ class TrackListTile extends StatelessWidget {
       if (hasAlbum) {
         subtitleChildren.add(
           TextSpan(
-            text: song.albumName!,
+            text: song.albumName,
             style: theme.textTheme.bodySmall?.copyWith(
               color: cs.onSurface.withValues(alpha: 0.5),
             ),

@@ -508,7 +508,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                 },
               ),
             Consumer(
-              builder: (_, menuRef, __) {
+              builder: (_, menuRef, _) {
                 final downloadState = menuRef.watch(
                   songDownloadStateProvider(song.id),
                 );

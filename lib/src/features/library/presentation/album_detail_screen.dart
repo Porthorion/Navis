@@ -630,7 +630,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                     },
                   ),
                   Consumer(
-                    builder: (_, likeRef, __) {
+                    builder: (_, likeRef, _) {
                       final isLiked =
                           likeRef
                               .watch(songStarredProvider(song.id))
@@ -661,7 +661,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                     },
                   ),
                   Consumer(
-                    builder: (_, ratingRef, __) {
+                    builder: (_, ratingRef, _) {
                       final rating = ratingRef
                           .watch(songRatingProvider(song.id))
                           .asData
@@ -714,7 +714,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                     },
                   ),
                   Consumer(
-                    builder: (_, menuRef, __) {
+                    builder: (_, menuRef, _) {
                       final downloadState = menuRef.watch(
                         songDownloadStateProvider(song.id),
                       );
@@ -944,7 +944,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
 
   String _stripHtml(String input) {
     return input
-        .replaceAll(RegExp(r'<[^>]+>'), ' ')
+        .replaceAll(RegExp('<[^>]+>'), ' ')
         .replaceAll('&amp;', '&')
         .replaceAll('&quot;', '"')
         .replaceAll('&apos;', "'")

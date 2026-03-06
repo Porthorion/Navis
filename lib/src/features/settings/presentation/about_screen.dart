@@ -126,7 +126,7 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
             title: Text(l10n.updateCheckTitle),
             subtitle: Text(
               updateAsync.when(
-                data: (UpdateInfo? info) => info != null
+                data: (info) => info != null
                     ? l10n.updateAvailableBody(info.tagName)
                     : l10n.updateUpToDate,
                 loading: () => l10n.updateCheckSub(version),

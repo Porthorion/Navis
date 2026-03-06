@@ -1559,7 +1559,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     if (label == null || label == _activeYearDecade || !mounted) {
       return;
     }
-    setState(() => _activeYearDecade = label!);
+    setState(() => _activeYearDecade = label);
   }
 
   void _scrollToArtistLetter(

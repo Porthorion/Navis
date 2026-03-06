@@ -84,7 +84,7 @@ class AudioMuseApiClient {
     final response = await _dio.get<Map<String, dynamic>>(
       '$_baseUrl/api/v1/recommendations',
       queryParameters: <String, dynamic>{
-        if (seedSongId != null) 'seedId': seedSongId,
+        'seedId': ?seedSongId,
         if (recentSongIds != null && recentSongIds.isNotEmpty)
           'recentIds': recentSongIds.join(','),
         'count': count,

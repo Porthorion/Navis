@@ -10,13 +10,6 @@ class LrclibLyrics {
     this.plainLyrics,
   });
 
-  final String artistName;
-  final String trackName;
-  final String? albumName;
-  final int? duration;
-  final String? syncedLyrics;
-  final String? plainLyrics;
-
   factory LrclibLyrics.fromJson(Map<String, dynamic> json) {
     return LrclibLyrics(
       artistName: (json['artistName'] as String? ?? '').trim(),
@@ -27,6 +20,13 @@ class LrclibLyrics {
       plainLyrics: (json['plainLyrics'] as String?)?.trim(),
     );
   }
+
+  final String artistName;
+  final String trackName;
+  final String? albumName;
+  final int? duration;
+  final String? syncedLyrics;
+  final String? plainLyrics;
 
   bool get hasSynced => syncedLyrics != null && syncedLyrics!.trim().isNotEmpty;
   bool get hasPlain => plainLyrics != null && plainLyrics!.trim().isNotEmpty;

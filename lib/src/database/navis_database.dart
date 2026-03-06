@@ -77,12 +77,12 @@ class NavisDatabase extends _$NavisDatabase {
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-    onCreate: (Migrator m) async {
+    onCreate: (m) async {
       await m.createAll();
       await _createIndexes();
       await _ensureAppSettingsDefaults();
     },
-    onUpgrade: (Migrator m, int from, int to) async {
+    onUpgrade: (m, from, to) async {
       await _runMigrations(m, from, to);
       await _createIndexes();
       await _ensureAppSettingsDefaults();
