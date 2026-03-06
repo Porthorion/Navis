@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:audio_service/audio_service.dart' show MediaItem;
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/widgets.dart' show BorderRadius;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -439,6 +440,147 @@ class AlbumWithSongs {
   final List<SongsTableData> songs;
 }
 
+Future<void> _hydrateArtistFromServer(Ref ref, String artistId) async {
+  final api = ref.read(subsonicApiProvider);
+  if (api == null) {
+    return;
+  }
+
+  final db = ref.read(navisDatabaseProvider);
+  final detail = await api.getArtist(artistId);
+
+  await db.libraryDao.upsertArtists(<ArtistsTableCompanion>[
+    ArtistsTableCompanion.insert(
+      id: detail.id,
+      name: detail.name,
+      albumCount: Value(detail.albumCount),
+      coverArt: Value(detail.coverArt),
+      starred: Value(detail.starred),
+    ),
+  ]);
+
+  if (detail.albums.isEmpty) {
+    return;
+  }
+
+  await db.libraryDao.upsertAlbums(
+    detail.albums
+        .map(
+          (album) => AlbumsTableCompanion.insert(
+            id: album.id,
+            name: album.name,
+            artistId: Value(album.artistId ?? detail.id),
+            artistName: Value(album.artist ?? detail.name),
+            songCount: Value(album.songCount),
+            duration: Value(album.duration),
+            year: Value(album.year),
+            genre: Value(album.genre),
+            coverArt: Value(album.coverArt),
+            songsHydrated: const Value(false),
+            starred: Value(album.starred),
+            userRating: Value(album.userRating),
+            playCount: Value(album.playCount),
+            serverCreatedAt: Value(album.created),
+          ),
+        )
+        .toList(growable: false),
+  );
+}
+
+Future<void> _hydrateAlbumFromServer(Ref ref, String albumId) async {
+  final api = ref.read(subsonicApiProvider);
+  if (api == null) {
+    return;
+  }
+
+  final db = ref.read(navisDatabaseProvider);
+  final detail = await api.getAlbum(albumId);
+
+  final artistRows = <String, ArtistsTableCompanion>{};
+  final primaryArtistId = detail.artistId?.trim();
+  if (primaryArtistId != null && primaryArtistId.isNotEmpty) {
+    final primaryArtistName = (detail.artist ?? '').trim();
+    artistRows[primaryArtistId] = ArtistsTableCompanion.insert(
+      id: primaryArtistId,
+      name: primaryArtistName.isEmpty ? primaryArtistId : primaryArtistName,
+      coverArt: Value(detail.coverArt),
+    );
+  }
+
+  for (final song in detail.songs) {
+    final songArtistId = song.artistId?.trim();
+    if (songArtistId == null || songArtistId.isEmpty) {
+      continue;
+    }
+    artistRows.putIfAbsent(songArtistId, () {
+      final songArtistName = (song.artist ?? '').trim();
+      return ArtistsTableCompanion.insert(
+        id: songArtistId,
+        name: songArtistName.isEmpty ? songArtistId : songArtistName,
+      );
+    });
+  }
+
+  if (artistRows.isNotEmpty) {
+    await db.libraryDao.upsertArtists(
+      artistRows.values.toList(growable: false),
+    );
+  }
+
+  await db.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+    AlbumsTableCompanion.insert(
+      id: detail.id,
+      name: detail.name,
+      artistId: Value(detail.artistId),
+      artistName: Value(detail.artist),
+      songCount: Value(detail.songCount),
+      duration: Value(detail.duration),
+      year: Value(detail.year),
+      genre: Value(detail.genre),
+      coverArt: Value(detail.coverArt),
+      songsHydrated: const Value(true),
+      starred: Value(detail.starred),
+      userRating: Value(detail.userRating),
+      playCount: Value(detail.playCount),
+      serverCreatedAt: Value(detail.created),
+    ),
+  ]);
+
+  await db.libraryDao.replaceSongsForAlbum(
+    detail.id,
+    detail.songs
+        .map(
+          (song) => SongsTableCompanion.insert(
+            id: song.id,
+            title: song.title,
+            albumId: Value(song.albumId ?? detail.id),
+            artistId: Value(song.artistId),
+            artistName: Value(song.artist),
+            albumName: Value(song.album ?? detail.name),
+            track: Value(song.track),
+            discNumber: Value(song.discNumber),
+            duration: Value(song.duration),
+            bitRate: Value(song.bitRate),
+            contentType: Value(song.contentType),
+            suffix: Value(song.suffix),
+            size: Value(song.size),
+            coverArt: Value(song.coverArt),
+            starred: Value(song.starred),
+            userRating: Value(song.userRating),
+            playCount: Value(song.playCount),
+            createdAt: Value(song.created),
+            replayGainTrackGain: Value(song.replayGain?.trackGain),
+            replayGainAlbumGain: Value(song.replayGain?.albumGain),
+            replayGainTrackPeak: Value(song.replayGain?.trackPeak),
+            replayGainAlbumPeak: Value(song.replayGain?.albumPeak),
+          ),
+        )
+        .toList(growable: false),
+  );
+
+  await db.libraryDao.markAlbumSongsHydrated(detail.id);
+}
+
 final artistsProvider = StreamProvider<List<ArtistsTableData>>((ref) {
   final dao = ref.watch(navisDatabaseProvider).libraryDao;
   return dao.watchArtists();
@@ -457,13 +599,45 @@ final artistByIdProvider = StreamProvider.family<ArtistsTableData?, String>((
   return dao.watchArtistById(artistId);
 });
 
-final albumsByArtistProvider =
-    StreamProvider.family<List<AlbumsTableData>, String>(
-      (ref, artistId) {
-        final dao = ref.watch(navisDatabaseProvider).libraryDao;
-        return dao.watchAlbumsByArtist(artistId);
-      },
-    );
+final albumsByArtistProvider = StreamProvider.family<List<AlbumsTableData>, String>(
+  (ref, artistId) {
+    final dao = ref.watch(navisDatabaseProvider).libraryDao;
+    final controller = StreamController<List<AlbumsTableData>>();
+    var requestedServerFallback = false;
+
+    final sub = dao
+        .watchAlbumsByArtist(artistId)
+        .listen(
+          (albums) {
+            controller.add(albums);
+            if (albums.isNotEmpty || requestedServerFallback) {
+              return;
+            }
+            requestedServerFallback = true;
+            unawaited(
+              _hydrateArtistFromServer(ref, artistId).catchError((
+                Object error,
+                StackTrace stackTrace,
+              ) {
+                AppLogger.warning(
+                  'Artist albums fallback hydration failed for artist=$artistId: '
+                  '$error\n$stackTrace',
+                );
+              }),
+            );
+          },
+          onError: controller.addError,
+          onDone: controller.close,
+        );
+
+    ref.onDispose(() {
+      sub.cancel();
+      controller.close();
+    });
+
+    return controller.stream;
+  },
+);
 
 final albumProvider = StreamProvider.family<AlbumWithSongs?, String>((
   ref,
@@ -477,6 +651,7 @@ final albumProvider = StreamProvider.family<AlbumWithSongs?, String>((
   // because watchSongsByAlbum() never completes, silently dropping DB updates.
   final controller = StreamController<AlbumWithSongs?>();
   StreamSubscription<List<SongsTableData>>? songsSub;
+  var requestedServerFallback = false;
 
   final albumSub = dao
       .watchAlbumById(albumId)
@@ -486,15 +661,42 @@ final albumProvider = StreamProvider.family<AlbumWithSongs?, String>((
           if (album == null) {
             controller.add(null);
             songsSub = null;
+            if (!requestedServerFallback) {
+              requestedServerFallback = true;
+              unawaited(
+                _hydrateAlbumFromServer(ref, albumId).catchError((
+                  Object error,
+                  StackTrace stackTrace,
+                ) {
+                  AppLogger.warning(
+                    'Album fallback hydration failed for album=$albumId: '
+                    '$error\n$stackTrace',
+                  );
+                }),
+              );
+            }
           } else {
-            songsSub = dao
-                .watchSongsByAlbum(albumId)
-                .listen(
-                  (songs) => controller.add(
-                    AlbumWithSongs(album: album, songs: songs),
-                  ),
-                  onError: controller.addError,
+            songsSub = dao.watchSongsByAlbum(albumId).listen(
+              (songs) {
+                controller.add(AlbumWithSongs(album: album, songs: songs));
+                if (songs.isNotEmpty || requestedServerFallback) {
+                  return;
+                }
+                requestedServerFallback = true;
+                unawaited(
+                  _hydrateAlbumFromServer(ref, albumId).catchError((
+                    Object error,
+                    StackTrace stackTrace,
+                  ) {
+                    AppLogger.warning(
+                      'Album songs fallback hydration failed for album=$albumId: '
+                      '$error\n$stackTrace',
+                    );
+                  }),
                 );
+              },
+              onError: controller.addError,
+            );
           }
         },
         onError: controller.addError,

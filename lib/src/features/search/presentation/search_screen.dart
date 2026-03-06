@@ -52,7 +52,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           return;
         }
         _lastFocusRequest = next;
-        _requestSearchFocus();
+        _requestSearchFocus(selectAllIfHasText: true);
       },
     );
 
@@ -96,7 +96,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       TextPosition(offset: query.length),
     );
     ref.read(searchQueryProvider.notifier).submit(query);
-    _requestSearchFocus();
+    _dismissSearchFocus();
   }
 
   void _clearSearch() {
@@ -115,16 +115,56 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     }
   }
 
-  void _requestSearchFocus() {
+  void _requestSearchFocus({bool selectAllIfHasText = false}) {
     if (!mounted || _isPlayerExpanded || !_focusNode.canRequestFocus) {
       return;
     }
+
+    if (selectAllIfHasText && _focusNode.hasFocus) {
+      _scheduleSelectAllSearchTextIfPresent();
+      return;
+    }
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _isPlayerExpanded || !_focusNode.canRequestFocus) {
         return;
       }
       _focusNode.requestFocus();
+      if (selectAllIfHasText) {
+        _scheduleSelectAllSearchTextIfPresent();
+      }
     });
+  }
+
+  void _scheduleSelectAllSearchTextIfPresent() {
+    if (!mounted) {
+      return;
+    }
+    // EditableText may collapse selection as focus is acquired, so apply
+    // select-all after focus settles.
+    Future<void>.microtask(() {
+      if (!mounted) {
+        return;
+      }
+      _selectAllSearchTextIfPresent();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _selectAllSearchTextIfPresent();
+      });
+    });
+  }
+
+  void _selectAllSearchTextIfPresent() {
+    if (!mounted || !_focusNode.hasFocus) {
+      return;
+    }
+    final text = _controller.text;
+    if (text.isEmpty) {
+      return;
+    }
+    _controller.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: text.length,
+    );
   }
 
   @override
