@@ -43,6 +43,7 @@ A Flutter-based Subsonic/OpenSubsonic music player client targeting Android and 
 - [Phase 27: Platform Surface Extensions (Priority Execution)](#phase-27-platform-surface-extensions-priority-execution)
 - [Phase 28: Share System & Cross-Server Resolution (Deferred Priority)](#phase-28-share-system--cross-server-resolution-deferred-priority)
 - [Phase 29: ListenBrainz Scrobbling (Future Priority)](#phase-29-listenbrainz-scrobbling-future-priority)
+- [Phase 30: Discovery System (Idea Backlog)](#phase-30-discovery-system-idea-backlog)
 - [AI Agent Development Guidelines](#ai-agent-development-guidelines)
 - [Verification Strategy](#verification-strategy)
 - [Key Technical Decisions](#key-technical-decisions)
@@ -1546,6 +1547,7 @@ This phase is developed after Phase 10 and can be developed in parallel with Pha
   - Width < 600 dp: `NavigationBar` at bottom (existing mobile layout).
   - Width ≥ 600 dp: `NavigationRail` on the left, content fills the remaining width.
   - Width ≥ 960 dp: side-by-side master-detail — navigation rail + list panel on the left, detail panel on the right (e.g., album list + album detail simultaneously visible).
+  - Width ≥ 1200 dp: Spotify-style desktop shell — a simple left navigation column with an extended mini player docked directly under navigation, plus a dominant right content workspace for the active route.
 - `go_router` shell route updated to use `AdaptiveShell` instead of the current `ScaffoldWithNavbar`.
 - Window size and position persistence via the `window_manager` package: save width, height, and maximised state to shared preferences on resize, restore on launch.
 - Minimum window size enforced: 480 × 600 px.
@@ -2053,6 +2055,7 @@ Canonical execution phase combining former Phases 12 and 13.
 - Android Auto media tree, search, and queue integration.
 - CarPlay content tree and entitlement/platform-channel work.
 - Desktop adaptive shell and platform media key integrations (SMTC/MPRIS/macOS media center).
+- Spotify-like widescreen desktop UX: left navigation menu with a persistent extended mini player below it, and a dominant right-side workspace for the active page content.
 - Packaging/distribution workflow hardening for Windows/macOS/Linux.
 
 ## Phase 27: Platform Surface Extensions (Priority Execution)
@@ -2090,6 +2093,19 @@ Future roadmap phase for multi-destination scrobbling support.
 - Keep Subsonic/Navidrome scrobbling behavior intact; allow enabling one or both destinations without regressions.
 - Add clear status/error UX so users can test and validate ListenBrainz connectivity from settings.
 - Add unit/integration tests for dual-destination scrobble dispatch and offline replay semantics.
+
+## Phase 30: Discovery System (Idea Backlog)
+
+**Priority**: P9 (idea backlog, explicitly outside the main execution plan)
+
+Future-facing concept phase similar to Share System deferral: do not schedule as core delivery work until higher-priority platform/reliability phases are complete.
+
+**Scope**:
+- Evaluate external discovery providers and shortlist candidates for recommendation sourcing.
+- Prototype a pluggable discovery service boundary that can be feature-flagged and removed cleanly.
+- Define a desktop/mobile-safe discovery surface (Home module or dedicated page) without coupling core playback/library flows.
+- Reuse or clone proven components from an external project only when licensing and maintenance constraints are satisfied.
+- Establish privacy and telemetry boundaries before any production rollout.
 
 ---
 
@@ -2242,3 +2258,4 @@ These are explicitly out of scope for the initial development but designed to be
 - **Analytics / crash reporting**: Optional, privacy-respecting crash reporting (e.g., Sentry self-hosted). Must be opt-in given the GPL-3.0 license and privacy-conscious user base.
 - **Radio stream playback (Azuracast)**: Stream live radio from Azuracast stations via HLS or direct MP3/AAC mount-point URLs. Display real-time "Now Playing" metadata (title, artist, album art) using Azuracast's WebSocket or polling API (`/api/nowplaying/{station}`). Integrate with the existing `audio_service` pipeline — create a `RadioAudioSource` that wraps an HLS/Icecast URI, feed metadata updates into `MediaItem` so lock-screen and notification controls stay current. Add a Radio tab or section in the library with station list, favorites, and a mini status indicator. Keep radio playback independent from the queue so switching back to library tracks resumes where the user left off. Consider supporting generic Icecast/Shoutcast streams long-term.
 - **ListenBrainz scrobbling**: Promoted to **Phase 29**. Add optional dual-destination scrobbling with Playback settings controls and robust offline retry behavior.
+- **Discovery system**: Promoted to **Phase 30** as an idea backlog item. Keep this outside the main execution plan until core platform and reliability priorities are complete.

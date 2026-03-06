@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-03-05
+Last updated: 2026-03-07
 
 ---
 
@@ -59,6 +59,7 @@ Last updated: 2026-03-05
 - [x] Future planning pass for open issues #15/#16/#17 (share system, LRCLIB lyrics fallback, appearance customization) added to roadmap as new future phases — 2026-03-05 (evidence: `DEVELOPMENT_PLAN.md` Phase 19/20/21 + verification strategy rows; `PROGRESS.md` Phase 19/20/21 sections)
 - [x] Closed issue follow-up notes for #15/#16/#17 in planning docs — 2026-03-05 (comment: closed because it was migrated to documentation; evidence: `DEVELOPMENT_PLAN.md` issue-mapping notes for Phases 19/20/21 and priority execution Phases 24/25/28)
 - [x] Future planning pass for ListenBrainz scrobbling roadmap (including Playback settings placement) — 2026-03-05 (evidence: `DEVELOPMENT_PLAN.md` Phase 29 + Future Considerations entry; `PROGRESS.md` Phase 29 section)
+- [x] Future planning pass for Spotify-style desktop widescreen UX and deferred Discovery system roadmap — 2026-03-07 (evidence: `DEVELOPMENT_PLAN.md` Phase 26 scope update + Phase 30 addition; `PROGRESS.md` Phase 26.2 + Phase 30 updates)
 - [x] Flutter 3.41.4 / Dart 3.11 upgrade + dependency refresh — 2026-07-07 (SDK constraints updated to `sdk: ^3.11.0`, `flutter: ">=3.41.0"`; `tool/bootstrap.sh` minimum bumped to 3.41.0; removed unused `cupertino_icons`; bumped `flutter_local_notifications` 20→21, `flutter_riverpod` 3.0→3.2.1, `dio` 5.9.0→5.9.2, `build_runner` 2.9→2.12.2, `riverpod_lint` 3.0→3.1.3, `drift`/`drift_dev` to 2.31.0; `custom_lint` temporarily disabled due to analyzer ^8.0.0 conflict with riverpod_lint 3.1+; migrated 3 `Image.network` sites to `CachedNetworkImage` in now_playing_screen, app_shell, artist_detail_screen; code regenerated; version bumped to 0.4.13+413; evidence: `flutter analyze` — 0 errors, `flutter test` — 218/218 pass, fat APK 72.4 MB)
 
 ## Meta Progress
@@ -726,6 +727,9 @@ Last updated: 2026-03-05
 
 ### 26.2 — Desktop Support (Windows, macOS, Linux)
 - [ ] `AdaptiveShell` widget with `LayoutBuilder` breakpoints (< 600 dp BottomNav, >= 600 dp NavigationRail, >= 960 dp master-detail)
+- [ ] At >= 1200 dp, implement Spotify-style desktop shell: simple left navigation menu + persistent extended mini player below navigation
+- [ ] At >= 1200 dp, allocate dominant right-side workspace to the active route/page with desktop spacing and width behavior
+- [ ] Keep narrower breakpoints intact so tablet/mobile layouts remain unchanged
 - [ ] `go_router` shell route updated to use `AdaptiveShell`
 - [ ] Window size/position persistence via `window_manager` package
 - [ ] Minimum window size enforced (480 x 600 px)
@@ -767,6 +771,16 @@ Last updated: 2026-03-05
 - [ ] Extend offline scrobble queue/dispatcher for optional multi-destination replay semantics
 - [ ] Preserve existing Subsonic/Navidrome scrobbling while allowing one-or-both destination modes
 - [ ] Add tests for settings persistence, dispatch retries, offline replay, and dual-destination conflict handling
+
+## Phase 30: Discovery System (Idea Backlog)
+
+> Ninth-priority idea backlog. Explicitly deferred and outside the main execution path for core releases.
+
+- [ ] Evaluate external discovery providers and shortlist viable recommendation sources
+- [ ] Define a pluggable discovery service boundary with feature-flag control
+- [ ] Prototype discovery entry points (home module or dedicated page) without coupling core playback flows
+- [ ] Validate licensing and maintenance constraints before reusing/cloning external implementation pieces
+- [ ] Define privacy and telemetry constraints before any production rollout
 
 ---
 
