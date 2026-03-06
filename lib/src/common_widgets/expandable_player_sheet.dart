@@ -40,7 +40,10 @@ class ExpandablePlayerSheet extends StatefulWidget {
 
 class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
     with SingleTickerProviderStateMixin {
+  static const double _bottomQueueSwipeGuardHeight = 120;
+
   late AnimationController _controller;
+  bool _dragStartedInQueueGuardZone = false;
 
   @override
   void initState() {
@@ -111,6 +114,19 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
 
   // -- Gesture handling -----------------------------------------------------
 
+  void _handleDragStart(DragStartDetails details) {
+    _dragStartedInQueueGuardZone = _didDragStartInQueueGuardZone(details);
+  }
+
+  bool _didDragStartInQueueGuardZone(DragStartDetails details) {
+    final mq = MediaQuery.of(context);
+    final guardHeight =
+        _bottomQueueSwipeGuardHeight +
+        mq.padding.bottom +
+        mq.systemGestureInsets.bottom;
+    return details.localPosition.dy >= mq.size.height - guardHeight;
+  }
+
   void _handleDragUpdate(DragUpdateDetails details) {
     // Map finger delta to controller value. Screen height gives 1:1 tracking.
     final screenHeight = MediaQuery.of(context).size.height;
@@ -129,7 +145,9 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
       if (velocity < 0) {
         // Swipe up — expand
         if (_controller.value >= 0.97 && widget.onSwipeUp != null) {
-          widget.onSwipeUp!();
+          if (!_dragStartedInQueueGuardZone) {
+            widget.onSwipeUp!();
+          }
         } else {
           final v = (absVelocity / screenHeight).clamp(1.0, 6.0);
           _controller.fling(velocity: v);
@@ -145,6 +163,8 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
       // Low velocity — snap to nearest edge.
       _snapToEdge();
     }
+
+    _dragStartedInQueueGuardZone = false;
   }
 
   void _handleDragCancel() {
@@ -152,6 +172,7 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
     // pointer, or a competing recognizer won the arena during a slow drag).
     // Snap to the nearest edge so the sheet never stays stuck.
     _snapToEdge();
+    _dragStartedInQueueGuardZone = false;
   }
 
   /// Snap the sheet to the nearest edge (expanded or collapsed).
@@ -175,6 +196,7 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
         final progress = _progress;
 
         return GestureDetector(
+          onVerticalDragStart: _handleDragStart,
           onVerticalDragUpdate: _handleDragUpdate,
           onVerticalDragEnd: _handleDragEnd,
           onVerticalDragCancel: _handleDragCancel,
