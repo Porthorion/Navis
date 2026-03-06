@@ -8,7 +8,6 @@ import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
-import android.os.Process
 import android.os.PowerManager
 import android.provider.Settings
 import androidx.core.content.FileProvider
@@ -23,6 +22,8 @@ class MainActivity : AudioServiceActivity() {
 
     private val updaterChannelName = "com.navis.app/updater"
     private val powerChannelName = "com.navis.app/power"
+    @Volatile
+    private var pendingCloseAfterInstallerHandoff = false
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -113,15 +114,27 @@ class MainActivity : AudioServiceActivity() {
             putExtra(Intent.EXTRA_RETURN_RESULT, false)
         }
 
-        startActivity(intent)
+        val packageManager = applicationContext.packageManager
+        if (intent.resolveActivity(packageManager) == null) {
+            throw IllegalStateException("No package installer available to handle APK installation")
+        }
 
-        // Ensure we don't keep a stale pre-update task/process around in
-        // Recents after handing off to Package Installer.
-        closeTaskAfterInstallerLaunch()
+        // Close only after Android has actually moved us to the background.
+        pendingCloseAfterInstallerHandoff = true
+        startActivity(intent)
     }
 
-    private fun closeTaskAfterInstallerLaunch() {
-        Handler(Looper.getMainLooper()).postDelayed({
+    override fun onStop() {
+        super.onStop()
+        if (!pendingCloseAfterInstallerHandoff) {
+            return
+        }
+        pendingCloseAfterInstallerHandoff = false
+        closeTaskAfterInstallerHandoff()
+    }
+
+    private fun closeTaskAfterInstallerHandoff() {
+        Handler(Looper.getMainLooper()).post {
             runCatching {
                 moveTaskToBack(true)
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -130,11 +143,7 @@ class MainActivity : AudioServiceActivity() {
                     finish()
                 }
             }
-
-            runCatching {
-                Process.killProcess(Process.myPid())
-            }
-        }, 250)
+        }
     }
 
     private fun getArchivePackageInfo(filePath: String): PackageInfo? {
