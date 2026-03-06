@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
+import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/format_utils.dart';
 import 'package:path_provider/path_provider.dart';
@@ -187,6 +189,80 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
       }
     } finally {
       if (mounted) setState(() => _clearing = false);
+    }
+  }
+
+  Future<void> _repairLibraryCache() async {
+    final l10n = AppLocalizations.of(context)!;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Repair Library Cache'),
+        content: const Text(
+          'This will clear streaming cache, downloaded tracks, cover art cache, '
+          'and local library metadata, then force a full library resync. '
+          'This action cannot be undone.',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(l10n.cancelAction),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(dialogContext).colorScheme.error,
+              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Repair Library Cache'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+
+    setState(() => _clearing = true);
+    try {
+      final db = ref.read(navisDatabaseProvider);
+
+      await _clearCacheByType(CacheType.rolling);
+      await _clearCacheByType(CacheType.permanent);
+
+      await defaultCoverArtCacheManager.emptyCache();
+      await db.libraryDao.clearLibraryData();
+
+      final syncState = await ref
+          .read(librarySyncControllerProvider.notifier)
+          .syncNow(forceFull: true);
+
+      if (!mounted) return;
+      setState(() => _coverArtStorageBytes = 0);
+
+      final messenger = ScaffoldMessenger.of(context)..clearSnackBars();
+      if (syncState.status == LibrarySyncStatus.succeeded ||
+          syncState.status == LibrarySyncStatus.skipped) {
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('Library cache repaired and full resync completed.'),
+          ),
+        );
+      } else {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              syncState.errorMessage == null ||
+                      syncState.errorMessage!.trim().isEmpty
+                  ? 'Cache was cleared, but full resync failed.'
+                  : 'Cache was cleared, but full resync failed: '
+                        '${syncState.errorMessage}',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _clearing = false);
+      }
     }
   }
 
@@ -474,6 +550,15 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
                   leading: const Icon(Icons.image_outlined),
                   title: Text(l10n.cacheSettingsClearCoverArt),
                   onTap: _clearCoverArtCache,
+                ),
+                const Divider(),
+                ListTile(
+                  leading: const Icon(Icons.build_circle_outlined),
+                  title: const Text('Repair Library Cache'),
+                  subtitle: const Text(
+                    'Clear all caches and force a full metadata resync.',
+                  ),
+                  onTap: _repairLibraryCache,
                 ),
               ],
             ),
