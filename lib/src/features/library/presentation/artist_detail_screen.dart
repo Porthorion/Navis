@@ -427,16 +427,19 @@ class _SimilarArtistCard extends StatelessWidget {
                   final side = constraints.maxWidth < constraints.maxHeight
                       ? constraints.maxWidth
                       : constraints.maxHeight;
-                  return SizedBox(
-                    width: side,
-                    height: side,
-                    child: CoverArtImage(
-                      coverArtId: artist.coverArt,
-                      size: 200,
+                  return Align(
+                    alignment: Alignment.topCenter,
+                    child: SizedBox(
                       width: side,
                       height: side,
-                      borderRadius: BorderRadius.circular(999),
-                      placeholderIcon: Icons.person_outline,
+                      child: CoverArtImage(
+                        coverArtId: artist.coverArt,
+                        size: 200,
+                        width: side,
+                        height: side,
+                        circular: true,
+                        placeholderIcon: Icons.person_outline,
+                      ),
                     ),
                   );
                 },

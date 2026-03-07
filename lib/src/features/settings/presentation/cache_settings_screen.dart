@@ -411,12 +411,26 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
                     ),
                     child: Row(
                       children: <Widget>[
-                        Text(l10n.cacheSettingsRollingBudgetLabel),
-                        const Spacer(),
-                        Text(
-                          _budgetLabel(_budgetMb!, l10n),
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(fontWeight: FontWeight.w600),
+                        Expanded(
+                          child: Text(
+                            l10n.cacheSettingsRollingBudgetLabel,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Flexible(
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: Text(
+                              _budgetLabel(_budgetMb!, l10n),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.end,
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(fontWeight: FontWeight.w600),
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -482,12 +496,28 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
                       ),
                       child: Row(
                         children: <Widget>[
-                          Text(l10n.cacheSettingsCoverArtMaxLabel),
-                          const Spacer(),
-                          Text(
-                            l10n.cacheSettingsCoverArtMaxValue(_coverArtMax!),
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(fontWeight: FontWeight.w600),
+                          Expanded(
+                            child: Text(
+                              l10n.cacheSettingsCoverArtMaxLabel,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Flexible(
+                            child: Align(
+                              alignment: Alignment.centerRight,
+                              child: Text(
+                                l10n.cacheSettingsCoverArtMaxValue(
+                                  _coverArtMax!,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.end,
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(fontWeight: FontWeight.w600),
+                              ),
+                            ),
                           ),
                         ],
                       ),

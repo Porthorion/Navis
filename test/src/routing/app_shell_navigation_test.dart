@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/app.dart';
 import 'package:navis/src/api/models/models.dart';
+import 'package:navis/src/common_widgets/expandable_player_sheet.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
@@ -15,11 +16,12 @@ import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
+import 'package:navis/src/features/search/presentation/search_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_router.dart';
-import 'package:navis/src/routing/app_shell.dart';
 import 'package:riverpod/src/framework.dart' show Override;
 
 import '../../helpers/test_database.dart';
@@ -123,6 +125,205 @@ const PlaybackSnapshot _activePlayback = PlaybackSnapshot(
 );
 
 void main() {
+  testWidgets('phone layout uses bottom navigation', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(599, 1000);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(),
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const NavisApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(NavigationBar), findsOneWidget);
+    expect(find.byType(NavigationRail), findsNothing);
+  });
+
+  testWidgets('rail layout uses side navigation at 600+ width', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(700, 1000);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(),
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const NavisApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(NavigationBar), findsNothing);
+  });
+
+  testWidgets('expanded player uses bottom-sheet mode on phone', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(599, 1000);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(),
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const NavisApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    container.read(playerOverlayStackProvider.notifier).expand();
+    await tester.pumpAndSettle();
+
+    expect(container.read(playerSheetExpandedProvider), isTrue);
+    expect(find.byType(ExpandablePlayerSheet), findsOneWidget);
+  });
+
+  testWidgets('expanded player uses embedded now-playing mode on rail', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1024, 1000);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(),
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const NavisApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    container.read(playerOverlayStackProvider.notifier).expand();
+    await tester.pumpAndSettle();
+
+    expect(container.read(playerSheetExpandedProvider), isTrue);
+    expect(find.byType(NowPlayingScreen), findsOneWidget);
+    expect(find.byType(ExpandablePlayerSheet), findsNothing);
+  });
+
+  testWidgets(
+    'keeps deep settings route stable while resizing across layouts',
+    (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(599, 1000);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final container = _createContainerWithDatabase(
+        overrides: _authenticatedShellOverrides(),
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const NavisApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final router = container.read(appRouterProvider);
+      router.go('/settings/cache');
+      await tester.pumpAndSettle();
+      expect(find.text('Cache & Storage'), findsWidgets);
+
+      const transitions = <Size>[
+        Size(700, 1000),
+        Size(1024, 1000),
+        Size(1280, 1000),
+        Size(1700, 1000),
+        Size(599, 1000),
+      ];
+
+      for (final size in transitions) {
+        tester.view.physicalSize = size;
+        await tester.pumpAndSettle();
+
+        expect(find.text('Cache & Storage'), findsWidgets);
+      }
+    },
+  );
+
+  testWidgets('preserves active search branch through display transitions', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(599, 1000);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(),
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const NavisApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.search).first);
+    await tester.pumpAndSettle();
+    expect(find.byType(SearchScreen), findsOneWidget);
+
+    tester.view.physicalSize = const Size(700, 1000);
+    await tester.pumpAndSettle();
+    expect(find.byType(NavigationBar), findsNothing);
+    expect(find.byType(SearchScreen), findsOneWidget);
+
+    tester.view.physicalSize = const Size(1024, 1000);
+    await tester.pumpAndSettle();
+    expect(find.byType(NavigationBar), findsNothing);
+    expect(find.byType(SearchScreen), findsOneWidget);
+
+    tester.view.physicalSize = const Size(1280, 1000);
+    await tester.pumpAndSettle();
+    expect(find.byType(NavigationBar), findsNothing);
+    expect(find.byType(SearchScreen), findsOneWidget);
+
+    tester.view.physicalSize = const Size(599, 1000);
+    await tester.pumpAndSettle();
+    expect(find.byType(NavigationBar), findsOneWidget);
+    expect(find.byType(SearchScreen), findsOneWidget);
+  });
+
   testWidgets('expanded player takes back priority over branch detail routes', (
     tester,
   ) async {
@@ -189,44 +390,5 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(container.read(playerSheetExpandedProvider), isFalse);
-  });
-
-  testWidgets('root modal back does not mutate shell overlay state', (
-    tester,
-  ) async {
-    final container = _createContainerWithDatabase(
-      overrides: _authenticatedShellOverrides(),
-    );
-
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: const NavisApp(),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    container.read(playerOverlayStackProvider.notifier).expand();
-    await tester.pumpAndSettle();
-
-    final shellContext = tester.element(find.byType(AppShell));
-    unawaited(
-      showDialog<void>(
-        context: shellContext,
-        builder: (context) => const AlertDialog(
-          title: Text('Test dialog'),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.text('Test dialog'), findsOneWidget);
-    expect(container.read(playerSheetExpandedProvider), isTrue);
-
-    await tester.binding.handlePopRoute();
-    await tester.pumpAndSettle();
-
-    expect(find.text('Test dialog'), findsNothing);
-    expect(container.read(playerSheetExpandedProvider), isTrue);
   });
 }

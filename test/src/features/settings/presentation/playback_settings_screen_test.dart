@@ -88,11 +88,11 @@ void main() {
       expect(find.text('Enable gapless playback'), findsOneWidget);
       expect(find.text('Show Radio page'), findsNothing);
       expect(find.text('Skip silence when possible'), findsNothing);
-      expect(find.text('Save'), findsOneWidget);
+      expect(find.text('Changes save automatically'), findsOneWidget);
       expect(find.text('Reset defaults'), findsOneWidget);
     });
 
-    testWidgets('save persists values and reset triggers defaults', (
+    testWidgets('autosave persists values and reset triggers defaults', (
       tester,
     ) async {
       AppSettingsModel? savedModel;
@@ -141,12 +141,11 @@ void main() {
       await tester.tap(gaplessToggle);
       await tester.pumpAndSettle();
 
-      await tester.ensureVisible(find.text('Save'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Save'));
+      // Autosave is debounced in the UI.
+      await tester.pump(const Duration(milliseconds: 700));
       await tester.pumpAndSettle();
 
-      verify(() => repository.saveSettings(any())).called(1);
+      verify(() => repository.saveSettings(any())).called(greaterThan(0));
       expect(savedModel, isNotNull);
       expect(savedModel!.wifiMaxBitRate, 320);
       expect(savedModel!.wifiFormat, 'opus');
@@ -156,13 +155,11 @@ void main() {
       // showRadioPage, showPlaylistsPage, showArtistsPage are now read from
       // their respective providers (managed in Appearance settings).
       expect(savedModel!.showRadioPage, isTrue);
-      expect(find.text('Playback settings saved.'), findsOneWidget);
 
-      await tester.pump(const Duration(seconds: 4));
+      final resetDefaults = find.text('Reset defaults');
+      await tester.ensureVisible(resetDefaults);
       await tester.pumpAndSettle();
-      await tester.drag(find.byType(ListView), const Offset(0, -300));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Reset defaults'));
+      await tester.tap(resetDefaults);
       await tester.pumpAndSettle();
 
       verify(() => repository.resetDefaults()).called(1);

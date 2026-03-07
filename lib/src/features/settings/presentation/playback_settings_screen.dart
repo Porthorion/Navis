@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -44,6 +46,7 @@ class _PlaybackSettingsScreenState
   bool _scrobbleEnabled = true;
   bool _useLrclib = true;
   bool _gaplessEnabled = true;
+  bool _fullscreenModeLyrics = false;
   bool _equalizerEnabled = false;
   List<double> _equalizerBandGains = List<double>.filled(5, 0);
   bool _loudnessEnabled = false;
@@ -56,6 +59,10 @@ class _PlaybackSettingsScreenState
   double _playbackSpeed = 1;
   bool _didHydrateForm = false;
   bool _isSaving = false;
+  bool _isAutoSaving = false;
+  bool _pendingAutosave = false;
+  String _lastSavedSignature = '';
+  Timer? _autosaveDebounce;
 
   bool get _supportsAndroidDsp =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
@@ -92,6 +99,8 @@ class _PlaybackSettingsScreenState
   }
 
   Widget _buildForm(BuildContext context, AppLocalizations l10n) {
+    _scheduleAutosave();
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: <Widget>[
@@ -208,6 +217,17 @@ class _PlaybackSettingsScreenState
                     : (value) => setState(() => _gaplessEnabled = value),
                 title: Text(l10n.playbackSettingsGaplessTitle),
                 subtitle: Text(l10n.playbackSettingsGaplessSubtitle),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: _fullscreenModeLyrics,
+                onChanged: _isSaving
+                    ? null
+                    : (value) => setState(() => _fullscreenModeLyrics = value),
+                title: const Text('Fullscreen Mode Lyrics'),
+                subtitle: const Text(
+                  'Open lyrics in fullscreen directly from Now Playing.',
+                ),
               ),
               if (_gaplessEnabled && _crossfadeEnabled)
                 Padding(
@@ -488,10 +508,22 @@ class _PlaybackSettingsScreenState
               const SizedBox(height: 20),
               Row(
                 children: <Widget>[
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: _isSaving ? null : _save,
-                      child: Text(l10n.playbackSettingsSaveAction),
+                  if (_isAutoSaving)
+                    SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                  if (_isAutoSaving) const SizedBox(width: 8),
+                  Text(
+                    _isAutoSaving
+                        ? 'Saving changes...'
+                        : 'Changes save automatically',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ],
@@ -528,6 +560,7 @@ class _PlaybackSettingsScreenState
     _scrobbleEnabled = settings.scrobbleEnabled;
     _useLrclib = settings.useLrclib;
     _gaplessEnabled = settings.gaplessEnabled;
+    _fullscreenModeLyrics = settings.skipSilenceEnabled;
     _equalizerEnabled = settings.equalizerEnabled;
     _equalizerBandGains = _normalizeBandGains(settings.equalizerBandGains);
     _loudnessEnabled = settings.loudnessEnabled;
@@ -538,15 +571,58 @@ class _PlaybackSettingsScreenState
     _replayGainMode = settings.replayGainMode;
     _replayGainPreamp = _normalizeReplayGainPreamp(settings.replayGainPreamp);
     _playbackSpeed = _normalizePlaybackSpeed(settings.playbackSpeed);
+    _lastSavedSignature = _formSignature();
   }
 
-  Future<void> _save() async {
-    final l10n = AppLocalizations.of(context)!;
+  void _scheduleAutosave() {
+    if (!_didHydrateForm || _isSaving) {
+      return;
+    }
+    final signature = _formSignature();
+    if (signature == _lastSavedSignature) {
+      return;
+    }
+    _autosaveDebounce?.cancel();
+    _autosaveDebounce = Timer(
+      const Duration(milliseconds: 420),
+      () => unawaited(_persistAutosave(signature)),
+    );
+  }
+
+  String _formSignature() {
+    return <Object?>[
+      _wifiBitRate,
+      _wifiFormat,
+      _cellularBitRate,
+      _cellularFormat,
+      _scrobbleEnabled,
+      _useLrclib,
+      _gaplessEnabled,
+      _fullscreenModeLyrics,
+      _equalizerEnabled,
+      ..._equalizerBandGains,
+      _loudnessEnabled,
+      _loudnessTargetGainDb,
+      _crossfadeEnabled,
+      _crossfadeDurationSeconds,
+      _crossfadeType,
+      _replayGainMode,
+      _replayGainPreamp,
+      _playbackSpeed,
+    ].join('|');
+  }
+
+  Future<void> _persistAutosave(String signature) async {
+    if (_isAutoSaving) {
+      _pendingAutosave = true;
+      return;
+    }
     if (!_formKey.currentState!.validate()) {
       return;
     }
-
-    setState(() => _isSaving = true);
+    if (mounted) {
+      setState(() => _isAutoSaving = true);
+    }
     try {
       final currentSettings =
           ref.read(appSettingsProvider).asData?.value ??
@@ -558,7 +634,7 @@ class _PlaybackSettingsScreenState
         cellularFormat: _normalizeFormat(_cellularFormat),
         scrobbleEnabled: _scrobbleEnabled,
         gaplessEnabled: _gaplessEnabled,
-        skipSilenceEnabled: false,
+        skipSilenceEnabled: _fullscreenModeLyrics,
         showRadioPage: ref.read(showRadioPageProvider),
         showPlaylistsPage: ref.read(showPlaylistsPageProvider),
         showArtistsPage: ref.read(showArtistsPageProvider),
@@ -601,16 +677,12 @@ class _PlaybackSettingsScreenState
         await handler.applyRuntimeSettings();
         await handler.setPlaybackSpeed(settings.playbackSpeed);
       }
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.playbackSettingsSaveSuccess)),
-      );
+      _lastSavedSignature = signature;
     } on Object catch (error) {
       if (!mounted) {
         return;
       }
+      final l10n = AppLocalizations.of(context)!;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(l10n.playbackSettingsSaveFailure(error.toString())),
@@ -618,7 +690,11 @@ class _PlaybackSettingsScreenState
       );
     } finally {
       if (mounted) {
-        setState(() => _isSaving = false);
+        setState(() => _isAutoSaving = false);
+      }
+      if (_pendingAutosave) {
+        _pendingAutosave = false;
+        _scheduleAutosave();
       }
     }
   }
@@ -640,6 +716,7 @@ class _PlaybackSettingsScreenState
       setState(() {
         _hydrate(defaults);
         _didHydrateForm = true;
+        _lastSavedSignature = _formSignature();
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.playbackSettingsResetSuccess)),
@@ -685,5 +762,11 @@ class _PlaybackSettingsScreenState
   double _normalizePlaybackSpeed(double value) {
     final clamped = value.clamp(_minPlaybackSpeed, _maxPlaybackSpeed);
     return (clamped * 4).round() / 4;
+  }
+
+  @override
+  void dispose() {
+    _autosaveDebounce?.cancel();
+    super.dispose();
   }
 }

@@ -2072,48 +2072,72 @@ class _SortFilterRow<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    Widget buildSortDropdown() {
+      return DropdownButton<T>(
+        value: sortValue,
+        isExpanded: true,
+        isDense: true,
+        items: sortItems,
+        onChanged: onSortChanged,
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-      child: Row(
-        children: <Widget>[
-          Expanded(
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: <Widget>[
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final useStackedLayout = constraints.maxWidth < 320;
+
+          final filters = Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: <Widget>[
+              FilterChip(
+                label: Text(l10n.libraryDownloadedOnlyFilter),
+                selected: downloadedOnly,
+                onSelected: onDownloadedOnlyChanged,
+                avatar: Icon(
+                  downloadedOnly
+                      ? Icons.download_done
+                      : Icons.download_outlined,
+                  size: 18,
+                ),
+              ),
+              if (onLikedOnlyChanged != null)
                 FilterChip(
-                  label: Text(l10n.libraryDownloadedOnlyFilter),
-                  selected: downloadedOnly,
-                  onSelected: onDownloadedOnlyChanged,
+                  label: Text(l10n.libraryLikedOnlyFilter),
+                  selected: likedOnly,
+                  onSelected: onLikedOnlyChanged,
                   avatar: Icon(
-                    downloadedOnly
-                        ? Icons.download_done
-                        : Icons.download_outlined,
+                    likedOnly ? Icons.favorite : Icons.favorite_border_outlined,
                     size: 18,
                   ),
                 ),
-                if (onLikedOnlyChanged != null)
-                  FilterChip(
-                    label: Text(l10n.libraryLikedOnlyFilter),
-                    selected: likedOnly,
-                    onSelected: onLikedOnlyChanged,
-                    avatar: Icon(
-                      likedOnly
-                          ? Icons.favorite
-                          : Icons.favorite_border_outlined,
-                      size: 18,
-                    ),
-                  ),
+            ],
+          );
+
+          if (useStackedLayout) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                filters,
+                const SizedBox(height: 8),
+                buildSortDropdown(),
               ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          DropdownButton<T>(
-            value: sortValue,
-            items: sortItems,
-            onChanged: onSortChanged,
-          ),
-        ],
+            );
+          }
+
+          return Row(
+            children: <Widget>[
+              Expanded(child: filters),
+              const SizedBox(width: 12),
+              Flexible(
+                fit: FlexFit.loose,
+                child: buildSortDropdown(),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

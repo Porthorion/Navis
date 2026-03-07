@@ -18,6 +18,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
 import 'package:navis/src/features/library/domain/set_rating.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:navis/src/features/player/domain/smart_queue_state.dart';
 import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
@@ -36,9 +37,13 @@ class NowPlayingScreen extends ConsumerStatefulWidget {
   const NowPlayingScreen({
     super.key,
     this.onCollapse,
+    this.onShowQueue,
+    this.wideEmbeddedMode = false,
   });
 
   final VoidCallback? onCollapse;
+  final VoidCallback? onShowQueue;
+  final bool wideEmbeddedMode;
 
   @override
   ConsumerState<NowPlayingScreen> createState() => _NowPlayingScreenState();
@@ -98,6 +103,20 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     }
   }
 
+  Future<void> _handleWideDragEnd(DragEndDetails details) async {
+    if (!widget.wideEmbeddedMode || widget.onCollapse == null) {
+      return;
+    }
+    final velocity = details.primaryVelocity ?? 0;
+    if (velocity < -320 && widget.onShowQueue != null) {
+      widget.onShowQueue!.call();
+      return;
+    }
+    if (velocity > 320) {
+      widget.onCollapse!.call();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final playback = ref.watch(playerStateProvider);
@@ -133,18 +152,14 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     final surfaceColor = Theme.of(context).colorScheme.surface;
     final tintColor = artTinted ? _artTintColor : null;
     final mediaQuery = MediaQuery.of(context);
-    final rootViewPadding = MediaQueryData.fromView(
-      View.of(context),
-    ).viewPadding;
-    final bottomSafeInset = math.max(
-      mediaQuery.padding.bottom,
-      rootViewPadding.bottom,
-    );
+    final bottomSafeInset = widget.wideEmbeddedMode
+        ? 0.0
+        : mediaQuery.padding.bottom;
 
     return Material(
       color: surfaceColor,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 600),
+        duration: const Duration(milliseconds: 220),
         curve: Curves.easeInOut,
         decoration: BoxDecoration(
           gradient: tintColor != null
@@ -164,17 +179,36 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
           bottom: false,
           child: Padding(
             padding: EdgeInsets.only(bottom: bottomSafeInset),
-            child: Column(
-              children: <Widget>[
-                const _NowPlayingHandle(),
-                Expanded(
-                  child: _NowPlayingBody(
-                    playback: playback,
-                    song: playback.isRadioMode ? null : song,
+            child: widget.wideEmbeddedMode
+                ? GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onVerticalDragEnd: _handleWideDragEnd,
+                    child: Column(
+                      children: <Widget>[
+                        Expanded(
+                          child: _NowPlayingBody(
+                            playback: playback,
+                            song: playback.isRadioMode ? null : song,
+                            wideEmbeddedMode: widget.wideEmbeddedMode,
+                            onCollapse: widget.onCollapse,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : Column(
+                    children: <Widget>[
+                      const _NowPlayingHandle(),
+                      Expanded(
+                        child: _NowPlayingBody(
+                          playback: playback,
+                          song: playback.isRadioMode ? null : song,
+                          wideEmbeddedMode: widget.wideEmbeddedMode,
+                          onCollapse: widget.onCollapse,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
-            ),
           ),
         ),
       ),
@@ -208,8 +242,10 @@ class _NowPlayingHandle extends StatelessWidget {
 void _showNowPlayingSettingsSheet(
   BuildContext context,
   WidgetRef ref,
-  SongsTableData? song,
-) {
+  SongsTableData? song, {
+  String? fullscreenLyricsSongId,
+  String? fullscreenLyricsTitle,
+}) {
   final l10n = AppLocalizations.of(context)!;
   final playbackSpeed =
       ref.read(appSettingsProvider).asData?.value.playbackSpeed ?? 1;
@@ -223,91 +259,123 @@ void _showNowPlayingSettingsSheet(
             ? null
             : sheetRef.watch(songRatingProvider(song.id)).asData?.value;
         return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              ListTile(
-                leading: const Icon(Icons.speed),
-                title: Text(l10n.playbackSettingsPlaybackSpeedLabel),
-                subtitle: Text(formatPlaybackSpeed(playbackSpeed)),
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  _showPlaybackSpeedSheet(context, ref, playbackSpeed);
-                },
-              ),
-              if (song != null)
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
                 ListTile(
-                  leading: const Icon(Icons.star_outline),
-                  title: Text(l10n.ratingTitle),
-                  subtitle: Text(l10n.ratingHint),
-                  trailing: RatingWidget(
-                    rating: currentSongRating,
-                    compact: true,
-                    onChanged: (next) {
-                      unawaited(
-                        setSongRating(song.id, next, sheetRef).catchError((_) {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(l10n.ratingUpdateFailed)),
-                            );
-                          }
-                        }),
+                  leading: const Icon(Icons.speed),
+                  title: Text(l10n.playbackSettingsPlaybackSpeedLabel),
+                  subtitle: Text(formatPlaybackSpeed(playbackSpeed)),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    _showPlaybackSpeedSheet(context, ref, playbackSpeed);
+                  },
+                ),
+                if (song != null)
+                  ListTile(
+                    leading: const Icon(Icons.star_outline),
+                    title: Text(l10n.ratingTitle),
+                    subtitle: Text(l10n.ratingHint),
+                    trailing: RatingWidget(
+                      rating: currentSongRating,
+                      compact: true,
+                      onChanged: (next) {
+                        unawaited(
+                          setSongRating(song.id, next, sheetRef).catchError((
+                            _,
+                          ) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(l10n.ratingUpdateFailed),
+                                ),
+                              );
+                            }
+                          }),
+                        );
+                      },
+                    ),
+                  ),
+                if (song?.albumId != null && song!.albumId!.isNotEmpty)
+                  ListTile(
+                    leading: const Icon(Icons.album_outlined),
+                    title: Text(l10n.nowPlayingGoToAlbum),
+                    onTap: () {
+                      Navigator.of(sheetContext).pop();
+                      NavService.goToAlbum(context, ref, song.albumId!);
+                    },
+                  ),
+                if (song?.artistId != null && song!.artistId!.isNotEmpty)
+                  ListTile(
+                    leading: const Icon(Icons.person_outline),
+                    title: Text(l10n.nowPlayingGoToArtist),
+                    onTap: () {
+                      Navigator.of(sheetContext).pop();
+                      NavService.goToArtist(context, ref, song.artistId!);
+                    },
+                  ),
+                if (song != null)
+                  ListTile(
+                    leading: const Icon(Icons.playlist_add),
+                    title: Text(l10n.librarySongMenuAddToPlaylist),
+                    onTap: () {
+                      Navigator.of(sheetContext).pop();
+                      showAddToPlaylistSheet(context, ref, [song.id]);
+                    },
+                  ),
+                if (song != null)
+                  ListTile(
+                    leading: const Icon(Icons.download_outlined),
+                    title: Text(l10n.downloadAction),
+                    onTap: () async {
+                      Navigator.of(sheetContext).pop();
+                      final choice = await showDownloadQualitySheet(context);
+                      if (choice == null || !context.mounted) return;
+                      final service = ref.read(downloadServiceProvider);
+                      await service.enqueueSong(
+                        song.id,
+                        quality: choice.quality,
+                        format: choice.format,
+                      );
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(l10n.downloadSongQueued)),
+                        );
+                      }
+                    },
+                  ),
+                if (fullscreenLyricsSongId != null &&
+                    fullscreenLyricsTitle != null)
+                  ListTile(
+                    leading: const Icon(Icons.fullscreen),
+                    title: Text(l10n.nowPlayingLyrics),
+                    onTap: () {
+                      Navigator.of(sheetContext).pop();
+                      _openFullscreenLyricsRoute(
+                        context,
+                        fullscreenLyricsSongId,
+                        fullscreenLyricsTitle,
                       );
                     },
                   ),
-                ),
-              if (song?.albumId != null && song!.albumId!.isNotEmpty)
-                ListTile(
-                  leading: const Icon(Icons.album_outlined),
-                  title: Text(l10n.nowPlayingGoToAlbum),
-                  onTap: () {
-                    Navigator.of(sheetContext).pop();
-                    NavService.goToAlbum(context, ref, song.albumId!);
-                  },
-                ),
-              if (song?.artistId != null && song!.artistId!.isNotEmpty)
-                ListTile(
-                  leading: const Icon(Icons.person_outline),
-                  title: Text(l10n.nowPlayingGoToArtist),
-                  onTap: () {
-                    Navigator.of(sheetContext).pop();
-                    NavService.goToArtist(context, ref, song.artistId!);
-                  },
-                ),
-              if (song != null)
-                ListTile(
-                  leading: const Icon(Icons.playlist_add),
-                  title: Text(l10n.librarySongMenuAddToPlaylist),
-                  onTap: () {
-                    Navigator.of(sheetContext).pop();
-                    showAddToPlaylistSheet(context, ref, [song.id]);
-                  },
-                ),
-              if (song != null)
-                ListTile(
-                  leading: const Icon(Icons.download_outlined),
-                  title: Text(l10n.downloadAction),
-                  onTap: () async {
-                    Navigator.of(sheetContext).pop();
-                    final choice = await showDownloadQualitySheet(context);
-                    if (choice == null || !context.mounted) return;
-                    final service = ref.read(downloadServiceProvider);
-                    await service.enqueueSong(
-                      song.id,
-                      quality: choice.quality,
-                      format: choice.format,
-                    );
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(l10n.downloadSongQueued)),
-                      );
-                    }
-                  },
-                ),
-            ],
+              ],
+            ),
           ),
         );
       },
+    ),
+  );
+}
+
+Future<void> _openFullscreenLyricsRoute(
+  BuildContext context,
+  String songId,
+  String title,
+) {
+  return Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => _FullscreenLyricsPage(songId: songId, title: title),
     ),
   );
 }
@@ -329,16 +397,21 @@ class _NowPlayingBody extends ConsumerStatefulWidget {
   const _NowPlayingBody({
     required this.playback,
     this.song,
+    this.wideEmbeddedMode = false,
+    this.onCollapse,
   });
 
   final PlaybackSnapshot playback;
   final SongsTableData? song;
+  final bool wideEmbeddedMode;
+  final VoidCallback? onCollapse;
 
   @override
   ConsumerState<_NowPlayingBody> createState() => _NowPlayingBodyState();
 }
 
 class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
+  _WideNowPlayingPanel _widePanel = _WideNowPlayingPanel.none;
   bool _showLyrics = false;
 
   void _togglePlayPause() {
@@ -366,6 +439,18 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
     }
   }
 
+  Future<void> _openLyricsFullscreen(
+    BuildContext context,
+    String songId,
+    String title,
+  ) async {
+    if (widget.wideEmbeddedMode) {
+      setState(() => _widePanel = _WideNowPlayingPanel.lyrics);
+      return;
+    }
+    await _openFullscreenLyricsRoute(context, songId, title);
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -380,6 +465,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
     final currentMediaItem = ref.watch(currentMediaItemProvider).asData?.value;
     final playbackSpeed =
         ref.watch(appSettingsProvider).asData?.value.playbackSpeed ?? 1;
+    final fullscreenLyricsMode = ref.watch(fullscreenModeLyricsProvider);
 
     final title = isRadio
         ? (radioMeta?.nowPlayingTitle ??
@@ -393,6 +479,14 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
         : (song?.artistName ??
               currentMediaItem?.artist ??
               l10n.nowPlayingUnknownArtist);
+    final mediaItemArtistIdRaw = currentMediaItem?.extras?['artistId'];
+    final mediaItemArtistId = mediaItemArtistIdRaw is String
+        ? mediaItemArtistIdRaw.trim()
+        : '';
+    final resolvedArtistId =
+        (song?.artistId != null && song!.artistId!.trim().isNotEmpty)
+        ? song.artistId!.trim()
+        : (mediaItemArtistId.isNotEmpty ? mediaItemArtistId : null);
     final album = isRadio
         ? l10n.radioLive
         : (song?.albumName ??
@@ -403,48 +497,142 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
     final hasCoverArtId = coverArtId != null && coverArtId.trim().isNotEmpty;
     final hasMediaArtUrl = mediaArtUrl != null && mediaArtUrl.trim().isNotEmpty;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Column(
-        children: <Widget>[
-          const SizedBox(height: 8),
-          Expanded(
-            child: Center(
-              child: isRadio
-                  ? _RadioCoverArt(artUrl: radioMeta?.nowPlayingArtUrl)
-                  : AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 300),
-                      switchInCurve: Curves.easeOut,
-                      switchOutCurve: Curves.easeIn,
-                      child: _showLyrics && playback.currentSongId != null
-                          ? _InlineLyrics(
-                              key: const ValueKey('lyrics'),
-                              songId: playback.currentSongId!,
-                            )
-                          : GestureDetector(
-                              key: const ValueKey('cover'),
-                              onTap: _togglePlayPause,
-                              onHorizontalDragEnd: _handleHorizontalSwipe,
-                              child: hasCoverArtId
-                                  ? _CoverArt(
-                                      coverArtId: coverArtId,
-                                      semanticLabel: title,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (widget.wideEmbeddedMode &&
+            _widePanel != _WideNowPlayingPanel.none) {
+          Widget panelChild = const SizedBox.shrink();
+
+          if (_widePanel == _WideNowPlayingPanel.lyrics &&
+              playback.currentSongId != null) {
+            panelChild = _EmbeddedNowPlayingPanelScaffold(
+              key: const ValueKey<String>('wide-panel-lyrics'),
+              title: l10n.nowPlayingLyrics,
+              subtitle: title,
+              onBack: () =>
+                  setState(() => _widePanel = _WideNowPlayingPanel.none),
+              child: _InlineLyrics(songId: playback.currentSongId!),
+            );
+          }
+
+          if (_widePanel == _WideNowPlayingPanel.settings) {
+            panelChild = _EmbeddedNowPlayingPanelScaffold(
+              key: const ValueKey<String>('wide-panel-settings'),
+              title: l10n.settingsTitle,
+              onBack: () =>
+                  setState(() => _widePanel = _WideNowPlayingPanel.none),
+              child: _NowPlayingSettingsPanel(
+                song: song,
+                onCollapse: widget.onCollapse,
+              ),
+            );
+          }
+
+          if (_widePanel == _WideNowPlayingPanel.mix &&
+              playback.currentSongId != null) {
+            panelChild = _EmbeddedNowPlayingPanelScaffold(
+              key: const ValueKey<String>('wide-panel-mix'),
+              title: l10n.nowPlayingInstantMixLabel,
+              onBack: () =>
+                  setState(() => _widePanel = _WideNowPlayingPanel.none),
+              child: _EmbeddedMixPanel(seedSongId: playback.currentSongId!),
+            );
+          }
+
+          return AnimatedSwitcher(
+            duration: const Duration(milliseconds: 220),
+            switchInCurve: Curves.easeOut,
+            switchOutCurve: Curves.easeIn,
+            child: panelChild,
+          );
+        }
+
+        final isWideNowPlaying = constraints.maxWidth >= 900;
+        final hideTransportControls = widget.wideEmbeddedMode;
+        final tightHeight = constraints.maxHeight < 640;
+        final compactHeight = constraints.maxHeight < 760;
+        final compactSpacing = widget.wideEmbeddedMode || tightHeight;
+        final isPortraitInlineLyrics =
+            !isWideNowPlaying &&
+            !widget.wideEmbeddedMode &&
+            _showLyrics &&
+            playback.currentSongId != null;
+        final horizontalPadding = isWideNowPlaying
+            ? (widget.wideEmbeddedMode ? 14.0 : 20.0)
+            : 24.0;
+        final topInset = tightHeight
+            ? 4.0
+            : (isPortraitInlineLyrics ? 10.0 : 8.0);
+        final artToMetaGap = compactSpacing
+            ? 8.0
+            : (isPortraitInlineLyrics ? 12.0 : 16.0);
+        final metadataBottomGap = tightHeight
+            ? 4.0
+            : (isPortraitInlineLyrics ? 12.0 : 8.0);
+        final artMaxSize = isWideNowPlaying
+            ? math.min(
+                math.min(
+                  constraints.maxHeight * (compactSpacing ? 0.5 : 0.56),
+                  constraints.maxWidth *
+                      (widget.wideEmbeddedMode ? 0.36 : 0.44),
+                ),
+                math.max(
+                  220.0,
+                  constraints.maxHeight -
+                      (widget.wideEmbeddedMode ? 240.0 : 280.0),
+                ),
+              )
+            : math.min(
+                constraints.maxWidth - (horizontalPadding * 2),
+                constraints.maxHeight * (tightHeight ? 0.52 : 0.62),
+              );
+
+        final showInlineLyrics =
+            !widget.wideEmbeddedMode &&
+            _showLyrics &&
+            playback.currentSongId != null;
+        final artOrLyrics = isRadio
+            ? _RadioCoverArt(
+                artUrl: radioMeta?.nowPlayingArtUrl,
+                maxSize: artMaxSize,
+              )
+            : AnimatedSwitcher(
+                duration: const Duration(milliseconds: 220),
+                switchInCurve: Curves.easeOut,
+                switchOutCurve: Curves.easeIn,
+                child: showInlineLyrics
+                    ? _InlineLyrics(
+                        songId: playback.currentSongId!,
+                      )
+                    : GestureDetector(
+                        key: const ValueKey('cover'),
+                        onTap: _togglePlayPause,
+                        onHorizontalDragEnd: _handleHorizontalSwipe,
+                        child: hasCoverArtId
+                            ? _CoverArt(
+                                coverArtId: coverArtId,
+                                semanticLabel: title,
+                                maxSize: artMaxSize,
+                              )
+                            : (hasMediaArtUrl
+                                  ? _RadioCoverArt(
+                                      artUrl: mediaArtUrl,
+                                      maxSize: artMaxSize,
                                     )
-                                  : (hasMediaArtUrl
-                                        ? _RadioCoverArt(artUrl: mediaArtUrl)
-                                        : _CoverArt(
-                                            coverArtId: null,
-                                            semanticLabel: title,
-                                          )),
-                            ),
-                    ),
-            ),
-          ),
-          const SizedBox(height: 16),
+                                  : _CoverArt(
+                                      coverArtId: null,
+                                      semanticLabel: title,
+                                      maxSize: artMaxSize,
+                                    )),
+                      ),
+              );
+
+        final metadataColumn = <Widget>[
           _TrackInfo(
             title: title,
             artist: artist,
             album: album,
+            compact: compactSpacing,
             onTitleTap: isRadio
                 ? (radioMeta?.nowPlayingTitle != null &&
                           radioMeta!.nowPlayingTitle!.isNotEmpty
@@ -464,11 +652,11 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
                           radioMeta.nowPlayingArtist!,
                         )
                       : null)
-                : (song?.artistId != null && song!.artistId!.isNotEmpty
+                : (resolvedArtistId != null
                       ? () => NavService.goToArtist(
                           context,
                           ref,
-                          song.artistId!,
+                          resolvedArtistId,
                         )
                       : (song?.artistName != null &&
                                 song!.artistName!.isNotEmpty
@@ -489,7 +677,11 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
                       : null),
           ),
           if (!isRadio) ...[
-            const SizedBox(height: 12),
+            SizedBox(
+              height: isWideNowPlaying
+                  ? (compactHeight ? 8 : 10)
+                  : (isPortraitInlineLyrics ? 10 : 12),
+            ),
             _NowPlayingInfoPanel(
               song: song,
               album: albumDetails,
@@ -498,49 +690,164 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
               playbackSpeed: playbackSpeed,
             ),
           ],
-          const SizedBox(height: 16),
+          SizedBox(
+            height: isWideNowPlaying
+                ? (compactHeight ? 6 : 10)
+                : (isPortraitInlineLyrics ? 14 : 16),
+          ),
           if (!isRadio) ...[
             _SeekBar(playback: playback),
-            const SizedBox(height: 8),
+            SizedBox(height: compactSpacing ? 6 : 8),
           ],
-          _TransportControls(
-            playback: playback,
-            isRadio: isRadio,
-          ),
-          const SizedBox(height: 8),
+          if (!hideTransportControls)
+            _TransportControls(
+              playback: playback,
+              isRadio: isRadio,
+            ),
+          SizedBox(height: compactSpacing ? 4 : 8),
           if (!isRadio)
             _ActionRow(
               song: song,
               songId: playback.currentSongId,
               isLiked: playback.isCurrentSongLiked,
               showLyrics: _showLyrics,
-              onLyricsToggle: () => setState(() => _showLyrics = !_showLyrics),
+              onOpenSettingsSheet: !widget.wideEmbeddedMode
+                  ? () => _showNowPlayingSettingsSheet(
+                      context,
+                      ref,
+                      song,
+                      fullscreenLyricsSongId:
+                          !fullscreenLyricsMode &&
+                              playback.currentSongId != null
+                          ? playback.currentSongId
+                          : null,
+                      fullscreenLyricsTitle:
+                          !fullscreenLyricsMode &&
+                              playback.currentSongId != null
+                          ? title
+                          : null,
+                    )
+                  : null,
+              onLyricsToggle: playback.currentSongId == null
+                  ? null
+                  : () {
+                      if (widget.wideEmbeddedMode || fullscreenLyricsMode) {
+                        _openLyricsFullscreen(
+                          context,
+                          playback.currentSongId!,
+                          title,
+                        );
+                        return;
+                      }
+                      setState(() => _showLyrics = !_showLyrics);
+                    },
+              wideEmbeddedMode: widget.wideEmbeddedMode,
+              onOpenSettingsPanel: widget.wideEmbeddedMode
+                  ? () => setState(
+                      () => _widePanel = _WideNowPlayingPanel.settings,
+                    )
+                  : null,
+              onOpenMixPanel: widget.wideEmbeddedMode
+                  ? () => setState(() => _widePanel = _WideNowPlayingPanel.mix)
+                  : null,
             ),
-          const SizedBox(height: 8),
-        ],
-      ),
+        ];
+
+        if (!isWideNowPlaying) {
+          return Padding(
+            padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+            child: Column(
+              children: <Widget>[
+                SizedBox(height: topInset),
+                Expanded(child: Center(child: artOrLyrics)),
+                SizedBox(height: artToMetaGap),
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.only(bottom: metadataBottomGap),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: metadataColumn,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        final colorScheme = Theme.of(context).colorScheme;
+        final rightPaneWidth = math.min(430.0, constraints.maxWidth * 0.4);
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            horizontalPadding,
+            topInset,
+            horizontalPadding,
+            metadataBottomGap,
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              Expanded(
+                child: Center(child: artOrLyrics),
+              ),
+              SizedBox(width: widget.wideEmbeddedMode ? 14 : 20),
+              SizedBox(
+                width: rightPaneWidth,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: colorScheme.surfaceContainerLow,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+                    ),
+                  ),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: metadataColumn,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
 
 class _CoverArt extends ConsumerWidget {
-  const _CoverArt({this.coverArtId, this.semanticLabel});
+  const _CoverArt({this.coverArtId, this.semanticLabel, this.maxSize});
 
   final String? coverArtId;
   final String? semanticLabel;
+  final double? maxSize;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final npShape = ref.watch(nowPlayingArtShapeProvider);
     final npRadius = coverArtShapeToRadius(npShape);
+    final explicitMaxSize = maxSize;
+    if (explicitMaxSize != null) {
+      final artSize = explicitMaxSize.clamp(180.0, 680.0);
+      return CoverArtImage(
+        coverArtId: coverArtId,
+        size: 640,
+        width: artSize,
+        height: artSize,
+        borderRadius: npRadius,
+        placeholderIcon: Icons.music_note_outlined,
+        semanticLabel: semanticLabel,
+      );
+    }
+
     final mq = MediaQuery.of(context).size;
     final widthBased = mq.width - 48;
-    // Use 42% of screen height as a cap so controls aren't squeezed.
-    final heightBased = mq.height * 0.42;
-    final artSize = (widthBased < heightBased ? widthBased : heightBased).clamp(
-      180.0,
-      600.0,
-    );
+    final heightBased = mq.height * 0.52;
+    final baseSize = (widthBased < heightBased ? widthBased : heightBased);
+    final artSize = baseSize.clamp(180.0, 600.0);
 
     return CoverArtImage(
       coverArtId: coverArtId,
@@ -555,21 +862,39 @@ class _CoverArt extends ConsumerWidget {
 }
 
 class _RadioCoverArt extends ConsumerWidget {
-  const _RadioCoverArt({this.artUrl});
+  const _RadioCoverArt({this.artUrl, this.maxSize});
 
   final String? artUrl;
+  final double? maxSize;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final npShape = ref.watch(nowPlayingArtShapeProvider);
     final npRadius = coverArtShapeToRadius(npShape);
+    final explicitMaxSize = maxSize;
+    if (explicitMaxSize != null) {
+      final artSize = explicitMaxSize.clamp(180.0, 680.0);
+      if (artUrl != null) {
+        return ClipRRect(
+          borderRadius: npRadius,
+          child: CachedNetworkImage(
+            imageUrl: artUrl!,
+            width: artSize,
+            height: artSize,
+            fit: BoxFit.cover,
+            errorWidget: (_, _, _) =>
+                _radioPlaceholder(context, artSize, npRadius),
+          ),
+        );
+      }
+      return _radioPlaceholder(context, artSize, npRadius);
+    }
+
     final mq = MediaQuery.of(context).size;
     final widthBased = mq.width - 48;
-    final heightBased = mq.height * 0.42;
-    final artSize = (widthBased < heightBased ? widthBased : heightBased).clamp(
-      180.0,
-      600.0,
-    );
+    final heightBased = mq.height * 0.52;
+    final baseSize = (widthBased < heightBased ? widthBased : heightBased);
+    final artSize = baseSize.clamp(180.0, 600.0);
 
     if (artUrl != null) {
       return ClipRRect(
@@ -614,6 +939,7 @@ class _TrackInfo extends StatelessWidget {
     required this.title,
     required this.artist,
     required this.album,
+    this.compact = false,
     this.onTitleTap,
     this.onArtistTap,
     this.onAlbumTap,
@@ -622,6 +948,7 @@ class _TrackInfo extends StatelessWidget {
   final String title;
   final String artist;
   final String album;
+  final bool compact;
   final VoidCallback? onTitleTap;
   final VoidCallback? onArtistTap;
   final VoidCallback? onAlbumTap;
@@ -637,6 +964,7 @@ class _TrackInfo extends StatelessWidget {
             title,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.bold,
+              fontSize: compact ? 20 : null,
               color: onTitleTap != null
                   ? Theme.of(context).colorScheme.primary
                   : null,
@@ -646,13 +974,14 @@ class _TrackInfo extends StatelessWidget {
             textAlign: TextAlign.center,
           ),
         ),
-        const SizedBox(height: 4),
+        SizedBox(height: compact ? 2 : 4),
         GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: onArtistTap,
           child: Text(
             artist,
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              fontSize: compact ? 15 : null,
               color: onArtistTap != null
                   ? Theme.of(context).colorScheme.primary
                   : Theme.of(context).colorScheme.onSurfaceVariant,
@@ -662,13 +991,14 @@ class _TrackInfo extends StatelessWidget {
             textAlign: TextAlign.center,
           ),
         ),
-        const SizedBox(height: 2),
+        SizedBox(height: compact ? 1 : 2),
         GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: onAlbumTap,
           child: Text(
             album,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              fontSize: compact ? 13 : null,
               color: onAlbumTap != null
                   ? Theme.of(context).colorScheme.primary
                   : Theme.of(context).colorScheme.onSurfaceVariant,
@@ -884,18 +1214,63 @@ String _formatAudioQuality({
       song?.suffix?.trim().toUpperCase() ??
       _inferAudioFormat(song?.contentType);
   final bitRate = (extras?['resolvedBitRate'] as int?) ?? song?.bitRate;
+  final sampleRate = _readSampleRateFromExtras(extras) ?? song?.sampleRate;
   final descriptor = transcodingApplied ? 'Transcoded' : null;
 
   final parts = <String>[
     ?descriptor,
     if (formatLabel != null && formatLabel.isNotEmpty) formatLabel,
     if (bitRate != null && bitRate > 0) _formatBitRate(bitRate),
+    if (sampleRate != null && sampleRate > 0) _formatSampleRate(sampleRate),
   ];
 
   if (parts.isEmpty) {
     return '-';
   }
   return parts.join(' • ');
+}
+
+int? _readSampleRateFromExtras(Map<String, dynamic>? extras) {
+  if (extras == null || extras.isEmpty) {
+    return null;
+  }
+
+  const keys = <String>[
+    'resolvedSampleRate',
+    'sampleRate',
+    'samplingRate',
+    'sample_rate',
+    'sampling_rate',
+  ];
+
+  for (final key in keys) {
+    final raw = extras[key];
+    if (raw == null) {
+      continue;
+    }
+    if (raw is int) {
+      return raw > 0 ? raw : null;
+    }
+    if (raw is double) {
+      final rounded = raw.round();
+      return rounded > 0 ? rounded : null;
+    }
+    if (raw is String) {
+      final parsed = int.tryParse(raw.trim());
+      if (parsed != null && parsed > 0) {
+        return parsed;
+      }
+      final parsedDouble = double.tryParse(raw.trim());
+      if (parsedDouble != null) {
+        final rounded = parsedDouble.round();
+        if (rounded > 0) {
+          return rounded;
+        }
+      }
+    }
+  }
+
+  return null;
 }
 
 String? _formatAudioFormatLabel(String? format, {required bool isTranscoded}) {
@@ -932,6 +1307,14 @@ String _formatBitRate(int bitRate) {
     return '$text Mb/s';
   }
   return '$bitRate Kb/s';
+}
+
+String _formatSampleRate(int sampleRateHz) {
+  final sampleRateKhz = sampleRateHz / 1000;
+  final text = sampleRateKhz % 1 == 0
+      ? sampleRateKhz.toStringAsFixed(0)
+      : sampleRateKhz.toStringAsFixed(1);
+  return '$text kHz';
 }
 
 String _formatReleaseDate(SongsTableData? song, AlbumsTableData? album) {
@@ -1261,7 +1644,6 @@ class _TransportControls extends ConsumerWidget {
 class _InlineLyrics extends ConsumerWidget {
   const _InlineLyrics({
     required this.songId,
-    super.key,
   });
 
   final String songId;
@@ -1335,6 +1717,68 @@ class _InlineLyrics extends ConsumerWidget {
   }
 }
 
+class _FullscreenLyricsPage extends ConsumerWidget {
+  const _FullscreenLyricsPage({
+    required this.songId,
+    required this.title,
+  });
+
+  final String songId;
+  final String title;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final playback = ref.watch(playerStateProvider);
+    final mediaSize = MediaQuery.sizeOf(context);
+    final showMediaControls = mediaSize.height > mediaSize.width;
+    return Scaffold(
+      appBar: AppBar(
+        leading: const BackButton(),
+        title: Text(
+          l10n.nowPlayingLyrics,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(20),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ),
+      ),
+      body: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          child: Column(
+            children: <Widget>[
+              Expanded(child: _InlineLyrics(songId: songId)),
+              if (showMediaControls) ...<Widget>[
+                const SizedBox(height: 8),
+                if (!playback.isRadioMode) _SeekBar(playback: playback),
+                const SizedBox(height: 6),
+                _TransportControls(
+                  playback: playback,
+                  isRadio: playback.isRadioMode,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 String _lyricsSourceLabel(BuildContext context, LyricsSource source) {
   final l10n = AppLocalizations.of(context)!;
   return switch (source) {
@@ -1383,6 +1827,7 @@ class _PlaybackSpeedSheetState extends ConsumerState<_PlaybackSpeedSheet> {
   static const double _maxPlaybackSpeed = 2;
   double _speed = 1;
   bool _isSaving = false;
+  Timer? _saveDebounce;
 
   @override
   void initState() {
@@ -1422,9 +1867,10 @@ class _PlaybackSpeedSheetState extends ConsumerState<_PlaybackSpeedSheet> {
               label: formatPlaybackSpeed(_speed),
               onChanged: _isSaving
                   ? null
-                  : (value) => setState(
-                      () => _speed = _normalizePlaybackSpeed(value),
-                    ),
+                  : (value) {
+                      setState(() => _speed = _normalizePlaybackSpeed(value));
+                      _scheduleAutoSave();
+                    },
             ),
             Text(
               l10n.playbackSettingsPlaybackSpeedSubtitle,
@@ -1438,13 +1884,18 @@ class _PlaybackSpeedSheetState extends ConsumerState<_PlaybackSpeedSheet> {
                 TextButton(
                   onPressed: _isSaving
                       ? null
-                      : () => setState(() => _speed = 1),
+                      : () {
+                          setState(() => _speed = 1);
+                          _scheduleAutoSave();
+                        },
                   child: Text(l10n.playbackSettingsResetAction),
                 ),
                 const Spacer(),
                 FilledButton(
-                  onPressed: _isSaving ? null : _save,
-                  child: Text(l10n.playbackSettingsSaveAction),
+                  onPressed: _isSaving
+                      ? null
+                      : () => Navigator.of(context).pop(),
+                  child: const Text('Close'),
                 ),
               ],
             ),
@@ -1454,7 +1905,18 @@ class _PlaybackSpeedSheetState extends ConsumerState<_PlaybackSpeedSheet> {
     );
   }
 
-  Future<void> _save() async {
+  void _scheduleAutoSave() {
+    _saveDebounce?.cancel();
+    _saveDebounce = Timer(
+      const Duration(milliseconds: 320),
+      () => unawaited(_persistSpeed()),
+    );
+  }
+
+  Future<void> _persistSpeed() async {
+    if (_isSaving) {
+      return;
+    }
     setState(() => _isSaving = true);
     try {
       final settings =
@@ -1467,10 +1929,6 @@ class _PlaybackSpeedSheetState extends ConsumerState<_PlaybackSpeedSheet> {
           );
       final handler = ref.read(audioHandlerProvider);
       await handler?.setPlaybackSpeed(_normalizePlaybackSpeed(_speed));
-      if (!mounted) {
-        return;
-      }
-      Navigator.of(context).pop();
     } finally {
       if (mounted) {
         setState(() => _isSaving = false);
@@ -1482,6 +1940,12 @@ class _PlaybackSpeedSheetState extends ConsumerState<_PlaybackSpeedSheet> {
     final clamped = value.clamp(_minPlaybackSpeed, _maxPlaybackSpeed);
     return (clamped * 4).round() / 4;
   }
+
+  @override
+  void dispose() {
+    _saveDebounce?.cancel();
+    super.dispose();
+  }
 }
 
 class _ActionRow extends ConsumerStatefulWidget {
@@ -1491,6 +1955,10 @@ class _ActionRow extends ConsumerStatefulWidget {
     this.isLiked = false,
     this.showLyrics = false,
     this.onLyricsToggle,
+    this.wideEmbeddedMode = false,
+    this.onOpenSettingsPanel,
+    this.onOpenSettingsSheet,
+    this.onOpenMixPanel,
   });
 
   final SongsTableData? song;
@@ -1498,6 +1966,10 @@ class _ActionRow extends ConsumerStatefulWidget {
   final bool isLiked;
   final bool showLyrics;
   final VoidCallback? onLyricsToggle;
+  final bool wideEmbeddedMode;
+  final VoidCallback? onOpenSettingsPanel;
+  final VoidCallback? onOpenSettingsSheet;
+  final VoidCallback? onOpenMixPanel;
 
   @override
   ConsumerState<_ActionRow> createState() => _ActionRowState();
@@ -1587,6 +2059,11 @@ class _ActionRowState extends ConsumerState<_ActionRow>
           onTap: widget.songId == null
               ? null
               : () {
+                  if (widget.wideEmbeddedMode &&
+                      widget.onOpenMixPanel != null) {
+                    widget.onOpenMixPanel!.call();
+                    return;
+                  }
                   if (smartQueueAvailable) {
                     showMixModeSheet(context, seedSongId: widget.songId!);
                   } else {
@@ -1629,7 +2106,17 @@ class _ActionRowState extends ConsumerState<_ActionRow>
             color: colorScheme.onSurfaceVariant,
           ),
           label: l10n.settingsTitle,
-          onTap: () => _showNowPlayingSettingsSheet(context, ref, widget.song),
+          onTap: () {
+            if (widget.wideEmbeddedMode && widget.onOpenSettingsPanel != null) {
+              widget.onOpenSettingsPanel!.call();
+              return;
+            }
+            if (widget.onOpenSettingsSheet != null) {
+              widget.onOpenSettingsSheet!.call();
+              return;
+            }
+            _showNowPlayingSettingsSheet(context, ref, widget.song);
+          },
         ),
       ],
     );
@@ -1657,5 +2144,253 @@ class _NowPlayingActionButton extends StatelessWidget {
         icon: icon,
       ),
     );
+  }
+}
+
+enum _WideNowPlayingPanel { none, lyrics, settings, mix }
+
+class _EmbeddedNowPlayingPanelScaffold extends StatelessWidget {
+  const _EmbeddedNowPlayingPanelScaffold({
+    required this.title,
+    required this.onBack,
+    required this.child,
+    this.subtitle,
+    super.key,
+  });
+
+  final String title;
+  final String? subtitle;
+  final VoidCallback onBack;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
+          child: Row(
+            children: <Widget>[
+              IconButton(
+                tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+                onPressed: onBack,
+                icon: const Icon(Icons.arrow_back),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Text(title, style: theme.textTheme.titleMedium),
+                    if (subtitle != null && subtitle!.isNotEmpty)
+                      Text(
+                        subtitle!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+        Expanded(child: child),
+      ],
+    );
+  }
+}
+
+class _NowPlayingSettingsPanel extends ConsumerWidget {
+  const _NowPlayingSettingsPanel({
+    required this.song,
+    this.onCollapse,
+  });
+
+  final SongsTableData? song;
+  final VoidCallback? onCollapse;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final playbackSpeed =
+        ref.watch(appSettingsProvider).asData?.value.playbackSpeed ?? 1;
+    final currentSongRating = song == null
+        ? null
+        : ref.watch(songRatingProvider(song!.id)).asData?.value;
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
+      children: <Widget>[
+        ListTile(
+          leading: const Icon(Icons.speed),
+          title: Text(l10n.playbackSettingsPlaybackSpeedLabel),
+          subtitle: Text(formatPlaybackSpeed(playbackSpeed)),
+          onTap: () => _showPlaybackSpeedSheet(context, ref, playbackSpeed),
+        ),
+        if (song != null)
+          ListTile(
+            leading: const Icon(Icons.star_outline),
+            title: Text(l10n.ratingTitle),
+            subtitle: Text(l10n.ratingHint),
+            trailing: RatingWidget(
+              rating: currentSongRating,
+              compact: true,
+              onChanged: (next) {
+                unawaited(
+                  setSongRating(song!.id, next, ref).catchError((_) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(l10n.ratingUpdateFailed)),
+                      );
+                    }
+                  }),
+                );
+              },
+            ),
+          ),
+        if (song?.albumId != null && song!.albumId!.isNotEmpty)
+          ListTile(
+            leading: const Icon(Icons.album_outlined),
+            title: Text(l10n.nowPlayingGoToAlbum),
+            onTap: () {
+              onCollapse?.call();
+              NavService.goToAlbum(context, ref, song!.albumId!);
+            },
+          ),
+        if (song?.artistId != null && song!.artistId!.isNotEmpty)
+          ListTile(
+            leading: const Icon(Icons.person_outline),
+            title: Text(l10n.nowPlayingGoToArtist),
+            onTap: () {
+              onCollapse?.call();
+              NavService.goToArtist(context, ref, song!.artistId!);
+            },
+          ),
+        if (song != null)
+          ListTile(
+            leading: const Icon(Icons.playlist_add),
+            title: Text(l10n.librarySongMenuAddToPlaylist),
+            onTap: () => showAddToPlaylistSheet(context, ref, [song!.id]),
+          ),
+        if (song != null)
+          ListTile(
+            leading: const Icon(Icons.download_outlined),
+            title: Text(l10n.downloadAction),
+            onTap: () async {
+              final choice = await showDownloadQualitySheet(context);
+              if (choice == null || !context.mounted) return;
+              final service = ref.read(downloadServiceProvider);
+              await service.enqueueSong(
+                song!.id,
+                quality: choice.quality,
+                format: choice.format,
+              );
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(l10n.downloadSongQueued)),
+                );
+              }
+            },
+          ),
+      ],
+    );
+  }
+}
+
+class _EmbeddedMixPanel extends ConsumerWidget {
+  const _EmbeddedMixPanel({required this.seedSongId});
+
+  final String seedSongId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final smartQueue = ref.watch(smartQueueProvider);
+    final instantMix = ref.watch(instantMixProvider);
+    final cards = <Widget>[
+      for (final profile in SmartQueueProfile.values)
+        Card(
+          child: ListTile(
+            leading: Icon(profile.icon, color: profile.color),
+            title: Text(_embeddedSmartQueueProfileTitle(l10n, profile)),
+            subtitle: Text(
+              _embeddedSmartQueueProfileDescription(l10n, profile),
+            ),
+            trailing: smartQueue.active && smartQueue.profile == profile
+                ? const Icon(Icons.check_circle)
+                : null,
+            onTap: () async {
+              ref.read(instantMixProvider.notifier).deactivate();
+              if (smartQueue.active && smartQueue.profile == profile) {
+                ref.read(smartQueueProvider.notifier).deactivate();
+                return;
+              }
+              ref.read(smartQueueProvider.notifier).deactivate();
+              await ref
+                  .read(smartQueueProvider.notifier)
+                  .activate(profile, seedSongId);
+            },
+          ),
+        ),
+      Card(
+        child: ListTile(
+          leading: const Icon(Icons.explore_outlined),
+          title: Text(l10n.nowPlayingInstantMixLabel),
+          subtitle: Text(l10n.nowPlayingInstantMixDescription),
+          trailing: instantMix.active ? const Icon(Icons.check_circle) : null,
+          onTap: () async {
+            ref.read(smartQueueProvider.notifier).deactivate();
+            if (instantMix.active) {
+              ref.read(instantMixProvider.notifier).deactivate();
+              return;
+            }
+            await ref.read(instantMixProvider.notifier).activate(seedSongId);
+          },
+        ),
+      ),
+    ];
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
+      children: cards,
+    );
+  }
+}
+
+String _embeddedSmartQueueProfileTitle(
+  AppLocalizations l10n,
+  SmartQueueProfile profile,
+) {
+  switch (profile) {
+    case SmartQueueProfile.steadyVibes:
+      return l10n.smartQueueSteadyVibes;
+    case SmartQueueProfile.discoveryMix:
+      return l10n.smartQueueDiscoveryMix;
+    case SmartQueueProfile.deepDive:
+      return l10n.smartQueueDeepDive;
+    case SmartQueueProfile.energyFlow:
+      return l10n.smartQueueEnergyFlow;
+  }
+}
+
+String _embeddedSmartQueueProfileDescription(
+  AppLocalizations l10n,
+  SmartQueueProfile profile,
+) {
+  switch (profile) {
+    case SmartQueueProfile.steadyVibes:
+      return l10n.smartQueueSteadyVibesDesc;
+    case SmartQueueProfile.discoveryMix:
+      return l10n.smartQueueDiscoveryMixDesc;
+    case SmartQueueProfile.deepDive:
+      return l10n.smartQueueDeepDiveDesc;
+    case SmartQueueProfile.energyFlow:
+      return l10n.smartQueueEnergyFlowDesc;
   }
 }
