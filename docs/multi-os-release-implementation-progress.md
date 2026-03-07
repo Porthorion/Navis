@@ -70,6 +70,19 @@ This document is the detailed execution log for preparing Navis as a native app 
 - Push status:
   - Both commits pushed to `origin/dev`.
 
+### F. Desktop runtime baseline hardening
+- Status: completed
+- Actions:
+  - Enabled outbound network entitlement for macOS debug and release sandbox profiles.
+  - Updated macOS app product name to `Navis`.
+  - Updated Windows runner metadata (`FileDescription`, `ProductName`) to `Navis`.
+- Evidence:
+  - `macos/Runner/DebugProfile.entitlements`
+  - `macos/Runner/Release.entitlements`
+  - `macos/Runner/Configs/AppInfo.xcconfig`
+  - `windows/runner/Runner.rc`
+  - `plutil -lint macos/Runner/DebugProfile.entitlements macos/Runner/Release.entitlements macos/Runner/Info.plist`
+
 ## Open work for plan implementation
 - Machine readiness
   - Complete Xcode installation + first-launch toolchain setup.
