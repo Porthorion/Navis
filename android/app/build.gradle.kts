@@ -78,6 +78,11 @@ android {
                 signingConfigs.getByName("debug")
         }
         release {
+            if (sidecarAppIdSuffix.isNotEmpty()) {
+                applicationIdSuffix = sidecarAppIdSuffix
+                versionNameSuffix = "-sidecar"
+            }
+            resValue("string", "app_name", sidecarAppName)
             signingConfig = if (keyPropertiesFile.exists())
                 signingConfigs.getByName("release")
             else
