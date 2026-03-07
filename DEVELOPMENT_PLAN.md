@@ -2055,8 +2055,98 @@ Canonical execution phase combining former Phases 12 and 13.
 - Android Auto media tree, search, and queue integration.
 - CarPlay content tree and entitlement/platform-channel work.
 - Desktop adaptive shell and platform media key integrations (SMTC/MPRIS/macOS media center).
-- Spotify-like widescreen desktop UX: left navigation menu with a persistent extended mini player below it, and a dominant right-side workspace for the active page content.
+- Spotify-like widescreen desktop UX: left navigation menu with a persistent full-width bottom player (expandable to full-screen lyrics/player mode), and a dominant right-side workspace for active content.
+- Tablet and larger-native-window UX with a docked half-column mini player rail target width of 320 px.
 - Packaging/distribution workflow hardening for Windows/macOS/Linux.
+
+### Phase 26 Execution Decisions (Locked 2026-03-07)
+
+The following product and architecture choices are locked for this phase and should not be re-opened unless a hard technical blocker appears.
+
+1. Desktop visual direction uses Spotify-style structure on wide windows: left navigation column, full-width playback bar along the bottom, and expandable immersive player surface.
+2. Tablet and intermediate-width native windows use a docked mini-player side rail at 320 px before escalating to the full desktop shell.
+3. Existing playback stack should be reused where possible; platform-specific divergence is allowed only where required by plugin support limits.
+4. Audio foundation work is a gating prerequisite for all Phase 26.2 layout/UI implementation.
+5. Packaging priorities are platform-specific: Linux `.deb` first, macOS Apple Silicon first, Windows `.exe` first.
+
+### 26.A Playback Platform Strategy (Gating)
+
+`audio_service` support findings drive the runtime architecture for Phase 26.2.
+
+| Platform | Runtime strategy | Decision |
+|---|---|---|
+| Android | Keep existing `audio_service` + `just_audio` path | No structural change |
+| iOS | Keep existing `audio_service` + `just_audio` path | No structural change |
+| macOS | Keep existing `audio_service` + `just_audio` path | No structural change |
+| Linux | Keep `audio_service` path and add `audio_service_mpris` plugin | Native MPRIS via federated plugin |
+| Windows | Add Windows-specific handler that implements `NavisPlaybackHandler` using `just_audio` + `smtc_windows`; do not call `AudioService.init()` on Windows | Platform-conditional handler split |
+
+Supporting implementation notes:
+
+- Keep `NavisPlaybackHandler` as the app-level contract for all platforms.
+- Keep `initNavisAudioHandler()` as the single branching point for runtime handler selection.
+- Keep `audio_service` dependency for shared pure-Dart media types used across code (`MediaItem`, shuffle/repeat enums) even when Windows bypasses `AudioService.init()`.
+- Add Linux desktop support through `audio_service_mpris` instead of a custom MPRIS bridge.
+- Use `smtc_windows` only on Windows for transport controls and metadata sync.
+
+Desktop playback limitation accepted for Phase 26:
+
+- `LockCachingAudioSource` rolling cache path is unavailable on Windows/Linux backend path; desktop falls back to direct stream playback plus existing permanent downloads.
+
+### 26.B Adaptive Shell UX Spec
+
+Responsive behavior for one reusable shell implementation:
+
+| Window width | Layout mode | Playback surface behavior |
+|---|---|---|
+| `< 600` | Existing phone shell | Existing bottom mini-player + expandable sheet behavior |
+| `600-959` | Tablet/compact desktop shell | NavigationRail with docked mini-player rail (target 320 px) |
+| `960-1199` | Expanded workspace shell | Multi-column content with persistent docked player region |
+| `>= 1200` | Full desktop shell | Spotify-style left nav + full-width bottom player + expandable immersive player/lyrics mode |
+| `>= 1600` | Ultra-wide tuning | Preserve left nav and bottom player, allow wider content canvas and optional center-constrained reading columns where needed |
+
+### 26.C Desktop Window and Packaging Strategy
+
+Window/runtime baseline:
+
+- Add `window_manager` now for desktop startup sizing, min size, and position persistence.
+- Enforce minimum size `480 x 600`.
+
+Distribution baseline by platform:
+
+- Linux: prioritize `.deb` first; add `.AppImage` and Flatpak only if low overhead after `.deb` is stable.
+- macOS: prioritize Apple Silicon (`arm64`) support first; document and validate signing/notarization path.
+- Windows: prioritize installable `.exe` target for Windows 10/11; keep MSIX as an optional follow-up path, not the first release gate.
+
+### 26.D Phase 26.2 Implementation Sequence
+
+Execute in this order to reduce rework:
+
+1. Playback preflight and runtime split
+2. Linux MPRIS enablement via `audio_service_mpris`
+3. Windows handler implementation and SMTC bridge
+4. Desktop caching-compatibility guards in source resolver
+5. Bootstrap gate hardening so unsupported platform init does not block app launch
+6. Adaptive shell rollout with breakpoints and desktop/ultra-wide tuning
+7. Full-width desktop bottom player and immersive lyrics/player expansion flow
+8. Desktop window persistence and packaging profiles per target OS
+
+### 26.E Dependencies Planned in This Phase
+
+Primary additions for this phase:
+
+- `window_manager`
+- `audio_service_mpris`
+- `smtc_windows`
+- `just_audio_media_kit`
+- `media_kit_libs_windows_audio`
+- `media_kit_libs_linux`
+
+Keep existing playback deps in place for shared runtime paths:
+
+- `audio_service`
+- `just_audio`
+- `audio_session` (guarded at runtime where unsupported)
 
 ## Phase 27: Platform Surface Extensions (Priority Execution)
 

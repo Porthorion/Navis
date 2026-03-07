@@ -713,6 +713,15 @@ Last updated: 2026-03-07
 
 > Fifth-priority implementation block combining former Phases 12 and 13 for coherent platform-surface rollout.
 
+Locked for this phase: audio foundation first, then adaptive shell/UI. Desktop UX direction is Spotify-style (left nav + bottom full-width player + expandable immersive player/lyrics), with tablet/intermediate windows using a 320 px docked mini-player rail.
+
+### 26.0 — Platform Audio Foundation & Planning (GATING)
+- [x] Investigate `audio_service` runtime platform support and document implications for Android/iOS/macOS/Linux/Windows — 2026-03-07 (evidence: Phase 26 updates in `DEVELOPMENT_PLAN.md`)
+- [x] Lock hybrid playback strategy: keep existing `audio_service` path on Android/iOS/macOS, add `audio_service_mpris` on Linux, create Windows-specific handler using `just_audio` + `smtc_windows` — 2026-03-07 (evidence: `DEVELOPMENT_PLAN.md` section "26.A Playback Platform Strategy")
+- [x] Lock caching behavior decision for desktop: accept no `LockCachingAudioSource` rolling-cache path on Windows/Linux and use direct stream fallback with permanent downloads preserved — 2026-03-07 (evidence: `DEVELOPMENT_PLAN.md` section "26.A Playback Platform Strategy")
+- [x] Lock packaging priorities: Linux `.deb` first, macOS Apple Silicon first, Windows `.exe` first — 2026-03-07 (evidence: `DEVELOPMENT_PLAN.md` section "26.C Desktop Window and Packaging Strategy")
+- [x] Lock execution order (audio preflight before shell/layout implementation) and integrate into canonical phase docs — 2026-03-07 (evidence: `DEVELOPMENT_PLAN.md` section "26.D Phase 26.2 Implementation Sequence" and this phase section)
+
 ### 26.1 — Android Auto & CarPlay
 - [ ] `AutoMediaLibraryService` — extends `NavisAudioHandler` with `getChildren()` / `getMediaItem()` browsable tree
 - [ ] `autoContentProvider` — Riverpod provider constructing `MediaItem` hierarchy (root -> artists/albums/playlists -> tracks)
@@ -726,19 +735,21 @@ Last updated: 2026-03-07
 - [ ] Graceful degradation (inert when not connected, error `MediaItem` on tree load failure)
 
 ### 26.2 — Desktop Support (Windows, macOS, Linux)
-- [ ] `AdaptiveShell` widget with `LayoutBuilder` breakpoints (< 600 dp BottomNav, >= 600 dp NavigationRail, >= 960 dp master-detail)
-- [ ] At >= 1200 dp, implement Spotify-style desktop shell: simple left navigation menu + persistent extended mini player below navigation
-- [ ] At >= 1200 dp, allocate dominant right-side workspace to the active route/page with desktop spacing and width behavior
-- [ ] Keep narrower breakpoints intact so tablet/mobile layouts remain unchanged
-- [ ] `go_router` shell route updated to use `AdaptiveShell`
-- [ ] Window size/position persistence via `window_manager` package
-- [ ] Minimum window size enforced (480 x 600 px)
-- [ ] Windows: `smtc_windows` SMTC integration bridged to `NavisAudioHandler`
-- [ ] Linux: `mpris_service` D-Bus MPRIS interface bridged to `NavisAudioHandler`
-- [ ] macOS: platform channel -> `MPRemoteCommandCenter` + `MPNowPlayingInfoCenter`
-- [ ] Windows: MSIX packaging via `msix` pub package
-- [ ] macOS: entitlements + notarisation workflow documented
-- [ ] Linux: `.deb` + Flatpak packaging via `flutter_distributor`
+- [ ] Add deps for desktop runtime split and integration: `window_manager`, `audio_service_mpris`, `smtc_windows`, `just_audio_media_kit`, `media_kit_libs_windows_audio`, `media_kit_libs_linux`
+- [ ] Refactor `initNavisAudioHandler()` to branch by platform with Windows bypassing `AudioService.init()`
+- [ ] Implement `WindowsAudioHandler` that satisfies `NavisPlaybackHandler` and bridges transport/metadata to SMTC
+- [ ] Enable Linux desktop media controls via `audio_service_mpris` and verify MPRIS command parity
+- [ ] Guard unsupported desktop runtime paths (`audio_session`, notification surfaces) to avoid startup failures
+- [ ] Update playback source resolution for desktop fallback when `LockCachingAudioSource` path is unavailable
+- [ ] Harden playback bootstrap gate so Windows/Linux initialization never blocks app startup on unsupported plugin paths
+- [ ] Build `AdaptiveShell` with breakpoints: `<600` phone shell, `600-959` docked 320 px mini-player rail, `960-1199` expanded workspace, `>=1200` full desktop shell
+- [ ] Implement Spotify-style desktop structure at `>=1200`: left nav + full-width bottom player + dominant content workspace
+- [ ] Add expandable immersive player mode from desktop bottom player (full-player/lyrics surface)
+- [ ] Add ultra-wide behavior at `>=1600` that preserves layout hierarchy while widening content responsibly
+- [ ] Keep phone/tablet portrait/landscape behavior stable at narrower breakpoints (no regressions)
+- [ ] Update `go_router` shell wiring to use `AdaptiveShell` without breaking existing branch navigation
+- [ ] Add window size/position persistence with `window_manager`; enforce minimum `480 x 600`
+- [ ] Packaging path: Linux `.deb` first (then optional `.AppImage`/Flatpak if low effort), macOS Apple Silicon-first signed/notarized build path, Windows installable `.exe` target for Windows 10/11
 
 ## Phase 27: Platform Surface Extensions
 
