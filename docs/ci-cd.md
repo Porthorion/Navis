@@ -21,7 +21,7 @@ The script also checks `/tmp` disk space before starting to prevent misleading t
 
 ## Release (`tool/release.sh`)
 
-Builds a release APK, tags the commit, creates a Forgejo release, and uploads the APK — all from the local machine.
+Builds selected release artifacts, tags the commit, creates a Forgejo release, and uploads all assets — all from the local machine.
 
 ### Setup (one-time)
 
@@ -45,8 +45,11 @@ Builds a release APK, tags the commit, creates a Forgejo release, and uploads th
 ### Usage
 
 ```bash
-./tool/release.sh v0.2.0          # stable release
-./tool/release.sh v0.3.0-beta.1   # pre-release (auto-detected from tag)
+./tool/release.sh v0.2.0
+./tool/release.sh v0.2.0 --channel=dev
+./tool/release.sh v0.2.0 --targets=android,macos
+./tool/release.sh v0.2.0 --all-platforms
+./tool/release.sh v0.2.0 --targets=linux --linux-package=deb
 ```
 
 Or via Makefile:
@@ -56,12 +59,21 @@ make release VERSION=v0.2.0
 
 ### What it does
 
-1. Runs `./tool/check.sh` (format, analyze, lint, tests). Fails fast on any issue.
-2. Builds release APK: `flutter build apk --release`.
-3. Creates an annotated git tag and pushes it.
-4. Determines release type: tags containing `-alpha`, `-beta`, `-rc`, or `-dev` → pre-release; clean semver tags → stable.
-5. Creates a Forgejo release via the API.
-6. Uploads the APK as a release asset.
+1. Runs `./tool/check.sh` (format, analyze, lint, tests) unless `--skip-checks` is passed.
+2. Builds selected artifacts for requested targets (`android`, `ios`, `macos`, `linux`, `windows`).
+2.1 For Linux target, can output either portable `bundle` (tar.gz) or `.deb` (`--linux-package=deb`).
+3. Passes `--dart-define=NAVIS_UPDATE_CHANNEL=<stable|dev>` to Flutter builds.
+4. For `--channel=dev`, defaults Android sidecar identity to `.dev` / `Navis Dev`.
+5. Creates an annotated git tag and pushes main/current branch/tag.
+6. Creates a Forgejo release with `prerelease=true` for dev channel (or when `--prerelease` is passed).
+7. Uploads all built assets to the release.
+
+### Release channels
+
+- `stable` channel assets are named `navis-<tag>.*`
+- `dev` channel assets are named `navis-dev-<tag>.*`
+
+The app updater uses `NAVIS_UPDATE_CHANNEL` to prefer channel-matching assets.
 
 ### Required environment variables
 

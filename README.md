@@ -56,9 +56,20 @@ flutter run
 
 ```bash
 ./tool/release.sh v1.0.0
+./tool/release.sh v1.0.0 --channel=dev
+./tool/release.sh v1.0.0 --targets=android,macos
 ```
 
 See [docs/ci-cd.md](docs/ci-cd.md) for Forgejo release setup.
+
+## Dev Sidecar App
+
+```bash
+./tool/dev_app.sh run -d <device-id>
+./tool/dev_app.sh apk
+```
+
+This builds/runs a side-by-side dev app (`.dev` suffix, `Navis Dev`) and pins updater checks to the `dev` channel.
 
 ## Documentation
 
@@ -67,6 +78,7 @@ See [docs/ci-cd.md](docs/ci-cd.md) for Forgejo release setup.
 | [docs/architecture.md](docs/architecture.md) | Data flow, provider graph |
 | [docs/development-workflow.md](docs/development-workflow.md) | Code generation, conventions |
 | [docs/ci-cd.md](docs/ci-cd.md) | Release pipeline, quality gates |
+| [docs/dev-testing-builds.md](docs/dev-testing-builds.md) | Side-by-side dev builds and update channel mapping |
 | [docs/troubleshooting.md](docs/troubleshooting.md) | Common issues |
 
 ## Roadmap

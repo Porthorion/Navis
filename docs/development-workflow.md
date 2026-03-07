@@ -156,6 +156,23 @@ unset NAVIS_APP_ID_SUFFIX
 unset NAVIS_APP_NAME
 ```
 
+### Dev Sidecar Helper Script
+
+Use the helper script to run or build a sidecar app without manually exporting variables each time:
+
+```bash
+./tool/dev_app.sh run -d <device-id>
+./tool/dev_app.sh apk
+```
+
+Defaults used by this script:
+
+- `NAVIS_APP_ID_SUFFIX=.dev`
+- `NAVIS_APP_NAME="Navis Dev"`
+- `--dart-define=NAVIS_UPDATE_CHANNEL=dev`
+
+This ensures the dev app can live next to stable and the in-app updater checks dev-channel release assets.
+
 When Android SDK/device is not available locally, you can still verify app startup behavior with Linux desktop:
 
 ```bash
