@@ -48,6 +48,28 @@ This document is the detailed execution log for preparing Navis as a native app 
   - Added `.gitignore` entries for desktop packaging outputs and platform ephemeral artifacts.
   - Linked `PROGRESS.md` Phase 26 to this detailed tracker.
 
+### D. Published release APK with release automation
+- Status: completed
+- Actions:
+  - Ran `./tool/release.sh v0.8.0 --skip-checks` from `dev`.
+  - Script built and validated APK metadata/signing, fast-forwarded `main` to current `dev`, created tag `v0.8.0`, published Forgejo release, and uploaded asset `navis-v0.8.0.apk`.
+- Evidence:
+  - Release URL: `https://git.porthorion.com/khalifa/Navis/releases/tag/v0.8.0`
+  - Git operations performed by script:
+    - `main` fast-forwarded to commit `0507e82`
+    - tag `v0.8.0` pushed
+
+### E. Multi-OS implementation kickoff (post-release)
+- Status: in progress
+- Actions completed in this kickoff block:
+  - Added multi-target/channel-aware release workflow and sidecar tooling/docs.
+  - Added desktop runner scaffolding for macOS and Windows to the repository.
+- Commits:
+  - `ba7ca19` — `feat(release): add multi-target publishing and sidecar workflows`
+  - `daa3956` — `chore(platform): add macos and windows desktop runner scaffolding`
+- Push status:
+  - Both commits pushed to `origin/dev`.
+
 ## Open work for plan implementation
 - Machine readiness
   - Complete Xcode installation + first-launch toolchain setup.

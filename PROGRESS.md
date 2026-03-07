@@ -718,6 +718,8 @@ Locked for this phase: audio foundation first, then adaptive shell/UI. Desktop U
 Detailed implementation tracker for this release stream:
 `docs/multi-os-release-implementation-progress.md`
 
+Latest activity (2026-03-07): published `v0.8.0` APK via `tool/release.sh` and started multi-OS implementation with release-tooling/desktop-runner commits on `dev` (`ba7ca19`, `daa3956`).
+
 ### 26.0 — Platform Audio Foundation & Planning (GATING)
 - [x] Investigate `audio_service` runtime platform support and document implications for Android/iOS/macOS/Linux/Windows — 2026-03-07 (evidence: Phase 26 updates in `DEVELOPMENT_PLAN.md`)
 - [x] Lock hybrid playback strategy: keep existing `audio_service` path on Android/iOS/macOS, add `audio_service_mpris` on Linux, create Windows-specific handler using `just_audio` + `smtc_windows` — 2026-03-07 (evidence: `DEVELOPMENT_PLAN.md` section "26.A Playback Platform Strategy")
