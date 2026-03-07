@@ -694,6 +694,15 @@ class SubsonicApiClient {
       }
     }
 
+    if (statusCode != null) {
+      final statusMessage = err.response?.statusMessage;
+      final message =
+          statusMessage == null || statusMessage.isEmpty
+          ? 'Subsonic server returned HTTP $statusCode.'
+          : 'Subsonic server returned HTTP $statusCode: $statusMessage';
+      return SubsonicGenericException(code: statusCode, message: message);
+    }
+
     return SubsonicConnectionException(
       err.message ??
           'Unexpected network error while talking to Subsonic server.',

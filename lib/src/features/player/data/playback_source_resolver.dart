@@ -18,11 +18,13 @@ class ResolvedPlaybackMetadata {
   const ResolvedPlaybackMetadata({
     this.format,
     this.bitRate,
+    this.sampleRate,
     required this.isTranscoded,
   });
 
   final String? format;
   final int? bitRate;
+  final int? sampleRate;
   final bool isTranscoded;
 }
 
@@ -162,11 +164,15 @@ class PlaybackSourceResolver {
       song: song,
       quality: quality,
     );
-    if (!preferLockCaching) {
+    final canUseLockCaching = preferLockCaching && _supportsLockCachingRuntime;
+    if (!canUseLockCaching) {
+      final reason = !preferLockCaching
+          ? 'prefer_lock_disabled'
+          : 'runtime_lock_cache_unsupported';
       AppLogger.debug(
         'Playback source resolved: song=${song.id} '
         'kind=${PlaybackSourceKind.directStream.name} '
-        'fallback=prefer_lock_disabled '
+        'fallback=$reason '
         'qualityLabel=${quality.label} '
         'maxBitRate=${quality.maxBitRate?.toString() ?? 'original'} '
         'format=${quality.format ?? 'original'}',
@@ -310,6 +316,7 @@ class PlaybackSourceResolver {
         isTranscoded: isTranscoded,
       ),
       bitRate: shouldRequestBitRate ? requestedBitRate : sourceBitRate,
+      sampleRate: song.sampleRate,
       isTranscoded: isTranscoded,
     );
   }
@@ -337,6 +344,7 @@ class PlaybackSourceResolver {
     return ResolvedPlaybackMetadata(
       format: resolvedFormat,
       bitRate: resolvedBitRate,
+      sampleRate: song.sampleRate,
       isTranscoded: isTranscoded,
     );
   }
@@ -500,3 +508,6 @@ class PlaybackSourceResolver {
     };
   }
 }
+
+bool get _supportsLockCachingRuntime =>
+    !kIsWeb && !(Platform.isWindows || Platform.isLinux);

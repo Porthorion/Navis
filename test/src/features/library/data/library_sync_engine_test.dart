@@ -1039,6 +1039,35 @@ void main() {
     );
 
     test(
+      'incremental sync marks run skipped after exhausted transient index failures',
+      () async {
+        await saveSession(
+          lastSynced: DateTime.now().subtract(const Duration(hours: 3)),
+          lastFullSyncedAt: DateTime.now(),
+        );
+        api.throwOnIndexes = const SubsonicGenericException(
+          code: 530,
+          message: 'origin unavailable',
+        );
+
+        final state = await engine.syncIfStale();
+
+        expect(state.status, LibrarySyncStatus.skipped);
+        expect(state.mode, LibrarySyncMode.incremental);
+        expect(state.stage, LibrarySyncStage.completed);
+        expect(
+          state.errorMessage,
+          'Server temporarily unavailable. Sync will retry later.',
+        );
+        expect(
+          api.calls.where((call) => call == 'getIndexes').length,
+          4,
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'daily rebaseline mode triggers full sync after interval',
       () async {
         await saveSession(

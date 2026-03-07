@@ -1,0 +1,377 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:audio_service/audio_service.dart';
+import 'package:flutter/foundation.dart';
+import 'package:navis/src/features/player/data/navis_audio_handler.dart';
+import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:navis/src/utils/app_logger.dart';
+import 'package:smtc_windows/smtc_windows.dart';
+
+/// Bridges Navis playback state with Windows System Media Transport Controls.
+class WindowsSmtcBridge {
+  WindowsSmtcBridge({
+    required NavisPlaybackHandler handler,
+    WindowsSmtcClientFactory? createClient,
+    bool Function()? isWindowsRuntime,
+  }) : _handler = handler,
+       _createClient = createClient ?? _createDefaultSmtcClient,
+       _isWindowsRuntime = isWindowsRuntime ?? _defaultIsWindowsRuntime {
+    unawaited(_initialize());
+  }
+
+  final NavisPlaybackHandler _handler;
+  final WindowsSmtcClientFactory _createClient;
+  final bool Function() _isWindowsRuntime;
+
+  WindowsSmtcClient? _smtc;
+  StreamSubscription<PlaybackSnapshot>? _snapshotSubscription;
+  StreamSubscription<MediaItem?>? _mediaItemSubscription;
+  StreamSubscription<PressedButton>? _buttonSubscription;
+  StreamSubscription<bool>? _shuffleSubscription;
+  StreamSubscription<RepeatMode>? _repeatSubscription;
+
+  bool _isDisposed = false;
+
+  Future<void> _initialize() async {
+    if (!_isWindowsRuntime() || _isDisposed) {
+      return;
+    }
+
+    try {
+      if (_isDisposed) {
+        return;
+      }
+      _smtc = await _createClient();
+      _wireControlListeners();
+      _wirePlaybackStateListeners();
+      AppLogger.info('Windows SMTC bridge initialized.');
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning(
+        'Windows SMTC bridge failed to initialize. '
+        'Playback continues without OS media control integration. '
+        '$error\n$stackTrace',
+      );
+    }
+  }
+
+  void _wirePlaybackStateListeners() {
+    _snapshotSubscription = _handler.snapshotStream.listen(
+      (snapshot) => unawaited(_syncSnapshot(snapshot)),
+      onError: (Object error, StackTrace stackTrace) {
+        AppLogger.warning(
+          'Windows SMTC snapshot stream error: $error\n$stackTrace',
+        );
+      },
+    );
+
+    _mediaItemSubscription = _handler.mediaItemStream.listen(
+      (item) => unawaited(_syncMediaItem(item)),
+      onError: (Object error, StackTrace stackTrace) {
+        AppLogger.warning(
+          'Windows SMTC media item stream error: $error\n$stackTrace',
+        );
+      },
+    );
+
+    unawaited(_syncSnapshot(_handler.snapshot));
+    unawaited(_syncMediaItem(_handler.currentMediaItem));
+  }
+
+  void _wireControlListeners() {
+    final smtc = _smtc;
+    if (smtc == null) {
+      return;
+    }
+
+    _buttonSubscription = smtc.buttonPressStream.listen(
+      (event) => unawaited(_handleButtonPress(event)),
+      onError: (Object error, StackTrace stackTrace) {
+        AppLogger.warning(
+          'Windows SMTC button stream error: $error\n$stackTrace',
+        );
+      },
+    );
+
+    _shuffleSubscription = smtc.shuffleChangeStream.listen(
+      (enabled) => unawaited(_handleShuffleRequest(enabled)),
+      onError: (Object error, StackTrace stackTrace) {
+        AppLogger.warning(
+          'Windows SMTC shuffle stream error: $error\n$stackTrace',
+        );
+      },
+    );
+
+    _repeatSubscription = smtc.repeatModeChangeStream.listen(
+      (mode) => unawaited(_handleRepeatRequest(mode)),
+      onError: (Object error, StackTrace stackTrace) {
+        AppLogger.warning(
+          'Windows SMTC repeat-mode stream error: $error\n$stackTrace',
+        );
+      },
+    );
+  }
+
+  Future<void> _handleButtonPress(PressedButton event) async {
+    if (_isDisposed) {
+      return;
+    }
+
+    try {
+      switch (event) {
+        case PressedButton.play:
+          await _handler.play();
+        case PressedButton.pause:
+          await _handler.pause();
+        case PressedButton.next:
+          await _handler.skipToNext();
+        case PressedButton.previous:
+          await _handler.skipToPrevious();
+        case PressedButton.fastForward:
+          await _seekRelative(const Duration(seconds: 10));
+        case PressedButton.rewind:
+          await _seekRelative(const Duration(seconds: -10));
+        case PressedButton.stop:
+          await _handler.pause();
+        case PressedButton.record ||
+            PressedButton.channelUp ||
+            PressedButton.channelDown:
+          return;
+      }
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning(
+        'Windows SMTC button handling failed for $event: '
+        '$error\n$stackTrace',
+      );
+    }
+  }
+
+  Future<void> _seekRelative(Duration delta) async {
+    final base = _handler.snapshot.position;
+    final target = base + delta;
+    await _handler.seek(target < Duration.zero ? Duration.zero : target);
+  }
+
+  Future<void> _handleShuffleRequest(bool enabled) async {
+    if (_isDisposed) {
+      return;
+    }
+
+    final mode = enabled
+        ? AudioServiceShuffleMode.all
+        : AudioServiceShuffleMode.none;
+    try {
+      await _handler.setShuffleMode(mode);
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning(
+        'Windows SMTC shuffle request failed: $error\n$stackTrace',
+      );
+    }
+  }
+
+  Future<void> _handleRepeatRequest(RepeatMode mode) async {
+    if (_isDisposed) {
+      return;
+    }
+
+    final repeatMode = switch (mode) {
+      RepeatMode.none => AudioServiceRepeatMode.none,
+      RepeatMode.track => AudioServiceRepeatMode.one,
+      RepeatMode.list => AudioServiceRepeatMode.all,
+    };
+    try {
+      await _handler.setRepeatMode(repeatMode);
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning(
+        'Windows SMTC repeat-mode request failed: $error\n$stackTrace',
+      );
+    }
+  }
+
+  Future<void> _syncSnapshot(PlaybackSnapshot snapshot) async {
+    final smtc = _smtc;
+    if (_isDisposed || smtc == null) {
+      return;
+    }
+
+    final status = switch (snapshot.processingState) {
+      AudioProcessingState.loading ||
+      AudioProcessingState.buffering ||
+      AudioProcessingState.ready when snapshot.playing =>
+        PlaybackStatus.playing,
+      AudioProcessingState.completed ||
+      AudioProcessingState.idle => PlaybackStatus.stopped,
+      _ => PlaybackStatus.paused,
+    };
+
+    final durationMs = snapshot.duration.inMilliseconds;
+    final positionMs = snapshot.position.inMilliseconds;
+    final clampedPositionMs = durationMs > 0
+        ? positionMs.clamp(0, durationMs)
+        : positionMs;
+
+    try {
+      await smtc.setPlaybackStatus(status);
+      await smtc.updateTimeline(
+        PlaybackTimeline(
+          startTimeMs: 0,
+          endTimeMs: durationMs < 0 ? 0 : durationMs,
+          positionMs: clampedPositionMs,
+          minSeekTimeMs: 0,
+          maxSeekTimeMs: durationMs > 0 ? durationMs : null,
+        ),
+      );
+      await smtc.setShuffleEnabled(
+        enabled: snapshot.shuffleMode == AudioServiceShuffleMode.all,
+      );
+      await smtc.setRepeatMode(
+        switch (snapshot.repeatMode) {
+          AudioServiceRepeatMode.none => RepeatMode.none,
+          AudioServiceRepeatMode.one => RepeatMode.track,
+          AudioServiceRepeatMode.all ||
+          AudioServiceRepeatMode.group => RepeatMode.list,
+        },
+      );
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning(
+        'Windows SMTC snapshot sync failed: $error\n$stackTrace',
+      );
+    }
+  }
+
+  Future<void> _syncMediaItem(MediaItem? item) async {
+    final smtc = _smtc;
+    if (_isDisposed || smtc == null) {
+      return;
+    }
+
+    if (item == null) {
+      try {
+        await smtc.clearMetadata();
+      } on Object catch (error, stackTrace) {
+        AppLogger.warning(
+          'Windows SMTC metadata clear failed: $error\n$stackTrace',
+        );
+      }
+      return;
+    }
+
+    try {
+      await smtc.updateMetadata(
+        MusicMetadata(
+          title: item.title,
+          artist: item.artist,
+          album: item.album,
+          albumArtist: item.artist,
+          thumbnail: item.artUri?.toString(),
+        ),
+      );
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning(
+        'Windows SMTC metadata sync failed: $error\n$stackTrace',
+      );
+    }
+  }
+
+  Future<void> dispose() async {
+    _isDisposed = true;
+    await _snapshotSubscription?.cancel();
+    await _mediaItemSubscription?.cancel();
+    await _buttonSubscription?.cancel();
+    await _shuffleSubscription?.cancel();
+    await _repeatSubscription?.cancel();
+
+    final smtc = _smtc;
+    _smtc = null;
+    if (smtc != null) {
+      try {
+        await smtc.dispose();
+      } on Object catch (error, stackTrace) {
+        AppLogger.warning(
+          'Windows SMTC dispose failed: $error\n$stackTrace',
+        );
+      }
+    }
+  }
+}
+
+bool _defaultIsWindowsRuntime() => !kIsWeb && Platform.isWindows;
+
+typedef WindowsSmtcClientFactory = Future<WindowsSmtcClient> Function();
+
+Future<WindowsSmtcClient> _createDefaultSmtcClient() async {
+  await SMTCWindows.initialize();
+  return DefaultWindowsSmtcClient(
+    SMTCWindows(
+      config: const SMTCConfig(
+        playEnabled: true,
+        pauseEnabled: true,
+        stopEnabled: false,
+        nextEnabled: true,
+        prevEnabled: true,
+        fastForwardEnabled: true,
+        rewindEnabled: true,
+      ),
+      timeline: const PlaybackTimeline(
+        startTimeMs: 0,
+        endTimeMs: 0,
+        positionMs: 0,
+      ),
+    ),
+  );
+}
+
+abstract class WindowsSmtcClient {
+  Stream<PressedButton> get buttonPressStream;
+  Stream<bool> get shuffleChangeStream;
+  Stream<RepeatMode> get repeatModeChangeStream;
+
+  Future<void> setPlaybackStatus(PlaybackStatus status);
+  Future<void> updateTimeline(PlaybackTimeline timeline);
+  Future<void> setShuffleEnabled({required bool enabled});
+  Future<void> setRepeatMode(RepeatMode mode);
+  Future<void> updateMetadata(MusicMetadata metadata);
+  Future<void> clearMetadata();
+  Future<void> dispose();
+}
+
+class DefaultWindowsSmtcClient implements WindowsSmtcClient {
+  DefaultWindowsSmtcClient(this._delegate);
+
+  final SMTCWindows _delegate;
+
+  @override
+  Stream<PressedButton> get buttonPressStream => _delegate.buttonPressStream;
+
+  @override
+  Stream<bool> get shuffleChangeStream => _delegate.shuffleChangeStream;
+
+  @override
+  Stream<RepeatMode> get repeatModeChangeStream =>
+      _delegate.repeatModeChangeStream;
+
+  @override
+  Future<void> setPlaybackStatus(PlaybackStatus status) =>
+      _delegate.setPlaybackStatus(status);
+
+  @override
+  Future<void> updateTimeline(PlaybackTimeline timeline) =>
+      _delegate.updateTimeline(timeline);
+
+  @override
+  Future<void> setShuffleEnabled({required bool enabled}) =>
+      _delegate.setShuffleEnabled(enabled);
+
+  @override
+  Future<void> setRepeatMode(RepeatMode mode) => _delegate.setRepeatMode(mode);
+
+  @override
+  Future<void> updateMetadata(MusicMetadata metadata) =>
+      _delegate.updateMetadata(metadata);
+
+  @override
+  Future<void> clearMetadata() => _delegate.clearMetadata();
+
+  @override
+  Future<void> dispose() => _delegate.dispose();
+}

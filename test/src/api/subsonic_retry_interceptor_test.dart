@@ -90,5 +90,53 @@ void main() {
       );
       expect(attempts, 1);
     });
+
+    test('retries on 530 responses and eventually succeeds', () async {
+      final dio = Dio(BaseOptions(baseUrl: 'https://example.com'));
+      var attempts = 0;
+
+      dio.interceptors
+        ..add(
+          SubsonicRetryInterceptor(
+            dio: dio,
+            backoff: (_) => Duration.zero,
+          ),
+        )
+        ..add(
+          InterceptorsWrapper(
+            onRequest: (options, handler) {
+              attempts += 1;
+              if (attempts < 3) {
+                handler.reject(
+                  DioException(
+                    requestOptions: options,
+                    type: DioExceptionType.badResponse,
+                    response: Response<dynamic>(
+                      requestOptions: options,
+                      statusCode: 530,
+                      data: const <String, dynamic>{'error': 'origin down'},
+                    ),
+                  ),
+                  true,
+                );
+                return;
+              }
+
+              handler.resolve(
+                Response<dynamic>(
+                  requestOptions: options,
+                  statusCode: 200,
+                  data: const <String, dynamic>{'ok': true},
+                ),
+              );
+            },
+          ),
+        );
+
+      final response = await dio.get<dynamic>('/rest/ping.view');
+
+      expect(response.statusCode, 200);
+      expect(attempts, 3);
+    });
   });
 }

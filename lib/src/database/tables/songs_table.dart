@@ -34,6 +34,8 @@ class SongsTable extends Table {
 
   IntColumn get bitRate => integer().nullable()();
 
+  IntColumn get sampleRate => integer().nullable()();
+
   TextColumn get contentType => text().nullable()();
 
   TextColumn get suffix => text().nullable()();

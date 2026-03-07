@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$Song {
 
- String get id; String get title; String? get album; String? get albumId; String? get artist; String? get artistId; int? get track; int? get discNumber; int? get year; int? get duration; int? get bitRate; String? get contentType; String? get suffix; int? get size; String? get coverArt; DateTime? get starred; int? get userRating; int? get playCount; DateTime? get created; ReplayGain? get replayGain;
+ String get id; String get title; String? get album; String? get albumId; String? get artist; String? get artistId; int? get track; int? get discNumber; int? get year; int? get duration; int? get bitRate;@JsonKey(readValue: _readSampleRateJson) int? get sampleRate; String? get contentType; String? get suffix; int? get size; String? get coverArt; DateTime? get starred; int? get userRating; int? get playCount; DateTime? get created; ReplayGain? get replayGain;
 /// Create a copy of Song
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +28,16 @@ $SongCopyWith<Song> get copyWith => _$SongCopyWithImpl<Song>(this as Song, _$ide
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Song&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.album, album) || other.album == album)&&(identical(other.albumId, albumId) || other.albumId == albumId)&&(identical(other.artist, artist) || other.artist == artist)&&(identical(other.artistId, artistId) || other.artistId == artistId)&&(identical(other.track, track) || other.track == track)&&(identical(other.discNumber, discNumber) || other.discNumber == discNumber)&&(identical(other.year, year) || other.year == year)&&(identical(other.duration, duration) || other.duration == duration)&&(identical(other.bitRate, bitRate) || other.bitRate == bitRate)&&(identical(other.contentType, contentType) || other.contentType == contentType)&&(identical(other.suffix, suffix) || other.suffix == suffix)&&(identical(other.size, size) || other.size == size)&&(identical(other.coverArt, coverArt) || other.coverArt == coverArt)&&(identical(other.starred, starred) || other.starred == starred)&&(identical(other.userRating, userRating) || other.userRating == userRating)&&(identical(other.playCount, playCount) || other.playCount == playCount)&&(identical(other.created, created) || other.created == created)&&(identical(other.replayGain, replayGain) || other.replayGain == replayGain));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Song&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.album, album) || other.album == album)&&(identical(other.albumId, albumId) || other.albumId == albumId)&&(identical(other.artist, artist) || other.artist == artist)&&(identical(other.artistId, artistId) || other.artistId == artistId)&&(identical(other.track, track) || other.track == track)&&(identical(other.discNumber, discNumber) || other.discNumber == discNumber)&&(identical(other.year, year) || other.year == year)&&(identical(other.duration, duration) || other.duration == duration)&&(identical(other.bitRate, bitRate) || other.bitRate == bitRate)&&(identical(other.sampleRate, sampleRate) || other.sampleRate == sampleRate)&&(identical(other.contentType, contentType) || other.contentType == contentType)&&(identical(other.suffix, suffix) || other.suffix == suffix)&&(identical(other.size, size) || other.size == size)&&(identical(other.coverArt, coverArt) || other.coverArt == coverArt)&&(identical(other.starred, starred) || other.starred == starred)&&(identical(other.userRating, userRating) || other.userRating == userRating)&&(identical(other.playCount, playCount) || other.playCount == playCount)&&(identical(other.created, created) || other.created == created)&&(identical(other.replayGain, replayGain) || other.replayGain == replayGain));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,title,album,albumId,artist,artistId,track,discNumber,year,duration,bitRate,contentType,suffix,size,coverArt,starred,userRating,playCount,created,replayGain]);
+int get hashCode => Object.hashAll([runtimeType,id,title,album,albumId,artist,artistId,track,discNumber,year,duration,bitRate,sampleRate,contentType,suffix,size,coverArt,starred,userRating,playCount,created,replayGain]);
 
 @override
 String toString() {
-  return 'Song(id: $id, title: $title, album: $album, albumId: $albumId, artist: $artist, artistId: $artistId, track: $track, discNumber: $discNumber, year: $year, duration: $duration, bitRate: $bitRate, contentType: $contentType, suffix: $suffix, size: $size, coverArt: $coverArt, starred: $starred, userRating: $userRating, playCount: $playCount, created: $created, replayGain: $replayGain)';
+  return 'Song(id: $id, title: $title, album: $album, albumId: $albumId, artist: $artist, artistId: $artistId, track: $track, discNumber: $discNumber, year: $year, duration: $duration, bitRate: $bitRate, sampleRate: $sampleRate, contentType: $contentType, suffix: $suffix, size: $size, coverArt: $coverArt, starred: $starred, userRating: $userRating, playCount: $playCount, created: $created, replayGain: $replayGain)';
 }
 
 
@@ -48,7 +48,7 @@ abstract mixin class $SongCopyWith<$Res>  {
   factory $SongCopyWith(Song value, $Res Function(Song) _then) = _$SongCopyWithImpl;
 @useResult
 $Res call({
- String id, String title, String? album, String? albumId, String? artist, String? artistId, int? track, int? discNumber, int? year, int? duration, int? bitRate, String? contentType, String? suffix, int? size, String? coverArt, DateTime? starred, int? userRating, int? playCount, DateTime? created, ReplayGain? replayGain
+ String id, String title, String? album, String? albumId, String? artist, String? artistId, int? track, int? discNumber, int? year, int? duration, int? bitRate,@JsonKey(readValue: _readSampleRateJson) int? sampleRate, String? contentType, String? suffix, int? size, String? coverArt, DateTime? starred, int? userRating, int? playCount, DateTime? created, ReplayGain? replayGain
 });
 
 
@@ -65,7 +65,7 @@ class _$SongCopyWithImpl<$Res>
 
 /// Create a copy of Song
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? title = null,Object? album = freezed,Object? albumId = freezed,Object? artist = freezed,Object? artistId = freezed,Object? track = freezed,Object? discNumber = freezed,Object? year = freezed,Object? duration = freezed,Object? bitRate = freezed,Object? contentType = freezed,Object? suffix = freezed,Object? size = freezed,Object? coverArt = freezed,Object? starred = freezed,Object? userRating = freezed,Object? playCount = freezed,Object? created = freezed,Object? replayGain = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? title = null,Object? album = freezed,Object? albumId = freezed,Object? artist = freezed,Object? artistId = freezed,Object? track = freezed,Object? discNumber = freezed,Object? year = freezed,Object? duration = freezed,Object? bitRate = freezed,Object? sampleRate = freezed,Object? contentType = freezed,Object? suffix = freezed,Object? size = freezed,Object? coverArt = freezed,Object? starred = freezed,Object? userRating = freezed,Object? playCount = freezed,Object? created = freezed,Object? replayGain = freezed,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
@@ -78,6 +78,7 @@ as int?,discNumber: freezed == discNumber ? _self.discNumber : discNumber // ign
 as int?,year: freezed == year ? _self.year : year // ignore: cast_nullable_to_non_nullable
 as int?,duration: freezed == duration ? _self.duration : duration // ignore: cast_nullable_to_non_nullable
 as int?,bitRate: freezed == bitRate ? _self.bitRate : bitRate // ignore: cast_nullable_to_non_nullable
+as int?,sampleRate: freezed == sampleRate ? _self.sampleRate : sampleRate // ignore: cast_nullable_to_non_nullable
 as int?,contentType: freezed == contentType ? _self.contentType : contentType // ignore: cast_nullable_to_non_nullable
 as String?,suffix: freezed == suffix ? _self.suffix : suffix // ignore: cast_nullable_to_non_nullable
 as String?,size: freezed == size ? _self.size : size // ignore: cast_nullable_to_non_nullable
@@ -184,10 +185,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String title,  String? album,  String? albumId,  String? artist,  String? artistId,  int? track,  int? discNumber,  int? year,  int? duration,  int? bitRate,  String? contentType,  String? suffix,  int? size,  String? coverArt,  DateTime? starred,  int? userRating,  int? playCount,  DateTime? created,  ReplayGain? replayGain)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String title,  String? album,  String? albumId,  String? artist,  String? artistId,  int? track,  int? discNumber,  int? year,  int? duration,  int? bitRate, @JsonKey(readValue: _readSampleRateJson)  int? sampleRate,  String? contentType,  String? suffix,  int? size,  String? coverArt,  DateTime? starred,  int? userRating,  int? playCount,  DateTime? created,  ReplayGain? replayGain)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Song() when $default != null:
-return $default(_that.id,_that.title,_that.album,_that.albumId,_that.artist,_that.artistId,_that.track,_that.discNumber,_that.year,_that.duration,_that.bitRate,_that.contentType,_that.suffix,_that.size,_that.coverArt,_that.starred,_that.userRating,_that.playCount,_that.created,_that.replayGain);case _:
+return $default(_that.id,_that.title,_that.album,_that.albumId,_that.artist,_that.artistId,_that.track,_that.discNumber,_that.year,_that.duration,_that.bitRate,_that.sampleRate,_that.contentType,_that.suffix,_that.size,_that.coverArt,_that.starred,_that.userRating,_that.playCount,_that.created,_that.replayGain);case _:
   return orElse();
 
 }
@@ -205,10 +206,10 @@ return $default(_that.id,_that.title,_that.album,_that.albumId,_that.artist,_tha
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String title,  String? album,  String? albumId,  String? artist,  String? artistId,  int? track,  int? discNumber,  int? year,  int? duration,  int? bitRate,  String? contentType,  String? suffix,  int? size,  String? coverArt,  DateTime? starred,  int? userRating,  int? playCount,  DateTime? created,  ReplayGain? replayGain)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String title,  String? album,  String? albumId,  String? artist,  String? artistId,  int? track,  int? discNumber,  int? year,  int? duration,  int? bitRate, @JsonKey(readValue: _readSampleRateJson)  int? sampleRate,  String? contentType,  String? suffix,  int? size,  String? coverArt,  DateTime? starred,  int? userRating,  int? playCount,  DateTime? created,  ReplayGain? replayGain)  $default,) {final _that = this;
 switch (_that) {
 case _Song():
-return $default(_that.id,_that.title,_that.album,_that.albumId,_that.artist,_that.artistId,_that.track,_that.discNumber,_that.year,_that.duration,_that.bitRate,_that.contentType,_that.suffix,_that.size,_that.coverArt,_that.starred,_that.userRating,_that.playCount,_that.created,_that.replayGain);case _:
+return $default(_that.id,_that.title,_that.album,_that.albumId,_that.artist,_that.artistId,_that.track,_that.discNumber,_that.year,_that.duration,_that.bitRate,_that.sampleRate,_that.contentType,_that.suffix,_that.size,_that.coverArt,_that.starred,_that.userRating,_that.playCount,_that.created,_that.replayGain);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -225,10 +226,10 @@ return $default(_that.id,_that.title,_that.album,_that.albumId,_that.artist,_tha
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String title,  String? album,  String? albumId,  String? artist,  String? artistId,  int? track,  int? discNumber,  int? year,  int? duration,  int? bitRate,  String? contentType,  String? suffix,  int? size,  String? coverArt,  DateTime? starred,  int? userRating,  int? playCount,  DateTime? created,  ReplayGain? replayGain)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String title,  String? album,  String? albumId,  String? artist,  String? artistId,  int? track,  int? discNumber,  int? year,  int? duration,  int? bitRate, @JsonKey(readValue: _readSampleRateJson)  int? sampleRate,  String? contentType,  String? suffix,  int? size,  String? coverArt,  DateTime? starred,  int? userRating,  int? playCount,  DateTime? created,  ReplayGain? replayGain)?  $default,) {final _that = this;
 switch (_that) {
 case _Song() when $default != null:
-return $default(_that.id,_that.title,_that.album,_that.albumId,_that.artist,_that.artistId,_that.track,_that.discNumber,_that.year,_that.duration,_that.bitRate,_that.contentType,_that.suffix,_that.size,_that.coverArt,_that.starred,_that.userRating,_that.playCount,_that.created,_that.replayGain);case _:
+return $default(_that.id,_that.title,_that.album,_that.albumId,_that.artist,_that.artistId,_that.track,_that.discNumber,_that.year,_that.duration,_that.bitRate,_that.sampleRate,_that.contentType,_that.suffix,_that.size,_that.coverArt,_that.starred,_that.userRating,_that.playCount,_that.created,_that.replayGain);case _:
   return null;
 
 }
@@ -240,7 +241,7 @@ return $default(_that.id,_that.title,_that.album,_that.albumId,_that.artist,_tha
 
 @JsonSerializable(explicitToJson: true)
 class _Song implements Song {
-  const _Song({required this.id, required this.title, this.album, this.albumId, this.artist, this.artistId, this.track, this.discNumber, this.year, this.duration, this.bitRate, this.contentType, this.suffix, this.size, this.coverArt, this.starred, this.userRating, this.playCount, this.created, this.replayGain});
+  const _Song({required this.id, required this.title, this.album, this.albumId, this.artist, this.artistId, this.track, this.discNumber, this.year, this.duration, this.bitRate, @JsonKey(readValue: _readSampleRateJson) this.sampleRate, this.contentType, this.suffix, this.size, this.coverArt, this.starred, this.userRating, this.playCount, this.created, this.replayGain});
   factory _Song.fromJson(Map<String, dynamic> json) => _$SongFromJson(json);
 
 @override final  String id;
@@ -254,6 +255,7 @@ class _Song implements Song {
 @override final  int? year;
 @override final  int? duration;
 @override final  int? bitRate;
+@override@JsonKey(readValue: _readSampleRateJson) final  int? sampleRate;
 @override final  String? contentType;
 @override final  String? suffix;
 @override final  int? size;
@@ -277,16 +279,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Song&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.album, album) || other.album == album)&&(identical(other.albumId, albumId) || other.albumId == albumId)&&(identical(other.artist, artist) || other.artist == artist)&&(identical(other.artistId, artistId) || other.artistId == artistId)&&(identical(other.track, track) || other.track == track)&&(identical(other.discNumber, discNumber) || other.discNumber == discNumber)&&(identical(other.year, year) || other.year == year)&&(identical(other.duration, duration) || other.duration == duration)&&(identical(other.bitRate, bitRate) || other.bitRate == bitRate)&&(identical(other.contentType, contentType) || other.contentType == contentType)&&(identical(other.suffix, suffix) || other.suffix == suffix)&&(identical(other.size, size) || other.size == size)&&(identical(other.coverArt, coverArt) || other.coverArt == coverArt)&&(identical(other.starred, starred) || other.starred == starred)&&(identical(other.userRating, userRating) || other.userRating == userRating)&&(identical(other.playCount, playCount) || other.playCount == playCount)&&(identical(other.created, created) || other.created == created)&&(identical(other.replayGain, replayGain) || other.replayGain == replayGain));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Song&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.album, album) || other.album == album)&&(identical(other.albumId, albumId) || other.albumId == albumId)&&(identical(other.artist, artist) || other.artist == artist)&&(identical(other.artistId, artistId) || other.artistId == artistId)&&(identical(other.track, track) || other.track == track)&&(identical(other.discNumber, discNumber) || other.discNumber == discNumber)&&(identical(other.year, year) || other.year == year)&&(identical(other.duration, duration) || other.duration == duration)&&(identical(other.bitRate, bitRate) || other.bitRate == bitRate)&&(identical(other.sampleRate, sampleRate) || other.sampleRate == sampleRate)&&(identical(other.contentType, contentType) || other.contentType == contentType)&&(identical(other.suffix, suffix) || other.suffix == suffix)&&(identical(other.size, size) || other.size == size)&&(identical(other.coverArt, coverArt) || other.coverArt == coverArt)&&(identical(other.starred, starred) || other.starred == starred)&&(identical(other.userRating, userRating) || other.userRating == userRating)&&(identical(other.playCount, playCount) || other.playCount == playCount)&&(identical(other.created, created) || other.created == created)&&(identical(other.replayGain, replayGain) || other.replayGain == replayGain));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,title,album,albumId,artist,artistId,track,discNumber,year,duration,bitRate,contentType,suffix,size,coverArt,starred,userRating,playCount,created,replayGain]);
+int get hashCode => Object.hashAll([runtimeType,id,title,album,albumId,artist,artistId,track,discNumber,year,duration,bitRate,sampleRate,contentType,suffix,size,coverArt,starred,userRating,playCount,created,replayGain]);
 
 @override
 String toString() {
-  return 'Song(id: $id, title: $title, album: $album, albumId: $albumId, artist: $artist, artistId: $artistId, track: $track, discNumber: $discNumber, year: $year, duration: $duration, bitRate: $bitRate, contentType: $contentType, suffix: $suffix, size: $size, coverArt: $coverArt, starred: $starred, userRating: $userRating, playCount: $playCount, created: $created, replayGain: $replayGain)';
+  return 'Song(id: $id, title: $title, album: $album, albumId: $albumId, artist: $artist, artistId: $artistId, track: $track, discNumber: $discNumber, year: $year, duration: $duration, bitRate: $bitRate, sampleRate: $sampleRate, contentType: $contentType, suffix: $suffix, size: $size, coverArt: $coverArt, starred: $starred, userRating: $userRating, playCount: $playCount, created: $created, replayGain: $replayGain)';
 }
 
 
@@ -297,7 +299,7 @@ abstract mixin class _$SongCopyWith<$Res> implements $SongCopyWith<$Res> {
   factory _$SongCopyWith(_Song value, $Res Function(_Song) _then) = __$SongCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String title, String? album, String? albumId, String? artist, String? artistId, int? track, int? discNumber, int? year, int? duration, int? bitRate, String? contentType, String? suffix, int? size, String? coverArt, DateTime? starred, int? userRating, int? playCount, DateTime? created, ReplayGain? replayGain
+ String id, String title, String? album, String? albumId, String? artist, String? artistId, int? track, int? discNumber, int? year, int? duration, int? bitRate,@JsonKey(readValue: _readSampleRateJson) int? sampleRate, String? contentType, String? suffix, int? size, String? coverArt, DateTime? starred, int? userRating, int? playCount, DateTime? created, ReplayGain? replayGain
 });
 
 
@@ -314,7 +316,7 @@ class __$SongCopyWithImpl<$Res>
 
 /// Create a copy of Song
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? title = null,Object? album = freezed,Object? albumId = freezed,Object? artist = freezed,Object? artistId = freezed,Object? track = freezed,Object? discNumber = freezed,Object? year = freezed,Object? duration = freezed,Object? bitRate = freezed,Object? contentType = freezed,Object? suffix = freezed,Object? size = freezed,Object? coverArt = freezed,Object? starred = freezed,Object? userRating = freezed,Object? playCount = freezed,Object? created = freezed,Object? replayGain = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? title = null,Object? album = freezed,Object? albumId = freezed,Object? artist = freezed,Object? artistId = freezed,Object? track = freezed,Object? discNumber = freezed,Object? year = freezed,Object? duration = freezed,Object? bitRate = freezed,Object? sampleRate = freezed,Object? contentType = freezed,Object? suffix = freezed,Object? size = freezed,Object? coverArt = freezed,Object? starred = freezed,Object? userRating = freezed,Object? playCount = freezed,Object? created = freezed,Object? replayGain = freezed,}) {
   return _then(_Song(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
@@ -327,6 +329,7 @@ as int?,discNumber: freezed == discNumber ? _self.discNumber : discNumber // ign
 as int?,year: freezed == year ? _self.year : year // ignore: cast_nullable_to_non_nullable
 as int?,duration: freezed == duration ? _self.duration : duration // ignore: cast_nullable_to_non_nullable
 as int?,bitRate: freezed == bitRate ? _self.bitRate : bitRate // ignore: cast_nullable_to_non_nullable
+as int?,sampleRate: freezed == sampleRate ? _self.sampleRate : sampleRate // ignore: cast_nullable_to_non_nullable
 as int?,contentType: freezed == contentType ? _self.contentType : contentType // ignore: cast_nullable_to_non_nullable
 as String?,suffix: freezed == suffix ? _self.suffix : suffix // ignore: cast_nullable_to_non_nullable
 as String?,size: freezed == size ? _self.size : size // ignore: cast_nullable_to_non_nullable

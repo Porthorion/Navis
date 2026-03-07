@@ -512,6 +512,23 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
         error,
         stackTrace,
       );
+
+      if (_isTransient(error)) {
+        final skipped = _withMetrics(
+          state.copyWith(
+            status: LibrarySyncStatus.skipped,
+            stage: LibrarySyncStage.completed,
+            completedAt: DateTime.now(),
+            errorMessage:
+                'Server temporarily unavailable. Sync will retry later.',
+          ),
+          metrics,
+        );
+        onProgress?.call(skipped);
+        _logSyncSummary(state: skipped, metrics: metrics);
+        return skipped;
+      }
+
       final failed = _withMetrics(
         state.copyWith(
           status: LibrarySyncStatus.failed,
@@ -1806,7 +1823,14 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       return true;
     }
     if (error is SubsonicGenericException) {
-      return error.code == 429 || error.code == 503;
+      final code = error.code;
+      if (code == null) {
+        return false;
+      }
+      if (code == 429) {
+        return true;
+      }
+      return code >= 500 && code < 600;
     }
     // Treat socket-level and timeout errors as transient so a single slow
     // response doesn't abort the entire sync.
@@ -2007,6 +2031,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
             discNumber: Value(row.discNumber),
             duration: Value(row.duration),
             bitRate: Value(row.bitRate),
+            sampleRate: Value(row.sampleRate),
             contentType: Value(row.contentType),
             suffix: Value(row.suffix),
             size: Value(row.size),
@@ -2266,6 +2291,7 @@ class _SongRow {
     this.discNumber,
     this.duration,
     this.bitRate,
+    this.sampleRate,
     this.contentType,
     this.suffix,
     this.size,
@@ -2290,6 +2316,7 @@ class _SongRow {
   final int? discNumber;
   final int? duration;
   final int? bitRate;
+  final int? sampleRate;
   final String? contentType;
   final String? suffix;
   final int? size;
@@ -2354,6 +2381,7 @@ List<_SongRow> _songRowsFromJson(List<Map<String, dynamic>> payload) {
             discNumber: json['discNumber'] as int?,
             duration: json['duration'] as int?,
             bitRate: json['bitRate'] as int?,
+            sampleRate: (json['sampleRate'] as num?)?.toInt(),
             contentType: json['contentType'] as String?,
             suffix: json['suffix'] as String?,
             size: json['size'] as int?,

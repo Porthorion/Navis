@@ -18,6 +18,7 @@ abstract class Song with _$Song {
     int? year,
     int? duration,
     int? bitRate,
+    @JsonKey(readValue: _readSampleRateJson) int? sampleRate,
     String? contentType,
     String? suffix,
     int? size,
@@ -30,6 +31,10 @@ abstract class Song with _$Song {
   }) = _Song;
 
   factory Song.fromJson(Map<String, dynamic> json) => _$SongFromJson(json);
+}
+
+Object? _readSampleRateJson(Map<dynamic, dynamic> json, String _) {
+  return json['samplingRate'] ?? json['sampleRate'];
 }
 
 /// ReplayGain metadata from the OpenSubsonic API.

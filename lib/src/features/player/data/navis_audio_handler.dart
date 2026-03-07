@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:audio_service_mpris/audio_service_mpris.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -19,6 +20,7 @@ import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 import 'package:navis/src/features/player/data/radio_metadata_service.dart';
 import 'package:navis/src/features/player/data/scrobble_service.dart';
+import 'package:navis/src/features/player/data/windows_smtc_bridge.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/utils/app_logger.dart';
 
@@ -283,6 +285,7 @@ Map<String, Object?> navisResolvedPlaybackExtras({
     'cachedFilePath': source.cachedFilePath,
     'resolvedFormat': source.metadata.format,
     'resolvedBitRate': source.metadata.bitRate,
+    'resolvedSampleRate': source.metadata.sampleRate,
     'transcodingApplied': source.metadata.isTranscoded,
     'liked': song.starred != null,
     'replayGainTrackGain': song.replayGainTrackGain,
@@ -292,9 +295,46 @@ Map<String, Object?> navisResolvedPlaybackExtras({
   };
 }
 
-Future<NavisAudioHandler>? _audioServiceInitFuture;
+Future<NavisPlaybackHandler>? _audioHandlerInitFuture;
+bool _linuxMprisRegistered = false;
 
-Future<NavisAudioHandler> initNavisAudioHandler({
+typedef NavisRegisterLinuxMpris = void Function();
+
+@visibleForTesting
+bool navisRegisterLinuxMprisIfSupported({
+  required bool isLinuxRuntime,
+  required NavisRegisterLinuxMpris registerMpris,
+  required void Function(String message) logInfo,
+  required void Function(String message) logWarning,
+}) {
+  if (!isLinuxRuntime) {
+    return false;
+  }
+  try {
+    registerMpris();
+    logInfo('Linux MPRIS integration registered via audio_service_mpris.');
+    return true;
+  } on Object catch (error, stackTrace) {
+    logWarning(
+      'Linux MPRIS registration failed. '
+      'Playback will continue without desktop media controls. '
+      '$error\n$stackTrace',
+    );
+    return false;
+  }
+}
+
+Future<void> disposeNavisPlaybackHandler(NavisPlaybackHandler handler) async {
+  if (handler is WindowsNavisPlaybackHandler) {
+    await handler.dispose();
+    return;
+  }
+  if (handler is NavisAudioHandler) {
+    await handler.disposeHandler();
+  }
+}
+
+Future<NavisPlaybackHandler> initNavisAudioHandler({
   required LibraryDao libraryDao,
   required PlayQueueDao playQueueDao,
   required HistoryDao historyDao,
@@ -306,13 +346,13 @@ Future<NavisAudioHandler> initNavisAudioHandler({
   required PlaybackRuntimeSettings Function() readRuntimeSettings,
   required StarSyncDao starSyncDao,
 }) {
-  final cachedFuture = _audioServiceInitFuture;
+  final cachedFuture = _audioHandlerInitFuture;
   if (cachedFuture != null) {
     return cachedFuture;
   }
 
-  final initFuture = AudioService.init(
-    builder: () => NavisAudioHandler(
+  NavisAudioHandler createBaseHandler() {
+    return NavisAudioHandler(
       libraryDao: libraryDao,
       playQueueDao: playQueueDao,
       historyDao: historyDao,
@@ -323,28 +363,184 @@ Future<NavisAudioHandler> initNavisAudioHandler({
       scrobbleService: scrobbleService,
       readRuntimeSettings: readRuntimeSettings,
       starSyncDao: starSyncDao,
-    ),
-    config: AudioServiceConfig(
-      androidNotificationChannelId: 'playback',
-      androidNotificationChannelName: 'Playback',
-      androidNotificationIcon: 'drawable/ic_stat_navis_light',
-      androidNotificationOngoing: false,
-      androidStopForegroundOnPause: false,
-    ),
-  );
+    );
+  }
 
-  _audioServiceInitFuture = initFuture;
+  late final Future<NavisPlaybackHandler> initFuture;
+  if (_isWindowsRuntime) {
+    // Windows currently bypasses audio_service runtime integration.
+    initFuture = Future<NavisPlaybackHandler>.value(
+      WindowsNavisPlaybackHandler(createBaseHandler()),
+    );
+  } else {
+    if (!_linuxMprisRegistered) {
+      final registered = navisRegisterLinuxMprisIfSupported(
+        isLinuxRuntime: _isLinuxRuntime,
+        registerMpris: AudioServiceMpris.registerWith,
+        logInfo: AppLogger.info,
+        logWarning: AppLogger.warning,
+      );
+      if (registered) {
+        _linuxMprisRegistered = true;
+      }
+    }
+    initFuture = AudioService.init(
+      builder: createBaseHandler,
+      config: AudioServiceConfig(
+        androidNotificationChannelId: 'playback',
+        androidNotificationChannelName: 'Playback',
+        androidNotificationIcon: 'drawable/ic_stat_navis_light',
+        androidNotificationOngoing: false,
+        androidStopForegroundOnPause: false,
+      ),
+    ).then<NavisPlaybackHandler>((handler) => handler);
+  }
+
+  _audioHandlerInitFuture = initFuture;
   unawaited(
     initFuture.then<void>(
       (_) {},
       onError: (Object error, StackTrace stackTrace) {
-        if (identical(_audioServiceInitFuture, initFuture)) {
-          _audioServiceInitFuture = null;
+        if (identical(_audioHandlerInitFuture, initFuture)) {
+          _audioHandlerInitFuture = null;
         }
       },
     ),
   );
   return initFuture;
+}
+
+class WindowsNavisPlaybackHandler implements NavisPlaybackHandler {
+  WindowsNavisPlaybackHandler(this._delegate) {
+    _smtcBridge = WindowsSmtcBridge(handler: this);
+  }
+
+  final NavisAudioHandler _delegate;
+  late final WindowsSmtcBridge _smtcBridge;
+
+  Future<void> dispose() async {
+    await _smtcBridge.dispose();
+    await _delegate.disposeHandler();
+  }
+
+  @override
+  PlaybackSnapshot get snapshot => _delegate.snapshot;
+
+  @override
+  Stream<PlaybackSnapshot> get snapshotStream => _delegate.snapshotStream;
+
+  @override
+  Stream<Duration> get positionStream => _delegate.positionStream;
+
+  @override
+  MediaItem? get currentMediaItem => _delegate.currentMediaItem;
+
+  @override
+  Stream<MediaItem?> get mediaItemStream => _delegate.mediaItemStream;
+
+  @override
+  Stream<void> get radioStreamErrorStream => _delegate.radioStreamErrorStream;
+
+  @override
+  Future<void> waitUntilReady() => _delegate.waitUntilReady();
+
+  @override
+  Future<void> replaceQueue(
+    List<String> songIds, {
+    int startIndex = 0,
+    bool autoPlay = true,
+  }) => _delegate.replaceQueue(
+    songIds,
+    startIndex: startIndex,
+    autoPlay: autoPlay,
+  );
+
+  @override
+  Future<void> addToQueue(List<String> songIds) =>
+      _delegate.addToQueue(songIds);
+
+  @override
+  Future<void> playNext(List<String> songIds) => _delegate.playNext(songIds);
+
+  @override
+  Future<void> playFromIndex(int index) => _delegate.playFromIndex(index);
+
+  @override
+  Future<void> removeAt(int index) => _delegate.removeAt(index);
+
+  @override
+  Future<void> reorderQueue(int oldIndex, int newIndex) =>
+      _delegate.reorderQueue(oldIndex, newIndex);
+
+  @override
+  Future<void> clearQueue() => _delegate.clearQueue();
+
+  @override
+  Future<void> play() => _delegate.play();
+
+  @override
+  Future<void> pause() => _delegate.pause();
+
+  @override
+  Future<void> seek(Duration position) => _delegate.seek(position);
+
+  @override
+  Future<void> skipToNext() => _delegate.skipToNext();
+
+  @override
+  Future<void> skipToPrevious() => _delegate.skipToPrevious();
+
+  @override
+  Future<void> setShuffleMode(AudioServiceShuffleMode shuffleMode) =>
+      _delegate.setShuffleMode(shuffleMode);
+
+  @override
+  Future<void> setRepeatMode(AudioServiceRepeatMode repeatMode) =>
+      _delegate.setRepeatMode(repeatMode);
+
+  @override
+  Future<void> setPlaybackSpeed(double speed) =>
+      _delegate.setPlaybackSpeed(speed);
+
+  @override
+  Future<void> setVolume(double volume) => _delegate.setVolume(volume);
+
+  @override
+  Future<void> applyRuntimeSettings() => _delegate.applyRuntimeSettings();
+
+  @override
+  Future<void> toggleLike() => _delegate.toggleLike();
+
+  @override
+  Future<void> syncSongLikedState(String songId, {required bool liked}) =>
+      _delegate.syncSongLikedState(songId, liked: liked);
+
+  @override
+  Future<void> playRadioStream({
+    required String stationId,
+    required String stationName,
+    required String streamUrl,
+    String? homePageUrl,
+  }) => _delegate.playRadioStream(
+    stationId: stationId,
+    stationName: stationName,
+    streamUrl: streamUrl,
+    homePageUrl: homePageUrl,
+  );
+
+  @override
+  Future<void> stopRadio() => _delegate.stopRadio();
+
+  @override
+  void updateRadioMetadata({
+    String? title,
+    String? artist,
+    String? artUrl,
+  }) => _delegate.updateRadioMetadata(
+    title: title,
+    artist: artist,
+    artUrl: artUrl,
+  );
 }
 
 class NavisAudioHandler extends BaseAudioHandler
@@ -511,11 +707,17 @@ class NavisAudioHandler extends BaseAudioHandler
 
   Future<void> _initialize() async {
     AppLogger.info('Audio handler init: start.');
-    final session = await AudioSession.instance;
-    AppLogger.info('Audio handler init: audio session acquired.');
-    await session.configure(const AudioSessionConfiguration.music());
-    AppLogger.info('Audio handler init: audio session configured.');
-    _wireAudioSession(session);
+    if (_supportsAudioSessionRuntime) {
+      final session = await AudioSession.instance;
+      AppLogger.info('Audio handler init: audio session acquired.');
+      await session.configure(const AudioSessionConfiguration.music());
+      AppLogger.info('Audio handler init: audio session configured.');
+      _wireAudioSession(session);
+    } else {
+      AppLogger.info(
+        'Audio handler init: audio_session integration skipped on this platform.',
+      );
+    }
     try {
       // Keep startup readiness strict: runtime settings should be applied before
       // exposing the handler as fully ready.
@@ -567,16 +769,27 @@ class NavisAudioHandler extends BaseAudioHandler
           'Clearing persisted queue to unblock playback startup. '
           '$error\n$stackTrace',
         );
-        await _playQueueDao.clearQueue();
+        await _clearPersistedQueueBestEffort();
       } on Object catch (error, stackTrace) {
         AppLogger.error(
           'Queue restore failed. Clearing persisted queue to keep playback functional.',
           error,
           stackTrace,
         );
-        await _playQueueDao.clearQueue();
+        await _clearPersistedQueueBestEffort();
       }
     });
+  }
+
+  Future<void> _clearPersistedQueueBestEffort() async {
+    try {
+      await _playQueueDao.clearQueue();
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning(
+        'Persisted queue clear failed during startup fallback: '
+        '$error\n$stackTrace',
+      );
+    }
   }
 
   void _wireAudioSession(AudioSession session) {
@@ -2554,6 +2767,13 @@ class NavisAudioHandler extends BaseAudioHandler
 }
 
 bool get _isAndroidRuntime => !kIsWeb && Platform.isAndroid;
+
+bool get _isWindowsRuntime => !kIsWeb && Platform.isWindows;
+
+bool get _isLinuxRuntime => !kIsWeb && Platform.isLinux;
+
+bool get _supportsAudioSessionRuntime =>
+    !kIsWeb && (Platform.isAndroid || Platform.isIOS || Platform.isMacOS);
 
 class _PreparedQueueItem {
   const _PreparedQueueItem({

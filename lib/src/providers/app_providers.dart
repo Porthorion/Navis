@@ -267,26 +267,55 @@ class AudioBootstrapState {
     required this.status,
     this.handler,
     this.errorMessage,
+    this.attempt = 0,
+    this.elapsedMs,
+    this.timedOut = false,
+    this.recoveredFromTimeout = false,
   });
 
-  const AudioBootstrapState.initializing()
-    : status = AudioBootstrapStatus.initializing,
-      handler = null,
-      errorMessage = null;
+  const AudioBootstrapState.initializing({
+    int attempt = 0,
+  }) : status = AudioBootstrapStatus.initializing,
+       handler = null,
+       errorMessage = null,
+       attempt = attempt,
+       elapsedMs = null,
+       timedOut = false,
+       recoveredFromTimeout = false;
 
-  const AudioBootstrapState.ready(NavisPlaybackHandler readyHandler)
-    : status = AudioBootstrapStatus.ready,
-      handler = readyHandler,
-      errorMessage = null;
+  const AudioBootstrapState.ready(
+    NavisPlaybackHandler readyHandler, {
+    int attempt = 0,
+    int? elapsedMs,
+    bool recoveredFromTimeout = false,
+  }) : status = AudioBootstrapStatus.ready,
+       handler = readyHandler,
+       errorMessage = null,
+       attempt = attempt,
+       elapsedMs = elapsedMs,
+       timedOut = false,
+       recoveredFromTimeout = recoveredFromTimeout;
 
-  const AudioBootstrapState.failed(String failureMessage)
-    : status = AudioBootstrapStatus.failed,
-      handler = null,
-      errorMessage = failureMessage;
+  const AudioBootstrapState.failed(
+    String failureMessage, {
+    int attempt = 0,
+    int? elapsedMs,
+    bool timedOut = false,
+  }) : status = AudioBootstrapStatus.failed,
+       handler = null,
+       errorMessage = failureMessage,
+       attempt = attempt,
+       elapsedMs = elapsedMs,
+       timedOut = timedOut,
+       recoveredFromTimeout = false;
 
   final AudioBootstrapStatus status;
   final NavisPlaybackHandler? handler;
   final String? errorMessage;
+  final int attempt;
+  final int? elapsedMs;
+  final bool timedOut;
+  final bool recoveredFromTimeout;
 
   bool get isReady => status == AudioBootstrapStatus.ready && handler != null;
 }
@@ -322,13 +351,11 @@ class AudioBootstrapController extends Notifier<AudioBootstrapState> {
     _activeAttempt = attemptId;
     _inFlight = completer.future;
     _didAttempt = true;
-    state = const AudioBootstrapState.initializing();
-    final audioHandlerState = ref.read<AudioHandlerStateController>(
-      audioHandlerStateProvider.notifier,
-    );
-    audioHandlerState.state = null;
+    state = AudioBootstrapState.initializing(attempt: attemptId);
+    final audioHandlerState = ref.read(audioHandlerStateProvider.notifier);
     unawaited(
       () async {
+        await audioHandlerState.clearHandler();
         final stopwatch = Stopwatch()..start();
         final timeout = ref.read(audioBootstrapTimeoutProvider);
         final initializeHandler = ref.read(audioHandlerInitializerProvider);
@@ -341,12 +368,17 @@ class AudioBootstrapController extends Notifier<AudioBootstrapState> {
           if (_activeAttempt != attemptId) {
             return;
           }
-          final audioHandlerState = ref.read<AudioHandlerStateController>(
+          final audioHandlerState = ref.read(
             audioHandlerStateProvider.notifier,
           );
-          audioHandlerState.state = audioHandler;
-          state = AudioBootstrapState.ready(audioHandler);
+          await audioHandlerState.setHandler(audioHandler);
           final elapsedMs = stopwatch.elapsedMilliseconds;
+          state = AudioBootstrapState.ready(
+            audioHandler,
+            attempt: attemptId,
+            elapsedMs: elapsedMs,
+            recoveredFromTimeout: recoveredFromTimeout,
+          );
           if (recoveredFromTimeout) {
             AppLogger.info(
               'Audio bootstrap recovered after timeout in ${elapsedMs}ms '
@@ -408,11 +440,17 @@ class AudioBootstrapController extends Notifier<AudioBootstrapState> {
               ? 'Playback initialization timed out after ${timeout.inSeconds}s.'
               : 'Playback initialization failed.';
           AppLogger.error(message, error, stackTrace);
-          final audioHandlerState = ref.read<AudioHandlerStateController>(
+          final elapsedMs = stopwatch.elapsedMilliseconds;
+          final audioHandlerState = ref.read(
             audioHandlerStateProvider.notifier,
           );
-          audioHandlerState.state = null;
-          state = AudioBootstrapState.failed(message);
+          await audioHandlerState.clearHandler();
+          state = AudioBootstrapState.failed(
+            message,
+            attempt: attemptId,
+            elapsedMs: elapsedMs,
+            timedOut: timedOut,
+          );
           if (!completer.isCompleted) {
             completer.complete();
           }
@@ -607,6 +645,7 @@ Future<void> _hydrateAlbumFromServer(Ref ref, String albumId) async {
             discNumber: Value(song.discNumber),
             duration: Value(song.duration),
             bitRate: Value(song.bitRate),
+            sampleRate: Value(song.sampleRate),
             contentType: Value(song.contentType),
             suffix: Value(song.suffix),
             size: Value(song.size),
@@ -1018,8 +1057,38 @@ final searchResultsProvider = FutureProvider.autoDispose
     });
 
 class AudioHandlerStateController extends Notifier<NavisPlaybackHandler?> {
+  NavisPlaybackHandler? _currentHandler;
+
   @override
-  NavisPlaybackHandler? build() => null;
+  NavisPlaybackHandler? build() {
+    _currentHandler = null;
+    ref.onDispose(() {
+      final current = _currentHandler;
+      if (current == null) {
+        return;
+      }
+      unawaited(disposeNavisPlaybackHandler(current));
+    });
+    return null;
+  }
+
+  Future<void> setHandler(NavisPlaybackHandler handler) async {
+    final previous = _currentHandler;
+    _currentHandler = handler;
+    state = handler;
+    if (previous != null && !identical(previous, handler)) {
+      await disposeNavisPlaybackHandler(previous);
+    }
+  }
+
+  Future<void> clearHandler() async {
+    final previous = _currentHandler;
+    _currentHandler = null;
+    state = null;
+    if (previous != null) {
+      await disposeNavisPlaybackHandler(previous);
+    }
+  }
 }
 
 final audioHandlerStateProvider =
@@ -1536,6 +1605,16 @@ final artTintedNowPlayingProvider = Provider<bool>((ref) {
       ref.watch(appSettingsProvider).asData?.value ??
       const AppSettingsModel.defaults();
   return settings.artTintedNowPlaying;
+});
+
+/// Whether lyrics should open in fullscreen mode by default.
+///
+/// Backed by a persisted compatibility boolean in app settings.
+final fullscreenModeLyricsProvider = Provider<bool>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.skipSilenceEnabled;
 });
 
 /// Whether app-wide accent color should follow currently playing album art.

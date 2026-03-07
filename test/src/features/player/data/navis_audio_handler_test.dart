@@ -27,6 +27,58 @@ void main() {
       expect(navisNotificationCompactActionIndices, const <int>[0, 1, 2]);
     });
 
+    test('linux MPRIS helper registers only on Linux runtime', () {
+      var registerCalls = 0;
+      final infos = <String>[];
+      final warnings = <String>[];
+
+      final registered = navisRegisterLinuxMprisIfSupported(
+        isLinuxRuntime: true,
+        registerMpris: () {
+          registerCalls += 1;
+        },
+        logInfo: infos.add,
+        logWarning: warnings.add,
+      );
+
+      expect(registered, isTrue);
+      expect(registerCalls, 1);
+      expect(infos, hasLength(1));
+      expect(warnings, isEmpty);
+
+      final skipped = navisRegisterLinuxMprisIfSupported(
+        isLinuxRuntime: false,
+        registerMpris: () {
+          registerCalls += 1;
+        },
+        logInfo: infos.add,
+        logWarning: warnings.add,
+      );
+
+      expect(skipped, isFalse);
+      expect(registerCalls, 1);
+    });
+
+    test('linux MPRIS helper logs warning and continues on failure', () {
+      final infos = <String>[];
+      final warnings = <String>[];
+
+      final registered = navisRegisterLinuxMprisIfSupported(
+        isLinuxRuntime: true,
+        registerMpris: () {
+          throw StateError('dbus unavailable');
+        },
+        logInfo: infos.add,
+        logWarning: warnings.add,
+      );
+
+      expect(registered, isFalse);
+      expect(infos, isEmpty);
+      expect(warnings, hasLength(1));
+      expect(warnings.single, contains('Linux MPRIS registration failed.'));
+      expect(warnings.single, contains('dbus unavailable'));
+    });
+
     test('seek sanitize helper clamps negatives to zero', () {
       expect(
         navisSanitizeSeekPosition(const Duration(seconds: -5)),

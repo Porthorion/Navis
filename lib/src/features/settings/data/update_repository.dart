@@ -16,10 +16,18 @@ class UpdateRepository {
   /// is already up-to-date (or no releases are published yet).
   ///
   /// Pre-release builds are ignored unless [includePrerelease] is `true`.
-  Future<UpdateInfo?> checkForUpdate({bool includePrerelease = false}) async {
+  Future<UpdateInfo?> checkForUpdate({
+    bool includePrerelease = false,
+    String? updateChannel,
+  }) async {
     final packageInfo = await PackageInfo.fromPlatform();
     final currentVersion = packageInfo.version; // e.g. "0.1.0"
     final currentSemver = _parseSemverCore(currentVersion);
+    final resolvedChannel = (updateChannel ?? AppConstants.updateChannel)
+        .trim()
+        .toLowerCase();
+    final allowPrerelease =
+        includePrerelease || resolvedChannel != _stableUpdateChannel;
 
     final response = await _dio.get<List<dynamic>>(
       AppConstants.releasesApiUrl,
@@ -33,22 +41,34 @@ class UpdateRepository {
     final releases = (response.data ?? []).cast<Map<String, dynamic>>();
 
     final filtered =
-        releases
-            .where(
-              (r) => includePrerelease || !(r['prerelease'] as bool? ?? false),
-            )
-            .toList()
-          ..sort((a, b) {
-            final aRawTag = (a['tag_name'] as String?) ?? '';
-            final bRawTag = (b['tag_name'] as String?) ?? '';
-            final aSemver = _parseSemverCore(aRawTag);
-            final bSemver = _parseSemverCore(bRawTag);
-            if (aSemver == null && bSemver == null) return 0;
-            if (aSemver == null) return 1;
-            if (bSemver == null) return -1;
-            // Descending, newest first.
-            return _compareSemverCore(bSemver, aSemver);
-          });
+        releases.where((r) {
+          if (allowPrerelease) {
+            return true;
+          }
+          return !(r['prerelease'] as bool? ?? false);
+        }).toList()..sort((a, b) {
+          final aRawTag = (a['tag_name'] as String?) ?? '';
+          final bRawTag = (b['tag_name'] as String?) ?? '';
+          final aSemver = _parseSemverCore(aRawTag);
+          final bSemver = _parseSemverCore(bRawTag);
+          if (aSemver == null && bSemver == null) return 0;
+          if (aSemver == null) return 1;
+          if (bSemver == null) return -1;
+          // Descending, newest first.
+          final semverOrder = _compareSemverCore(bSemver, aSemver);
+          if (semverOrder != 0) {
+            return semverOrder;
+          }
+          if (resolvedChannel == _devUpdateChannel) {
+            final aPrerelease = a['prerelease'] as bool? ?? false;
+            final bPrerelease = b['prerelease'] as bool? ?? false;
+            if (aPrerelease != bPrerelease) {
+              // Prefer prereleases in dev channel when semver core matches.
+              return bPrerelease ? 1 : -1;
+            }
+          }
+          return 0;
+        });
 
     final candidate = filtered.firstWhereOrNull((r) {
       final rawTag = (r['tag_name'] as String?) ?? '';
@@ -68,7 +88,8 @@ class UpdateRepository {
 
     // Look for an APK asset attached to the release.
     final assets = (candidate['assets'] as List<dynamic>?) ?? [];
-    final preferredAssetName = 'navis-$rawTag.apk'.toLowerCase();
+    final preferredAssetName =
+        '${_assetPrefixForChannel(resolvedChannel)}-$rawTag.apk'.toLowerCase();
 
     final apkAsset =
         assets.cast<Map<String, dynamic>>().firstWhereOrNull((asset) {
@@ -89,6 +110,15 @@ class UpdateRepository {
       apkDownloadUrl: apkUrl,
     );
   }
+}
+
+const String _stableUpdateChannel = 'stable';
+const String _devUpdateChannel = 'dev';
+
+String _assetPrefixForChannel(String channel) {
+  return channel == _devUpdateChannel
+      ? 'navis-dev'
+      : AppConstants.updateAssetPrefix;
 }
 
 List<int>? _parseSemverCore(String raw) {

@@ -70,6 +70,6 @@ class SubsonicRetryInterceptor extends Interceptor {
     }
 
     final status = err.response?.statusCode;
-    return status == 502 || status == 503 || status == 504;
+    return status != null && status >= 500 && status < 600;
   }
 }

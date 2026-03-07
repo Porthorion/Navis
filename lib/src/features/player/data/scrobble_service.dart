@@ -54,6 +54,7 @@ class DriftScrobbleService implements ScrobbleService {
   final Duration dispatchInterval;
 
   Timer? _dispatchTimer;
+  Timer? _dispatchRetryTimer;
   bool _isDispatching = false;
   bool _started = false;
 
@@ -179,6 +180,8 @@ class DriftScrobbleService implements ScrobbleService {
   @override
   Future<void> dispose() async {
     _stopDispatchTimer();
+    _dispatchRetryTimer?.cancel();
+    _dispatchRetryTimer = null;
   }
 
   void _ensureDispatchTimer() {
@@ -197,11 +200,32 @@ class DriftScrobbleService implements ScrobbleService {
       return;
     }
 
-    final count = await _dao.countEntries();
-    if (count > 0) {
-      _ensureDispatchTimer();
-    } else {
-      _stopDispatchTimer();
+    try {
+      final count = await _dao.countEntries();
+      if (count > 0) {
+        _dispatchRetryTimer?.cancel();
+        _dispatchRetryTimer = null;
+        _ensureDispatchTimer();
+      } else {
+        _stopDispatchTimer();
+      }
+    } on Object catch (error) {
+      if (!_isDatabaseLocked(error)) {
+        rethrow;
+      }
+      AppLogger.warning(
+        'Scrobble timer sync deferred: database is locked during startup.',
+      );
+      _dispatchRetryTimer?.cancel();
+      _dispatchRetryTimer = Timer(const Duration(seconds: 2), () {
+        _dispatchRetryTimer = null;
+        unawaited(_syncDispatchTimer());
+      });
     }
+  }
+
+  bool _isDatabaseLocked(Object error) {
+    final message = error.toString().toLowerCase();
+    return message.contains('database is locked');
   }
 }

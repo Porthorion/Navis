@@ -665,6 +665,10 @@ void main() {
 
         expect(bootstrap.status, AudioBootstrapStatus.ready);
         expect(bootstrap.handler, same(handler));
+        expect(bootstrap.attempt, 1);
+        expect(bootstrap.timedOut, isFalse);
+        expect(bootstrap.recoveredFromTimeout, isFalse);
+        expect(bootstrap.elapsedMs, isNotNull);
         expect(container.read(audioHandlerStateProvider), same(handler));
       },
     );
@@ -691,16 +695,46 @@ void main() {
         });
 
         await container.read(audioBootstrapControllerProvider.notifier).retry();
-        expect(
-          container.read(audioBootstrapControllerProvider).status,
-          AudioBootstrapStatus.failed,
-        );
+        final failedState = container.read(audioBootstrapControllerProvider);
+        expect(failedState.status, AudioBootstrapStatus.failed);
+        expect(failedState.attempt, 1);
+        expect(failedState.timedOut, isTrue);
+        expect(failedState.recoveredFromTimeout, isFalse);
+        expect(failedState.elapsedMs, isNotNull);
 
         delayedCompleter.complete(delayedHandler);
         await Future<void>.delayed(const Duration(milliseconds: 30));
         final recovered = container.read(audioBootstrapControllerProvider);
         expect(recovered.status, AudioBootstrapStatus.ready);
         expect(recovered.handler, same(delayedHandler));
+        expect(recovered.attempt, 1);
+        expect(recovered.timedOut, isFalse);
+        expect(recovered.recoveredFromTimeout, isTrue);
+        expect(recovered.elapsedMs, isNotNull);
+      },
+    );
+
+    test(
+      'audio bootstrap records non-timeout initialization failures',
+      () async {
+        final container = ProviderContainer(
+          overrides: [
+            audioHandlerInitializerProvider.overrideWithValue(() async {
+              throw StateError('bootstrap init failed');
+            }),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        await container.read(audioBootstrapControllerProvider.notifier).retry();
+        final failed = container.read(audioBootstrapControllerProvider);
+
+        expect(failed.status, AudioBootstrapStatus.failed);
+        expect(failed.attempt, 1);
+        expect(failed.timedOut, isFalse);
+        expect(failed.recoveredFromTimeout, isFalse);
+        expect(failed.elapsedMs, isNotNull);
+        expect(failed.errorMessage, 'Playback initialization failed.');
       },
     );
 

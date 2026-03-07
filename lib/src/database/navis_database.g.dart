@@ -4743,6 +4743,17 @@ class $SongsTableTable extends SongsTable
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _sampleRateMeta = const VerificationMeta(
+    'sampleRate',
+  );
+  @override
+  late final GeneratedColumn<int> sampleRate = GeneratedColumn<int>(
+    'sample_rate',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _contentTypeMeta = const VerificationMeta(
     'contentType',
   );
@@ -4883,6 +4894,7 @@ class $SongsTableTable extends SongsTable
     discNumber,
     duration,
     bitRate,
+    sampleRate,
     contentType,
     suffix,
     size,
@@ -4967,6 +4979,12 @@ class $SongsTableTable extends SongsTable
       context.handle(
         _bitRateMeta,
         bitRate.isAcceptableOrUnknown(data['bit_rate']!, _bitRateMeta),
+      );
+    }
+    if (data.containsKey('sample_rate')) {
+      context.handle(
+        _sampleRateMeta,
+        sampleRate.isAcceptableOrUnknown(data['sample_rate']!, _sampleRateMeta),
       );
     }
     if (data.containsKey('content_type')) {
@@ -5105,6 +5123,10 @@ class $SongsTableTable extends SongsTable
         DriftSqlType.int,
         data['${effectivePrefix}bit_rate'],
       ),
+      sampleRate: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sample_rate'],
+      ),
       contentType: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}content_type'],
@@ -5173,6 +5195,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
   final int? discNumber;
   final int? duration;
   final int? bitRate;
+  final int? sampleRate;
   final String? contentType;
   final String? suffix;
   final int? size;
@@ -5204,6 +5227,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     this.discNumber,
     this.duration,
     this.bitRate,
+    this.sampleRate,
     this.contentType,
     this.suffix,
     this.size,
@@ -5245,6 +5269,9 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     }
     if (!nullToAbsent || bitRate != null) {
       map['bit_rate'] = Variable<int>(bitRate);
+    }
+    if (!nullToAbsent || sampleRate != null) {
+      map['sample_rate'] = Variable<int>(sampleRate);
     }
     if (!nullToAbsent || contentType != null) {
       map['content_type'] = Variable<String>(contentType);
@@ -5313,6 +5340,9 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       bitRate: bitRate == null && nullToAbsent
           ? const Value.absent()
           : Value(bitRate),
+      sampleRate: sampleRate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sampleRate),
       contentType: contentType == null && nullToAbsent
           ? const Value.absent()
           : Value(contentType),
@@ -5366,6 +5396,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       discNumber: serializer.fromJson<int?>(json['discNumber']),
       duration: serializer.fromJson<int?>(json['duration']),
       bitRate: serializer.fromJson<int?>(json['bitRate']),
+      sampleRate: serializer.fromJson<int?>(json['sampleRate']),
       contentType: serializer.fromJson<String?>(json['contentType']),
       suffix: serializer.fromJson<String?>(json['suffix']),
       size: serializer.fromJson<int?>(json['size']),
@@ -5402,6 +5433,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       'discNumber': serializer.toJson<int?>(discNumber),
       'duration': serializer.toJson<int?>(duration),
       'bitRate': serializer.toJson<int?>(bitRate),
+      'sampleRate': serializer.toJson<int?>(sampleRate),
       'contentType': serializer.toJson<String?>(contentType),
       'suffix': serializer.toJson<String?>(suffix),
       'size': serializer.toJson<int?>(size),
@@ -5428,6 +5460,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     Value<int?> discNumber = const Value.absent(),
     Value<int?> duration = const Value.absent(),
     Value<int?> bitRate = const Value.absent(),
+    Value<int?> sampleRate = const Value.absent(),
     Value<String?> contentType = const Value.absent(),
     Value<String?> suffix = const Value.absent(),
     Value<int?> size = const Value.absent(),
@@ -5451,6 +5484,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     discNumber: discNumber.present ? discNumber.value : this.discNumber,
     duration: duration.present ? duration.value : this.duration,
     bitRate: bitRate.present ? bitRate.value : this.bitRate,
+    sampleRate: sampleRate.present ? sampleRate.value : this.sampleRate,
     contentType: contentType.present ? contentType.value : this.contentType,
     suffix: suffix.present ? suffix.value : this.suffix,
     size: size.present ? size.value : this.size,
@@ -5488,6 +5522,9 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
           : this.discNumber,
       duration: data.duration.present ? data.duration.value : this.duration,
       bitRate: data.bitRate.present ? data.bitRate.value : this.bitRate,
+      sampleRate: data.sampleRate.present
+          ? data.sampleRate.value
+          : this.sampleRate,
       contentType: data.contentType.present
           ? data.contentType.value
           : this.contentType,
@@ -5528,6 +5565,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
           ..write('discNumber: $discNumber, ')
           ..write('duration: $duration, ')
           ..write('bitRate: $bitRate, ')
+          ..write('sampleRate: $sampleRate, ')
           ..write('contentType: $contentType, ')
           ..write('suffix: $suffix, ')
           ..write('size: $size, ')
@@ -5556,6 +5594,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     discNumber,
     duration,
     bitRate,
+    sampleRate,
     contentType,
     suffix,
     size,
@@ -5583,6 +5622,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
           other.discNumber == this.discNumber &&
           other.duration == this.duration &&
           other.bitRate == this.bitRate &&
+          other.sampleRate == this.sampleRate &&
           other.contentType == this.contentType &&
           other.suffix == this.suffix &&
           other.size == this.size &&
@@ -5608,6 +5648,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
   final Value<int?> discNumber;
   final Value<int?> duration;
   final Value<int?> bitRate;
+  final Value<int?> sampleRate;
   final Value<String?> contentType;
   final Value<String?> suffix;
   final Value<int?> size;
@@ -5632,6 +5673,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     this.discNumber = const Value.absent(),
     this.duration = const Value.absent(),
     this.bitRate = const Value.absent(),
+    this.sampleRate = const Value.absent(),
     this.contentType = const Value.absent(),
     this.suffix = const Value.absent(),
     this.size = const Value.absent(),
@@ -5657,6 +5699,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     this.discNumber = const Value.absent(),
     this.duration = const Value.absent(),
     this.bitRate = const Value.absent(),
+    this.sampleRate = const Value.absent(),
     this.contentType = const Value.absent(),
     this.suffix = const Value.absent(),
     this.size = const Value.absent(),
@@ -5683,6 +5726,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     Expression<int>? discNumber,
     Expression<int>? duration,
     Expression<int>? bitRate,
+    Expression<int>? sampleRate,
     Expression<String>? contentType,
     Expression<String>? suffix,
     Expression<int>? size,
@@ -5708,6 +5752,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
       if (discNumber != null) 'disc_number': discNumber,
       if (duration != null) 'duration': duration,
       if (bitRate != null) 'bit_rate': bitRate,
+      if (sampleRate != null) 'sample_rate': sampleRate,
       if (contentType != null) 'content_type': contentType,
       if (suffix != null) 'suffix': suffix,
       if (size != null) 'size': size,
@@ -5739,6 +5784,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     Value<int?>? discNumber,
     Value<int?>? duration,
     Value<int?>? bitRate,
+    Value<int?>? sampleRate,
     Value<String?>? contentType,
     Value<String?>? suffix,
     Value<int?>? size,
@@ -5764,6 +5810,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
       discNumber: discNumber ?? this.discNumber,
       duration: duration ?? this.duration,
       bitRate: bitRate ?? this.bitRate,
+      sampleRate: sampleRate ?? this.sampleRate,
       contentType: contentType ?? this.contentType,
       suffix: suffix ?? this.suffix,
       size: size ?? this.size,
@@ -5812,6 +5859,9 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     }
     if (bitRate.present) {
       map['bit_rate'] = Variable<int>(bitRate.value);
+    }
+    if (sampleRate.present) {
+      map['sample_rate'] = Variable<int>(sampleRate.value);
     }
     if (contentType.present) {
       map['content_type'] = Variable<String>(contentType.value);
@@ -5876,6 +5926,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
           ..write('discNumber: $discNumber, ')
           ..write('duration: $duration, ')
           ..write('bitRate: $bitRate, ')
+          ..write('sampleRate: $sampleRate, ')
           ..write('contentType: $contentType, ')
           ..write('suffix: $suffix, ')
           ..write('size: $size, ')
@@ -13896,6 +13947,7 @@ typedef $$SongsTableTableCreateCompanionBuilder =
       Value<int?> discNumber,
       Value<int?> duration,
       Value<int?> bitRate,
+      Value<int?> sampleRate,
       Value<String?> contentType,
       Value<String?> suffix,
       Value<int?> size,
@@ -13922,6 +13974,7 @@ typedef $$SongsTableTableUpdateCompanionBuilder =
       Value<int?> discNumber,
       Value<int?> duration,
       Value<int?> bitRate,
+      Value<int?> sampleRate,
       Value<String?> contentType,
       Value<String?> suffix,
       Value<int?> size,
@@ -14131,6 +14184,11 @@ class $$SongsTableTableFilterComposer
 
   ColumnFilters<int> get bitRate => $composableBuilder(
     column: $table.bitRate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sampleRate => $composableBuilder(
+    column: $table.sampleRate,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -14390,6 +14448,11 @@ class $$SongsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get sampleRate => $composableBuilder(
+    column: $table.sampleRate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get contentType => $composableBuilder(
     column: $table.contentType,
     builder: (column) => ColumnOrderings(column),
@@ -14533,6 +14596,11 @@ class $$SongsTableTableAnnotationComposer
 
   GeneratedColumn<int> get bitRate =>
       $composableBuilder(column: $table.bitRate, builder: (column) => column);
+
+  GeneratedColumn<int> get sampleRate => $composableBuilder(
+    column: $table.sampleRate,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<String> get contentType => $composableBuilder(
     column: $table.contentType,
@@ -14777,6 +14845,7 @@ class $$SongsTableTableTableManager
                 Value<int?> discNumber = const Value.absent(),
                 Value<int?> duration = const Value.absent(),
                 Value<int?> bitRate = const Value.absent(),
+                Value<int?> sampleRate = const Value.absent(),
                 Value<String?> contentType = const Value.absent(),
                 Value<String?> suffix = const Value.absent(),
                 Value<int?> size = const Value.absent(),
@@ -14801,6 +14870,7 @@ class $$SongsTableTableTableManager
                 discNumber: discNumber,
                 duration: duration,
                 bitRate: bitRate,
+                sampleRate: sampleRate,
                 contentType: contentType,
                 suffix: suffix,
                 size: size,
@@ -14827,6 +14897,7 @@ class $$SongsTableTableTableManager
                 Value<int?> discNumber = const Value.absent(),
                 Value<int?> duration = const Value.absent(),
                 Value<int?> bitRate = const Value.absent(),
+                Value<int?> sampleRate = const Value.absent(),
                 Value<String?> contentType = const Value.absent(),
                 Value<String?> suffix = const Value.absent(),
                 Value<int?> size = const Value.absent(),
@@ -14851,6 +14922,7 @@ class $$SongsTableTableTableManager
                 discNumber: discNumber,
                 duration: duration,
                 bitRate: bitRate,
+                sampleRate: sampleRate,
                 contentType: contentType,
                 suffix: suffix,
                 size: size,

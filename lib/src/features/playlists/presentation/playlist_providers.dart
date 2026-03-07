@@ -79,6 +79,7 @@ final playlistDetailSyncProvider = FutureProvider.autoDispose
                 discNumber: Value(song.discNumber),
                 duration: Value(song.duration),
                 bitRate: Value(song.bitRate),
+                sampleRate: Value(song.sampleRate),
                 contentType: Value(song.contentType),
                 suffix: Value(song.suffix),
                 size: Value(song.size),

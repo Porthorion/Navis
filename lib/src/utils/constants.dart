@@ -18,4 +18,17 @@ abstract final class AppConstants {
   /// URL of the Forgejo Releases API endpoint for update checks.
   static const String releasesApiUrl =
       '$forgejoBaseUrl/api/v1/repos/$forgejoOwner/$forgejoRepo/releases';
+
+  /// Update channel for release selection.
+  ///
+  /// Set via `--dart-define=NAVIS_UPDATE_CHANNEL=dev` for sidecar/dev builds.
+  static const String updateChannel = String.fromEnvironment(
+    'NAVIS_UPDATE_CHANNEL',
+    defaultValue: 'stable',
+  );
+
+  /// Expected APK asset prefix for the active update channel.
+  static const String updateAssetPrefix = updateChannel == 'dev'
+      ? 'navis-dev'
+      : 'navis';
 }
