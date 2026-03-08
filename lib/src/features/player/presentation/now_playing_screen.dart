@@ -349,6 +349,20 @@ void _showNowPlayingSettingsSheet(
                       },
                     ),
                   ),
+                if (fullscreenLyricsSongId != null &&
+                    fullscreenLyricsTitle != null)
+                  ListTile(
+                    leading: const Icon(Icons.fullscreen),
+                    title: Text(l10n.nowPlayingLyrics),
+                    onTap: () {
+                      Navigator.of(sheetContext).pop();
+                      _openFullscreenLyricsRoute(
+                        context,
+                        fullscreenLyricsSongId,
+                        fullscreenLyricsTitle,
+                      );
+                    },
+                  ),
                 if (song?.albumId != null && song!.albumId!.isNotEmpty)
                   ListTile(
                     leading: const Icon(Icons.album_outlined),
@@ -397,20 +411,6 @@ void _showNowPlayingSettingsSheet(
                       }
                     },
                   ),
-                if (fullscreenLyricsSongId != null &&
-                    fullscreenLyricsTitle != null)
-                  ListTile(
-                    leading: const Icon(Icons.fullscreen),
-                    title: Text(l10n.nowPlayingLyrics),
-                    onTap: () {
-                      Navigator.of(sheetContext).pop();
-                      _openFullscreenLyricsRoute(
-                        context,
-                        fullscreenLyricsSongId,
-                        fullscreenLyricsTitle,
-                      );
-                    },
-                  ),
               ],
             ),
           ),
@@ -425,7 +425,7 @@ Future<void> _openFullscreenLyricsRoute(
   String songId,
   String title,
 ) {
-  return Navigator.of(context).push(
+  return Navigator.of(context, rootNavigator: true).push(
     MaterialPageRoute<void>(
       builder: (_) => _FullscreenLyricsPage(songId: songId, title: title),
     ),
@@ -739,13 +739,13 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
     String songId,
     String title,
   ) async {
-    if (widget.wideEmbeddedMode) {
+    if (widget.wideEmbeddedMode &&
+        (_widePanel != _WideNowPlayingPanel.none ||
+            _showWideFullscreenLyrics)) {
       _updateWideOverlayState(() {
-        _showLyrics = false;
         _widePanel = _WideNowPlayingPanel.none;
-        _showWideFullscreenLyrics = true;
+        _showWideFullscreenLyrics = false;
       });
-      return;
     }
     await _openFullscreenLyricsRoute(context, songId, title);
   }
@@ -819,6 +819,21 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
         final isSplitNowPlaying = splitMetrics != null;
         final supportsSplitPanelOverlay =
             widget.wideEmbeddedMode && isSplitNowPlaying;
+        final openFullscreenLyricsFromSettings = playback.currentSongId == null
+            ? null
+            : () {
+                _updateWideOverlayState(() {
+                  _showWideFullscreenLyrics = false;
+                  _widePanel = _WideNowPlayingPanel.none;
+                });
+                unawaited(
+                  _openLyricsFullscreen(
+                    context,
+                    playback.currentSongId!,
+                    title,
+                  ),
+                );
+              };
 
         if (widget.compactWideLandscapeMode) {
           // Include MediaQuery safe-area insets so the player content
@@ -1086,6 +1101,9 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
               child: _NowPlayingSettingsPanel(
                 song: song,
                 onCollapse: widget.onCollapse,
+                fullscreenLyricsSongId: playback.currentSongId,
+                fullscreenLyricsTitle: title,
+                onOpenFullscreenLyrics: openFullscreenLyricsFromSettings,
               ),
             );
           }
@@ -1373,49 +1391,44 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
                 song: song,
                 songId: playback.currentSongId,
                 isLiked: playback.isCurrentSongLiked,
-                showLyrics: widget.wideEmbeddedMode
-                    ? _showWideFullscreenLyrics
-                    : _showLyrics,
+                showLyrics: _showLyrics || _showWideFullscreenLyrics,
                 onOpenSettingsSheet: !supportsSplitPanelOverlay
                     ? () => _showNowPlayingSettingsSheet(
                         context,
                         ref,
                         song,
-                        fullscreenLyricsSongId:
-                            !widget.wideEmbeddedMode &&
-                                !fullscreenLyricsMode &&
-                                playback.currentSongId != null
-                            ? playback.currentSongId
-                            : null,
-                        fullscreenLyricsTitle:
-                            !widget.wideEmbeddedMode &&
-                                !fullscreenLyricsMode &&
-                                playback.currentSongId != null
-                            ? title
-                            : null,
+                        fullscreenLyricsSongId: playback.currentSongId,
+                        fullscreenLyricsTitle: playback.currentSongId == null
+                            ? null
+                            : title,
                       )
                     : null,
                 onLyricsToggle: playback.currentSongId == null
                     ? null
                     : () {
-                        if (widget.wideEmbeddedMode) {
-                          _updateWideOverlayState(() {
-                            _widePanel = _WideNowPlayingPanel.none;
-                            _showLyrics = false;
-                            _showWideFullscreenLyrics =
-                                !_showWideFullscreenLyrics;
-                          });
-                          return;
-                        }
                         if (fullscreenLyricsMode) {
-                          _openLyricsFullscreen(
-                            context,
-                            playback.currentSongId!,
-                            title,
+                          unawaited(
+                            _openLyricsFullscreen(
+                              context,
+                              playback.currentSongId!,
+                              title,
+                            ),
                           );
                           return;
                         }
-                        setState(() => _showLyrics = !_showLyrics);
+                        if (widget.wideEmbeddedMode &&
+                            _widePanel != _WideNowPlayingPanel.none) {
+                          _updateWideOverlayState(() {
+                            _widePanel = _WideNowPlayingPanel.none;
+                            _showWideFullscreenLyrics = false;
+                            _showLyrics = !_showLyrics;
+                          });
+                          return;
+                        }
+                        setState(() {
+                          _showWideFullscreenLyrics = false;
+                          _showLyrics = !_showLyrics;
+                        });
                       },
                 wideEmbeddedMode: supportsSplitPanelOverlay,
                 onOpenQueuePanel: supportsSplitPanelOverlay
@@ -1443,7 +1456,6 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
               ),
           ],
         );
-
         final metadataTop = Column(
           mainAxisSize: MainAxisSize.min,
           children: metadataTopChildren,
@@ -1664,8 +1676,10 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
                         context,
                         ref,
                         song,
-                        fullscreenLyricsSongId: null,
-                        fullscreenLyricsTitle: null,
+                        fullscreenLyricsSongId: playback.currentSongId,
+                        fullscreenLyricsTitle: playback.currentSongId == null
+                            ? null
+                            : title,
                       )
                     : null,
                 onLyricsToggle: playback.currentSongId == null ? null : () {},
@@ -1753,6 +1767,9 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
             rightPanePanelChild = _NowPlayingSettingsPanel(
               song: song,
               onCollapse: widget.onCollapse,
+              fullscreenLyricsSongId: playback.currentSongId,
+              fullscreenLyricsTitle: title,
+              onOpenFullscreenLyrics: openFullscreenLyricsFromSettings,
             );
           } else if (_widePanel == _WideNowPlayingPanel.mix &&
               playback.currentSongId != null) {
@@ -3026,11 +3043,15 @@ class _FullscreenLyricsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final playback = ref.watch(playerStateProvider);
-    final mediaSize = MediaQuery.sizeOf(context);
-    final showMediaControls = mediaSize.height > mediaSize.width;
+    final backLabel = MaterialLocalizations.of(context).backButtonTooltip;
     return Scaffold(
       appBar: AppBar(
-        leading: const BackButton(),
+        leadingWidth: 108,
+        leading: TextButton.icon(
+          onPressed: () => Navigator.of(context).maybePop(),
+          icon: const Icon(Icons.arrow_back),
+          label: Text(backLabel),
+        ),
         title: Text(
           l10n.nowPlayingLyrics,
           maxLines: 1,
@@ -3058,15 +3079,12 @@ class _FullscreenLyricsPage extends ConsumerWidget {
           child: Column(
             children: <Widget>[
               Expanded(child: _InlineLyrics(songId: songId)),
-              if (showMediaControls) ...<Widget>[
-                const SizedBox(height: 8),
-                if (!playback.isRadioMode) _SeekBar(playback: playback),
-                const SizedBox(height: 6),
-                _TransportControls(
-                  playback: playback,
-                  isRadio: playback.isRadioMode,
-                ),
-              ],
+              const SizedBox(height: 8),
+              _TransportControls(
+                playback: playback,
+                isRadio: playback.isRadioMode,
+                compact: true,
+              ),
             ],
           ),
         ),
@@ -3807,43 +3825,43 @@ class _EmbeddedNowPlayingPanelScaffoldState
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
                 Padding(
-                    padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
-                    child: Row(
-                      children: <Widget>[
-                        IconButton(
-                          tooltip: MaterialLocalizations.of(
-                            context,
-                          ).backButtonTooltip,
-                          onPressed: () {
-                            unawaited(_requestDismiss());
-                          },
-                          icon: const Icon(Icons.arrow_back),
-                        ),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: <Widget>[
+                  padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
+                  child: Row(
+                    children: <Widget>[
+                      IconButton(
+                        tooltip: MaterialLocalizations.of(
+                          context,
+                        ).backButtonTooltip,
+                        onPressed: () {
+                          unawaited(_requestDismiss());
+                        },
+                        icon: const Icon(Icons.arrow_back),
+                      ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            Text(
+                              widget.title,
+                              style: theme.textTheme.titleMedium,
+                            ),
+                            if (widget.subtitle != null &&
+                                widget.subtitle!.isNotEmpty)
                               Text(
-                                widget.title,
-                                style: theme.textTheme.titleMedium,
-                              ),
-                              if (widget.subtitle != null &&
-                                  widget.subtitle!.isNotEmpty)
-                                Text(
-                                  widget.subtitle!,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.colorScheme.onSurfaceVariant,
-                                  ),
+                                widget.subtitle!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
                                 ),
-                            ],
-                          ),
+                              ),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
+                ),
                 const Divider(height: 1),
                 Expanded(
                   child: NotificationListener<ScrollNotification>(
@@ -3937,8 +3955,7 @@ class _CompactWideOverlaySheetState extends State<_CompactWideOverlaySheet>
   void _applyDragDelta(double delta) {
     if (_dismissing) return;
     final height = _viewportHeight();
-    _controller.value =
-        (_controller.value - delta / height).clamp(0.0, 1.0);
+    _controller.value = (_controller.value - delta / height).clamp(0.0, 1.0);
   }
 
   void _settleAfterDrag({double velocity = 0}) {
@@ -3956,8 +3973,7 @@ class _CompactWideOverlaySheetState extends State<_CompactWideOverlaySheet>
       }
     } else {
       // Low velocity — snap to nearest edge.
-      if (_controller.value <
-          _CompactWideOverlaySheet._snapDismissThreshold) {
+      if (_controller.value < _CompactWideOverlaySheet._snapDismissThreshold) {
         _startDismiss();
       } else {
         unawaited(
@@ -3983,8 +3999,7 @@ class _CompactWideOverlaySheetState extends State<_CompactWideOverlaySheet>
 
   bool _handleScrollNotification(ScrollNotification notification) {
     if (_dismissing) return false;
-    if (notification is OverscrollNotification &&
-        notification.overscroll < 0) {
+    if (notification is OverscrollNotification && notification.overscroll < 0) {
       _applyDragDelta(-notification.overscroll);
       return false;
     }
@@ -4022,8 +4037,9 @@ class _CompactWideOverlaySheetState extends State<_CompactWideOverlaySheet>
         final progress = _controller.value;
         // Fade in quickly (complete by 50% of the slide) then stay fully
         // opaque, and fade out symmetrically when dragging back down.
-        final opacity =
-            Curves.easeOut.transform((progress / 0.5).clamp(0.0, 1.0));
+        final opacity = Curves.easeOut.transform(
+          (progress / 0.5).clamp(0.0, 1.0),
+        );
         return Opacity(
           opacity: opacity,
           child: FractionalTranslation(
@@ -4045,7 +4061,7 @@ class _CompactWideOverlaySheetState extends State<_CompactWideOverlaySheet>
           // non-scrollable area.
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onVerticalDragStart: (_) {},  // no-op; reserved for future use
+            onVerticalDragStart: (_) {}, // no-op; reserved for future use
             onVerticalDragUpdate: (details) {
               final delta = details.primaryDelta;
               if (delta == null) return;
@@ -4119,10 +4135,16 @@ class _NowPlayingSettingsPanel extends ConsumerWidget {
   const _NowPlayingSettingsPanel({
     required this.song,
     this.onCollapse,
+    this.fullscreenLyricsSongId,
+    this.fullscreenLyricsTitle,
+    this.onOpenFullscreenLyrics,
   });
 
   final SongsTableData? song;
   final VoidCallback? onCollapse;
+  final String? fullscreenLyricsSongId;
+  final String? fullscreenLyricsTitle;
+  final VoidCallback? onOpenFullscreenLyrics;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -4162,6 +4184,14 @@ class _NowPlayingSettingsPanel extends ConsumerWidget {
                 );
               },
             ),
+          ),
+        if (fullscreenLyricsSongId != null &&
+            fullscreenLyricsTitle != null &&
+            onOpenFullscreenLyrics != null)
+          ListTile(
+            leading: const Icon(Icons.fullscreen),
+            title: Text(l10n.nowPlayingLyrics),
+            onTap: onOpenFullscreenLyrics,
           ),
         if (song?.albumId != null && song!.albumId!.isNotEmpty)
           ListTile(

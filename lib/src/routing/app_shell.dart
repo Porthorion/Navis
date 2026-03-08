@@ -81,8 +81,13 @@ class _AppShellState extends ConsumerState<AppShell> {
     if (_compactWideInternalOverlayActive == active || !mounted) {
       return;
     }
-    setState(() {
-      _compactWideInternalOverlayActive = active;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _compactWideInternalOverlayActive == active) {
+        return;
+      }
+      setState(() {
+        _compactWideInternalOverlayActive = active;
+      });
     });
   }
 
