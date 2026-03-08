@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:async';
 import 'dart:io';
-import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -16,8 +15,6 @@ import 'package:window_manager/window_manager.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await _applyMobileOrientationPolicy();
-
   _initializeDesktopAudioBackend();
   await _configureDesktopWindow();
 
@@ -207,66 +204,6 @@ Rect? _normalizeBounds(Rect? bounds, {required Size minSize}) {
 
 bool get _isDesktopRuntime =>
     !kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
-
-bool get _isMobileRuntime => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
-
-Future<void> _applyMobileOrientationPolicy() async {
-  if (!_isMobileRuntime) {
-    return;
-  }
-
-  final views = WidgetsBinding.instance.platformDispatcher.views;
-  if (views.isEmpty) {
-    return;
-  }
-
-  final view = views.first;
-  final logicalSize = view.display.size / view.display.devicePixelRatio;
-  final shortestSide = math.min(logicalSize.width, logicalSize.height);
-  final longestSide = math.max(logicalSize.width, logicalSize.height);
-  final isPhoneFormFactor = shortestSide < 600;
-
-  if (!isPhoneFormFactor) {
-    await SystemChrome.setPreferredOrientations(<DeviceOrientation>[]);
-    return;
-  }
-
-  // Keep startup orientation policy aligned with the in-app phone landscape
-  // wide-mode rail gate used by AppShell.
-  const shellDestinationCount = 4;
-  const navTileEstimatedHeight = 64.0;
-  const reservedMiniPlayerHeight = 170.0;
-  const railMiniPlayerGap = 6.0;
-  const railCutoffSlack = 4.0;
-  const phoneRailOuterVerticalPadding = 44.0;
-  const wideModeMinWidth = 840.0;
-
-  final minPhoneRailHeight =
-      (shellDestinationCount * navTileEstimatedHeight) +
-      (reservedMiniPlayerHeight + railMiniPlayerGap) +
-      railCutoffSlack;
-  final landscapeEstimatedRailHeight =
-      shortestSide - phoneRailOuterVerticalPadding;
-  final supportsWideModeLandscape =
-      longestSide >= wideModeMinWidth &&
-      landscapeEstimatedRailHeight >= minPhoneRailHeight;
-
-  if (supportsWideModeLandscape) {
-    await SystemChrome.setPreferredOrientations(<DeviceOrientation>[]);
-    AppLogger.info(
-      'Mobile orientation policy: landscape allowed (wide-mode minimums met).',
-    );
-    return;
-  }
-
-  await SystemChrome.setPreferredOrientations(<DeviceOrientation>[
-    DeviceOrientation.portraitUp,
-  ]);
-  AppLogger.info(
-    'Mobile orientation policy: locked to portrait '
-    '(wide-mode minimums not met).',
-  );
-}
 
 const bool _forceEnableMediaKitInDebug = bool.fromEnvironment(
   'NAVIS_ENABLE_MEDIA_KIT_DEBUG',
