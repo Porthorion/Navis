@@ -79,6 +79,8 @@ This builds/runs a side-by-side dev app (`.dev` suffix, `Navis Dev`) and pins up
 | [docs/development-workflow.md](docs/development-workflow.md) | Code generation, conventions |
 | [docs/ci-cd.md](docs/ci-cd.md) | Release pipeline, quality gates |
 | [docs/dev-testing-builds.md](docs/dev-testing-builds.md) | Side-by-side dev builds and update channel mapping |
+| [docs/macos-testing-playbook.md](docs/macos-testing-playbook.md) | MacBook runtime/regression/release test flow |
+| [docs/release-secrets.md](docs/release-secrets.md) | Secret handling for signing/notarization/release tokens |
 | [docs/troubleshooting.md](docs/troubleshooting.md) | Common issues |
 
 ## Roadmap

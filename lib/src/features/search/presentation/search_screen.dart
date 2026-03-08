@@ -175,9 +175,19 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final query = ref.watch(searchQueryProvider);
     final hasQuery = query.trim().isNotEmpty;
     final desktopUiV1 = ref.watch(desktopUiV1EnabledProvider);
-    final screenWidth = MediaQuery.sizeOf(context).width;
+    final viewport = MediaQuery.sizeOf(context);
+    final screenWidth = viewport.width;
+    final safePadding = MediaQuery.paddingOf(context);
     final layoutClass = resolveDesktopLayoutClass(screenWidth);
     final adaptiveLayoutClass = resolveAdaptiveLayoutClass(screenWidth);
+    final adaptiveShellMode = resolveAdaptiveShellMode(
+      desktopRuntime: isDesktopRuntime,
+      viewportSize: viewport,
+      safePadding: safePadding,
+    );
+    final compactWideLandscapeMode =
+        adaptiveShellMode == AdaptiveShellMode.compactWideLandscape;
+    final compactHorizontalInset = compactWideLandscapeMode ? 10.0 : 12.0;
     final tabletMode =
         !isDesktopRuntime &&
         adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact;
@@ -230,47 +240,72 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     if (tabletMode) {
       final maxWidth = switch (adaptiveLayoutClass) {
         AdaptiveLayoutClass.tabletMedium => 860.0,
-        AdaptiveLayoutClass.tabletExpanded => 1040.0,
+        AdaptiveLayoutClass.tabletExpanded =>
+          compactWideLandscapeMode ? double.infinity : 1040.0,
         AdaptiveLayoutClass.phoneCompact => double.infinity,
       };
-      return Scaffold(
-        body: SafeArea(
-          child: Align(
-            alignment: Alignment.topCenter,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: maxWidth),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
-                child: Column(
-                  children: <Widget>[
-                    DesktopPanel(
-                      child: _SearchBar(
-                        controller: _controller,
-                        focusNode: _focusNode,
-                        hint: l10n.searchHint,
-                        onChanged: _onQueryChanged,
-                        onSubmitted: _onSearchSubmitted,
-                        onClear: hasQuery ? _clearSearch : null,
-                        desktopMode: true,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    if (hasQuery) _SearchFilterChips(desktopMode: true),
-                    if (hasQuery) _OfflineSearchBanner(desktopMode: true),
-                    Expanded(
-                      child: Card(
-                        margin: EdgeInsets.zero,
-                        clipBehavior: Clip.antiAlias,
-                        child: hasQuery
-                            ? _buildResults(desktopMode: true)
-                            : _buildRecentSearches(desktopMode: true),
-                      ),
-                    ),
-                  ],
+      final tabletContent = Padding(
+        padding: EdgeInsets.fromLTRB(
+          compactHorizontalInset,
+          12,
+          compactHorizontalInset,
+          16,
+        ),
+        child: Column(
+          children: <Widget>[
+            if (compactWideLandscapeMode)
+              _SearchBar(
+                controller: _controller,
+                focusNode: _focusNode,
+                hint: l10n.searchHint,
+                onChanged: _onQueryChanged,
+                onSubmitted: _onSearchSubmitted,
+                onClear: hasQuery ? _clearSearch : null,
+              )
+            else
+              DesktopPanel(
+                child: _SearchBar(
+                  controller: _controller,
+                  focusNode: _focusNode,
+                  hint: l10n.searchHint,
+                  onChanged: _onQueryChanged,
+                  onSubmitted: _onSearchSubmitted,
+                  onClear: hasQuery ? _clearSearch : null,
+                  desktopMode: true,
                 ),
               ),
+            const SizedBox(height: 10),
+            if (hasQuery)
+              _SearchFilterChips(desktopMode: !compactWideLandscapeMode),
+            if (hasQuery)
+              _OfflineSearchBanner(desktopMode: !compactWideLandscapeMode),
+            Expanded(
+              child: compactWideLandscapeMode
+                  ? (hasQuery ? _buildResults() : _buildRecentSearches())
+                  : Card(
+                      margin: EdgeInsets.zero,
+                      clipBehavior: Clip.antiAlias,
+                      child: hasQuery
+                          ? _buildResults(desktopMode: true)
+                          : _buildRecentSearches(desktopMode: true),
+                    ),
             ),
-          ),
+          ],
+        ),
+      );
+      return Scaffold(
+        body: SafeArea(
+          left: !compactWideLandscapeMode,
+          right: !compactWideLandscapeMode,
+          child: compactWideLandscapeMode
+              ? tabletContent
+              : Align(
+                  alignment: Alignment.topCenter,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: maxWidth),
+                    child: tabletContent,
+                  ),
+                ),
         ),
       );
     }
@@ -361,6 +396,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   Widget _buildRecentSearches({bool desktopMode = false}) {
     final recentAsync = ref.watch(recentSearchesProvider);
     final l10n = AppLocalizations.of(context)!;
+    final compactWideLandscapeMode =
+        resolveAdaptiveShellMode(
+          desktopRuntime: isDesktopRuntime,
+          viewportSize: MediaQuery.sizeOf(context),
+          safePadding: MediaQuery.paddingOf(context),
+        ) ==
+        AdaptiveShellMode.compactWideLandscape;
 
     return recentAsync.when(
       data: (searches) {
@@ -372,7 +414,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         }
         return ListView(
           padding: desktopMode
-              ? const EdgeInsets.fromLTRB(8, 8, 8, 8)
+              ? (compactWideLandscapeMode
+                    ? const EdgeInsets.fromLTRB(0, 8, 0, 8)
+                    : const EdgeInsets.fromLTRB(8, 8, 8, 8))
               : EdgeInsets.zero,
           children: <Widget>[
             Padding(

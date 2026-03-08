@@ -23,6 +23,7 @@ class QueueSheet extends ConsumerWidget {
     this.sheetDragActive = false,
     this.onReorderDragChanged,
     this.onClose,
+    this.embeddedMode = false,
     super.key,
   });
 
@@ -30,6 +31,7 @@ class QueueSheet extends ConsumerWidget {
   final bool sheetDragActive;
   final ValueChanged<bool>? onReorderDragChanged;
   final VoidCallback? onClose;
+  final bool embeddedMode;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -37,6 +39,71 @@ class QueueSheet extends ConsumerWidget {
     final queueIds = ref.watch(queueProvider);
     final currentSongId = ref.watch(currentQueueSongIdProvider);
     final close = onClose ?? () => Navigator.of(context).pop();
+
+    final body = Column(
+      children: <Widget>[
+        _QueueSheetHeader(
+          queueIds: queueIds,
+          onClose: close,
+          // The _CompactWideOverlaySheet already draws a drag pill at the
+          // top of the panel, so suppress the header's own pill in embedded
+          // mode to avoid showing two pills.
+          showDragPill: !embeddedMode,
+        ),
+        Expanded(
+          child: queueIds.isEmpty
+              ? EmptyState(
+                  title: l10n.queueEmptyTitle,
+                  subtitle: l10n.queueEmptySubtitle,
+                  icon: Icons.queue_music_outlined,
+                )
+              : ReorderableListView.builder(
+                  scrollController: scrollController,
+                  physics: sheetDragActive
+                      ? const NeverScrollableScrollPhysics()
+                      : const ClampingScrollPhysics(),
+                  padding: const EdgeInsets.only(bottom: 80),
+                  itemCount: queueIds.length,
+                  onReorderStart: (_) => onReorderDragChanged?.call(true),
+                  onReorderEnd: (_) => onReorderDragChanged?.call(false),
+                  onReorder: (oldIndex, newIndex) async {
+                    await ref.read(reorderQueueProvider)(
+                      oldIndex,
+                      newIndex,
+                    );
+                  },
+                  itemBuilder: (context, index) {
+                    final songId = queueIds[index];
+                    final isCurrentSong = songId == currentSongId;
+
+                    return _QueueItem(
+                      key: ValueKey('$index-$songId'),
+                      songId: songId,
+                      index: index,
+                      isCurrentSong: isCurrentSong,
+                      onRemove: () async {
+                        await ref.read(queueProvider.notifier).removeAt(index);
+                      },
+                      onTap: () async {
+                        await ref
+                            .read(queueProvider.notifier)
+                            .playFromIndex(
+                              index,
+                            );
+                      },
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+
+    if (embeddedMode) {
+      return Material(
+        color: Theme.of(context).colorScheme.surface,
+        child: body,
+      );
+    }
 
     return SafeArea(
       top: true,
@@ -48,59 +115,7 @@ class QueueSheet extends ConsumerWidget {
           borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
         ),
         clipBehavior: Clip.antiAlias,
-        child: Column(
-          children: <Widget>[
-            _QueueSheetHeader(
-              queueIds: queueIds,
-              onClose: close,
-            ),
-            Expanded(
-              child: queueIds.isEmpty
-                  ? EmptyState(
-                      title: l10n.queueEmptyTitle,
-                      subtitle: l10n.queueEmptySubtitle,
-                      icon: Icons.queue_music_outlined,
-                    )
-                  : ReorderableListView.builder(
-                      scrollController: scrollController,
-                      physics: sheetDragActive
-                          ? const NeverScrollableScrollPhysics()
-                          : const ClampingScrollPhysics(),
-                      padding: const EdgeInsets.only(bottom: 80),
-                      itemCount: queueIds.length,
-                      onReorderStart: (_) => onReorderDragChanged?.call(true),
-                      onReorderEnd: (_) => onReorderDragChanged?.call(false),
-                      onReorder: (oldIndex, newIndex) async {
-                        await ref.read(reorderQueueProvider)(
-                          oldIndex,
-                          newIndex,
-                        );
-                      },
-                      itemBuilder: (context, index) {
-                        final songId = queueIds[index];
-                        final isCurrentSong = songId == currentSongId;
-
-                        return _QueueItem(
-                          key: ValueKey('$index-$songId'),
-                          songId: songId,
-                          index: index,
-                          isCurrentSong: isCurrentSong,
-                          onRemove: () async {
-                            await ref
-                                .read(queueProvider.notifier)
-                                .removeAt(index);
-                          },
-                          onTap: () async {
-                            await ref
-                                .read(queueProvider.notifier)
-                                .playFromIndex(index);
-                          },
-                        );
-                      },
-                    ),
-            ),
-          ],
-        ),
+        child: body,
       ),
     );
   }
@@ -114,10 +129,12 @@ class _QueueSheetHeader extends ConsumerWidget {
   const _QueueSheetHeader({
     required this.queueIds,
     required this.onClose,
+    this.showDragPill = true,
   });
 
   final List<String> queueIds;
   final VoidCallback onClose;
+  final bool showDragPill;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -126,22 +143,24 @@ class _QueueSheetHeader extends ConsumerWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        // Drag handle indicator
-        Center(
-          child: Padding(
-            padding: const EdgeInsets.only(top: 8, bottom: 4),
-            child: Container(
-              width: 32,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Theme.of(
-                  context,
-                ).colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
-                borderRadius: BorderRadius.circular(2),
+        // Drag handle indicator — hidden when embedded inside a panel that
+        // already shows its own pill (e.g. _CompactWideOverlaySheet).
+        if (showDragPill)
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 8, bottom: 4),
+              child: Container(
+                width: 32,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
             ),
           ),
-        ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           child: Row(

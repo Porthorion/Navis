@@ -13,6 +13,8 @@
 #   --targets=<csv>            Build targets: android,ios,macos,linux,windows
 #   --all-platforms            Same as --targets=android,ios,macos,linux,windows
 #   --linux-package=<mode>     Linux output: bundle (default) or deb
+#   --windows-package=<mode>   Windows output: zip (default) or exe (Inno Setup)
+#   --macos-notarize           Sign + notarize macOS app bundle before packaging
 #   --channel=<stable|dev>     Release/update channel (default: stable)
 #   --prerelease               Force prerelease=true on Forgejo release
 #
@@ -21,6 +23,8 @@
 #   ./tool/release.sh v0.3.0 --channel=dev
 #   ./tool/release.sh v0.3.0 --targets=android,macos --channel=stable
 #   ./tool/release.sh v0.3.0 --ipa
+#   ./tool/release.sh v0.3.0 --targets=windows --windows-package=exe
+#   ./tool/release.sh v0.3.0 --targets=macos --macos-notarize
 #
 # Notes:
 #   - Channel `dev` defaults to sidecar app identity for Android builds:
@@ -36,6 +40,8 @@ VERSION=""
 SKIP_CHECKS=false
 TARGETS_SPEC="android"
 LINUX_PACKAGE_MODE="bundle"
+WINDOWS_PACKAGE_MODE="zip"
+MACOS_NOTARIZE=false
 UPDATE_CHANNEL="stable"
 FORCE_PRERELEASE=false
 
@@ -46,19 +52,21 @@ for arg in "$@"; do
     --targets=*) TARGETS_SPEC="${arg#--targets=}" ;;
     --all-platforms) TARGETS_SPEC="android,ios,macos,linux,windows" ;;
     --linux-package=*) LINUX_PACKAGE_MODE="${arg#--linux-package=}" ;;
+    --windows-package=*) WINDOWS_PACKAGE_MODE="${arg#--windows-package=}" ;;
+    --macos-notarize) MACOS_NOTARIZE=true ;;
     --channel=*) UPDATE_CHANNEL="${arg#--channel=}" ;;
     --prerelease) FORCE_PRERELEASE=true ;;
     v*.*) VERSION="${arg}" ;;
     *)
       echo "Unknown argument: ${arg}"
-      echo "Usage: ./tool/release.sh <version> [--skip-checks] [--ipa] [--targets=<csv>] [--all-platforms] [--linux-package=<bundle|deb>] [--channel=<stable|dev>] [--prerelease]"
+      echo "Usage: ./tool/release.sh <version> [--skip-checks] [--ipa] [--targets=<csv>] [--all-platforms] [--linux-package=<bundle|deb>] [--windows-package=<zip|exe>] [--macos-notarize] [--channel=<stable|dev>] [--prerelease]"
       exit 1
       ;;
   esac
 done
 
 if [[ -z "${VERSION}" ]]; then
-  echo "Usage: ./tool/release.sh <version> [--skip-checks] [--ipa] [--targets=<csv>] [--all-platforms] [--linux-package=<bundle|deb>] [--channel=<stable|dev>] [--prerelease]"
+  echo "Usage: ./tool/release.sh <version> [--skip-checks] [--ipa] [--targets=<csv>] [--all-platforms] [--linux-package=<bundle|deb>] [--windows-package=<zip|exe>] [--macos-notarize] [--channel=<stable|dev>] [--prerelease]"
   echo "  e.g. ./tool/release.sh v0.3.0 --targets=android,macos"
   exit 1
 fi
@@ -66,6 +74,12 @@ fi
 LINUX_PACKAGE_MODE="$(echo "${LINUX_PACKAGE_MODE}" | tr '[:upper:]' '[:lower:]')"
 if [[ "${LINUX_PACKAGE_MODE}" != "bundle" && "${LINUX_PACKAGE_MODE}" != "deb" ]]; then
   echo "Error: --linux-package must be 'bundle' or 'deb'"
+  exit 1
+fi
+
+WINDOWS_PACKAGE_MODE="$(echo "${WINDOWS_PACKAGE_MODE}" | tr '[:upper:]' '[:lower:]')"
+if [[ "${WINDOWS_PACKAGE_MODE}" != "zip" && "${WINDOWS_PACKAGE_MODE}" != "exe" ]]; then
+  echo "Error: --windows-package must be 'zip' or 'exe'"
   exit 1
 fi
 
@@ -160,6 +174,20 @@ if [[ "${BUILD_WINDOWS}" == "true" && "${OS:-}" != "Windows_NT" ]]; then
   echo "Error: Windows builds require a Windows host shell."
   exit 1
 fi
+
+if [[ "${MACOS_NOTARIZE}" == "true" && "${BUILD_MACOS}" != "true" ]]; then
+  echo "Error: --macos-notarize requires macOS to be included in --targets."
+  exit 1
+fi
+
+to_windows_host_path() {
+  local path="$1"
+  if [[ "${OS:-}" == "Windows_NT" ]] && command -v cygpath &>/dev/null; then
+    cygpath -w "${path}"
+    return
+  fi
+  echo "${path}"
+}
 
 # ─── Channel defaults ───────────────────────────────────────────────────────
 ASSET_PREFIX="navis"
@@ -318,7 +346,14 @@ if [[ "${BUILD_MACOS}" == "true" ]]; then
 
   MACOS_ASSET_NAME="${ASSET_PREFIX}-${VERSION}-macos.zip"
   MACOS_ASSET="${SCRIPT_DIR}/../${MACOS_ASSET_NAME}"
-  ditto -c -k --keepParent "${MACOS_APP_PATH}" "${MACOS_ASSET}"
+  if [[ "${MACOS_NOTARIZE}" == "true" ]]; then
+    echo "==> Notarizing macOS app..."
+    "${SCRIPT_DIR}/macos_notarize.sh" \
+      --app="${MACOS_APP_PATH}" \
+      --output="${MACOS_ASSET}"
+  else
+    ditto -c -k --keepParent "${MACOS_APP_PATH}" "${MACOS_ASSET}"
+  fi
   ASSET_FILES+=("${MACOS_ASSET}")
   ASSET_NAMES+=("${MACOS_ASSET_NAME}")
   echo "    macOS -> ${MACOS_ASSET_NAME}"
@@ -342,26 +377,70 @@ if [[ "${BUILD_LINUX}" == "true" ]]; then
 
     DEB_PACKAGE_NAME="${ASSET_PREFIX}"
     DEB_STAGE_DIR="${SCRIPT_DIR}/../build/linux/deb_stage"
+    DEB_ARCH="$(dpkg --print-architecture 2>/dev/null || true)"
+    if [[ -z "${DEB_ARCH}" ]]; then
+      case "$(uname -m)" in
+        x86_64) DEB_ARCH="amd64" ;;
+        aarch64|arm64) DEB_ARCH="arm64" ;;
+        *) DEB_ARCH="$(uname -m)" ;;
+      esac
+    fi
+    DEB_APP_NAME="Navis"
+    if [[ "${UPDATE_CHANNEL}" == "dev" ]]; then
+      DEB_APP_NAME="Navis Dev"
+    fi
+    DEB_MAINTAINER="${NAVIS_DEB_MAINTAINER:-Navis Team <noreply@example.com>}"
+
     rm -rf "${DEB_STAGE_DIR}"
     mkdir -p "${DEB_STAGE_DIR}/DEBIAN"
     mkdir -p "${DEB_STAGE_DIR}/opt/${DEB_PACKAGE_NAME}"
+    mkdir -p "${DEB_STAGE_DIR}/usr/bin"
+    mkdir -p "${DEB_STAGE_DIR}/usr/share/applications"
+    mkdir -p "${DEB_STAGE_DIR}/usr/share/icons/hicolor/512x512/apps"
 
     cp -R "${LINUX_BUNDLE_DIR}/." "${DEB_STAGE_DIR}/opt/${DEB_PACKAGE_NAME}/"
+
+    cat > "${DEB_STAGE_DIR}/usr/bin/${DEB_PACKAGE_NAME}" <<LAUNCHER
+#!/usr/bin/env bash
+exec "/opt/${DEB_PACKAGE_NAME}/navis" "\$@"
+LAUNCHER
+    chmod 0755 "${DEB_STAGE_DIR}/usr/bin/${DEB_PACKAGE_NAME}"
+
+    cat > "${DEB_STAGE_DIR}/usr/share/applications/${DEB_PACKAGE_NAME}.desktop" <<DESKTOP
+[Desktop Entry]
+Name=${DEB_APP_NAME}
+GenericName=Music Player
+Comment=Subsonic/OpenSubsonic music player
+Exec=${DEB_PACKAGE_NAME}
+Icon=${DEB_PACKAGE_NAME}
+Terminal=false
+Type=Application
+Categories=AudioVideo;Audio;Player;
+StartupNotify=true
+DESKTOP
+
+    ICON_SOURCE="${SCRIPT_DIR}/../lib/src/icon/Navis_Icon_light.png"
+    if [[ -f "${ICON_SOURCE}" ]]; then
+      cp "${ICON_SOURCE}" \
+        "${DEB_STAGE_DIR}/usr/share/icons/hicolor/512x512/apps/${DEB_PACKAGE_NAME}.png"
+    fi
 
     cat > "${DEB_STAGE_DIR}/DEBIAN/control" <<CONTROL
 Package: ${DEB_PACKAGE_NAME}
 Version: ${SEMVER}
 Section: sound
 Priority: optional
-Architecture: amd64
-Maintainer: Navis Team <noreply@example.com>
+Architecture: ${DEB_ARCH}
+Maintainer: ${DEB_MAINTAINER}
+Depends: libgtk-3-0
+Homepage: https://git.porthorion.com/khalifa/Navis
 Description: Navis music player
-Channel: ${UPDATE_CHANNEL}
+ Subsonic/OpenSubsonic music player built with Flutter.
 CONTROL
 
-    DEB_ASSET_NAME="${ASSET_PREFIX}-${VERSION}-linux-amd64.deb"
+    DEB_ASSET_NAME="${ASSET_PREFIX}-${VERSION}-linux-${DEB_ARCH}.deb"
     DEB_ASSET="${SCRIPT_DIR}/../${DEB_ASSET_NAME}"
-    dpkg-deb --build "${DEB_STAGE_DIR}" "${DEB_ASSET}" >/dev/null
+    dpkg-deb --root-owner-group --build "${DEB_STAGE_DIR}" "${DEB_ASSET}" >/dev/null
     rm -rf "${DEB_STAGE_DIR}"
 
     ASSET_FILES+=("${DEB_ASSET}")
@@ -387,16 +466,46 @@ if [[ "${BUILD_WINDOWS}" == "true" ]]; then
     exit 1
   fi
 
-  WINDOWS_ASSET_NAME="${ASSET_PREFIX}-${VERSION}-windows.zip"
-  WINDOWS_ASSET="${SCRIPT_DIR}/../${WINDOWS_ASSET_NAME}"
+  if [[ "${WINDOWS_PACKAGE_MODE}" == "exe" ]]; then
+    WINDOWS_ASSET_NAME="${ASSET_PREFIX}-${VERSION}-windows-installer.exe"
+    WINDOWS_ASSET="${SCRIPT_DIR}/../${WINDOWS_ASSET_NAME}"
+    WINDOWS_INSTALLER_SCRIPT="${SCRIPT_DIR}/windows/build_inno_installer.ps1"
+    if [[ ! -f "${WINDOWS_INSTALLER_SCRIPT}" ]]; then
+      echo "Error: Installer script not found at ${WINDOWS_INSTALLER_SCRIPT}"
+      exit 1
+    fi
 
-  if command -v powershell.exe &>/dev/null; then
-    powershell.exe -NoProfile -Command "Compress-Archive -Path '${WINDOWS_RELEASE_DIR//\//\\}\\*' -DestinationPath '${WINDOWS_ASSET//\//\\}' -Force" >/dev/null
-  elif command -v zip &>/dev/null; then
-    (cd "${WINDOWS_RELEASE_DIR}" && zip -r "${WINDOWS_ASSET}" . >/dev/null)
+    RELEASE_DIR_ARG="$(to_windows_host_path "${WINDOWS_RELEASE_DIR}")"
+    OUTPUT_PATH_ARG="$(to_windows_host_path "${WINDOWS_ASSET}")"
+    INSTALLER_SCRIPT_ARG="$(to_windows_host_path "${WINDOWS_INSTALLER_SCRIPT}")"
+
+    if command -v powershell.exe &>/dev/null; then
+      powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${INSTALLER_SCRIPT_ARG}" \
+        -ReleaseDir "${RELEASE_DIR_ARG}" \
+        -Version "${VERSION}" \
+        -AssetPrefix "${ASSET_PREFIX}" \
+        -OutputPath "${OUTPUT_PATH_ARG}" >/dev/null
+    elif command -v pwsh &>/dev/null; then
+      pwsh -NoProfile -File "${WINDOWS_INSTALLER_SCRIPT}" \
+        -ReleaseDir "${WINDOWS_RELEASE_DIR}" \
+        -Version "${VERSION}" \
+        -AssetPrefix "${ASSET_PREFIX}" \
+        -OutputPath "${WINDOWS_ASSET}" >/dev/null
+    else
+      echo "Error: --windows-package=exe requires powershell.exe or pwsh."
+      exit 1
+    fi
   else
-    echo "Error: Need either powershell.exe or zip to package Windows release."
-    exit 1
+    WINDOWS_ASSET_NAME="${ASSET_PREFIX}-${VERSION}-windows.zip"
+    WINDOWS_ASSET="${SCRIPT_DIR}/../${WINDOWS_ASSET_NAME}"
+    if command -v powershell.exe &>/dev/null; then
+      powershell.exe -NoProfile -Command "Compress-Archive -Path '${WINDOWS_RELEASE_DIR//\//\\}\\*' -DestinationPath '${WINDOWS_ASSET//\//\\}' -Force" >/dev/null
+    elif command -v zip &>/dev/null; then
+      (cd "${WINDOWS_RELEASE_DIR}" && zip -r "${WINDOWS_ASSET}" . >/dev/null)
+    else
+      echo "Error: Need either powershell.exe or zip to package Windows release."
+      exit 1
+    fi
   fi
 
   ASSET_FILES+=("${WINDOWS_ASSET}")

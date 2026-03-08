@@ -15,9 +15,16 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final desktopUiV1 = ref.watch(desktopUiV1EnabledProvider);
-    final adaptiveLayoutClass = resolveAdaptiveLayoutClass(
-      MediaQuery.sizeOf(context).width,
+    final viewport = MediaQuery.sizeOf(context);
+    final adaptiveLayoutClass = resolveAdaptiveLayoutClass(viewport.width);
+    final adaptiveShellMode = resolveAdaptiveShellMode(
+      desktopRuntime: isDesktopRuntime,
+      viewportSize: viewport,
+      safePadding: MediaQuery.paddingOf(context),
     );
+    final compactWideLandscapeMode =
+        adaptiveShellMode == AdaptiveShellMode.compactWideLandscape;
+    final compactHorizontalInset = compactWideLandscapeMode ? 10.0 : 12.0;
     final tabletMode =
         !isDesktopRuntime &&
         adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact;
@@ -114,56 +121,86 @@ class SettingsScreen extends ConsumerWidget {
 
     if (!desktopUiV1 && tabletMode) {
       final maxWidth = adaptiveLayoutClass == AdaptiveLayoutClass.tabletExpanded
-          ? 980.0
+          ? (compactWideLandscapeMode ? double.infinity : 980.0)
           : 860.0;
+      final tabletList = ListView(
+        padding: EdgeInsets.fromLTRB(
+          compactHorizontalInset,
+          12,
+          compactHorizontalInset,
+          20,
+        ),
+        children: <Widget>[
+          for (final group in groups.entries) ...<Widget>[
+            if (compactWideLandscapeMode) ...<Widget>[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 10, 4, 4),
+                child: Text(
+                  group.key,
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              for (final entry in group.value)
+                ListTile(
+                  leading: Icon(entry.icon),
+                  title: Text(entry.title),
+                  subtitle: entry.subtitle == null
+                      ? null
+                      : Text(entry.subtitle!),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push(entry.route),
+                ),
+              const SizedBox(height: 8),
+            ] else ...<Widget>[
+              Card(
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+                      child: Text(
+                        group.key,
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                    for (final entry in group.value)
+                      ListTile(
+                        leading: Icon(entry.icon),
+                        title: Text(entry.title),
+                        subtitle: entry.subtitle == null
+                            ? null
+                            : Text(entry.subtitle!),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => context.push(entry.route),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+          ],
+        ],
+      );
       return Scaffold(
         appBar: AppBar(title: Text(l10n.settingsTitle)),
         body: SafeArea(
           top: false,
-          child: Align(
-            alignment: Alignment.topCenter,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: maxWidth),
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(12, 12, 12, 20),
-                children: <Widget>[
-                  for (final group in groups.entries) ...<Widget>[
-                    Card(
-                      clipBehavior: Clip.antiAlias,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
-                            child: Text(
-                              group.key,
-                              style: Theme.of(context).textTheme.labelLarge
-                                  ?.copyWith(
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.onSurfaceVariant,
-                                  ),
-                            ),
-                          ),
-                          for (final entry in group.value)
-                            ListTile(
-                              leading: Icon(entry.icon),
-                              title: Text(entry.title),
-                              subtitle: entry.subtitle == null
-                                  ? null
-                                  : Text(entry.subtitle!),
-                              trailing: const Icon(Icons.chevron_right),
-                              onTap: () => context.push(entry.route),
-                            ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                ],
-              ),
-            ),
-          ),
+          left: !compactWideLandscapeMode,
+          right: !compactWideLandscapeMode,
+          child: compactWideLandscapeMode
+              ? tabletList
+              : Align(
+                  alignment: Alignment.topCenter,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: maxWidth),
+                    child: tabletList,
+                  ),
+                ),
         ),
       );
     }

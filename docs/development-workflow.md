@@ -15,6 +15,21 @@ What it does:
 - checks Flutter minimum and active baseline expectations
 - runs `flutter pub get`
 
+## Multi-OS Host Preflight
+
+Before preparing artifacts for desktop + mobile targets, run:
+
+```bash
+./tool/multi_os_host_preflight.sh --doctor
+```
+
+What it does:
+- checks toolchain prerequisites for cross-platform release hosts
+- prints OS-specific install commands for missing SDKs/tools
+- can run best-effort macOS autofix installs with `--auto-fix`
+- optionally runs `flutter doctor -v` at the end
+- reports missing Xcode Simulator runtimes as a warning (required for iOS simulator work, non-blocking for macOS desktop-only releases)
+
 ## Quality Gate
 
 Run before each commit/PR:
@@ -31,6 +46,20 @@ Checks performed:
 - tests (`flutter test`)
 
 The script fails fast when `/tmp` is critically low to avoid misleading test hangs.
+
+## Core Release Gate (No custom_lint dependency)
+
+Use this gate when `custom_lint` is unavailable but you still need a strict release-ready check:
+
+```bash
+./tool/release_gate_core.sh
+```
+
+Quick mode (skips full `flutter test` pass):
+
+```bash
+./tool/release_gate_core.sh --quick
+```
 
 ## Phase 1 Close-Out Gate
 
@@ -96,6 +125,19 @@ When a feature, bug fix, or phase is complete and merged to `main`:
 ```
 
 This runs the full quality gate, builds a release APK, tags the commit, creates a Forgejo release, and uploads the APK. See [ci-cd.md](ci-cd.md) for setup details.
+
+Advanced release packaging options:
+
+```bash
+# Linux native package
+./tool/release.sh v0.2.0 --targets=linux --linux-package=deb
+
+# Windows installable .exe (Inno Setup)
+./tool/release.sh v0.2.0 --targets=windows --windows-package=exe
+
+# macOS signed + notarized artifact
+./tool/release.sh v0.2.0 --targets=macos --macos-notarize
+```
 
 Pre-release builds (from `dev` branch when needed):
 
@@ -180,3 +222,9 @@ flutter run -d linux
 ```
 
 This is a local workaround and does not replace Android runtime validation.
+
+## MacBook Testing Guide
+
+For complete MacBook test procedures (quick smoke, full regression, release/notarization validation), use:
+
+`docs/macos-testing-playbook.md`

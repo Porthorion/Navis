@@ -19,6 +19,15 @@ Checks performed (in order, fail-fast):
 
 The script also checks `/tmp` disk space before starting to prevent misleading test hangs.
 
+### Core Gate (No custom_lint dependency)
+
+Use when `custom_lint` is unavailable on the release host:
+
+```bash
+./tool/release_gate_core.sh
+./tool/release_gate_core.sh --quick
+```
+
 ## Release (`tool/release.sh`)
 
 Builds selected release artifacts, tags the commit, creates a Forgejo release, and uploads all assets — all from the local machine.
@@ -50,6 +59,8 @@ Builds selected release artifacts, tags the commit, creates a Forgejo release, a
 ./tool/release.sh v0.2.0 --targets=android,macos
 ./tool/release.sh v0.2.0 --all-platforms
 ./tool/release.sh v0.2.0 --targets=linux --linux-package=deb
+./tool/release.sh v0.2.0 --targets=windows --windows-package=exe
+./tool/release.sh v0.2.0 --targets=macos --macos-notarize
 ```
 
 Or via Makefile:
@@ -62,6 +73,9 @@ make release VERSION=v0.2.0
 1. Runs `./tool/check.sh` (format, analyze, lint, tests) unless `--skip-checks` is passed.
 2. Builds selected artifacts for requested targets (`android`, `ios`, `macos`, `linux`, `windows`).
 2.1 For Linux target, can output either portable `bundle` (tar.gz) or `.deb` (`--linux-package=deb`).
+2.2 Debian package output is architecture-aware (`linux-<arch>.deb`) and includes a launcher binary and desktop entry.
+2.3 For Windows target, can output `.zip` (default) or Inno Setup `.exe` installer (`--windows-package=exe`).
+2.4 For macOS target, can optionally sign + notarize + staple before packaging (`--macos-notarize`).
 3. Passes `--dart-define=NAVIS_UPDATE_CHANNEL=<stable|dev>` to Flutter builds.
 4. For `--channel=dev`, defaults Android sidecar identity to `.dev` / `Navis Dev`.
 5. Creates an annotated git tag and pushes main/current branch/tag.
@@ -83,7 +97,33 @@ The app updater uses `NAVIS_UPDATE_CHANNEL` to prefer channel-matching assets.
 | `FORGEJO_REPO` | Repository path (e.g. `user/Navis`) |
 | `FORGEJO_TOKEN` | API token with release write access |
 
+Optional variables:
+
+| Variable | Description |
+|---|---|
+| `NAVIS_DEB_MAINTAINER` | Maintainer string for Linux Debian package metadata |
+| `MACOS_SIGN_IDENTITY` | Developer ID Application signing identity used by `--macos-notarize` |
+| `MACOS_NOTARY_PROFILE` | `xcrun notarytool` keychain profile name used by `--macos-notarize` |
+
 Set these in `tool/release.env` or export them in your shell.
+
+### Additional packaging prerequisites
+
+- Windows installer mode (`--windows-package=exe`)
+  - Requires Inno Setup 6 (`ISCC.exe`) on the Windows build host.
+  - Install from https://jrsoftware.org/isdl.php and ensure `ISCC.exe` is on `PATH`.
+- macOS notarization mode (`--macos-notarize`)
+  - Requires a valid Developer ID Application certificate in keychain.
+  - Requires a configured `notarytool` keychain profile:
+    ```bash
+    xcrun notarytool store-credentials navis-notary-profile \
+      --apple-id "<apple-id>" \
+      --team-id "<team-id>" \
+      --password "<app-specific-password>"
+    ```
+
+Credential governance and secure handling reference:
+`docs/release-secrets.md`
 
 ## Dependency Health (manual)
 
@@ -109,4 +149,3 @@ The intended flow for shipping a feature or fix:
 4. When ready to release: merge `dev` → `main`.
 5. Run `./tool/release.sh v0.x.0` from `main`.
 6. The script handles everything: checks, build, tag, Forgejo release, APK upload.
-

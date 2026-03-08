@@ -77,17 +77,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       }
     });
 
+    final viewport = MediaQuery.sizeOf(context);
+    final safePadding = MediaQuery.paddingOf(context);
     final downloadedOnly = ref.watch(downloadedOnlyFilterProvider);
-    final adaptiveLayoutClass = resolveAdaptiveLayoutClass(
-      MediaQuery.sizeOf(context).width,
+    final adaptiveLayoutClass = resolveAdaptiveLayoutClass(viewport.width);
+    final adaptiveShellMode = resolveAdaptiveShellMode(
+      desktopRuntime: isDesktopRuntime,
+      viewportSize: viewport,
+      safePadding: safePadding,
     );
+    final compactWideLandscapeMode =
+        adaptiveShellMode == AdaptiveShellMode.compactWideLandscape;
+    final compactHorizontalInset = compactWideLandscapeMode ? 10.0 : 0.0;
     final tabletMode =
         !isDesktopRuntime &&
         adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact;
     final desktopUiV1 = ref.watch(desktopUiV1EnabledProvider);
-    final desktopLayoutClass = resolveDesktopLayoutClass(
-      MediaQuery.sizeOf(context).width,
-    );
+    final desktopLayoutClass = resolveDesktopLayoutClass(viewport.width);
     final order =
         ref.watch(homeSectionOrderProvider) ?? HomeSectionIds.defaultOrder;
     final hidden = ref.watch(homeSectionsHiddenProvider) ?? <String>[];
@@ -95,7 +101,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final content = ListView(
       controller: _scrollController,
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.only(bottom: 24),
+      padding: EdgeInsets.fromLTRB(
+        compactHorizontalInset,
+        0,
+        compactHorizontalInset,
+        24,
+      ),
       children: <Widget>[
         if (desktopUiV1)
           DesktopFrame(
@@ -134,6 +145,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               downloadedOnly,
               desktopUiV1,
               adaptiveLayoutClass,
+              compactWideLandscapeMode,
             ),
       ],
     );
@@ -141,10 +153,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final contentMaxWidth = switch (adaptiveLayoutClass) {
       AdaptiveLayoutClass.phoneCompact => double.infinity,
       AdaptiveLayoutClass.tabletMedium => 880.0,
-      AdaptiveLayoutClass.tabletExpanded => 1040.0,
+      AdaptiveLayoutClass.tabletExpanded =>
+        compactWideLandscapeMode ? double.infinity : 1040.0,
     };
 
-    final resolvedContent = tabletMode
+    final resolvedContent = tabletMode && !compactWideLandscapeMode
         ? Align(
             alignment: Alignment.topCenter,
             child: ConstrainedBox(
@@ -156,6 +169,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return Scaffold(
       body: SafeArea(
+        left: !compactWideLandscapeMode,
+        right: !compactWideLandscapeMode,
         child: RefreshIndicator(
           onRefresh: () async {
             await ref
@@ -179,6 +194,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     bool downloadedOnly,
     bool desktopUiV1,
     AdaptiveLayoutClass adaptiveLayoutClass,
+    bool compactWideLandscapeMode,
   ) {
     final l10n = AppLocalizations.of(context)!;
     switch (sectionId) {
@@ -188,6 +204,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             title: l10n.homeStarredTitle,
             desktopMode: desktopUiV1,
             adaptiveLayoutClass: adaptiveLayoutClass,
+            compactWideLandscapeMode: compactWideLandscapeMode,
             data: ref.watch(
               downloadedOnly
                   ? homeDownloadedLikedSongsProvider
@@ -217,6 +234,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               title: l10n.homeRecentlyAddedTitle,
               desktopMode: desktopUiV1,
               adaptiveLayoutClass: adaptiveLayoutClass,
+              compactWideLandscapeMode: compactWideLandscapeMode,
               data: ref.watch(homeDownloadedRecentlyAddedAlbumsProvider),
               isEmpty: (items) => items.isEmpty,
               builder: (context, albums) => _LocalAlbumCarousel(
@@ -234,6 +252,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             title: l10n.homeRecentlyAddedTitle,
             desktopMode: desktopUiV1,
             adaptiveLayoutClass: adaptiveLayoutClass,
+            compactWideLandscapeMode: compactWideLandscapeMode,
             data: ref.watch(homeRecentlyAddedProvider),
             isEmpty: (items) => items.isEmpty,
             builder: (context, albums) => _ServerAlbumCarousel(
@@ -253,6 +272,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             title: l10n.homeRecentlyPlayedAlbumsTitle,
             desktopMode: desktopUiV1,
             adaptiveLayoutClass: adaptiveLayoutClass,
+            compactWideLandscapeMode: compactWideLandscapeMode,
             data: ref.watch(
               downloadedOnly
                   ? homeDownloadedRecentlyPlayedAlbumsProvider
@@ -277,6 +297,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               title: l10n.homeRandomTitle,
               desktopMode: desktopUiV1,
               adaptiveLayoutClass: adaptiveLayoutClass,
+              compactWideLandscapeMode: compactWideLandscapeMode,
               data: ref.watch(homeDownloadedRandomAlbumsProvider),
               isEmpty: (items) => items.isEmpty,
               builder: (context, albums) => _LocalAlbumCarousel(
@@ -295,6 +316,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             title: l10n.homeRandomTitle,
             desktopMode: desktopUiV1,
             adaptiveLayoutClass: adaptiveLayoutClass,
+            compactWideLandscapeMode: compactWideLandscapeMode,
             data: ref.watch(homeRandomAlbumsProvider),
             isEmpty: (items) => items.isEmpty,
             builder: (context, albums) => _ServerAlbumCarousel(
@@ -314,6 +336,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             title: l10n.homeMostPlayedTracksTitle,
             desktopMode: desktopUiV1,
             adaptiveLayoutClass: adaptiveLayoutClass,
+            compactWideLandscapeMode: compactWideLandscapeMode,
             data: ref.watch(
               downloadedOnly
                   ? homeDownloadedMostPlayedSongsProvider
@@ -356,6 +379,7 @@ class _HomeSection<T> extends StatelessWidget {
     required this.emptySubtitle,
     this.desktopMode = false,
     this.adaptiveLayoutClass = AdaptiveLayoutClass.phoneCompact,
+    this.compactWideLandscapeMode = false,
     this.onRetry,
   });
 
@@ -367,6 +391,7 @@ class _HomeSection<T> extends StatelessWidget {
   final String emptySubtitle;
   final bool desktopMode;
   final AdaptiveLayoutClass adaptiveLayoutClass;
+  final bool compactWideLandscapeMode;
   final VoidCallback? onRetry;
 
   @override
@@ -380,7 +405,9 @@ class _HomeSection<T> extends StatelessWidget {
       data: (value) {
         if (isEmpty(value)) {
           return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: EdgeInsets.symmetric(
+              horizontal: compactWideLandscapeMode ? 0 : 16,
+            ),
             child: EmptyState(
               title: emptyTitle,
               subtitle: emptySubtitle,
@@ -392,7 +419,9 @@ class _HomeSection<T> extends StatelessWidget {
       },
       loading: () => const _CarouselShimmer(),
       error: (error, _) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        padding: EdgeInsets.symmetric(
+          horizontal: compactWideLandscapeMode ? 0 : 16,
+        ),
         child: ErrorState(
           title: l10n.homeLoadErrorTitle,
           message: error.toString(),
@@ -419,21 +448,36 @@ class _HomeSection<T> extends StatelessWidget {
               ),
             )
           : tabletMode
-          ? Card(
-              margin: const EdgeInsets.symmetric(horizontal: 12),
-              clipBehavior: Clip.antiAlias,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    titleWidget,
-                    const SizedBox(height: 10),
-                    sectionBody,
-                  ],
-                ),
-              ),
-            )
+          ? compactWideLandscapeMode
+                ? Padding(
+                    padding: const EdgeInsets.fromLTRB(2, 0, 2, 0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 2),
+                          child: titleWidget,
+                        ),
+                        const SizedBox(height: 10),
+                        sectionBody,
+                      ],
+                    ),
+                  )
+                : Card(
+                    margin: const EdgeInsets.symmetric(horizontal: 12),
+                    clipBehavior: Clip.antiAlias,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          titleWidget,
+                          const SizedBox(height: 10),
+                          sectionBody,
+                        ],
+                      ),
+                    ),
+                  )
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
@@ -470,9 +514,15 @@ class _ServerAlbumCarousel extends ConsumerWidget {
     final coverShape = ref.watch(coverArtShapeProvider);
     final coverRadius = coverArtShapeToRadius(coverShape);
     final desktopUiV1 = ref.watch(desktopUiV1EnabledProvider);
-    final adaptiveLayoutClass = resolveAdaptiveLayoutClass(
-      MediaQuery.sizeOf(context).width,
-    );
+    final viewport = MediaQuery.sizeOf(context);
+    final adaptiveLayoutClass = resolveAdaptiveLayoutClass(viewport.width);
+    final compactWideLandscapeMode =
+        resolveAdaptiveShellMode(
+          desktopRuntime: isDesktopRuntime,
+          viewportSize: viewport,
+          safePadding: MediaQuery.paddingOf(context),
+        ) ==
+        AdaptiveShellMode.compactWideLandscape;
     final tabletMode =
         !isDesktopRuntime &&
         !desktopUiV1 &&
@@ -484,7 +534,9 @@ class _ServerAlbumCarousel extends ConsumerWidget {
               ? 176.0
               : 162.0)
         : 150.0;
-    final horizontalPadding = desktopUiV1 ? 4.0 : (tabletMode ? 12.0 : 16.0);
+    final horizontalPadding = desktopUiV1
+        ? 4.0
+        : (tabletMode ? (compactWideLandscapeMode ? 0.0 : 12.0) : 16.0);
     final separatorWidth = tabletMode ? 14.0 : 12.0;
     return SizedBox(
       height: cardSize,
@@ -535,9 +587,15 @@ class _LocalAlbumCarousel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final desktopUiV1 = ref.watch(desktopUiV1EnabledProvider);
-    final adaptiveLayoutClass = resolveAdaptiveLayoutClass(
-      MediaQuery.sizeOf(context).width,
-    );
+    final viewport = MediaQuery.sizeOf(context);
+    final adaptiveLayoutClass = resolveAdaptiveLayoutClass(viewport.width);
+    final compactWideLandscapeMode =
+        resolveAdaptiveShellMode(
+          desktopRuntime: isDesktopRuntime,
+          viewportSize: viewport,
+          safePadding: MediaQuery.paddingOf(context),
+        ) ==
+        AdaptiveShellMode.compactWideLandscape;
     final tabletMode =
         !isDesktopRuntime &&
         !desktopUiV1 &&
@@ -549,7 +607,9 @@ class _LocalAlbumCarousel extends ConsumerWidget {
               ? 176.0
               : 162.0)
         : 150.0;
-    final horizontalPadding = desktopUiV1 ? 4.0 : (tabletMode ? 12.0 : 16.0);
+    final horizontalPadding = desktopUiV1
+        ? 4.0
+        : (tabletMode ? (compactWideLandscapeMode ? 0.0 : 12.0) : 16.0);
     final separatorWidth = tabletMode ? 14.0 : 12.0;
     return SizedBox(
       height: cardSize,
@@ -801,11 +861,20 @@ class _CarouselShimmer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compactWideLandscapeMode =
+        resolveAdaptiveShellMode(
+          desktopRuntime: isDesktopRuntime,
+          viewportSize: MediaQuery.sizeOf(context),
+          safePadding: MediaQuery.paddingOf(context),
+        ) ==
+        AdaptiveShellMode.compactWideLandscape;
     return SizedBox(
       height: 150,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        padding: EdgeInsets.symmetric(
+          horizontal: compactWideLandscapeMode ? 0 : 16,
+        ),
         itemCount: 4,
         separatorBuilder: (_, _) => const SizedBox(width: 12),
         itemBuilder: (context, _) {

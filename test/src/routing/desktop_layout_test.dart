@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:flutter/widgets.dart';
 
 void main() {
   test('resolveDesktopLayoutClass uses expected breakpoints', () {
@@ -41,6 +42,42 @@ void main() {
     expect(
       resolveAdaptiveLayoutClass(840),
       AdaptiveLayoutClass.tabletExpanded,
+    );
+  });
+
+  test(
+    'resolveAdaptiveShellMode returns compact mode for tight phone landscape',
+    () {
+      expect(
+        resolveAdaptiveShellMode(
+          desktopRuntime: false,
+          viewportSize: const Size(900, 420),
+          safePadding: EdgeInsets.zero,
+        ),
+        AdaptiveShellMode.compactWideLandscape,
+      );
+    },
+  );
+
+  test('resolveAdaptiveShellMode returns rail for taller phone landscape', () {
+    expect(
+      resolveAdaptiveShellMode(
+        desktopRuntime: false,
+        viewportSize: const Size(900, 620),
+        safePadding: EdgeInsets.zero,
+      ),
+      AdaptiveShellMode.standardRail,
+    );
+  });
+
+  test('resolveAdaptiveShellMode keeps medium tablet on bottom nav', () {
+    expect(
+      resolveAdaptiveShellMode(
+        desktopRuntime: false,
+        viewportSize: const Size(700, 1000),
+        safePadding: EdgeInsets.zero,
+      ),
+      AdaptiveShellMode.phoneBottomNav,
     );
   });
 }

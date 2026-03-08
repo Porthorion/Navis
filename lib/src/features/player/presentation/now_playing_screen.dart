@@ -26,6 +26,7 @@ import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/utils/format_utils.dart';
 
 String _formatDuration(Duration d) {
@@ -41,11 +42,19 @@ class NowPlayingScreen extends ConsumerStatefulWidget {
     this.onCollapse,
     this.onShowQueue,
     this.wideEmbeddedMode = false,
+    this.compactWideLandscapeMode = false,
+    this.onBackInterceptorChanged,
+    this.onCompactWideOverlayActiveChanged,
+    this.onCompactWideQueueRequestChanged,
   });
 
   final VoidCallback? onCollapse;
   final VoidCallback? onShowQueue;
   final bool wideEmbeddedMode;
+  final bool compactWideLandscapeMode;
+  final ValueChanged<bool Function()?>? onBackInterceptorChanged;
+  final ValueChanged<bool>? onCompactWideOverlayActiveChanged;
+  final ValueChanged<VoidCallback?>? onCompactWideQueueRequestChanged;
 
   @override
   ConsumerState<NowPlayingScreen> createState() => _NowPlayingScreenState();
@@ -188,38 +197,72 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
               : null,
           color: tintColor == null ? surfaceColor : null,
         ),
-        child: SafeArea(
-          bottom: false,
-          child: Padding(
-            padding: EdgeInsets.only(bottom: resolvedBottomSafeInset),
-            child: effectiveWideMode
-                ? Column(
-                    children: <Widget>[
-                      Expanded(
-                        child: _NowPlayingBody(
-                          playback: playback,
-                          song: playback.isRadioMode ? null : song,
-                          wideEmbeddedMode: effectiveWideMode,
-                          onCollapse: widget.onCollapse,
+        // In compact-wide mode the overlay panels must cover the full
+        // Material area including any safe-area insets, so we skip the
+        // outer SafeArea here.  The body's compactPlayerPage applies the
+        // insets itself via MediaQuery.paddingOf so content stays clear of
+        // camera cutouts and the status bar.
+        child: widget.compactWideLandscapeMode
+            ? _NowPlayingBody(
+                playback: playback,
+                song: playback.isRadioMode ? null : song,
+                wideEmbeddedMode: true,
+                compactWideLandscapeMode: true,
+                onCollapse: widget.onCollapse,
+                onBackInterceptorChanged: widget.onBackInterceptorChanged,
+                onCompactWideOverlayActiveChanged:
+                    widget.onCompactWideOverlayActiveChanged,
+                onCompactWideQueueRequestChanged:
+                    widget.onCompactWideQueueRequestChanged,
+              )
+            : SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: EdgeInsets.only(bottom: resolvedBottomSafeInset),
+                  child: effectiveWideMode
+                      ? Column(
+                          children: <Widget>[
+                            Expanded(
+                              child: _NowPlayingBody(
+                                playback: playback,
+                                song: playback.isRadioMode ? null : song,
+                                wideEmbeddedMode: effectiveWideMode,
+                                compactWideLandscapeMode:
+                                    widget.compactWideLandscapeMode,
+                                onCollapse: widget.onCollapse,
+                                onBackInterceptorChanged:
+                                    widget.onBackInterceptorChanged,
+                                onCompactWideOverlayActiveChanged:
+                                    widget.onCompactWideOverlayActiveChanged,
+                                onCompactWideQueueRequestChanged:
+                                    widget.onCompactWideQueueRequestChanged,
+                              ),
+                            ),
+                          ],
+                        )
+                      : Column(
+                          children: <Widget>[
+                            const _NowPlayingHandle(),
+                            Expanded(
+                              child: _NowPlayingBody(
+                                playback: playback,
+                                song: playback.isRadioMode ? null : song,
+                                wideEmbeddedMode: effectiveWideMode,
+                                compactWideLandscapeMode:
+                                    widget.compactWideLandscapeMode,
+                                onCollapse: widget.onCollapse,
+                                onBackInterceptorChanged:
+                                    widget.onBackInterceptorChanged,
+                                onCompactWideOverlayActiveChanged:
+                                    widget.onCompactWideOverlayActiveChanged,
+                                onCompactWideQueueRequestChanged:
+                                    widget.onCompactWideQueueRequestChanged,
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
-                  )
-                : Column(
-                    children: <Widget>[
-                      const _NowPlayingHandle(),
-                      Expanded(
-                        child: _NowPlayingBody(
-                          playback: playback,
-                          song: playback.isRadioMode ? null : song,
-                          wideEmbeddedMode: effectiveWideMode,
-                          onCollapse: widget.onCollapse,
-                        ),
-                      ),
-                    ],
-                  ),
-          ),
-        ),
+                ),
+              ),
       ),
     );
   }
@@ -407,13 +450,21 @@ class _NowPlayingBody extends ConsumerStatefulWidget {
     required this.playback,
     this.song,
     this.wideEmbeddedMode = false,
+    this.compactWideLandscapeMode = false,
     this.onCollapse,
+    this.onBackInterceptorChanged,
+    this.onCompactWideOverlayActiveChanged,
+    this.onCompactWideQueueRequestChanged,
   });
 
   final PlaybackSnapshot playback;
   final SongsTableData? song;
   final bool wideEmbeddedMode;
+  final bool compactWideLandscapeMode;
   final VoidCallback? onCollapse;
+  final ValueChanged<bool Function()?>? onBackInterceptorChanged;
+  final ValueChanged<bool>? onCompactWideOverlayActiveChanged;
+  final ValueChanged<VoidCallback?>? onCompactWideQueueRequestChanged;
 
   @override
   ConsumerState<_NowPlayingBody> createState() => _NowPlayingBodyState();
@@ -423,10 +474,98 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
   _WideNowPlayingPanel _widePanel = _WideNowPlayingPanel.none;
   bool _showLyrics = false;
   bool _showWideFullscreenLyrics = false;
+  bool? _lastReportedCompactWideOverlayActive;
   final ScrollController _embeddedQueueScrollController = ScrollController();
+  static const double _wideSwipeDismissDistance = 72;
+  static const double _wideSwipeQueueDistance = 96;
+  double _wideSwipeDistance = 0;
+  bool _handledWideSwipe = false;
+
+  bool _dismissInternalOverlaysIfVisible() {
+    if (_widePanel != _WideNowPlayingPanel.none) {
+      _updateWideOverlayState(() {
+        _widePanel = _WideNowPlayingPanel.none;
+      });
+      return true;
+    }
+    if (_showWideFullscreenLyrics) {
+      _updateWideOverlayState(() {
+        _showWideFullscreenLyrics = false;
+      });
+      return true;
+    }
+    return false;
+  }
+
+  void _publishBackInterceptor() {
+    widget.onBackInterceptorChanged?.call(_dismissInternalOverlaysIfVisible);
+  }
+
+  bool get _compactWideOverlayActive {
+    return widget.compactWideLandscapeMode &&
+        (_widePanel != _WideNowPlayingPanel.none || _showWideFullscreenLyrics);
+  }
+
+  void _publishCompactWideOverlayActiveState({bool defer = false}) {
+    final active = _compactWideOverlayActive;
+    if (_lastReportedCompactWideOverlayActive == active) {
+      return;
+    }
+    _lastReportedCompactWideOverlayActive = active;
+    if (defer) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        widget.onCompactWideOverlayActiveChanged?.call(active);
+      });
+      return;
+    }
+    widget.onCompactWideOverlayActiveChanged?.call(active);
+  }
+
+  void _publishCompactWideQueueRequest() {
+    widget.onCompactWideQueueRequestChanged?.call(
+      widget.compactWideLandscapeMode ? _showQueuePanel : null,
+    );
+  }
+
+  void _updateWideOverlayState(VoidCallback update) {
+    setState(update);
+    _publishCompactWideOverlayActiveState();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _publishBackInterceptor();
+    _publishCompactWideOverlayActiveState(defer: true);
+    _publishCompactWideQueueRequest();
+  }
+
+  @override
+  void didUpdateWidget(covariant _NowPlayingBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.onBackInterceptorChanged != widget.onBackInterceptorChanged) {
+      _publishBackInterceptor();
+    }
+    if (oldWidget.compactWideLandscapeMode != widget.compactWideLandscapeMode ||
+        oldWidget.onCompactWideOverlayActiveChanged !=
+            widget.onCompactWideOverlayActiveChanged) {
+      _publishCompactWideOverlayActiveState(defer: true);
+    }
+    if (oldWidget.compactWideLandscapeMode != widget.compactWideLandscapeMode ||
+        oldWidget.onCompactWideQueueRequestChanged !=
+            widget.onCompactWideQueueRequestChanged) {
+      _publishCompactWideQueueRequest();
+    }
+  }
 
   @override
   void dispose() {
+    widget.onBackInterceptorChanged?.call(null);
+    widget.onCompactWideOverlayActiveChanged?.call(false);
+    widget.onCompactWideQueueRequestChanged?.call(null);
     _embeddedQueueScrollController.dispose();
     super.dispose();
   }
@@ -518,23 +657,81 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
     }
     final velocity = details.primaryVelocity ?? 0;
     if (velocity < -320 && splitLayout) {
-      setState(() {
-        _showWideFullscreenLyrics = false;
-        _widePanel = _WideNowPlayingPanel.queue;
-      });
+      _showQueuePanel();
       return;
     }
     if (velocity > 320) {
-      if (_widePanel != _WideNowPlayingPanel.none) {
-        setState(() => _widePanel = _WideNowPlayingPanel.none);
-        return;
-      }
-      if (_showWideFullscreenLyrics) {
-        setState(() => _showWideFullscreenLyrics = false);
-        return;
-      }
-      widget.onCollapse?.call();
+      _dismissWideOverlayOrNowPlaying();
     }
+  }
+
+  void _showQueuePanel() {
+    _updateWideOverlayState(() {
+      _showWideFullscreenLyrics = false;
+      _widePanel = _WideNowPlayingPanel.queue;
+    });
+  }
+
+  void _dismissWideOverlayOrNowPlaying() {
+    if (_widePanel != _WideNowPlayingPanel.none) {
+      _updateWideOverlayState(() {
+        _widePanel = _WideNowPlayingPanel.none;
+      });
+      return;
+    }
+    if (_showWideFullscreenLyrics) {
+      _updateWideOverlayState(() {
+        _showWideFullscreenLyrics = false;
+      });
+      return;
+    }
+    widget.onCollapse?.call();
+  }
+
+  void _handleWideVerticalDragStart(DragStartDetails details) {
+    _wideSwipeDistance = 0;
+    _handledWideSwipe = false;
+  }
+
+  void _handleWideVerticalDragUpdate(
+    DragUpdateDetails details, {
+    required bool splitLayout,
+  }) {
+    if (!widget.wideEmbeddedMode || _handledWideSwipe) {
+      return;
+    }
+    final delta = details.primaryDelta;
+    if (delta == null) {
+      return;
+    }
+    _wideSwipeDistance += delta;
+
+    if (_wideSwipeDistance >= _wideSwipeDismissDistance) {
+      _handledWideSwipe = true;
+      _dismissWideOverlayOrNowPlaying();
+      return;
+    }
+
+    if (splitLayout && _wideSwipeDistance <= -_wideSwipeQueueDistance) {
+      _handledWideSwipe = true;
+      _showQueuePanel();
+    }
+  }
+
+  void _handleWideVerticalDragEnd(
+    DragEndDetails details, {
+    required bool splitLayout,
+  }) {
+    if (!_handledWideSwipe) {
+      _handleWideVerticalSwipe(details, splitLayout: splitLayout);
+    }
+    _wideSwipeDistance = 0;
+    _handledWideSwipe = false;
+  }
+
+  void _handleWideVerticalDragCancel() {
+    _wideSwipeDistance = 0;
+    _handledWideSwipe = false;
   }
 
   Future<void> _openLyricsFullscreen(
@@ -543,7 +740,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
     String title,
   ) async {
     if (widget.wideEmbeddedMode) {
-      setState(() {
+      _updateWideOverlayState(() {
         _showLyrics = false;
         _widePanel = _WideNowPlayingPanel.none;
         _showWideFullscreenLyrics = true;
@@ -599,6 +796,20 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
     final hasCoverArtId = coverArtId != null && coverArtId.trim().isNotEmpty;
     final hasMediaArtUrl = mediaArtUrl != null && mediaArtUrl.trim().isNotEmpty;
 
+    // Clear any open overlay panel when the player collapses in compact-wide
+    // mode so it does not reappear the next time the user expands the player.
+    ref.listen<bool>(playerSheetExpandedProvider, (_, nowExpanded) {
+      if (widget.compactWideLandscapeMode && !nowExpanded) {
+        if (_widePanel != _WideNowPlayingPanel.none ||
+            _showWideFullscreenLyrics) {
+          _updateWideOverlayState(() {
+            _widePanel = _WideNowPlayingPanel.none;
+            _showWideFullscreenLyrics = false;
+          });
+        }
+      }
+    });
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final layoutMode = _resolveLayoutMode(constraints.maxWidth);
@@ -609,6 +820,313 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
         final supportsSplitPanelOverlay =
             widget.wideEmbeddedMode && isSplitNowPlaying;
 
+        if (widget.compactWideLandscapeMode) {
+          // Include MediaQuery safe-area insets so the player content
+          // stays clear of camera cut-outs.  The outer SafeArea is skipped
+          // in compact-wide mode so the overlay panels can be truly
+          // full-screen, making this the only place the insets are applied.
+          final mediaPadding = MediaQuery.paddingOf(context);
+          final compactPadding = EdgeInsets.fromLTRB(
+            6 + mediaPadding.left,
+            (constraints.maxHeight < 520 ? 8 : 12) + mediaPadding.top,
+            6 + mediaPadding.right,
+            10 + mediaPadding.bottom,
+          );
+          final gap = 10.0;
+          final artPaneWidth = (constraints.maxWidth * 0.44).clamp(
+            220.0,
+            440.0,
+          );
+          final artMaxSize = math
+              .min(artPaneWidth - 12, constraints.maxHeight * 0.74)
+              .clamp(180.0, 420.0);
+          final showInlineLyrics =
+              _showLyrics &&
+              !_showWideFullscreenLyrics &&
+              playback.currentSongId != null;
+
+          if (_showWideFullscreenLyrics && playback.currentSongId == null) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                _updateWideOverlayState(() {
+                  _showWideFullscreenLyrics = false;
+                });
+              }
+            });
+          }
+
+          final coverOrLyrics = isRadio
+              ? _RadioCoverArt(
+                  artUrl: radioMeta?.nowPlayingArtUrl,
+                  maxSize: artMaxSize,
+                )
+              : AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 220),
+                  switchInCurve: Curves.easeOut,
+                  switchOutCurve: Curves.easeIn,
+                  child: showInlineLyrics
+                      ? _InlineLyrics(
+                          key: const ValueKey<String>(
+                            'compact-wide-inline-lyrics',
+                          ),
+                          songId: playback.currentSongId!,
+                          maxSize: artMaxSize,
+                        )
+                      : GestureDetector(
+                          key: const ValueKey<String>('compact-wide-cover'),
+                          onTap: _togglePlayPause,
+                          onHorizontalDragEnd: _handleHorizontalSwipe,
+                          child: hasCoverArtId
+                              ? _CoverArt(
+                                  coverArtId: coverArtId,
+                                  semanticLabel: title,
+                                  maxSize: artMaxSize,
+                                )
+                              : (hasMediaArtUrl
+                                    ? _RadioCoverArt(
+                                        artUrl: mediaArtUrl,
+                                        maxSize: artMaxSize,
+                                      )
+                                    : _CoverArt(
+                                        coverArtId: null,
+                                        semanticLabel: title,
+                                        maxSize: artMaxSize,
+                                      )),
+                        ),
+                );
+
+          final infoColumn = LayoutBuilder(
+            builder: (context, infoConstraints) => SingleChildScrollView(
+              padding: EdgeInsets.zero,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: infoConstraints.maxHeight,
+                ),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 680),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        _TrackInfo(
+                          title: title,
+                          artist: artist,
+                          album: album,
+                          compact: true,
+                          onTitleTap: isRadio
+                              ? (radioMeta?.nowPlayingTitle != null &&
+                                        radioMeta!.nowPlayingTitle!.isNotEmpty
+                                    ? () => NavService.goToSearch(
+                                        context,
+                                        ref,
+                                        radioMeta.nowPlayingTitle!,
+                                      )
+                                    : null)
+                              : null,
+                          onArtistTap: isRadio
+                              ? (radioMeta?.nowPlayingArtist != null &&
+                                        radioMeta!.nowPlayingArtist!.isNotEmpty
+                                    ? () => NavService.goToSearch(
+                                        context,
+                                        ref,
+                                        radioMeta.nowPlayingArtist!,
+                                      )
+                                    : null)
+                              : (resolvedArtistId != null
+                                    ? () => NavService.goToArtist(
+                                        context,
+                                        ref,
+                                        resolvedArtistId,
+                                      )
+                                    : (song?.artistName != null &&
+                                              song!.artistName!.isNotEmpty
+                                          ? () => NavService.goToSearch(
+                                              context,
+                                              ref,
+                                              song.artistName!,
+                                            )
+                                          : null)),
+                          onAlbumTap: isRadio
+                              ? null
+                              : (song?.albumId != null &&
+                                        song!.albumId!.isNotEmpty
+                                    ? () => NavService.goToAlbum(
+                                        context,
+                                        ref,
+                                        song.albumId!,
+                                      )
+                                    : null),
+                        ),
+                        if (!isRadio) ...<Widget>[
+                          const SizedBox(height: 8),
+                          _NowPlayingInfoPanel(
+                            song: song,
+                            album: albumDetails,
+                            playback: playback,
+                            currentMediaItem: currentMediaItem,
+                            playbackSpeed: playbackSpeed,
+                          ),
+                          const SizedBox(height: 8),
+                          _SeekBar(playback: playback),
+                        ],
+                        const SizedBox(height: 8),
+                        _TransportControls(
+                          playback: playback,
+                          isRadio: isRadio,
+                          compact: true,
+                        ),
+                        const SizedBox(height: 8),
+                        if (!isRadio)
+                          _ActionRow(
+                            song: song,
+                            songId: playback.currentSongId,
+                            isLiked: playback.isCurrentSongLiked,
+                            showLyrics:
+                                _showLyrics || _showWideFullscreenLyrics,
+                            onLyricsToggle: playback.currentSongId == null
+                                ? null
+                                : () => _updateWideOverlayState(() {
+                                    _showWideFullscreenLyrics = false;
+                                    _showLyrics = !_showLyrics;
+                                  }),
+                            wideEmbeddedMode: true,
+                            onOpenQueuePanel: _showQueuePanel,
+                            onOpenSettingsPanel: () => _updateWideOverlayState(
+                              () {
+                                _showWideFullscreenLyrics = false;
+                                _widePanel = _WideNowPlayingPanel.settings;
+                              },
+                            ),
+                            onOpenMixPanel: () => _updateWideOverlayState(() {
+                              _showWideFullscreenLyrics = false;
+                              _widePanel = _WideNowPlayingPanel.mix;
+                            }),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+
+          final compactPlayerPage = Padding(
+            key: const ValueKey<String>('compact-wide-player-page'),
+            padding: compactPadding,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                SizedBox(
+                  width: artPaneWidth,
+                  child: Center(child: coverOrLyrics),
+                ),
+                SizedBox(width: gap),
+                Expanded(child: infoColumn),
+              ],
+            ),
+          );
+
+          Widget? compactOverlayPage;
+          var compactOverlayKey = const ValueKey<String>(
+            'compact-wide-overlay-none',
+          );
+          if (_showWideFullscreenLyrics && playback.currentSongId != null) {
+            compactOverlayKey = const ValueKey<String>(
+              'compact-wide-fullscreen-lyrics',
+            );
+            compactOverlayPage = _EmbeddedNowPlayingPanelScaffold(
+              key: compactOverlayKey,
+              title: l10n.nowPlayingLyrics,
+              subtitle: title,
+              onBack: () => _updateWideOverlayState(() {
+                _showWideFullscreenLyrics = false;
+              }),
+              child: _EmbeddedFullscreenLyricsPanel(
+                songId: playback.currentSongId!,
+                playback: playback,
+              ),
+            );
+          } else if (_widePanel == _WideNowPlayingPanel.queue) {
+            compactOverlayKey = const ValueKey<String>('compact-wide-queue');
+            compactOverlayPage = _CompactWideOverlaySheet(
+              key: compactOverlayKey,
+              title: l10n.queueTitle,
+              showTopBar: false,
+              onDismiss: () => _updateWideOverlayState(() {
+                _widePanel = _WideNowPlayingPanel.none;
+              }),
+              child: QueueSheet(
+                scrollController: _embeddedQueueScrollController,
+                embeddedMode: true,
+                onClose: () => _updateWideOverlayState(() {
+                  _widePanel = _WideNowPlayingPanel.none;
+                }),
+              ),
+            );
+          } else if (_widePanel == _WideNowPlayingPanel.mix &&
+              playback.currentSongId != null) {
+            compactOverlayKey = const ValueKey<String>('compact-wide-mix');
+            compactOverlayPage = _CompactWideOverlaySheet(
+              key: compactOverlayKey,
+              title: l10n.nowPlayingInstantMixLabel,
+              onDismiss: () => _updateWideOverlayState(() {
+                _widePanel = _WideNowPlayingPanel.none;
+              }),
+              child: _EmbeddedMixPanel(seedSongId: playback.currentSongId!),
+            );
+          } else if (_widePanel == _WideNowPlayingPanel.settings) {
+            compactOverlayKey = const ValueKey<String>('compact-wide-settings');
+            compactOverlayPage = _CompactWideOverlaySheet(
+              key: compactOverlayKey,
+              title: l10n.settingsTitle,
+              onDismiss: () => _updateWideOverlayState(() {
+                _widePanel = _WideNowPlayingPanel.none;
+              }),
+              child: _NowPlayingSettingsPanel(
+                song: song,
+                onCollapse: widget.onCollapse,
+              ),
+            );
+          }
+
+          return Stack(
+            fit: StackFit.expand,
+            children: <Widget>[
+              Positioned.fill(child: compactPlayerPage),
+              Positioned.fill(
+                child: IgnorePointer(
+                  ignoring: compactOverlayPage == null,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 220),
+                    reverseDuration: const Duration(milliseconds: 220),
+                    switchInCurve: Curves.easeOut,
+                    switchOutCurve: Curves.easeIn,
+                    // _CompactWideOverlaySheet owns all its animation;
+                    // the switcher just manages tree membership.
+                    transitionBuilder: (child, animation) => child,
+                    layoutBuilder: (currentChild, previousChildren) {
+                      return Stack(
+                        fit: StackFit.expand,
+                        children: <Widget>[
+                          ...previousChildren,
+                          if (currentChild != null) currentChild,
+                        ],
+                      );
+                    },
+                    child: compactOverlayPage == null
+                        ? const SizedBox.shrink()
+                        : KeyedSubtree(
+                            key: compactOverlayKey,
+                            child: compactOverlayPage,
+                          ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        }
+
         if (widget.wideEmbeddedMode &&
             !isSplitNowPlaying &&
             _showWideFullscreenLyrics &&
@@ -617,7 +1135,9 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
             key: const ValueKey<String>('wide-fullscreen-lyrics'),
             title: l10n.nowPlayingLyrics,
             subtitle: title,
-            onBack: () => setState(() => _showWideFullscreenLyrics = false),
+            onBack: () => _updateWideOverlayState(() {
+              _showWideFullscreenLyrics = false;
+            }),
             child: _InlineLyrics(songId: playback.currentSongId!),
           );
         }
@@ -627,7 +1147,9 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
             playback.currentSongId == null) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) {
-              setState(() => _showWideFullscreenLyrics = false);
+              _updateWideOverlayState(() {
+                _showWideFullscreenLyrics = false;
+              });
             }
           });
         }
@@ -636,7 +1158,9 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
             _widePanel != _WideNowPlayingPanel.none) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) {
-              setState(() => _widePanel = _WideNowPlayingPanel.none);
+              _updateWideOverlayState(() {
+                _widePanel = _WideNowPlayingPanel.none;
+              });
             }
           });
         }
@@ -875,7 +1399,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
                     ? null
                     : () {
                         if (widget.wideEmbeddedMode) {
-                          setState(() {
+                          _updateWideOverlayState(() {
                             _widePanel = _WideNowPlayingPanel.none;
                             _showLyrics = false;
                             _showWideFullscreenLyrics =
@@ -895,7 +1419,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
                       },
                 wideEmbeddedMode: supportsSplitPanelOverlay,
                 onOpenQueuePanel: supportsSplitPanelOverlay
-                    ? () => setState(
+                    ? () => _updateWideOverlayState(
                         () {
                           _showWideFullscreenLyrics = false;
                           _widePanel = _WideNowPlayingPanel.queue;
@@ -903,7 +1427,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
                       )
                     : null,
                 onOpenSettingsPanel: supportsSplitPanelOverlay
-                    ? () => setState(
+                    ? () => _updateWideOverlayState(
                         () {
                           _showWideFullscreenLyrics = false;
                           _widePanel = _WideNowPlayingPanel.settings;
@@ -911,7 +1435,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
                       )
                     : null,
                 onOpenMixPanel: supportsSplitPanelOverlay
-                    ? () => setState(() {
+                    ? () => _updateWideOverlayState(() {
                         _showWideFullscreenLyrics = false;
                         _widePanel = _WideNowPlayingPanel.mix;
                       })
@@ -1147,7 +1671,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
                 onLyricsToggle: playback.currentSongId == null ? null : () {},
                 wideEmbeddedMode: supportsSplitPanelOverlay,
                 onOpenQueuePanel: supportsSplitPanelOverlay
-                    ? () => setState(
+                    ? () => _updateWideOverlayState(
                         () {
                           _showWideFullscreenLyrics = false;
                           _widePanel = _WideNowPlayingPanel.queue;
@@ -1155,7 +1679,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
                       )
                     : null,
                 onOpenSettingsPanel: supportsSplitPanelOverlay
-                    ? () => setState(
+                    ? () => _updateWideOverlayState(
                         () {
                           _showWideFullscreenLyrics = false;
                           _widePanel = _WideNowPlayingPanel.settings;
@@ -1163,7 +1687,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
                       )
                     : null,
                 onOpenMixPanel: supportsSplitPanelOverlay
-                    ? () => setState(() {
+                    ? () => _updateWideOverlayState(() {
                         _showWideFullscreenLyrics = false;
                         _widePanel = _WideNowPlayingPanel.mix;
                       })
@@ -1246,8 +1770,9 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
               removeTop: true,
               child: QueueSheet(
                 scrollController: _embeddedQueueScrollController,
-                onClose: () =>
-                    setState(() => _widePanel = _WideNowPlayingPanel.none),
+                onClose: () => _updateWideOverlayState(() {
+                  _widePanel = _WideNowPlayingPanel.none;
+                }),
               ),
             );
           }
@@ -1261,8 +1786,9 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
                 subtitle: rightPanePanelSubtitle,
                 heightFactor: rightPanePanelHeightFactor,
                 useHeader: usePanelHeader,
-                onClose: () =>
-                    setState(() => _widePanel = _WideNowPlayingPanel.none),
+                onClose: () => _updateWideOverlayState(() {
+                  _widePanel = _WideNowPlayingPanel.none;
+                }),
                 child: rightPanePanelChild,
               );
 
@@ -1350,8 +1876,12 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
         if (widget.wideEmbeddedMode) {
           splitLayout = GestureDetector(
             behavior: HitTestBehavior.opaque,
+            onVerticalDragStart: _handleWideVerticalDragStart,
+            onVerticalDragUpdate: (details) =>
+                _handleWideVerticalDragUpdate(details, splitLayout: true),
             onVerticalDragEnd: (details) =>
-                _handleWideVerticalSwipe(details, splitLayout: true),
+                _handleWideVerticalDragEnd(details, splitLayout: true),
+            onVerticalDragCancel: _handleWideVerticalDragCancel,
             child: splitLayout,
           );
         }
@@ -2386,6 +2916,7 @@ class _TransportControls extends ConsumerWidget {
 
 class _InlineLyrics extends ConsumerWidget {
   const _InlineLyrics({
+    super.key,
     required this.songId,
     this.maxSize,
   });
@@ -2539,6 +3070,38 @@ class _FullscreenLyricsPage extends ConsumerWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _EmbeddedFullscreenLyricsPanel extends ConsumerWidget {
+  const _EmbeddedFullscreenLyricsPanel({
+    required this.songId,
+    required this.playback,
+  });
+
+  final String songId;
+  final PlaybackSnapshot playback;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
+      child: Column(
+        children: <Widget>[
+          Expanded(child: _InlineLyrics(songId: songId)),
+          if (!playback.isRadioMode) ...<Widget>[
+            const SizedBox(height: 8),
+            _SeekBar(playback: playback),
+          ],
+          const SizedBox(height: 8),
+          _TransportControls(
+            playback: playback,
+            isRadio: playback.isRadioMode,
+            compact: true,
+          ),
+        ],
       ),
     );
   }
@@ -3068,7 +3631,7 @@ class _EmbeddedRightPaneBottomSheet extends StatelessWidget {
   }
 }
 
-class _EmbeddedNowPlayingPanelScaffold extends StatelessWidget {
+class _EmbeddedNowPlayingPanelScaffold extends StatefulWidget {
   const _EmbeddedNowPlayingPanelScaffold({
     required this.title,
     required this.onBack,
@@ -3083,44 +3646,471 @@ class _EmbeddedNowPlayingPanelScaffold extends StatelessWidget {
   final Widget child;
 
   @override
+  State<_EmbeddedNowPlayingPanelScaffold> createState() =>
+      _EmbeddedNowPlayingPanelScaffoldState();
+}
+
+class _EmbeddedNowPlayingPanelScaffoldState
+    extends State<_EmbeddedNowPlayingPanelScaffold>
+    with SingleTickerProviderStateMixin {
+  static const double _dismissThreshold = 0.74;
+  static const double _dismissFlingVelocity = 700;
+
+  late final AnimationController _transitionController;
+  bool _dismissRequested = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _transitionController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 220),
+      reverseDuration: const Duration(milliseconds: 200),
+      value: 0,
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        unawaited(
+          _transitionController.animateTo(
+            1,
+            curve: Curves.easeOutCubic,
+          ),
+        );
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _transitionController.dispose();
+    super.dispose();
+  }
+
+  double _viewportHeight() {
+    final size = context.size;
+    if (size != null && size.height > 0) {
+      return size.height;
+    }
+    final media = MediaQuery.maybeOf(context);
+    return media == null ? 1 : math.max(1, media.size.height);
+  }
+
+  void _applyDragDelta(double delta) {
+    if (_dismissRequested) {
+      return;
+    }
+    final height = _viewportHeight();
+    final change = delta / height;
+    _transitionController.value = (_transitionController.value - change).clamp(
+      0,
+      1,
+    );
+  }
+
+  Future<void> _requestDismiss() async {
+    if (_dismissRequested) {
+      return;
+    }
+    _dismissRequested = true;
+    await _transitionController.animateBack(0, curve: Curves.easeInCubic);
+    if (!mounted) {
+      return;
+    }
+    widget.onBack();
+  }
+
+  void _settleAfterGesture({double velocity = 0}) {
+    if (_dismissRequested) {
+      return;
+    }
+    final shouldDismiss =
+        velocity > _dismissFlingVelocity ||
+        _transitionController.value < _dismissThreshold;
+    if (shouldDismiss) {
+      unawaited(_requestDismiss());
+      return;
+    }
+    unawaited(
+      _transitionController.animateTo(
+        1,
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+      ),
+    );
+  }
+
+  bool _handleScrollNotification(ScrollNotification notification) {
+    if (_dismissRequested) {
+      return false;
+    }
+    if (notification is OverscrollNotification && notification.overscroll < 0) {
+      _applyDragDelta(-notification.overscroll);
+      return false;
+    }
+    if (notification is ScrollUpdateNotification &&
+        notification.metrics.pixels >
+            notification.metrics.minScrollExtent + 0.5 &&
+        _transitionController.value < 0.995) {
+      unawaited(
+        _transitionController.animateTo(
+          1,
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOut,
+        ),
+      );
+      return false;
+    }
+    if (notification is ScrollEndNotification) {
+      _settleAfterGesture();
+    }
+    return false;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        Padding(
-          padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
-          child: Row(
-            children: <Widget>[
-              IconButton(
-                tooltip: MaterialLocalizations.of(context).backButtonTooltip,
-                onPressed: onBack,
-                icon: const Icon(Icons.arrow_back),
-              ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    Text(title, style: theme.textTheme.titleMedium),
-                    if (subtitle != null && subtitle!.isNotEmpty)
-                      Text(
-                        subtitle!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
+    return AnimatedBuilder(
+      animation: _transitionController,
+      builder: (context, child) {
+        final progress = _transitionController.value.clamp(0, 1).toDouble();
+        final eased = Curves.easeOutCubic.transform(progress);
+        final opacity = Curves.easeOut.transform(progress);
+        final translateY = (1 - eased) * 52;
+        return Opacity(
+          opacity: opacity,
+          child: Transform.translate(
+            offset: Offset(0, translateY),
+            child: child,
+          ),
+        );
+      },
+      child: Material(
+        color: theme.colorScheme.surface,
+        child: SafeArea(
+          top: true,
+          bottom: false,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onVerticalDragUpdate: (details) {
+              final delta = details.primaryDelta;
+              if (delta == null) {
+                return;
+              }
+              _applyDragDelta(delta);
+            },
+            onVerticalDragEnd: (details) {
+              final velocity = details.primaryVelocity ?? 0;
+              _settleAfterGesture(velocity: math.max(0, velocity));
+            },
+            onVerticalDragCancel: _settleAfterGesture,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
+                    child: Row(
+                      children: <Widget>[
+                        IconButton(
+                          tooltip: MaterialLocalizations.of(
+                            context,
+                          ).backButtonTooltip,
+                          onPressed: () {
+                            unawaited(_requestDismiss());
+                          },
+                          icon: const Icon(Icons.arrow_back),
                         ),
-                      ),
-                  ],
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              Text(
+                                widget.title,
+                                style: theme.textTheme.titleMedium,
+                              ),
+                              if (widget.subtitle != null &&
+                                  widget.subtitle!.isNotEmpty)
+                                Text(
+                                  widget.subtitle!,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                const Divider(height: 1),
+                Expanded(
+                  child: NotificationListener<ScrollNotification>(
+                    onNotification: _handleScrollNotification,
+                    child: widget.child,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
-        const Divider(height: 1),
-        Expanded(child: child),
-      ],
+      ),
+    );
+  }
+}
+
+/// Full-height gesture-tracked slide-up overlay panel for compact-wide
+/// landscape mode.
+///
+/// Slides in from the bottom with 1:1 finger tracking on the drag-handle
+/// area, matching the gesture feel of [ExpandablePlayerSheet]. Dismisses via
+/// downward swipe, fling, or the back-arrow button. Scroll-integrated dismiss
+/// is also supported for panels whose [child] is a scrollable list.
+class _CompactWideOverlaySheet extends StatefulWidget {
+  const _CompactWideOverlaySheet({
+    required this.title,
+    required this.onDismiss,
+    required this.child,
+    this.showTopBar = true,
+    super.key,
+  });
+
+  /// Velocity (px/s) that triggers an immediate fling-dismiss.
+  static const double _flingThreshold = 300;
+
+  /// Progress value (0–1) below which releasing the drag dismisses the panel.
+  /// Lower value = more lenient (panel must be dragged >75% down to auto-dismiss).
+  static const double _snapDismissThreshold = 0.25;
+
+  final String title;
+  final VoidCallback onDismiss;
+  final Widget child;
+  final bool showTopBar;
+
+  @override
+  State<_CompactWideOverlaySheet> createState() =>
+      _CompactWideOverlaySheetState();
+}
+
+class _CompactWideOverlaySheetState extends State<_CompactWideOverlaySheet>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  bool _dismissing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+      reverseDuration: const Duration(milliseconds: 260),
+      value: 0,
+    );
+    _controller.addStatusListener(_onAnimationStatus);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        unawaited(_controller.animateTo(1, curve: Curves.easeOutCubic));
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onAnimationStatus(AnimationStatus status) {
+    if (status == AnimationStatus.dismissed && _dismissing) {
+      widget.onDismiss();
+    }
+  }
+
+  double _viewportHeight() {
+    final size = context.size;
+    if (size != null && size.height > 0) return size.height;
+    final media = MediaQuery.maybeOf(context);
+    return media == null ? 1.0 : math.max(1.0, media.size.height);
+  }
+
+  void _applyDragDelta(double delta) {
+    if (_dismissing) return;
+    final height = _viewportHeight();
+    _controller.value =
+        (_controller.value - delta / height).clamp(0.0, 1.0);
+  }
+
+  void _settleAfterDrag({double velocity = 0}) {
+    if (_dismissing) return;
+    final absVelocity = velocity.abs();
+    final height = _viewportHeight();
+    if (absVelocity > _CompactWideOverlaySheet._flingThreshold) {
+      final v = (absVelocity / height).clamp(1.0, 6.0);
+      if (velocity > 0) {
+        // Fling downward — dismiss.
+        _startDismiss(flingVelocity: v);
+      } else {
+        // Fling upward — snap open.
+        _controller.fling(velocity: v);
+      }
+    } else {
+      // Low velocity — snap to nearest edge.
+      if (_controller.value <
+          _CompactWideOverlaySheet._snapDismissThreshold) {
+        _startDismiss();
+      } else {
+        unawaited(
+          _controller.animateTo(
+            1,
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+          ),
+        );
+      }
+    }
+  }
+
+  void _startDismiss({double? flingVelocity}) {
+    if (_dismissing) return;
+    _dismissing = true;
+    // Always use a physics fling so the dismiss animation matches the
+    // finger-driven swipe feel regardless of how it was triggered
+    // (gesture, back button, or programmatic close).
+    final v = flingVelocity ?? 3.0;
+    _controller.fling(velocity: -v);
+  }
+
+  bool _handleScrollNotification(ScrollNotification notification) {
+    if (_dismissing) return false;
+    if (notification is OverscrollNotification &&
+        notification.overscroll < 0) {
+      _applyDragDelta(-notification.overscroll);
+      return false;
+    }
+    if (notification is ScrollUpdateNotification &&
+        notification.metrics.pixels >
+            notification.metrics.minScrollExtent + 0.5 &&
+        _controller.value < 0.995) {
+      // Scrolling down into content — snap back to fully open.
+      unawaited(
+        _controller.animateTo(
+          1,
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOut,
+        ),
+      );
+      return false;
+    }
+    if (notification is ScrollEndNotification) {
+      // Use the gesture's final velocity so a fast downward fling on the
+      // list (when already at the top) triggers a dismiss even though the
+      // position-based threshold hasn't been crossed.
+      final velocity = notification.dragDetails?.primaryVelocity ?? 0;
+      _settleAfterDrag(velocity: velocity);
+    }
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final progress = _controller.value;
+        // Fade in quickly (complete by 50% of the slide) then stay fully
+        // opaque, and fade out symmetrically when dragging back down.
+        final opacity =
+            Curves.easeOut.transform((progress / 0.5).clamp(0.0, 1.0));
+        return Opacity(
+          opacity: opacity,
+          child: FractionalTranslation(
+            translation: Offset(0, 1.0 - progress),
+            child: child,
+          ),
+        );
+      },
+      child: Material(
+        color: cs.surface,
+        child: SafeArea(
+          top: true,
+          bottom: false,
+          // The GestureDetector wraps the ENTIRE panel so dismissal drags
+          // can start from any non-scrollable region (pill, title bar, or
+          // the queue header row).  The inner scrollable wins the gesture
+          // arena for normal scroll gestures; this detector takes over when
+          // the list is at its top boundary or the drag is on a
+          // non-scrollable area.
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onVerticalDragStart: (_) {},  // no-op; reserved for future use
+            onVerticalDragUpdate: (details) {
+              final delta = details.primaryDelta;
+              if (delta == null) return;
+              _applyDragDelta(delta);
+            },
+            onVerticalDragEnd: (details) {
+              final velocity = details.primaryVelocity ?? 0;
+              _settleAfterDrag(velocity: velocity);
+            },
+            onVerticalDragCancel: () => _settleAfterDrag(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                // ── Drag pill + optional title bar ─────────────────────────
+                const SizedBox(height: 8),
+                // Drag pill indicator.
+                Center(
+                  child: Container(
+                    width: 32,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: cs.onSurfaceVariant.withValues(alpha: 0.4),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                if (widget.showTopBar) ...<Widget>[
+                  const SizedBox(height: 4),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 0, 12, 8),
+                    child: Row(
+                      children: <Widget>[
+                        IconButton(
+                          tooltip: MaterialLocalizations.of(
+                            context,
+                          ).backButtonTooltip,
+                          onPressed: () => _startDismiss(),
+                          icon: const Icon(Icons.arrow_back),
+                        ),
+                        Expanded(
+                          child: Text(
+                            widget.title,
+                            style: theme.textTheme.titleMedium,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                ] else
+                  const SizedBox(height: 4),
+                // ── Scrollable content area ─────────────────────────────────
+                Expanded(
+                  child: NotificationListener<ScrollNotification>(
+                    onNotification: _handleScrollNotification,
+                    child: widget.child,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

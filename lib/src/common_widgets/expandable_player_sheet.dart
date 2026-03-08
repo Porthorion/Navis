@@ -16,6 +16,7 @@ class ExpandablePlayerSheet extends StatefulWidget {
     required this.onCollapse,
     this.onProgressChanged,
     this.onSwipeUp,
+    this.dragEnabled = true,
     super.key,
   });
 
@@ -28,6 +29,7 @@ class ExpandablePlayerSheet extends StatefulWidget {
 
   /// Called when the user swipes up while the player is fully expanded.
   final VoidCallback? onSwipeUp;
+  final bool dragEnabled;
 
   static const miniPlayerHeight = 64.0;
 
@@ -110,7 +112,23 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
   Offset get _slideOffset => Offset(0, 1 - _progress);
 
   /// Mini player fades out over the first 30 % of the expansion.
-  double get _miniOpacity => 1 - (_progress / 0.30).clamp(0.0, 1.0);
+  double get _miniOpacity {
+    final t = 1 - (_progress / 0.5).clamp(0.0, 1.0);
+    return Curves.easeOutCubic.transform(t);
+  }
+
+  /// Keep the full player slightly faded near the end of collapse so the last
+  /// few pixels don't visually "snap" as the mini player reappears.
+  double get _fullOpacity {
+    final t = (_progress / 0.92).clamp(0.0, 1.0);
+    return Curves.easeOut.transform(t);
+  }
+
+  /// Mini player comes back with a subtle downward settle from above.
+  double get _miniTranslateY {
+    final t = (_progress / 0.45).clamp(0.0, 1.0);
+    return -10 * Curves.easeOut.transform(t);
+  }
 
   // -- Gesture handling -----------------------------------------------------
 
@@ -171,8 +189,8 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
     // Gesture was cancelled (e.g. the system gesture recognizer claimed the
     // pointer, or a competing recognizer won the arena during a slow drag).
     // Snap to the nearest edge so the sheet never stays stuck.
-    _snapToEdge();
     _dragStartedInQueueGuardZone = false;
+    _snapToEdge();
   }
 
   /// Snap the sheet to the nearest edge (expanded or collapsed).
@@ -195,42 +213,67 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
       builder: (context, _) {
         final progress = _progress;
 
-        return GestureDetector(
-          onVerticalDragStart: _handleDragStart,
-          onVerticalDragUpdate: _handleDragUpdate,
-          onVerticalDragEnd: _handleDragEnd,
-          onVerticalDragCancel: _handleDragCancel,
-          child: Stack(
-            children: <Widget>[
-              // Keep one stable drag recognizer wrapped around the sheet
-              // content so slow drags cannot get stranded between mini/full
-              // hand-off, but only let visible player surfaces start it.
-              Positioned.fill(
-                child: IgnorePointer(
-                  ignoring: progress < 0.5,
-                  child: FractionalTranslation(
-                    translation: _slideOffset,
-                    child: widget.fullPlayer,
+        return Stack(
+          children: <Widget>[
+            // ── Full player (slides in from below) ──────────────────────
+            // The GestureDetector here is only active when progress >= 0.5
+            // (expanding or fully expanded). When collapsed it is behind an
+            // IgnorePointer so it never steals vertical scrolls from pages.
+            Positioned.fill(
+              child: IgnorePointer(
+                ignoring: progress < 0.5,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onVerticalDragStart:
+                      widget.dragEnabled ? _handleDragStart : null,
+                  onVerticalDragUpdate:
+                      widget.dragEnabled ? _handleDragUpdate : null,
+                  onVerticalDragEnd:
+                      widget.dragEnabled ? _handleDragEnd : null,
+                  onVerticalDragCancel:
+                      widget.dragEnabled ? _handleDragCancel : null,
+                  child: Opacity(
+                    opacity: _fullOpacity,
+                    child: FractionalTranslation(
+                      translation: _slideOffset,
+                      child: widget.fullPlayer,
+                    ),
                   ),
                 ),
               ),
+            ),
 
-              // ── Mini player (fades out, anchored at bottom) ───────────
-              if (progress < 0.35)
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: IgnorePointer(
-                    ignoring: progress >= 0.2,
-                    child: Opacity(
-                      opacity: _miniOpacity,
+            // ── Mini player (fades out, anchored at bottom) ───────────
+            // The GestureDetector here is only active when progress < 0.5
+            // (collapsed or collapsing). It is scoped to the mini player
+            // strip so it cannot intercept scrolls on content pages above.
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: IgnorePointer(
+                ignoring: progress >= 0.5,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onVerticalDragStart:
+                      widget.dragEnabled ? _handleDragStart : null,
+                  onVerticalDragUpdate:
+                      widget.dragEnabled ? _handleDragUpdate : null,
+                  onVerticalDragEnd:
+                      widget.dragEnabled ? _handleDragEnd : null,
+                  onVerticalDragCancel:
+                      widget.dragEnabled ? _handleDragCancel : null,
+                  child: Opacity(
+                    opacity: _miniOpacity,
+                    child: Transform.translate(
+                      offset: Offset(0, _miniTranslateY),
                       child: widget.miniPlayer,
                     ),
                   ),
                 ),
-            ],
-          ),
+              ),
+            ),
+          ],
         );
       },
     );

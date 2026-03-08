@@ -91,13 +91,36 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(progress.value, closeTo(1, 0.01));
-    expect(find.byKey(const Key('mini-player')), findsNothing);
+    // Mini player stays in the tree but is hidden via Opacity(0) when expanded.
+    expect(find.byKey(const Key('mini-player')), findsOneWidget);
+    expect(
+      tester
+          .widget<Opacity>(
+            find.ancestor(
+              of: find.byKey(const Key('mini-player')),
+              matching: find.byType(Opacity),
+            ),
+          )
+          .opacity,
+      closeTo(0, 0.01),
+    );
 
     await tester.tap(find.text('collapse'));
     await tester.pumpAndSettle();
 
     expect(progress.value, closeTo(0, 0.01));
     expect(find.byKey(const Key('mini-player')), findsOneWidget);
+    expect(
+      tester
+          .widget<Opacity>(
+            find.ancestor(
+              of: find.byKey(const Key('mini-player')),
+              matching: find.byType(Opacity),
+            ),
+          )
+          .opacity,
+      closeTo(1, 0.01),
+    );
   });
 
   testWidgets('fling up expands and fling down collapses', (tester) async {

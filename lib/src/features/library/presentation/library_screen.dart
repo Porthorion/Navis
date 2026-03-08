@@ -447,6 +447,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     // SafeArea + outer rail paddings consume ~44px before sidebar content.
     final estimatedRailHeight = viewport.height - safePadding.vertical - 44.0;
     final selectedSection = ref.watch(librarySectionProvider);
+    final adaptiveShellMode = resolveAdaptiveShellMode(
+      desktopRuntime: isDesktopRuntime,
+      viewportSize: viewport,
+      safePadding: safePadding,
+    );
+    final compactWideLandscapeMode =
+        adaptiveShellMode == AdaptiveShellMode.compactWideLandscape;
     final tabletMode =
         !isDesktopRuntime &&
         adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact;
@@ -455,9 +462,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         ((isDesktopRuntime && MediaQuery.sizeOf(context).width >= 840) ||
             adaptiveLayoutClass == AdaptiveLayoutClass.tabletExpanded);
     final forceTabbedLibraryNavigation =
-        baseWideLibraryNavigation &&
-        hasActivePlayback &&
-        estimatedRailHeight < railHeightNeededForInlineLibrary;
+        compactWideLandscapeMode ||
+        (baseWideLibraryNavigation &&
+            hasActivePlayback &&
+            estimatedRailHeight < railHeightNeededForInlineLibrary);
     final useWideLibraryNavigation =
         baseWideLibraryNavigation && !forceTabbedLibraryNavigation;
     final tabController = _ensureTabController(tabCount);

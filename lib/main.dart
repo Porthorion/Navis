@@ -15,6 +15,8 @@ import 'package:window_manager/window_manager.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await _unlockMobileOrientations();
+
   _initializeDesktopAudioBackend();
   await _configureDesktopWindow();
 
@@ -204,6 +206,21 @@ Rect? _normalizeBounds(Rect? bounds, {required Size minSize}) {
 
 bool get _isDesktopRuntime =>
     !kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
+
+bool get _isMobileRuntime => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+
+Future<void> _unlockMobileOrientations() async {
+  if (!_isMobileRuntime) {
+    return;
+  }
+  await SystemChrome.setPreferredOrientations(<DeviceOrientation>[
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+    DeviceOrientation.landscapeLeft,
+    DeviceOrientation.landscapeRight,
+  ]);
+  AppLogger.info('Mobile orientation policy: all orientations enabled.');
+}
 
 const bool _forceEnableMediaKitInDebug = bool.fromEnvironment(
   'NAVIS_ENABLE_MEDIA_KIT_DEBUG',
