@@ -29,6 +29,27 @@ class HeroCoverArt extends StatelessWidget {
   Widget build(BuildContext context) {
     return Hero(
       tag: heroTag,
+      transitionOnUserGestures: true,
+      flightShuttleBuilder: (
+        flightContext,
+        animation,
+        flightDirection,
+        fromHeroContext,
+        toHeroContext,
+      ) {
+        final preferredContext = flightDirection == HeroFlightDirection.push
+            ? fromHeroContext
+            : toHeroContext;
+        final preferredHero = preferredContext.widget;
+        if (preferredHero is Hero) {
+          return preferredHero.child;
+        }
+        final fallbackHero = toHeroContext.widget;
+        if (fallbackHero is Hero) {
+          return fallbackHero.child;
+        }
+        return const SizedBox.shrink();
+      },
       child: CoverArtImage(
         coverArtId: coverArtId,
         size: size,
@@ -46,7 +67,12 @@ class HeroCoverArt extends StatelessWidget {
 String buildCoverArtHeroTag({
   required String? coverArtId,
   required String context,
+  String? entityId,
 }) {
+  final normalizedEntityId = entityId?.trim();
+  if (normalizedEntityId != null && normalizedEntityId.isNotEmpty) {
+    return 'cover_art_${context}_$normalizedEntityId';
+  }
   final id = coverArtId?.trim() ?? 'unknown';
   return 'cover_art_${context}_$id';
 }

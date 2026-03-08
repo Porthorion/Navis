@@ -56,6 +56,9 @@ class CoverArtImage extends ConsumerWidget {
     this.borderRadius,
     this.circular = false,
     this.semanticLabel,
+    this.fadeInDuration = const Duration(milliseconds: 150),
+    this.showLoadingPlaceholder = true,
+    this.showErrorPlaceholder = true,
   });
 
   final String? coverArtId;
@@ -70,6 +73,9 @@ class CoverArtImage extends ConsumerWidget {
   /// Optional text description read by screen readers. When `null` the image
   /// is treated as decorative and excluded from the accessibility tree.
   final String? semanticLabel;
+  final Duration fadeInDuration;
+  final bool showLoadingPlaceholder;
+  final bool showErrorPlaceholder;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -96,12 +102,14 @@ class CoverArtImage extends ConsumerWidget {
           width: width,
           height: height,
           cacheManager: cacheManager,
-          fadeInDuration: const Duration(milliseconds: 150),
+          fadeInDuration: fadeInDuration,
           fadeOutDuration: Duration.zero,
           memCacheWidth: _memCacheSize(width, resolvedSize),
           memCacheHeight: _memCacheSize(height, resolvedSize),
-          placeholder: (_, _) => _fallback(context),
-          errorWidget: (_, _, _) => _fallback(context),
+          placeholder: (_, _) =>
+              showLoadingPlaceholder ? _fallback(context) : _emptyPlaceholder(),
+          errorWidget: (_, _, _) =>
+              showErrorPlaceholder ? _fallback(context) : _emptyPlaceholder(),
         );
 
         Widget child;
@@ -151,6 +159,8 @@ class CoverArtImage extends ConsumerWidget {
       ),
     );
   }
+
+  Widget _emptyPlaceholder() => SizedBox(width: width, height: height);
 
   /// Scale the placeholder icon relative to the container but keep a sane min.
   double get _placeholderIconSize {

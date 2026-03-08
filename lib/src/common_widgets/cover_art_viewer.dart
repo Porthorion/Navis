@@ -7,6 +7,7 @@ Future<void> showCoverArtViewer(
   BuildContext context, {
   required String? coverArtId,
   required String heroTag,
+  int previewSize = 320,
 }) {
   final id = coverArtId?.trim() ?? '';
   if (id.isEmpty) {
@@ -24,6 +25,7 @@ Future<void> showCoverArtViewer(
         return CoverArtViewerScreen(
           coverArtId: id,
           heroTag: heroTag,
+          previewSize: previewSize,
         );
       },
     ),
@@ -34,11 +36,13 @@ class CoverArtViewerScreen extends StatelessWidget {
   const CoverArtViewerScreen({
     required this.coverArtId,
     required this.heroTag,
+    required this.previewSize,
     super.key,
   });
 
   final String coverArtId;
   final String heroTag;
+  final int previewSize;
 
   @override
   Widget build(BuildContext context) {
@@ -95,12 +99,27 @@ class CoverArtViewerScreen extends StatelessWidget {
                     child: Hero(
                       tag: heroTag,
                       transitionOnUserGestures: true,
-                      child: CoverArtImage(
-                        coverArtId: coverArtId,
-                        size: 1600,
-                        width: side,
-                        height: side,
-                        fit: BoxFit.contain,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: <Widget>[
+                          CoverArtImage(
+                            coverArtId: coverArtId,
+                            size: previewSize,
+                            width: side,
+                            height: side,
+                            fit: BoxFit.contain,
+                            fadeInDuration: Duration.zero,
+                          ),
+                          CoverArtImage(
+                            coverArtId: coverArtId,
+                            size: 1600,
+                            width: side,
+                            height: side,
+                            fit: BoxFit.contain,
+                            showLoadingPlaceholder: false,
+                            showErrorPlaceholder: false,
+                          ),
+                        ],
                       ),
                     ),
                   ),

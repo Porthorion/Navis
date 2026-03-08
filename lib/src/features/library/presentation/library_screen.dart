@@ -1056,6 +1056,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                                 heroTag: buildCoverArtHeroTag(
                                   coverArtId: album.coverArt,
                                   context: 'album',
+                                  entityId: album.id,
                                 ),
                                 badge: AlbumDownloadBadge(albumId: album.id),
                                 onTap: () {
@@ -1064,7 +1065,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                                         librarySyncControllerProvider.notifier,
                                       )
                                       .registerAlbumInteraction(album.id);
-                                  context.go('/library/albums/${album.id}');
+                                  context.push('/library/albums/${album.id}');
                                 },
                                 onLongPress: () => showAlbumContextMenu(
                                   context,
@@ -1292,7 +1293,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           ref
               .read(librarySyncControllerProvider.notifier)
               .registerAlbumInteraction(album.id);
-          context.go('/library/albums/${album.id}');
+          context.push('/library/albums/${album.id}');
         },
         onLongPress: () => showAlbumContextMenu(context, ref, album.id),
         onSecondaryTapDown: (details) => showAlbumContextMenu(
@@ -1453,7 +1454,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                               ref
                                   .read(librarySyncControllerProvider.notifier)
                                   .registerAlbumInteraction(album.id);
-                              context.go('/library/albums/${album.id}');
+                              context.push('/library/albums/${album.id}');
                             },
                             onLongPress: () =>
                                 showAlbumContextMenu(context, ref, album.id),

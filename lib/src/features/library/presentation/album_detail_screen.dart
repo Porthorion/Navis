@@ -107,6 +107,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
           final coverArtHeroTag = buildCoverArtHeroTag(
             coverArtId: details.coverArt,
             context: 'album',
+            entityId: widget.albumId,
           );
           // ── Build render items with disc headers for multi-disc ──
           final renderItems = _buildRenderItems(filteredSongs);
@@ -195,12 +196,13 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                               context,
                               coverArtId: details.coverArt,
                               heroTag: coverArtHeroTag,
+                              previewSize: 200,
                             ),
                           ),
                           child: HeroCoverArt(
                             coverArtId: details.coverArt,
                             heroTag: coverArtHeroTag,
-                            size: 640,
+                            size: 200,
                             width: 180,
                             height: 180,
                             borderRadius: BorderRadius.circular(12),
