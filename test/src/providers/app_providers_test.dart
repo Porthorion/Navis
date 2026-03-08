@@ -299,6 +299,7 @@ void main() {
                   themeMode: 'dark',
                   colorSchemeSeed: null,
                   appLocale: null,
+                  desktopUiV1Enabled: false,
                   crossfadeEnabled: false,
                   crossfadeDurationSeconds: 5,
                   crossfadeType: 'normal',

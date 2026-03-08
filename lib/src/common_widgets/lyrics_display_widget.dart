@@ -158,80 +158,100 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
     final lines = structuredLyrics.line;
     final hasFooter = _hasFooter;
 
-    return NotificationListener<ScrollNotification>(
-      onNotification: (notification) {
-        if (notification is ScrollStartNotification &&
-            notification.dragDetails != null) {
-          // User started a manual drag – pause auto-scroll.
-          _autoScrollReengageTimer?.cancel();
-          if (_autoScroll) {
-            setState(() => _autoScroll = false);
-          }
-        } else if (notification is ScrollEndNotification && !_autoScroll) {
-          // User lifted finger – start grace-period timer before re-engaging.
-          _startAutoScrollReengageTimer();
-        }
-        return false;
-      },
-      child: Stack(
-        children: [
-          ScrollablePositionedList.builder(
-            itemScrollController: _itemScrollController,
-            itemPositionsListener: _itemPositionsListener,
-            padding: const EdgeInsets.symmetric(vertical: 100),
-            itemCount: lines.length + (hasFooter ? 1 : 0),
-            itemBuilder: (context, index) {
-              if (hasFooter && index == lines.length) {
-                return _buildFooter(context);
-              }
-              final line = lines[index];
-              final isActive = index == _currentLineIndex;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final inactiveFontSize = _resolveSyncedFontSize(constraints.maxWidth);
+        final activeFontSize = inactiveFontSize + 2;
+        final horizontalPadding = (constraints.maxWidth * 0.06)
+            .clamp(20.0, 48.0)
+            .toDouble();
+        final verticalPadding = (inactiveFontSize * 0.65)
+            .clamp(10.0, 20.0)
+            .toDouble();
 
-              return InkWell(
-                onTap: widget.onSeek != null && line.start != null
-                    ? () => widget.onSeek!(Duration(milliseconds: line.start!))
-                    : null,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 12,
-                  ),
-                  child: Text(
-                    line.value ?? '',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: isActive
-                          ? Theme.of(context).colorScheme.primary
-                          : Theme.of(
-                              context,
-                            ).colorScheme.onSurface.withValues(alpha: 0.6),
-                      fontWeight: isActive
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                      fontSize: isActive ? 18 : 16,
+        return NotificationListener<ScrollNotification>(
+          onNotification: (notification) {
+            if (notification is ScrollStartNotification &&
+                notification.dragDetails != null) {
+              // User started a manual drag - pause auto-scroll.
+              _autoScrollReengageTimer?.cancel();
+              if (_autoScroll) {
+                setState(() => _autoScroll = false);
+              }
+            } else if (notification is ScrollEndNotification && !_autoScroll) {
+              // User lifted finger - start grace-period timer before re-engaging.
+              _startAutoScrollReengageTimer();
+            }
+            return false;
+          },
+          child: Stack(
+            children: [
+              ScrollablePositionedList.builder(
+                itemScrollController: _itemScrollController,
+                itemPositionsListener: _itemPositionsListener,
+                padding: const EdgeInsets.symmetric(vertical: 100),
+                itemCount: lines.length + (hasFooter ? 1 : 0),
+                itemBuilder: (context, index) {
+                  if (hasFooter && index == lines.length) {
+                    return _buildFooter(context);
+                  }
+                  final line = lines[index];
+                  final isActive = index == _currentLineIndex;
+
+                  return InkWell(
+                    onTap: widget.onSeek != null && line.start != null
+                        ? () => widget.onSeek!(
+                            Duration(milliseconds: line.start!),
+                          )
+                        : null,
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: horizontalPadding,
+                        vertical: verticalPadding,
+                      ),
+                      child: Text(
+                        line.value ?? '',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              color: isActive
+                                  ? Theme.of(context).colorScheme.primary
+                                  : Theme.of(
+                                      context,
+                                    ).colorScheme.onSurface.withValues(
+                                      alpha: 0.6,
+                                    ),
+                              fontWeight: isActive
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                              fontSize: isActive
+                                  ? activeFontSize
+                                  : inactiveFontSize,
+                            ),
+                      ),
                     ),
+                  );
+                },
+              ),
+              if (!_autoScroll)
+                Positioned(
+                  bottom: 16,
+                  right: 16,
+                  child: FloatingActionButton.small(
+                    onPressed: () {
+                      _autoScrollReengageTimer?.cancel();
+                      setState(() => _autoScroll = true);
+                      if (_currentLineIndex != null) {
+                        _scrollToLine(_currentLineIndex!, animate: true);
+                      }
+                    },
+                    child: const Icon(Icons.my_location),
                   ),
                 ),
-              );
-            },
+            ],
           ),
-          if (!_autoScroll)
-            Positioned(
-              bottom: 16,
-              right: 16,
-              child: FloatingActionButton.small(
-                onPressed: () {
-                  _autoScrollReengageTimer?.cancel();
-                  setState(() => _autoScroll = true);
-                  if (_currentLineIndex != null) {
-                    _scrollToLine(_currentLineIndex!, animate: true);
-                  }
-                },
-                child: const Icon(Icons.my_location),
-              ),
-            ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -239,22 +259,52 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
     final unsyncedLyrics = widget.lyrics.value ?? '';
     final hasFooter = _hasFooter;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        children: <Widget>[
-          Text(
-            unsyncedLyrics,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.8),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final fontSize = _resolveUnsyncedFontSize(constraints.maxWidth);
+        final horizontalPadding = (constraints.maxWidth * 0.06)
+            .clamp(20.0, 56.0)
+            .toDouble();
+        return SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(
+            horizontalPadding,
+            24,
+            horizontalPadding,
+            24,
           ),
-          if (hasFooter) ...<Widget>[
-            const SizedBox(height: 20),
-            _buildFooter(context),
-          ],
-        ],
-      ),
+          child: Column(
+            children: <Widget>[
+              Text(
+                unsyncedLyrics,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  height: 1.8,
+                  fontSize: fontSize,
+                ),
+              ),
+              if (hasFooter) ...<Widget>[
+                const SizedBox(height: 20),
+                _buildFooter(context),
+              ],
+            ],
+          ),
+        );
+      },
     );
+  }
+
+  double _resolveSyncedFontSize(double width) {
+    if (width >= 1500) return 30;
+    if (width >= 1200) return 27;
+    if (width >= 980) return 24;
+    if (width >= 760) return 21;
+    if (width >= 560) return 18;
+    return 16;
+  }
+
+  double _resolveUnsyncedFontSize(double width) {
+    final synced = _resolveSyncedFontSize(width);
+    return (synced - 2).clamp(15.0, 28.0).toDouble();
   }
 
   bool get _hasFooter {

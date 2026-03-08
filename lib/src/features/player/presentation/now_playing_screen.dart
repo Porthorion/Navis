@@ -10,6 +10,7 @@ import 'package:navis/src/api/subsonic_error.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
+import 'package:navis/src/features/player/presentation/queue_sheet.dart';
 import 'package:navis/src/features/player/presentation/smart_queue_notifier.dart';
 import 'package:navis/src/features/player/presentation/smart_queue_sheet.dart';
 import 'package:navis/src/common_widgets/lyrics_display_widget.dart';
@@ -24,6 +25,7 @@ import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/utils/format_utils.dart';
 
 String _formatDuration(Duration d) {
@@ -103,22 +105,11 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     }
   }
 
-  Future<void> _handleWideDragEnd(DragEndDetails details) async {
-    if (!widget.wideEmbeddedMode || widget.onCollapse == null) {
-      return;
-    }
-    final velocity = details.primaryVelocity ?? 0;
-    if (velocity < -320 && widget.onShowQueue != null) {
-      widget.onShowQueue!.call();
-      return;
-    }
-    if (velocity > 320) {
-      widget.onCollapse!.call();
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
+    final desktopUiV1 = ref.watch(desktopUiV1EnabledProvider);
+    final effectiveWideMode =
+        widget.wideEmbeddedMode || (desktopUiV1 && isDesktopRuntime);
     final playback = ref.watch(playerStateProvider);
     final currentSongId = playback.currentSongId;
     final songAsync = currentSongId == null
@@ -152,9 +143,31 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     final surfaceColor = Theme.of(context).colorScheme.surface;
     final tintColor = artTinted ? _artTintColor : null;
     final mediaQuery = MediaQuery.of(context);
-    final bottomSafeInset = widget.wideEmbeddedMode
+    final flutterView = View.maybeOf(context);
+    final rawViewPaddingBottom = flutterView == null
         ? 0.0
-        : mediaQuery.padding.bottom;
+        : flutterView.viewPadding.bottom / flutterView.devicePixelRatio;
+    final androidBottomInsetFloor =
+        Theme.of(context).platform == TargetPlatform.android ? 24.0 : 0.0;
+    final inheritedBottomInset = math.max(
+      mediaQuery.viewPadding.bottom,
+      mediaQuery.padding.bottom,
+    );
+    final bottomSafeInset = effectiveWideMode
+        ? 0.0
+        : math.max(
+            androidBottomInsetFloor,
+            inheritedBottomInset,
+          );
+    final resolvedBottomSafeInset = effectiveWideMode
+        ? 0.0
+        : math.max(
+            bottomSafeInset,
+            math.max(
+              mediaQuery.systemGestureInsets.bottom,
+              rawViewPaddingBottom,
+            ),
+          );
 
     return Material(
       color: surfaceColor,
@@ -178,23 +191,19 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
         child: SafeArea(
           bottom: false,
           child: Padding(
-            padding: EdgeInsets.only(bottom: bottomSafeInset),
-            child: widget.wideEmbeddedMode
-                ? GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onVerticalDragEnd: _handleWideDragEnd,
-                    child: Column(
-                      children: <Widget>[
-                        Expanded(
-                          child: _NowPlayingBody(
-                            playback: playback,
-                            song: playback.isRadioMode ? null : song,
-                            wideEmbeddedMode: widget.wideEmbeddedMode,
-                            onCollapse: widget.onCollapse,
-                          ),
+            padding: EdgeInsets.only(bottom: resolvedBottomSafeInset),
+            child: effectiveWideMode
+                ? Column(
+                    children: <Widget>[
+                      Expanded(
+                        child: _NowPlayingBody(
+                          playback: playback,
+                          song: playback.isRadioMode ? null : song,
+                          wideEmbeddedMode: effectiveWideMode,
+                          onCollapse: widget.onCollapse,
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   )
                 : Column(
                     children: <Widget>[
@@ -203,7 +212,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                         child: _NowPlayingBody(
                           playback: playback,
                           song: playback.isRadioMode ? null : song,
-                          wideEmbeddedMode: widget.wideEmbeddedMode,
+                          wideEmbeddedMode: effectiveWideMode,
                           onCollapse: widget.onCollapse,
                         ),
                       ),
@@ -413,6 +422,67 @@ class _NowPlayingBody extends ConsumerStatefulWidget {
 class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
   _WideNowPlayingPanel _widePanel = _WideNowPlayingPanel.none;
   bool _showLyrics = false;
+  bool _showWideFullscreenLyrics = false;
+  final ScrollController _embeddedQueueScrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _embeddedQueueScrollController.dispose();
+    super.dispose();
+  }
+
+  _NowPlayingLayoutMode _resolveLayoutMode(double width) {
+    if (width >= 920) {
+      return _NowPlayingLayoutMode.split;
+    }
+    if (width >= 760) {
+      return _NowPlayingLayoutMode.standard;
+    }
+    return _NowPlayingLayoutMode.compact;
+  }
+
+  _NowPlayingSplitMetrics? _resolveSplitMetrics(BoxConstraints constraints) {
+    final sidePadding = widget.wideEmbeddedMode ? 14.0 : 16.0;
+    final contentWidth = constraints.maxWidth - (sidePadding * 2);
+    final contentHeight = constraints.maxHeight;
+    if (contentWidth < 860 || contentHeight < 460) {
+      return null;
+    }
+
+    final gap = (contentWidth * 0.014).clamp(14.0, 20.0);
+    final paneInnerPadding = 18.0;
+    final usableArtHeight =
+        contentHeight - (widget.wideEmbeddedMode ? 40.0 : 52.0);
+
+    var leftPaneWidth = (contentWidth * (widget.wideEmbeddedMode ? 0.54 : 0.56))
+        .clamp(400.0, contentWidth * 0.66);
+    var rightPaneWidth = contentWidth - leftPaneWidth - gap;
+
+    if (rightPaneWidth < 360) {
+      rightPaneWidth = 360;
+      leftPaneWidth = contentWidth - rightPaneWidth - gap;
+    }
+    if (rightPaneWidth > 560) {
+      rightPaneWidth = 560;
+      leftPaneWidth = contentWidth - rightPaneWidth - gap;
+    }
+    if (leftPaneWidth < 360 || rightPaneWidth < 320) {
+      return null;
+    }
+
+    final artWidthBound = leftPaneWidth - (paneInnerPadding * 2);
+    final artSize = math
+        .min(artWidthBound, usableArtHeight)
+        .clamp(260.0, 760.0);
+
+    return _NowPlayingSplitMetrics(
+      outerPadding: sidePadding,
+      gap: gap,
+      leftPaneWidth: leftPaneWidth,
+      rightPaneWidth: rightPaneWidth,
+      artSize: artSize,
+    );
+  }
 
   void _togglePlayPause() {
     final handler = ref.read(audioHandlerProvider);
@@ -439,13 +509,45 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
     }
   }
 
+  void _handleWideVerticalSwipe(
+    DragEndDetails details, {
+    required bool splitLayout,
+  }) {
+    if (!widget.wideEmbeddedMode) {
+      return;
+    }
+    final velocity = details.primaryVelocity ?? 0;
+    if (velocity < -320 && splitLayout) {
+      setState(() {
+        _showWideFullscreenLyrics = false;
+        _widePanel = _WideNowPlayingPanel.queue;
+      });
+      return;
+    }
+    if (velocity > 320) {
+      if (_widePanel != _WideNowPlayingPanel.none) {
+        setState(() => _widePanel = _WideNowPlayingPanel.none);
+        return;
+      }
+      if (_showWideFullscreenLyrics) {
+        setState(() => _showWideFullscreenLyrics = false);
+        return;
+      }
+      widget.onCollapse?.call();
+    }
+  }
+
   Future<void> _openLyricsFullscreen(
     BuildContext context,
     String songId,
     String title,
   ) async {
     if (widget.wideEmbeddedMode) {
-      setState(() => _widePanel = _WideNowPlayingPanel.lyrics);
+      setState(() {
+        _showLyrics = false;
+        _widePanel = _WideNowPlayingPanel.none;
+        _showWideFullscreenLyrics = true;
+      });
       return;
     }
     await _openFullscreenLyricsRoute(context, songId, title);
@@ -499,98 +601,122 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
+        final layoutMode = _resolveLayoutMode(constraints.maxWidth);
+        final splitMetrics = layoutMode == _NowPlayingLayoutMode.split
+            ? _resolveSplitMetrics(constraints)
+            : null;
+        final isSplitNowPlaying = splitMetrics != null;
+        final supportsSplitPanelOverlay =
+            widget.wideEmbeddedMode && isSplitNowPlaying;
+
         if (widget.wideEmbeddedMode &&
-            _widePanel != _WideNowPlayingPanel.none) {
-          Widget panelChild = const SizedBox.shrink();
-
-          if (_widePanel == _WideNowPlayingPanel.lyrics &&
-              playback.currentSongId != null) {
-            panelChild = _EmbeddedNowPlayingPanelScaffold(
-              key: const ValueKey<String>('wide-panel-lyrics'),
-              title: l10n.nowPlayingLyrics,
-              subtitle: title,
-              onBack: () =>
-                  setState(() => _widePanel = _WideNowPlayingPanel.none),
-              child: _InlineLyrics(songId: playback.currentSongId!),
-            );
-          }
-
-          if (_widePanel == _WideNowPlayingPanel.settings) {
-            panelChild = _EmbeddedNowPlayingPanelScaffold(
-              key: const ValueKey<String>('wide-panel-settings'),
-              title: l10n.settingsTitle,
-              onBack: () =>
-                  setState(() => _widePanel = _WideNowPlayingPanel.none),
-              child: _NowPlayingSettingsPanel(
-                song: song,
-                onCollapse: widget.onCollapse,
-              ),
-            );
-          }
-
-          if (_widePanel == _WideNowPlayingPanel.mix &&
-              playback.currentSongId != null) {
-            panelChild = _EmbeddedNowPlayingPanelScaffold(
-              key: const ValueKey<String>('wide-panel-mix'),
-              title: l10n.nowPlayingInstantMixLabel,
-              onBack: () =>
-                  setState(() => _widePanel = _WideNowPlayingPanel.none),
-              child: _EmbeddedMixPanel(seedSongId: playback.currentSongId!),
-            );
-          }
-
-          return AnimatedSwitcher(
-            duration: const Duration(milliseconds: 220),
-            switchInCurve: Curves.easeOut,
-            switchOutCurve: Curves.easeIn,
-            child: panelChild,
+            !isSplitNowPlaying &&
+            _showWideFullscreenLyrics &&
+            playback.currentSongId != null) {
+          return _EmbeddedNowPlayingPanelScaffold(
+            key: const ValueKey<String>('wide-fullscreen-lyrics'),
+            title: l10n.nowPlayingLyrics,
+            subtitle: title,
+            onBack: () => setState(() => _showWideFullscreenLyrics = false),
+            child: _InlineLyrics(songId: playback.currentSongId!),
           );
         }
+        if (widget.wideEmbeddedMode &&
+            !isSplitNowPlaying &&
+            _showWideFullscreenLyrics &&
+            playback.currentSongId == null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              setState(() => _showWideFullscreenLyrics = false);
+            }
+          });
+        }
 
-        final isWideNowPlaying = constraints.maxWidth >= 900;
-        final hideTransportControls = widget.wideEmbeddedMode;
+        if (!supportsSplitPanelOverlay &&
+            _widePanel != _WideNowPlayingPanel.none) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              setState(() => _widePanel = _WideNowPlayingPanel.none);
+            }
+          });
+        }
+
         final tightHeight = constraints.maxHeight < 640;
         final compactHeight = constraints.maxHeight < 760;
-        final compactSpacing = widget.wideEmbeddedMode || tightHeight;
-        final isPortraitInlineLyrics =
-            !isWideNowPlaying &&
-            !widget.wideEmbeddedMode &&
-            _showLyrics &&
-            playback.currentSongId != null;
-        final horizontalPadding = isWideNowPlaying
-            ? (widget.wideEmbeddedMode ? 14.0 : 20.0)
-            : 24.0;
-        final topInset = tightHeight
+        final compactTransport =
+            compactHeight || layoutMode == _NowPlayingLayoutMode.compact;
+        final compactSpacing =
+            tightHeight || layoutMode == _NowPlayingLayoutMode.compact;
+        final splitGap =
+            splitMetrics?.gap ?? (widget.wideEmbeddedMode ? 14.0 : 20.0);
+        final horizontalPadding =
+            splitMetrics?.outerPadding ??
+            switch (layoutMode) {
+              _NowPlayingLayoutMode.compact => 24.0,
+              _NowPlayingLayoutMode.standard =>
+                widget.wideEmbeddedMode ? 14.0 : 22.0,
+              _NowPlayingLayoutMode.split =>
+                widget.wideEmbeddedMode ? 8.0 : 18.0,
+            };
+        final topInset = isSplitNowPlaying && widget.wideEmbeddedMode
+            ? 2.0
+            : tightHeight
             ? 4.0
-            : (isPortraitInlineLyrics ? 10.0 : 8.0);
-        final artToMetaGap = compactSpacing
-            ? 8.0
-            : (isPortraitInlineLyrics ? 12.0 : 16.0);
-        final metadataBottomGap = tightHeight
+            : 8.0;
+        final artToMetaGap = compactSpacing ? 8.0 : 16.0;
+        final metadataBottomGap = isSplitNowPlaying && widget.wideEmbeddedMode
             ? 4.0
-            : (isPortraitInlineLyrics ? 12.0 : 8.0);
-        final artMaxSize = isWideNowPlaying
-            ? math.min(
-                math.min(
-                  constraints.maxHeight * (compactSpacing ? 0.5 : 0.56),
-                  constraints.maxWidth *
-                      (widget.wideEmbeddedMode ? 0.36 : 0.44),
-                ),
-                math.max(
-                  220.0,
-                  constraints.maxHeight -
-                      (widget.wideEmbeddedMode ? 240.0 : 280.0),
-                ),
-              )
-            : math.min(
-                constraints.maxWidth - (horizontalPadding * 2),
-                constraints.maxHeight * (tightHeight ? 0.52 : 0.62),
-              );
+            : tightHeight
+            ? 4.0
+            : 8.0;
+        final artMaxSize =
+            splitMetrics?.artSize ??
+            (layoutMode == _NowPlayingLayoutMode.standard
+                ? math.min(
+                    constraints.maxWidth - (horizontalPadding * 2),
+                    constraints.maxHeight * (tightHeight ? 0.48 : 0.54),
+                  )
+                : math.min(
+                    constraints.maxWidth - (horizontalPadding * 2),
+                    constraints.maxHeight * (tightHeight ? 0.52 : 0.62),
+                  ));
+        final availableContentHeight = math.max(
+          0.0,
+          constraints.maxHeight - topInset - artToMetaGap - metadataBottomGap,
+        );
+        double artRegionHeight;
+        if (availableContentHeight <= 0) {
+          artRegionHeight = 0;
+        } else {
+          final minMetadataHeight = compactSpacing ? 230.0 : 280.0;
+          final minArtHeight = compactSpacing ? 210.0 : 250.0;
+          final targetArtShare = switch (layoutMode) {
+            _NowPlayingLayoutMode.compact => 0.56,
+            _NowPlayingLayoutMode.standard => 0.53,
+            _NowPlayingLayoutMode.split => 0.5,
+          };
+          final preferredArtHeight = math.min(
+            artMaxSize + (compactSpacing ? 4.0 : 10.0),
+            availableContentHeight * targetArtShare,
+          );
+          final maxArtHeight = math.max(
+            minArtHeight,
+            availableContentHeight - minMetadataHeight,
+          );
+          artRegionHeight = maxArtHeight <= minArtHeight
+              ? maxArtHeight
+              : preferredArtHeight.clamp(minArtHeight, maxArtHeight);
+        }
+        final metadataRegionHeight = math.max(
+          0.0,
+          availableContentHeight - artRegionHeight,
+        );
 
         final showInlineLyrics =
             !widget.wideEmbeddedMode &&
             _showLyrics &&
-            playback.currentSongId != null;
+            playback.currentSongId != null &&
+            !supportsSplitPanelOverlay;
         final artOrLyrics = isRadio
             ? _RadioCoverArt(
                 artUrl: radioMeta?.nowPlayingArtUrl,
@@ -603,6 +729,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
                 child: showInlineLyrics
                     ? _InlineLyrics(
                         songId: playback.currentSongId!,
+                        maxSize: artMaxSize,
                       )
                     : GestureDetector(
                         key: const ValueKey('cover'),
@@ -627,7 +754,18 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
                       ),
               );
 
-        final metadataColumn = <Widget>[
+        final metadataTopChildren = <Widget>[
+          if (widget.wideEmbeddedMode)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text(
+                l10n.nowPlayingTitle,
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  letterSpacing: 0.2,
+                ),
+              ),
+            ),
           _TrackInfo(
             title: title,
             artist: artist,
@@ -678,9 +816,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
           ),
           if (!isRadio) ...[
             SizedBox(
-              height: isWideNowPlaying
-                  ? (compactHeight ? 8 : 10)
-                  : (isPortraitInlineLyrics ? 10 : 12),
+              height: isSplitNowPlaying ? (compactHeight ? 8 : 10) : 12,
             ),
             _NowPlayingInfoPanel(
               song: song,
@@ -691,83 +827,163 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
             ),
           ],
           SizedBox(
-            height: isWideNowPlaying
-                ? (compactHeight ? 6 : 10)
-                : (isPortraitInlineLyrics ? 14 : 16),
+            height: isSplitNowPlaying ? (compactHeight ? 6 : 10) : 16,
           ),
           if (!isRadio) ...[
             _SeekBar(playback: playback),
             SizedBox(height: compactSpacing ? 6 : 8),
           ],
-          if (!hideTransportControls)
+        ];
+
+        final metadataBottom = Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
             _TransportControls(
               playback: playback,
               isRadio: isRadio,
+              compact: compactTransport,
             ),
-          SizedBox(height: compactSpacing ? 4 : 8),
-          if (!isRadio)
-            _ActionRow(
-              song: song,
-              songId: playback.currentSongId,
-              isLiked: playback.isCurrentSongLiked,
-              showLyrics: _showLyrics,
-              onOpenSettingsSheet: !widget.wideEmbeddedMode
-                  ? () => _showNowPlayingSettingsSheet(
-                      context,
-                      ref,
-                      song,
-                      fullscreenLyricsSongId:
-                          !fullscreenLyricsMode &&
-                              playback.currentSongId != null
-                          ? playback.currentSongId
-                          : null,
-                      fullscreenLyricsTitle:
-                          !fullscreenLyricsMode &&
-                              playback.currentSongId != null
-                          ? title
-                          : null,
-                    )
-                  : null,
-              onLyricsToggle: playback.currentSongId == null
-                  ? null
-                  : () {
-                      if (widget.wideEmbeddedMode || fullscreenLyricsMode) {
-                        _openLyricsFullscreen(
-                          context,
-                          playback.currentSongId!,
-                          title,
-                        );
-                        return;
-                      }
-                      setState(() => _showLyrics = !_showLyrics);
-                    },
-              wideEmbeddedMode: widget.wideEmbeddedMode,
-              onOpenSettingsPanel: widget.wideEmbeddedMode
-                  ? () => setState(
-                      () => _widePanel = _WideNowPlayingPanel.settings,
-                    )
-                  : null,
-              onOpenMixPanel: widget.wideEmbeddedMode
-                  ? () => setState(() => _widePanel = _WideNowPlayingPanel.mix)
-                  : null,
-            ),
-        ];
+            SizedBox(height: compactSpacing ? 4 : 8),
+            if (!isRadio)
+              _ActionRow(
+                song: song,
+                songId: playback.currentSongId,
+                isLiked: playback.isCurrentSongLiked,
+                showLyrics: widget.wideEmbeddedMode
+                    ? _showWideFullscreenLyrics
+                    : _showLyrics,
+                onOpenSettingsSheet: !supportsSplitPanelOverlay
+                    ? () => _showNowPlayingSettingsSheet(
+                        context,
+                        ref,
+                        song,
+                        fullscreenLyricsSongId:
+                            !widget.wideEmbeddedMode &&
+                                !fullscreenLyricsMode &&
+                                playback.currentSongId != null
+                            ? playback.currentSongId
+                            : null,
+                        fullscreenLyricsTitle:
+                            !widget.wideEmbeddedMode &&
+                                !fullscreenLyricsMode &&
+                                playback.currentSongId != null
+                            ? title
+                            : null,
+                      )
+                    : null,
+                onLyricsToggle: playback.currentSongId == null
+                    ? null
+                    : () {
+                        if (widget.wideEmbeddedMode) {
+                          setState(() {
+                            _widePanel = _WideNowPlayingPanel.none;
+                            _showLyrics = false;
+                            _showWideFullscreenLyrics =
+                                !_showWideFullscreenLyrics;
+                          });
+                          return;
+                        }
+                        if (fullscreenLyricsMode) {
+                          _openLyricsFullscreen(
+                            context,
+                            playback.currentSongId!,
+                            title,
+                          );
+                          return;
+                        }
+                        setState(() => _showLyrics = !_showLyrics);
+                      },
+                wideEmbeddedMode: supportsSplitPanelOverlay,
+                onOpenQueuePanel: supportsSplitPanelOverlay
+                    ? () => setState(
+                        () {
+                          _showWideFullscreenLyrics = false;
+                          _widePanel = _WideNowPlayingPanel.queue;
+                        },
+                      )
+                    : null,
+                onOpenSettingsPanel: supportsSplitPanelOverlay
+                    ? () => setState(
+                        () {
+                          _showWideFullscreenLyrics = false;
+                          _widePanel = _WideNowPlayingPanel.settings;
+                        },
+                      )
+                    : null,
+                onOpenMixPanel: supportsSplitPanelOverlay
+                    ? () => setState(() {
+                        _showWideFullscreenLyrics = false;
+                        _widePanel = _WideNowPlayingPanel.mix;
+                      })
+                    : null,
+              ),
+          ],
+        );
 
-        if (!isWideNowPlaying) {
+        final metadataTop = Column(
+          mainAxisSize: MainAxisSize.min,
+          children: metadataTopChildren,
+        );
+
+        Widget buildMetadataPane({required bool splitLayout}) {
+          final shouldFlattenToSingleScroll =
+              constraints.maxHeight < (splitLayout ? 620 : 700);
+          if (shouldFlattenToSingleScroll) {
+            return SingleChildScrollView(
+              padding: EdgeInsets.zero,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  metadataTop,
+                  SizedBox(height: compactSpacing ? 10 : 14),
+                  metadataBottom,
+                ],
+              ),
+            );
+          }
+
+          return Column(
+            children: <Widget>[
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, topConstraints) => SingleChildScrollView(
+                    padding: EdgeInsets.zero,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: topConstraints.maxHeight,
+                      ),
+                      child: Align(
+                        alignment: splitLayout
+                            ? Alignment.topCenter
+                            : Alignment.center,
+                        child: metadataTop,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(height: compactSpacing ? 10 : 14),
+              metadataBottom,
+            ],
+          );
+        }
+
+        if (!isSplitNowPlaying) {
           return Padding(
             padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
             child: Column(
               children: <Widget>[
                 SizedBox(height: topInset),
-                Expanded(child: Center(child: artOrLyrics)),
+                SizedBox(
+                  height: artRegionHeight,
+                  child: Center(child: artOrLyrics),
+                ),
                 SizedBox(height: artToMetaGap),
-                Flexible(
-                  child: SingleChildScrollView(
+                SizedBox(
+                  height: metadataRegionHeight,
+                  child: Padding(
                     padding: EdgeInsets.only(bottom: metadataBottomGap),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: metadataColumn,
-                    ),
+                    child: buildMetadataPane(splitLayout: false),
                   ),
                 ),
               ],
@@ -776,8 +992,281 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
         }
 
         final colorScheme = Theme.of(context).colorScheme;
-        final rightPaneWidth = math.min(430.0, constraints.maxWidth * 0.4);
-        return Padding(
+        final metrics = splitMetrics;
+        final rightPaneWidth = metrics.rightPaneWidth;
+        final splitCoverArtMaxSize = math
+            .min(
+              rightPaneWidth - 56,
+              constraints.maxHeight * 0.36,
+            )
+            .clamp(170.0, 340.0);
+        final lyricsPane = DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: colorScheme.outlineVariant.withValues(alpha: 0.4),
+            ),
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: <Color>[
+                colorScheme.surfaceContainerLowest,
+                colorScheme.surfaceContainerLow,
+              ],
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: playback.currentSongId == null
+                ? Center(
+                    child: Text(
+                      l10n.lyricsNoneAvailable,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  )
+                : _InlineLyrics(songId: playback.currentSongId!),
+          ),
+        );
+        final splitTopInfo = Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: _NowPlayingInfoGrid(
+            song: song,
+            album: albumDetails,
+            playback: playback,
+            currentMediaItem: currentMediaItem,
+            playbackSpeed: playbackSpeed,
+          ),
+        );
+        final splitCoverArt = isRadio
+            ? _RadioCoverArt(
+                artUrl: radioMeta?.nowPlayingArtUrl,
+                maxSize: splitCoverArtMaxSize,
+              )
+            : GestureDetector(
+                onTap: _togglePlayPause,
+                onHorizontalDragEnd: _handleHorizontalSwipe,
+                child: hasCoverArtId
+                    ? _CoverArt(
+                        coverArtId: coverArtId,
+                        semanticLabel: title,
+                        maxSize: splitCoverArtMaxSize,
+                      )
+                    : (hasMediaArtUrl
+                          ? _RadioCoverArt(
+                              artUrl: mediaArtUrl,
+                              maxSize: splitCoverArtMaxSize,
+                            )
+                          : _CoverArt(
+                              coverArtId: null,
+                              semanticLabel: title,
+                              maxSize: splitCoverArtMaxSize,
+                            )),
+              );
+        final splitBottomStack = Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Center(child: splitCoverArt),
+            const SizedBox(height: 12),
+            _TrackInfo(
+              title: title,
+              artist: artist,
+              album: album,
+              compact: true,
+              onTitleTap: isRadio
+                  ? (radioMeta?.nowPlayingTitle != null &&
+                            radioMeta!.nowPlayingTitle!.isNotEmpty
+                        ? () => NavService.goToSearch(
+                            context,
+                            ref,
+                            radioMeta.nowPlayingTitle!,
+                          )
+                        : null)
+                  : null,
+              onArtistTap: isRadio
+                  ? (radioMeta?.nowPlayingArtist != null &&
+                            radioMeta!.nowPlayingArtist!.isNotEmpty
+                        ? () => NavService.goToSearch(
+                            context,
+                            ref,
+                            radioMeta.nowPlayingArtist!,
+                          )
+                        : null)
+                  : (resolvedArtistId != null
+                        ? () => NavService.goToArtist(
+                            context,
+                            ref,
+                            resolvedArtistId,
+                          )
+                        : (song?.artistName != null &&
+                                  song!.artistName!.isNotEmpty
+                              ? () => NavService.goToSearch(
+                                  context,
+                                  ref,
+                                  song.artistName!,
+                                )
+                              : null)),
+              onAlbumTap: isRadio
+                  ? null
+                  : (song?.albumId != null && song!.albumId!.isNotEmpty
+                        ? () => NavService.goToAlbum(
+                            context,
+                            ref,
+                            song.albumId!,
+                          )
+                        : null),
+            ),
+            if (!isRadio) ...<Widget>[
+              const SizedBox(height: 12),
+              _SeekBar(playback: playback),
+              const SizedBox(height: 8),
+            ],
+            _TransportControls(
+              playback: playback,
+              isRadio: isRadio,
+              compact: compactTransport,
+            ),
+            const SizedBox(height: 8),
+            if (!isRadio)
+              _ActionRow(
+                song: song,
+                songId: playback.currentSongId,
+                isLiked: playback.isCurrentSongLiked,
+                showLyrics: true,
+                onOpenSettingsSheet: !supportsSplitPanelOverlay
+                    ? () => _showNowPlayingSettingsSheet(
+                        context,
+                        ref,
+                        song,
+                        fullscreenLyricsSongId: null,
+                        fullscreenLyricsTitle: null,
+                      )
+                    : null,
+                onLyricsToggle: playback.currentSongId == null ? null : () {},
+                wideEmbeddedMode: supportsSplitPanelOverlay,
+                onOpenQueuePanel: supportsSplitPanelOverlay
+                    ? () => setState(
+                        () {
+                          _showWideFullscreenLyrics = false;
+                          _widePanel = _WideNowPlayingPanel.queue;
+                        },
+                      )
+                    : null,
+                onOpenSettingsPanel: supportsSplitPanelOverlay
+                    ? () => setState(
+                        () {
+                          _showWideFullscreenLyrics = false;
+                          _widePanel = _WideNowPlayingPanel.settings;
+                        },
+                      )
+                    : null,
+                onOpenMixPanel: supportsSplitPanelOverlay
+                    ? () => setState(() {
+                        _showWideFullscreenLyrics = false;
+                        _widePanel = _WideNowPlayingPanel.mix;
+                      })
+                    : null,
+              ),
+          ],
+        );
+        final rightPaneContent = LayoutBuilder(
+          builder: (context, rightConstraints) {
+            final estimatedBottomHeight =
+                splitCoverArtMaxSize + (isRadio ? 250 : 390);
+            final canPinBottom =
+                rightConstraints.maxHeight > estimatedBottomHeight + 64;
+            if (!canPinBottom) {
+              return SingleChildScrollView(
+                padding: EdgeInsets.zero,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    splitTopInfo,
+                    const SizedBox(height: 14),
+                    splitBottomStack,
+                  ],
+                ),
+              );
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                splitTopInfo,
+                const SizedBox(height: 12),
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, bottomConstraints) =>
+                        SingleChildScrollView(
+                          padding: EdgeInsets.zero,
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              minHeight: bottomConstraints.maxHeight,
+                            ),
+                            child: Align(
+                              alignment: Alignment.bottomCenter,
+                              child: splitBottomStack,
+                            ),
+                          ),
+                        ),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+        String? rightPanePanelTitle;
+        String? rightPanePanelSubtitle;
+        var rightPanePanelHeightFactor = 0.6;
+        Widget? rightPanePanelChild;
+        var usePanelHeader = true;
+
+        if (supportsSplitPanelOverlay) {
+          if (_widePanel == _WideNowPlayingPanel.settings) {
+            rightPanePanelTitle = l10n.settingsTitle;
+            rightPanePanelHeightFactor = 0.52;
+            rightPanePanelChild = _NowPlayingSettingsPanel(
+              song: song,
+              onCollapse: widget.onCollapse,
+            );
+          } else if (_widePanel == _WideNowPlayingPanel.mix &&
+              playback.currentSongId != null) {
+            rightPanePanelTitle = l10n.nowPlayingInstantMixLabel;
+            rightPanePanelHeightFactor = 0.62;
+            rightPanePanelChild = _EmbeddedMixPanel(
+              seedSongId: playback.currentSongId!,
+            );
+          } else if (_widePanel == _WideNowPlayingPanel.queue) {
+            rightPanePanelTitle = l10n.queueTitle;
+            rightPanePanelHeightFactor = 0.7;
+            usePanelHeader = false;
+            rightPanePanelChild = MediaQuery.removePadding(
+              context: context,
+              removeTop: true,
+              child: QueueSheet(
+                scrollController: _embeddedQueueScrollController,
+                onClose: () =>
+                    setState(() => _widePanel = _WideNowPlayingPanel.none),
+              ),
+            );
+          }
+        }
+
+        final rightPanePanelOverlay = rightPanePanelChild == null
+            ? const SizedBox.shrink()
+            : _EmbeddedRightPaneBottomSheet(
+                key: ValueKey<String>('right-pane-panel-${_widePanel.name}'),
+                title: rightPanePanelTitle,
+                subtitle: rightPanePanelSubtitle,
+                heightFactor: rightPanePanelHeightFactor,
+                useHeader: usePanelHeader,
+                onClose: () =>
+                    setState(() => _widePanel = _WideNowPlayingPanel.none),
+                child: rightPanePanelChild,
+              );
+
+        Widget splitLayout = Padding(
           padding: EdgeInsets.fromLTRB(
             horizontalPadding,
             topInset,
@@ -787,32 +1276,86 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              Expanded(
-                child: Center(child: artOrLyrics),
+              SizedBox(
+                width: metrics.leftPaneWidth,
+                child: lyricsPane,
               ),
-              SizedBox(width: widget.wideEmbeddedMode ? 14 : 20),
+              SizedBox(width: splitGap),
               SizedBox(
                 width: rightPaneWidth,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: colorScheme.surfaceContainerLow,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(
-                      color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+                child: Stack(
+                  children: <Widget>[
+                    Positioned.fill(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: colorScheme.surfaceContainerLow,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: colorScheme.outlineVariant.withValues(
+                              alpha: 0.5,
+                            ),
+                          ),
+                          boxShadow: <BoxShadow>[
+                            BoxShadow(
+                              color: colorScheme.shadow.withValues(alpha: 0.08),
+                              blurRadius: 22,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+                          child: rightPaneContent,
+                        ),
+                      ),
                     ),
-                  ),
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: metadataColumn,
+                    Positioned.fill(
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 220),
+                        reverseDuration: const Duration(milliseconds: 220),
+                        switchInCurve: Curves.easeOut,
+                        switchOutCurve: Curves.easeIn,
+                        layoutBuilder: (currentChild, previousChildren) {
+                          return Stack(
+                            children: <Widget>[
+                              if (currentChild != null) currentChild,
+                            ],
+                          );
+                        },
+                        transitionBuilder: (child, animation) {
+                          final curved = CurvedAnimation(
+                            parent: animation,
+                            curve: Curves.easeOut,
+                            reverseCurve: Curves.easeIn,
+                          );
+                          return ClipRect(
+                            child: SlideTransition(
+                              position: Tween<Offset>(
+                                begin: const Offset(0, 0.08),
+                                end: Offset.zero,
+                              ).animate(curved),
+                              child: child,
+                            ),
+                          );
+                        },
+                        child: rightPanePanelOverlay,
+                      ),
                     ),
-                  ),
+                  ],
                 ),
               ),
             ],
           ),
         );
+        if (widget.wideEmbeddedMode) {
+          splitLayout = GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onVerticalDragEnd: (details) =>
+                _handleWideVerticalSwipe(details, splitLayout: true),
+            child: splitLayout,
+          );
+        }
+        return splitLayout;
       },
     );
   }
@@ -1040,37 +1583,14 @@ class _NowPlayingInfoPanelState extends ConsumerState<_NowPlayingInfoPanel> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final pages = <_NowPlayingInfoPage>[
-      _NowPlayingInfoPage(
-        icon: Icons.info_outline,
-        semanticLabel: l10n.nowPlayingAudioQuality,
-        value: _formatAudioQuality(
-          song: widget.song,
-          mediaItem: widget.currentMediaItem,
-        ),
-      ),
-      _NowPlayingInfoPage(
-        icon: Icons.queue_music_outlined,
-        semanticLabel: l10n.queueTitle,
-        value: _formatQueuePosition(l10n, widget.playback),
-      ),
-      _NowPlayingInfoPage(
-        icon: Icons.calendar_today_outlined,
-        semanticLabel: l10n.nowPlayingReleaseDate,
-        value: _formatReleaseDate(widget.song, widget.album),
-      ),
-      _NowPlayingInfoPage(
-        icon: Icons.speed_outlined,
-        semanticLabel: l10n.playbackSettingsPlaybackSpeedLabel,
-        value: _formatPlaybackRate(widget.playbackSpeed),
-      ),
-      _NowPlayingInfoPage(
-        icon: Icons.star_border,
-        semanticLabel: l10n.ratingTitle,
-        value: _formatPreferenceSummary(l10n, widget.song),
-        isRatingPage: true,
-      ),
-    ];
+    final pages = _buildNowPlayingInfoPages(
+      l10n: l10n,
+      song: widget.song,
+      album: widget.album,
+      playback: widget.playback,
+      currentMediaItem: widget.currentMediaItem,
+      playbackSpeed: widget.playbackSpeed,
+    );
     final activeIndex = _pageIndex % pages.length;
     final page = pages[activeIndex];
     final colors = Theme.of(context).colorScheme;
@@ -1197,6 +1717,220 @@ class _NowPlayingInfoPage {
   final String semanticLabel;
   final String value;
   final bool isRatingPage;
+}
+
+List<_NowPlayingInfoPage> _buildNowPlayingInfoPages({
+  required AppLocalizations l10n,
+  required SongsTableData? song,
+  required AlbumsTableData? album,
+  required PlaybackSnapshot playback,
+  required MediaItem? currentMediaItem,
+  required double playbackSpeed,
+}) {
+  return <_NowPlayingInfoPage>[
+    _NowPlayingInfoPage(
+      icon: Icons.info_outline,
+      semanticLabel: l10n.nowPlayingAudioQuality,
+      value: _formatAudioQuality(
+        song: song,
+        mediaItem: currentMediaItem,
+      ),
+    ),
+    _NowPlayingInfoPage(
+      icon: Icons.queue_music_outlined,
+      semanticLabel: l10n.queueTitle,
+      value: _formatQueuePosition(l10n, playback),
+    ),
+    _NowPlayingInfoPage(
+      icon: Icons.calendar_today_outlined,
+      semanticLabel: l10n.nowPlayingReleaseDate,
+      value: _formatReleaseDate(song, album),
+    ),
+    _NowPlayingInfoPage(
+      icon: Icons.speed_outlined,
+      semanticLabel: l10n.playbackSettingsPlaybackSpeedLabel,
+      value: _formatPlaybackRate(playbackSpeed),
+    ),
+    _NowPlayingInfoPage(
+      icon: Icons.star_border,
+      semanticLabel: l10n.ratingTitle,
+      value: _formatPreferenceSummary(l10n, song),
+      isRatingPage: true,
+    ),
+  ];
+}
+
+class _NowPlayingInfoGrid extends ConsumerWidget {
+  const _NowPlayingInfoGrid({
+    required this.song,
+    required this.album,
+    required this.playback,
+    required this.currentMediaItem,
+    required this.playbackSpeed,
+  });
+
+  final SongsTableData? song;
+  final AlbumsTableData? album;
+  final PlaybackSnapshot playback;
+  final MediaItem? currentMediaItem;
+  final double playbackSpeed;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final pages = _buildNowPlayingInfoPages(
+      l10n: l10n,
+      song: song,
+      album: album,
+      playback: playback,
+      currentMediaItem: currentMediaItem,
+      playbackSpeed: playbackSpeed,
+    );
+    final infoPages = pages.where((page) => !page.isRatingPage).toList();
+    _NowPlayingInfoPage? ratingPage;
+    for (final page in pages) {
+      if (page.isRatingPage) {
+        ratingPage = page;
+        break;
+      }
+    }
+    final colors = Theme.of(context).colorScheme;
+    final labelStyle = Theme.of(context).textTheme.labelSmall?.copyWith(
+      color: colors.onSurfaceVariant.withValues(alpha: 0.86),
+      fontWeight: FontWeight.w600,
+    );
+    final valueStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+      color: colors.onSurface,
+      fontWeight: FontWeight.w500,
+    );
+    final currentSongId = song?.id;
+    final currentRating = currentSongId == null
+        ? null
+        : ref.watch(songRatingProvider(currentSongId)).asData?.value;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        for (var i = 0; i < infoPages.length; i += 2) ...<Widget>[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Expanded(
+                child: _NowPlayingInfoGridCell(
+                  page: infoPages[i],
+                  labelStyle: labelStyle,
+                  valueStyle: valueStyle,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: i + 1 < infoPages.length
+                    ? _NowPlayingInfoGridCell(
+                        page: infoPages[i + 1],
+                        labelStyle: labelStyle,
+                        valueStyle: valueStyle,
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            ],
+          ),
+          if (i + 2 < infoPages.length) const SizedBox(height: 8),
+        ],
+        if (ratingPage != null) ...<Widget>[
+          const SizedBox(height: 10),
+          Row(
+            children: <Widget>[
+              Icon(
+                ratingPage.icon,
+                size: 14,
+                color: colors.onSurfaceVariant.withValues(alpha: 0.72),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                ratingPage.semanticLabel,
+                style: labelStyle,
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          if (currentSongId != null)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: RatingWidget(
+                rating: currentRating,
+                compact: true,
+                onChanged: (next) {
+                  unawaited(
+                    setSongRating(currentSongId, next, ref).catchError((_) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(l10n.ratingUpdateFailed)),
+                        );
+                      }
+                    }),
+                  );
+                },
+              ),
+            )
+          else
+            Text(
+              ratingPage.value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: valueStyle,
+            ),
+        ],
+      ],
+    );
+  }
+}
+
+class _NowPlayingInfoGridCell extends StatelessWidget {
+  const _NowPlayingInfoGridCell({
+    required this.page,
+    required this.labelStyle,
+    required this.valueStyle,
+  });
+
+  final _NowPlayingInfoPage page;
+  final TextStyle? labelStyle;
+  final TextStyle? valueStyle;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Icon(
+          page.icon,
+          size: 14,
+          color: colors.onSurfaceVariant.withValues(alpha: 0.72),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                page.semanticLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: labelStyle,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                page.value,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: valueStyle,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 String _formatAudioQuality({
@@ -1486,10 +2220,15 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
 }
 
 class _TransportControls extends ConsumerWidget {
-  const _TransportControls({required this.playback, this.isRadio = false});
+  const _TransportControls({
+    required this.playback,
+    this.isRadio = false,
+    this.compact = false,
+  });
 
   final PlaybackSnapshot playback;
   final bool isRadio;
+  final bool compact;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1506,7 +2245,7 @@ class _TransportControls extends ConsumerWidget {
             child: FilledButton(
               style: FilledButton.styleFrom(
                 shape: const CircleBorder(),
-                padding: const EdgeInsets.all(16),
+                padding: EdgeInsets.all(compact ? 12 : 16),
               ),
               onPressed: () {
                 final handler = ref.read(audioHandlerProvider);
@@ -1518,13 +2257,13 @@ class _TransportControls extends ConsumerWidget {
               },
               child: Icon(
                 isPlaying ? Icons.pause : Icons.play_arrow,
-                size: 36,
+                size: compact ? 30 : 36,
               ),
             ),
           ),
-          const SizedBox(width: 16),
+          SizedBox(width: compact ? 10 : 16),
           IconButton(
-            icon: const Icon(Icons.stop, size: 32),
+            icon: Icon(Icons.stop, size: compact ? 28 : 32),
             tooltip: l10n.radioStopStation,
             onPressed: () {
               final handler = ref.read(audioHandlerProvider);
@@ -1563,6 +2302,7 @@ class _TransportControls extends ConsumerWidget {
             Icons.shuffle,
             color: shuffleOn ? Theme.of(context).colorScheme.primary : null,
           ),
+          visualDensity: compact ? VisualDensity.compact : null,
           tooltip: shuffleOn
               ? l10n.nowPlayingShuffle
               : l10n.nowPlayingShuffleOff,
@@ -1574,9 +2314,10 @@ class _TransportControls extends ConsumerWidget {
             unawaited(handler?.setShuffleMode(next));
           },
         ),
-        const SizedBox(width: 8),
+        SizedBox(width: compact ? 4 : 8),
         IconButton(
-          icon: const Icon(Icons.skip_previous, size: 32),
+          icon: Icon(Icons.skip_previous, size: compact ? 28 : 32),
+          visualDensity: compact ? VisualDensity.compact : null,
           tooltip: l10n.nowPlayingPrevious,
           onPressed: () {
             HapticFeedback.mediumImpact();
@@ -1584,13 +2325,13 @@ class _TransportControls extends ConsumerWidget {
             unawaited(handler?.skipToPrevious());
           },
         ),
-        const SizedBox(width: 8),
+        SizedBox(width: compact ? 4 : 8),
         Tooltip(
           message: isPlaying ? l10n.nowPlayingPause : l10n.nowPlayingPlay,
           child: FilledButton(
             style: FilledButton.styleFrom(
               shape: const CircleBorder(),
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.all(compact ? 12 : 16),
             ),
             onPressed: () {
               final handler = ref.read(audioHandlerProvider);
@@ -1602,13 +2343,14 @@ class _TransportControls extends ConsumerWidget {
             },
             child: Icon(
               isPlaying ? Icons.pause : Icons.play_arrow,
-              size: 36,
+              size: compact ? 30 : 36,
             ),
           ),
         ),
-        const SizedBox(width: 8),
+        SizedBox(width: compact ? 4 : 8),
         IconButton(
-          icon: const Icon(Icons.skip_next, size: 32),
+          icon: Icon(Icons.skip_next, size: compact ? 28 : 32),
+          visualDensity: compact ? VisualDensity.compact : null,
           tooltip: l10n.nowPlayingNext,
           onPressed: () {
             HapticFeedback.mediumImpact();
@@ -1616,7 +2358,7 @@ class _TransportControls extends ConsumerWidget {
             unawaited(handler?.skipToNext());
           },
         ),
-        const SizedBox(width: 8),
+        SizedBox(width: compact ? 4 : 8),
         IconButton(
           icon: Icon(
             repeatIcon,
@@ -1624,6 +2366,7 @@ class _TransportControls extends ConsumerWidget {
                 ? Theme.of(context).colorScheme.primary
                 : null,
           ),
+          visualDensity: compact ? VisualDensity.compact : null,
           tooltip: repeatTooltip,
           onPressed: () {
             final handler = ref.read(audioHandlerProvider);
@@ -1644,9 +2387,11 @@ class _TransportControls extends ConsumerWidget {
 class _InlineLyrics extends ConsumerWidget {
   const _InlineLyrics({
     required this.songId,
+    this.maxSize,
   });
 
   final String songId;
+  final double? maxSize;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1656,8 +2401,8 @@ class _InlineLyrics extends ConsumerWidget {
         ref.watch(playbackPositionProvider).asData?.value ??
         ref.watch(playerStateProvider).position;
 
-    return lyricsAsync.when(
-      data: (resolution) => LyricsDisplayWidget(
+    Widget buildContent(LyricsResolution resolution) {
+      return LyricsDisplayWidget(
         lyrics: resolution.lyrics,
         currentPosition: position,
         sourceLabel: _showExternalLyricsMeta(resolution)
@@ -1670,8 +2415,27 @@ class _InlineLyrics extends ConsumerWidget {
           final handler = ref.read(audioHandlerProvider);
           handler?.seek(seekPosition);
         },
+      );
+    }
+
+    Widget withOptionalSquareFrame(Widget child) {
+      final size = maxSize;
+      if (size == null) {
+        return child;
+      }
+      final framedSize = size.clamp(180.0, 680.0);
+      return SizedBox(
+        width: framedSize,
+        height: framedSize,
+        child: child,
+      );
+    }
+
+    return lyricsAsync.when(
+      data: (resolution) => withOptionalSquareFrame(buildContent(resolution)),
+      loading: () => withOptionalSquareFrame(
+        const Center(child: CircularProgressIndicator()),
       ),
-      loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, _) {
         final l10n = AppLocalizations.of(context)!;
         final String message;
@@ -1688,7 +2452,7 @@ class _InlineLyrics extends ConsumerWidget {
           onRetry = null;
         }
 
-        return Center(
+        final errorView = Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -1712,6 +2476,7 @@ class _InlineLyrics extends ConsumerWidget {
             ],
           ),
         );
+        return withOptionalSquareFrame(errorView);
       },
     );
   }
@@ -1956,6 +2721,7 @@ class _ActionRow extends ConsumerStatefulWidget {
     this.showLyrics = false,
     this.onLyricsToggle,
     this.wideEmbeddedMode = false,
+    this.onOpenQueuePanel,
     this.onOpenSettingsPanel,
     this.onOpenSettingsSheet,
     this.onOpenMixPanel,
@@ -1967,6 +2733,7 @@ class _ActionRow extends ConsumerStatefulWidget {
   final bool showLyrics;
   final VoidCallback? onLyricsToggle;
   final bool wideEmbeddedMode;
+  final VoidCallback? onOpenQueuePanel;
   final VoidCallback? onOpenSettingsPanel;
   final VoidCallback? onOpenSettingsSheet;
   final VoidCallback? onOpenMixPanel;
@@ -2051,7 +2818,9 @@ class _ActionRowState extends ConsumerState<_ActionRow>
             color: colorScheme.onSurfaceVariant,
           ),
           label: l10n.nowPlayingQueue,
-          onTap: () => NavService.showQueue(context, ref),
+          onTap: (widget.wideEmbeddedMode && widget.onOpenQueuePanel != null)
+              ? widget.onOpenQueuePanel
+              : () => NavService.showQueue(context, ref),
         ),
         _NowPlayingActionButton(
           icon: mixIcon,
@@ -2147,7 +2916,157 @@ class _NowPlayingActionButton extends StatelessWidget {
   }
 }
 
-enum _WideNowPlayingPanel { none, lyrics, settings, mix }
+enum _WideNowPlayingPanel { none, settings, mix, queue }
+
+enum _NowPlayingLayoutMode { compact, standard, split }
+
+class _NowPlayingSplitMetrics {
+  const _NowPlayingSplitMetrics({
+    required this.outerPadding,
+    required this.gap,
+    required this.leftPaneWidth,
+    required this.rightPaneWidth,
+    required this.artSize,
+  });
+
+  final double outerPadding;
+  final double gap;
+  final double leftPaneWidth;
+  final double rightPaneWidth;
+  final double artSize;
+}
+
+class _EmbeddedRightPaneBottomSheet extends StatelessWidget {
+  const _EmbeddedRightPaneBottomSheet({
+    required this.heightFactor,
+    required this.useHeader,
+    required this.onClose,
+    required this.child,
+    this.title,
+    this.subtitle,
+    super.key,
+  });
+
+  final double heightFactor;
+  final bool useHeader;
+  final VoidCallback onClose;
+  final Widget child;
+  final String? title;
+  final String? subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Stack(
+      children: <Widget>[
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onClose,
+            child: ColoredBox(
+              color: Colors.black.withValues(alpha: 0.26),
+            ),
+          ),
+        ),
+        Align(
+          alignment: Alignment.bottomCenter,
+          child: FractionallySizedBox(
+            heightFactor: heightFactor.clamp(0.42, 0.84),
+            widthFactor: 1,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onVerticalDragEnd: (details) {
+                final velocity = details.primaryVelocity ?? 0;
+                if (velocity > 280) {
+                  onClose();
+                }
+              },
+              child: Material(
+                color: colorScheme.surfaceContainerHigh,
+                elevation: 14,
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: useHeader
+                    ? Column(
+                        children: <Widget>[
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(10, 8, 6, 6),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                Container(
+                                  width: 34,
+                                  height: 4,
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  decoration: BoxDecoration(
+                                    color: colorScheme.onSurfaceVariant
+                                        .withValues(
+                                          alpha: 0.4,
+                                        ),
+                                    borderRadius: BorderRadius.circular(2),
+                                  ),
+                                ),
+                                Row(
+                                  children: <Widget>[
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: <Widget>[
+                                          if (title != null &&
+                                              title!.isNotEmpty)
+                                            Text(
+                                              title!,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style:
+                                                  theme.textTheme.titleMedium,
+                                            ),
+                                          if (subtitle != null &&
+                                              subtitle!.isNotEmpty)
+                                            Text(
+                                              subtitle!,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: theme.textTheme.bodySmall
+                                                  ?.copyWith(
+                                                    color: colorScheme
+                                                        .onSurfaceVariant,
+                                                  ),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                    IconButton(
+                                      tooltip: MaterialLocalizations.of(
+                                        context,
+                                      ).closeButtonTooltip,
+                                      onPressed: onClose,
+                                      icon: const Icon(Icons.close),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Divider(height: 1),
+                          Expanded(child: child),
+                        ],
+                      )
+                    : child,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
 
 class _EmbeddedNowPlayingPanelScaffold extends StatelessWidget {
   const _EmbeddedNowPlayingPanelScaffold({

@@ -334,6 +334,16 @@ Future<void> disposeNavisPlaybackHandler(NavisPlaybackHandler handler) async {
   }
 }
 
+void beginNavisPlaybackHandlerTeardown(NavisPlaybackHandler handler) {
+  if (handler is WindowsNavisPlaybackHandler) {
+    handler.beginTeardown();
+    return;
+  }
+  if (handler is NavisAudioHandler) {
+    handler.beginTeardown();
+  }
+}
+
 Future<NavisPlaybackHandler> initNavisAudioHandler({
   required LibraryDao libraryDao,
   required PlayQueueDao playQueueDao,
@@ -417,6 +427,11 @@ class WindowsNavisPlaybackHandler implements NavisPlaybackHandler {
 
   final NavisAudioHandler _delegate;
   late final WindowsSmtcBridge _smtcBridge;
+
+  void beginTeardown() {
+    _delegate.beginTeardown();
+    unawaited(_smtcBridge.dispose());
+  }
 
   Future<void> dispose() async {
     await _smtcBridge.dispose();
@@ -656,6 +671,9 @@ class NavisAudioHandler extends BaseAudioHandler
     handler: this,
     player: _player,
   );
+  Future<void>? _playerDisposalFuture;
+  bool _disposeHandlerStarted = false;
+  bool _disposeHandlerCompleted = false;
 
   @override
   PlaybackSnapshot get snapshot => _snapshot;
@@ -2518,6 +2536,14 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   Future<void> disposeHandler() async {
+    if (_disposeHandlerCompleted) {
+      return;
+    }
+    if (_disposeHandlerStarted) {
+      await _ensurePlayerDisposalStarted();
+      return;
+    }
+    _disposeHandlerStarted = true;
     _cancelCrossfade();
     _positionPersistTimer?.cancel();
     _radioStation = null;
@@ -2529,10 +2555,49 @@ class NavisAudioHandler extends BaseAudioHandler
       await subscription.cancel();
     }
     _cacheProgressSubscriptions.clear();
-    await _persistSafely(_persistPosition, context: 'dispose handler');
-    await _player.dispose();
+    if (_playerDisposalFuture == null) {
+      await _persistSafely(_persistPosition, context: 'dispose handler');
+    }
+    await _ensurePlayerDisposalStarted();
     await _snapshotController.close();
     await _radioStreamErrorController.close();
+    _disposeHandlerCompleted = true;
+  }
+
+  void beginTeardown() {
+    if (_disposeHandlerCompleted) {
+      return;
+    }
+    if (_disposeHandlerStarted) {
+      unawaited(_ensurePlayerDisposalStarted());
+      return;
+    }
+    _disposeHandlerStarted = true;
+    _cancelCrossfade();
+    _positionPersistTimer?.cancel();
+    _radioStation = null;
+    _radioMetadataService.dispose();
+    unawaited(_disposePlayerListeners());
+    for (final subscription in _cacheProgressSubscriptions.values) {
+      unawaited(subscription.cancel());
+    }
+    _cacheProgressSubscriptions.clear();
+    unawaited(_ensurePlayerDisposalStarted());
+  }
+
+  Future<void> _ensurePlayerDisposalStarted() {
+    return _playerDisposalFuture ??= () async {
+      try {
+        await _player.stop();
+      } on Object {
+        // Ignore stop failures during teardown.
+      }
+      try {
+        await _player.dispose();
+      } on Object {
+        // Ignore disposal failures during teardown.
+      }
+    }();
   }
 
   // ---------------------------------------------------------------------------

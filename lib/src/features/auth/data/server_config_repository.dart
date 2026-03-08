@@ -3,6 +3,7 @@ import 'package:navis/src/database/daos/server_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
+import 'package:navis/src/utils/app_logger.dart';
 
 class ServerConfigRepository {
   ServerConfigRepository(
@@ -92,11 +93,11 @@ class ServerConfigRepository {
 
   Future<ServerConfigModel?> _mapRowToModel(ServerConfigTableData? row) async {
     if (row == null) {
-      await _credentials.clearPassword();
+      await _clearPasswordIfPossible();
       return null;
     }
 
-    final password = await _credentials.readPassword();
+    final password = await _readPasswordIfPossible();
     if (password == null || password.isEmpty) {
       await _serverDao.clearServer();
       return null;
@@ -113,5 +114,22 @@ class ServerConfigRepository {
       lastSynced: row.lastSynced,
       lastFullSyncedAt: row.lastFullSynced,
     );
+  }
+
+  Future<void> _clearPasswordIfPossible() async {
+    try {
+      await _credentials.clearPassword();
+    } on Object catch (error) {
+      AppLogger.warning('Secure credential clear failed: $error');
+    }
+  }
+
+  Future<String?> _readPasswordIfPossible() async {
+    try {
+      return await _credentials.readPassword();
+    } on Object catch (error) {
+      AppLogger.warning('Secure credential read failed: $error');
+      return null;
+    }
   }
 }

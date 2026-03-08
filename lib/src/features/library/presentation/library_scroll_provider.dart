@@ -14,3 +14,25 @@ final libraryScrollToTopRequestProvider =
     NotifierProvider<_LibraryScrollToTopNotifier, int>(
       _LibraryScrollToTopNotifier.new,
     );
+
+enum LibrarySection {
+  albums,
+  liked,
+  artists,
+  playlists,
+  radio,
+}
+
+class _LibrarySectionNotifier extends Notifier<LibrarySection> {
+  @override
+  LibrarySection build() => LibrarySection.albums;
+
+  void setSection(LibrarySection section) {
+    state = section;
+  }
+}
+
+final librarySectionProvider =
+    NotifierProvider<_LibrarySectionNotifier, LibrarySection>(
+      _LibrarySectionNotifier.new,
+    );

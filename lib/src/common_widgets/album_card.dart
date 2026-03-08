@@ -32,6 +32,7 @@ class AlbumCard extends ConsumerWidget {
     this.badge,
     this.onTap,
     this.onLongPress,
+    this.onSecondaryTapDown,
   });
 
   final AlbumsTableData album;
@@ -42,6 +43,7 @@ class AlbumCard extends ConsumerWidget {
   final Widget? badge;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
+  final GestureTapDownCallback? onSecondaryTapDown;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -63,6 +65,7 @@ class AlbumCard extends ConsumerWidget {
           ),
           child: InkWell(
             onTap: onTap,
+            onSecondaryTapDown: onSecondaryTapDown,
             onLongPress: onLongPress == null
                 ? null
                 : () {

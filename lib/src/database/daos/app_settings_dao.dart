@@ -49,6 +49,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     required String themeMode,
     int? colorSchemeSeed,
     String? appLocale,
+    required bool desktopUiV1Enabled,
     required bool crossfadeEnabled,
     required int crossfadeDurationSeconds,
     required String crossfadeType,
@@ -95,6 +96,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         themeMode: Value(themeMode),
         colorSchemeSeed: Value(colorSchemeSeed),
         appLocale: Value(appLocale),
+        desktopUiV1Enabled: Value(desktopUiV1Enabled),
         crossfadeEnabled: Value(crossfadeEnabled),
         crossfadeDurationSeconds: Value(crossfadeDurationSeconds),
         crossfadeType: Value(crossfadeType),
@@ -144,6 +146,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       themeMode: 'dark',
       colorSchemeSeed: null,
       appLocale: null,
+      desktopUiV1Enabled: false,
       crossfadeEnabled: false,
       crossfadeDurationSeconds: 5,
       crossfadeType: 'normal',
@@ -214,6 +217,18 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     )..where((t) => t.id.equals(primarySettingsId))).write(
       AppSettingsTableCompanion(
         showLikedPage: Value(enabled),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Targeted update for desktop UI v1 feature flag.
+  Future<void> updateDesktopUiV1Enabled({required bool enabled}) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        desktopUiV1Enabled: Value(enabled),
         updatedAt: Value(DateTime.now()),
       ),
     );

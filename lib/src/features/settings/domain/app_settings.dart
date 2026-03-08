@@ -24,6 +24,7 @@ class AppSettingsModel {
     required this.themeMode,
     required this.colorSchemeSeed,
     required this.appLocale,
+    required this.desktopUiV1Enabled,
     required this.crossfadeEnabled,
     required this.crossfadeDurationSeconds,
     required this.crossfadeType,
@@ -69,6 +70,7 @@ class AppSettingsModel {
       themeMode = 'dark',
       colorSchemeSeed = null,
       appLocale = null,
+      desktopUiV1Enabled = false,
       crossfadeEnabled = false,
       crossfadeDurationSeconds = 5,
       crossfadeType = 'normal',
@@ -114,6 +116,7 @@ class AppSettingsModel {
   final String themeMode;
   final int? colorSchemeSeed;
   final String? appLocale;
+  final bool desktopUiV1Enabled;
   final bool crossfadeEnabled;
   final int crossfadeDurationSeconds;
   final String crossfadeType;
@@ -178,6 +181,7 @@ class AppSettingsModel {
     String? themeMode,
     int? colorSchemeSeed,
     String? appLocale,
+    bool? desktopUiV1Enabled,
     bool? crossfadeEnabled,
     int? crossfadeDurationSeconds,
     String? crossfadeType,
@@ -243,6 +247,7 @@ class AppSettingsModel {
           ? null
           : colorSchemeSeed ?? this.colorSchemeSeed,
       appLocale: clearAppLocale ? null : appLocale ?? this.appLocale,
+      desktopUiV1Enabled: desktopUiV1Enabled ?? this.desktopUiV1Enabled,
       crossfadeEnabled: crossfadeEnabled ?? this.crossfadeEnabled,
       crossfadeDurationSeconds:
           crossfadeDurationSeconds ?? this.crossfadeDurationSeconds,

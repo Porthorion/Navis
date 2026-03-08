@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
@@ -14,6 +15,7 @@ import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
@@ -172,6 +174,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final l10n = AppLocalizations.of(context)!;
     final query = ref.watch(searchQueryProvider);
     final hasQuery = query.trim().isNotEmpty;
+    final desktopUiV1 = ref.watch(desktopUiV1EnabledProvider);
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final layoutClass = resolveDesktopLayoutClass(screenWidth);
+    final adaptiveLayoutClass = resolveAdaptiveLayoutClass(screenWidth);
+    final tabletMode =
+        !isDesktopRuntime &&
+        adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact;
 
     // Sync the text controller when the query changes externally
     // (e.g. NavService.goToSearch sets the provider from radio tap).
@@ -179,6 +188,90 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       _controller.text = query;
       _controller.selection = TextSelection.fromPosition(
         TextPosition(offset: query.length),
+      );
+    }
+
+    if (desktopUiV1) {
+      return Scaffold(
+        body: SafeArea(
+          child: DesktopFrame(
+            layoutClass: layoutClass,
+            child: Column(
+              children: <Widget>[
+                DesktopPanel(
+                  child: _SearchBar(
+                    controller: _controller,
+                    focusNode: _focusNode,
+                    hint: l10n.searchHint,
+                    onChanged: _onQueryChanged,
+                    onSubmitted: _onSearchSubmitted,
+                    onClear: hasQuery ? _clearSearch : null,
+                    desktopMode: true,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (hasQuery) _SearchFilterChips(desktopMode: true),
+                if (hasQuery) _OfflineSearchBanner(desktopMode: true),
+                Expanded(
+                  child: DesktopPanel(
+                    padding: EdgeInsets.zero,
+                    child: hasQuery
+                        ? _buildResults(desktopMode: true)
+                        : _buildRecentSearches(desktopMode: true),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (tabletMode) {
+      final maxWidth = switch (adaptiveLayoutClass) {
+        AdaptiveLayoutClass.tabletMedium => 860.0,
+        AdaptiveLayoutClass.tabletExpanded => 1040.0,
+        AdaptiveLayoutClass.phoneCompact => double.infinity,
+      };
+      return Scaffold(
+        body: SafeArea(
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: maxWidth),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
+                child: Column(
+                  children: <Widget>[
+                    DesktopPanel(
+                      child: _SearchBar(
+                        controller: _controller,
+                        focusNode: _focusNode,
+                        hint: l10n.searchHint,
+                        onChanged: _onQueryChanged,
+                        onSubmitted: _onSearchSubmitted,
+                        onClear: hasQuery ? _clearSearch : null,
+                        desktopMode: true,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    if (hasQuery) _SearchFilterChips(desktopMode: true),
+                    if (hasQuery) _OfflineSearchBanner(desktopMode: true),
+                    Expanded(
+                      child: Card(
+                        margin: EdgeInsets.zero,
+                        clipBehavior: Clip.antiAlias,
+                        child: hasQuery
+                            ? _buildResults(desktopMode: true)
+                            : _buildRecentSearches(desktopMode: true),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
       );
     }
 
@@ -205,7 +298,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
-  Widget _buildResults() {
+  Widget _buildResults({bool desktopMode = false}) {
     final results = ref.watch(debouncedSearchProvider);
     final l10n = AppLocalizations.of(context)!;
 
@@ -226,6 +319,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             if (data.artists.isNotEmpty)
               _ArtistResultsSection(
                 artists: data.artists,
+                desktopMode: desktopMode,
                 expanded: _expandedSections[SearchResultType.artists] ?? false,
                 onToggleExpanded: () => setState(() {
                   _expandedSections[SearchResultType.artists] =
@@ -235,6 +329,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             if (data.albums.isNotEmpty)
               _AlbumResultsSection(
                 albums: data.albums,
+                desktopMode: desktopMode,
                 expanded: _expandedSections[SearchResultType.albums] ?? false,
                 onToggleExpanded: () => setState(() {
                   _expandedSections[SearchResultType.albums] =
@@ -244,6 +339,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             if (data.songs.isNotEmpty)
               _SongResultsSection(
                 songs: data.songs,
+                desktopMode: desktopMode,
                 expanded: _expandedSections[SearchResultType.songs] ?? false,
                 onToggleExpanded: () => setState(() {
                   _expandedSections[SearchResultType.songs] =
@@ -262,7 +358,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
-  Widget _buildRecentSearches() {
+  Widget _buildRecentSearches({bool desktopMode = false}) {
     final recentAsync = ref.watch(recentSearchesProvider);
     final l10n = AppLocalizations.of(context)!;
 
@@ -275,6 +371,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           );
         }
         return ListView(
+          padding: desktopMode
+              ? const EdgeInsets.fromLTRB(8, 8, 8, 8)
+              : EdgeInsets.zero,
           children: <Widget>[
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 8, 4),
@@ -319,6 +418,7 @@ class _SearchBar extends StatelessWidget {
     required this.hint,
     required this.onChanged,
     required this.onSubmitted,
+    this.desktopMode = false,
     this.onClear,
   });
 
@@ -327,10 +427,15 @@ class _SearchBar extends StatelessWidget {
   final String hint;
   final ValueChanged<String> onChanged;
   final ValueChanged<String> onSubmitted;
+  final bool desktopMode;
   final VoidCallback? onClear;
 
   @override
   Widget build(BuildContext context) {
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide.none,
+    );
     return TextField(
       controller: controller,
       focusNode: focusNode,
@@ -338,7 +443,16 @@ class _SearchBar extends StatelessWidget {
       textInputAction: TextInputAction.search,
       decoration: InputDecoration(
         hintText: hint,
-        border: InputBorder.none,
+        border: desktopMode ? border : InputBorder.none,
+        enabledBorder: desktopMode ? border : InputBorder.none,
+        focusedBorder: desktopMode ? border : InputBorder.none,
+        fillColor: desktopMode
+            ? Theme.of(context).colorScheme.surfaceContainerHigh
+            : null,
+        filled: desktopMode,
+        contentPadding: desktopMode
+            ? const EdgeInsets.symmetric(horizontal: 14, vertical: 14)
+            : null,
         suffixIcon: onClear != null
             ? IconButton(
                 icon: const Icon(Icons.close),
@@ -353,13 +467,20 @@ class _SearchBar extends StatelessWidget {
 }
 
 class _SearchFilterChips extends ConsumerWidget {
+  const _SearchFilterChips({this.desktopMode = false});
+
+  final bool desktopMode;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final selected = ref.watch(searchFilterProvider);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: EdgeInsets.symmetric(
+        horizontal: desktopMode ? 4 : 16,
+        vertical: 4,
+      ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
@@ -420,6 +541,10 @@ class _SearchFilterChips extends ConsumerWidget {
 }
 
 class _OfflineSearchBanner extends ConsumerWidget {
+  const _OfflineSearchBanner({this.desktopMode = false});
+
+  final bool desktopMode;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isOffline = ref.watch(searchIsOfflineProvider);
@@ -428,7 +553,11 @@ class _OfflineSearchBanner extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: desktopMode ? const EdgeInsets.only(bottom: 8) : EdgeInsets.zero,
+      padding: EdgeInsets.symmetric(
+        horizontal: desktopMode ? 12 : 16,
+        vertical: 8,
+      ),
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
       child: Row(
         children: <Widget>[
@@ -492,10 +621,12 @@ class _ArtistResultsSection extends ConsumerWidget {
     required this.artists,
     required this.expanded,
     required this.onToggleExpanded,
+    this.desktopMode = false,
   });
 
   final List<Artist> artists;
   final bool expanded;
+  final bool desktopMode;
   final VoidCallback onToggleExpanded;
 
   @override
@@ -514,31 +645,43 @@ class _ArtistResultsSection extends ConsumerWidget {
           onToggle: onToggleExpanded,
           itemCount: artists.length,
         ),
-        ...visible.map(
-          (artist) => ListTile(
-            leading: ClipRRect(
-              borderRadius: artistRadius,
-              child: SizedBox(
-                width: 40,
-                height: 40,
-                child: artist.coverArt != null
-                    ? CoverArtImage(
-                        coverArtId: artist.coverArt,
-                        size: 80,
-                        width: 40,
-                        height: 40,
-                        borderRadius: artistRadius,
-                      )
-                    : const Icon(Icons.person),
-              ),
+        ...visible.map((artist) {
+          final leading = ClipRRect(
+            borderRadius: artistRadius,
+            child: SizedBox(
+              width: 40,
+              height: 40,
+              child: artist.coverArt != null
+                  ? CoverArtImage(
+                      coverArtId: artist.coverArt,
+                      size: 80,
+                      width: 40,
+                      height: 40,
+                      borderRadius: artistRadius,
+                    )
+                  : const Icon(Icons.person),
             ),
+          );
+          if (desktopMode) {
+            return DesktopListRow(
+              leading: leading,
+              title: artist.name,
+              subtitle: artist.albumCount != null
+                  ? l10n.searchAlbumCount(artist.albumCount!)
+                  : null,
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => NavService.goToArtist(context, ref, artist.id),
+            );
+          }
+          return ListTile(
+            leading: leading,
             title: Text(artist.name),
             subtitle: artist.albumCount != null
                 ? Text(l10n.searchAlbumCount(artist.albumCount!))
                 : null,
             onTap: () => NavService.goToArtist(context, ref, artist.id),
-          ),
-        ),
+          );
+        }),
       ],
     );
   }
@@ -549,10 +692,12 @@ class _AlbumResultsSection extends ConsumerWidget {
     required this.albums,
     required this.expanded,
     required this.onToggleExpanded,
+    this.desktopMode = false,
   });
 
   final List<Album> albums;
   final bool expanded;
+  final bool desktopMode;
   final VoidCallback onToggleExpanded;
 
   @override
@@ -571,20 +716,30 @@ class _AlbumResultsSection extends ConsumerWidget {
           onToggle: onToggleExpanded,
           itemCount: albums.length,
         ),
-        ...visible.map(
-          (album) => ListTile(
-            leading: CoverArtImage(
-              coverArtId: album.coverArt,
-              size: 80,
-              width: 48,
-              height: 48,
-              borderRadius: coverRadius,
-            ),
+        ...visible.map((album) {
+          final leading = CoverArtImage(
+            coverArtId: album.coverArt,
+            size: 80,
+            width: 48,
+            height: 48,
+            borderRadius: coverRadius,
+          );
+          if (desktopMode) {
+            return DesktopListRow(
+              leading: leading,
+              title: album.name,
+              subtitle: album.artist ?? '',
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => NavService.goToAlbum(context, ref, album.id),
+            );
+          }
+          return ListTile(
+            leading: leading,
             title: Text(album.name),
             subtitle: Text(album.artist ?? ''),
             onTap: () => NavService.goToAlbum(context, ref, album.id),
-          ),
-        ),
+          );
+        }),
       ],
     );
   }
@@ -595,10 +750,12 @@ class _SongResultsSection extends ConsumerWidget {
     required this.songs,
     required this.expanded,
     required this.onToggleExpanded,
+    this.desktopMode = false,
   });
 
   final List<Song> songs;
   final bool expanded;
+  final bool desktopMode;
   final VoidCallback onToggleExpanded;
 
   @override
@@ -620,6 +777,37 @@ class _SongResultsSection extends ConsumerWidget {
         ...visible.asMap().entries.map(
           (entry) {
             final song = entry.value;
+
+            if (desktopMode) {
+              return DesktopListRow(
+                leading: CoverArtImage(
+                  coverArtId: song.coverArt,
+                  size: 80,
+                  width: 46,
+                  height: 46,
+                  borderRadius: coverRadius,
+                ),
+                title: song.title,
+                subtitle: <String>[
+                  if (song.artist != null) song.artist!,
+                  if (song.album != null) song.album!,
+                ].join(' • '),
+                trailing: Text(_formatDuration(song.duration)),
+                onTap: () {
+                  unawaited(
+                    ref.read(queueProvider.notifier).replaceWithSongs(<Song>[
+                      song,
+                    ]),
+                  );
+                },
+                onSecondaryTapDown: (details) => _showSongContextMenu(
+                  context,
+                  ref,
+                  song,
+                  anchor: details.globalPosition,
+                ),
+              );
+            }
 
             return ListTile(
               leading: CoverArtImage(
@@ -655,9 +843,59 @@ class _SongResultsSection extends ConsumerWidget {
   void _showSongContextMenu(
     BuildContext context,
     WidgetRef ref,
-    Song song,
-  ) {
+    Song song, {
+    Offset? anchor,
+  }) {
     final l10n = AppLocalizations.of(context)!;
+    if (anchor != null) {
+      final overlayBox = Overlay.of(context).context.findRenderObject();
+      if (overlayBox is RenderBox) {
+        final result = showMenu<String>(
+          context: context,
+          position: RelativeRect.fromRect(
+            Rect.fromLTWH(anchor.dx, anchor.dy, 0, 0),
+            Offset.zero & overlayBox.size,
+          ),
+          items: <PopupMenuEntry<String>>[
+            PopupMenuItem<String>(
+              value: 'play-next',
+              child: Text(l10n.searchPlayNext),
+            ),
+            PopupMenuItem<String>(
+              value: 'add-queue',
+              child: Text(l10n.searchAddToQueue),
+            ),
+            PopupMenuItem<String>(
+              value: 'add-playlist',
+              child: Text(l10n.librarySongMenuAddToPlaylist),
+            ),
+            PopupMenuItem<String>(
+              value: 'instant-mix',
+              child: Text(l10n.nowPlayingInstantMix),
+            ),
+          ],
+        );
+        unawaited(
+          result.then((value) {
+            switch (value) {
+              case 'play-next':
+                return ref.read(queueProvider.notifier).playNextWithSong(song);
+              case 'add-queue':
+                return ref.read(queueProvider.notifier).addWithSong(song);
+              case 'add-playlist':
+                showAddToPlaylistSheet(context, ref, [song.id]);
+                return Future<void>.value();
+              case 'instant-mix':
+                ref.read(instantMixProvider.notifier).activate(song.id);
+                return Future<void>.value();
+              default:
+                return Future<void>.value();
+            }
+          }),
+        );
+        return;
+      }
+    }
     showModalBottomSheet<void>(
       context: context,
       builder: (sheetContext) => SafeArea(

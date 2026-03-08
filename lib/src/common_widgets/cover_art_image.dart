@@ -86,35 +86,39 @@ class CoverArtImage extends ConsumerWidget {
     final cacheManager =
         ref.watch(coverArtCacheManagerProvider).asData?.value ??
         defaultCoverArtCacheManager;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final resolvedSize = _resolveRequestedSize(context, constraints);
+        final image = CachedNetworkImage(
+          imageUrl: api.getCoverArtUrl(id: id, size: resolvedSize).toString(),
+          cacheKey: '$id:${resolvedSize ?? 0}',
+          fit: fit,
+          width: width,
+          height: height,
+          cacheManager: cacheManager,
+          fadeInDuration: const Duration(milliseconds: 150),
+          fadeOutDuration: Duration.zero,
+          memCacheWidth: _memCacheSize(width, resolvedSize),
+          memCacheHeight: _memCacheSize(height, resolvedSize),
+          placeholder: (_, _) => _fallback(context),
+          errorWidget: (_, _, _) => _fallback(context),
+        );
 
-    final image = CachedNetworkImage(
-      imageUrl: api.getCoverArtUrl(id: id, size: size).toString(),
-      cacheKey: '$id:${size ?? 0}',
-      fit: fit,
-      width: width,
-      height: height,
-      cacheManager: cacheManager,
-      fadeInDuration: const Duration(milliseconds: 150),
-      fadeOutDuration: Duration.zero,
-      memCacheWidth: _memCacheSize(width, size),
-      memCacheHeight: _memCacheSize(height, size),
-      placeholder: (_, _) => _fallback(context),
-      errorWidget: (_, _, _) => _fallback(context),
+        Widget child;
+        if (circular) {
+          child = ClipOval(child: image);
+        } else {
+          final radius = borderRadius ?? BorderRadius.zero;
+          child = radius == BorderRadius.zero
+              ? image
+              : ClipRRect(borderRadius: radius, child: image);
+        }
+
+        // Wrap with Semantics when a label is provided; otherwise exclude from
+        // the accessibility tree (image is purely decorative).
+        return _withSemantics(child);
+      },
     );
-
-    Widget child;
-    if (circular) {
-      child = ClipOval(child: image);
-    } else {
-      final radius = borderRadius ?? BorderRadius.zero;
-      child = radius == BorderRadius.zero
-          ? image
-          : ClipRRect(borderRadius: radius, child: image);
-    }
-
-    // Wrap with Semantics when a label is provided; otherwise exclude from
-    // the accessibility tree (image is purely decorative).
-    return _withSemantics(child);
   }
 
   Widget _withSemantics(Widget child) {
@@ -170,5 +174,64 @@ class CoverArtImage extends ConsumerWidget {
       return requestedSize;
     }
     return null;
+  }
+
+  int? _resolveRequestedSize(BuildContext context, BoxConstraints constraints) {
+    final explicitSize = size != null && size! > 0 ? size! : null;
+    final targetLogical = _targetLogicalExtent(constraints);
+    if (targetLogical == null) {
+      return explicitSize;
+    }
+
+    final pixelRatio = MediaQuery.maybeDevicePixelRatioOf(context) ?? 1.0;
+    final targetPixels = (targetLogical * pixelRatio).ceil();
+    final resolved = (explicitSize != null && explicitSize > targetPixels)
+        ? explicitSize
+        : targetPixels;
+    if (resolved < 96) {
+      return 96;
+    }
+    if (resolved > 2048) {
+      return 2048;
+    }
+    return resolved;
+  }
+
+  double? _targetLogicalExtent(BoxConstraints constraints) {
+    final explicitWidth = _finitePositive(width);
+    final explicitHeight = _finitePositive(height);
+    if (explicitWidth != null || explicitHeight != null) {
+      if (explicitWidth == null) {
+        return explicitHeight;
+      }
+      if (explicitHeight == null) {
+        return explicitWidth;
+      }
+      return explicitWidth > explicitHeight ? explicitWidth : explicitHeight;
+    }
+
+    final boundedWidth = constraints.hasBoundedWidth
+        ? _finitePositive(constraints.maxWidth)
+        : null;
+    final boundedHeight = constraints.hasBoundedHeight
+        ? _finitePositive(constraints.maxHeight)
+        : null;
+    if (boundedWidth == null && boundedHeight == null) {
+      return null;
+    }
+    if (boundedWidth == null) {
+      return boundedHeight;
+    }
+    if (boundedHeight == null) {
+      return boundedWidth;
+    }
+    return boundedWidth > boundedHeight ? boundedWidth : boundedHeight;
+  }
+
+  static double? _finitePositive(double? value) {
+    if (value == null || !value.isFinite || value <= 0) {
+      return null;
+    }
+    return value;
   }
 }

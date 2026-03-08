@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:navis/src/theme/desktop_tokens.dart';
 
 /// Resolve a persisted theme mode string to a Flutter [ThemeMode].
 ///
@@ -19,6 +20,9 @@ ThemeData buildLightTheme(Color seedColor) {
   return ThemeData(
     useMaterial3: true,
     colorScheme: ColorScheme.fromSeed(seedColor: seedColor),
+    extensions: const <ThemeExtension<dynamic>>[
+      DesktopTokens.defaults,
+    ],
   );
 }
 
@@ -31,6 +35,9 @@ ThemeData buildDarkTheme(Color seedColor) {
       seedColor: seedColor,
       brightness: Brightness.dark,
     ),
+    extensions: const <ThemeExtension<dynamic>>[
+      DesktopTokens.defaults,
+    ],
   );
 }
 
@@ -78,6 +85,9 @@ ThemeData buildOledTheme(Color seedColor) {
     bottomSheetTheme: const BottomSheetThemeData(
       backgroundColor: _oledContainer,
     ),
+    extensions: const <ThemeExtension<dynamic>>[
+      DesktopTokens.defaults,
+    ],
   );
 }
 

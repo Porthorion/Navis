@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
+import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -66,6 +67,21 @@ Future<void> _switchToArtistsTab(WidgetTester tester) async {
 }
 
 void main() {
+  group('grid column resolver', () {
+    test('computeGridCrossAxisCount uses available pane width', () {
+      expect(computeGridCrossAxisCount(null, 320), 1);
+      expect(computeGridCrossAxisCount(null, 520), 2);
+      expect(computeGridCrossAxisCount(null, 720), 4);
+      expect(computeGridCrossAxisCount(null, 980), 5);
+    });
+
+    test('density override is clamped', () {
+      expect(computeGridCrossAxisCount(0, 980), 1);
+      expect(computeGridCrossAxisCount(3, 980), 3);
+      expect(computeGridCrossAxisCount(8, 980), 5);
+    });
+  });
+
   group('LibraryScreen', () {
     testWidgets('renders two tabs and switches between local data lists', (
       tester,
@@ -581,6 +597,59 @@ void main() {
         expect(tester.takeException(), isNull);
       },
     );
+
+    testWidgets('liked songs render desktop list rows when desktop UI is on', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(800, 1200);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      await tester.pumpWidget(
+        _buildLibraryScreen(
+          overrides: [
+            desktopUiV1EnabledProvider.overrideWithValue(true),
+            showLikedPageProvider.overrideWithValue(true),
+            librarySyncControllerProvider.overrideWith(
+              () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+            ),
+            artistsProvider.overrideWithValue(
+              const AsyncData(<ArtistsTableData>[]),
+            ),
+            albumCountProvider.overrideWithValue(const AsyncData(0)),
+            pagedAlbumsProvider.overrideWith(
+              (ref, request) => Stream.value(const <AlbumsTableData>[]),
+            ),
+            likedAlbumsRecentProvider.overrideWithValue(
+              const AsyncData(<AlbumsTableData>[]),
+            ),
+            likedAlbumsProvider.overrideWithValue(
+              const AsyncData(<AlbumsTableData>[]),
+            ),
+            likedSongsProvider.overrideWithValue(
+              const AsyncData(<SongsTableData>[
+                SongsTableData(
+                  id: 'liked-song-1',
+                  title: 'Desktop Liked Song',
+                  artistName: 'Desktop Artist',
+                  albumName: 'Desktop Album',
+                  duration: 245,
+                ),
+              ]),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Liked'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(DesktopListRow), findsOneWidget);
+      expect(find.text('Desktop Liked Song'), findsOneWidget);
+    });
   });
 
   group('computeGridCrossAxisCount', () {

@@ -26,6 +26,34 @@ class _FakeCredentialStore implements SecureCredentialStore {
   }
 }
 
+class _ThrowingCredentialStore implements SecureCredentialStore {
+  _ThrowingCredentialStore({
+    this.throwOnRead = false,
+    this.throwOnClear = false,
+  });
+
+  final bool throwOnRead;
+  final bool throwOnClear;
+
+  @override
+  Future<void> clearPassword() async {
+    if (throwOnClear) {
+      throw StateError('clear failed');
+    }
+  }
+
+  @override
+  Future<String?> readPassword() async {
+    if (throwOnRead) {
+      throw StateError('read failed');
+    }
+    return null;
+  }
+
+  @override
+  Future<void> savePassword(String password) async {}
+}
+
 void main() {
   group('ServerConfigRepository', () {
     late NavisDatabase database;
@@ -120,6 +148,44 @@ void main() {
       expect(credentials.password, isNull);
       expect(credentials.clearCalls, 1);
     }, skip: !sqliteAvailable);
+
+    test(
+      'getActiveServer tolerates secure credential clear failure',
+      () async {
+        repository = ServerConfigRepository(
+          database,
+          credentials: _ThrowingCredentialStore(throwOnClear: true),
+        );
+
+        final config = await repository.getActiveServer();
+        expect(config, isNull);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'getActiveServer clears stale drift row when secure read fails',
+      () async {
+        await database.serverDao.saveServer(
+          ServerConfigTableCompanion.insert(
+            name: Value('example.com'),
+            url: 'https://example.com',
+            username: 'alice',
+            apiVersion: '1.16.1',
+          ),
+        );
+        repository = ServerConfigRepository(
+          database,
+          credentials: _ThrowingCredentialStore(throwOnRead: true),
+        );
+
+        final config = await repository.getActiveServer();
+        final rowAfter = await database.serverDao.getActiveServer();
+        expect(config, isNull);
+        expect(rowAfter, isNull);
+      },
+      skip: !sqliteAvailable,
+    );
 
     test('updateLastSynced updates sync timestamp only', () async {
       await repository.save(

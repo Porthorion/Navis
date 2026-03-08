@@ -182,27 +182,45 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                     }
                     return Padding(
                       padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
-                      child: GridView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: items.length,
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2,
-                              childAspectRatio: 1,
-                              crossAxisSpacing: 8,
-                              mainAxisSpacing: 8,
-                            ),
-                        itemBuilder: (context, index) {
-                          final album = items[index];
-                          return RepaintBoundary(
-                            child: AlbumCard(
-                              album: album,
-                              size: AlbumCardSize.library,
-                              badge: AlbumDownloadBadge(albumId: album.id),
-                              onTap: () =>
-                                  context.push('/library/albums/${album.id}'),
-                            ),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final availableWidth = constraints.maxWidth;
+                          final spacing = availableWidth >= 900 ? 12.0 : 8.0;
+                          final minTileWidth = switch (availableWidth) {
+                            >= 1400 => 220.0,
+                            >= 1100 => 200.0,
+                            >= 840 => 180.0,
+                            _ => 160.0,
+                          };
+                          final crossAxisCount =
+                              ((availableWidth + spacing) /
+                                      (minTileWidth + spacing))
+                                  .floor()
+                                  .clamp(2, 7);
+                          return GridView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: items.length,
+                            gridDelegate:
+                                SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: crossAxisCount,
+                                  childAspectRatio: 1,
+                                  crossAxisSpacing: spacing,
+                                  mainAxisSpacing: spacing,
+                                ),
+                            itemBuilder: (context, index) {
+                              final album = items[index];
+                              return RepaintBoundary(
+                                child: AlbumCard(
+                                  album: album,
+                                  size: AlbumCardSize.library,
+                                  badge: AlbumDownloadBadge(albumId: album.id),
+                                  onTap: () => context.push(
+                                    '/library/albums/${album.id}',
+                                  ),
+                                ),
+                              );
+                            },
                           );
                         },
                       ),
@@ -267,33 +285,41 @@ class _ArtistImageHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 240,
-      width: double.infinity,
-      child: Stack(
-        fit: StackFit.expand,
-        children: <Widget>[
-          CachedNetworkImage(
-            imageUrl: imageUrl,
-            fit: BoxFit.cover,
-            errorWidget: (_, _, _) => const SizedBox.shrink(),
-          ),
-          // Gradient overlay — fades to scaffold background at the bottom
-          // so the artist name blends in naturally.
-          const DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: <Color>[
-                  Color(0x00000000),
-                  Color(0xCC000000),
-                ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availableWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : MediaQuery.sizeOf(context).width;
+        final headerHeight = (availableWidth * 0.42).clamp(240.0, 460.0);
+        return SizedBox(
+          height: headerHeight,
+          width: double.infinity,
+          child: Stack(
+            fit: StackFit.expand,
+            children: <Widget>[
+              CachedNetworkImage(
+                imageUrl: imageUrl,
+                fit: BoxFit.cover,
+                errorWidget: (_, _, _) => const SizedBox.shrink(),
               ),
-            ),
+              // Gradient overlay — fades to scaffold background at the bottom
+              // so the artist name blends in naturally.
+              const DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: <Color>[
+                      Color(0x00000000),
+                      Color(0xCC000000),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -373,10 +399,18 @@ class _SimilarArtistsSection extends StatelessWidget {
           const SizedBox(height: 8),
           LayoutBuilder(
             builder: (context, constraints) {
-              final crossAxisCount = (constraints.maxWidth / 120).floor().clamp(
-                2,
-                3,
-              );
+              final availableWidth = constraints.maxWidth;
+              final spacing = availableWidth >= 900 ? 10.0 : 8.0;
+              final minTileWidth = switch (availableWidth) {
+                >= 1400 => 190.0,
+                >= 1100 => 170.0,
+                >= 840 => 150.0,
+                _ => 128.0,
+              };
+              final crossAxisCount =
+                  ((availableWidth + spacing) / (minTileWidth + spacing))
+                      .floor()
+                      .clamp(2, 6);
               final maxVisible = crossAxisCount * 2;
               final visibleArtists = artists
                   .take(maxVisible)
@@ -390,9 +424,9 @@ class _SimilarArtistsSection extends StatelessWidget {
                 itemCount: visibleArtists.length,
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: crossAxisCount,
-                  childAspectRatio: 0.78,
-                  crossAxisSpacing: 6,
-                  mainAxisSpacing: 6,
+                  childAspectRatio: 0.82,
+                  crossAxisSpacing: spacing,
+                  mainAxisSpacing: spacing,
                 ),
                 itemBuilder: (context, index) {
                   final artist = visibleArtists[index];

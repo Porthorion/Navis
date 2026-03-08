@@ -164,8 +164,35 @@ void main() {
     expect(find.text('Server URL'), findsOneWidget);
     expect(find.text('Username'), findsOneWidget);
     expect(find.text('Password'), findsOneWidget);
-    expect(find.text('Test connection'), findsOneWidget);
+    expect(find.text('Test connection'), findsNothing);
     expect(find.text('Connect'), findsOneWidget);
+    await _disposeApp(tester);
+  });
+
+  testWidgets('uses centered constrained layout on wide displays', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      _buildTestApp(
+        database: database,
+        overrides: [
+          serverConfigProvider.overrideWith(_TestServerConfigNotifier.new),
+          librarySyncControllerProvider.overrideWith(
+            _StaticLibrarySyncController.new,
+          ),
+        ],
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(Card), findsOneWidget);
     await _disposeApp(tester);
   });
 
@@ -194,7 +221,7 @@ void main() {
     await _disposeApp(tester);
   });
 
-  testWidgets('shows loading state while testing connection', (tester) async {
+  testWidgets('shows loading state while connecting', (tester) async {
     final completer = Completer<ServerConnectionProbeResult>();
     final fakeService = _FakeServerConnectionService(completer: completer);
 
@@ -216,10 +243,10 @@ void main() {
     await tester.enterText(find.byType(TextFormField).at(1), 'alice');
     await tester.enterText(find.byType(TextFormField).at(2), 'secret');
 
-    await tester.tap(find.text('Test connection'));
+    await tester.tap(find.text('Connect'));
     await tester.pump();
 
-    expect(find.text('Testing connection...'), findsOneWidget);
+    expect(find.text('Connecting...'), findsOneWidget);
     expect(fakeService.callCount, 1);
 
     completer.complete(
@@ -231,7 +258,37 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Connection successful (API 1.16.1).'), findsOneWidget);
+    await _disposeApp(tester);
+  });
+
+  testWidgets('submits connect when done is pressed on password field', (
+    tester,
+  ) async {
+    final fakeService = _FakeServerConnectionService();
+
+    await tester.pumpWidget(
+      _buildTestApp(
+        database: database,
+        overrides: [
+          serverConfigProvider.overrideWith(_TestServerConfigNotifier.new),
+          serverConnectionServiceProvider.overrideWithValue(fakeService),
+          librarySyncControllerProvider.overrideWith(
+            _StaticLibrarySyncController.new,
+          ),
+        ],
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextFormField).at(0), 'https://x.test');
+    await tester.enterText(find.byType(TextFormField).at(1), 'alice');
+    await tester.enterText(find.byType(TextFormField).at(2), 'secret');
+    await tester.tap(find.byType(TextFormField).at(2));
+    await tester.pump();
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+
+    expect(fakeService.callCount, 1);
     await _disposeApp(tester);
   });
 

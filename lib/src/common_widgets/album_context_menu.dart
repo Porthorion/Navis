@@ -5,10 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/subsonic_error.dart';
+import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 
 /// Shows a bottom sheet context menu for an album identified by [albumId].
 ///
@@ -16,8 +18,19 @@ import 'package:navis/src/providers/app_providers.dart';
 Future<void> showAlbumContextMenu(
   BuildContext context,
   WidgetRef ref,
-  String albumId,
-) async {
+  String albumId, {
+  Offset? anchor,
+}) async {
+  if (anchor != null && isDesktopRuntime) {
+    await _showDesktopAlbumContextMenu(
+      context,
+      ref,
+      albumId,
+      anchor: anchor,
+    );
+    return;
+  }
+
   await showModalBottomSheet<void>(
     context: context,
     builder: (sheetContext) {
@@ -26,7 +39,7 @@ Future<void> showAlbumContextMenu(
           final l10n = AppLocalizations.of(context)!;
           final albumAsync = menuRef.watch(albumProvider(albumId));
           final album = albumAsync.asData?.value;
-          final songs = album?.songs ?? const [];
+          final songs = album?.songs ?? const <SongsTableData>[];
           final isStarred = album?.album.starred != null;
 
           return SafeArea(
@@ -41,7 +54,7 @@ Future<void> showAlbumContextMenu(
                     ref
                         .read(librarySyncControllerProvider.notifier)
                         .registerAlbumInteraction(albumId);
-                    context.push('/library/albums/$albumId');
+                    unawaited(context.push('/library/albums/$albumId'));
                   },
                 ),
                 ListTile(
@@ -104,6 +117,99 @@ Future<void> showAlbumContextMenu(
       );
     },
   );
+}
+
+enum _AlbumContextAction {
+  open,
+  play,
+  addToQueue,
+  toggleLike,
+  download,
+}
+
+Future<void> _showDesktopAlbumContextMenu(
+  BuildContext context,
+  WidgetRef ref,
+  String albumId, {
+  required Offset anchor,
+}) async {
+  final overlayBox = Overlay.of(context).context.findRenderObject();
+  if (overlayBox is! RenderBox) {
+    return;
+  }
+
+  final l10n = AppLocalizations.of(context)!;
+  final albumAsync = ref.read(albumProvider(albumId));
+  final album = albumAsync.asData?.value;
+  final songs = album?.songs ?? const <SongsTableData>[];
+  final isStarred = album?.album.starred != null;
+
+  final action = await showMenu<_AlbumContextAction>(
+    context: context,
+    position: RelativeRect.fromRect(
+      Rect.fromLTWH(anchor.dx, anchor.dy, 0, 0),
+      Offset.zero & overlayBox.size,
+    ),
+    items: <PopupMenuEntry<_AlbumContextAction>>[
+      PopupMenuItem<_AlbumContextAction>(
+        value: _AlbumContextAction.open,
+        child: Text(l10n.libraryAlbumMenuOpen),
+      ),
+      PopupMenuItem<_AlbumContextAction>(
+        value: _AlbumContextAction.play,
+        enabled: songs.isNotEmpty,
+        child: Text(l10n.libraryAlbumMenuPlay),
+      ),
+      PopupMenuItem<_AlbumContextAction>(
+        value: _AlbumContextAction.addToQueue,
+        enabled: songs.isNotEmpty,
+        child: Text(l10n.libraryAlbumMenuAddToQueue),
+      ),
+      PopupMenuItem<_AlbumContextAction>(
+        value: _AlbumContextAction.toggleLike,
+        child: Text(isStarred ? l10n.actionLiked : l10n.actionLike),
+      ),
+      PopupMenuItem<_AlbumContextAction>(
+        value: _AlbumContextAction.download,
+        child: Text(l10n.libraryAlbumMenuDownload),
+      ),
+    ],
+  );
+
+  if (!context.mounted || action == null) {
+    return;
+  }
+
+  switch (action) {
+    case _AlbumContextAction.open:
+      ref
+          .read(librarySyncControllerProvider.notifier)
+          .registerAlbumInteraction(albumId);
+      unawaited(context.push('/library/albums/$albumId'));
+      return;
+    case _AlbumContextAction.play:
+      if (songs.isEmpty) {
+        return;
+      }
+      final songIds = songs
+          .map((song) => song.id)
+          .toList(
+            growable: false,
+          );
+      await ref.read(queueProvider.notifier).replace(songIds);
+      return;
+    case _AlbumContextAction.addToQueue:
+      for (final song in songs) {
+        await ref.read(queueProvider.notifier).add(song.id);
+      }
+      return;
+    case _AlbumContextAction.toggleLike:
+      await _toggleAlbumStar(ref, albumId, isStarred);
+      return;
+    case _AlbumContextAction.download:
+      await _downloadAlbumFromMenu(context, ref, albumId);
+      return;
+  }
 }
 
 Future<void> _downloadAlbumFromMenu(

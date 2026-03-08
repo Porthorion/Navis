@@ -78,6 +78,12 @@ class GenreDetailScreen extends ConsumerWidget {
                         onTap: () => context.go('/library/albums/${album.id}'),
                         onLongPress: () =>
                             showAlbumContextMenu(context, ref, album.id),
+                        onSecondaryTapDown: (details) => showAlbumContextMenu(
+                          context,
+                          ref,
+                          album.id,
+                          anchor: details.globalPosition,
+                        ),
                       );
                     },
                   );

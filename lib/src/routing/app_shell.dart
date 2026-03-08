@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -8,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/expandable_player_sheet.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
@@ -29,7 +31,21 @@ import 'package:navis/src/features/home/presentation/home_scroll_provider.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart'
     show searchFocusRequestProvider;
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/desktop_commands.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/theme/desktop_tokens.dart';
+
+String _formatMiniPlayerDuration(Duration duration) {
+  final totalSeconds = duration.inSeconds;
+  final hours = totalSeconds ~/ 3600;
+  final minutes = (totalSeconds % 3600) ~/ 60;
+  final seconds = totalSeconds % 60;
+  if (hours > 0) {
+    return '$hours:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
+  return '$minutes:${seconds.toString().padLeft(2, '0')}';
+}
 
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({required this.navigationShell, super.key});
@@ -41,7 +57,7 @@ class AppShell extends ConsumerStatefulWidget {
 }
 
 class _AppShellState extends ConsumerState<AppShell> {
-  static const double _sideRailWidth = 188;
+  static const double _sideRailWidth = 270;
   final ValueNotifier<double> _playerSheetProgress = ValueNotifier<double>(0);
   bool _didCheckBatteryOptimizationPrompt = false;
 
@@ -99,6 +115,11 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   @override
   Widget build(BuildContext context) {
+    const navTileEstimatedHeight = 64.0;
+    const reservedMiniPlayerHeight = 170.0;
+    const railMiniPlayerGap = 6.0;
+    const railCutoffSlack = 4.0;
+    const phoneRailOuterVerticalPadding = 44.0;
     final l10n = AppLocalizations.of(context)!;
     ref.watch(librarySyncControllerProvider);
     ref.watch(scrobbleDispatchControllerProvider);
@@ -205,6 +226,11 @@ class _AppShellState extends ConsumerState<AppShell> {
     final showPlayer = playback.hasActivePlayback;
     final isExpanded = ref.watch(playerSheetExpandedProvider);
     final showQueueOverlay = ref.watch(queueOverlayVisibleProvider);
+    final showLikedLibraryPage = ref.watch(showLikedPageProvider);
+    final showArtistsLibraryPage = ref.watch(showArtistsPageProvider);
+    final showPlaylistsLibraryPage = ref.watch(showPlaylistsPageProvider);
+    final showRadioLibraryPage = ref.watch(showRadioPageProvider);
+    final selectedLibrarySection = ref.watch(librarySectionProvider);
     final hasPlayerOverlay = ref.watch(
       playerOverlayStackProvider.select((stack) => stack.isNotEmpty),
     );
@@ -219,8 +245,47 @@ class _AppShellState extends ConsumerState<AppShell> {
       navigationShell.currentIndex,
     );
     final selectedIndex = selectedVisibleIndex >= 0 ? selectedVisibleIndex : 0;
-    final screenWidth = MediaQuery.sizeOf(context).width;
-    final useRailNavigation = screenWidth >= 600;
+    final mediaSize = MediaQuery.sizeOf(context);
+    final mediaPadding = MediaQuery.paddingOf(context);
+    final screenWidth = mediaSize.width;
+    final screenHeight = mediaSize.height;
+    final isPhoneFormFactor = !isDesktopRuntime && mediaSize.shortestSide < 600;
+    final adaptiveLayoutClass = resolveAdaptiveLayoutClass(screenWidth);
+    final desktopUiV1Enabled = ref.watch(desktopUiV1EnabledProvider);
+    final useDesktopShell = desktopUiV1Enabled && isDesktopRuntime;
+    final desktopLayoutClass = resolveDesktopLayoutClass(screenWidth);
+    final desktopTokens = desktopTokensOf(context);
+    final desktopSidebarWidth = (screenWidth * 0.25).clamp(
+      desktopTokens.sidebarWidth,
+      420.0,
+    );
+    final sideRailWidth = isPhoneFormFactor
+        ? (screenWidth * 0.22).clamp(188.0, 236.0)
+        : (screenWidth * 0.25).clamp(_sideRailWidth, 360.0);
+    final estimatedRailHeight =
+        screenHeight - mediaPadding.vertical - phoneRailOuterVerticalPadding;
+    const shellDestinationCount = 4;
+    final minPhoneRailHeight =
+        (shellDestinationCount * navTileEstimatedHeight) +
+        (showPlayer ? (reservedMiniPlayerHeight + railMiniPlayerGap) : 0) +
+        railCutoffSlack;
+    final useTabletRailNavigation =
+        !isDesktopRuntime &&
+        !isPhoneFormFactor &&
+        adaptiveLayoutClass == AdaptiveLayoutClass.tabletExpanded;
+    final usePhoneLandscapeRailNavigation =
+        !isDesktopRuntime &&
+        isPhoneFormFactor &&
+        adaptiveLayoutClass == AdaptiveLayoutClass.tabletExpanded &&
+        estimatedRailHeight >= minPhoneRailHeight;
+    final useRailNavigation =
+        useDesktopShell ||
+        useTabletRailNavigation ||
+        usePhoneLandscapeRailNavigation ||
+        (isDesktopRuntime && screenWidth >= 600);
+    final showLibrarySubNavigation =
+        useRailNavigation && screenWidth >= 840 && !isPhoneFormFactor;
+    final allowScrollableRail = !isPhoneFormFactor;
     final useWideMiniPlayerStyle = screenWidth >= 960;
     final railDestinations = <_ShellDestination>[
       _ShellDestination(
@@ -244,7 +309,21 @@ class _AppShellState extends ConsumerState<AppShell> {
     void onDestinationSelected(int index) {
       NavService.dismissKeyboard(context);
       NavService.clearExitPrompt();
+      final overlay = ref.read(playerOverlayStackProvider.notifier);
+      if (showQueueOverlay) {
+        overlay.hideQueue();
+      }
+      if (isExpanded) {
+        overlay.collapse();
+      }
       final branchIndex = visibleBranchIndices[index];
+      if (branchIndex == _libraryBranchIndex) {
+        ref
+            .read(librarySectionProvider.notifier)
+            .setSection(
+              LibrarySection.albums,
+            );
+      }
       if (branchIndex == _searchBranchIndex) {
         ref.read(searchFocusRequestProvider.notifier).increment();
       }
@@ -262,7 +341,84 @@ class _AppShellState extends ConsumerState<AppShell> {
       );
     }
 
-    return BackButtonListener(
+    void onLibrarySectionSelected(LibrarySection section) {
+      NavService.dismissKeyboard(context);
+      NavService.clearExitPrompt();
+      final overlay = ref.read(playerOverlayStackProvider.notifier);
+      if (showQueueOverlay) {
+        overlay.hideQueue();
+      }
+      if (isExpanded) {
+        overlay.collapse();
+      }
+      final wasSameSection =
+          navigationShell.currentIndex == _libraryBranchIndex &&
+          selectedLibrarySection == section;
+      ref.read(librarySectionProvider.notifier).setSection(section);
+      navigationShell.goBranch(_libraryBranchIndex, initialLocation: true);
+      if (wasSameSection) {
+        ref.read(libraryScrollToTopRequestProvider.notifier).request();
+      }
+    }
+
+    Future<void> executeDesktopCommand(DesktopCommandAction action) async {
+      final overlay = ref.read(playerOverlayStackProvider.notifier);
+      switch (action) {
+        case DesktopCommandAction.focusSearch:
+          onDestinationSelected(2);
+          break;
+        case DesktopCommandAction.toggleQueue:
+          if (!showPlayer) {
+            return;
+          }
+          if (showQueueOverlay) {
+            overlay.hideQueue();
+          } else {
+            overlay.showQueue();
+          }
+          break;
+        case DesktopCommandAction.toggleNowPlaying:
+          if (!showPlayer) {
+            return;
+          }
+          if (isExpanded) {
+            overlay.collapse();
+          } else {
+            overlay.expand();
+          }
+          break;
+        case DesktopCommandAction.playPause:
+          final handler = ref.read(audioHandlerProvider);
+          if (handler == null) {
+            return;
+          }
+          if (playback.playing) {
+            await handler.pause();
+          } else {
+            await handler.play();
+          }
+          break;
+        case DesktopCommandAction.nextTrack:
+          final handler = ref.read(audioHandlerProvider);
+          if (handler == null) {
+            return;
+          }
+          if (playback.isRadioMode) {
+            await handler.stopRadio();
+          } else {
+            await handler.skipToNext();
+          }
+          break;
+        case DesktopCommandAction.previousTrack:
+          if (playback.isRadioMode) {
+            return;
+          }
+          await ref.read(audioHandlerProvider)?.skipToPrevious();
+          break;
+      }
+    }
+
+    final shell = BackButtonListener(
       onBackButtonPressed: () async {
         // Intercept Android back-button presses before nested branch
         // navigators pop their detail routes. This is what gives the shell's
@@ -301,33 +457,93 @@ class _AppShellState extends ConsumerState<AppShell> {
           resizeToAvoidBottomInset: !(showPlayer && isExpanded),
           body: Stack(
             children: <Widget>[
-              if (useRailNavigation)
+              if (useDesktopShell)
+                _DesktopWorkspace(
+                  desktopLayoutClass: desktopLayoutClass,
+                  sidebarWidth: desktopSidebarWidth,
+                  selectedIndex: selectedIndex,
+                  destinations: railDestinations,
+                  showOfflineBanner: showOfflineBanner,
+                  offlineBannerText: l10n.serverOfflineBanner,
+                  showPlayer: showPlayer,
+                  isExpanded: isExpanded,
+                  showQueueOverlay: showQueueOverlay,
+                  hasPlayerOverlay: hasPlayerOverlay,
+                  navigationShell: navigationShell,
+                  playback: playback,
+                  songTitle: songTitle,
+                  songArtist: songArtist,
+                  coverArtId: coverArtId,
+                  coverArtUrl: coverArtUrl,
+                  onDestinationSelected: onDestinationSelected,
+                  showLibrarySubNavigation: showLibrarySubNavigation,
+                  selectedLibrarySection: selectedLibrarySection,
+                  showLikedLibraryPage: showLikedLibraryPage,
+                  showArtistsLibraryPage: showArtistsLibraryPage,
+                  showPlaylistsLibraryPage: showPlaylistsLibraryPage,
+                  showRadioLibraryPage: showRadioLibraryPage,
+                  onLibrarySectionSelected: onLibrarySectionSelected,
+                  allowScrollableRail: allowScrollableRail,
+                  onOpenPlayer: () {
+                    NavService.dismissKeyboard(context);
+                    ref.read(playerOverlayStackProvider.notifier).expand();
+                  },
+                  onCollapsePlayer: () =>
+                      ref.read(playerOverlayStackProvider.notifier).collapse(),
+                  onToggleQueue: () {
+                    final overlay = ref.read(
+                      playerOverlayStackProvider.notifier,
+                    );
+                    if (showQueueOverlay) {
+                      overlay.hideQueue();
+                    } else {
+                      overlay.showQueue();
+                    }
+                  },
+                  onDismissQueue: () =>
+                      ref.read(playerOverlayStackProvider.notifier).hideQueue(),
+                )
+              else if (useRailNavigation)
                 Row(
                   children: <Widget>[
                     Material(
                       color: Theme.of(context).colorScheme.surfaceContainerLow,
                       child: SafeArea(
                         child: SizedBox(
-                          width: _sideRailWidth,
-                          child: _RailSidebar(
-                            selectedIndex: selectedIndex,
-                            onDestinationSelected: onDestinationSelected,
-                            destinations: railDestinations,
-                            showPlayer: showPlayer,
-                            playback: playback,
-                            songTitle: songTitle,
-                            songArtist: songArtist,
-                            coverArtId: coverArtId,
-                            coverArtUrl: coverArtUrl,
-                            isRadio: playback.isRadioMode,
-                            radioArtUrl:
-                                playback.radioStation?.nowPlayingArtUrl,
-                            onOpenPlayer: () {
-                              NavService.dismissKeyboard(context);
-                              ref
-                                  .read(playerOverlayStackProvider.notifier)
-                                  .expand();
-                            },
+                          width: sideRailWidth,
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
+                            child: _RailSidebar(
+                              selectedIndex: selectedIndex,
+                              onDestinationSelected: onDestinationSelected,
+                              destinations: railDestinations,
+                              showLibrarySubNavigation:
+                                  showLibrarySubNavigation,
+                              selectedLibrarySection: selectedLibrarySection,
+                              showLikedLibraryPage: showLikedLibraryPage,
+                              showArtistsLibraryPage: showArtistsLibraryPage,
+                              showPlaylistsLibraryPage:
+                                  showPlaylistsLibraryPage,
+                              showRadioLibraryPage: showRadioLibraryPage,
+                              onLibrarySectionSelected:
+                                  onLibrarySectionSelected,
+                              allowScrollableRail: allowScrollableRail,
+                              showPlayer: showPlayer,
+                              playback: playback,
+                              songTitle: songTitle,
+                              songArtist: songArtist,
+                              coverArtId: coverArtId,
+                              coverArtUrl: coverArtUrl,
+                              isRadio: playback.isRadioMode,
+                              radioArtUrl:
+                                  playback.radioStation?.nowPlayingArtUrl,
+                              onOpenPlayer: () {
+                                NavService.dismissKeyboard(context);
+                                ref
+                                    .read(playerOverlayStackProvider.notifier)
+                                    .expand();
+                              },
+                            ),
                           ),
                         ),
                       ),
@@ -553,7 +769,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                 ),
               if (showPlayer && showQueueOverlay && !useRailNavigation)
                 Positioned.fill(
-                  left: useRailNavigation ? _sideRailWidth : 0,
+                  left: 0,
                   child: _QueueOverlay(
                     fullscreen: useRailNavigation,
                     onDismiss: () => ref
@@ -601,6 +817,27 @@ class _AppShellState extends ConsumerState<AppShell> {
                     );
                   },
                 ),
+        ),
+      ),
+    );
+    if (!useDesktopShell) {
+      return shell;
+    }
+    return Shortcuts(
+      shortcuts: buildDesktopShortcutMap(Theme.of(context).platform),
+      child: Actions(
+        actions: <Type, Action<Intent>>{
+          DesktopCommandIntent: DesktopCommandActionHandler(
+            context: context,
+            executor: executeDesktopCommand,
+          ),
+        },
+        child: FocusTraversalGroup(
+          policy: OrderedTraversalPolicy(),
+          child: Focus(
+            autofocus: true,
+            child: shell,
+          ),
         ),
       ),
     );
@@ -744,6 +981,358 @@ class _BottomNavReveal extends StatelessWidget {
   }
 }
 
+class _DesktopWorkspace extends StatelessWidget {
+  const _DesktopWorkspace({
+    required this.desktopLayoutClass,
+    required this.sidebarWidth,
+    required this.selectedIndex,
+    required this.destinations,
+    required this.showOfflineBanner,
+    required this.offlineBannerText,
+    required this.showPlayer,
+    required this.isExpanded,
+    required this.showQueueOverlay,
+    required this.hasPlayerOverlay,
+    required this.navigationShell,
+    required this.playback,
+    required this.songTitle,
+    required this.songArtist,
+    required this.coverArtId,
+    required this.coverArtUrl,
+    required this.onDestinationSelected,
+    required this.showLibrarySubNavigation,
+    required this.allowScrollableRail,
+    required this.selectedLibrarySection,
+    required this.showLikedLibraryPage,
+    required this.showArtistsLibraryPage,
+    required this.showPlaylistsLibraryPage,
+    required this.showRadioLibraryPage,
+    required this.onLibrarySectionSelected,
+    required this.onOpenPlayer,
+    required this.onCollapsePlayer,
+    required this.onToggleQueue,
+    required this.onDismissQueue,
+  });
+
+  final DesktopLayoutClass desktopLayoutClass;
+  final double sidebarWidth;
+  final int selectedIndex;
+  final List<_ShellDestination> destinations;
+  final bool showOfflineBanner;
+  final String offlineBannerText;
+  final bool showPlayer;
+  final bool isExpanded;
+  final bool showQueueOverlay;
+  final bool hasPlayerOverlay;
+  final StatefulNavigationShell navigationShell;
+  final PlaybackSnapshot playback;
+  final String? songTitle;
+  final String? songArtist;
+  final String? coverArtId;
+  final String? coverArtUrl;
+  final ValueChanged<int> onDestinationSelected;
+  final bool showLibrarySubNavigation;
+  final bool allowScrollableRail;
+  final LibrarySection selectedLibrarySection;
+  final bool showLikedLibraryPage;
+  final bool showArtistsLibraryPage;
+  final bool showPlaylistsLibraryPage;
+  final bool showRadioLibraryPage;
+  final ValueChanged<LibrarySection> onLibrarySectionSelected;
+  final VoidCallback onOpenPlayer;
+  final VoidCallback onCollapsePlayer;
+  final VoidCallback onToggleQueue;
+  final VoidCallback onDismissQueue;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Row(
+      children: <Widget>[
+        Material(
+          color: colors.surfaceContainerLowest,
+          child: SafeArea(
+            child: SizedBox(
+              width: sidebarWidth,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
+                child: _RailSidebar(
+                  selectedIndex: selectedIndex,
+                  onDestinationSelected: onDestinationSelected,
+                  destinations: destinations,
+                  showLibrarySubNavigation: showLibrarySubNavigation,
+                  allowScrollableRail: allowScrollableRail,
+                  selectedLibrarySection: selectedLibrarySection,
+                  showLikedLibraryPage: showLikedLibraryPage,
+                  showArtistsLibraryPage: showArtistsLibraryPage,
+                  showPlaylistsLibraryPage: showPlaylistsLibraryPage,
+                  showRadioLibraryPage: showRadioLibraryPage,
+                  onLibrarySectionSelected: onLibrarySectionSelected,
+                  showPlayer: false,
+                  playback: playback,
+                  songTitle: songTitle,
+                  songArtist: songArtist,
+                  coverArtId: coverArtId,
+                  coverArtUrl: coverArtUrl,
+                  isRadio: playback.isRadioMode,
+                  radioArtUrl: playback.radioStation?.nowPlayingArtUrl,
+                  onOpenPlayer: onOpenPlayer,
+                ),
+              ),
+            ),
+          ),
+        ),
+        Expanded(
+          child: SafeArea(
+            left: false,
+            top: false,
+            right: false,
+            child: Column(
+              children: <Widget>[
+                if (showOfflineBanner)
+                  Material(
+                    color: colors.errorContainer,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      child: Row(
+                        children: <Widget>[
+                          Icon(
+                            Icons.cloud_off_outlined,
+                            color: colors.onErrorContainer,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              offlineBannerText,
+                              style: TextStyle(color: colors.onErrorContainer),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                Expanded(
+                  child: DesktopFrame(
+                    layoutClass: desktopLayoutClass,
+                    child: NavigatorPopHandler<Object?>(
+                      enabled: !hasPlayerOverlay,
+                      onPopWithResult: (result) {
+                        final router = GoRouter.of(context);
+                        if (!router.canPop()) {
+                          return;
+                        }
+                        NavService.clearExitPrompt();
+                        router.pop(result);
+                      },
+                      child: Stack(
+                        children: <Widget>[
+                          Positioned.fill(child: navigationShell),
+                          if (showPlayer && isExpanded)
+                            Positioned.fill(
+                              child: NowPlayingScreen(
+                                wideEmbeddedMode: true,
+                                onShowQueue: onToggleQueue,
+                                onCollapse: onCollapsePlayer,
+                              ),
+                            ),
+                          if (showPlayer && showQueueOverlay)
+                            Positioned.fill(
+                              child: _QueueOverlay(
+                                fullscreen: true,
+                                onDismiss: onDismissQueue,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                if (showPlayer && !isExpanded)
+                  _DesktopPlayerBar(
+                    playback: playback,
+                    songTitle: songTitle,
+                    songArtist: songArtist,
+                    coverArtId: coverArtId,
+                    coverArtUrl: coverArtUrl,
+                    onOpenPlayer: onOpenPlayer,
+                    onToggleQueue: onToggleQueue,
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DesktopPlayerBar extends ConsumerWidget {
+  const _DesktopPlayerBar({
+    required this.playback,
+    required this.songTitle,
+    required this.songArtist,
+    required this.coverArtId,
+    required this.coverArtUrl,
+    required this.onOpenPlayer,
+    required this.onToggleQueue,
+  });
+
+  final PlaybackSnapshot playback;
+  final String? songTitle;
+  final String? songArtist;
+  final String? coverArtId;
+  final String? coverArtUrl;
+  final VoidCallback onOpenPlayer;
+  final VoidCallback onToggleQueue;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final colors = Theme.of(context).colorScheme;
+    final isPlaying = playback.playing;
+    final title = (songTitle == null || songTitle!.trim().isEmpty)
+        ? l10n.miniPlayerUnknownTrack
+        : songTitle!;
+    final artist = (songArtist == null || songArtist!.trim().isEmpty)
+        ? l10n.miniPlayerUnknownArtist
+        : songArtist!;
+
+    return Material(
+      color: colors.surfaceContainerLow,
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 84,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: <Widget>[
+                InkWell(
+                  borderRadius: BorderRadius.circular(10),
+                  onTap: onOpenPlayer,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 8,
+                    ),
+                    child: Row(
+                      children: <Widget>[
+                        if (coverArtId == null || coverArtId!.trim().isEmpty)
+                          _MiniRemoteArt(
+                            artUrl: coverArtUrl,
+                            colorScheme: colors,
+                          )
+                        else
+                          CoverArtImage(
+                            coverArtId: coverArtId,
+                            size: 200,
+                            width: 52,
+                            height: 52,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        const SizedBox(width: 12),
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 280),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text(
+                                title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(fontWeight: FontWeight.w700),
+                              ),
+                              Text(
+                                artist,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: colors.onSurfaceVariant),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                IconButton(
+                  tooltip: l10n.nowPlayingPrevious,
+                  onPressed: playback.isRadioMode
+                      ? null
+                      : () {
+                          ref.read(audioHandlerProvider)?.skipToPrevious();
+                        },
+                  icon: const Icon(Icons.skip_previous_rounded),
+                ),
+                const SizedBox(width: 4),
+                FilledButton.tonalIcon(
+                  onPressed: () async {
+                    final handler = ref.read(audioHandlerProvider);
+                    if (handler == null) {
+                      return;
+                    }
+                    if (isPlaying) {
+                      await handler.pause();
+                    } else {
+                      await handler.play();
+                    }
+                  },
+                  icon: Icon(
+                    isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                  ),
+                  label: Text(
+                    isPlaying ? l10n.miniPlayerPause : l10n.miniPlayerPlay,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                IconButton(
+                  tooltip: playback.isRadioMode
+                      ? l10n.radioStopStation
+                      : l10n.miniPlayerSkipNext,
+                  onPressed: () async {
+                    final handler = ref.read(audioHandlerProvider);
+                    if (handler == null) {
+                      return;
+                    }
+                    if (playback.isRadioMode) {
+                      await handler.stopRadio();
+                    } else {
+                      await handler.skipToNext();
+                    }
+                  },
+                  icon: Icon(
+                    playback.isRadioMode
+                        ? Icons.stop_rounded
+                        : Icons.skip_next_rounded,
+                  ),
+                ),
+                const SizedBox(width: 18),
+                IconButton(
+                  tooltip: l10n.queueTitle,
+                  onPressed: onToggleQueue,
+                  icon: const Icon(Icons.queue_music_outlined),
+                ),
+                IconButton(
+                  tooltip: l10n.nowPlayingTitle,
+                  onPressed: onOpenPlayer,
+                  icon: const Icon(Icons.open_in_full),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _QueueOverlay extends StatefulWidget {
   const _QueueOverlay({
     required this.onDismiss,
@@ -762,6 +1351,8 @@ class _QueueOverlayState extends State<_QueueOverlay>
   static const double _sheetHeightFactor = 0.95;
   static const Duration _closeDuration = Duration(milliseconds: 220);
   static const double _flingVelocityThreshold = 300;
+  static const double _scrollDismissDistance = 96;
+  static const Duration _scrollPullSettleDelay = Duration(milliseconds: 150);
 
   late final AnimationController _controller;
 
@@ -777,6 +1368,8 @@ class _QueueOverlayState extends State<_QueueOverlay>
   bool _draggingSheet = false;
   bool _dismissing = false;
   bool _queueReorderActive = false;
+  double _scrollPullDistance = 0;
+  Timer? _scrollPullSettleTimer;
 
   // Cumulative displacement tracking — distinguishes horizontal swipes
   // (e.g. Dismissible swipe-to-delete) from vertical sheet drags.
@@ -797,6 +1390,7 @@ class _QueueOverlayState extends State<_QueueOverlay>
 
   @override
   void dispose() {
+    _scrollPullSettleTimer?.cancel();
     _controller.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -804,6 +1398,7 @@ class _QueueOverlayState extends State<_QueueOverlay>
 
   void _dismiss() {
     if (_dismissing) return;
+    _scrollPullSettleTimer?.cancel();
     _dismissing = true;
     _controller.fling(velocity: -2.5).whenComplete(widget.onDismiss);
   }
@@ -828,8 +1423,63 @@ class _QueueOverlayState extends State<_QueueOverlay>
     if (value) {
       _activePointer = null;
       _velocityTracker = null;
+      _resetScrollPull(animateBack: true);
       _setDraggingSheet(false);
     }
+  }
+
+  void _resetScrollPull({bool animateBack = false}) {
+    _scrollPullSettleTimer?.cancel();
+    _scrollPullDistance = 0;
+    if (animateBack && !_dismissing && _controller.value < 0.999) {
+      _controller.fling(velocity: 2.5);
+    }
+  }
+
+  void _onPointerSignal(PointerSignalEvent event) {
+    if (event is! PointerScrollEvent ||
+        _dismissing ||
+        _queueReorderActive ||
+        _draggingSheet) {
+      return;
+    }
+    final dy = event.scrollDelta.dy;
+    if (dy >= -1) {
+      if (_scrollPullDistance > 0) {
+        _resetScrollPull(animateBack: true);
+      }
+      return;
+    }
+
+    final atTop =
+        !_scrollController.hasClients || _scrollController.offset <= 0.0;
+    if (!atTop) {
+      return;
+    }
+
+    final effectiveHeightFactor = widget.fullscreen ? 1.0 : _sheetHeightFactor;
+    final sheetHeight =
+        MediaQuery.of(context).size.height * effectiveHeightFactor;
+    final dragDistance = -dy;
+    _scrollPullDistance += dragDistance;
+    _controller.value = (_controller.value - dragDistance / sheetHeight).clamp(
+      0.0,
+      1.0,
+    );
+
+    if (_scrollPullDistance >= _scrollDismissDistance ||
+        _controller.value < 0.72) {
+      _dismiss();
+      return;
+    }
+
+    _scrollPullSettleTimer?.cancel();
+    _scrollPullSettleTimer = Timer(_scrollPullSettleDelay, () {
+      if (!mounted || _dismissing || _queueReorderActive || _draggingSheet) {
+        return;
+      }
+      _resetScrollPull(animateBack: true);
+    });
   }
 
   // ---- Raw pointer handlers -----------------------------------------------
@@ -839,6 +1489,7 @@ class _QueueOverlayState extends State<_QueueOverlay>
     _activePointer = event.pointer;
     _velocityTracker = VelocityTracker.withKind(event.kind);
     _velocityTracker!.addPosition(event.timeStamp, event.position);
+    _resetScrollPull();
     _setDraggingSheet(false);
     _cumulativeDx = 0.0;
     _cumulativeDy = 0.0;
@@ -883,6 +1534,7 @@ class _QueueOverlayState extends State<_QueueOverlay>
     if (_queueReorderActive) return;
     if (event.pointer != _activePointer) return;
     _activePointer = null;
+    _resetScrollPull();
     final wasDragging = _draggingSheet;
     _setDraggingSheet(false);
     if (_dismissing || !wasDragging) return;
@@ -899,6 +1551,7 @@ class _QueueOverlayState extends State<_QueueOverlay>
     if (_queueReorderActive) return;
     if (event.pointer != _activePointer) return;
     _activePointer = null;
+    _resetScrollPull();
     final wasDragging = _draggingSheet;
     _setDraggingSheet(false);
     if (_dismissing) return;
@@ -971,6 +1624,7 @@ class _QueueOverlayState extends State<_QueueOverlay>
                       onPointerMove: _onPointerMove,
                       onPointerUp: _onPointerUp,
                       onPointerCancel: _onPointerCancel,
+                      onPointerSignal: _onPointerSignal,
                       child: queueContent,
                     ),
                   ),
@@ -1001,6 +1655,14 @@ class _RailSidebar extends ConsumerWidget {
     required this.destinations,
     required this.selectedIndex,
     required this.onDestinationSelected,
+    required this.showLibrarySubNavigation,
+    this.allowScrollableRail = true,
+    required this.selectedLibrarySection,
+    required this.showLikedLibraryPage,
+    required this.showArtistsLibraryPage,
+    required this.showPlaylistsLibraryPage,
+    required this.showRadioLibraryPage,
+    required this.onLibrarySectionSelected,
     required this.showPlayer,
     required this.playback,
     required this.onOpenPlayer,
@@ -1015,6 +1677,14 @@ class _RailSidebar extends ConsumerWidget {
   final List<_ShellDestination> destinations;
   final int selectedIndex;
   final ValueChanged<int> onDestinationSelected;
+  final bool showLibrarySubNavigation;
+  final bool allowScrollableRail;
+  final LibrarySection selectedLibrarySection;
+  final bool showLikedLibraryPage;
+  final bool showArtistsLibraryPage;
+  final bool showPlaylistsLibraryPage;
+  final bool showRadioLibraryPage;
+  final ValueChanged<LibrarySection> onLibrarySectionSelected;
   final bool showPlayer;
   final PlaybackSnapshot playback;
   final String? songTitle;
@@ -1028,25 +1698,125 @@ class _RailSidebar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(0, 4, 0, 8),
+      padding: const EdgeInsets.fromLTRB(2, 8, 2, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final useScrollableRail = constraints.maxHeight < 340;
+                const navTileEstimatedHeight = 64.0;
+                const subNavTileEstimatedHeight = 44.0;
+                const subNavTrailingGap = 6.0;
+                const reservedMiniPlayerHeight = 170.0;
+                const railMiniPlayerGap = 6.0;
+                const railCutoffSlack = 4.0;
+                final librarySubSectionCount =
+                    1 +
+                    (showLikedLibraryPage ? 1 : 0) +
+                    (showArtistsLibraryPage ? 1 : 0) +
+                    (showPlaylistsLibraryPage ? 1 : 0) +
+                    (showRadioLibraryPage ? 1 : 0);
+                final navViewportHeight =
+                    (constraints.maxHeight -
+                            (showPlayer
+                                ? (reservedMiniPlayerHeight + railMiniPlayerGap)
+                                : 0.0))
+                        .clamp(0.0, double.infinity);
+                final baseNavHeight =
+                    destinations.length * navTileEstimatedHeight;
+                final inlineLibraryNavHeight =
+                    baseNavHeight +
+                    (librarySubSectionCount * subNavTileEstimatedHeight) +
+                    subNavTrailingGap;
+                final showLibrarySectionsInline =
+                    showLibrarySubNavigation &&
+                    navViewportHeight >=
+                        (inlineLibraryNavHeight + railCutoffSlack);
+                final useScrollableRail =
+                    allowScrollableRail &&
+                    navViewportHeight < (baseNavHeight + railCutoffSlack);
 
                 final navTiles = <Widget>[
-                  for (var i = 0; i < destinations.length; i++)
+                  for (var i = 0; i < destinations.length; i++) ...<Widget>[
                     Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.only(bottom: 12),
                       child: _RailNavTile(
+                        key: ValueKey('railNavTile-$i'),
                         destination: destinations[i],
                         selected: i == selectedIndex,
                         onTap: () => onDestinationSelected(i),
                       ),
                     ),
+                    if (showLibrarySectionsInline && i == 1) ...<Widget>[
+                      _RailSubNavTile(
+                        key: const ValueKey<String>(
+                          'railLibrarySection-albums',
+                        ),
+                        label: AppLocalizations.of(context)!.libraryTabAlbums,
+                        selected:
+                            selectedIndex == 1 &&
+                            selectedLibrarySection == LibrarySection.albums,
+                        onTap: () =>
+                            onLibrarySectionSelected(LibrarySection.albums),
+                      ),
+                      if (showLikedLibraryPage)
+                        _RailSubNavTile(
+                          key: const ValueKey<String>(
+                            'railLibrarySection-liked',
+                          ),
+                          label: AppLocalizations.of(context)!.libraryTabLiked,
+                          selected:
+                              selectedIndex == 1 &&
+                              selectedLibrarySection == LibrarySection.liked,
+                          onTap: () => onLibrarySectionSelected(
+                            LibrarySection.liked,
+                          ),
+                        ),
+                      if (showArtistsLibraryPage)
+                        _RailSubNavTile(
+                          key: const ValueKey<String>(
+                            'railLibrarySection-artists',
+                          ),
+                          label: AppLocalizations.of(
+                            context,
+                          )!.libraryTabArtists,
+                          selected:
+                              selectedIndex == 1 &&
+                              selectedLibrarySection == LibrarySection.artists,
+                          onTap: () => onLibrarySectionSelected(
+                            LibrarySection.artists,
+                          ),
+                        ),
+                      if (showPlaylistsLibraryPage)
+                        _RailSubNavTile(
+                          key: const ValueKey<String>(
+                            'railLibrarySection-playlists',
+                          ),
+                          label: AppLocalizations.of(context)!.navPlaylists,
+                          selected:
+                              selectedIndex == 1 &&
+                              selectedLibrarySection ==
+                                  LibrarySection.playlists,
+                          onTap: () => onLibrarySectionSelected(
+                            LibrarySection.playlists,
+                          ),
+                        ),
+                      if (showRadioLibraryPage)
+                        _RailSubNavTile(
+                          key: const ValueKey<String>(
+                            'railLibrarySection-radio',
+                          ),
+                          label: AppLocalizations.of(context)!.navRadio,
+                          selected:
+                              selectedIndex == 1 &&
+                              selectedLibrarySection == LibrarySection.radio,
+                          onTap: () =>
+                              onLibrarySectionSelected(LibrarySection.radio),
+                        ),
+                      const SizedBox(height: 6),
+                    ],
+                  ],
                 ];
 
                 final player = showPlayer
@@ -1062,25 +1832,31 @@ class _RailSidebar extends ConsumerWidget {
                       )
                     : const SizedBox.shrink();
 
-                if (useScrollableRail) {
-                  return SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: <Widget>[
-                        ...navTiles,
-                        if (showPlayer) const SizedBox(height: 6),
-                        if (showPlayer) player,
-                      ],
-                    ),
-                  );
+                final navRegion = useScrollableRail
+                    ? SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: navTiles,
+                        ),
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: <Widget>[
+                          ...navTiles,
+                          const Spacer(),
+                        ],
+                      );
+
+                if (!showPlayer) {
+                  return navRegion;
                 }
 
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    ...navTiles,
-                    const Spacer(),
-                    if (showPlayer) player,
+                    Expanded(child: navRegion),
+                    const SizedBox(height: 6),
+                    player,
                   ],
                 );
               },
@@ -1094,6 +1870,7 @@ class _RailSidebar extends ConsumerWidget {
 
 class _RailNavTile extends StatelessWidget {
   const _RailNavTile({
+    super.key,
     required this.destination,
     required this.selected,
     required this.onTap,
@@ -1105,35 +1882,96 @@ class _RailNavTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
+    final colorScheme = Theme.of(context).colorScheme;
+    final textStyle = Theme.of(context).textTheme.bodyLarge?.copyWith(
       fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+      color: selected
+          ? colorScheme.onSecondaryContainer
+          : colorScheme.onSurfaceVariant,
     );
 
-    return InkWell(
-      borderRadius: BorderRadius.circular(10),
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),
-        child: Row(
-          children: <Widget>[
-            Icon(destination.icon, size: 20),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                destination.label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: textStyle,
+    return Material(
+      color: selected
+          ? colorScheme.secondaryContainer.withValues(alpha: 0.9)
+          : Colors.transparent,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: <Widget>[
+              Icon(
+                destination.icon,
+                size: 24,
+                color: selected
+                    ? colorScheme.onSecondaryContainer
+                    : colorScheme.onSurfaceVariant,
               ),
-            ),
-          ],
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  destination.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: textStyle,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _RailMiniPlayer extends ConsumerWidget {
+class _RailSubNavTile extends StatelessWidget {
+  const _RailSubNavTile({
+    super.key,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
+      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+      color: selected ? colorScheme.primary : colorScheme.onSurfaceVariant,
+    );
+
+    return Padding(
+      padding: const EdgeInsets.only(left: 16, right: 6, bottom: 6),
+      child: Material(
+        color: selected
+            ? colorScheme.primaryContainer.withValues(alpha: 0.35)
+            : Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: textStyle,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RailMiniPlayer extends ConsumerStatefulWidget {
   const _RailMiniPlayer({
     required this.playback,
     required this.onOpenPlayer,
@@ -1155,184 +1993,350 @@ class _RailMiniPlayer extends ConsumerWidget {
   final String? radioArtUrl;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_RailMiniPlayer> createState() => _RailMiniPlayerState();
+}
+
+class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
+  double? _dragSliderValue;
+  bool _isSeeking = false;
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
+    final playback = widget.playback;
     final isPlaying = playback.playing;
     final position = playback.position;
     final duration = playback.duration;
+    final durationMs = duration.inMilliseconds;
+    final canSeek = !widget.isRadio && durationMs > 0;
+    final sliderMax = canSeek ? durationMs.toDouble() : 1.0;
+    final positionMs = canSeek
+        ? position.inMilliseconds.clamp(0, durationMs).toDouble()
+        : 0.0;
+    final sliderValue = canSeek
+        ? ((_dragSliderValue ?? positionMs).clamp(0.0, sliderMax))
+        : 0.0;
+    final seekPreviewPosition = Duration(milliseconds: sliderValue.round());
     final progress = duration.inMilliseconds > 0
         ? (position.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0)
         : 0.0;
     const compactButtonConstraints = BoxConstraints(
-      minWidth: 40,
-      minHeight: 40,
+      minWidth: 46,
+      minHeight: 46,
     );
 
-    return InkWell(
-      onTap: onOpenPlayer,
-      borderRadius: BorderRadius.circular(8),
+    final fullMiniPlayer = Align(
+      alignment: Alignment.bottomCenter,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(0, 8, 0, 2),
+        padding: const EdgeInsets.fromLTRB(6, 12, 6, 8),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
-            Row(
-              children: <Widget>[
-                if (isRadio)
-                  _MiniRadioArt(artUrl: radioArtUrl, colorScheme: cs)
-                else if (coverArtId == null || coverArtId!.trim().isEmpty)
-                  _MiniRemoteArt(artUrl: coverArtUrl, colorScheme: cs)
-                else
-                  CoverArtImage(
-                    coverArtId: coverArtId,
-                    size: 300,
-                    width: 58,
-                    height: 58,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      Text(
-                        (songTitle == null || songTitle!.trim().isEmpty)
-                            ? l10n.miniPlayerUnknownTrack
-                            : songTitle!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
+            Material(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(20),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: widget.onOpenPlayer,
+                borderRadius: BorderRadius.circular(20),
+                child: Stack(
+                  children: <Widget>[
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(10, 12, 10, 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Row(
+                            children: <Widget>[
+                              if (widget.isRadio)
+                                _MiniRadioArt(
+                                  artUrl: widget.radioArtUrl,
+                                  colorScheme: cs,
+                                  size: 44,
+                                )
+                              else if (widget.coverArtId == null ||
+                                  widget.coverArtId!.trim().isEmpty)
+                                _MiniRemoteArt(
+                                  artUrl: widget.coverArtUrl,
+                                  colorScheme: cs,
+                                  size: 44,
+                                )
+                              else
+                                CoverArtImage(
+                                  coverArtId: widget.coverArtId,
+                                  size: 300,
+                                  width: 44,
+                                  height: 44,
+                                  borderRadius: BorderRadius.circular(9),
+                                ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: <Widget>[
+                                    Text(
+                                      (widget.songTitle == null ||
+                                              widget.songTitle!.trim().isEmpty)
+                                          ? l10n.miniPlayerUnknownTrack
+                                          : widget.songTitle!,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      softWrap: false,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 17,
+                                            height: 1.15,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 1),
+                                    Text(
+                                      (widget.songArtist == null ||
+                                              widget.songArtist!.trim().isEmpty)
+                                          ? l10n.miniPlayerUnknownArtist
+                                          : widget.songArtist!,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            fontSize: 12,
+                                            color: cs.onSurfaceVariant,
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceAround,
+                            children: <Widget>[
+                              IconButton(
+                                tooltip: l10n.nowPlayingPrevious,
+                                constraints: compactButtonConstraints,
+                                padding: EdgeInsets.zero,
+                                iconSize: 24,
+                                visualDensity: VisualDensity.compact,
+                                onPressed: widget.isRadio
+                                    ? null
+                                    : () {
+                                        unawaited(
+                                          HapticFeedback.lightImpact(),
+                                        );
+                                        unawaited(
+                                          ref
+                                              .read(audioHandlerProvider)
+                                              ?.skipToPrevious(),
+                                        );
+                                      },
+                                icon: const Icon(Icons.skip_previous_rounded),
+                              ),
+                              IconButton(
+                                tooltip: isPlaying
+                                    ? l10n.miniPlayerPause
+                                    : l10n.miniPlayerPlay,
+                                constraints: compactButtonConstraints,
+                                style: IconButton.styleFrom(
+                                  backgroundColor: cs.primaryContainer,
+                                  foregroundColor: cs.onPrimaryContainer,
+                                  padding: EdgeInsets.zero,
+                                  minimumSize: const Size(46, 46),
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                                onPressed: () async {
+                                  final handler = ref.read(
+                                    audioHandlerProvider,
+                                  );
+                                  if (handler == null) {
+                                    return;
+                                  }
+                                  if (isPlaying) {
+                                    await handler.pause();
+                                  } else {
+                                    await handler.play();
+                                  }
+                                },
+                                icon: Icon(
+                                  isPlaying
+                                      ? Icons.pause_rounded
+                                      : Icons.play_arrow_rounded,
+                                ),
+                              ),
+                              IconButton(
+                                tooltip: widget.isRadio
+                                    ? l10n.radioStopStation
+                                    : l10n.miniPlayerSkipNext,
+                                constraints: compactButtonConstraints,
+                                padding: EdgeInsets.zero,
+                                iconSize: 24,
+                                visualDensity: VisualDensity.compact,
+                                onPressed: () async {
+                                  final handler = ref.read(
+                                    audioHandlerProvider,
+                                  );
+                                  if (handler == null) {
+                                    return;
+                                  }
+                                  unawaited(HapticFeedback.lightImpact());
+                                  if (widget.isRadio) {
+                                    await handler.stopRadio();
+                                  } else {
+                                    unawaited(handler.skipToNext());
+                                  }
+                                },
+                                icon: Icon(
+                                  widget.isRadio
+                                      ? Icons.stop_rounded
+                                      : Icons.skip_next_rounded,
+                                ),
+                              ),
+                              IconButton(
+                                tooltip: playback.isCurrentSongLiked
+                                    ? l10n.actionLiked
+                                    : l10n.actionLike,
+                                constraints: compactButtonConstraints,
+                                padding: EdgeInsets.zero,
+                                iconSize: 24,
+                                visualDensity: VisualDensity.compact,
+                                onPressed: widget.isRadio
+                                    ? null
+                                    : () {
+                                        unawaited(
+                                          HapticFeedback.lightImpact(),
+                                        );
+                                        unawaited(
+                                          ref
+                                              .read(audioHandlerProvider)
+                                              ?.toggleLike(),
+                                        );
+                                      },
+                                icon: Icon(
+                                  playback.isCurrentSongLiked
+                                      ? Icons.favorite
+                                      : Icons.favorite_border,
+                                  color: playback.isCurrentSongLiked
+                                      ? cs.primary
+                                      : null,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: AnimatedOpacity(
+                          duration: const Duration(milliseconds: 120),
+                          curve: Curves.easeOut,
+                          opacity: _isSeeking && canSeek ? 1 : 0,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(20),
+                            child: BackdropFilter(
+                              filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                              child: Container(
+                                color: cs.surface.withValues(alpha: 0.24),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  '${_formatMiniPlayerDuration(seekPreviewPosition)} / '
+                                  '${_formatMiniPlayerDuration(duration)}',
+                                  style: Theme.of(context).textTheme.titleMedium
+                                      ?.copyWith(fontWeight: FontWeight.w700),
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        (songArtist == null || songArtist!.trim().isEmpty)
-                            ? l10n.miniPlayerUnknownArtist
-                            : songArtist!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: cs.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
-            const SizedBox(height: 10),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: <Widget>[
-                IconButton(
-                  tooltip: l10n.nowPlayingPrevious,
-                  constraints: compactButtonConstraints,
-                  padding: EdgeInsets.zero,
-                  iconSize: 22,
-                  visualDensity: VisualDensity.compact,
-                  onPressed: isRadio
-                      ? null
-                      : () {
-                          HapticFeedback.lightImpact();
-                          ref.read(audioHandlerProvider)?.skipToPrevious();
-                        },
-                  icon: const Icon(Icons.skip_previous_rounded),
-                ),
-                IconButton(
-                  tooltip: isPlaying
-                      ? l10n.miniPlayerPause
-                      : l10n.miniPlayerPlay,
-                  constraints: compactButtonConstraints,
-                  style: IconButton.styleFrom(
-                    backgroundColor: cs.primaryContainer,
-                    foregroundColor: cs.onPrimaryContainer,
-                    padding: EdgeInsets.zero,
-                    minimumSize: const Size(40, 40),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    visualDensity: VisualDensity.compact,
+            const SizedBox(height: 6),
+            if (canSeek)
+              SliderTheme(
+                data: SliderTheme.of(context).copyWith(
+                  trackHeight: 3,
+                  thumbShape: const RoundSliderThumbShape(
+                    enabledThumbRadius: 6,
                   ),
-                  onPressed: () async {
-                    final handler = ref.read(audioHandlerProvider);
-                    if (handler == null) {
-                      return;
-                    }
-                    if (isPlaying) {
-                      await handler.pause();
-                    } else {
-                      await handler.play();
-                    }
+                  overlayShape: const RoundSliderOverlayShape(
+                    overlayRadius: 12,
+                  ),
+                ),
+                child: Slider(
+                  value: sliderValue,
+                  max: sliderMax,
+                  onChangeStart: (value) {
+                    setState(() {
+                      _isSeeking = true;
+                      _dragSliderValue = value;
+                    });
                   },
-                  icon: Icon(
-                    isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                  ),
-                ),
-                IconButton(
-                  tooltip: isRadio
-                      ? l10n.radioStopStation
-                      : l10n.miniPlayerSkipNext,
-                  constraints: compactButtonConstraints,
-                  padding: EdgeInsets.zero,
-                  iconSize: 22,
-                  visualDensity: VisualDensity.compact,
-                  onPressed: () async {
-                    final handler = ref.read(audioHandlerProvider);
-                    if (handler == null) {
-                      return;
-                    }
-                    HapticFeedback.lightImpact();
-                    if (isRadio) {
-                      await handler.stopRadio();
-                    } else {
-                      handler.skipToNext();
-                    }
+                  onChanged: (value) {
+                    setState(() => _dragSliderValue = value);
                   },
-                  icon: Icon(
-                    isRadio ? Icons.stop_rounded : Icons.skip_next_rounded,
-                  ),
+                  onChangeEnd: (value) {
+                    setState(() {
+                      _isSeeking = false;
+                      _dragSliderValue = null;
+                    });
+                    unawaited(
+                      ref
+                          .read(audioHandlerProvider)
+                          ?.seek(Duration(milliseconds: value.round())),
+                    );
+                  },
                 ),
-                IconButton(
-                  tooltip: playback.isCurrentSongLiked
-                      ? l10n.actionLiked
-                      : l10n.actionLike,
-                  constraints: compactButtonConstraints,
-                  padding: EdgeInsets.zero,
-                  iconSize: 22,
-                  visualDensity: VisualDensity.compact,
-                  onPressed: isRadio
-                      ? null
-                      : () {
-                          HapticFeedback.lightImpact();
-                          ref.read(audioHandlerProvider)?.toggleLike();
-                        },
-                  icon: Icon(
-                    playback.isCurrentSongLiked
-                        ? Icons.favorite
-                        : Icons.favorite_border,
-                    color: playback.isCurrentSongLiked ? cs.primary : null,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 5),
-            LinearProgressIndicator(
-              value: isRadio
-                  ? (playback.processingState == AudioProcessingState.loading ||
-                            playback.processingState ==
-                                AudioProcessingState.buffering
-                        ? null
-                        : 0.0)
-                  : progress,
-              minHeight: 2,
-              color: cs.primary,
-              backgroundColor: cs.primary.withValues(alpha: 0.12),
-            ),
+              )
+            else
+              LinearProgressIndicator(
+                value: widget.isRadio
+                    ? (playback.processingState ==
+                                  AudioProcessingState.loading ||
+                              playback.processingState ==
+                                  AudioProcessingState.buffering
+                          ? null
+                          : 0.0)
+                    : progress,
+                minHeight: 3,
+                color: cs.primary,
+                backgroundColor: cs.primary.withValues(alpha: 0.12),
+              ),
           ],
         ),
       ),
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final tightHeight =
+            constraints.maxHeight.isFinite && constraints.maxHeight < 150;
+        if (!tightHeight) {
+          return fullMiniPlayer;
+        }
+        return ClipRect(
+          child: SingleChildScrollView(
+            reverse: true,
+            physics: const NeverScrollableScrollPhysics(),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 150),
+              child: fullMiniPlayer,
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -1604,10 +2608,12 @@ class _MiniRadioArt extends StatelessWidget {
   const _MiniRadioArt({
     required this.artUrl,
     required this.colorScheme,
+    this.size = 48,
   });
 
   final String? artUrl;
   final ColorScheme colorScheme;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
@@ -1617,8 +2623,8 @@ class _MiniRadioArt extends StatelessWidget {
       child: url != null && url.isNotEmpty
           ? CachedNetworkImage(
               imageUrl: url,
-              width: 48,
-              height: 48,
+              width: size,
+              height: size,
               fit: BoxFit.cover,
               errorWidget: (_, _, _) => _placeholder(),
             )
@@ -1628,11 +2634,15 @@ class _MiniRadioArt extends StatelessWidget {
 
   Widget _placeholder() {
     return Container(
-      width: 48,
-      height: 48,
+      width: size,
+      height: size,
       color: colorScheme.primaryContainer,
       alignment: Alignment.center,
-      child: Icon(Icons.radio, color: colorScheme.onPrimaryContainer),
+      child: Icon(
+        Icons.radio,
+        size: size * 0.5,
+        color: colorScheme.onPrimaryContainer,
+      ),
     );
   }
 }
@@ -1642,10 +2652,12 @@ class _MiniRemoteArt extends StatelessWidget {
   const _MiniRemoteArt({
     required this.artUrl,
     required this.colorScheme,
+    this.size = 48,
   });
 
   final String? artUrl;
   final ColorScheme colorScheme;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
@@ -1655,8 +2667,8 @@ class _MiniRemoteArt extends StatelessWidget {
       child: url != null && url.isNotEmpty
           ? CachedNetworkImage(
               imageUrl: url,
-              width: 48,
-              height: 48,
+              width: size,
+              height: size,
               fit: BoxFit.cover,
               errorWidget: (_, _, _) => _placeholder(),
             )
@@ -1666,11 +2678,15 @@ class _MiniRemoteArt extends StatelessWidget {
 
   Widget _placeholder() {
     return Container(
-      width: 48,
-      height: 48,
+      width: size,
+      height: size,
       color: colorScheme.secondaryContainer,
       alignment: Alignment.center,
-      child: Icon(Icons.music_note, color: colorScheme.onSecondaryContainer),
+      child: Icon(
+        Icons.music_note,
+        size: size * 0.5,
+        color: colorScheme.onSecondaryContainer,
+      ),
     );
   }
 }

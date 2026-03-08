@@ -67,6 +67,10 @@ class AppSettingsTable extends Table {
   /// Locale override code (e.g. 'en'). Null means follow system locale.
   TextColumn get appLocale => text().nullable()();
 
+  /// Enables desktop-first UI v1 surfaces when running on desktop platforms.
+  BoolColumn get desktopUiV1Enabled =>
+      boolean().withDefault(const Constant(false))();
+
   /// Cross-fade between tracks in the queue.
   BoolColumn get crossfadeEnabled =>
       boolean().withDefault(const Constant(false))();

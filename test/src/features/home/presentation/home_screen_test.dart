@@ -123,6 +123,51 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('home renders tablet layout without overflow', (tester) async {
+    final view = tester.view;
+    view.devicePixelRatio = 1.0;
+    view.physicalSize = const Size(700, 1000);
+    addTearDown(() {
+      view.resetPhysicalSize();
+      view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          librarySyncControllerProvider.overrideWith(
+            _StaticLibrarySyncController.new,
+          ),
+          homeLikedSongsProvider.overrideWithValue(
+            const AsyncData(<SongsTableData>[]),
+          ),
+          homeRecentlyAddedProvider.overrideWithValue(
+            const AsyncData(<Album>[]),
+          ),
+          homeRecentlyPlayedAlbumsProvider.overrideWithValue(
+            const AsyncData(<AlbumsTableData>[]),
+          ),
+          homeRandomAlbumsProvider.overrideWithValue(
+            const AsyncData(<Album>[]),
+          ),
+          homeMostPlayedSongsProvider.overrideWithValue(
+            const AsyncData(<SongsTableData>[]),
+          ),
+        ],
+        child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const HomeScreen(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('Recently added'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   group('HomeSectionIds', () {
     test('defaultOrder contains all section IDs', () {
       expect(

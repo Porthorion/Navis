@@ -112,7 +112,10 @@ class ShimmerListPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView.builder(
+      shrinkWrap: true,
+      primary: false,
       physics: const NeverScrollableScrollPhysics(),
+      padding: EdgeInsets.zero,
       itemCount: count,
       itemBuilder: (_, _) => ShimmerListTile(leadingSize: leadingSize),
     );

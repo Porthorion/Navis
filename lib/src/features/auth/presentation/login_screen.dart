@@ -23,11 +23,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   late final TextEditingController _usernameController;
   late final TextEditingController _passwordController;
 
-  bool _isTestingConnection = false;
   bool _isConnecting = false;
   bool _showValidationErrors = false;
 
-  bool get _isBusy => _isTestingConnection || _isConnecting;
+  bool get _isBusy => _isConnecting;
 
   @override
   void initState() {
@@ -54,85 +53,102 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return Scaffold(
       appBar: AppBar(title: Text(l10n.loginTitle)),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Form(
-            key: _formKey,
-            autovalidateMode: _showValidationErrors
-                ? AutovalidateMode.onUserInteraction
-                : AutovalidateMode.disabled,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                Text(
-                  l10n.loginSubtitle,
-                  style: theme.textTheme.bodyLarge,
-                ),
-                const SizedBox(height: 20),
-                TextFormField(
-                  controller: _urlController,
-                  decoration: InputDecoration(
-                    labelText: l10n.loginServerUrlLabel,
-                  ),
-                  keyboardType: TextInputType.url,
-                  textInputAction: TextInputAction.next,
-                  enabled: !_isBusy,
-                  validator: (value) => validateServerUrl(value, l10n),
-                ),
-                if (isInsecureHttpUrl(_urlController.text.trim())) ...<Widget>[
-                  const SizedBox(height: 8),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final useWideLayout = constraints.maxWidth >= 900;
+            final form = Form(
+              key: _formKey,
+              autovalidateMode: _showValidationErrors
+                  ? AutovalidateMode.onUserInteraction
+                  : AutovalidateMode.disabled,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
                   Text(
-                    l10n.loginInsecureHttpWarning,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.error,
+                    l10n.loginSubtitle,
+                    style: theme.textTheme.bodyLarge,
+                  ),
+                  const SizedBox(height: 20),
+                  TextFormField(
+                    controller: _urlController,
+                    decoration: InputDecoration(
+                      labelText: l10n.loginServerUrlLabel,
+                    ),
+                    keyboardType: TextInputType.url,
+                    textInputAction: TextInputAction.next,
+                    enabled: !_isBusy,
+                    validator: (value) => validateServerUrl(value, l10n),
+                  ),
+                  if (isInsecureHttpUrl(
+                    _urlController.text.trim(),
+                  )) ...<Widget>[
+                    const SizedBox(height: 8),
+                    Text(
+                      l10n.loginInsecureHttpWarning,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.error,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _usernameController,
+                    decoration: InputDecoration(
+                      labelText: l10n.loginUsernameLabel,
+                    ),
+                    textInputAction: TextInputAction.next,
+                    enabled: !_isBusy,
+                    validator: (value) => _validateRequired(
+                      value,
+                      l10n.loginValidationUsernameRequired,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _passwordController,
+                    decoration: InputDecoration(
+                      labelText: l10n.loginPasswordLabel,
+                    ),
+                    obscureText: true,
+                    textInputAction: TextInputAction.done,
+                    onFieldSubmitted: (_) => _connect(),
+                    enabled: !_isBusy,
+                    validator: (value) => _validateRequired(
+                      value,
+                      l10n.loginValidationPasswordRequired,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  FilledButton(
+                    onPressed: _isBusy ? null : _connect,
+                    child: Text(
+                      _isConnecting ? l10n.loginConnecting : l10n.loginConnect,
                     ),
                   ),
                 ],
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _usernameController,
-                  decoration: InputDecoration(
-                    labelText: l10n.loginUsernameLabel,
-                  ),
-                  textInputAction: TextInputAction.next,
-                  enabled: !_isBusy,
-                  validator: (value) => _validateRequired(
-                    value,
-                    l10n.loginValidationUsernameRequired,
-                  ),
+              ),
+            );
+
+            final scrollBody = SingleChildScrollView(
+              padding: EdgeInsets.all(useWideLayout ? 24 : 16),
+              child: form,
+            );
+
+            if (!useWideLayout) {
+              return scrollBody;
+            }
+
+            return Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 560),
+                child: Card(
+                  margin: EdgeInsets.zero,
+                  clipBehavior: Clip.antiAlias,
+                  child: scrollBody,
                 ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _passwordController,
-                  decoration: InputDecoration(
-                    labelText: l10n.loginPasswordLabel,
-                  ),
-                  obscureText: true,
-                  enabled: !_isBusy,
-                  validator: (value) => _validateRequired(
-                    value,
-                    l10n.loginValidationPasswordRequired,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                FilledButton.tonal(
-                  onPressed: _isBusy ? null : _testConnection,
-                  child: Text(
-                    _isTestingConnection
-                        ? l10n.loginTestingConnection
-                        : l10n.loginTestConnection,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                FilledButton(
-                  onPressed: _isBusy ? null : _connect,
-                  child: Text(
-                    _isConnecting ? l10n.loginConnecting : l10n.loginConnect,
-                  ),
-                ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
       ),
     );
@@ -145,44 +161,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return null;
   }
 
-  Future<void> _testConnection() async {
-    final l10n = AppLocalizations.of(context)!;
-    if (!_validateForm()) {
+  Future<void> _connect() async {
+    if (_isBusy) {
       return;
     }
-
-    setState(() => _isTestingConnection = true);
-    try {
-      final result = await ref
-          .read(serverConnectionServiceProvider)
-          .probe(
-            url: _normalizedUrl,
-            username: _usernameController.text.trim(),
-            password: _passwordController.text,
-          );
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(l10n.loginTestConnectionSuccess(result.apiVersion)),
-        ),
-      );
-    } on Object catch (error) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_toUserMessage(error, l10n))),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isTestingConnection = false);
-      }
-    }
-  }
-
-  Future<void> _connect() async {
     final l10n = AppLocalizations.of(context)!;
     if (!_validateForm()) {
       return;

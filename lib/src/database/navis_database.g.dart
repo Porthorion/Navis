@@ -822,6 +822,20 @@ class $AppSettingsTableTable extends AppSettingsTable
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _desktopUiV1EnabledMeta =
+      const VerificationMeta('desktopUiV1Enabled');
+  @override
+  late final GeneratedColumn<bool> desktopUiV1Enabled = GeneratedColumn<bool>(
+    'desktop_ui_v1_enabled',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("desktop_ui_v1_enabled" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _crossfadeEnabledMeta = const VerificationMeta(
     'crossfadeEnabled',
   );
@@ -1168,6 +1182,7 @@ class $AppSettingsTableTable extends AppSettingsTable
     colorSchemeSeed,
     customColorPresets,
     appLocale,
+    desktopUiV1Enabled,
     crossfadeEnabled,
     crossfadeDurationSeconds,
     crossfadeType,
@@ -1397,6 +1412,15 @@ class $AppSettingsTableTable extends AppSettingsTable
       context.handle(
         _appLocaleMeta,
         appLocale.isAcceptableOrUnknown(data['app_locale']!, _appLocaleMeta),
+      );
+    }
+    if (data.containsKey('desktop_ui_v1_enabled')) {
+      context.handle(
+        _desktopUiV1EnabledMeta,
+        desktopUiV1Enabled.isAcceptableOrUnknown(
+          data['desktop_ui_v1_enabled']!,
+          _desktopUiV1EnabledMeta,
+        ),
       );
     }
     if (data.containsKey('crossfade_enabled')) {
@@ -1730,6 +1754,10 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.string,
         data['${effectivePrefix}app_locale'],
       ),
+      desktopUiV1Enabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}desktop_ui_v1_enabled'],
+      )!,
       crossfadeEnabled: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}crossfade_enabled'],
@@ -1883,6 +1911,9 @@ class AppSettingsTableData extends DataClass
   /// Locale override code (e.g. 'en'). Null means follow system locale.
   final String? appLocale;
 
+  /// Enables desktop-first UI v1 surfaces when running on desktop platforms.
+  final bool desktopUiV1Enabled;
+
   /// Cross-fade between tracks in the queue.
   final bool crossfadeEnabled;
 
@@ -1986,6 +2017,7 @@ class AppSettingsTableData extends DataClass
     this.colorSchemeSeed,
     this.customColorPresets,
     this.appLocale,
+    required this.desktopUiV1Enabled,
     required this.crossfadeEnabled,
     required this.crossfadeDurationSeconds,
     required this.crossfadeType,
@@ -2059,6 +2091,7 @@ class AppSettingsTableData extends DataClass
     if (!nullToAbsent || appLocale != null) {
       map['app_locale'] = Variable<String>(appLocale);
     }
+    map['desktop_ui_v1_enabled'] = Variable<bool>(desktopUiV1Enabled);
     map['crossfade_enabled'] = Variable<bool>(crossfadeEnabled);
     map['crossfade_duration_seconds'] = Variable<int>(crossfadeDurationSeconds);
     map['crossfade_type'] = Variable<String>(crossfadeType);
@@ -2145,6 +2178,7 @@ class AppSettingsTableData extends DataClass
       appLocale: appLocale == null && nullToAbsent
           ? const Value.absent()
           : Value(appLocale),
+      desktopUiV1Enabled: Value(desktopUiV1Enabled),
       crossfadeEnabled: Value(crossfadeEnabled),
       crossfadeDurationSeconds: Value(crossfadeDurationSeconds),
       crossfadeType: Value(crossfadeType),
@@ -2223,6 +2257,7 @@ class AppSettingsTableData extends DataClass
         json['customColorPresets'],
       ),
       appLocale: serializer.fromJson<String?>(json['appLocale']),
+      desktopUiV1Enabled: serializer.fromJson<bool>(json['desktopUiV1Enabled']),
       crossfadeEnabled: serializer.fromJson<bool>(json['crossfadeEnabled']),
       crossfadeDurationSeconds: serializer.fromJson<int>(
         json['crossfadeDurationSeconds'],
@@ -2300,6 +2335,7 @@ class AppSettingsTableData extends DataClass
       'colorSchemeSeed': serializer.toJson<int?>(colorSchemeSeed),
       'customColorPresets': serializer.toJson<String?>(customColorPresets),
       'appLocale': serializer.toJson<String?>(appLocale),
+      'desktopUiV1Enabled': serializer.toJson<bool>(desktopUiV1Enabled),
       'crossfadeEnabled': serializer.toJson<bool>(crossfadeEnabled),
       'crossfadeDurationSeconds': serializer.toJson<int>(
         crossfadeDurationSeconds,
@@ -2361,6 +2397,7 @@ class AppSettingsTableData extends DataClass
     Value<int?> colorSchemeSeed = const Value.absent(),
     Value<String?> customColorPresets = const Value.absent(),
     Value<String?> appLocale = const Value.absent(),
+    bool? desktopUiV1Enabled,
     bool? crossfadeEnabled,
     int? crossfadeDurationSeconds,
     String? crossfadeType,
@@ -2426,6 +2463,7 @@ class AppSettingsTableData extends DataClass
         ? customColorPresets.value
         : this.customColorPresets,
     appLocale: appLocale.present ? appLocale.value : this.appLocale,
+    desktopUiV1Enabled: desktopUiV1Enabled ?? this.desktopUiV1Enabled,
     crossfadeEnabled: crossfadeEnabled ?? this.crossfadeEnabled,
     crossfadeDurationSeconds:
         crossfadeDurationSeconds ?? this.crossfadeDurationSeconds,
@@ -2532,6 +2570,9 @@ class AppSettingsTableData extends DataClass
           ? data.customColorPresets.value
           : this.customColorPresets,
       appLocale: data.appLocale.present ? data.appLocale.value : this.appLocale,
+      desktopUiV1Enabled: data.desktopUiV1Enabled.present
+          ? data.desktopUiV1Enabled.value
+          : this.desktopUiV1Enabled,
       crossfadeEnabled: data.crossfadeEnabled.present
           ? data.crossfadeEnabled.value
           : this.crossfadeEnabled,
@@ -2635,6 +2676,7 @@ class AppSettingsTableData extends DataClass
           ..write('colorSchemeSeed: $colorSchemeSeed, ')
           ..write('customColorPresets: $customColorPresets, ')
           ..write('appLocale: $appLocale, ')
+          ..write('desktopUiV1Enabled: $desktopUiV1Enabled, ')
           ..write('crossfadeEnabled: $crossfadeEnabled, ')
           ..write('crossfadeDurationSeconds: $crossfadeDurationSeconds, ')
           ..write('crossfadeType: $crossfadeType, ')
@@ -2690,6 +2732,7 @@ class AppSettingsTableData extends DataClass
     colorSchemeSeed,
     customColorPresets,
     appLocale,
+    desktopUiV1Enabled,
     crossfadeEnabled,
     crossfadeDurationSeconds,
     crossfadeType,
@@ -2744,6 +2787,7 @@ class AppSettingsTableData extends DataClass
           other.colorSchemeSeed == this.colorSchemeSeed &&
           other.customColorPresets == this.customColorPresets &&
           other.appLocale == this.appLocale &&
+          other.desktopUiV1Enabled == this.desktopUiV1Enabled &&
           other.crossfadeEnabled == this.crossfadeEnabled &&
           other.crossfadeDurationSeconds == this.crossfadeDurationSeconds &&
           other.crossfadeType == this.crossfadeType &&
@@ -2796,6 +2840,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<int?> colorSchemeSeed;
   final Value<String?> customColorPresets;
   final Value<String?> appLocale;
+  final Value<bool> desktopUiV1Enabled;
   final Value<bool> crossfadeEnabled;
   final Value<int> crossfadeDurationSeconds;
   final Value<String> crossfadeType;
@@ -2846,6 +2891,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.colorSchemeSeed = const Value.absent(),
     this.customColorPresets = const Value.absent(),
     this.appLocale = const Value.absent(),
+    this.desktopUiV1Enabled = const Value.absent(),
     this.crossfadeEnabled = const Value.absent(),
     this.crossfadeDurationSeconds = const Value.absent(),
     this.crossfadeType = const Value.absent(),
@@ -2897,6 +2943,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.colorSchemeSeed = const Value.absent(),
     this.customColorPresets = const Value.absent(),
     this.appLocale = const Value.absent(),
+    this.desktopUiV1Enabled = const Value.absent(),
     this.crossfadeEnabled = const Value.absent(),
     this.crossfadeDurationSeconds = const Value.absent(),
     this.crossfadeType = const Value.absent(),
@@ -2948,6 +2995,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<int>? colorSchemeSeed,
     Expression<String>? customColorPresets,
     Expression<String>? appLocale,
+    Expression<bool>? desktopUiV1Enabled,
     Expression<bool>? crossfadeEnabled,
     Expression<int>? crossfadeDurationSeconds,
     Expression<String>? crossfadeType,
@@ -3006,6 +3054,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       if (customColorPresets != null)
         'custom_color_presets': customColorPresets,
       if (appLocale != null) 'app_locale': appLocale,
+      if (desktopUiV1Enabled != null)
+        'desktop_ui_v1_enabled': desktopUiV1Enabled,
       if (crossfadeEnabled != null) 'crossfade_enabled': crossfadeEnabled,
       if (crossfadeDurationSeconds != null)
         'crossfade_duration_seconds': crossfadeDurationSeconds,
@@ -3070,6 +3120,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<int?>? colorSchemeSeed,
     Value<String?>? customColorPresets,
     Value<String?>? appLocale,
+    Value<bool>? desktopUiV1Enabled,
     Value<bool>? crossfadeEnabled,
     Value<int>? crossfadeDurationSeconds,
     Value<String>? crossfadeType,
@@ -3122,6 +3173,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       colorSchemeSeed: colorSchemeSeed ?? this.colorSchemeSeed,
       customColorPresets: customColorPresets ?? this.customColorPresets,
       appLocale: appLocale ?? this.appLocale,
+      desktopUiV1Enabled: desktopUiV1Enabled ?? this.desktopUiV1Enabled,
       crossfadeEnabled: crossfadeEnabled ?? this.crossfadeEnabled,
       crossfadeDurationSeconds:
           crossfadeDurationSeconds ?? this.crossfadeDurationSeconds,
@@ -3232,6 +3284,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     }
     if (appLocale.present) {
       map['app_locale'] = Variable<String>(appLocale.value);
+    }
+    if (desktopUiV1Enabled.present) {
+      map['desktop_ui_v1_enabled'] = Variable<bool>(desktopUiV1Enabled.value);
     }
     if (crossfadeEnabled.present) {
       map['crossfade_enabled'] = Variable<bool>(crossfadeEnabled.value);
@@ -3350,6 +3405,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('colorSchemeSeed: $colorSchemeSeed, ')
           ..write('customColorPresets: $customColorPresets, ')
           ..write('appLocale: $appLocale, ')
+          ..write('desktopUiV1Enabled: $desktopUiV1Enabled, ')
           ..write('crossfadeEnabled: $crossfadeEnabled, ')
           ..write('crossfadeDurationSeconds: $crossfadeDurationSeconds, ')
           ..write('crossfadeType: $crossfadeType, ')
@@ -11824,6 +11880,7 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<int?> colorSchemeSeed,
       Value<String?> customColorPresets,
       Value<String?> appLocale,
+      Value<bool> desktopUiV1Enabled,
       Value<bool> crossfadeEnabled,
       Value<int> crossfadeDurationSeconds,
       Value<String> crossfadeType,
@@ -11876,6 +11933,7 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<int?> colorSchemeSeed,
       Value<String?> customColorPresets,
       Value<String?> appLocale,
+      Value<bool> desktopUiV1Enabled,
       Value<bool> crossfadeEnabled,
       Value<int> crossfadeDurationSeconds,
       Value<String> crossfadeType,
@@ -12025,6 +12083,11 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<String> get appLocale => $composableBuilder(
     column: $table.appLocale,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get desktopUiV1Enabled => $composableBuilder(
+    column: $table.desktopUiV1Enabled,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -12283,6 +12346,11 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get desktopUiV1Enabled => $composableBuilder(
+    column: $table.desktopUiV1Enabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get crossfadeEnabled => $composableBuilder(
     column: $table.crossfadeEnabled,
     builder: (column) => ColumnOrderings(column),
@@ -12532,6 +12600,11 @@ class $$AppSettingsTableTableAnnotationComposer
   GeneratedColumn<String> get appLocale =>
       $composableBuilder(column: $table.appLocale, builder: (column) => column);
 
+  GeneratedColumn<bool> get desktopUiV1Enabled => $composableBuilder(
+    column: $table.desktopUiV1Enabled,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<bool> get crossfadeEnabled => $composableBuilder(
     column: $table.crossfadeEnabled,
     builder: (column) => column,
@@ -12719,6 +12792,7 @@ class $$AppSettingsTableTableTableManager
                 Value<int?> colorSchemeSeed = const Value.absent(),
                 Value<String?> customColorPresets = const Value.absent(),
                 Value<String?> appLocale = const Value.absent(),
+                Value<bool> desktopUiV1Enabled = const Value.absent(),
                 Value<bool> crossfadeEnabled = const Value.absent(),
                 Value<int> crossfadeDurationSeconds = const Value.absent(),
                 Value<String> crossfadeType = const Value.absent(),
@@ -12769,6 +12843,7 @@ class $$AppSettingsTableTableTableManager
                 colorSchemeSeed: colorSchemeSeed,
                 customColorPresets: customColorPresets,
                 appLocale: appLocale,
+                desktopUiV1Enabled: desktopUiV1Enabled,
                 crossfadeEnabled: crossfadeEnabled,
                 crossfadeDurationSeconds: crossfadeDurationSeconds,
                 crossfadeType: crossfadeType,
@@ -12821,6 +12896,7 @@ class $$AppSettingsTableTableTableManager
                 Value<int?> colorSchemeSeed = const Value.absent(),
                 Value<String?> customColorPresets = const Value.absent(),
                 Value<String?> appLocale = const Value.absent(),
+                Value<bool> desktopUiV1Enabled = const Value.absent(),
                 Value<bool> crossfadeEnabled = const Value.absent(),
                 Value<int> crossfadeDurationSeconds = const Value.absent(),
                 Value<String> crossfadeType = const Value.absent(),
@@ -12871,6 +12947,7 @@ class $$AppSettingsTableTableTableManager
                 colorSchemeSeed: colorSchemeSeed,
                 customColorPresets: customColorPresets,
                 appLocale: appLocale,
+                desktopUiV1Enabled: desktopUiV1Enabled,
                 crossfadeEnabled: crossfadeEnabled,
                 crossfadeDurationSeconds: crossfadeDurationSeconds,
                 crossfadeType: crossfadeType,

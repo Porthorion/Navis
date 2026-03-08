@@ -34,6 +34,7 @@ import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/data/update_repository.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:path_provider/path_provider.dart';
@@ -1067,6 +1068,7 @@ class AudioHandlerStateController extends Notifier<NavisPlaybackHandler?> {
       if (current == null) {
         return;
       }
+      beginNavisPlaybackHandlerTeardown(current);
       unawaited(disposeNavisPlaybackHandler(current));
     });
     return null;
@@ -1077,6 +1079,7 @@ class AudioHandlerStateController extends Notifier<NavisPlaybackHandler?> {
     _currentHandler = handler;
     state = handler;
     if (previous != null && !identical(previous, handler)) {
+      beginNavisPlaybackHandlerTeardown(previous);
       await disposeNavisPlaybackHandler(previous);
     }
   }
@@ -1086,6 +1089,7 @@ class AudioHandlerStateController extends Notifier<NavisPlaybackHandler?> {
     _currentHandler = null;
     state = null;
     if (previous != null) {
+      beginNavisPlaybackHandlerTeardown(previous);
       await disposeNavisPlaybackHandler(previous);
     }
   }
@@ -1566,6 +1570,20 @@ final wifiOnlyDownloadsProvider = Provider<bool>((ref) {
       ref.watch(appSettingsProvider).asData?.value ??
       const AppSettingsModel.defaults();
   return settings.wifiOnlyDownloads;
+});
+
+/// Desktop UI v1 gate resolved from persisted settings and build defaults.
+///
+/// Returns false on non-desktop platforms.
+final desktopUiV1EnabledProvider = Provider<bool>((ref) {
+  if (!isDesktopRuntime) {
+    return false;
+  }
+  final settings = ref.watch(appSettingsProvider).asData?.value;
+  if (settings == null) {
+    return kDesktopUiV1BuildDefault;
+  }
+  return settings.desktopUiV1Enabled;
 });
 
 final autoDownloadStarredOnWifiProvider = Provider<bool>((ref) {

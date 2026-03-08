@@ -13,6 +13,7 @@ import 'package:navis/src/features/library/domain/toggle_song_star.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/utils/file_utils.dart';
 
 /// Shows a generic bottom sheet context menu for a [SongsTableData] song.
@@ -22,8 +23,19 @@ import 'package:navis/src/utils/file_utils.dart';
 Future<void> showSongContextMenu(
   BuildContext context,
   WidgetRef ref,
-  SongsTableData song,
-) async {
+  SongsTableData song, {
+  Offset? anchor,
+}) async {
+  if (anchor != null && isDesktopRuntime) {
+    await _showDesktopSongContextMenu(
+      context,
+      ref,
+      song,
+      anchor: anchor,
+    );
+    return;
+  }
+
   await showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
@@ -192,6 +204,118 @@ Future<void> showSongContextMenu(
       );
     },
   );
+}
+
+enum _SongContextAction {
+  playNow,
+  addQueue,
+  playNext,
+  toggleLike,
+  openArtist,
+  openAlbum,
+  addPlaylist,
+  download,
+  deleteDownload,
+}
+
+Future<void> _showDesktopSongContextMenu(
+  BuildContext context,
+  WidgetRef ref,
+  SongsTableData song, {
+  required Offset anchor,
+}) async {
+  final overlayBox = Overlay.of(context).context.findRenderObject();
+  if (overlayBox is! RenderBox) {
+    return;
+  }
+  final l10n = AppLocalizations.of(context)!;
+  final downloadState = ref.read(songDownloadStateProvider(song.id));
+  final isDownloaded = downloadState.status == SongDownloadStatus.downloaded;
+  final isLiked =
+      ref.read(songStarredProvider(song.id)).asData?.value ??
+      song.starred != null;
+
+  final action = await showMenu<_SongContextAction>(
+    context: context,
+    position: RelativeRect.fromRect(
+      Rect.fromLTWH(anchor.dx, anchor.dy, 0, 0),
+      Offset.zero & overlayBox.size,
+    ),
+    items: <PopupMenuEntry<_SongContextAction>>[
+      PopupMenuItem<_SongContextAction>(
+        value: _SongContextAction.playNow,
+        child: Text(l10n.librarySongMenuPlayNow),
+      ),
+      PopupMenuItem<_SongContextAction>(
+        value: _SongContextAction.addQueue,
+        child: Text(l10n.librarySongMenuAddToQueue),
+      ),
+      PopupMenuItem<_SongContextAction>(
+        value: _SongContextAction.playNext,
+        child: Text(l10n.librarySongMenuPlayNext),
+      ),
+      PopupMenuItem<_SongContextAction>(
+        value: _SongContextAction.toggleLike,
+        child: Text(isLiked ? l10n.actionLiked : l10n.actionLike),
+      ),
+      if (song.artistId != null && song.artistId!.isNotEmpty)
+        PopupMenuItem<_SongContextAction>(
+          value: _SongContextAction.openArtist,
+          child: Text(l10n.librarySongMenuOpenArtist),
+        ),
+      if (song.albumId != null && song.albumId!.isNotEmpty)
+        PopupMenuItem<_SongContextAction>(
+          value: _SongContextAction.openAlbum,
+          child: Text(l10n.librarySongMenuOpenAlbum),
+        ),
+      PopupMenuItem<_SongContextAction>(
+        value: _SongContextAction.addPlaylist,
+        child: Text(l10n.librarySongMenuAddToPlaylist),
+      ),
+      PopupMenuItem<_SongContextAction>(
+        value: isDownloaded
+            ? _SongContextAction.deleteDownload
+            : _SongContextAction.download,
+        child: Text(
+          isDownloaded ? l10n.deleteDownloadAction : l10n.downloadAction,
+        ),
+      ),
+    ],
+  );
+
+  if (!context.mounted || action == null) {
+    return;
+  }
+
+  switch (action) {
+    case _SongContextAction.playNow:
+      await ref.read(queueProvider.notifier).replace(<String>[song.id]);
+      return;
+    case _SongContextAction.addQueue:
+      await ref.read(queueProvider.notifier).add(song.id);
+      return;
+    case _SongContextAction.playNext:
+      await ref.read(queueProvider.notifier).playNext(song.id);
+      return;
+    case _SongContextAction.toggleLike:
+      await toggleSongStar(song.id, ref);
+      return;
+    case _SongContextAction.openArtist:
+      unawaited(context.push('/library/artists/${song.artistId}'));
+      return;
+    case _SongContextAction.openAlbum:
+      unawaited(context.push('/library/albums/${song.albumId}'));
+      return;
+    case _SongContextAction.addPlaylist:
+      await showAddToPlaylistSheet(context, ref, <String>[song.id]);
+      return;
+    case _SongContextAction.download:
+      await _downloadSongFromMenu(context, ref, song.id);
+      return;
+    case _SongContextAction.deleteDownload:
+      await _confirmAndDeleteDownload(context, ref, song.id);
+      return;
+  }
 }
 
 /// Downloads [songId] after showing the quality picker.

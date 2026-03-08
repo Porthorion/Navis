@@ -14,6 +14,7 @@ import 'package:navis/src/features/auth/presentation/server_config_provider.dart
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
@@ -22,6 +23,7 @@ import 'package:navis/src/features/player/presentation/scrobble_dispatch_provide
 import 'package:navis/src/features/search/presentation/search_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_router.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:riverpod/src/framework.dart' show Override;
 
 import '../../helpers/test_database.dart';
@@ -149,7 +151,7 @@ void main() {
     expect(find.byType(NavigationRail), findsNothing);
   });
 
-  testWidgets('rail layout uses side navigation at 600+ width', (tester) async {
+  testWidgets('medium tablet layout keeps bottom navigation', (tester) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(700, 1000);
     addTearDown(() {
@@ -169,8 +171,109 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    if (isDesktopRuntime) {
+      expect(find.byType(NavigationBar), findsNothing);
+    } else {
+      expect(find.byType(NavigationBar), findsOneWidget);
+      expect(find.byType(NavigationRail), findsNothing);
+    }
+  });
+
+  testWidgets('expanded tablet layout uses side navigation at 840+ width', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(840, 1000);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(),
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const NavisApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
     expect(find.byType(NavigationBar), findsNothing);
   });
+
+  testWidgets('phone landscape falls back to bottom nav when height is tight', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(900, 420);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(),
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const NavisApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    if (isDesktopRuntime) {
+      expect(find.byType(NavigationBar), findsNothing);
+    } else {
+      expect(find.byType(NavigationBar), findsOneWidget);
+    }
+  });
+
+  testWidgets(
+    'phone landscape rail uses compact nav without library sub-buttons',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(900, 560);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final container = _createContainerWithDatabase(
+        overrides: <Override>[
+          ..._authenticatedShellOverrides(),
+          showLikedPageProvider.overrideWithValue(true),
+          showArtistsPageProvider.overrideWithValue(true),
+          showPlaylistsPageProvider.overrideWithValue(true),
+          showRadioPageProvider.overrideWithValue(true),
+        ],
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const NavisApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(NavigationBar), findsNothing);
+
+      await tester.tap(find.byKey(const ValueKey('railNavTile-1')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('railLibrarySection-liked')),
+        findsNothing,
+      );
+      expect(find.text('Library - Albums'), findsNothing);
+      expect(find.byType(TabBar), findsOneWidget);
+    },
+  );
 
   testWidgets('expanded player uses bottom-sheet mode on phone', (
     tester,
@@ -229,6 +332,41 @@ void main() {
     expect(container.read(playerSheetExpandedProvider), isTrue);
     expect(find.byType(NowPlayingScreen), findsOneWidget);
     expect(find.byType(ExpandablePlayerSheet), findsNothing);
+  });
+
+  testWidgets('expanded player keeps sheet mode on medium tablet', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(700, 1000);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(),
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const NavisApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    container.read(playerOverlayStackProvider.notifier).expand();
+    await tester.pumpAndSettle();
+
+    expect(container.read(playerSheetExpandedProvider), isTrue);
+    if (isDesktopRuntime) {
+      expect(find.byType(ExpandablePlayerSheet), findsNothing);
+      expect(find.byType(NowPlayingScreen), findsOneWidget);
+    } else {
+      expect(find.byType(ExpandablePlayerSheet), findsOneWidget);
+      expect(find.byType(NowPlayingScreen), findsNothing);
+    }
   });
 
   testWidgets(
@@ -305,7 +443,11 @@ void main() {
 
     tester.view.physicalSize = const Size(700, 1000);
     await tester.pumpAndSettle();
-    expect(find.byType(NavigationBar), findsNothing);
+    if (isDesktopRuntime) {
+      expect(find.byType(NavigationBar), findsNothing);
+    } else {
+      expect(find.byType(NavigationBar), findsOneWidget);
+    }
     expect(find.byType(SearchScreen), findsOneWidget);
 
     tester.view.physicalSize = const Size(1024, 1000);
@@ -323,6 +465,98 @@ void main() {
     expect(find.byType(NavigationBar), findsOneWidget);
     expect(find.byType(SearchScreen), findsOneWidget);
   });
+
+  testWidgets(
+    'wide rail library button and subsections navigate consistently',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1024, 1000);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final container = _createContainerWithDatabase(
+        overrides: <Override>[
+          ..._authenticatedShellOverrides(),
+          showLikedPageProvider.overrideWithValue(true),
+          showArtistsPageProvider.overrideWithValue(true),
+          showPlaylistsPageProvider.overrideWithValue(true),
+          showRadioPageProvider.overrideWithValue(true),
+        ],
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const NavisApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final libraryMain = find.byKey(const ValueKey('railNavTile-1'));
+      expect(libraryMain, findsOneWidget);
+
+      await tester.tap(libraryMain);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Library - Albums'), findsOneWidget);
+      expect(container.read(librarySectionProvider), LibrarySection.albums);
+
+      await tester.tap(find.byKey(const ValueKey('railLibrarySection-liked')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Library - Liked'), findsOneWidget);
+      expect(container.read(librarySectionProvider), LibrarySection.liked);
+
+      await tester.tap(libraryMain);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Library - Albums'), findsOneWidget);
+      expect(container.read(librarySectionProvider), LibrarySection.albums);
+    },
+  );
+
+  testWidgets(
+    'tight vertical rail falls back to tabbed library navigation',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1024, 640);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final container = _createContainerWithDatabase(
+        overrides: <Override>[
+          ..._authenticatedShellOverrides(),
+          showLikedPageProvider.overrideWithValue(true),
+          showArtistsPageProvider.overrideWithValue(true),
+          showPlaylistsPageProvider.overrideWithValue(true),
+          showRadioPageProvider.overrideWithValue(true),
+        ],
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const NavisApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('railNavTile-1')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('railLibrarySection-liked')),
+        findsNothing,
+      );
+      expect(find.text('Library - Albums'), findsNothing);
+      expect(find.byType(TabBar), findsOneWidget);
+      expect(find.text('Albums'), findsWidgets);
+    },
+  );
 
   testWidgets('expanded player takes back priority over branch detail routes', (
     tester,
