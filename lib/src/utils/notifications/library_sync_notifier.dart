@@ -18,6 +18,10 @@ class SystemLibrarySyncNotifier implements LibrarySyncNotifier {
   static final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
 
+  static const String _silentChannelId = 'library_sync_silent';
+  static const String _silentChannelName = 'Library Scan';
+  static const String _silentChannelDescription =
+      'Library scan progress and completion updates';
   static const int _progressId = 9101;
   static const int _summaryId = 9102;
   static const Duration _throttleInterval = Duration(milliseconds: 500);
@@ -47,13 +51,15 @@ class SystemLibrarySyncNotifier implements LibrarySyncNotifier {
         ? (processed * normMax ~/ total).clamp(0, normMax)
         : 0;
     final androidDetails = AndroidNotificationDetails(
-      'library_sync',
-      'Library Scan',
-      channelDescription: 'Library scan progress and completion updates',
+      _silentChannelId,
+      _silentChannelName,
+      channelDescription: _silentChannelDescription,
       icon: 'ic_stat_navis_light',
       color: const Color(0xFFFFFFFF),
       importance: Importance.low,
       priority: Priority.low,
+      playSound: false,
+      enableVibration: false,
       onlyAlertOnce: true,
       ongoing: true,
       autoCancel: false,
@@ -90,13 +96,15 @@ class SystemLibrarySyncNotifier implements LibrarySyncNotifier {
     }
     await dismissProgress();
     const androidDetails = AndroidNotificationDetails(
-      'library_sync',
-      'Library Scan',
-      channelDescription: 'Library scan progress and completion updates',
+      _silentChannelId,
+      _silentChannelName,
+      channelDescription: _silentChannelDescription,
       icon: 'ic_stat_navis_light',
       color: Color(0xFFFFFFFF),
-      importance: Importance.defaultImportance,
-      priority: Priority.defaultPriority,
+      importance: Importance.low,
+      priority: Priority.low,
+      playSound: false,
+      enableVibration: false,
     );
     await _safeShow(
       _summaryId,
@@ -113,13 +121,15 @@ class SystemLibrarySyncNotifier implements LibrarySyncNotifier {
     }
     await dismissProgress();
     const androidDetails = AndroidNotificationDetails(
-      'library_sync',
-      'Library Scan',
-      channelDescription: 'Library scan progress and completion updates',
+      _silentChannelId,
+      _silentChannelName,
+      channelDescription: _silentChannelDescription,
       icon: 'ic_stat_navis_light',
       color: Color(0xFFFFFFFF),
-      importance: Importance.defaultImportance,
-      priority: Priority.defaultPriority,
+      importance: Importance.low,
+      priority: Priority.low,
+      playSound: false,
+      enableVibration: false,
     );
     await _safeShow(
       _summaryId,

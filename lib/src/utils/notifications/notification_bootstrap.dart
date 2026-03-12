@@ -48,9 +48,12 @@ class NotificationBootstrap {
       );
 
       const librarySyncChannel = AndroidNotificationChannel(
-        'library_sync',
+        'library_sync_silent',
         'Library Scan',
         description: 'Library scan progress and completion updates',
+        importance: Importance.low,
+        playSound: false,
+        enableVibration: false,
       );
 
       await androidPlugin.createNotificationChannel(playbackChannel);

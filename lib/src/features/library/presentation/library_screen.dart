@@ -497,10 +497,37 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     }
     final wideHeaderTitle =
         '${l10n.libraryTitle} - ${_sectionTitle(l10n, activeSection)}';
+    final tabLabels = <String>[
+      l10n.libraryTabAlbums,
+      if (showLikedTab) l10n.libraryTabLiked,
+      if (showArtistsTab) l10n.libraryTabArtists,
+      if (showPlaylistsTab) l10n.navPlaylists,
+      if (showRadioTab) l10n.navRadio,
+    ];
+    final labelStyle =
+        Theme.of(context).tabBarTheme.labelStyle ??
+        Theme.of(context).textTheme.titleSmall ??
+        const TextStyle();
+    final textDirection = Directionality.of(context);
+    final textScaler = MediaQuery.textScalerOf(context);
+    var estimatedLabelsWidth = 0.0;
+    for (final label in tabLabels) {
+      final painter = TextPainter(
+        text: TextSpan(text: label, style: labelStyle),
+        textDirection: textDirection,
+        textScaler: textScaler,
+      )..layout();
+      estimatedLabelsWidth += painter.width;
+    }
+    final horizontalLabelPadding = tabletMode ? 40.0 : 32.0;
+    final estimatedTabBarWidth =
+        estimatedLabelsWidth + (tabCount * horizontalLabelPadding) + 16;
+    final availableTabWidth = MediaQuery.sizeOf(context).width;
+    final useScrollableTabs = estimatedTabBarWidth > availableTabWidth;
     final tabBar = TabBar(
       controller: tabController,
-      isScrollable: tabCount > 3,
-      tabAlignment: tabCount > 3 ? TabAlignment.start : TabAlignment.fill,
+      isScrollable: useScrollableTabs,
+      tabAlignment: useScrollableTabs ? TabAlignment.start : TabAlignment.fill,
       labelPadding: tabletMode
           ? const EdgeInsets.symmetric(horizontal: 20)
           : null,
@@ -1403,6 +1430,30 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                   ),
                 )
               else ...<Widget>[
+                if (songs.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+                      child: Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: <Widget>[
+                          FilledButton.icon(
+                            onPressed: () => unawaited(_queueLikedSongs(songs)),
+                            icon: const Icon(Icons.play_arrow_rounded),
+                            label: Text(l10n.albumDetailPlayAction),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: () => unawaited(
+                              _queueLikedSongs(songs, shuffle: true),
+                            ),
+                            icon: const Icon(Icons.shuffle_rounded),
+                            label: Text(l10n.albumDetailShuffleAction),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 if (albums.isNotEmpty)
                   SliverToBoxAdapter(
                     child: Padding(
@@ -1618,6 +1669,30 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(l10n.downloadSongQueued)),
     );
+  }
+
+  Future<void> _queueLikedSongs(
+    List<SongsTableData> songs, {
+    bool shuffle = false,
+  }) async {
+    if (songs.isEmpty) {
+      return;
+    }
+    final queue = songs.map((song) => song.id).toList(growable: false);
+    if (shuffle) {
+      queue.shuffle();
+    }
+    try {
+      await ref.read(queueProvider.notifier).replace(queue, autoPlay: true);
+    } on Object {
+      if (!mounted) {
+        return;
+      }
+      final l10n = AppLocalizations.of(context)!;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.playbackActionFailed)),
+      );
+    }
   }
 
   void _onAlbumsScroll() {
