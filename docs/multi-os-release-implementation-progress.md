@@ -222,13 +222,9 @@ This document is the detailed execution log for preparing Navis as a native app 
   - `docs/release-secrets.md`
   - `docs/ci-cd.md`
 
-### O. Desktop UX redesign v1 implementation (feature-flagged core surfaces)
+### O. Unified tablet/desktop adaptive UX implementation
 - Status: in progress
 - Actions:
-  - Added persisted desktop rollout setting and build-default wiring:
-    - DB schema bumped to `31`
-    - new setting column `desktop_ui_v1_enabled`
-    - build define default support via `NAVIS_DESKTOP_UI_V1_DEFAULT`
   - Added desktop foundation layer:
     - `DesktopLayoutClass` resolver (`compact`, `standard`, `ultraWide`)
     - desktop `ThemeExtension` tokens (`DesktopTokens`)
@@ -237,7 +233,7 @@ This document is the detailed execution log for preparing Navis as a native app 
     - `Cmd/Ctrl+K` search focus
     - `Cmd/Ctrl+J` queue toggle
     - `Space`, arrow transport bindings with text-field conflict guard
-  - Implemented desktop shell composition path behind feature flag:
+  - Implemented desktop shell composition as default desktop runtime path:
     - desktop workspace frame
     - desktop player bar
     - preserved mobile/tablet shell behavior unchanged
@@ -245,8 +241,8 @@ This document is the detailed execution log for preparing Navis as a native app 
     - Home: framed desktop header + panel rhythm + denser rows
     - Search: command-first desktop search layout + desktop list rows + right-click song menu path
     - Library: desktop-framed header/tabs + pane container
-    - Settings index: grouped desktop cards + desktop feature toggle control
-    - Now Playing: desktop-wide mode activation when desktop UI v1 is enabled
+    - Settings index: grouped desktop cards aligned with tablet behavior
+    - Now Playing: desktop-wide mode activation by runtime platform
   - Extended desktop context-menu behavior in shared widgets:
     - `showSongContextMenu` supports desktop popup-menu path via right-click anchor.
     - `showAlbumContextMenu` supports desktop popup-menu path via right-click anchor.
@@ -254,7 +250,7 @@ This document is the detailed execution log for preparing Navis as a native app 
   - Applied desktop polish pass to core playback/library surfaces:
     - Now Playing desktop-wide mode now keeps transport controls visible and uses compact desktop-aware control sizing.
     - Now Playing wide layout uses stronger two-pane presentation (art panel framing + elevated metadata panel) for desktop readability.
-    - Library liked songs section now renders desktop-native rows (cover, metadata rhythm, duration, contextual actions) when desktop UI v1 is enabled.
+    - Library liked songs section renders desktop-native rows (cover, metadata rhythm, duration, contextual actions) on desktop runtime.
   - Added focused tests:
     - `test/src/routing/desktop_layout_test.dart`
     - `test/src/routing/desktop_commands_test.dart`

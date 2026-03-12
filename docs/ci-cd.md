@@ -36,6 +36,9 @@ Builds selected release artifacts, tags the commit, creates a Forgejo release, a
 
 1. Install `jq`:
    ```bash
+   # macOS
+   brew install jq
+   # Linux
    sudo apt install jq
    ```
 
@@ -61,6 +64,7 @@ Builds selected release artifacts, tags the commit, creates a Forgejo release, a
 ./tool/release.sh v0.2.0 --targets=linux --linux-package=deb
 ./tool/release.sh v0.2.0 --targets=windows --windows-package=exe
 ./tool/release.sh v0.2.0 --targets=macos --macos-notarize
+./tool/release.sh v0.2.0 --targets=linux,windows --linux-ssh="linux-builder" --windows-ssh="windows-builder"
 ```
 
 Or via Makefile:
@@ -76,6 +80,7 @@ make release VERSION=v0.2.0
 2.2 Debian package output is architecture-aware (`linux-<arch>.deb`) and includes a launcher binary and desktop entry.
 2.3 For Windows target, can output `.zip` (default) or Inno Setup `.exe` installer (`--windows-package=exe`).
 2.4 For macOS target, can optionally sign + notarize + staple before packaging (`--macos-notarize`).
+2.5 On non-Linux/non-Windows hosts, Linux/Windows desktop builds can be delegated to remote SSH builders (`--linux-ssh`, `--windows-ssh`).
 3. Passes `--dart-define=NAVIS_UPDATE_CHANNEL=<stable|dev>` to Flutter builds.
 4. For `--channel=dev`, defaults Android sidecar identity to `.dev` / `Navis Dev`.
 5. Creates an annotated git tag and pushes main/current branch/tag.
@@ -104,6 +109,10 @@ Optional variables:
 | `NAVIS_DEB_MAINTAINER` | Maintainer string for Linux Debian package metadata |
 | `MACOS_SIGN_IDENTITY` | Developer ID Application signing identity used by `--macos-notarize` |
 | `MACOS_NOTARY_PROFILE` | `xcrun notarytool` keychain profile name used by `--macos-notarize` |
+| `NAVIS_LINUX_SSH` | Default SSH target for remote Linux builder |
+| `NAVIS_WINDOWS_SSH` | Default SSH target for remote Windows builder |
+| `NAVIS_LINUX_REMOTE_DIR` | Remote Linux working dir relative to remote HOME |
+| `NAVIS_WINDOWS_REMOTE_DIR` | Remote Windows working dir relative to remote HOME |
 
 Set these in `tool/release.env` or export them in your shell.
 
@@ -124,6 +133,9 @@ Set these in `tool/release.env` or export them in your shell.
 
 Credential governance and secure handling reference:
 `docs/release-secrets.md`
+
+Remote desktop build architecture and setup:
+`docs/multi-os-build-from-mac.md`
 
 ## Dependency Health (manual)
 

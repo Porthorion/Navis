@@ -1,100 +1,93 @@
 # Navis
 
-A Subsonic / OpenSubsonic music player for Android and iOS, built with Flutter.
+Navis is a Flutter Subsonic/OpenSubsonic music client focused on fast library browsing, reliable offline playback, and adaptive UI across phone, tablet, desktop, and in-car workflows.
 
-## Features
+## Platform Support
 
-- **Library** — browse artists, albums, and tracks synced from your server
-- **Playback** — gapless audio, background playback, lock-screen controls, scrobbling
-- **Now Playing** — expandable player sheet with synced and unsynced lyrics
-- **Search** — real-time search against your Subsonic server
-- **Radio** — internet radio stations from your server
-- **Playlists** — create, edit, and reorder playlists synced to the server
-- **Offline / Cache** — rolling LRU cache + permanent downloads for offline playback
-- **Instant Mix** — auto-queue similar tracks when the queue runs low
-- **Settings** — adaptive streaming quality (Wi-Fi vs. cellular), theme (Dynamic / presets / custom, OLED mode), equalizer, cache controls, update notifications
-- **Accessibility** — full screen-reader support, semantic labels throughout
+| Platform | Status | Notes |
+|---|---|---|
+| Android | Supported | Primary mobile target, side-by-side dev build flow available |
+| iOS | Supported | Built from macOS/Xcode |
+| macOS | Supported | Native desktop build on macOS |
+| Linux | Supported | Built on Linux host or remote Linux builder |
+| Windows | Supported | Built on Windows host or remote Windows builder |
 
-## Screenshots
+Minimum tested versions:
+- Android 8.0 (API 26)
+- iOS 14+
+- macOS 12+
+- Ubuntu 22.04+ (or equivalent Linux desktop runtime)
+- Windows 10/11
 
-<!-- TODO: add screenshots once UI is stable -->
+## Core Capabilities
 
-## Requirements
+- Library sync from Subsonic/OpenSubsonic servers
+- Gapless/background playback and lock-screen controls
+- Queue management, instant mix, and smart queue behaviors
+- Synced/unsynced lyrics with full-screen now playing
+- Offline cache plus permanent download modes
+- Adaptive layouts that scale from phone to tablet/desktop
+- Channel-aware updater behavior for stable/dev release tracks
 
-| Platform | Minimum |
-|----------|---------|
-| Android  | 8.0 (API 26) |
-| iOS      | 14.0 |
-
-Requires a Subsonic-compatible server (Navidrome, Airsonic, etc.) implementing at least API level 1.16.1.
-
-## Tech Stack
-
-| Layer | Library |
-|-------|---------|
-| State / DI | Riverpod 3 (codegen) |
-| Navigation | go_router |
-| Database | drift (SQLite) |
-| Audio | just_audio + audio_service |
-| Network | Dio |
-| UI | Material 3 / flex_color_scheme |
-
-## Build & Run
+## Quick Start
 
 ```bash
-# First-time setup
+# bootstrap dependencies and local tooling
 ./tool/bootstrap.sh
 
-# Run on a connected device
+# run on connected device / simulator
 flutter run
 
-# Quality gate (format · generate · analyze · test)
+# full quality gate (format, codegen, analyze, lint, tests)
 ./tool/check.sh
 ```
 
 ## Release
 
 ```bash
-./tool/release.sh v1.0.0
-./tool/release.sh v1.0.0 --channel=dev
-./tool/release.sh v1.0.0 --targets=android,macos
+# default target: android
+./tool/release.sh v1.2.3
+
+# selected targets
+./tool/release.sh v1.2.3 --targets=android,ios,macos
+
+# full matrix
+./tool/release.sh v1.2.3 --all-platforms
 ```
 
-See [docs/ci-cd.md](docs/ci-cd.md) for Forgejo release setup.
+### Single-Mac Multi-OS Release Flow
 
-## Dev Sidecar App
+When running release from macOS, Linux and Windows desktop artifacts can be delegated to SSH-accessible builders (typically local VMs on the same Mac):
+
+```bash
+./tool/release.sh v1.2.3 \
+  --targets=linux,windows \
+  --linux-ssh="linux-builder" \
+  --windows-ssh="windows-builder"
+```
+
+Full setup and builder requirements:
+- [`docs/multi-os-build-from-mac.md`](docs/multi-os-build-from-mac.md)
+
+## Dev Channel Sidecar
 
 ```bash
 ./tool/dev_app.sh run -d <device-id>
 ./tool/dev_app.sh apk
 ```
 
-This builds/runs a side-by-side dev app (`.dev` suffix, `Navis Dev`) and pins updater checks to the `dev` channel.
+This builds a side-by-side dev app (`.dev` suffix, `Navis Dev`) and pins update checks to the `dev` channel.
 
-## Documentation
+## Documentation Index
 
-| Doc | Contents |
-|-----|----------|
-| [docs/architecture.md](docs/architecture.md) | Data flow, provider graph |
-| [docs/development-workflow.md](docs/development-workflow.md) | Code generation, conventions |
-| [docs/ci-cd.md](docs/ci-cd.md) | Release pipeline, quality gates |
-| [docs/dev-testing-builds.md](docs/dev-testing-builds.md) | Side-by-side dev builds and update channel mapping |
-| [docs/macos-testing-playbook.md](docs/macos-testing-playbook.md) | MacBook runtime/regression/release test flow |
-| [docs/release-secrets.md](docs/release-secrets.md) | Secret handling for signing/notarization/release tokens |
-| [docs/troubleshooting.md](docs/troubleshooting.md) | Common issues |
-
-## Roadmap
-
-See [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md) and [PROGRESS.md](PROGRESS.md).
-
-## Local Guardrails
-
-Enable the pre-commit hook (runs `./tool/check.sh` before each commit):
-
-```bash
-git config core.hooksPath .githooks
-chmod +x .githooks/pre-commit
-```
+- [`docs/architecture.md`](docs/architecture.md)
+- [`docs/development-workflow.md`](docs/development-workflow.md)
+- [`docs/ci-cd.md`](docs/ci-cd.md)
+- [`docs/dev-testing-builds.md`](docs/dev-testing-builds.md)
+- [`docs/macos-testing-playbook.md`](docs/macos-testing-playbook.md)
+- [`docs/multi-os-build-from-mac.md`](docs/multi-os-build-from-mac.md)
+- [`docs/release-secrets.md`](docs/release-secrets.md)
+- [`docs/troubleshooting.md`](docs/troubleshooting.md)
 
 ## License
 

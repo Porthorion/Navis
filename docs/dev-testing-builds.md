@@ -43,6 +43,8 @@ Example:
 ./tool/release.sh v0.3.0-dev.1 --channel=dev --targets=linux
 ./tool/release.sh v0.3.0-dev.1 --channel=dev --targets=macos
 ./tool/release.sh v0.3.0-dev.1 --channel=dev --targets=windows
+# macOS orchestration with remote desktop builders
+./tool/release.sh v0.3.0-dev.1 --channel=dev --targets=linux,windows --linux-ssh="linux-builder" --windows-ssh="windows-builder"
 ```
 
 Asset naming:
@@ -65,7 +67,7 @@ For Linux target builds, choose output mode:
 ```
 
 - `bundle` -> `tar.gz` portable bundle
-- `deb` -> `.deb` package (requires `dpkg-deb` on Linux host)
+- `deb` -> `.deb` package (requires `dpkg-deb` on the Linux build host/builder)
 
 ## Updater Channel Mapping
 
