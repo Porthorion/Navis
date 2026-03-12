@@ -1,11 +1,8 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
-import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -14,7 +11,6 @@ class SettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
-    final desktopUiV1 = ref.watch(desktopUiV1EnabledProvider);
     final viewport = MediaQuery.sizeOf(context);
     final adaptiveLayoutClass = resolveAdaptiveLayoutClass(viewport.width);
     final adaptiveShellMode = resolveAdaptiveShellMode(
@@ -90,22 +86,11 @@ class SettingsScreen extends ConsumerWidget {
       groups.putIfAbsent(entry.group, () => <_SettingsEntry>[]).add(entry);
     }
 
-    if (!desktopUiV1 && !tabletMode) {
+    if (!isDesktopRuntime && !tabletMode) {
       return Scaffold(
         appBar: AppBar(title: Text(l10n.settingsTitle)),
         body: ListView(
           children: <Widget>[
-            if (isDesktopRuntime)
-              _DesktopUiV1SwitchTile(
-                desktopUiV1: desktopUiV1,
-                onChanged: (value) => unawaited(
-                  ref
-                      .read(navisDatabaseProvider)
-                      .appSettingsDao
-                      .updateDesktopUiV1Enabled(enabled: value),
-                ),
-                showSurface: false,
-              ),
             for (final entry in entries)
               ListTile(
                 leading: Icon(entry.icon),
@@ -119,7 +104,7 @@ class SettingsScreen extends ConsumerWidget {
       );
     }
 
-    if (!desktopUiV1 && tabletMode) {
+    if (!isDesktopRuntime && tabletMode) {
       final maxWidth = adaptiveLayoutClass == AdaptiveLayoutClass.tabletExpanded
           ? (compactWideLandscapeMode ? double.infinity : 980.0)
           : 860.0;
@@ -218,19 +203,6 @@ class SettingsScreen extends ConsumerWidget {
                 subtitle: 'Desktop workspace controls and app preferences',
               ),
               const SizedBox(height: 6),
-              if (isDesktopRuntime) ...<Widget>[
-                _DesktopUiV1SwitchTile(
-                  desktopUiV1: desktopUiV1,
-                  onChanged: (value) => unawaited(
-                    ref
-                        .read(navisDatabaseProvider)
-                        .appSettingsDao
-                        .updateDesktopUiV1Enabled(enabled: value),
-                  ),
-                  showSurface: true,
-                ),
-                const SizedBox(height: 12),
-              ],
               for (final group in groups.entries) ...<Widget>[
                 DesktopPanel(
                   child: Column(
@@ -278,34 +250,4 @@ class _SettingsEntry {
   final String? subtitle;
   final String route;
   final String group;
-}
-
-class _DesktopUiV1SwitchTile extends StatelessWidget {
-  const _DesktopUiV1SwitchTile({
-    required this.desktopUiV1,
-    required this.onChanged,
-    required this.showSurface,
-  });
-
-  final bool desktopUiV1;
-  final ValueChanged<bool> onChanged;
-  final bool showSurface;
-
-  @override
-  Widget build(BuildContext context) {
-    final tile = SwitchListTile.adaptive(
-      value: desktopUiV1,
-      title: const Text('Desktop UI V1'),
-      subtitle: const Text(
-        'Enable the desktop-first workspace layout for core screens.',
-      ),
-      onChanged: onChanged,
-    );
-
-    if (!showSurface) {
-      return tile;
-    }
-
-    return DesktopPanel(child: tile);
-  }
 }

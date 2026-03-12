@@ -174,7 +174,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final l10n = AppLocalizations.of(context)!;
     final query = ref.watch(searchQueryProvider);
     final hasQuery = query.trim().isNotEmpty;
-    final desktopUiV1 = ref.watch(desktopUiV1EnabledProvider);
+    final desktopMode = isDesktopRuntime;
     final viewport = MediaQuery.sizeOf(context);
     final screenWidth = viewport.width;
     final safePadding = MediaQuery.paddingOf(context);
@@ -201,7 +201,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       );
     }
 
-    if (desktopUiV1) {
+    if (desktopMode) {
       return Scaffold(
         body: SafeArea(
           child: DesktopFrame(

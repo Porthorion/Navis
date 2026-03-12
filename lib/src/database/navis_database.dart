@@ -29,7 +29,6 @@ import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/database/tables/server_config_table.dart';
 import 'package:navis/src/database/tables/songs_table.dart';
 import 'package:navis/src/database/tables/star_sync_queue_table.dart';
-import 'package:navis/src/routing/desktop_layout.dart';
 
 part 'navis_database.g.dart';
 
@@ -74,7 +73,7 @@ class NavisDatabase extends _$NavisDatabase {
   static QueryExecutor _openConnection() => driftDatabase(name: 'navis.sqlite');
 
   @override
-  int get schemaVersion => 31;
+  int get schemaVersion => 32;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -186,6 +185,9 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 31 && to >= 31) {
       await from30To31(migrator);
+    }
+    if (from < 32 && to >= 32) {
+      await from31To32(migrator);
     }
   }
 
@@ -661,19 +663,13 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   Future<void> from30To31(Migrator migrator) async {
-    if (!await _columnExists('app_settings', 'desktop_ui_v1_enabled')) {
-      await migrator.addColumn(
-        appSettingsTable,
-        appSettingsTable.desktopUiV1Enabled,
-      );
-    }
-    if (kDesktopUiV1BuildDefault) {
-      await customStatement(
-        'UPDATE app_settings SET desktop_ui_v1_enabled = 1 '
-        'WHERE id = ?;',
-        <Object>[AppSettingsDao.primarySettingsId],
-      );
-    }
+    // Reserved migration slot from prior desktop UI v1 rollout.
+    // Kept as no-op so existing user_version chains remain intact.
+  }
+
+  Future<void> from31To32(Migrator migrator) async {
+    // Desktop UI v1 was removed from runtime behavior.
+    // No table rewrite is required here; legacy columns are tolerated.
   }
 
   Future<void> _ensureAppSettingsDefaults() {
@@ -703,7 +699,6 @@ class NavisDatabase extends _$NavisDatabase {
         useLrclib: const Value(true),
         themeMode: const Value('dark'),
         colorSchemeSeed: const Value(null),
-        desktopUiV1Enabled: Value(kDesktopUiV1BuildDefault),
         updatedAt: DateTime.now(),
       ),
       mode: InsertMode.insertOrIgnore,

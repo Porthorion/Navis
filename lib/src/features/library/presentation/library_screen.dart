@@ -412,7 +412,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         (showArtistsTab ? 1 : 0) +
         (showPlaylistsTab ? 1 : 0) +
         (showRadioTab ? 1 : 0);
-    final desktopUiV1 = ref.watch(desktopUiV1EnabledProvider);
+    final desktopMode = isDesktopRuntime;
     final hasActivePlayback = ref.watch(
       playerStateProvider.select((state) => state.hasActivePlayback),
     );
@@ -570,7 +570,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       ],
     );
 
-    if (desktopUiV1 && !useWideLibraryNavigation) {
+    if (desktopMode && !useWideLibraryNavigation) {
       return Scaffold(
         body: SafeArea(
           child: DesktopFrame(
@@ -1335,7 +1335,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
   Widget _buildLikedTab(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final desktopUiV1 = ref.watch(desktopUiV1EnabledProvider);
+    final desktopMode = isDesktopRuntime;
     // Recent 6 liked albums (ordered by starred desc) for the capped grid.
     final likedAlbumsRecentAsync = ref.watch(likedAlbumsRecentProvider);
     // Full list used only for the total count; data is not rendered directly.
@@ -1535,7 +1535,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                   SliverList(
                     delegate: SliverChildBuilderDelegate((context, index) {
                       final song = songs[index];
-                      if (desktopUiV1) {
+                      if (desktopMode) {
                         final subtitleParts = <String>[
                           if (song.artistName != null &&
                               song.artistName!.trim().isNotEmpty)

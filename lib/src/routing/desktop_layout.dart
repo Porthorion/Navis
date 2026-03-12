@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
-/// Desktop width buckets used by v1 desktop-only UI composition.
+/// Desktop width buckets used by desktop adaptive UI composition.
 enum DesktopLayoutClass {
   compactDesktop,
   standardDesktop,
@@ -23,19 +23,6 @@ enum AdaptiveShellMode {
   standardRail,
   compactWideLandscape,
 }
-
-/// Build-time rollout default for desktop UI v1.
-///
-/// Accepted values:
-/// - `1` or `true`: enabled by default
-/// - any other value: disabled by default
-const String _desktopUiV1DefaultRaw = String.fromEnvironment(
-  'NAVIS_DESKTOP_UI_V1_DEFAULT',
-  defaultValue: '0',
-);
-
-const bool kDesktopUiV1BuildDefault =
-    _desktopUiV1DefaultRaw == '1' || _desktopUiV1DefaultRaw == 'true';
 
 bool get isDesktopRuntime {
   if (kIsWeb) {

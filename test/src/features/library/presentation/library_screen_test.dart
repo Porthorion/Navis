@@ -598,7 +598,7 @@ void main() {
       },
     );
 
-    testWidgets('liked songs render desktop list rows when desktop UI is on', (
+    testWidgets('liked songs render desktop list rows on desktop runtime', (
       tester,
     ) async {
       tester.view.devicePixelRatio = 1.0;
@@ -610,7 +610,6 @@ void main() {
       await tester.pumpWidget(
         _buildLibraryScreen(
           overrides: [
-            desktopUiV1EnabledProvider.overrideWithValue(true),
             showLikedPageProvider.overrideWithValue(true),
             librarySyncControllerProvider.overrideWith(
               () => _FakeLibrarySyncController(const LibrarySyncState.idle()),

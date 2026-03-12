@@ -116,9 +116,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final desktopUiV1 = ref.watch(desktopUiV1EnabledProvider);
-    final effectiveWideMode =
-        widget.wideEmbeddedMode || (desktopUiV1 && isDesktopRuntime);
+    final effectiveWideMode = widget.wideEmbeddedMode || isDesktopRuntime;
     final playback = ref.watch(playerStateProvider);
     final currentSongId = playback.currentSongId;
     final songAsync = currentSongId == null

@@ -648,7 +648,6 @@ class _PlaybackSettingsScreenState
         themeMode: ref.read(themeModeProvider),
         colorSchemeSeed: ref.read(colorSchemeSeedProvider),
         appLocale: ref.read(appLocaleProvider),
-        desktopUiV1Enabled: currentSettings.desktopUiV1Enabled,
         crossfadeEnabled: _crossfadeEnabled,
         crossfadeDurationSeconds: _crossfadeDurationSeconds,
         crossfadeType: _crossfadeType,

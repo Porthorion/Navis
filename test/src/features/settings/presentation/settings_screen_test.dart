@@ -3,18 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/settings/presentation/settings_screen.dart';
-import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 
 void main() {
   testWidgets(
-    'desktop UI toggle is visible in settings when desktop v1 is disabled',
+    'removed desktop UI toggle is not shown',
     (tester) async {
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [
-            desktopUiV1EnabledProvider.overrideWithValue(false),
-          ],
           child: MaterialApp(
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
@@ -24,11 +20,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      if (isDesktopRuntime) {
-        expect(find.text('Desktop UI V1'), findsOneWidget);
-      } else {
-        expect(find.text('Desktop UI V1'), findsNothing);
-      }
+      expect(find.text('Desktop UI V1'), findsNothing);
     },
   );
 
@@ -44,9 +36,6 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [
-          desktopUiV1EnabledProvider.overrideWithValue(false),
-        ],
         child: MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,

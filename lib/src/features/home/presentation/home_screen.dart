@@ -92,7 +92,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final tabletMode =
         !isDesktopRuntime &&
         adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact;
-    final desktopUiV1 = ref.watch(desktopUiV1EnabledProvider);
+    final desktopMode = isDesktopRuntime;
     final desktopLayoutClass = resolveDesktopLayoutClass(viewport.width);
     final order =
         ref.watch(homeSectionOrderProvider) ?? HomeSectionIds.defaultOrder;
@@ -108,7 +108,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         24,
       ),
       children: <Widget>[
-        if (desktopUiV1)
+        if (desktopMode)
           DesktopFrame(
             layoutClass: desktopLayoutClass,
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
@@ -143,7 +143,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ref,
               sectionId,
               downloadedOnly,
-              desktopUiV1,
+              desktopMode,
               adaptiveLayoutClass,
               compactWideLandscapeMode,
             ),
@@ -192,7 +192,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     WidgetRef ref,
     String sectionId,
     bool downloadedOnly,
-    bool desktopUiV1,
+    bool desktopMode,
     AdaptiveLayoutClass adaptiveLayoutClass,
     bool compactWideLandscapeMode,
   ) {
@@ -202,7 +202,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         return <Widget>[
           _HomeSection<List<SongsTableData>>(
             title: l10n.homeStarredTitle,
-            desktopMode: desktopUiV1,
+            desktopMode: desktopMode,
             adaptiveLayoutClass: adaptiveLayoutClass,
             compactWideLandscapeMode: compactWideLandscapeMode,
             data: ref.watch(
@@ -213,7 +213,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             isEmpty: (items) => items.isEmpty,
             builder: (context, songs) => _SongListSection(
               songs: songs,
-              desktopMode: desktopUiV1,
+              desktopMode: desktopMode,
               adaptiveLayoutClass: adaptiveLayoutClass,
               onTap: (song) {
                 ref.read(queueProvider.notifier).replace(<String>[
@@ -232,7 +232,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           return <Widget>[
             _HomeSection<List<AlbumsTableData>>(
               title: l10n.homeRecentlyAddedTitle,
-              desktopMode: desktopUiV1,
+              desktopMode: desktopMode,
               adaptiveLayoutClass: adaptiveLayoutClass,
               compactWideLandscapeMode: compactWideLandscapeMode,
               data: ref.watch(homeDownloadedRecentlyAddedAlbumsProvider),
@@ -250,7 +250,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         return <Widget>[
           _HomeSection<List<Album>>(
             title: l10n.homeRecentlyAddedTitle,
-            desktopMode: desktopUiV1,
+            desktopMode: desktopMode,
             adaptiveLayoutClass: adaptiveLayoutClass,
             compactWideLandscapeMode: compactWideLandscapeMode,
             data: ref.watch(homeRecentlyAddedProvider),
@@ -270,7 +270,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         return <Widget>[
           _HomeSection<List<AlbumsTableData>>(
             title: l10n.homeRecentlyPlayedAlbumsTitle,
-            desktopMode: desktopUiV1,
+            desktopMode: desktopMode,
             adaptiveLayoutClass: adaptiveLayoutClass,
             compactWideLandscapeMode: compactWideLandscapeMode,
             data: ref.watch(
@@ -295,7 +295,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           return <Widget>[
             _HomeSection<List<AlbumsTableData>>(
               title: l10n.homeRandomTitle,
-              desktopMode: desktopUiV1,
+              desktopMode: desktopMode,
               adaptiveLayoutClass: adaptiveLayoutClass,
               compactWideLandscapeMode: compactWideLandscapeMode,
               data: ref.watch(homeDownloadedRandomAlbumsProvider),
@@ -314,7 +314,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         return <Widget>[
           _HomeSection<List<Album>>(
             title: l10n.homeRandomTitle,
-            desktopMode: desktopUiV1,
+            desktopMode: desktopMode,
             adaptiveLayoutClass: adaptiveLayoutClass,
             compactWideLandscapeMode: compactWideLandscapeMode,
             data: ref.watch(homeRandomAlbumsProvider),
@@ -334,7 +334,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         return <Widget>[
           _HomeSection<List<SongsTableData>>(
             title: l10n.homeMostPlayedTracksTitle,
-            desktopMode: desktopUiV1,
+            desktopMode: desktopMode,
             adaptiveLayoutClass: adaptiveLayoutClass,
             compactWideLandscapeMode: compactWideLandscapeMode,
             data: ref.watch(
@@ -345,7 +345,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             isEmpty: (items) => items.isEmpty,
             builder: (context, songs) => _SongListSection(
               songs: songs,
-              desktopMode: desktopUiV1,
+              desktopMode: desktopMode,
               adaptiveLayoutClass: adaptiveLayoutClass,
               onTap: (song) {
                 ref.read(queueProvider.notifier).replace(<String>[
@@ -513,7 +513,7 @@ class _ServerAlbumCarousel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final coverShape = ref.watch(coverArtShapeProvider);
     final coverRadius = coverArtShapeToRadius(coverShape);
-    final desktopUiV1 = ref.watch(desktopUiV1EnabledProvider);
+    final desktopMode = isDesktopRuntime;
     final viewport = MediaQuery.sizeOf(context);
     final adaptiveLayoutClass = resolveAdaptiveLayoutClass(viewport.width);
     final compactWideLandscapeMode =
@@ -524,17 +524,15 @@ class _ServerAlbumCarousel extends ConsumerWidget {
         ) ==
         AdaptiveShellMode.compactWideLandscape;
     final tabletMode =
-        !isDesktopRuntime &&
-        !desktopUiV1 &&
-        adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact;
-    final cardSize = desktopUiV1
+        !desktopMode && adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact;
+    final cardSize = desktopMode
         ? 164.0
         : tabletMode
         ? (adaptiveLayoutClass == AdaptiveLayoutClass.tabletExpanded
               ? 176.0
               : 162.0)
         : 150.0;
-    final horizontalPadding = desktopUiV1
+    final horizontalPadding = desktopMode
         ? 4.0
         : (tabletMode ? (compactWideLandscapeMode ? 0.0 : 12.0) : 16.0);
     final separatorWidth = tabletMode ? 14.0 : 12.0;
@@ -586,7 +584,7 @@ class _LocalAlbumCarousel extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final desktopUiV1 = ref.watch(desktopUiV1EnabledProvider);
+    final desktopMode = isDesktopRuntime;
     final viewport = MediaQuery.sizeOf(context);
     final adaptiveLayoutClass = resolveAdaptiveLayoutClass(viewport.width);
     final compactWideLandscapeMode =
@@ -597,17 +595,15 @@ class _LocalAlbumCarousel extends ConsumerWidget {
         ) ==
         AdaptiveShellMode.compactWideLandscape;
     final tabletMode =
-        !isDesktopRuntime &&
-        !desktopUiV1 &&
-        adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact;
-    final cardSize = desktopUiV1
+        !desktopMode && adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact;
+    final cardSize = desktopMode
         ? 164.0
         : tabletMode
         ? (adaptiveLayoutClass == AdaptiveLayoutClass.tabletExpanded
               ? 176.0
               : 162.0)
         : 150.0;
-    final horizontalPadding = desktopUiV1
+    final horizontalPadding = desktopMode
         ? 4.0
         : (tabletMode ? (compactWideLandscapeMode ? 0.0 : 12.0) : 16.0);
     final separatorWidth = tabletMode ? 14.0 : 12.0;

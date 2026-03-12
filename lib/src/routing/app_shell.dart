@@ -271,8 +271,7 @@ class _AppShellState extends ConsumerState<AppShell> {
           double.infinity,
         );
     final isPhoneFormFactor = !isDesktopRuntime && mediaSize.shortestSide < 600;
-    final desktopUiV1Enabled = ref.watch(desktopUiV1EnabledProvider);
-    final useDesktopShell = desktopUiV1Enabled && isDesktopRuntime;
+    final useDesktopShell = isDesktopRuntime;
     final desktopLayoutClass = resolveDesktopLayoutClass(screenWidth);
     final adaptiveShellMode = resolveAdaptiveShellMode(
       desktopRuntime: isDesktopRuntime,

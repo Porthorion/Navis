@@ -22,10 +22,6 @@ void main() {
     );
   });
 
-  test('desktop ui build default constant is deterministic', () {
-    expect(kDesktopUiV1BuildDefault, isA<bool>());
-  });
-
   test('resolveAdaptiveLayoutClass uses expected breakpoints', () {
     expect(
       resolveAdaptiveLayoutClass(599),
