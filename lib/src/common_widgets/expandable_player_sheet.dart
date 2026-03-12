@@ -224,14 +224,16 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
                 ignoring: progress < 0.5,
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onVerticalDragStart:
-                      widget.dragEnabled ? _handleDragStart : null,
-                  onVerticalDragUpdate:
-                      widget.dragEnabled ? _handleDragUpdate : null,
-                  onVerticalDragEnd:
-                      widget.dragEnabled ? _handleDragEnd : null,
-                  onVerticalDragCancel:
-                      widget.dragEnabled ? _handleDragCancel : null,
+                  onVerticalDragStart: widget.dragEnabled
+                      ? _handleDragStart
+                      : null,
+                  onVerticalDragUpdate: widget.dragEnabled
+                      ? _handleDragUpdate
+                      : null,
+                  onVerticalDragEnd: widget.dragEnabled ? _handleDragEnd : null,
+                  onVerticalDragCancel: widget.dragEnabled
+                      ? _handleDragCancel
+                      : null,
                   child: Opacity(
                     opacity: _fullOpacity,
                     child: FractionalTranslation(
@@ -255,14 +257,16 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
                 ignoring: progress >= 0.5,
                 child: GestureDetector(
                   behavior: HitTestBehavior.translucent,
-                  onVerticalDragStart:
-                      widget.dragEnabled ? _handleDragStart : null,
-                  onVerticalDragUpdate:
-                      widget.dragEnabled ? _handleDragUpdate : null,
-                  onVerticalDragEnd:
-                      widget.dragEnabled ? _handleDragEnd : null,
-                  onVerticalDragCancel:
-                      widget.dragEnabled ? _handleDragCancel : null,
+                  onVerticalDragStart: widget.dragEnabled
+                      ? _handleDragStart
+                      : null,
+                  onVerticalDragUpdate: widget.dragEnabled
+                      ? _handleDragUpdate
+                      : null,
+                  onVerticalDragEnd: widget.dragEnabled ? _handleDragEnd : null,
+                  onVerticalDragCancel: widget.dragEnabled
+                      ? _handleDragCancel
+                      : null,
                   child: Opacity(
                     opacity: _miniOpacity,
                     child: Transform.translate(

@@ -445,41 +445,43 @@ void main() {
       );
     });
 
-    test('maps HTTP 530 into SubsonicGenericException with status code', () async {
-      final dio = Dio(BaseOptions(baseUrl: 'https://example.com'));
-      final client = createClient(dio: dio);
+    test(
+      'maps HTTP 530 into SubsonicGenericException with status code',
+      () async {
+        final dio = Dio(BaseOptions(baseUrl: 'https://example.com'));
+        final client = createClient(dio: dio);
 
-      // Disable default client interceptors to avoid retry backoff in this unit test.
-      dio.interceptors.clear();
-      dio.interceptors.add(
-        InterceptorsWrapper(
-          onRequest: (options, handler) {
-            handler.reject(
-              DioException(
-                requestOptions: options,
-                type: DioExceptionType.badResponse,
-                response: Response<dynamic>(
+        // Disable default client interceptors to avoid retry backoff in this unit test.
+        dio.interceptors.clear();
+        dio.interceptors.add(
+          InterceptorsWrapper(
+            onRequest: (options, handler) {
+              handler.reject(
+                DioException(
                   requestOptions: options,
-                  statusCode: 530,
-                  statusMessage: 'Origin DNS error',
+                  type: DioExceptionType.badResponse,
+                  response: Response<dynamic>(
+                    requestOptions: options,
+                    statusCode: 530,
+                    statusMessage: 'Origin DNS error',
+                  ),
                 ),
-              ),
-              true,
-            );
-          },
-        ),
-      );
-
-      await expectLater(
-        client.ping(),
-        throwsA(
-          predicate<Object>(
-            (error) =>
-                error is SubsonicGenericException && error.code == 530,
+                true,
+              );
+            },
           ),
-        ),
-      );
-    });
+        );
+
+        await expectLater(
+          client.ping(),
+          throwsA(
+            predicate<Object>(
+              (error) => error is SubsonicGenericException && error.code == 530,
+            ),
+          ),
+        );
+      },
+    );
 
     test('builds media urls without fetching', () {
       final client = createClient(

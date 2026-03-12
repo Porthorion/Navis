@@ -30,26 +30,27 @@ class HeroCoverArt extends StatelessWidget {
     return Hero(
       tag: heroTag,
       transitionOnUserGestures: true,
-      flightShuttleBuilder: (
-        flightContext,
-        animation,
-        flightDirection,
-        fromHeroContext,
-        toHeroContext,
-      ) {
-        final preferredContext = flightDirection == HeroFlightDirection.push
-            ? fromHeroContext
-            : toHeroContext;
-        final preferredHero = preferredContext.widget;
-        if (preferredHero is Hero) {
-          return preferredHero.child;
-        }
-        final fallbackHero = toHeroContext.widget;
-        if (fallbackHero is Hero) {
-          return fallbackHero.child;
-        }
-        return const SizedBox.shrink();
-      },
+      flightShuttleBuilder:
+          (
+            flightContext,
+            animation,
+            flightDirection,
+            fromHeroContext,
+            toHeroContext,
+          ) {
+            final preferredContext = flightDirection == HeroFlightDirection.push
+                ? fromHeroContext
+                : toHeroContext;
+            final preferredHero = preferredContext.widget;
+            if (preferredHero is Hero) {
+              return preferredHero.child;
+            }
+            final fallbackHero = toHeroContext.widget;
+            if (fallbackHero is Hero) {
+              return fallbackHero.child;
+            }
+            return const SizedBox.shrink();
+          },
       child: CoverArtImage(
         coverArtId: coverArtId,
         size: size,
