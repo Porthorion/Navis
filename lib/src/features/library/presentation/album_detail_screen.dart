@@ -239,7 +239,6 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                       color: Theme.of(
                                         context,
                                       ).colorScheme.primary,
-                                      decoration: TextDecoration.underline,
                                     ),
                               ),
                             )

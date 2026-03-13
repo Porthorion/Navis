@@ -238,7 +238,14 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                 // ── Similar Artists (below albums for navigation continuity) ─
                 artistInfo.when(
                   data: (info) {
-                    final similar = info?.similarArtists ?? const <Artist>[];
+                    final currentArtistId = widget.artistId.trim();
+                    final similar = (info?.similarArtists ?? const <Artist>[])
+                        .where((artist) {
+                          final candidateId = artist.id.trim();
+                          return candidateId.isNotEmpty &&
+                              candidateId != currentArtistId;
+                        })
+                        .toList(growable: false);
                     if (similar.isEmpty) {
                       return const SizedBox.shrink();
                     }
@@ -508,10 +515,15 @@ class _AudioMuseSimilarArtists extends ConsumerWidget {
 
     return asyncRecs.when(
       data: (recs) {
-        if (recs.isEmpty) return const SizedBox.shrink();
+        final currentArtistId = artistId.trim();
+        final filteredRecs = recs.where((rec) {
+          final candidateId = rec.id.trim();
+          return candidateId.isNotEmpty && candidateId != currentArtistId;
+        }).toList(growable: false);
+        if (filteredRecs.isEmpty) return const SizedBox.shrink();
         return _SimilarArtistsSection(
           title: l10n.audioMuseSimilarArtists,
-          artists: recs
+          artists: filteredRecs
               .map(
                 (rec) => _SimilarArtistEntry(
                   id: rec.id,

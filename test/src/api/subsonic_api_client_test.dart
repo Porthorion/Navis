@@ -191,6 +191,55 @@ void main() {
     });
 
     test(
+      'getArtistInfo2 deduplicates similar artists by id preserving order',
+      () async {
+        final dio = Dio(BaseOptions(baseUrl: 'https://example.com'));
+        final client = createClient(dio: dio);
+        late RequestOptions captured;
+
+        dio.interceptors.add(
+          InterceptorsWrapper(
+            onRequest: (options, handler) {
+              captured = options;
+              handler.resolve(
+                Response<dynamic>(
+                  requestOptions: options,
+                  statusCode: 200,
+                  data: ok(<String, dynamic>{
+                    'artistInfo2': <String, dynamic>{
+                      'similarArtist': <Map<String, dynamic>>[
+                        <String, dynamic>{'id': 'a1', 'name': 'Alpha'},
+                        <String, dynamic>{
+                          'id': 'a1',
+                          'name': 'Alpha Duplicate',
+                        },
+                        <String, dynamic>{'id': 'a2', 'name': 'Beta'},
+                        <String, dynamic>{'id': 'A2', 'name': 'Beta Again'},
+                      ],
+                    },
+                  }),
+                ),
+              );
+            },
+          ),
+        );
+
+        final info = await client.getArtistInfo2('artist-1');
+
+        expect(captured.path, '/rest/getArtistInfo2.view');
+        expect(captured.queryParameters['id'], 'artist-1');
+        expect(info.similarArtists.map((artist) => artist.id), <String>[
+          'a1',
+          'a2',
+        ]);
+        expect(info.similarArtists.map((artist) => artist.name), <String>[
+          'Alpha',
+          'Beta',
+        ]);
+      },
+    );
+
+    test(
       'getGenres skips malformed genres and parses numeric fields',
       () async {
         final dio = Dio(BaseOptions(baseUrl: 'https://example.com'));

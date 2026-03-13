@@ -748,18 +748,35 @@ class SubsonicApiClient {
     }
 
     if (raw is List) {
-      return _asMapList(raw).map(Artist.fromJson).toList(growable: false);
+      return _dedupeArtists(
+        _asMapList(raw).map(Artist.fromJson),
+      );
     }
 
     if (raw is Map<String, dynamic>) {
       final nested = _asMapList(raw['artist']);
       if (nested.isNotEmpty) {
-        return nested.map(Artist.fromJson).toList(growable: false);
+        return _dedupeArtists(
+          nested.map(Artist.fromJson),
+        );
       }
-      return <Artist>[Artist.fromJson(raw)];
+      return _dedupeArtists(<Artist>[Artist.fromJson(raw)]);
     }
 
     return const <Artist>[];
+  }
+
+  List<Artist> _dedupeArtists(Iterable<Artist> artists) {
+    final seenIds = <String>{};
+    final deduped = <Artist>[];
+    for (final artist in artists) {
+      final idKey = artist.id.trim().toLowerCase();
+      if (idKey.isEmpty || !seenIds.add(idKey)) {
+        continue;
+      }
+      deduped.add(artist);
+    }
+    return deduped;
   }
 
   Map<String, dynamic> _asMap(Object? value) {
