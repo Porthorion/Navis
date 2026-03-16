@@ -51,27 +51,53 @@ Widget _songSwapTransitionBuilder(Widget child, Animation<double> animation) {
   );
 }
 
-Widget _songSwapDirectionalTransitionBuilder(
+Widget _songSwapArtDirectionalTransitionBuilder(
   Widget child,
   Animation<double> animation, {
   required ManualTrackChangeDirection direction,
 }) {
-  final beginX = switch (direction) {
-    ManualTrackChangeDirection.next => 0.09,
-    ManualTrackChangeDirection.previous => -0.09,
+  // Manual direction semantics:
+  // next => move right, previous => move left.
+  final incomingBeginX = switch (direction) {
+    ManualTrackChangeDirection.next => -0.34,
+    ManualTrackChangeDirection.previous => 0.34,
   };
-  final curved = CurvedAnimation(
+  final outgoingEndX = switch (direction) {
+    ManualTrackChangeDirection.next => 0.28,
+    ManualTrackChangeDirection.previous => -0.28,
+  };
+
+  final isOutgoing = animation.status == AnimationStatus.reverse ||
+      animation.status == AnimationStatus.dismissed;
+
+  if (isOutgoing) {
+    final curvedOut = CurvedAnimation(
+      parent: animation,
+      curve: Curves.easeInCubic,
+    );
+    return FadeTransition(
+      opacity: Tween<double>(begin: 1, end: 0).animate(curvedOut),
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: Offset.zero,
+          end: Offset(outgoingEndX, 0),
+        ).animate(curvedOut),
+        child: child,
+      ),
+    );
+  }
+
+  final curvedIn = CurvedAnimation(
     parent: animation,
     curve: Curves.easeOutCubic,
-    reverseCurve: Curves.easeInCubic,
   );
   return FadeTransition(
-    opacity: curved,
+    opacity: Tween<double>(begin: 0, end: 1).animate(curvedIn),
     child: SlideTransition(
       position: Tween<Offset>(
-        begin: Offset(beginX, 0),
+        begin: Offset(incomingBeginX, 0),
         end: Offset.zero,
-      ).animate(curved),
+      ).animate(curvedIn),
       child: child,
     ),
   );
@@ -518,7 +544,6 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
   final ScrollController _embeddedQueueScrollController = ScrollController();
   static const double _wideSwipeDismissDistance = 72;
   static const double _wideSwipeQueueDistance = 96;
-  static const Duration _manualSkipCueStaleTimeout = Duration(seconds: 3);
   double _wideSwipeDistance = 0;
   bool _handledWideSwipe = false;
   ManualTrackChangeDirection? _pendingManualSkipDirection;
@@ -526,6 +551,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
   int _lastHandledManualSkipCueToken = 0;
   bool _manualSkipConsumeScheduled = false;
   Timer? _manualSkipCueResetTimer;
+  Timer? _manualSkipConsumeTimer;
 
   bool _dismissInternalOverlaysIfVisible() {
     if (_widePanel != _WideNowPlayingPanel.none) {
@@ -610,6 +636,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
   @override
   void dispose() {
     _manualSkipCueResetTimer?.cancel();
+    _manualSkipConsumeTimer?.cancel();
     widget.onBackInterceptorChanged?.call(null);
     widget.onCompactWideOverlayActiveChanged?.call(false);
     widget.onCompactWideQueueRequestChanged?.call(null);
@@ -623,7 +650,11 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
     }
     _lastHandledManualSkipCueToken = cue.token;
     _manualSkipCueResetTimer?.cancel();
-    final fromSongId = cue.fromSongId;
+    _manualSkipConsumeTimer?.cancel();
+    final fromSongId = cue.fromSongId ?? ref.read(playerStateProvider).currentSongId;
+    if (fromSongId == null) {
+      return;
+    }
     if (!mounted) {
       return;
     }
@@ -632,12 +663,21 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
       _manualSkipFromSongId = fromSongId;
       _manualSkipConsumeScheduled = false;
     });
-    _manualSkipCueResetTimer = Timer(_manualSkipCueStaleTimeout, () {
+    _manualSkipCueResetTimer = Timer(_manualSkipCueTimeout(), () {
       if (!mounted) {
         return;
       }
       setState(_clearManualSkipCue);
     });
+  }
+
+  Duration _manualSkipCueTimeout() {
+    final settings = ref.read(appSettingsProvider).asData?.value;
+    final crossfadeSeconds = settings?.crossfadeDurationSeconds ?? 5;
+    // Budget for decode/prewarm + fade + swap jitter before we consider
+    // the manual cue stale.
+    final timeoutSeconds = (crossfadeSeconds + 10).clamp(10, 30);
+    return Duration(seconds: timeoutSeconds);
   }
 
   void _clearManualSkipCue() {
@@ -646,6 +686,8 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
     _manualSkipConsumeScheduled = false;
     _manualSkipCueResetTimer?.cancel();
     _manualSkipCueResetTimer = null;
+    _manualSkipConsumeTimer?.cancel();
+    _manualSkipConsumeTimer = null;
   }
 
   ManualTrackChangeDirection? _resolveManualSkipDirectionForTransition(
@@ -662,7 +704,10 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
     }
     if (!_manualSkipConsumeScheduled) {
       _manualSkipConsumeScheduled = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Keep the manual direction alive for the full swap animation; clearing
+      // on the next frame can cause AnimatedSwitcher to rebuild with the
+      // default transition mid-flight.
+      _manualSkipConsumeTimer = Timer(const Duration(milliseconds: 480), () {
         if (!mounted) {
           return;
         }
@@ -932,14 +977,18 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
     final manualSkipDirection = _resolveManualSkipDirectionForTransition(
       playback,
     );
-    final songSwapTransitionBuilder = manualSkipDirection == null
+    final songSwapTransitionBuilder = _songSwapTransitionBuilder;
+    final songSwapArtTransitionBuilder = manualSkipDirection == null
         ? _songSwapTransitionBuilder
         : (Widget child, Animation<double> animation) =>
-              _songSwapDirectionalTransitionBuilder(
+              _songSwapArtDirectionalTransitionBuilder(
                 child,
                 animation,
                 direction: manualSkipDirection,
               );
+    final songSwapArtDuration = manualSkipDirection == null
+        ? const Duration(milliseconds: 320)
+        : const Duration(milliseconds: 170);
 
     final title = isRadio
         ? (radioMeta?.nowPlayingTitle ??
@@ -1069,10 +1118,12 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
                   maxSize: artMaxSize,
                 )
               : AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 320),
+                  duration: songSwapArtDuration,
                   switchInCurve: Curves.easeOut,
                   switchOutCurve: Curves.easeIn,
-                  transitionBuilder: songSwapTransitionBuilder,
+                  transitionBuilder: showInlineLyrics
+                      ? _songSwapTransitionBuilder
+                      : songSwapArtTransitionBuilder,
                   child: showInlineLyrics
                       ? _InlineLyrics(
                           key: ValueKey<String>(
@@ -1475,10 +1526,12 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
                 maxSize: artMaxSize,
               )
             : AnimatedSwitcher(
-                duration: const Duration(milliseconds: 320),
+                duration: songSwapArtDuration,
                 switchInCurve: Curves.easeOut,
                 switchOutCurve: Curves.easeIn,
-                transitionBuilder: songSwapTransitionBuilder,
+                transitionBuilder: showInlineLyrics
+                    ? _songSwapTransitionBuilder
+                    : songSwapArtTransitionBuilder,
                 child: showInlineLyrics
                     ? _InlineLyrics(
                         key: ValueKey<String>(
@@ -1808,10 +1861,10 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
           ),
         );
         final splitCoverArt = AnimatedSwitcher(
-          duration: const Duration(milliseconds: 320),
+          duration: songSwapArtDuration,
           switchInCurve: Curves.easeOut,
           switchOutCurve: Curves.easeIn,
-          transitionBuilder: songSwapTransitionBuilder,
+          transitionBuilder: songSwapArtTransitionBuilder,
           child: isRadio
               ? _RadioCoverArt(
                   key: ValueKey<String>('split-radio-art-$artVisualKey'),
