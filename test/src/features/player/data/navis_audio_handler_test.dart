@@ -124,6 +124,117 @@ void main() {
       );
     });
 
+    test('crossfade handoff seek helper seeks on index mismatch', () {
+      expect(
+        navisShouldSeekCrossfadeHandoff(
+          handoffTargetIndex: 6,
+          currentIndex: 5,
+          jumpDelta: const Duration(milliseconds: 50),
+          seekCorrectionThreshold: const Duration(milliseconds: 750),
+        ),
+        isTrue,
+      );
+    });
+
+    test('crossfade handoff seek helper seeks on large position delta', () {
+      expect(
+        navisShouldSeekCrossfadeHandoff(
+          handoffTargetIndex: 6,
+          currentIndex: 6,
+          jumpDelta: const Duration(seconds: 2),
+          seekCorrectionThreshold: const Duration(milliseconds: 750),
+        ),
+        isTrue,
+      );
+    });
+
+    test(
+      'crossfade handoff seek helper skips seek when index and delta are stable',
+      () {
+        expect(
+          navisShouldSeekCrossfadeHandoff(
+            handoffTargetIndex: 6,
+            currentIndex: 6,
+            jumpDelta: const Duration(milliseconds: 200),
+            seekCorrectionThreshold: const Duration(milliseconds: 750),
+          ),
+          isFalse,
+        );
+      },
+    );
+
+    test(
+      'android crossfade fallback helper avoids regular CD-quality FLAC',
+      () {
+        expect(
+          navisShouldUseAndroidSequentialCrossfadeFallback(
+            isAndroidRuntime: true,
+            format: 'flac',
+            sampleRate: 44100,
+          ),
+          isFalse,
+        );
+        expect(
+          navisShouldUseAndroidSequentialCrossfadeFallback(
+            isAndroidRuntime: true,
+            format: 'audio/flac',
+            sampleRate: 44100,
+          ),
+          isFalse,
+        );
+      },
+    );
+
+    test(
+      'android crossfade fallback helper enables for high sample-rate audio',
+      () {
+        expect(
+          navisShouldUseAndroidSequentialCrossfadeFallback(
+            isAndroidRuntime: true,
+            format: 'mp3',
+            sampleRate: 96000,
+          ),
+          isTrue,
+        );
+      },
+    );
+
+    test(
+      'android crossfade fallback helper enables for high-rate lossless audio',
+      () {
+        expect(
+          navisShouldUseAndroidSequentialCrossfadeFallback(
+            isAndroidRuntime: true,
+            format: 'flac',
+            sampleRate: 96000,
+          ),
+          isTrue,
+        );
+      },
+    );
+
+    test(
+      'android crossfade fallback helper stays off for regular lossy audio',
+      () {
+        expect(
+          navisShouldUseAndroidSequentialCrossfadeFallback(
+            isAndroidRuntime: true,
+            format: 'mp3',
+            sampleRate: 44100,
+          ),
+          isFalse,
+        );
+        expect(
+          navisShouldUseAndroidSequentialCrossfadeFallback(
+            isAndroidRuntime: false,
+            format: 'flac',
+            sampleRate: 96000,
+          ),
+          isFalse,
+        );
+      },
+    );
+
     test('skip helper enforces queue bounds for next and previous', () {
       expect(
         navisCanSkipQueueItem(
@@ -323,6 +434,30 @@ void main() {
           autoPlay: false,
           preloadWhenPaused: true,
           gaplessEnabled: false,
+        ),
+        isFalse,
+      );
+    });
+
+    test('effective gapless is enabled when crossfade is enabled', () {
+      expect(
+        navisEffectiveGaplessEnabled(
+          gaplessEnabled: false,
+          crossfadeEnabled: true,
+        ),
+        isTrue,
+      );
+      expect(
+        navisEffectiveGaplessEnabled(
+          gaplessEnabled: true,
+          crossfadeEnabled: false,
+        ),
+        isTrue,
+      );
+      expect(
+        navisEffectiveGaplessEnabled(
+          gaplessEnabled: false,
+          crossfadeEnabled: false,
         ),
         isFalse,
       );

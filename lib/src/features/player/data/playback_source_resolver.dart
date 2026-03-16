@@ -36,10 +36,12 @@ class ResolvedPlaybackSource {
     required this.metadata,
     this.cachedFilePath,
   }) : kind = PlaybackSourceKind.file,
+       lockCachingStreamUri = null,
        lockCachingAudioSource = null;
 
   const ResolvedPlaybackSource.lockCachedStream({
     required this.songId,
+    required this.lockCachingStreamUri,
     required this.lockCachingAudioSource,
     required this.cachedFilePath,
     required this.metadata,
@@ -51,12 +53,14 @@ class ResolvedPlaybackSource {
     required this.uri,
     required this.metadata,
   }) : kind = PlaybackSourceKind.directStream,
+       lockCachingStreamUri = null,
        cachedFilePath = null,
        lockCachingAudioSource = null;
 
   final PlaybackSourceKind kind;
   final String songId;
   final Uri? uri;
+  final Uri? lockCachingStreamUri;
   final ResolvedPlaybackMetadata metadata;
   final String? cachedFilePath;
   // ignore: experimental_member_use, reason: LockCachingAudioSource is intentionally surfaced so the audio handler can subscribe to cache completion.
@@ -69,6 +73,19 @@ class ResolvedPlaybackSource {
       PlaybackSourceKind.file => AudioSource.uri(uri!, tag: tag),
       PlaybackSourceKind.directStream => AudioSource.uri(uri!, tag: tag),
       PlaybackSourceKind.lockCachedStream => lockCachingAudioSource!,
+    };
+  }
+
+  IndexedAudioSource asClonedAudioSource({dynamic tag}) {
+    return switch (kind) {
+      PlaybackSourceKind.file => AudioSource.uri(uri!, tag: tag),
+      PlaybackSourceKind.directStream => AudioSource.uri(uri!, tag: tag),
+      // ignore: experimental_member_use, reason: LockCachingAudioSource is intentionally used as a per-deck cache source clone.
+      PlaybackSourceKind.lockCachedStream => LockCachingAudioSource(
+        lockCachingStreamUri!,
+        cacheFile: cachedFilePath == null ? null : File(cachedFilePath!),
+        tag: tag,
+      ),
     };
   }
 }
@@ -205,6 +222,7 @@ class PlaybackSourceResolver {
       );
       return ResolvedPlaybackSource.lockCachedStream(
         songId: song.id,
+        lockCachingStreamUri: streamUri,
         lockCachingAudioSource: lockCachingSource,
         cachedFilePath: cacheFile.path,
         metadata: streamingMetadata,

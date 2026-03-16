@@ -146,6 +146,14 @@ bool navisShouldPreloadQueue({
 }
 
 @visibleForTesting
+bool navisEffectiveGaplessEnabled({
+  required bool gaplessEnabled,
+  required bool crossfadeEnabled,
+}) {
+  return gaplessEnabled || crossfadeEnabled;
+}
+
+@visibleForTesting
 bool navisIsAndroidDspInitializationFailure(
   Object error, {
   required bool isAndroidRuntime,
@@ -219,6 +227,49 @@ bool navisShouldRecoverSeekToDirectStream({
   final delta = (requestedPosition - actualPosition).abs();
   return actualPosition <= const Duration(seconds: 1) &&
       delta >= const Duration(seconds: 2);
+}
+
+@visibleForTesting
+bool navisShouldSeekCrossfadeHandoff({
+  required int? handoffTargetIndex,
+  required int? currentIndex,
+  required Duration jumpDelta,
+  required Duration seekCorrectionThreshold,
+}) {
+  if (handoffTargetIndex != null && currentIndex != handoffTargetIndex) {
+    return true;
+  }
+  return jumpDelta > seekCorrectionThreshold;
+}
+
+@visibleForTesting
+bool navisShouldUseAndroidSequentialCrossfadeFallback({
+  required bool isAndroidRuntime,
+  required String? format,
+  required int? sampleRate,
+}) {
+  if (!isAndroidRuntime) {
+    return false;
+  }
+
+  final normalizedFormat = format?.trim().toLowerCase();
+  final formatSubtype =
+      normalizedFormat != null && normalizedFormat.contains('/')
+      ? normalizedFormat.split('/').last
+      : normalizedFormat;
+  final canonicalFormat = switch (formatSubtype) {
+    'x-flac' => 'flac',
+    'x-wav' || 'wave' => 'wav',
+    _ => formatSubtype,
+  };
+  final isLikelyLossless = switch (canonicalFormat) {
+    'flac' || 'alac' || 'wav' || 'aiff' || 'ape' || 'dsf' || 'dff' => true,
+    _ => false,
+  };
+  final resolvedSampleRate = sampleRate ?? 0;
+  final isHighSampleRate = resolvedSampleRate >= 96000;
+  final isHighRateLossless = isLikelyLossless && resolvedSampleRate >= 88200;
+  return isHighSampleRate || isHighRateLossless;
 }
 
 typedef NavisPersistSafely =
@@ -595,6 +646,11 @@ class NavisAudioHandler extends BaseAudioHandler
           (runtime.equalizerEnabled || runtime.loudnessEnabled);
       _player = _buildAudioPlayer(enableAndroidDsp: _androidDspPipelineEnabled);
     }
+    _crossfadePlayer = AudioPlayer();
+    _radioMetadataService = RadioMetadataService(
+      handler: this,
+      player: _player,
+    );
     _wirePlayerListeners();
     _positionPersistTimer = Timer.periodic(
       const Duration(seconds: 15),
@@ -623,6 +679,9 @@ class NavisAudioHandler extends BaseAudioHandler
   final StreamController<PlaybackSnapshot> _snapshotController =
       StreamController<PlaybackSnapshot>.broadcast();
 
+  final StreamController<Duration> _positionController =
+      StreamController<Duration>.broadcast();
+
   final StreamController<void> _radioStreamErrorController =
       StreamController<void>.broadcast();
 
@@ -639,6 +698,7 @@ class NavisAudioHandler extends BaseAudioHandler
   StreamSubscription<int?>? _currentIndexSubscription;
   StreamSubscription<bool>? _shuffleModeSubscription;
   StreamSubscription<LoopMode>? _loopModeSubscription;
+  StreamSubscription<Duration>? _activePositionSubscription;
   final Map<String, StreamSubscription<double>> _cacheProgressSubscriptions =
       <String, StreamSubscription<double>>{};
   bool _isDucked = false;
@@ -655,10 +715,21 @@ class NavisAudioHandler extends BaseAudioHandler
   bool _crossfadeEnabled = false;
   int _crossfadeDurationSeconds = 5;
   String _crossfadeType = 'normal';
+  static const Duration _crossfadePrepareLeadTime = Duration(
+    milliseconds: 1800,
+  );
+  static const double _volumeNoopEpsilon = 0.01;
   AudioPlayer? _crossfadePlayer;
   Timer? _crossfadeFadeTimer;
+  Timer? _crossfadeFallbackTimer;
   bool _isCrossfading = false;
+  bool _crossfadeHandoffInProgress = false;
+  Future<void>? _crossfadeCompletionFuture;
   StreamSubscription<Duration>? _crossfadePositionSub;
+  int _crossfadeSessionToken = 0;
+  int? _crossfadeActiveTransitionId;
+  int? _crossfadePrewarmLatencyMs;
+  DateTime? _crossfadeFadeStartedAt;
 
   /// The queue index of the track loaded on `_crossfadePlayer`.
   int? _crossfadeTargetIndex;
@@ -667,10 +738,7 @@ class NavisAudioHandler extends BaseAudioHandler
   RadioStationMetadata? _radioStation;
 
   /// Manages ICY / Azuracast metadata polling for radio streams.
-  late final RadioMetadataService _radioMetadataService = RadioMetadataService(
-    handler: this,
-    player: _player,
-  );
+  late RadioMetadataService _radioMetadataService;
   Future<void>? _playerDisposalFuture;
   bool _disposeHandlerStarted = false;
   bool _disposeHandlerCompleted = false;
@@ -685,10 +753,7 @@ class NavisAudioHandler extends BaseAudioHandler
   Stream<void> get radioStreamErrorStream => _radioStreamErrorController.stream;
 
   @override
-  Stream<Duration> get positionStream => _player.createPositionStream(
-    minPeriod: const Duration(milliseconds: 100),
-    maxPeriod: const Duration(milliseconds: 200),
-  );
+  Stream<Duration> get positionStream => _positionController.stream;
 
   @override
   MediaItem? get currentMediaItem => _currentMediaItem;
@@ -868,11 +933,6 @@ class NavisAudioHandler extends BaseAudioHandler
     );
 
     _currentIndexSubscription = _player.currentIndexStream.listen((index) {
-      // When cross-fading, the main player auto-advances to the next track.
-      // Complete the hand-off from the secondary player back to the main one.
-      if (_isCrossfading && index == _crossfadeTargetIndex) {
-        unawaited(_completeCrossfade());
-      }
       final item = _mediaItemForIndex(index);
       if (item != null) {
         _setCurrentMediaItem(item);
@@ -913,6 +973,17 @@ class NavisAudioHandler extends BaseAudioHandler
       );
     });
 
+    _activePositionSubscription = _player
+        .createPositionStream(
+          minPeriod: const Duration(milliseconds: 100),
+          maxPeriod: const Duration(milliseconds: 200),
+        )
+        .listen((position) {
+          if (!_positionController.isClosed) {
+            _positionController.add(position);
+          }
+        });
+
     // Position monitoring for cross-fade triggering.
     _crossfadePositionSub = _player
         .createPositionStream(
@@ -927,11 +998,13 @@ class NavisAudioHandler extends BaseAudioHandler
     await _currentIndexSubscription?.cancel();
     await _shuffleModeSubscription?.cancel();
     await _loopModeSubscription?.cancel();
+    await _activePositionSubscription?.cancel();
     await _crossfadePositionSub?.cancel();
     _playbackEventSubscription = null;
     _currentIndexSubscription = null;
     _shuffleModeSubscription = null;
     _loopModeSubscription = null;
+    _activePositionSubscription = null;
     _crossfadePositionSub = null;
   }
 
@@ -958,9 +1031,12 @@ class NavisAudioHandler extends BaseAudioHandler
     }
 
     final remaining = duration - position;
-    if (remaining > fadeDuration) {
+    if (remaining > fadeDuration + _crossfadePrepareLeadTime) {
       return;
     }
+    final delayBeforeFade = remaining > fadeDuration
+        ? remaining - fadeDuration
+        : Duration.zero;
 
     // Don't cross-fade when repeating one track.
     if (_player.loopMode == LoopMode.one) {
@@ -984,7 +1060,7 @@ class NavisAudioHandler extends BaseAudioHandler
       }
     }
 
-    unawaited(_startCrossfade(nextIndex));
+    unawaited(_startCrossfade(nextIndex, delayBeforeFade: delayBeforeFade));
   }
 
   /// Returns the effective queue index of the next track, accounting for
@@ -1017,122 +1093,507 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   /// Start a cross-fade transition to the track at [nextIndex].
-  Future<void> _startCrossfade(int nextIndex) async {
-    if (_isCrossfading) {
+  Future<void> _startCrossfade(
+    int nextIndex, {
+    required Duration delayBeforeFade,
+  }) async {
+    final cfPlayer = _crossfadePlayer;
+    if (_isCrossfading || cfPlayer == null) {
       return;
     }
     _isCrossfading = true;
+    _crossfadeHandoffInProgress = false;
     _crossfadeTargetIndex = nextIndex;
+    final sessionToken = ++_crossfadeSessionToken;
+    _crossfadeActiveTransitionId = sessionToken;
+    _crossfadePrewarmLatencyMs = null;
+    _crossfadeFadeStartedAt = null;
+    final prewarmStopwatch = Stopwatch()..start();
+    AppLogger.debug(
+      'Cross-fade start: from=${_player.currentIndex} to=$nextIndex '
+      'duration=${_crossfadeDurationSeconds}s token=$sessionToken',
+    );
 
     try {
-      final nextSongId = _queueItems[nextIndex].id;
-      final songs = await _libraryDao.getSongsByIds([nextSongId]);
-      if (songs.isEmpty) {
-        _cancelCrossfade();
+      await _prepareInactiveDeckForCrossfade(
+        player: cfPlayer,
+        nextIndex: nextIndex,
+      );
+      prewarmStopwatch.stop();
+      _crossfadePrewarmLatencyMs = prewarmStopwatch.elapsedMilliseconds;
+      if (!_isCrossfadeSessionActive(sessionToken, nextIndex)) {
         return;
       }
-
-      final source = await _sourceResolver.resolveForSong(
-        songs.first,
-        preferLockCaching: false,
+      if (delayBeforeFade > Duration.zero) {
+        AppLogger.debug(
+          'Cross-fade prewarm ready: delaying fade start by '
+          '${delayBeforeFade.inMilliseconds}ms '
+          '(target=$nextIndex token=$sessionToken).',
+        );
+        await Future<void>.delayed(delayBeforeFade);
+      }
+      if (!_isCrossfadeSessionActive(sessionToken, nextIndex)) {
+        return;
+      }
+      _armCrossfadeFallbackTimeout(
+        nextIndex: nextIndex,
+        sessionToken: sessionToken,
       );
-      final audioSource = source.asAudioSource();
-
-      final cfPlayer = AudioPlayer();
-      _crossfadePlayer = cfPlayer;
-      await cfPlayer.setAudioSource(audioSource);
-      await cfPlayer.setVolume(0);
-      await cfPlayer.play();
-
-      // Start a periodic fade timer.
-      final fadeDurationMs = _crossfadeDurationSeconds * 1000;
-      final startTime = DateTime.now();
-
-      _crossfadeFadeTimer = Timer.periodic(
-        const Duration(milliseconds: 50),
-        (timer) {
-          final elapsed = DateTime.now().difference(startTime).inMilliseconds;
-          final progress = (elapsed / fadeDurationMs).clamp(0.0, 1.0);
-
-          // If the main player is ducked, respect that by scaling the
-          // outgoing volume relative to the duck level.
-          final outgoingBase = _isDucked ? _volumeBeforeDuck * 2 / 5 : 1.0;
-          unawaited(
-            _player.setVolume(
-              (outgoingBase * (1.0 - progress)).clamp(0.0, 1.0),
-            ),
-          );
-          unawaited(cfPlayer.setVolume(progress.clamp(0.0, 1.0)));
-
-          if (progress >= 1.0) {
-            timer.cancel();
-            // The main player's track should be about to end (or already
-            // auto-advanced).  If it hasn't auto-advanced yet, the
-            // currentIndexStream handler will call _completeCrossfade.
-            // If the track already ended, complete now.
-            if (_player.currentIndex == _crossfadeTargetIndex) {
-              unawaited(_completeCrossfade());
-            }
-          }
-        },
+      _crossfadeFadeStartedAt = DateTime.now();
+      unawaited(cfPlayer.play());
+      AppLogger.debug(
+        'Cross-fade secondary player started: '
+        'target=$nextIndex sourceKind=deckMirror token=$sessionToken',
+      );
+      _startCrossfadeFadeLoop(
+        cfPlayer: cfPlayer,
+        nextIndex: nextIndex,
+        sessionToken: sessionToken,
       );
     } on Object catch (error, stackTrace) {
-      AppLogger.warning(
-        'Cross-fade start failed. Falling back to normal transition. '
-        '$error\n$stackTrace',
-      );
-      _cancelCrossfade();
+      if (_isCrossfadeSessionActive(sessionToken, nextIndex)) {
+        AppLogger.warning(
+          'Cross-fade start failed. Degrading to gapless transition. '
+          '$error\n$stackTrace',
+        );
+        _emitCrossfadeMetric(
+          transitionId: sessionToken,
+          targetIndex: nextIndex,
+          phase: 'prewarm_failed',
+          fallbackReason: 'prewarm_failed',
+          canceledReason: error.runtimeType.toString(),
+        );
+        _cancelCrossfade();
+      }
     }
   }
 
-  /// Transfer playback from the cross-fade player back to the main player.
+  bool _isCrossfadeSessionActive(int sessionToken, int nextIndex) {
+    return _isCrossfading &&
+        _crossfadeSessionToken == sessionToken &&
+        _crossfadeTargetIndex == nextIndex;
+  }
+
+  void _armCrossfadeFallbackTimeout({
+    required int nextIndex,
+    required int sessionToken,
+  }) {
+    _crossfadeFallbackTimer?.cancel();
+    final fadeDuration = Duration(seconds: _crossfadeDurationSeconds);
+    final timeout = fadeDuration + const Duration(milliseconds: 2000);
+    _crossfadeFallbackTimer = Timer(timeout, () {
+      if (!_isCrossfadeSessionActive(sessionToken, nextIndex)) {
+        return;
+      }
+      AppLogger.warning(
+        'Cross-fade fallback timed out waiting for finalize completion '
+        '(target=$nextIndex token=$sessionToken timeout=${timeout.inMilliseconds}ms). '
+        'Degrading to gapless.',
+      );
+      _emitCrossfadeMetric(
+        transitionId: sessionToken,
+        targetIndex: nextIndex,
+        phase: 'timeout',
+        fallbackReason: 'finalize_timeout',
+      );
+      _cancelCrossfade();
+    });
+  }
+
+  void _startCrossfadeFadeLoop({
+    required AudioPlayer cfPlayer,
+    required int nextIndex,
+    required int sessionToken,
+  }) {
+    // Start a periodic fade timer.
+    final fadeDurationMs = _crossfadeDurationSeconds * 1000;
+    final finalizeAtMs = fadeDurationMs;
+    final startTime = DateTime.now();
+    _crossfadeFadeTimer?.cancel();
+    _crossfadeFadeTimer = Timer.periodic(
+      const Duration(milliseconds: 50),
+      (timer) {
+        if (!_isCrossfadeSessionActive(sessionToken, nextIndex) ||
+            !identical(_crossfadePlayer, cfPlayer)) {
+          timer.cancel();
+          return;
+        }
+        if (_crossfadeHandoffInProgress) {
+          timer.cancel();
+          return;
+        }
+
+        final elapsed = DateTime.now().difference(startTime).inMilliseconds;
+        final progress = (elapsed / fadeDurationMs).clamp(0.0, 1.0);
+
+        // If the main player is ducked, respect that by scaling the
+        // outgoing volume relative to the duck level.
+        final outgoingBase = _isDucked ? _volumeBeforeDuck * 2 / 5 : 1.0;
+        final incomingBase = _isDucked ? _volumeBeforeDuck * 2 / 5 : 1.0;
+        unawaited(
+          _player.setVolume(
+            (outgoingBase * (1.0 - progress)).clamp(0.0, 1.0),
+          ),
+        );
+        unawaited(
+          cfPlayer.setVolume((incomingBase * progress).clamp(0.0, 1.0)),
+        );
+
+        if (elapsed >= finalizeAtMs || progress >= 1.0) {
+          timer.cancel();
+          AppLogger.debug(
+            'Cross-fade fade loop reached finalize point: '
+            'elapsed=${elapsed}ms finalizeAt=${finalizeAtMs}ms '
+            '(target=$nextIndex token=$sessionToken).',
+          );
+          unawaited(
+            _finalizeCrossfadeAfterFade(
+              nextIndex: nextIndex,
+              sessionToken: sessionToken,
+              cfPlayer: cfPlayer,
+            ),
+          );
+        }
+      },
+    );
+  }
+
+  Future<void> _finalizeCrossfadeAfterFade({
+    required int nextIndex,
+    required int sessionToken,
+    required AudioPlayer cfPlayer,
+  }) async {
+    if (!_isCrossfadeSessionActive(sessionToken, nextIndex) ||
+        !identical(_crossfadePlayer, cfPlayer)) {
+      return;
+    }
+    AppLogger.debug(
+      'Cross-fade finalize: deck swap completion '
+      '(current=${_player.currentIndex} target=$nextIndex token=$sessionToken).',
+    );
+    if (!_isCrossfadeSessionActive(sessionToken, nextIndex) ||
+        !identical(_crossfadePlayer, cfPlayer)) {
+      return;
+    }
+    await _completeCrossfade();
+  }
+
   Future<void> _completeCrossfade() async {
+    final inFlight = _crossfadeCompletionFuture;
+    if (inFlight != null) {
+      return inFlight;
+    }
+    final future = _completeCrossfadeInternal();
+    _crossfadeCompletionFuture = future;
+    try {
+      await future;
+    } finally {
+      if (identical(_crossfadeCompletionFuture, future)) {
+        _crossfadeCompletionFuture = null;
+      }
+    }
+  }
+
+  Future<void> _completeCrossfadeInternal() async {
     final cfPlayer = _crossfadePlayer;
+    final handoffTargetIndex = _crossfadeTargetIndex;
+    final transitionId = _crossfadeActiveTransitionId ?? _crossfadeSessionToken;
+    final fadeElapsedMs = _crossfadeFadeStartedAt == null
+        ? null
+        : DateTime.now().difference(_crossfadeFadeStartedAt!).inMilliseconds;
+    _crossfadeHandoffInProgress = true;
     _crossfadeFadeTimer?.cancel();
     _crossfadeFadeTimer = null;
-    _isCrossfading = false;
-    _crossfadeTargetIndex = null;
+    _crossfadeFallbackTimer?.cancel();
+    _crossfadeFallbackTimer = null;
+    _crossfadeSessionToken += 1;
 
     if (cfPlayer == null) {
-      await _player.setVolume(1);
+      AppLogger.debug(
+        'Cross-fade completion skipped: secondary player absent.',
+      );
+      _emitCrossfadeMetric(
+        transitionId: transitionId,
+        targetIndex: handoffTargetIndex,
+        phase: 'missing_incoming_player',
+        fallbackReason: 'incoming_absent',
+        fadeElapsedMs: fadeElapsedMs,
+      );
+      AppLogger.debug(
+        'Cross-fade complete: degraded to gapless on main player '
+        '(index=${_player.currentIndex}).',
+      );
+      _isCrossfading = false;
+      _crossfadeTargetIndex = null;
+      _crossfadeActiveTransitionId = null;
+      _crossfadePrewarmLatencyMs = null;
+      _crossfadeFadeStartedAt = null;
+      _applyReplayGainVolume(forceDuringCrossfade: true);
       return;
     }
 
+    final sw = Stopwatch()..start();
     try {
-      // The main player has auto-advanced to the next track.
-      // Seek it to match where the cross-fade player has reached so
-      // there's no audible restart.
-      final cfPosition = cfPlayer.position;
-      await _player.seek(cfPosition);
-      await _player.setVolume(1);
+      final outgoingPlayer = _player;
+      final incomingPlayer = cfPlayer;
+      final mainTargetVolume = _isDucked
+          ? (_volumeBeforeDuck * 2 / 5).clamp(0.0, 1.0)
+          : 1.0;
+      await _setVolumeIfChanged(incomingPlayer, mainTargetVolume);
+      await _setVolumeIfChanged(outgoingPlayer, 0);
+
+      await _disposePlayerListeners();
+      _player = incomingPlayer;
+      _crossfadePlayer = outgoingPlayer;
+      _wirePlayerListeners();
+      _rebindRadioMetadataServiceToActivePlayer();
+
+      try {
+        await _crossfadePlayer?.pause();
+      } on Object {
+        // Best-effort reset only.
+      }
+      await _setVolumeIfChanged(_crossfadePlayer!, 0);
+      sw.stop();
+
+      AppLogger.debug(
+        'Cross-fade complete: deck swap at ${_player.position.inMilliseconds}ms '
+        '(swap=${sw.elapsedMilliseconds}ms '
+        'currentIndex=${_player.currentIndex} targetIndex=$handoffTargetIndex).',
+      );
+      _emitCrossfadeMetric(
+        transitionId: transitionId,
+        targetIndex: handoffTargetIndex,
+        phase: 'completed',
+        swapLatencyMs: sw.elapsedMilliseconds,
+        fadeElapsedMs: fadeElapsedMs,
+      );
+      _applyReplayGainVolume(forceDuringCrossfade: true);
     } on Object catch (error, stackTrace) {
       AppLogger.warning(
-        'Cross-fade completion seek failed: $error\n$stackTrace',
+        'Cross-fade completion failed: $error\n$stackTrace',
       );
-      await _player.setVolume(1);
+      _emitCrossfadeMetric(
+        transitionId: transitionId,
+        targetIndex: handoffTargetIndex,
+        phase: 'completion_failed',
+        fallbackReason: 'completion_failed',
+        canceledReason: error.runtimeType.toString(),
+        fadeElapsedMs: fadeElapsedMs,
+      );
     } finally {
-      _crossfadePlayer = null;
-      await cfPlayer.stop();
-      await cfPlayer.dispose();
+      _isCrossfading = false;
+      _crossfadeHandoffInProgress = false;
+      _crossfadeTargetIndex = null;
+      _crossfadeActiveTransitionId = null;
+      _crossfadePrewarmLatencyMs = null;
+      _crossfadeFadeStartedAt = null;
+      _applyReplayGainVolume(forceDuringCrossfade: true);
     }
+  }
+
+  Future<void> _setVolumeIfChanged(AudioPlayer player, double target) async {
+    if ((player.volume - target).abs() <= _volumeNoopEpsilon) {
+      return;
+    }
+    await player.setVolume(target);
   }
 
   /// Abort an in-progress cross-fade without completing the hand-off.
   void _cancelCrossfade() {
+    final hasActiveCrossfade =
+        _isCrossfading ||
+        _crossfadeFadeTimer != null ||
+        _crossfadeFallbackTimer != null ||
+        _crossfadeTargetIndex != null;
+    if (!hasActiveCrossfade) {
+      return;
+    }
     _crossfadeFadeTimer?.cancel();
     _crossfadeFadeTimer = null;
+    _crossfadeFallbackTimer?.cancel();
+    _crossfadeFallbackTimer = null;
+    final transitionId = _crossfadeActiveTransitionId ?? _crossfadeSessionToken;
+    _crossfadeSessionToken += 1;
     _isCrossfading = false;
+    _crossfadeHandoffInProgress = false;
+    _emitCrossfadeMetric(
+      transitionId: transitionId,
+      targetIndex: _crossfadeTargetIndex,
+      phase: 'canceled',
+      canceledReason: 'explicit_cancel',
+      fadeElapsedMs: _crossfadeFadeStartedAt == null
+          ? null
+          : DateTime.now().difference(_crossfadeFadeStartedAt!).inMilliseconds,
+    );
     _crossfadeTargetIndex = null;
+    _crossfadeActiveTransitionId = null;
+    _crossfadePrewarmLatencyMs = null;
+    _crossfadeFadeStartedAt = null;
+    AppLogger.debug('Cross-fade canceled.');
 
     final cfPlayer = _crossfadePlayer;
-    _crossfadePlayer = null;
     if (cfPlayer != null) {
-      unawaited(cfPlayer.stop());
-      unawaited(cfPlayer.dispose());
+      unawaited(_setVolumeIfChanged(cfPlayer, 0));
+      unawaited(cfPlayer.pause());
     }
 
     // Restore the main player's volume.
     unawaited(_player.setVolume(_isDucked ? _volumeBeforeDuck * 2 / 5 : 1.0));
+  }
+
+  Future<void> _prepareInactiveDeckForCrossfade({
+    required AudioPlayer player,
+    required int nextIndex,
+  }) async {
+    if (nextIndex < 0 || nextIndex >= _queueItems.length) {
+      throw StateError('Next index $nextIndex is out of queue range.');
+    }
+    await _syncInactiveDeckQueueFromActive(player);
+    try {
+      await player.pause();
+    } on Object {
+      // Best-effort reset only.
+    }
+    await _setVolumeIfChanged(player, 0);
+    if (player.shuffleModeEnabled != _player.shuffleModeEnabled) {
+      await player.setShuffleModeEnabled(_player.shuffleModeEnabled);
+    }
+    if (player.loopMode != _player.loopMode) {
+      await player.setLoopMode(_player.loopMode);
+    }
+    await player.setSpeed(_player.speed);
+    await player.seek(Duration.zero, index: nextIndex);
+  }
+
+  Future<void> _syncInactiveDeckQueueFromActive(
+    AudioPlayer player, {
+    bool force = false,
+  }) async {
+    if (!force && player.sequence.length == _player.sequence.length) {
+      return;
+    }
+    if (_queueItems.isEmpty) {
+      await player.setAudioSources(const <AudioSource>[]);
+      return;
+    }
+    final songIds = _queueItems.map((item) => item.id).toList(growable: false);
+    final songs = await _libraryDao.getSongsByIds(songIds);
+    final songsById = <String, SongsTableData>{
+      for (final song in songs) song.id: song,
+    };
+    final orderedSongs = songIds
+        .map((songId) => songsById[songId])
+        .whereType<SongsTableData>()
+        .toList(growable: false);
+    if (orderedSongs.length != songIds.length) {
+      throw StateError(
+        'Inactive deck queue sync failed due to missing song metadata.',
+      );
+    }
+    final prepared = await _prepareQueueItems(
+      orderedSongs,
+      preferLockCaching: true,
+    );
+    final inactiveSources = prepared
+        .map((entry) => entry.source.asClonedAudioSource(tag: entry.mediaItem))
+        .toList(growable: false);
+    try {
+      await player.setAudioSources(
+        inactiveSources,
+        preload: true,
+        initialIndex: (_player.currentIndex ?? 0).clamp(
+          0,
+          math.max(0, inactiveSources.length - 1),
+        ),
+      );
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning(
+        'Inactive deck sync failed with lock-cached sources. '
+        'Retrying with direct streams only. $error\n$stackTrace',
+      );
+      final directPrepared = await _prepareQueueItems(
+        orderedSongs,
+        preferLockCaching: false,
+      );
+      final directSources = directPrepared
+          .map(
+            (entry) => entry.source.asClonedAudioSource(tag: entry.mediaItem),
+          )
+          .toList(growable: false);
+      await player.setAudioSources(
+        directSources,
+        preload: true,
+        initialIndex: (_player.currentIndex ?? 0).clamp(
+          0,
+          math.max(0, directSources.length - 1),
+        ),
+      );
+    }
+    await _setVolumeIfChanged(player, 0);
+    await player.pause();
+  }
+
+  void _rebindRadioMetadataServiceToActivePlayer() {
+    _radioMetadataService.dispose();
+    _radioMetadataService = RadioMetadataService(
+      handler: this,
+      player: _player,
+    );
+    if (_radioStation != null) {
+      final azuraInfo = _tryExtractAzuracast(
+        _radioStation!.streamUrl,
+        _radioStation!.homePageUrl,
+      );
+      _radioMetadataService.startListening(
+        stationId: _radioStation!.stationId,
+        azuracastApiUrl: azuraInfo?.$1,
+        stationShortName: azuraInfo?.$2,
+      );
+    }
+  }
+
+  void _emitCrossfadeMetric({
+    required int transitionId,
+    required int? targetIndex,
+    required String phase,
+    int? swapLatencyMs,
+    int? fadeElapsedMs,
+    String? fallbackReason,
+    String? canceledReason,
+  }) {
+    final metric = CrossfadeTransitionMetric(
+      transitionId: transitionId,
+      targetIndex: targetIndex,
+      phase: phase,
+      platform: defaultTargetPlatform.name,
+      backend: _isDesktopRuntime ? 'just_audio_media_kit' : 'just_audio_native',
+      sourceKind:
+          (targetIndex != null &&
+              targetIndex >= 0 &&
+              targetIndex < _queueItems.length)
+          ? (_queueItems[targetIndex].extras?['sourceKind'] as String?)
+          : null,
+      format:
+          (targetIndex != null &&
+              targetIndex >= 0 &&
+              targetIndex < _queueItems.length)
+          ? (_queueItems[targetIndex].extras?['resolvedFormat'] as String?)
+          : null,
+      sampleRate:
+          (targetIndex != null &&
+              targetIndex >= 0 &&
+              targetIndex < _queueItems.length)
+          ? (_queueItems[targetIndex].extras?['sampleRate'] as int?)
+          : null,
+      prewarmLatencyMs: _crossfadePrewarmLatencyMs,
+      fadeDurationMs: _crossfadeDurationSeconds * 1000,
+      fadeElapsedMs: fadeElapsedMs,
+      swapLatencyMs: swapLatencyMs,
+      fallbackReason: fallbackReason,
+      canceledReason: canceledReason,
+    );
+    AppLogger.debug('Cross-fade metric: ${metric.toDebugString()}');
   }
 
   MediaItem? _mediaItemForIndex(int? index) {
@@ -1191,9 +1652,16 @@ class NavisAudioHandler extends BaseAudioHandler
         schema.RepeatMode.off => LoopMode.off,
       };
       await _player.setLoopMode(loopMode);
+      final inactiveDeck = _crossfadePlayer;
+      if (inactiveDeck != null) {
+        await inactiveDeck.setLoopMode(loopMode);
+      }
 
       final shuffle = queueState.shuffleMode == schema.ShuffleMode.all;
       await _player.setShuffleModeEnabled(shuffle);
+      if (inactiveDeck != null) {
+        await inactiveDeck.setShuffleModeEnabled(shuffle);
+      }
     }
 
     await _player.pause();
@@ -1512,6 +1980,11 @@ class NavisAudioHandler extends BaseAudioHandler
       initialIndex: startIndex,
       initialPosition: initialPosition,
     );
+    await _setInactiveDeckAudioSources(
+      prepared: prepared,
+      initialIndex: startIndex,
+      initialPosition: initialPosition,
+    );
 
     queue.add(List<MediaItem>.unmodifiable(_queueItems));
     _setCurrentMediaItem(_queueItems[startIndex]);
@@ -1525,6 +1998,41 @@ class NavisAudioHandler extends BaseAudioHandler
     } else {
       await _player.pause();
     }
+  }
+
+  Future<void> _setInactiveDeckAudioSources({
+    required List<_PreparedQueueItem> prepared,
+    required int initialIndex,
+    required Duration initialPosition,
+  }) async {
+    final inactiveDeck = _crossfadePlayer;
+    if (inactiveDeck == null) {
+      return;
+    }
+    final inactiveSources = prepared
+        .map((entry) => entry.source.asClonedAudioSource(tag: entry.mediaItem))
+        .toList(growable: false);
+    if (inactiveSources.isEmpty) {
+      await inactiveDeck.setAudioSources(const <AudioSource>[]);
+      return;
+    }
+    final clampedInitialIndex = initialIndex
+        .clamp(
+          0,
+          math.max(0, inactiveSources.length - 1),
+        )
+        .toInt();
+    await inactiveDeck.setAudioSources(
+      inactiveSources,
+      preload: true,
+      initialIndex: clampedInitialIndex,
+      initialPosition: initialPosition,
+    );
+    await inactiveDeck.setShuffleModeEnabled(_player.shuffleModeEnabled);
+    await inactiveDeck.setLoopMode(_player.loopMode);
+    await inactiveDeck.setSpeed(_player.speed);
+    await _setVolumeIfChanged(inactiveDeck, 0);
+    await inactiveDeck.pause();
   }
 
   Future<void> _setAudioSourcesWithFallback({
@@ -1599,6 +2107,7 @@ class NavisAudioHandler extends BaseAudioHandler
     await _disposePlayerListeners();
     _player = _buildAudioPlayer(enableAndroidDsp: false);
     _wirePlayerListeners();
+    _rebindRadioMetadataServiceToActivePlayer();
 
     await _player.setVolume(previousVolume);
     await _player.setSpeed(previousSpeed);
@@ -1606,6 +2115,16 @@ class NavisAudioHandler extends BaseAudioHandler
     await _player.setShuffleModeEnabled(previousShuffleModeEnabled);
 
     await previousPlayer.dispose();
+    final inactiveDeck = _crossfadePlayer;
+    if (inactiveDeck != null) {
+      try {
+        await inactiveDeck.dispose();
+      } on Object {
+        // Best-effort reset only.
+      }
+    }
+    _crossfadePlayer = AudioPlayer();
+    await _syncInactiveDeckQueueFromActive(_crossfadePlayer!, force: true);
   }
 
   Future<T> _runSerialized<T>(Future<T> Function() operation) {
@@ -1676,6 +2195,12 @@ class NavisAudioHandler extends BaseAudioHandler
       for (final entry in prepared) {
         _queueItems.add(entry.mediaItem);
         await _player.addAudioSource(entry.audioSource);
+        final inactiveDeck = _crossfadePlayer;
+        if (inactiveDeck != null) {
+          await inactiveDeck.addAudioSource(
+            entry.source.asClonedAudioSource(tag: entry.mediaItem),
+          );
+        }
       }
 
       _observeLockCacheForPrepared(prepared);
@@ -1727,6 +2252,13 @@ class NavisAudioHandler extends BaseAudioHandler
       for (var i = prepared.length - 1; i >= 0; i--) {
         _queueItems.insert(insertAt, prepared[i].mediaItem);
         await _player.insertAudioSource(insertAt, prepared[i].audioSource);
+        final inactiveDeck = _crossfadePlayer;
+        if (inactiveDeck != null) {
+          await inactiveDeck.insertAudioSource(
+            insertAt,
+            prepared[i].source.asClonedAudioSource(tag: prepared[i].mediaItem),
+          );
+        }
       }
 
       _observeLockCacheForPrepared(prepared);
@@ -1748,6 +2280,10 @@ class NavisAudioHandler extends BaseAudioHandler
         return;
       }
       await _player.seek(Duration.zero, index: index);
+      final inactiveDeck = _crossfadePlayer;
+      if (inactiveDeck != null && inactiveDeck.sequence.length > index) {
+        await inactiveDeck.seek(Duration.zero, index: index);
+      }
       await _player.play();
       await _persistSafely(_persistQueueState, context: 'play from index');
     });
@@ -1771,6 +2307,10 @@ class NavisAudioHandler extends BaseAudioHandler
       // removed, just_audio automatically advances to the next item.
       _queueItems.removeAt(index);
       await _player.removeAudioSourceAt(index);
+      final inactiveDeck = _crossfadePlayer;
+      if (inactiveDeck != null && inactiveDeck.sequence.length > index) {
+        await inactiveDeck.removeAudioSourceAt(index);
+      }
 
       queue.add(List<MediaItem>.unmodifiable(_queueItems));
       // Update the mediaItem stream to match whatever is now current.
@@ -1818,6 +2358,12 @@ class NavisAudioHandler extends BaseAudioHandler
       // Move the audio source in the player's playlist — this does NOT
       // interrupt playback; just_audio tracks the current item internally.
       await _player.moveAudioSource(oldIndex, adjustedIndex);
+      final inactiveDeck = _crossfadePlayer;
+      if (inactiveDeck != null &&
+          inactiveDeck.sequence.length > oldIndex &&
+          inactiveDeck.sequence.length > adjustedIndex) {
+        await inactiveDeck.moveAudioSource(oldIndex, adjustedIndex);
+      }
 
       queue.add(List<MediaItem>.unmodifiable(_queueItems));
       await _persistSafely(
@@ -1888,7 +2434,10 @@ class NavisAudioHandler extends BaseAudioHandler
   @override
   Future<void> applyRuntimeSettings() async {
     final runtime = _readRuntimeSettings();
-    _gaplessEnabled = runtime.gaplessEnabled;
+    _gaplessEnabled = navisEffectiveGaplessEnabled(
+      gaplessEnabled: runtime.gaplessEnabled,
+      crossfadeEnabled: runtime.crossfadeEnabled,
+    );
     _crossfadeEnabled = runtime.crossfadeEnabled;
     _crossfadeDurationSeconds = runtime.crossfadeDurationSeconds;
     _crossfadeType = runtime.crossfadeType;
@@ -1903,6 +2452,12 @@ class NavisAudioHandler extends BaseAudioHandler
       await _player.setSpeed(
         navisNormalizePlaybackSpeed(runtime.playbackSpeed),
       );
+      final inactiveDeck = _crossfadePlayer;
+      if (inactiveDeck != null) {
+        await inactiveDeck.setSpeed(
+          navisNormalizePlaybackSpeed(runtime.playbackSpeed),
+        );
+      }
     } on Object catch (error, stackTrace) {
       AppLogger.warning(
         'Failed to apply playback speed: $error\n$stackTrace',
@@ -1960,23 +2515,26 @@ class NavisAudioHandler extends BaseAudioHandler
   /// Converts the ReplayGain dB value to a linear volume multiplier and
   /// sets it on the player. When the mode is 'off' (or metadata is missing),
   /// resets to full volume (1.0).
-  void _applyReplayGainVolume() {
+  void _applyReplayGainVolume({bool forceDuringCrossfade = false}) {
+    if (_isCrossfading && !forceDuringCrossfade) {
+      return;
+    }
     final runtime = _readRuntimeSettings();
     final mode = runtime.replayGainMode;
     if (mode == 'off') {
-      _player.setVolume(1);
+      unawaited(_player.setVolume(1));
       return;
     }
 
     final index = _player.currentIndex;
     if (index == null || index < 0 || index >= _queueItems.length) {
-      _player.setVolume(1);
+      unawaited(_player.setVolume(1));
       return;
     }
 
     final extras = _queueItems[index].extras;
     if (extras == null) {
-      _player.setVolume(1);
+      unawaited(_player.setVolume(1));
       return;
     }
 
@@ -1987,7 +2545,7 @@ class NavisAudioHandler extends BaseAudioHandler
               (extras['replayGainAlbumGain'] as double?);
 
     if (gainDb == null) {
-      _player.setVolume(1);
+      unawaited(_player.setVolume(1));
       return;
     }
 
@@ -1997,7 +2555,7 @@ class NavisAudioHandler extends BaseAudioHandler
         .pow(10, (gainDb + preamp) / 20)
         .toDouble()
         .clamp(0.0, 1.0);
-    _player.setVolume(linear);
+    unawaited(_player.setVolume(linear));
   }
 
   @override
@@ -2061,6 +2619,13 @@ class NavisAudioHandler extends BaseAudioHandler
     if (enabled) {
       await _player.shuffle();
     }
+    final inactiveDeck = _crossfadePlayer;
+    if (inactiveDeck != null) {
+      await inactiveDeck.setShuffleModeEnabled(enabled);
+      if (enabled) {
+        await inactiveDeck.shuffle();
+      }
+    }
     await _persistSafely(
       () => _persistQueueState(includePosition: false),
       context: 'set shuffle mode',
@@ -2079,6 +2644,10 @@ class NavisAudioHandler extends BaseAudioHandler
       AudioServiceRepeatMode.none => LoopMode.off,
     };
     await _player.setLoopMode(loopMode);
+    final inactiveDeck = _crossfadePlayer;
+    if (inactiveDeck != null) {
+      await inactiveDeck.setLoopMode(loopMode);
+    }
     await _persistSafely(
       () => _persistQueueState(includePosition: false),
       context: 'set repeat mode',
@@ -2111,6 +2680,11 @@ class NavisAudioHandler extends BaseAudioHandler
     _cancelCrossfade();
     await _persistSafely(_persistPosition, context: 'stop');
     await _player.stop();
+    final inactiveDeck = _crossfadePlayer;
+    if (inactiveDeck != null) {
+      await inactiveDeck.pause();
+      await _setVolumeIfChanged(inactiveDeck, 0);
+    }
     await super.stop();
   }
 
@@ -2545,6 +3119,7 @@ class NavisAudioHandler extends BaseAudioHandler
     }
     _disposeHandlerStarted = true;
     _cancelCrossfade();
+    await _disposeInactiveCrossfadeDeck();
     _positionPersistTimer?.cancel();
     _radioStation = null;
     _radioMetadataService.dispose();
@@ -2560,6 +3135,7 @@ class NavisAudioHandler extends BaseAudioHandler
     }
     await _ensurePlayerDisposalStarted();
     await _snapshotController.close();
+    await _positionController.close();
     await _radioStreamErrorController.close();
     _disposeHandlerCompleted = true;
   }
@@ -2574,6 +3150,7 @@ class NavisAudioHandler extends BaseAudioHandler
     }
     _disposeHandlerStarted = true;
     _cancelCrossfade();
+    unawaited(_disposeInactiveCrossfadeDeck());
     _positionPersistTimer?.cancel();
     _radioStation = null;
     _radioMetadataService.dispose();
@@ -2597,7 +3174,34 @@ class NavisAudioHandler extends BaseAudioHandler
       } on Object {
         // Ignore disposal failures during teardown.
       }
+      final inactiveDeck = _crossfadePlayer;
+      if (inactiveDeck != null) {
+        try {
+          await inactiveDeck.stop();
+        } on Object {
+          // Ignore stop failures during teardown.
+        }
+        try {
+          await inactiveDeck.dispose();
+        } on Object {
+          // Ignore disposal failures during teardown.
+        }
+        _crossfadePlayer = null;
+      }
     }();
+  }
+
+  Future<void> _disposeInactiveCrossfadeDeck() async {
+    final inactiveDeck = _crossfadePlayer;
+    if (inactiveDeck == null) {
+      return;
+    }
+    try {
+      await inactiveDeck.pause();
+    } on Object {
+      // Best-effort shutdown only.
+    }
+    await _setVolumeIfChanged(inactiveDeck, 0);
   }
 
   // ---------------------------------------------------------------------------
@@ -2768,6 +3372,13 @@ class NavisAudioHandler extends BaseAudioHandler
     _queueItems.clear();
     await _player.stop();
     await _player.setAudioSources(const <AudioSource>[]);
+    final inactiveDeck = _crossfadePlayer;
+    if (inactiveDeck != null) {
+      await inactiveDeck.stop();
+      await inactiveDeck.setAudioSources(const <AudioSource>[]);
+      await inactiveDeck.setSpeed(1);
+      await _setVolumeIfChanged(inactiveDeck, 0);
+    }
     await _player.setSpeed(1);
     _updateScrobbleSession(null);
     queue.add(const <MediaItem>[]);
@@ -2837,6 +3448,9 @@ bool get _isWindowsRuntime => !kIsWeb && Platform.isWindows;
 
 bool get _isLinuxRuntime => !kIsWeb && Platform.isLinux;
 
+bool get _isDesktopRuntime =>
+    !kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
+
 bool get _supportsAudioSessionRuntime =>
     !kIsWeb && (Platform.isAndroid || Platform.isIOS || Platform.isMacOS);
 
@@ -2852,4 +3466,60 @@ class _PreparedQueueItem {
   final ResolvedPlaybackSource source;
   final MediaItem mediaItem;
   final AudioSource audioSource;
+}
+
+class CrossfadeTransitionMetric {
+  const CrossfadeTransitionMetric({
+    required this.transitionId,
+    required this.targetIndex,
+    required this.phase,
+    required this.platform,
+    required this.backend,
+    required this.fadeDurationMs,
+    this.sourceKind,
+    this.format,
+    this.sampleRate,
+    this.prewarmLatencyMs,
+    this.fadeElapsedMs,
+    this.swapLatencyMs,
+    this.fallbackReason,
+    this.canceledReason,
+  });
+
+  final int transitionId;
+  final int? targetIndex;
+  final String phase;
+  final String platform;
+  final String backend;
+  final String? sourceKind;
+  final String? format;
+  final int? sampleRate;
+  final int? prewarmLatencyMs;
+  final int fadeDurationMs;
+  final int? fadeElapsedMs;
+  final int? swapLatencyMs;
+  final String? fallbackReason;
+  final String? canceledReason;
+
+  String toDebugString() {
+    final fields = <String, Object?>{
+      'transitionId': transitionId,
+      'targetIndex': targetIndex,
+      'phase': phase,
+      'platform': platform,
+      'backend': backend,
+      'sourceKind': sourceKind,
+      'format': format,
+      'sampleRate': sampleRate,
+      'prewarmLatencyMs': prewarmLatencyMs,
+      'fadeDurationMs': fadeDurationMs,
+      'fadeElapsedMs': fadeElapsedMs,
+      'swapLatencyMs': swapLatencyMs,
+      'fallbackReason': fallbackReason,
+      'canceledReason': canceledReason,
+    };
+    return fields.entries
+        .map((entry) => '${entry.key}=${entry.value}')
+        .join(' ');
+  }
 }

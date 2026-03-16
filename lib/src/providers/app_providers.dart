@@ -203,6 +203,24 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
   ref,
 ) {
   return () async {
+    try {
+      await ref
+          .read(appSettingsProvider.future)
+          .timeout(
+            const Duration(seconds: 2),
+          );
+    } on TimeoutException {
+      AppLogger.warning(
+        'App settings were not hydrated before audio init. '
+        'Continuing with fallback runtime defaults and retrying sync later.',
+      );
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning(
+        'App settings preload failed before audio init. '
+        '$error\n$stackTrace',
+      );
+    }
+
     final database = ref.read(navisDatabaseProvider);
     final handler = await initNavisAudioHandler(
       libraryDao: database.libraryDao,
@@ -241,6 +259,35 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
       },
     );
     await handler.waitUntilReady();
+
+    try {
+      await handler.applyRuntimeSettings();
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning(
+        'Runtime settings apply failed after audio init: '
+        '$error\n$stackTrace',
+      );
+    }
+
+    if (ref.read(appSettingsProvider).asData?.value == null) {
+      unawaited(
+        () async {
+          try {
+            await ref.read(appSettingsProvider.future);
+            await handler.applyRuntimeSettings();
+            AppLogger.info(
+              'Deferred runtime settings sync applied after settings hydration.',
+            );
+          } on Object catch (error, stackTrace) {
+            AppLogger.warning(
+              'Deferred runtime settings sync failed: '
+              '$error\n$stackTrace',
+            );
+          }
+        }(),
+      );
+    }
+
     return handler;
   };
 });

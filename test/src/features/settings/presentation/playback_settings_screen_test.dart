@@ -165,6 +165,75 @@ void main() {
       verify(() => repository.resetDefaults()).called(1);
       expect(find.text('Playback settings reset to defaults.'), findsOneWidget);
     });
+
+    testWidgets('cross-fade controls depend on gapless playback', (
+      tester,
+    ) async {
+      AppSettingsModel? savedModel;
+      when(() => repository.saveSettings(any())).thenAnswer((invocation) async {
+        savedModel = invocation.positionalArguments.first as AppSettingsModel;
+      });
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            settingsRepositoryProvider.overrideWithValue(repository),
+            appSettingsProvider.overrideWithValue(
+              AsyncData(initialSettings.copyWith(gaplessEnabled: false)),
+            ),
+          ],
+          child: _buildTestApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final gaplessToggle = find.widgetWithText(
+        SwitchListTile,
+        'Enable gapless playback',
+      );
+      const crossfadeText = 'Enable cross-fade';
+      final fullscreenToggle = find.widgetWithText(
+        SwitchListTile,
+        'Fullscreen Mode Lyrics',
+      );
+
+      expect(find.widgetWithText(SwitchListTile, crossfadeText), findsNothing);
+
+      await tester.ensureVisible(gaplessToggle);
+      await tester.pumpAndSettle();
+      await tester.tap(gaplessToggle);
+      await tester.pumpAndSettle();
+
+      final crossfadeToggle = find.widgetWithText(
+        SwitchListTile,
+        crossfadeText,
+      );
+      expect(crossfadeToggle, findsOneWidget);
+      expect(fullscreenToggle, findsOneWidget);
+      expect(
+        tester.getTopLeft(crossfadeToggle).dy,
+        lessThan(tester.getTopLeft(fullscreenToggle).dy),
+      );
+
+      await tester.ensureVisible(crossfadeToggle);
+      await tester.pumpAndSettle();
+      await tester.tap(crossfadeToggle);
+      await tester.pumpAndSettle();
+
+      final gaplessTile = tester.widget<SwitchListTile>(gaplessToggle);
+      expect(gaplessTile.value, isTrue);
+      expect(
+        find.textContaining('These features conflict'),
+        findsNothing,
+      );
+
+      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pumpAndSettle();
+
+      expect(savedModel, isNotNull);
+      expect(savedModel!.crossfadeEnabled, isTrue);
+      expect(savedModel!.gaplessEnabled, isTrue);
+    });
   });
 }
 

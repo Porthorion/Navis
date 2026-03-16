@@ -36,6 +36,21 @@ String _formatDuration(Duration d) {
   return '$minutes:${seconds.toString().padLeft(2, '0')}';
 }
 
+Widget _songSwapTransitionBuilder(Widget child, Animation<double> animation) {
+  final curved = CurvedAnimation(
+    parent: animation,
+    curve: Curves.easeOutCubic,
+    reverseCurve: Curves.easeInCubic,
+  );
+  return FadeTransition(
+    opacity: curved,
+    child: ScaleTransition(
+      scale: Tween<double>(begin: 0.985, end: 1).animate(curved),
+      child: child,
+    ),
+  );
+}
+
 class NowPlayingScreen extends ConsumerStatefulWidget {
   const NowPlayingScreen({
     super.key,
@@ -179,8 +194,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     return Material(
       color: surfaceColor,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeInOut,
+        duration: const Duration(milliseconds: 420),
+        curve: Curves.easeInOutCubic,
         decoration: BoxDecoration(
           gradient: tintColor != null
               ? LinearGradient(
@@ -473,6 +488,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
   bool _showLyrics = false;
   bool _showWideFullscreenLyrics = false;
   bool? _lastReportedCompactWideOverlayActive;
+  String? _lastPrefetchedNextSongId;
   final ScrollController _embeddedQueueScrollController = ScrollController();
   static const double _wideSwipeDismissDistance = 72;
   static const double _wideSwipeQueueDistance = 96;
@@ -619,6 +635,59 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
       rightPaneWidth: rightPaneWidth,
       artSize: artSize,
     );
+  }
+
+  String? _resolveNextSongIdForPrefetch(PlaybackSnapshot playback) {
+    if (playback.isRadioMode) {
+      return null;
+    }
+    final ids = playback.queueSongIds;
+    final currentIndex = playback.currentIndex;
+    if (ids.isEmpty ||
+        currentIndex == null ||
+        currentIndex < 0 ||
+        currentIndex >= ids.length) {
+      return null;
+    }
+    var nextIndex = currentIndex + 1;
+    if (nextIndex >= ids.length) {
+      if (playback.repeatMode != AudioServiceRepeatMode.all) {
+        return null;
+      }
+      nextIndex = 0;
+    }
+    return ids[nextIndex];
+  }
+
+  void _scheduleNextSongCoverArtPrefetch({
+    required String? nextSongId,
+    required String? coverArtId,
+  }) {
+    if (nextSongId == null || nextSongId == _lastPrefetchedNextSongId) {
+      return;
+    }
+    _lastPrefetchedNextSongId = nextSongId;
+    final trimmedCoverArt = coverArtId?.trim() ?? '';
+    if (trimmedCoverArt.isEmpty) {
+      return;
+    }
+    final api = ref.read(subsonicApiProvider);
+    if (api == null) {
+      return;
+    }
+    final artUrl = api
+        .getCoverArtUrl(id: trimmedCoverArt, size: 768)
+        .toString();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _lastPrefetchedNextSongId != nextSongId) {
+        return;
+      }
+      final cacheManager = ref.read(coverArtCacheManagerProvider).asData?.value;
+      final ImageProvider<Object> imageProvider = cacheManager == null
+          ? NetworkImage(artUrl)
+          : CachedNetworkImageProvider(artUrl, cacheManager: cacheManager);
+      unawaited(precacheImage(imageProvider, context));
+    });
   }
 
   void _togglePlayPause() {
@@ -793,6 +862,24 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
     final mediaArtUrl = currentMediaItem?.artUri?.toString();
     final hasCoverArtId = coverArtId != null && coverArtId.trim().isNotEmpty;
     final hasMediaArtUrl = mediaArtUrl != null && mediaArtUrl.trim().isNotEmpty;
+    final nowPlayingVisualKey = isRadio
+        ? 'radio:${radioMeta?.nowPlayingTitle ?? ''}:${radioMeta?.nowPlayingArtist ?? ''}:${radioMeta?.nowPlayingArtUrl ?? ''}'
+        : 'song:${playback.currentSongId ?? currentMediaItem?.id ?? 'none'}';
+    final artVisualKey =
+        '$nowPlayingVisualKey:${coverArtId ?? mediaArtUrl ?? 'no-art'}';
+    final nextSongId = _resolveNextSongIdForPrefetch(playback);
+    final nextSong = nextSongId == null
+        ? null
+        : ref.watch(songByIdProvider(nextSongId)).asData?.value;
+    if (nextSong != null &&
+        nextSong.albumId != null &&
+        nextSong.albumId!.isNotEmpty) {
+      ref.watch(albumProvider(nextSong.albumId!));
+    }
+    _scheduleNextSongCoverArtPrefetch(
+      nextSongId: nextSongId,
+      coverArtId: nextSong?.coverArt,
+    );
 
     // Clear any open overlay panel when the player collapses in compact-wide
     // mode so it does not reappear the next time the user expands the player.
@@ -874,19 +961,22 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
                   maxSize: artMaxSize,
                 )
               : AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 220),
+                  duration: const Duration(milliseconds: 320),
                   switchInCurve: Curves.easeOut,
                   switchOutCurve: Curves.easeIn,
+                  transitionBuilder: _songSwapTransitionBuilder,
                   child: showInlineLyrics
                       ? _InlineLyrics(
-                          key: const ValueKey<String>(
-                            'compact-wide-inline-lyrics',
+                          key: ValueKey<String>(
+                            'compact-wide-inline-lyrics-$nowPlayingVisualKey',
                           ),
                           songId: playback.currentSongId!,
                           maxSize: artMaxSize,
                         )
                       : GestureDetector(
-                          key: const ValueKey<String>('compact-wide-cover'),
+                          key: ValueKey<String>(
+                            'compact-wide-cover-$artVisualKey',
+                          ),
                           onTap: _togglePlayPause,
                           onHorizontalDragEnd: _handleHorizontalSwipe,
                           child: hasCoverArtId
@@ -922,58 +1012,72 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: <Widget>[
-                        _TrackInfo(
-                          title: title,
-                          artist: artist,
-                          album: album,
-                          compact: true,
-                          onTitleTap: isRadio
-                              ? (radioMeta?.nowPlayingTitle != null &&
-                                        radioMeta!.nowPlayingTitle!.isNotEmpty
-                                    ? () => NavService.goToSearch(
-                                        context,
-                                        ref,
-                                        radioMeta.nowPlayingTitle!,
-                                      )
-                                    : null)
-                              : null,
-                          onArtistTap: isRadio
-                              ? (radioMeta?.nowPlayingArtist != null &&
-                                        radioMeta!.nowPlayingArtist!.isNotEmpty
-                                    ? () => NavService.goToSearch(
-                                        context,
-                                        ref,
-                                        radioMeta.nowPlayingArtist!,
-                                      )
-                                    : null)
-                              : (resolvedArtistId != null
-                                    ? () => NavService.goToArtist(
-                                        context,
-                                        ref,
-                                        resolvedArtistId,
-                                      )
-                                    : (song?.artistName != null &&
-                                              song!.artistName!.isNotEmpty
-                                          ? () => NavService.goToSearch(
-                                              context,
-                                              ref,
-                                              song.artistName!,
-                                            )
-                                          : null)),
-                          onAlbumTap: isRadio
-                              ? null
-                              : (song?.albumId != null &&
-                                        song!.albumId!.isNotEmpty
-                                    ? () => NavService.goToAlbum(
-                                        context,
-                                        ref,
-                                        song.albumId!,
-                                      )
-                                    : null),
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 280),
+                          switchInCurve: Curves.easeOut,
+                          switchOutCurve: Curves.easeIn,
+                          transitionBuilder: _songSwapTransitionBuilder,
+                          child: _TrackInfo(
+                            key: ValueKey<String>(
+                              'compact-wide-track-$nowPlayingVisualKey',
+                            ),
+                            title: title,
+                            artist: artist,
+                            album: album,
+                            compact: true,
+                            onTitleTap: isRadio
+                                ? (radioMeta?.nowPlayingTitle != null &&
+                                          radioMeta!.nowPlayingTitle!.isNotEmpty
+                                      ? () => NavService.goToSearch(
+                                          context,
+                                          ref,
+                                          radioMeta.nowPlayingTitle!,
+                                        )
+                                      : null)
+                                : null,
+                            onArtistTap: isRadio
+                                ? (radioMeta?.nowPlayingArtist != null &&
+                                          radioMeta!
+                                              .nowPlayingArtist!
+                                              .isNotEmpty
+                                      ? () => NavService.goToSearch(
+                                          context,
+                                          ref,
+                                          radioMeta.nowPlayingArtist!,
+                                        )
+                                      : null)
+                                : (resolvedArtistId != null
+                                      ? () => NavService.goToArtist(
+                                          context,
+                                          ref,
+                                          resolvedArtistId,
+                                        )
+                                      : (song?.artistName != null &&
+                                                song!.artistName!.isNotEmpty
+                                            ? () => NavService.goToSearch(
+                                                context,
+                                                ref,
+                                                song.artistName!,
+                                              )
+                                            : null)),
+                            onAlbumTap: isRadio
+                                ? null
+                                : (song?.albumId != null &&
+                                          song!.albumId!.isNotEmpty
+                                      ? () => NavService.goToAlbum(
+                                          context,
+                                          ref,
+                                          song.albumId!,
+                                        )
+                                      : null),
+                          ),
                         ),
                         if (!isRadio) ...<Widget>[
                           const SizedBox(height: 8),
                           _NowPlayingInfoPanel(
+                            key: ValueKey<String>(
+                              'compact-wide-info-$nowPlayingVisualKey',
+                            ),
                             song: song,
                             album: albumDetails,
                             playback: playback,
@@ -1263,16 +1367,20 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
                 maxSize: artMaxSize,
               )
             : AnimatedSwitcher(
-                duration: const Duration(milliseconds: 220),
+                duration: const Duration(milliseconds: 320),
                 switchInCurve: Curves.easeOut,
                 switchOutCurve: Curves.easeIn,
+                transitionBuilder: _songSwapTransitionBuilder,
                 child: showInlineLyrics
                     ? _InlineLyrics(
+                        key: ValueKey<String>(
+                          'inline-lyrics-$nowPlayingVisualKey',
+                        ),
                         songId: playback.currentSongId!,
                         maxSize: artMaxSize,
                       )
                     : GestureDetector(
-                        key: const ValueKey('cover'),
+                        key: ValueKey<String>('cover-$artVisualKey'),
                         onTap: _togglePlayPause,
                         onHorizontalDragEnd: _handleHorizontalSwipe,
                         child: hasCoverArtId
@@ -1306,59 +1414,69 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
                 ),
               ),
             ),
-          _TrackInfo(
-            title: title,
-            artist: artist,
-            album: album,
-            compact: compactSpacing,
-            onTitleTap: isRadio
-                ? (radioMeta?.nowPlayingTitle != null &&
-                          radioMeta!.nowPlayingTitle!.isNotEmpty
-                      ? () => NavService.goToSearch(
-                          context,
-                          ref,
-                          radioMeta.nowPlayingTitle!,
-                        )
-                      : null)
-                : null,
-            onArtistTap: isRadio
-                ? (radioMeta?.nowPlayingArtist != null &&
-                          radioMeta!.nowPlayingArtist!.isNotEmpty
-                      ? () => NavService.goToSearch(
-                          context,
-                          ref,
-                          radioMeta.nowPlayingArtist!,
-                        )
-                      : null)
-                : (resolvedArtistId != null
-                      ? () => NavService.goToArtist(
-                          context,
-                          ref,
-                          resolvedArtistId,
-                        )
-                      : (song?.artistName != null &&
-                                song!.artistName!.isNotEmpty
-                            ? () => NavService.goToSearch(
-                                context,
-                                ref,
-                                song.artistName!,
-                              )
-                            : null)),
-            onAlbumTap: isRadio
-                ? null
-                : (song?.albumId != null && song!.albumId!.isNotEmpty
-                      ? () => NavService.goToAlbum(
-                          context,
-                          ref,
-                          song.albumId!,
-                        )
-                      : null),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 280),
+            switchInCurve: Curves.easeOut,
+            switchOutCurve: Curves.easeIn,
+            transitionBuilder: _songSwapTransitionBuilder,
+            child: _TrackInfo(
+              key: ValueKey<String>(
+                'track-info-$nowPlayingVisualKey',
+              ),
+              title: title,
+              artist: artist,
+              album: album,
+              compact: compactSpacing,
+              onTitleTap: isRadio
+                  ? (radioMeta?.nowPlayingTitle != null &&
+                            radioMeta!.nowPlayingTitle!.isNotEmpty
+                        ? () => NavService.goToSearch(
+                            context,
+                            ref,
+                            radioMeta.nowPlayingTitle!,
+                          )
+                        : null)
+                  : null,
+              onArtistTap: isRadio
+                  ? (radioMeta?.nowPlayingArtist != null &&
+                            radioMeta!.nowPlayingArtist!.isNotEmpty
+                        ? () => NavService.goToSearch(
+                            context,
+                            ref,
+                            radioMeta.nowPlayingArtist!,
+                          )
+                        : null)
+                  : (resolvedArtistId != null
+                        ? () => NavService.goToArtist(
+                            context,
+                            ref,
+                            resolvedArtistId,
+                          )
+                        : (song?.artistName != null &&
+                                  song!.artistName!.isNotEmpty
+                              ? () => NavService.goToSearch(
+                                  context,
+                                  ref,
+                                  song.artistName!,
+                                )
+                              : null)),
+              onAlbumTap: isRadio
+                  ? null
+                  : (song?.albumId != null && song!.albumId!.isNotEmpty
+                        ? () => NavService.goToAlbum(
+                            context,
+                            ref,
+                            song.albumId!,
+                          )
+                        : null),
+            ),
           ),
           if (!isRadio) ...[
             SizedBox(
               height: isSplitNowPlaying ? (compactHeight ? 8 : 10) : 12,
             ),
             _NowPlayingInfoPanel(
+              key: ValueKey<String>('info-panel-$nowPlayingVisualKey'),
               song: song,
               album: albumDetails,
               playback: playback,
@@ -1566,91 +1684,113 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
         );
         final splitTopInfo = Padding(
           padding: const EdgeInsets.symmetric(horizontal: 2),
-          child: _NowPlayingInfoGrid(
-            song: song,
-            album: albumDetails,
-            playback: playback,
-            currentMediaItem: currentMediaItem,
-            playbackSpeed: playbackSpeed,
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 280),
+            switchInCurve: Curves.easeOut,
+            switchOutCurve: Curves.easeIn,
+            transitionBuilder: _songSwapTransitionBuilder,
+            child: _NowPlayingInfoGrid(
+              key: ValueKey<String>('split-top-info-$nowPlayingVisualKey'),
+              song: song,
+              album: albumDetails,
+              playback: playback,
+              currentMediaItem: currentMediaItem,
+              playbackSpeed: playbackSpeed,
+            ),
           ),
         );
-        final splitCoverArt = isRadio
-            ? _RadioCoverArt(
-                artUrl: radioMeta?.nowPlayingArtUrl,
-                maxSize: splitCoverArtMaxSize,
-              )
-            : GestureDetector(
-                onTap: _togglePlayPause,
-                onHorizontalDragEnd: _handleHorizontalSwipe,
-                child: hasCoverArtId
-                    ? _CoverArt(
-                        coverArtId: coverArtId,
-                        semanticLabel: title,
-                        maxSize: splitCoverArtMaxSize,
-                      )
-                    : (hasMediaArtUrl
-                          ? _RadioCoverArt(
-                              artUrl: mediaArtUrl,
-                              maxSize: splitCoverArtMaxSize,
-                            )
-                          : _CoverArt(
-                              coverArtId: null,
-                              semanticLabel: title,
-                              maxSize: splitCoverArtMaxSize,
-                            )),
-              );
+        final splitCoverArt = AnimatedSwitcher(
+          duration: const Duration(milliseconds: 320),
+          switchInCurve: Curves.easeOut,
+          switchOutCurve: Curves.easeIn,
+          transitionBuilder: _songSwapTransitionBuilder,
+          child: isRadio
+              ? _RadioCoverArt(
+                  key: ValueKey<String>('split-radio-art-$artVisualKey'),
+                  artUrl: radioMeta?.nowPlayingArtUrl,
+                  maxSize: splitCoverArtMaxSize,
+                )
+              : GestureDetector(
+                  key: ValueKey<String>('split-cover-$artVisualKey'),
+                  onTap: _togglePlayPause,
+                  onHorizontalDragEnd: _handleHorizontalSwipe,
+                  child: hasCoverArtId
+                      ? _CoverArt(
+                          coverArtId: coverArtId,
+                          semanticLabel: title,
+                          maxSize: splitCoverArtMaxSize,
+                        )
+                      : (hasMediaArtUrl
+                            ? _RadioCoverArt(
+                                artUrl: mediaArtUrl,
+                                maxSize: splitCoverArtMaxSize,
+                              )
+                            : _CoverArt(
+                                coverArtId: null,
+                                semanticLabel: title,
+                                maxSize: splitCoverArtMaxSize,
+                              )),
+                ),
+        );
         final splitBottomStack = Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             Center(child: splitCoverArt),
             const SizedBox(height: 12),
-            _TrackInfo(
-              title: title,
-              artist: artist,
-              album: album,
-              compact: true,
-              onTitleTap: isRadio
-                  ? (radioMeta?.nowPlayingTitle != null &&
-                            radioMeta!.nowPlayingTitle!.isNotEmpty
-                        ? () => NavService.goToSearch(
-                            context,
-                            ref,
-                            radioMeta.nowPlayingTitle!,
-                          )
-                        : null)
-                  : null,
-              onArtistTap: isRadio
-                  ? (radioMeta?.nowPlayingArtist != null &&
-                            radioMeta!.nowPlayingArtist!.isNotEmpty
-                        ? () => NavService.goToSearch(
-                            context,
-                            ref,
-                            radioMeta.nowPlayingArtist!,
-                          )
-                        : null)
-                  : (resolvedArtistId != null
-                        ? () => NavService.goToArtist(
-                            context,
-                            ref,
-                            resolvedArtistId,
-                          )
-                        : (song?.artistName != null &&
-                                  song!.artistName!.isNotEmpty
-                              ? () => NavService.goToSearch(
-                                  context,
-                                  ref,
-                                  song.artistName!,
-                                )
-                              : null)),
-              onAlbumTap: isRadio
-                  ? null
-                  : (song?.albumId != null && song!.albumId!.isNotEmpty
-                        ? () => NavService.goToAlbum(
-                            context,
-                            ref,
-                            song.albumId!,
-                          )
-                        : null),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 280),
+              switchInCurve: Curves.easeOut,
+              switchOutCurve: Curves.easeIn,
+              transitionBuilder: _songSwapTransitionBuilder,
+              child: _TrackInfo(
+                key: ValueKey<String>('split-track-info-$nowPlayingVisualKey'),
+                title: title,
+                artist: artist,
+                album: album,
+                compact: true,
+                onTitleTap: isRadio
+                    ? (radioMeta?.nowPlayingTitle != null &&
+                              radioMeta!.nowPlayingTitle!.isNotEmpty
+                          ? () => NavService.goToSearch(
+                              context,
+                              ref,
+                              radioMeta.nowPlayingTitle!,
+                            )
+                          : null)
+                    : null,
+                onArtistTap: isRadio
+                    ? (radioMeta?.nowPlayingArtist != null &&
+                              radioMeta!.nowPlayingArtist!.isNotEmpty
+                          ? () => NavService.goToSearch(
+                              context,
+                              ref,
+                              radioMeta.nowPlayingArtist!,
+                            )
+                          : null)
+                    : (resolvedArtistId != null
+                          ? () => NavService.goToArtist(
+                              context,
+                              ref,
+                              resolvedArtistId,
+                            )
+                          : (song?.artistName != null &&
+                                    song!.artistName!.isNotEmpty
+                                ? () => NavService.goToSearch(
+                                    context,
+                                    ref,
+                                    song.artistName!,
+                                  )
+                                : null)),
+                onAlbumTap: isRadio
+                    ? null
+                    : (song?.albumId != null && song!.albumId!.isNotEmpty
+                          ? () => NavService.goToAlbum(
+                              context,
+                              ref,
+                              song.albumId!,
+                            )
+                          : null),
+              ),
             ),
             if (!isRadio) ...<Widget>[
               const SizedBox(height: 12),
@@ -1907,7 +2047,11 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
 }
 
 class _CoverArt extends ConsumerWidget {
-  const _CoverArt({this.coverArtId, this.semanticLabel, this.maxSize});
+  const _CoverArt({
+    this.coverArtId,
+    this.semanticLabel,
+    this.maxSize,
+  });
 
   final String? coverArtId;
   final String? semanticLabel;
@@ -1950,7 +2094,7 @@ class _CoverArt extends ConsumerWidget {
 }
 
 class _RadioCoverArt extends ConsumerWidget {
-  const _RadioCoverArt({this.artUrl, this.maxSize});
+  const _RadioCoverArt({super.key, this.artUrl, this.maxSize});
 
   final String? artUrl;
   final double? maxSize;
@@ -2024,6 +2168,7 @@ class _RadioCoverArt extends ConsumerWidget {
 
 class _TrackInfo extends StatelessWidget {
   const _TrackInfo({
+    super.key,
     required this.title,
     required this.artist,
     required this.album,
@@ -2103,6 +2248,7 @@ class _TrackInfo extends StatelessWidget {
 
 class _NowPlayingInfoPanel extends ConsumerStatefulWidget {
   const _NowPlayingInfoPanel({
+    super.key,
     required this.song,
     required this.album,
     required this.playback,
@@ -2307,6 +2453,7 @@ List<_NowPlayingInfoPage> _buildNowPlayingInfoPages({
 
 class _NowPlayingInfoGrid extends ConsumerWidget {
   const _NowPlayingInfoGrid({
+    super.key,
     required this.song,
     required this.album,
     required this.playback,

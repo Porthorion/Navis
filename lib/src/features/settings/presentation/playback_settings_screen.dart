@@ -212,12 +212,79 @@ class _PlaybackSettingsScreenState
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 value: _gaplessEnabled,
-                onChanged: _isSaving
-                    ? null
-                    : (value) => setState(() => _gaplessEnabled = value),
+                onChanged: _isSaving ? null : _setGaplessEnabled,
                 title: Text(l10n.playbackSettingsGaplessTitle),
                 subtitle: Text(l10n.playbackSettingsGaplessSubtitle),
               ),
+              if (_gaplessEnabled) ...<Widget>[
+                // ── Cross-fade section ───────────────────────────────────
+                const SizedBox(height: 24),
+                Text(
+                  l10n.playbackSettingsCrossfadeSectionTitle,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 12),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: _crossfadeEnabled,
+                  onChanged: _isSaving ? null : _setCrossfadeEnabled,
+                  title: Text(l10n.playbackSettingsCrossfadeEnableTitle),
+                  subtitle: Text(l10n.playbackSettingsCrossfadeEnableSubtitle),
+                ),
+                if (_crossfadeEnabled) ...[
+                  Text(
+                    l10n.playbackSettingsCrossfadeDurationLabel(
+                      _crossfadeDurationSeconds,
+                    ),
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  Slider(
+                    value: _crossfadeDurationSeconds.toDouble(),
+                    min: 1,
+                    max: 12,
+                    divisions: 11,
+                    label: '${_crossfadeDurationSeconds}s',
+                    onChanged: _isSaving
+                        ? null
+                        : (value) => setState(
+                            () => _crossfadeDurationSeconds = value.round(),
+                          ),
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    initialValue: _crossfadeType,
+                    decoration: InputDecoration(
+                      labelText: l10n.playbackSettingsCrossfadeTypeLabel,
+                    ),
+                    items: [
+                      DropdownMenuItem(
+                        value: 'normal',
+                        child: Text(l10n.playbackSettingsCrossfadeTypeNormal),
+                      ),
+                      DropdownMenuItem(
+                        value: 'smart',
+                        child: Text(l10n.playbackSettingsCrossfadeTypeSmart),
+                      ),
+                    ],
+                    onChanged: _isSaving
+                        ? null
+                        : (value) {
+                            if (value != null) {
+                              setState(() => _crossfadeType = value);
+                            }
+                          },
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _crossfadeType == 'smart'
+                        ? l10n.playbackSettingsCrossfadeTypeSmartDescription
+                        : l10n.playbackSettingsCrossfadeTypeNormalDescription,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
+                  ),
+                ],
+              ],
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 value: _fullscreenModeLyrics,
@@ -229,38 +296,6 @@ class _PlaybackSettingsScreenState
                   'Open lyrics in fullscreen directly from Now Playing.',
                 ),
               ),
-              if (_gaplessEnabled && _crossfadeEnabled)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Card(
-                    color: Theme.of(context).colorScheme.errorContainer,
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.warning_amber_rounded,
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onErrorContainer,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              l10n.playbackSettingsCrossfadeGaplessWarning,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.onErrorContainer,
-                                  ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
               if (_supportsAndroidDsp) ...<Widget>[
                 const SizedBox(height: 24),
                 Text(
@@ -327,75 +362,6 @@ class _PlaybackSettingsScreenState
                         : (value) =>
                               setState(() => _loudnessTargetGainDb = value),
                   ),
-              ],
-              // ── Cross-fade section ─────────────────────────────────────
-              const SizedBox(height: 24),
-              Text(
-                l10n.playbackSettingsCrossfadeSectionTitle,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 12),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                value: _crossfadeEnabled,
-                onChanged: _isSaving
-                    ? null
-                    : (value) => setState(() => _crossfadeEnabled = value),
-                title: Text(l10n.playbackSettingsCrossfadeEnableTitle),
-                subtitle: Text(l10n.playbackSettingsCrossfadeEnableSubtitle),
-              ),
-              if (_crossfadeEnabled) ...[
-                Text(
-                  l10n.playbackSettingsCrossfadeDurationLabel(
-                    _crossfadeDurationSeconds,
-                  ),
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                Slider(
-                  value: _crossfadeDurationSeconds.toDouble(),
-                  min: 1,
-                  max: 12,
-                  divisions: 11,
-                  label: '${_crossfadeDurationSeconds}s',
-                  onChanged: _isSaving
-                      ? null
-                      : (value) => setState(
-                          () => _crossfadeDurationSeconds = value.round(),
-                        ),
-                ),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<String>(
-                  initialValue: _crossfadeType,
-                  decoration: InputDecoration(
-                    labelText: l10n.playbackSettingsCrossfadeTypeLabel,
-                  ),
-                  items: [
-                    DropdownMenuItem(
-                      value: 'normal',
-                      child: Text(l10n.playbackSettingsCrossfadeTypeNormal),
-                    ),
-                    DropdownMenuItem(
-                      value: 'smart',
-                      child: Text(l10n.playbackSettingsCrossfadeTypeSmart),
-                    ),
-                  ],
-                  onChanged: _isSaving
-                      ? null
-                      : (value) {
-                          if (value != null) {
-                            setState(() => _crossfadeType = value);
-                          }
-                        },
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  _crossfadeType == 'smart'
-                      ? l10n.playbackSettingsCrossfadeTypeSmartDescription
-                      : l10n.playbackSettingsCrossfadeTypeNormalDescription,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.outline,
-                  ),
-                ),
               ],
               // ── ReplayGain section ─────────────────────────────────────
               const SizedBox(height: 24),
@@ -559,7 +525,7 @@ class _PlaybackSettingsScreenState
     _cellularFormat = settings.cellularFormat;
     _scrobbleEnabled = settings.scrobbleEnabled;
     _useLrclib = settings.useLrclib;
-    _gaplessEnabled = settings.gaplessEnabled;
+    _gaplessEnabled = settings.gaplessEnabled || settings.crossfadeEnabled;
     _fullscreenModeLyrics = settings.skipSilenceEnabled;
     _equalizerEnabled = settings.equalizerEnabled;
     _equalizerBandGains = _normalizeBandGains(settings.equalizerBandGains);
@@ -633,7 +599,7 @@ class _PlaybackSettingsScreenState
         cellularMaxBitRate: _cellularBitRate,
         cellularFormat: _normalizeFormat(_cellularFormat),
         scrobbleEnabled: _scrobbleEnabled,
-        gaplessEnabled: _gaplessEnabled,
+        gaplessEnabled: _gaplessEnabled || _crossfadeEnabled,
         skipSilenceEnabled: _fullscreenModeLyrics,
         showRadioPage: ref.read(showRadioPageProvider),
         showPlaylistsPage: ref.read(showPlaylistsPageProvider),
@@ -697,6 +663,24 @@ class _PlaybackSettingsScreenState
         _scheduleAutosave();
       }
     }
+  }
+
+  void _setGaplessEnabled(bool value) {
+    setState(() {
+      _gaplessEnabled = value;
+      if (!value && _crossfadeEnabled) {
+        _crossfadeEnabled = false;
+      }
+    });
+  }
+
+  void _setCrossfadeEnabled(bool value) {
+    setState(() {
+      _crossfadeEnabled = value;
+      if (value) {
+        _gaplessEnabled = true;
+      }
+    });
   }
 
   Future<void> _resetDefaults() async {
