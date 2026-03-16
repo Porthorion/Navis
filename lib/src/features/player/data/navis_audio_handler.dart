@@ -27,6 +27,7 @@ import 'package:navis/src/utils/app_logger.dart';
 abstract class NavisPlaybackHandler {
   PlaybackSnapshot get snapshot;
   Stream<PlaybackSnapshot> get snapshotStream;
+  Stream<ManualTrackChangeCue> get manualTrackChangeCueStream;
   Stream<Duration> get positionStream;
   MediaItem? get currentMediaItem;
   Stream<MediaItem?> get mediaItemStream;
@@ -496,6 +497,10 @@ class WindowsNavisPlaybackHandler implements NavisPlaybackHandler {
   Stream<PlaybackSnapshot> get snapshotStream => _delegate.snapshotStream;
 
   @override
+  Stream<ManualTrackChangeCue> get manualTrackChangeCueStream =>
+      _delegate.manualTrackChangeCueStream;
+
+  @override
   Stream<Duration> get positionStream => _delegate.positionStream;
 
   @override
@@ -678,6 +683,8 @@ class NavisAudioHandler extends BaseAudioHandler
 
   final StreamController<PlaybackSnapshot> _snapshotController =
       StreamController<PlaybackSnapshot>.broadcast();
+  final StreamController<ManualTrackChangeCue> _manualTrackChangeCueController =
+      StreamController<ManualTrackChangeCue>.broadcast();
 
   final StreamController<Duration> _positionController =
       StreamController<Duration>.broadcast();
@@ -730,6 +737,7 @@ class NavisAudioHandler extends BaseAudioHandler
   int? _crossfadeActiveTransitionId;
   int? _crossfadePrewarmLatencyMs;
   DateTime? _crossfadeFadeStartedAt;
+  int _manualTrackChangeCueToken = 0;
 
   /// The queue index of the track loaded on `_crossfadePlayer`.
   int? _crossfadeTargetIndex;
@@ -748,6 +756,10 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Stream<PlaybackSnapshot> get snapshotStream => _snapshotController.stream;
+
+  @override
+  Stream<ManualTrackChangeCue> get manualTrackChangeCueStream =>
+      _manualTrackChangeCueController.stream;
 
   @override
   Stream<void> get radioStreamErrorStream => _radioStreamErrorController.stream;
@@ -2581,6 +2593,10 @@ class NavisAudioHandler extends BaseAudioHandler
       )) {
         return;
       }
+      _emitManualTrackChangeCue(
+        ManualTrackChangeDirection.next,
+        fromSongId: _snapshot.currentSongId,
+      );
       await navisRunTransportWithPersistence(
         transportOperation: _player.seekToNext,
         persistOperation: _persistQueueState,
@@ -2601,6 +2617,12 @@ class NavisAudioHandler extends BaseAudioHandler
         forward: false,
       )) {
         return;
+      }
+      if (_player.position <= const Duration(seconds: 3)) {
+        _emitManualTrackChangeCue(
+          ManualTrackChangeDirection.previous,
+          fromSongId: _snapshot.currentSongId,
+        );
       }
       await navisRunTransportWithPersistence(
         transportOperation: _player.seekToPrevious,
@@ -2918,6 +2940,22 @@ class NavisAudioHandler extends BaseAudioHandler
     }
   }
 
+  void _emitManualTrackChangeCue(
+    ManualTrackChangeDirection direction, {
+    required String? fromSongId,
+  }) {
+    if (_manualTrackChangeCueController.isClosed) {
+      return;
+    }
+    _manualTrackChangeCueController.add(
+      ManualTrackChangeCue(
+        token: ++_manualTrackChangeCueToken,
+        direction: direction,
+        fromSongId: fromSongId,
+      ),
+    );
+  }
+
   Future<void> _seekWithRecovery(Duration position) async {
     await _player.seek(position);
     await Future<void>.delayed(const Duration(milliseconds: 200));
@@ -3135,6 +3173,7 @@ class NavisAudioHandler extends BaseAudioHandler
     }
     await _ensurePlayerDisposalStarted();
     await _snapshotController.close();
+    await _manualTrackChangeCueController.close();
     await _positionController.close();
     await _radioStreamErrorController.close();
     _disposeHandlerCompleted = true;

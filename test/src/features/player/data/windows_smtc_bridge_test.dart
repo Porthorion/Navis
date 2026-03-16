@@ -218,6 +218,10 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
   Stream<void> get radioStreamErrorStream => _radioErrorController.stream;
 
   @override
+  Stream<ManualTrackChangeCue> get manualTrackChangeCueStream =>
+      const Stream<ManualTrackChangeCue>.empty();
+
+  @override
   PlaybackSnapshot get snapshot => _snapshot;
 
   @override

@@ -51,6 +51,32 @@ Widget _songSwapTransitionBuilder(Widget child, Animation<double> animation) {
   );
 }
 
+Widget _songSwapDirectionalTransitionBuilder(
+  Widget child,
+  Animation<double> animation, {
+  required ManualTrackChangeDirection direction,
+}) {
+  final beginX = switch (direction) {
+    ManualTrackChangeDirection.next => 0.09,
+    ManualTrackChangeDirection.previous => -0.09,
+  };
+  final curved = CurvedAnimation(
+    parent: animation,
+    curve: Curves.easeOutCubic,
+    reverseCurve: Curves.easeInCubic,
+  );
+  return FadeTransition(
+    opacity: curved,
+    child: SlideTransition(
+      position: Tween<Offset>(
+        begin: Offset(beginX, 0),
+        end: Offset.zero,
+      ).animate(curved),
+      child: child,
+    ),
+  );
+}
+
 class NowPlayingScreen extends ConsumerStatefulWidget {
   const NowPlayingScreen({
     super.key,
@@ -492,8 +518,14 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
   final ScrollController _embeddedQueueScrollController = ScrollController();
   static const double _wideSwipeDismissDistance = 72;
   static const double _wideSwipeQueueDistance = 96;
+  static const Duration _manualSkipCueStaleTimeout = Duration(seconds: 3);
   double _wideSwipeDistance = 0;
   bool _handledWideSwipe = false;
+  ManualTrackChangeDirection? _pendingManualSkipDirection;
+  String? _manualSkipFromSongId;
+  int _lastHandledManualSkipCueToken = 0;
+  bool _manualSkipConsumeScheduled = false;
+  Timer? _manualSkipCueResetTimer;
 
   bool _dismissInternalOverlaysIfVisible() {
     if (_widePanel != _WideNowPlayingPanel.none) {
@@ -577,11 +609,67 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
 
   @override
   void dispose() {
+    _manualSkipCueResetTimer?.cancel();
     widget.onBackInterceptorChanged?.call(null);
     widget.onCompactWideOverlayActiveChanged?.call(false);
     widget.onCompactWideQueueRequestChanged?.call(null);
     _embeddedQueueScrollController.dispose();
     super.dispose();
+  }
+
+  void _armManualSkipCue(ManualTrackChangeCue cue) {
+    if (cue.token <= _lastHandledManualSkipCueToken) {
+      return;
+    }
+    _lastHandledManualSkipCueToken = cue.token;
+    _manualSkipCueResetTimer?.cancel();
+    final fromSongId = cue.fromSongId;
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _pendingManualSkipDirection = cue.direction;
+      _manualSkipFromSongId = fromSongId;
+      _manualSkipConsumeScheduled = false;
+    });
+    _manualSkipCueResetTimer = Timer(_manualSkipCueStaleTimeout, () {
+      if (!mounted) {
+        return;
+      }
+      setState(_clearManualSkipCue);
+    });
+  }
+
+  void _clearManualSkipCue() {
+    _pendingManualSkipDirection = null;
+    _manualSkipFromSongId = null;
+    _manualSkipConsumeScheduled = false;
+    _manualSkipCueResetTimer?.cancel();
+    _manualSkipCueResetTimer = null;
+  }
+
+  ManualTrackChangeDirection? _resolveManualSkipDirectionForTransition(
+    PlaybackSnapshot playback,
+  ) {
+    final pendingDirection = _pendingManualSkipDirection;
+    final fromSongId = _manualSkipFromSongId;
+    final currentSongId = playback.currentSongId;
+    if (pendingDirection == null ||
+        fromSongId == null ||
+        currentSongId == null ||
+        currentSongId == fromSongId) {
+      return null;
+    }
+    if (!_manualSkipConsumeScheduled) {
+      _manualSkipConsumeScheduled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        setState(_clearManualSkipCue);
+      });
+    }
+    return pendingDirection;
   }
 
   _NowPlayingLayoutMode _resolveLayoutMode(double width) {
@@ -832,6 +920,26 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
     final playbackSpeed =
         ref.watch(appSettingsProvider).asData?.value.playbackSpeed ?? 1;
     final fullscreenLyricsMode = ref.watch(fullscreenModeLyricsProvider);
+    ref.listen<AsyncValue<ManualTrackChangeCue>>(
+      manualTrackChangeCueProvider,
+      (_, next) {
+        final cue = next.asData?.value;
+        if (cue != null) {
+          _armManualSkipCue(cue);
+        }
+      },
+    );
+    final manualSkipDirection = _resolveManualSkipDirectionForTransition(
+      playback,
+    );
+    final songSwapTransitionBuilder = manualSkipDirection == null
+        ? _songSwapTransitionBuilder
+        : (Widget child, Animation<double> animation) =>
+              _songSwapDirectionalTransitionBuilder(
+                child,
+                animation,
+                direction: manualSkipDirection,
+              );
 
     final title = isRadio
         ? (radioMeta?.nowPlayingTitle ??
@@ -964,7 +1072,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
                   duration: const Duration(milliseconds: 320),
                   switchInCurve: Curves.easeOut,
                   switchOutCurve: Curves.easeIn,
-                  transitionBuilder: _songSwapTransitionBuilder,
+                  transitionBuilder: songSwapTransitionBuilder,
                   child: showInlineLyrics
                       ? _InlineLyrics(
                           key: ValueKey<String>(
@@ -1016,7 +1124,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
                           duration: const Duration(milliseconds: 280),
                           switchInCurve: Curves.easeOut,
                           switchOutCurve: Curves.easeIn,
-                          transitionBuilder: _songSwapTransitionBuilder,
+                          transitionBuilder: songSwapTransitionBuilder,
                           child: _TrackInfo(
                             key: ValueKey<String>(
                               'compact-wide-track-$nowPlayingVisualKey',
@@ -1370,7 +1478,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
                 duration: const Duration(milliseconds: 320),
                 switchInCurve: Curves.easeOut,
                 switchOutCurve: Curves.easeIn,
-                transitionBuilder: _songSwapTransitionBuilder,
+                transitionBuilder: songSwapTransitionBuilder,
                 child: showInlineLyrics
                     ? _InlineLyrics(
                         key: ValueKey<String>(
@@ -1418,7 +1526,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
             duration: const Duration(milliseconds: 280),
             switchInCurve: Curves.easeOut,
             switchOutCurve: Curves.easeIn,
-            transitionBuilder: _songSwapTransitionBuilder,
+            transitionBuilder: songSwapTransitionBuilder,
             child: _TrackInfo(
               key: ValueKey<String>(
                 'track-info-$nowPlayingVisualKey',
@@ -1688,7 +1796,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
             duration: const Duration(milliseconds: 280),
             switchInCurve: Curves.easeOut,
             switchOutCurve: Curves.easeIn,
-            transitionBuilder: _songSwapTransitionBuilder,
+            transitionBuilder: songSwapTransitionBuilder,
             child: _NowPlayingInfoGrid(
               key: ValueKey<String>('split-top-info-$nowPlayingVisualKey'),
               song: song,
@@ -1703,7 +1811,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
           duration: const Duration(milliseconds: 320),
           switchInCurve: Curves.easeOut,
           switchOutCurve: Curves.easeIn,
-          transitionBuilder: _songSwapTransitionBuilder,
+          transitionBuilder: songSwapTransitionBuilder,
           child: isRadio
               ? _RadioCoverArt(
                   key: ValueKey<String>('split-radio-art-$artVisualKey'),
@@ -1741,7 +1849,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody> {
               duration: const Duration(milliseconds: 280),
               switchInCurve: Curves.easeOut,
               switchOutCurve: Curves.easeIn,
-              transitionBuilder: _songSwapTransitionBuilder,
+              transitionBuilder: songSwapTransitionBuilder,
               child: _TrackInfo(
                 key: ValueKey<String>('split-track-info-$nowPlayingVisualKey'),
                 title: title,

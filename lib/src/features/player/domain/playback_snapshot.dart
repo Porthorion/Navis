@@ -2,6 +2,21 @@ import 'package:audio_service/audio_service.dart';
 export 'package:audio_service/audio_service.dart' show AudioProcessingState;
 import 'package:flutter/foundation.dart';
 
+enum ManualTrackChangeDirection { next, previous }
+
+@immutable
+class ManualTrackChangeCue {
+  const ManualTrackChangeCue({
+    required this.token,
+    required this.direction,
+    required this.fromSongId,
+  });
+
+  final int token;
+  final ManualTrackChangeDirection direction;
+  final String? fromSongId;
+}
+
 /// Metadata for the currently playing radio station.
 @immutable
 class RadioStationMetadata {
