@@ -81,9 +81,23 @@ Future<void> showSongContextMenu(
                       title: Text(l10n.librarySongMenuAddToQueue),
                       onTap: () {
                         Navigator.of(sheetContext).pop();
-                        unawaited(
-                          ref.read(queueProvider.notifier).add(song.id),
-                        );
+                        unawaited(() async {
+                          try {
+                            await ref.read(queueProvider.notifier).add(song.id);
+                          } on Object {
+                            if (!context.mounted) return;
+                            _showQueueActionToast(
+                              context,
+                              l10n.playbackActionFailed,
+                            );
+                            return;
+                          }
+                          if (!context.mounted) return;
+                          _showQueueActionToast(
+                            context,
+                            l10n.librarySongAddedToQueue(song.title),
+                          );
+                        }());
                       },
                     ),
                     ListTile(
@@ -91,9 +105,25 @@ Future<void> showSongContextMenu(
                       title: Text(l10n.librarySongMenuPlayNext),
                       onTap: () {
                         Navigator.of(sheetContext).pop();
-                        unawaited(
-                          ref.read(queueProvider.notifier).playNext(song.id),
-                        );
+                        unawaited(() async {
+                          try {
+                            await ref
+                                .read(queueProvider.notifier)
+                                .playNext(song.id);
+                          } on Object {
+                            if (!context.mounted) return;
+                            _showQueueActionToast(
+                              context,
+                              l10n.playbackActionFailed,
+                            );
+                            return;
+                          }
+                          if (!context.mounted) return;
+                          _showQueueActionToast(
+                            context,
+                            l10n.librarySongPlayNextQueued(song.title),
+                          );
+                        }());
                       },
                     ),
                     ListTile(
@@ -293,9 +323,21 @@ Future<void> _showDesktopSongContextMenu(
       return;
     case _SongContextAction.addQueue:
       await ref.read(queueProvider.notifier).add(song.id);
+      if (context.mounted) {
+        _showQueueActionToast(
+          context,
+          l10n.librarySongAddedToQueue(song.title),
+        );
+      }
       return;
     case _SongContextAction.playNext:
       await ref.read(queueProvider.notifier).playNext(song.id);
+      if (context.mounted) {
+        _showQueueActionToast(
+          context,
+          l10n.librarySongPlayNextQueued(song.title),
+        );
+      }
       return;
     case _SongContextAction.toggleLike:
       await toggleSongStar(song.id, ref);
@@ -316,6 +358,13 @@ Future<void> _showDesktopSongContextMenu(
       await _confirmAndDeleteDownload(context, ref, song.id);
       return;
   }
+}
+
+void _showQueueActionToast(BuildContext context, String message) {
+  final messenger = ScaffoldMessenger.of(context);
+  messenger
+    ..clearSnackBars()
+    ..showSnackBar(SnackBar(content: Text(message)));
 }
 
 /// Downloads [songId] after showing the quality picker.

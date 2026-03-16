@@ -459,7 +459,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                 unawaited(
                   _runQueueAction(() async {
                     await ref.read(queueProvider.notifier).add(song.id);
-                  }),
+                  }, successMessage: l10n.librarySongAddedToQueue(song.title)),
                 );
               },
             ),
@@ -471,7 +471,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                 unawaited(
                   _runQueueAction(() async {
                     await ref.read(queueProvider.notifier).playNext(song.id);
-                  }),
+                  }, successMessage: l10n.librarySongPlayNextQueued(song.title)),
                 );
               },
             ),
@@ -644,12 +644,21 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     return l10n.playbackActionFailed;
   }
 
-  Future<void> _runQueueAction(Future<void> Function() action) async {
+  Future<void> _runQueueAction(
+    Future<void> Function() action, {
+    String? successMessage,
+  }) async {
     if (_isQueueActionInFlight) return;
 
     setState(() => _isQueueActionInFlight = true);
     try {
       await action();
+      if (mounted && successMessage != null && successMessage.isNotEmpty) {
+        final messenger = ScaffoldMessenger.of(context);
+        messenger
+          ..clearSnackBars()
+          ..showSnackBar(SnackBar(content: Text(successMessage)));
+      }
     } on Object catch (error) {
       if (!mounted) return;
       final l10n = AppLocalizations.of(context)!;

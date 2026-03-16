@@ -923,9 +923,17 @@ class _SongResultsSection extends ConsumerWidget {
           result.then((value) {
             switch (value) {
               case 'play-next':
-                return ref.read(queueProvider.notifier).playNextWithSong(song);
+                return _runQueueAction(
+                  context,
+                  () => ref.read(queueProvider.notifier).playNextWithSong(song),
+                  successMessage: l10n.librarySongPlayNextQueued(song.title),
+                );
               case 'add-queue':
-                return ref.read(queueProvider.notifier).addWithSong(song);
+                return _runQueueAction(
+                  context,
+                  () => ref.read(queueProvider.notifier).addWithSong(song),
+                  successMessage: l10n.librarySongAddedToQueue(song.title),
+                );
               case 'add-playlist':
                 showAddToPlaylistSheet(context, ref, [song.id]);
                 return Future<void>.value();
@@ -952,7 +960,11 @@ class _SongResultsSection extends ConsumerWidget {
               onTap: () {
                 Navigator.of(sheetContext).pop();
                 unawaited(
-                  ref.read(queueProvider.notifier).playNextWithSong(song),
+                  _runQueueAction(
+                    context,
+                    () => ref.read(queueProvider.notifier).playNextWithSong(song),
+                    successMessage: l10n.librarySongPlayNextQueued(song.title),
+                  ),
                 );
               },
             ),
@@ -962,7 +974,11 @@ class _SongResultsSection extends ConsumerWidget {
               onTap: () {
                 Navigator.of(sheetContext).pop();
                 unawaited(
-                  ref.read(queueProvider.notifier).addWithSong(song),
+                  _runQueueAction(
+                    context,
+                    () => ref.read(queueProvider.notifier).addWithSong(song),
+                    successMessage: l10n.librarySongAddedToQueue(song.title),
+                  ),
                 );
               },
             ),
@@ -1008,6 +1024,33 @@ class _SongResultsSection extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _runQueueAction(
+    BuildContext context,
+    Future<void> Function() action, {
+    required String successMessage,
+  }) async {
+    try {
+      await action();
+    } on Object {
+      if (!context.mounted) {
+        return;
+      }
+      final l10n = AppLocalizations.of(context)!;
+      final messenger = ScaffoldMessenger.of(context);
+      messenger
+        ..clearSnackBars()
+        ..showSnackBar(SnackBar(content: Text(l10n.playbackActionFailed)));
+      return;
+    }
+    if (!context.mounted) {
+      return;
+    }
+    final messenger = ScaffoldMessenger.of(context);
+    messenger
+      ..clearSnackBars()
+      ..showSnackBar(SnackBar(content: Text(successMessage)));
   }
 }
 

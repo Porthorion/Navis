@@ -562,9 +562,10 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
       return;
     }
 
+    final l10n = AppLocalizations.of(context)!;
     await _runQueueAction(() async {
       await ref.read(queueProvider.notifier).playNext(song.id);
-    });
+    }, successMessage: l10n.librarySongPlayNextQueued(song.title));
   }
 
   Future<void> _showSongActions(SongsTableData song) async {
@@ -595,30 +596,14 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                     onTap: () {
                       Navigator.of(context).pop();
                       unawaited(
-                        () async {
-                          final messenger = ScaffoldMessenger.of(this.context);
-                          final localizations = AppLocalizations.of(
-                            this.context,
-                          )!;
-                          try {
+                        _runQueueAction(
+                          () async {
                             await ref.read(queueProvider.notifier).add(song.id);
-                          } on Object catch (error) {
-                            if (!mounted) {
-                              return;
-                            }
-                            messenger.showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  _playbackErrorMessage(localizations, error),
-                                ),
-                              ),
-                            );
-                            return;
-                          }
-                          if (!mounted) {
-                            return;
-                          }
-                        }(),
+                          },
+                          successMessage: l10n.librarySongAddedToQueue(
+                            song.title,
+                          ),
+                        ),
                       );
                     },
                   ),
@@ -828,7 +813,10 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
     );
   }
 
-  Future<void> _runQueueAction(Future<void> Function() action) async {
+  Future<void> _runQueueAction(
+    Future<void> Function() action, {
+    String? successMessage,
+  }) async {
     if (_isQueueActionInFlight) {
       return;
     }
@@ -836,6 +824,12 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
     setState(() => _isQueueActionInFlight = true);
     try {
       await action();
+      if (mounted && successMessage != null && successMessage.isNotEmpty) {
+        final messenger = ScaffoldMessenger.of(context);
+        messenger
+          ..clearSnackBars()
+          ..showSnackBar(SnackBar(content: Text(successMessage)));
+      }
     } on Object catch (error) {
       if (!mounted) {
         return;

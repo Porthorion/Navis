@@ -2246,8 +2246,9 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
     final playback = widget.playback;
+    final livePosition = ref.watch(playbackPositionProvider).asData?.value;
     final isPlaying = playback.playing;
-    final position = playback.position;
+    final position = livePosition ?? playback.position;
     final duration = playback.duration;
     final durationMs = duration.inMilliseconds;
     final canSeek = !widget.isRadio && durationMs > 0;
@@ -2679,7 +2680,8 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
     final viewportWidth = MediaQuery.sizeOf(context).width;
     final compactControls = viewportWidth < 380;
     final isPlaying = playback.playing;
-    final position = playback.position;
+    final livePosition = ref.watch(playbackPositionProvider).asData?.value;
+    final position = livePosition ?? playback.position;
     final duration = playback.duration;
     final progress = duration.inMilliseconds > 0
         ? (position.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0)

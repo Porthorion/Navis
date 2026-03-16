@@ -82,11 +82,26 @@ Future<void> showAlbumContextMenu(
                       : () {
                           Navigator.of(sheetContext).pop();
                           unawaited(() async {
+                            final localizations = AppLocalizations.of(context)!;
                             for (final song in songs) {
-                              await ref
-                                  .read(queueProvider.notifier)
-                                  .add(song.id);
+                              try {
+                                await ref
+                                    .read(queueProvider.notifier)
+                                    .add(song.id);
+                              } on Object {
+                                if (!context.mounted) return;
+                                _showQueueActionToast(
+                                  context,
+                                  localizations.playbackActionFailed,
+                                );
+                                return;
+                              }
                             }
+                            if (!context.mounted) return;
+                            _showQueueActionToast(
+                              context,
+                              localizations.libraryAlbumAddedToQueue,
+                            );
                           }());
                         },
                 ),
@@ -199,8 +214,15 @@ Future<void> _showDesktopAlbumContextMenu(
       await ref.read(queueProvider.notifier).replace(songIds);
       return;
     case _AlbumContextAction.addToQueue:
+      final localizations = AppLocalizations.of(context)!;
       for (final song in songs) {
         await ref.read(queueProvider.notifier).add(song.id);
+      }
+      if (context.mounted) {
+        _showQueueActionToast(
+          context,
+          localizations.libraryAlbumAddedToQueue,
+        );
       }
       return;
     case _AlbumContextAction.toggleLike:
@@ -210,6 +232,13 @@ Future<void> _showDesktopAlbumContextMenu(
       await _downloadAlbumFromMenu(context, ref, albumId);
       return;
   }
+}
+
+void _showQueueActionToast(BuildContext context, String message) {
+  final messenger = ScaffoldMessenger.of(context);
+  messenger
+    ..clearSnackBars()
+    ..showSnackBar(SnackBar(content: Text(message)));
 }
 
 Future<void> _downloadAlbumFromMenu(
