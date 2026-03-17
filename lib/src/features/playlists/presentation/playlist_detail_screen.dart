@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
@@ -355,12 +356,12 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
       );
       ref.invalidate(playlistDetailSyncProvider(widget.playlistId));
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppNoticeMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.playlistDetailTrackRemoved)),
       );
     } on Object {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppNoticeMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.playlistDetailTrackRemoveFailed)),
       );
     }
@@ -400,7 +401,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
       ref.invalidate(playlistDetailSyncProvider(widget.playlistId));
       if (!mounted) return;
       final l10n = AppLocalizations.of(context)!;
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppNoticeMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.playlistDetailTrackRemoveFailed)),
       );
     }
@@ -469,9 +470,12 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
               onTap: () {
                 Navigator.of(sheetContext).pop();
                 unawaited(
-                  _runQueueAction(() async {
-                    await ref.read(queueProvider.notifier).playNext(song.id);
-                  }, successMessage: l10n.librarySongPlayNextQueued(song.title)),
+                  _runQueueAction(
+                    () async {
+                      await ref.read(queueProvider.notifier).playNext(song.id);
+                    },
+                    successMessage: l10n.librarySongPlayNextQueued(song.title),
+                  ),
                 );
               },
             ),
@@ -573,7 +577,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     );
     if (!mounted) return;
     final l10n = AppLocalizations.of(context)!;
-    ScaffoldMessenger.of(context).showSnackBar(
+    AppNoticeMessenger.of(context).showSnackBar(
       SnackBar(content: Text(l10n.downloadPlaylistQueued(count))),
     );
   }
@@ -622,7 +626,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     );
     if (!mounted) return;
     final l10n = AppLocalizations.of(context)!;
-    ScaffoldMessenger.of(context).showSnackBar(
+    AppNoticeMessenger.of(context).showSnackBar(
       SnackBar(content: Text(l10n.downloadSongQueued)),
     );
   }
@@ -654,7 +658,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     try {
       await action();
       if (mounted && successMessage != null && successMessage.isNotEmpty) {
-        final messenger = ScaffoldMessenger.of(context);
+        final messenger = AppNoticeMessenger.of(context);
         messenger
           ..clearSnackBars()
           ..showSnackBar(SnackBar(content: Text(successMessage)));
@@ -662,7 +666,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     } on Object catch (error) {
       if (!mounted) return;
       final l10n = AppLocalizations.of(context)!;
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppNoticeMessenger.of(context).showSnackBar(
         SnackBar(content: Text(_playbackErrorMessage(l10n, error))),
       );
     } finally {

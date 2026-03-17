@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
@@ -962,7 +963,8 @@ class _SongResultsSection extends ConsumerWidget {
                 unawaited(
                   _runQueueAction(
                     context,
-                    () => ref.read(queueProvider.notifier).playNextWithSong(song),
+                    () =>
+                        ref.read(queueProvider.notifier).playNextWithSong(song),
                     successMessage: l10n.librarySongPlayNextQueued(song.title),
                   ),
                 );
@@ -1038,7 +1040,7 @@ class _SongResultsSection extends ConsumerWidget {
         return;
       }
       final l10n = AppLocalizations.of(context)!;
-      final messenger = ScaffoldMessenger.of(context);
+      final messenger = AppNoticeMessenger.of(context);
       messenger
         ..clearSnackBars()
         ..showSnackBar(SnackBar(content: Text(l10n.playbackActionFailed)));
@@ -1047,7 +1049,7 @@ class _SongResultsSection extends ConsumerWidget {
     if (!context.mounted) {
       return;
     }
-    final messenger = ScaffoldMessenger.of(context);
+    final messenger = AppNoticeMessenger.of(context);
     messenger
       ..clearSnackBars()
       ..showSnackBar(SnackBar(content: Text(successMessage)));

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -117,7 +118,7 @@ abstract final class NavService {
       SystemNavigator.pop();
     } else {
       _lastBackPress = now;
-      ScaffoldMessenger.of(context)
+      AppNoticeMessenger.of(context)
         ..clearSnackBars()
         ..showSnackBar(
           const SnackBar(

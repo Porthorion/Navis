@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/subsonic_error.dart';
@@ -144,7 +145,7 @@ class RadioTabContent extends ConsumerWidget {
           .catchError((Object error) {
             if (!context.mounted) return;
             final l10n = AppLocalizations.of(context)!;
-            ScaffoldMessenger.of(context).showSnackBar(
+            AppNoticeMessenger.of(context).showSnackBar(
               SnackBar(content: Text(l10n.radioPlaybackError)),
             );
           }),

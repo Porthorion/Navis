@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
@@ -146,7 +147,7 @@ class _AddToPlaylistSheet extends ConsumerWidget {
             ref.invalidate(playlistDetailSyncProvider(playlistId));
             ref.invalidate(playlistSyncProvider);
             if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
+              AppNoticeMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(l10n.addToPlaylistSuccess(playlistName)),
                 ),
@@ -155,7 +156,7 @@ class _AddToPlaylistSheet extends ConsumerWidget {
           })
           .catchError((_) {
             if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
+              AppNoticeMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(l10n.playlistDetailTrackRemoveFailed),
                 ),
@@ -222,14 +223,14 @@ class _AddToPlaylistSheet extends ConsumerWidget {
           .then((_) {
             ref.invalidate(playlistSyncProvider);
             if (parentContext.mounted) {
-              ScaffoldMessenger.of(parentContext).showSnackBar(
+              AppNoticeMessenger.of(parentContext).showSnackBar(
                 SnackBar(content: Text(l10n.playlistsCreateSuccess)),
               );
             }
           })
           .catchError((_) {
             if (parentContext.mounted) {
-              ScaffoldMessenger.of(parentContext).showSnackBar(
+              AppNoticeMessenger.of(parentContext).showSnackBar(
                 SnackBar(content: Text(l10n.playlistsCreateFailed)),
               );
             }

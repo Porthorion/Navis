@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
@@ -39,7 +40,7 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
       setState(() => _userTriggeredCheck = false);
       final info = next.asData?.value;
       if (!next.hasError && info == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppNoticeMessenger.of(context).showSnackBar(
           SnackBar(content: Text(l10n.updateUpToDate)),
         );
       } else if (info != null && info.apkDownloadUrl != null) {

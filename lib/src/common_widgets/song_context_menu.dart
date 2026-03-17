@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -137,7 +138,7 @@ Future<void> showSongContextMenu(
                         unawaited(
                           toggleSongStar(song.id, ref).catchError((_) {
                             if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
+                              AppNoticeMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text(l10n.albumDetailStarFailure),
                                 ),
@@ -158,7 +159,7 @@ Future<void> showSongContextMenu(
                           unawaited(
                             setSongRating(song.id, next, ref).catchError((_) {
                               if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
+                                AppNoticeMessenger.of(context).showSnackBar(
                                   SnackBar(
                                     content: Text(l10n.ratingUpdateFailed),
                                   ),
@@ -361,7 +362,7 @@ Future<void> _showDesktopSongContextMenu(
 }
 
 void _showQueueActionToast(BuildContext context, String message) {
-  final messenger = ScaffoldMessenger.of(context);
+  final messenger = AppNoticeMessenger.of(context);
   messenger
     ..clearSnackBars()
     ..showSnackBar(SnackBar(content: Text(message)));
@@ -386,7 +387,7 @@ Future<void> _downloadSongFromMenu(
   );
   if (!context.mounted) return;
   final l10n = AppLocalizations.of(context)!;
-  ScaffoldMessenger.of(context).showSnackBar(
+  AppNoticeMessenger.of(context).showSnackBar(
     SnackBar(content: Text(l10n.downloadSongQueued)),
   );
 }

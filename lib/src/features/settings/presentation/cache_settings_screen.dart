@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
@@ -102,7 +103,7 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
 
     if (mounted) {
       final l10n = AppLocalizations.of(context)!;
-      ScaffoldMessenger.of(context)
+      AppNoticeMessenger.of(context)
         ..clearSnackBars()
         ..showSnackBar(SnackBar(content: Text(l10n.cacheSettingsBudgetSaved)));
     }
@@ -113,7 +114,7 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
     await dao.updateCoverArtCacheMaxObjects(maxObjects);
     if (mounted) {
       final l10n = AppLocalizations.of(context)!;
-      ScaffoldMessenger.of(context)
+      AppNoticeMessenger.of(context)
         ..clearSnackBars()
         ..showSnackBar(
           SnackBar(content: Text(l10n.cacheSettingsCoverArtMaxSaved)),
@@ -238,7 +239,7 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
       if (!mounted) return;
       setState(() => _coverArtStorageBytes = 0);
 
-      final messenger = ScaffoldMessenger.of(context)..clearSnackBars();
+      final messenger = AppNoticeMessenger.of(context)..clearSnackBars();
       if (syncState.status == LibrarySyncStatus.succeeded ||
           syncState.status == LibrarySyncStatus.skipped) {
         messenger.showSnackBar(
@@ -293,7 +294,7 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
 
   void _showClearedSnackBar() {
     final l10n = AppLocalizations.of(context)!;
-    ScaffoldMessenger.of(context)
+    AppNoticeMessenger.of(context)
       ..clearSnackBars()
       ..showSnackBar(SnackBar(content: Text(l10n.cacheSettingsClearSuccess)));
   }
@@ -344,7 +345,7 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
       // Refresh storage size display
       await _loadCoverArtStorageBytes();
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
+      AppNoticeMessenger.of(context)
         ..clearSnackBars()
         ..showSnackBar(
           SnackBar(

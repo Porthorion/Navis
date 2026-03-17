@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -1666,7 +1667,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     );
     if (!mounted) return;
     final l10n = AppLocalizations.of(context)!;
-    ScaffoldMessenger.of(context).showSnackBar(
+    AppNoticeMessenger.of(context).showSnackBar(
       SnackBar(content: Text(l10n.downloadSongQueued)),
     );
   }
@@ -1689,7 +1690,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         return;
       }
       final l10n = AppLocalizations.of(context)!;
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppNoticeMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.playbackActionFailed)),
       );
     }
@@ -2163,7 +2164,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         album.id,
         isStarred ? DateTime.now() : null,
       );
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppNoticeMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.albumDetailStarFailure)),
       );
     }
@@ -2201,7 +2202,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         artist.id,
         isStarred ? DateTime.now() : null,
       );
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppNoticeMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.albumDetailStarFailure)),
       );
     }
@@ -2699,7 +2700,7 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
               return;
             }
             final l10n = AppLocalizations.of(context)!;
-            ScaffoldMessenger.of(context).showSnackBar(
+            AppNoticeMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(l10n.playlistsLoadError),
                 behavior: SnackBarBehavior.floating,
@@ -2901,14 +2902,14 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
           .createPlaylist(name)
           .then((_) {
             if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
+            AppNoticeMessenger.of(context).showSnackBar(
               SnackBar(content: Text(l10n.playlistsCreateSuccess)),
             );
             ref.invalidate(playlistSyncProvider);
           })
           .catchError((_) {
             if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
+            AppNoticeMessenger.of(context).showSnackBar(
               SnackBar(content: Text(l10n.playlistsCreateFailed)),
             );
           }),

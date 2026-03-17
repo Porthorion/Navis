@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,6 +10,7 @@ import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/home/presentation/home_screen.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 
 class _StaticLibrarySyncController extends LibrarySyncController {
   @override
@@ -25,6 +28,129 @@ class _StaticLibrarySyncController extends LibrarySyncController {
   }) async {
     return const LibrarySyncState.idle();
   }
+}
+
+class _FixedLibrarySyncController extends LibrarySyncController {
+  _FixedLibrarySyncController(this._fixedState);
+
+  final LibrarySyncState _fixedState;
+
+  @override
+  LibrarySyncState build() => _fixedState;
+
+  @override
+  Future<LibrarySyncState> syncIfStale() async {
+    return _fixedState;
+  }
+
+  @override
+  Future<LibrarySyncState> syncNow({
+    bool forceFull = false,
+    bool preferIncremental = false,
+  }) async {
+    return _fixedState;
+  }
+}
+
+class _PendingRefreshLibrarySyncController extends LibrarySyncController {
+  int syncNowCalls = 0;
+  Completer<LibrarySyncState> _completer = Completer<LibrarySyncState>();
+
+  @override
+  LibrarySyncState build() => const LibrarySyncState.idle();
+
+  @override
+  Future<LibrarySyncState> syncIfStale() async {
+    return const LibrarySyncState.idle();
+  }
+
+  @override
+  Future<LibrarySyncState> syncNow({
+    bool forceFull = false,
+    bool preferIncremental = false,
+  }) {
+    syncNowCalls++;
+    return _completer.future;
+  }
+
+  void complete([LibrarySyncState state = const LibrarySyncState.idle()]) {
+    if (!_completer.isCompleted) {
+      _completer.complete(state);
+    }
+    _completer = Completer<LibrarySyncState>();
+  }
+}
+
+Future<void> _pumpHomeWithSyncState(
+  WidgetTester tester,
+  LibrarySyncState syncState,
+) async {
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        librarySyncControllerProvider.overrideWith(
+          () => _FixedLibrarySyncController(syncState),
+        ),
+        homeLikedSongsProvider.overrideWithValue(
+          const AsyncData(<SongsTableData>[]),
+        ),
+        homeRecentlyAddedProvider.overrideWithValue(
+          const AsyncData(<Album>[]),
+        ),
+        homeRecentlyPlayedAlbumsProvider.overrideWithValue(
+          const AsyncData(<AlbumsTableData>[]),
+        ),
+        homeRandomAlbumsProvider.overrideWithValue(
+          const AsyncData(<Album>[]),
+        ),
+        homeMostPlayedSongsProvider.overrideWithValue(
+          const AsyncData(<SongsTableData>[]),
+        ),
+      ],
+      child: MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: const HomeScreen(),
+      ),
+    ),
+  );
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 250));
+}
+
+Future<void> _pumpHomeWithControllerOverride(
+  WidgetTester tester, {
+  required LibrarySyncController Function() createController,
+}) async {
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        librarySyncControllerProvider.overrideWith(createController),
+        homeLikedSongsProvider.overrideWithValue(
+          const AsyncData(<SongsTableData>[]),
+        ),
+        homeRecentlyAddedProvider.overrideWithValue(
+          const AsyncData(<Album>[]),
+        ),
+        homeRecentlyPlayedAlbumsProvider.overrideWithValue(
+          const AsyncData(<AlbumsTableData>[]),
+        ),
+        homeRandomAlbumsProvider.overrideWithValue(
+          const AsyncData(<Album>[]),
+        ),
+        homeMostPlayedSongsProvider.overrideWithValue(
+          const AsyncData(<SongsTableData>[]),
+        ),
+      ],
+      child: MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: const HomeScreen(),
+      ),
+    ),
+  );
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 250));
 }
 
 void main() {
@@ -167,6 +293,154 @@ void main() {
     expect(find.text('Recently added'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('shows determinate sync ring around logo while syncing', (
+    tester,
+  ) async {
+    await _pumpHomeWithSyncState(
+      tester,
+      const LibrarySyncState(
+        status: LibrarySyncStatus.running,
+        stage: LibrarySyncStage.fetchingAlbums,
+        processed: 3,
+        total: 10,
+      ),
+    );
+
+    final ring = find.byKey(const ValueKey<String>('home-sync-ring'));
+    expect(ring, findsOneWidget);
+    final indicator = tester.widget<CircularProgressIndicator>(ring);
+    expect(indicator.value, closeTo(0.3, 0.001));
+
+    final context = tester.element(find.byType(HomeScreen));
+    final l10n = AppLocalizations.of(context)!;
+    expect(
+      find.bySemanticsLabel(l10n.librarySyncRunningWithProgress(3, 10)),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('shows indeterminate sync ring when progress is unknown', (
+    tester,
+  ) async {
+    await _pumpHomeWithSyncState(
+      tester,
+      const LibrarySyncState(
+        status: LibrarySyncStatus.running,
+        stage: LibrarySyncStage.preparing,
+      ),
+    );
+
+    final ring = find.byKey(const ValueKey<String>('home-sync-ring'));
+    expect(ring, findsOneWidget);
+    final indicator = tester.widget<CircularProgressIndicator>(ring);
+    expect(indicator.value, isNull);
+
+    final context = tester.element(find.byType(HomeScreen));
+    final l10n = AppLocalizations.of(context)!;
+    expect(find.bySemanticsLabel(l10n.librarySyncRunning), findsOneWidget);
+  });
+
+  testWidgets('shows subtle failure ring on sync failure', (tester) async {
+    await _pumpHomeWithSyncState(
+      tester,
+      const LibrarySyncState(
+        status: LibrarySyncStatus.failed,
+        stage: LibrarySyncStage.completed,
+      ),
+    );
+
+    final ring = find.byKey(const ValueKey<String>('home-sync-ring'));
+    expect(ring, findsOneWidget);
+    final indicator = tester.widget<CircularProgressIndicator>(ring);
+    expect(indicator.value, 1);
+
+    final context = tester.element(find.byType(HomeScreen));
+    final l10n = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    expect(
+      indicator.color,
+      theme.colorScheme.error.withValues(alpha: 0.65),
+    );
+    expect(
+      find.bySemanticsLabel(l10n.syncSettingsStatusFailed),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('hides sync ring when idle, succeeded, or skipped', (
+    tester,
+  ) async {
+    final states = <LibrarySyncState>[
+      const LibrarySyncState.idle(),
+      const LibrarySyncState(
+        status: LibrarySyncStatus.succeeded,
+        stage: LibrarySyncStage.completed,
+      ),
+      const LibrarySyncState(
+        status: LibrarySyncStatus.skipped,
+        stage: LibrarySyncStage.completed,
+      ),
+    ];
+
+    for (final state in states) {
+      await _pumpHomeWithSyncState(tester, state);
+      final ring = find.byKey(const ValueKey<String>('home-sync-ring'));
+      expect(ring, findsOneWidget);
+      final ringOpacity = tester.widget<AnimatedOpacity>(
+        find.ancestor(
+          of: ring,
+          matching: find.byType(AnimatedOpacity),
+        ),
+      );
+      expect(ringOpacity.opacity, 0);
+    }
+  });
+
+  testWidgets(
+    'shows immediate indeterminate ring when pull-to-refresh triggers before sync state updates',
+    (tester) async {
+      if (isDesktopRuntime) {
+        // Home custom pull-to-refresh is mobile/tablet-only.
+        return;
+      }
+      final controller = _PendingRefreshLibrarySyncController();
+      await _pumpHomeWithControllerOverride(
+        tester,
+        createController: () => controller,
+      );
+
+      await tester.drag(find.byType(ListView).first, const Offset(0, 340));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 260));
+
+      expect(controller.syncNowCalls, 1);
+      final ring = find.byKey(const ValueKey<String>('home-sync-ring'));
+      expect(ring, findsOneWidget);
+      final indicator = tester.widget<CircularProgressIndicator>(ring);
+      expect(indicator.value, isNull);
+
+      final ringOpacity = tester.widget<AnimatedOpacity>(
+        find.ancestor(
+          of: ring,
+          matching: find.byType(AnimatedOpacity),
+        ),
+      );
+      expect(ringOpacity.opacity, 1);
+
+      controller.complete();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 260));
+
+      final ringOpacityAfter = tester.widget<AnimatedOpacity>(
+        find.ancestor(
+          of: ring,
+          matching: find.byType(AnimatedOpacity),
+        ),
+      );
+      expect(ringOpacityAfter.opacity, 0);
+    },
+  );
 
   group('HomeSectionIds', () {
     test('defaultOrder contains all section IDs', () {

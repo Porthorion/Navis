@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,6 +19,7 @@ import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/home/presentation/home_scroll_provider.dart';
+import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/settings/presentation/update_dialog.dart';
@@ -49,24 +52,183 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen>
+    with SingleTickerProviderStateMixin {
+  static const double _homePullDistanceForFullProgress = 120;
+
   late final ScrollController _scrollController;
+  late final AnimationController _homePullSpringController;
+  Animation<double>? _homePullSpringAnimation;
+  double _homePullDragOffset = 0;
+  double _homePullProgress = 0;
+  bool _homeImmediateTriggerRingVisible = false;
 
   @override
   void initState() {
     super.initState();
     _scrollController = ScrollController();
+    _homePullSpringController =
+        AnimationController(
+          vsync: this,
+          duration: const Duration(milliseconds: 190),
+        )..addListener(() {
+          final animation = _homePullSpringAnimation;
+          if (animation == null || !mounted) {
+            return;
+          }
+          setState(() {
+            _homePullProgress = animation.value;
+          });
+        });
   }
 
   @override
   void dispose() {
+    _homePullSpringController.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _runHomeRefresh() async {
+    await ref
+        .read(librarySyncControllerProvider.notifier)
+        .syncNow(preferIncremental: true);
+    ref.invalidate(homeRecentlyAddedProvider);
+    ref.invalidate(homeRandomAlbumsProvider);
+    ref.invalidate(homeDownloadedRandomAlbumsProvider);
+    ref.invalidate(updateProvider);
+  }
+
+  void _setHomePullProgress(double value) {
+    final clamped = value.clamp(0.0, 1.0);
+    if ((_homePullProgress - clamped).abs() < 0.001) {
+      return;
+    }
+    setState(() {
+      _homePullProgress = clamped;
+    });
+  }
+
+  void _animateHomePullProgressToZero() {
+    if (_homePullProgress <= 0.001) {
+      if (_homePullProgress != 0) {
+        setState(() {
+          _homePullProgress = 0;
+        });
+      }
+      return;
+    }
+    _homePullSpringController.stop();
+    _homePullSpringAnimation =
+        Tween<double>(
+          begin: _homePullProgress,
+          end: 0,
+        ).animate(
+          CurvedAnimation(
+            parent: _homePullSpringController,
+            curve: Curves.easeOutCubic,
+          ),
+        );
+    _homePullSpringController.forward(from: 0);
+  }
+
+  bool _handleHomeRefreshScrollNotification(
+    ScrollNotification notification,
+    bool enabled,
+  ) {
+    if (!enabled || notification.depth != 0) {
+      return false;
+    }
+    if (notification.metrics.axis != Axis.vertical) {
+      return false;
+    }
+
+    final atTop = notification.metrics.extentBefore <= 0;
+    if (notification is ScrollStartNotification &&
+        notification.dragDetails != null) {
+      _homePullSpringController.stop();
+      _homePullDragOffset = 0;
+      return false;
+    }
+
+    if (notification is ScrollUpdateNotification &&
+        notification.dragDetails != null) {
+      if (!atTop) {
+        _homePullDragOffset = 0;
+        _setHomePullProgress(0);
+        return false;
+      }
+      final delta = notification.scrollDelta ?? 0;
+      switch (notification.metrics.axisDirection) {
+        case AxisDirection.down:
+          _homePullDragOffset -= delta;
+        case AxisDirection.up:
+          _homePullDragOffset += delta;
+        case AxisDirection.left:
+        case AxisDirection.right:
+          return false;
+      }
+      _setHomePullProgress(
+        _homePullDragOffset / _homePullDistanceForFullProgress,
+      );
+      return false;
+    }
+
+    if (notification is OverscrollNotification && atTop) {
+      switch (notification.metrics.axisDirection) {
+        case AxisDirection.down:
+          _homePullDragOffset -= notification.overscroll;
+        case AxisDirection.up:
+          _homePullDragOffset += notification.overscroll;
+        case AxisDirection.left:
+        case AxisDirection.right:
+          return false;
+      }
+      _setHomePullProgress(
+        _homePullDragOffset / _homePullDistanceForFullProgress,
+      );
+      return false;
+    }
+
+    if (notification is ScrollEndNotification) {
+      _homePullDragOffset = 0;
+      _animateHomePullProgressToZero();
+    }
+    return false;
+  }
+
+  void _handleHomeRefreshStatusChanged(RefreshIndicatorStatus? status) {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      switch (status) {
+        case RefreshIndicatorStatus.drag:
+        case RefreshIndicatorStatus.armed:
+          _homeImmediateTriggerRingVisible = false;
+        case RefreshIndicatorStatus.snap:
+        case RefreshIndicatorStatus.refresh:
+          _homeImmediateTriggerRingVisible = true;
+        case RefreshIndicatorStatus.done:
+        case RefreshIndicatorStatus.canceled:
+        case null:
+          _homeImmediateTriggerRingVisible = false;
+      }
+    });
+    if (status == RefreshIndicatorStatus.snap ||
+        status == RefreshIndicatorStatus.refresh ||
+        status == RefreshIndicatorStatus.done ||
+        status == RefreshIndicatorStatus.canceled ||
+        status == null) {
+      _homePullDragOffset = 0;
+      _animateHomePullProgressToZero();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final syncState = ref.watch(librarySyncControllerProvider);
     ref.listen(homeScrollToTopRequestProvider, (previous, next) {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
@@ -93,6 +255,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         !isDesktopRuntime &&
         adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact;
     final desktopMode = isDesktopRuntime;
+    final useCustomHomePullRefresh = !desktopMode;
     final desktopLayoutClass = resolveDesktopLayoutClass(viewport.width);
     final order =
         ref.watch(homeSectionOrderProvider) ?? HomeSectionIds.defaultOrder;
@@ -115,7 +278,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             child: DesktopPanel(
               child: Row(
                 children: <Widget>[
-                  const NavisIcon(size: 56, tintWithAccent: true),
+                  _HomeSyncLogo(
+                    size: 56,
+                    syncState: syncState,
+                    pullProgress: 0,
+                    showImmediateRefreshRing: false,
+                  ),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Text(
@@ -129,10 +297,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           )
         else
-          const Padding(
+          Padding(
             padding: EdgeInsets.fromLTRB(0, 48, 0, 20),
             child: Center(
-              child: NavisIcon(size: 96, tintWithAccent: true),
+              child: _HomeSyncLogo(
+                size: 96,
+                syncState: syncState,
+                pullProgress: useCustomHomePullRefresh ? _homePullProgress : 0,
+                showImmediateRefreshRing:
+                    useCustomHomePullRefresh &&
+                    _homeImmediateTriggerRingVisible &&
+                    !syncState.isRunning,
+              ),
             ),
           ),
         const _UpdateBanner(),
@@ -167,22 +343,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           )
         : content;
 
+    final scrollObservedContent = useCustomHomePullRefresh
+        ? NotificationListener<ScrollNotification>(
+            onNotification: (notification) =>
+                _handleHomeRefreshScrollNotification(
+                  notification,
+                  useCustomHomePullRefresh,
+                ),
+            child: resolvedContent,
+          )
+        : resolvedContent;
+
+    final refreshContainer = useCustomHomePullRefresh
+        ? RefreshIndicator.noSpinner(
+            onRefresh: _runHomeRefresh,
+            onStatusChange: _handleHomeRefreshStatusChanged,
+            child: scrollObservedContent,
+          )
+        : RefreshIndicator(
+            onRefresh: _runHomeRefresh,
+            child: scrollObservedContent,
+          );
+
     return Scaffold(
       body: SafeArea(
         left: !compactWideLandscapeMode,
         right: !compactWideLandscapeMode,
-        child: RefreshIndicator(
-          onRefresh: () async {
-            await ref
-                .read(librarySyncControllerProvider.notifier)
-                .syncNow(preferIncremental: true);
-            ref.invalidate(homeRecentlyAddedProvider);
-            ref.invalidate(homeRandomAlbumsProvider);
-            ref.invalidate(homeDownloadedRandomAlbumsProvider);
-            ref.invalidate(updateProvider);
-          },
-          child: resolvedContent,
-        ),
+        child: refreshContainer,
       ),
     );
   }
@@ -362,6 +549,130 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       default:
         return const <Widget>[];
     }
+  }
+}
+
+class _HomeSyncLogo extends StatelessWidget {
+  const _HomeSyncLogo({
+    required this.size,
+    required this.syncState,
+    this.pullProgress = 0,
+    this.showImmediateRefreshRing = false,
+  });
+
+  static const Key ringKey = ValueKey<String>('home-sync-ring');
+  // The source PNG's visible glyph is slightly right/down from canvas center.
+  // Apply a tiny counter-shift so the ring and icon appear optically centered.
+  static const double _assetCenterOffsetX = 12.5 / 1024.0;
+  static const double _assetCenterOffsetY = 3.5 / 1024.0;
+
+  final double size;
+  final LibrarySyncState syncState;
+  final double pullProgress;
+  final bool showImmediateRefreshRing;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final colorScheme = Theme.of(context).colorScheme;
+    final clampedPullProgress = pullProgress.clamp(0.0, 1.0);
+    final isRunning = syncState.isRunning;
+    final hasDeterminate = isRunning && (syncState.total ?? 0) > 0;
+    final showFailure =
+        !isRunning && syncState.status == LibrarySyncStatus.failed;
+    final showBridgeRing =
+        showImmediateRefreshRing && !isRunning && !showFailure;
+    final showRing = isRunning || showFailure || showBridgeRing;
+    final total = syncState.total ?? 0;
+    final processed = syncState.processed ?? 0;
+    final progressValue = hasDeterminate
+        ? (processed / total).clamp(0.0, 1.0)
+        : null;
+    final determinateProgress = progressValue ?? 0.0;
+    final semanticsLabel = switch ((isRunning, hasDeterminate, showFailure)) {
+      (true, true, _) => l10n.librarySyncRunningWithProgress(processed, total),
+      (true, false, _) => l10n.librarySyncRunning,
+      (false, _, true) => l10n.syncSettingsStatusFailed,
+      _ => showBridgeRing ? l10n.librarySyncRunning : null,
+    };
+    final strokeWidth = (size * 0.055).clamp(2.2, 5.2);
+    final ringColor = showFailure
+        ? colorScheme.error.withValues(alpha: 0.65)
+        : colorScheme.primary;
+    final ringTrackColor = showFailure
+        ? colorScheme.error.withValues(alpha: 0.18)
+        : colorScheme.primary.withValues(alpha: 0.14);
+    final iconOffset = Offset(
+      -(size * _assetCenterOffsetX),
+      -(size * _assetCenterOffsetY),
+    );
+
+    final logo = Transform.translate(
+      offset: Offset(0, size * 0.10 * clampedPullProgress),
+      child: Transform.rotate(
+        angle: (math.pi * 7 / 180) * clampedPullProgress,
+        child: Stack(
+          alignment: Alignment.center,
+          children: <Widget>[
+            SizedBox.square(
+              dimension: size,
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 190),
+                curve: Curves.easeOutCubic,
+                opacity: showRing ? 1 : 0,
+                child: AnimatedScale(
+                  duration: const Duration(milliseconds: 190),
+                  curve: Curves.easeOutCubic,
+                  scale: showRing ? 1 : 0.94,
+                  child: Padding(
+                    padding: EdgeInsets.all(strokeWidth / 2),
+                    child: hasDeterminate
+                        ? TweenAnimationBuilder<double>(
+                            tween: Tween<double>(
+                              begin: 0,
+                              end: determinateProgress,
+                            ),
+                            duration: const Duration(milliseconds: 160),
+                            curve: Curves.easeOutCubic,
+                            builder: (context, animatedValue, _) {
+                              return CircularProgressIndicator(
+                                key: ringKey,
+                                value: animatedValue,
+                                strokeWidth: strokeWidth,
+                                color: ringColor,
+                                backgroundColor: ringTrackColor,
+                              );
+                            },
+                          )
+                        : CircularProgressIndicator(
+                            key: ringKey,
+                            value: isRunning || showBridgeRing ? null : 1,
+                            strokeWidth: strokeWidth,
+                            color: ringColor,
+                            backgroundColor: ringTrackColor,
+                          ),
+                  ),
+                ),
+              ),
+            ),
+            Transform.translate(
+              offset: iconOffset,
+              child: NavisIcon(size: size, tintWithAccent: true),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (semanticsLabel == null) {
+      return logo;
+    }
+    return Semantics(
+      container: true,
+      label: semanticsLabel,
+      liveRegion: isRunning,
+      child: logo,
+    );
   }
 }
 

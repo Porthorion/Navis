@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
@@ -286,7 +287,7 @@ class _QueueSheetHeader extends ConsumerWidget {
     unawaited(
       api.createPlaylist(name, songIds: queueIds).then((_) {
         if (parentContext.mounted) {
-          ScaffoldMessenger.of(parentContext).showSnackBar(
+          AppNoticeMessenger.of(parentContext).showSnackBar(
             SnackBar(content: Text(l10n.queueSaveAsPlaylistSaved)),
           );
         }

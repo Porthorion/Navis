@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
@@ -369,7 +370,7 @@ class _DownloadedTrackTile extends ConsumerWidget {
                     forceRedownload: true,
                   );
                   if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
+                    AppNoticeMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(l10n.downloadsRedownloadQueued),
                       ),
@@ -496,7 +497,7 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
         );
       }
       if (mounted) {
-        ScaffoldMessenger.of(context)
+        AppNoticeMessenger.of(context)
           ..clearSnackBars()
           ..showSnackBar(
             SnackBar(content: Text(l10n.cacheSettingsClearSuccess)),

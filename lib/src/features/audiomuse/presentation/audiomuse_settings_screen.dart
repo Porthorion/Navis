@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/audiomuse/data/audiomuse_api_client.dart';
@@ -63,7 +64,7 @@ class _AudioMuseSettingsScreenState
       if (url.isEmpty) {
         if (!mounted) return;
         final l10n = AppLocalizations.of(context)!;
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppNoticeMessenger.of(context).showSnackBar(
           SnackBar(content: Text(l10n.audioMuseTestConnectionFailed)),
         );
         return;
@@ -77,7 +78,7 @@ class _AudioMuseSettingsScreenState
       if (!mounted) return;
       final l10n = AppLocalizations.of(context)!;
       if (health.healthy) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppNoticeMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
               l10n.audioMuseTestConnectionSuccess(health.version ?? 'unknown'),
@@ -85,14 +86,14 @@ class _AudioMuseSettingsScreenState
           ),
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppNoticeMessenger.of(context).showSnackBar(
           SnackBar(content: Text(l10n.audioMuseTestConnectionFailed)),
         );
       }
     } on Object {
       if (!mounted) return;
       final l10n = AppLocalizations.of(context)!;
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppNoticeMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.audioMuseTestConnectionFailed)),
       );
     } finally {

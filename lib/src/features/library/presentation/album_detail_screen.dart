@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/src/api/subsonic_error.dart';
@@ -344,7 +345,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                 format: choice.format,
                               );
                               if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
+                                AppNoticeMessenger.of(context).showSnackBar(
                                   SnackBar(
                                     content: Text(
                                       l10n.downloadAlbumQueued(count),
@@ -634,7 +635,9 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                           unawaited(
                             toggleSongStar(song.id, ref).catchError((_) {
                               if (this.context.mounted) {
-                                ScaffoldMessenger.of(this.context).showSnackBar(
+                                AppNoticeMessenger.of(
+                                  this.context,
+                                ).showSnackBar(
                                   SnackBar(
                                     content: Text(l10n.albumDetailStarFailure),
                                   ),
@@ -663,7 +666,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                             unawaited(
                               setSongRating(song.id, next, ref).catchError((_) {
                                 if (this.context.mounted) {
-                                  ScaffoldMessenger.of(
+                                  AppNoticeMessenger.of(
                                     this.context,
                                   ).showSnackBar(
                                     SnackBar(
@@ -808,7 +811,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
     );
     if (!mounted) return;
     final l10n = AppLocalizations.of(context)!;
-    ScaffoldMessenger.of(context).showSnackBar(
+    AppNoticeMessenger.of(context).showSnackBar(
       SnackBar(content: Text(l10n.downloadSongQueued)),
     );
   }
@@ -825,7 +828,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
     try {
       await action();
       if (mounted && successMessage != null && successMessage.isNotEmpty) {
-        final messenger = ScaffoldMessenger.of(context);
+        final messenger = AppNoticeMessenger.of(context);
         messenger
           ..clearSnackBars()
           ..showSnackBar(SnackBar(content: Text(successMessage)));
@@ -835,7 +838,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
         return;
       }
       final l10n = AppLocalizations.of(context)!;
-      ScaffoldMessenger.of(
+      AppNoticeMessenger.of(
         context,
       ).showSnackBar(
         SnackBar(content: Text(_playbackErrorMessage(l10n, error))),
@@ -900,7 +903,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
         isStarred ? DateTime.now() : null,
       );
       setState(() => _isStarred = isStarred);
-      ScaffoldMessenger.of(
+      AppNoticeMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(l10n.albumDetailStarFailure)));
     } finally {
@@ -919,7 +922,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
+      AppNoticeMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(l10n.ratingUpdateFailed)));
     } finally {

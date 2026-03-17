@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -66,7 +67,7 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
         isStarred ? DateTime.now() : null,
       );
       setState(() => _isStarred = isStarred);
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppNoticeMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             AppLocalizations.of(context)!.albumDetailStarFailure,
@@ -516,10 +517,12 @@ class _AudioMuseSimilarArtists extends ConsumerWidget {
     return asyncRecs.when(
       data: (recs) {
         final currentArtistId = artistId.trim();
-        final filteredRecs = recs.where((rec) {
-          final candidateId = rec.id.trim();
-          return candidateId.isNotEmpty && candidateId != currentArtistId;
-        }).toList(growable: false);
+        final filteredRecs = recs
+            .where((rec) {
+              final candidateId = rec.id.trim();
+              return candidateId.isNotEmpty && candidateId != currentArtistId;
+            })
+            .toList(growable: false);
         if (filteredRecs.isEmpty) return const SizedBox.shrink();
         return _SimilarArtistsSection(
           title: l10n.audioMuseSimilarArtists,

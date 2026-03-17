@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -130,14 +131,14 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
           .createPlaylist(name)
           .then((_) {
             if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
+            AppNoticeMessenger.of(context).showSnackBar(
               SnackBar(content: Text(l10n.playlistsCreateSuccess)),
             );
             ref.invalidate(playlistSyncProvider);
           })
           .catchError((_) {
             if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
+            AppNoticeMessenger.of(context).showSnackBar(
               SnackBar(content: Text(l10n.playlistsCreateFailed)),
             );
           }),
@@ -239,14 +240,14 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
           .updatePlaylist(id: playlistId, name: newName)
           .then((_) {
             if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
+            AppNoticeMessenger.of(context).showSnackBar(
               SnackBar(content: Text(l10n.playlistsRenameSuccess)),
             );
             ref.invalidate(playlistSyncProvider);
           })
           .catchError((_) {
             if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
+            AppNoticeMessenger.of(context).showSnackBar(
               SnackBar(content: Text(l10n.playlistsRenameFailed)),
             );
           }),
@@ -293,14 +294,14 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
           .deletePlaylist(playlistId)
           .then((_) {
             if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
+            AppNoticeMessenger.of(context).showSnackBar(
               SnackBar(content: Text(l10n.playlistsDeleteSuccess)),
             );
             ref.invalidate(playlistSyncProvider);
           })
           .catchError((_) {
             if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
+            AppNoticeMessenger.of(context).showSnackBar(
               SnackBar(content: Text(l10n.playlistsDeleteFailed)),
             );
           }),

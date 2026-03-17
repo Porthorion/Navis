@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -156,14 +157,14 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
             password: config.password,
           );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppNoticeMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(l10n.loginTestConnectionSuccess(result.apiVersion)),
         ),
       );
     } on Object catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppNoticeMessenger.of(context).showSnackBar(
         SnackBar(content: Text(_toUserMessage(error, l10n))),
       );
     } finally {
@@ -214,7 +215,7 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
           .signOut(wipeLocalData: wipeLocalData);
       await ref.read(serverConfigProvider.notifier).refresh();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppNoticeMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             wipeLocalData
@@ -226,7 +227,7 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
       context.go('/login');
     } on Object {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppNoticeMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.serverSettingsSignOutError)),
       );
     } finally {
