@@ -499,7 +499,7 @@ abstract class AppLocalizations {
   /// No description provided for @playbackSettingsAndroidDspSectionTitle.
   ///
   /// In en, this message translates to:
-  /// **'Android audio effects'**
+  /// **'Android Audio Effects'**
   String get playbackSettingsAndroidDspSectionTitle;
 
   /// No description provided for @playbackSettingsEqualizerTitle.
@@ -730,6 +730,42 @@ abstract class AppLocalizations {
   /// **'Could not load section'**
   String get homeLoadErrorTitle;
 
+  /// No description provided for @homeContinueListeningTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue listening'**
+  String get homeContinueListeningTitle;
+
+  /// No description provided for @homeContinueListeningResume.
+  ///
+  /// In en, this message translates to:
+  /// **'Resume'**
+  String get homeContinueListeningResume;
+
+  /// No description provided for @homeContinueListeningOpenNowPlaying.
+  ///
+  /// In en, this message translates to:
+  /// **'Open player'**
+  String get homeContinueListeningOpenNowPlaying;
+
+  /// No description provided for @homeRecentlyLikedAlbumsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Recently liked albums'**
+  String get homeRecentlyLikedAlbumsTitle;
+
+  /// No description provided for @homeRecentlyLikedAlbumsEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No liked albums yet'**
+  String get homeRecentlyLikedAlbumsEmptyTitle;
+
+  /// No description provided for @homeRecentlyLikedAlbumsEmptySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Like albums to pin your favorites here.'**
+  String get homeRecentlyLikedAlbumsEmptySubtitle;
+
   /// No description provided for @homeRecentlyPlayedTitle.
   ///
   /// In en, this message translates to:
@@ -769,7 +805,7 @@ abstract class AppLocalizations {
   /// No description provided for @homeFrequentTitle.
   ///
   /// In en, this message translates to:
-  /// **'Most played'**
+  /// **'Frequent albums'**
   String get homeFrequentTitle;
 
   /// No description provided for @homeFrequentEmptyTitle.
@@ -844,6 +880,24 @@ abstract class AppLocalizations {
   /// **'Play more music to populate this section.'**
   String get homeMostPlayedTracksEmptySubtitle;
 
+  /// No description provided for @homeRecentlyPlayedTracksTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Recently played tracks'**
+  String get homeRecentlyPlayedTracksTitle;
+
+  /// No description provided for @homeRecentlyPlayedTracksEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No recently played tracks'**
+  String get homeRecentlyPlayedTracksEmptyTitle;
+
+  /// No description provided for @homeRecentlyPlayedTracksEmptySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Start listening to populate this section.'**
+  String get homeRecentlyPlayedTracksEmptySubtitle;
+
   /// No description provided for @homeRecentlyPlayedAlbumsTitle.
   ///
   /// In en, this message translates to:
@@ -861,6 +915,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Start listening to populate this section.'**
   String get homeRecentlyPlayedAlbumsEmptySubtitle;
+
+  /// No description provided for @homeQuickActionsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Quick actions'**
+  String get homeQuickActionsTitle;
+
+  /// No description provided for @homeQuickActionShuffleLiked.
+  ///
+  /// In en, this message translates to:
+  /// **'Shuffle liked'**
+  String get homeQuickActionShuffleLiked;
 
   /// No description provided for @radioTitle.
   ///
@@ -2952,7 +3018,7 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceThemeModeLabel.
   ///
   /// In en, this message translates to:
-  /// **'Theme mode'**
+  /// **'Theme Mode'**
   String get appearanceThemeModeLabel;
 
   /// No description provided for @appearanceThemeLight.
@@ -2994,7 +3060,7 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceColorSchemeLabel.
   ///
   /// In en, this message translates to:
-  /// **'Color scheme'**
+  /// **'Color Scheme'**
   String get appearanceColorSchemeLabel;
 
   /// No description provided for @appearanceColorSchemeSub.
@@ -3300,7 +3366,7 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceShowRadioPageTitle.
   ///
   /// In en, this message translates to:
-  /// **'Show Radio tab'**
+  /// **'Show Radio Tab'**
   String get appearanceShowRadioPageTitle;
 
   /// No description provided for @appearanceShowRadioPageSubtitle.
@@ -3312,7 +3378,7 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceShowPlaylistsPageTitle.
   ///
   /// In en, this message translates to:
-  /// **'Show Playlists tab'**
+  /// **'Show Playlists Tab'**
   String get appearanceShowPlaylistsPageTitle;
 
   /// No description provided for @appearanceShowPlaylistsPageSubtitle.
@@ -3324,7 +3390,7 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceShowArtistsPageTitle.
   ///
   /// In en, this message translates to:
-  /// **'Show Artists tab'**
+  /// **'Show Artists Tab'**
   String get appearanceShowArtistsPageTitle;
 
   /// No description provided for @appearanceShowArtistsPageSubtitle.
@@ -3336,7 +3402,7 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceShowLikedPageTitle.
   ///
   /// In en, this message translates to:
-  /// **'Show Liked tab'**
+  /// **'Show Liked Tab'**
   String get appearanceShowLikedPageTitle;
 
   /// No description provided for @appearanceShowLikedPageSubtitle.
@@ -3348,7 +3414,7 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceGridDensityLabel.
   ///
   /// In en, this message translates to:
-  /// **'Grid density'**
+  /// **'Grid Density'**
   String get appearanceGridDensityLabel;
 
   /// No description provided for @appearanceGridDensitySub.
@@ -3384,25 +3450,25 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceCoverArtShapeLabel.
   ///
   /// In en, this message translates to:
-  /// **'Cover art shape'**
+  /// **'Cover Art Shape'**
   String get appearanceCoverArtShapeLabel;
 
   /// No description provided for @appearanceCoverArtShapeSubLabel.
   ///
   /// In en, this message translates to:
-  /// **'Library & carousel art'**
+  /// **'Library & Carousel Art'**
   String get appearanceCoverArtShapeSubLabel;
 
   /// No description provided for @appearanceNpArtShapeLabel.
   ///
   /// In en, this message translates to:
-  /// **'Now Playing art'**
+  /// **'Now Playing Art'**
   String get appearanceNpArtShapeLabel;
 
   /// No description provided for @appearanceArtistCardShapeLabel.
   ///
   /// In en, this message translates to:
-  /// **'Artist card art'**
+  /// **'Artist Card Art'**
   String get appearanceArtistCardShapeLabel;
 
   /// No description provided for @shapeSquare.
@@ -3426,7 +3492,7 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceArtistViewModeLabel.
   ///
   /// In en, this message translates to:
-  /// **'Artist view mode'**
+  /// **'Artist View Mode'**
   String get appearanceArtistViewModeLabel;
 
   /// No description provided for @appearanceArtistViewModeGrid.
@@ -3444,7 +3510,7 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceHomeSectionsLabel.
   ///
   /// In en, this message translates to:
-  /// **'Home sections'**
+  /// **'Home Sections'**
   String get appearanceHomeSectionsLabel;
 
   /// No description provided for @appearanceHomeSectionsSub.
@@ -3453,35 +3519,89 @@ abstract class AppLocalizations {
   /// **'Drag to reorder, toggle to show or hide.'**
   String get appearanceHomeSectionsSub;
 
+  /// No description provided for @appearanceHomeDensityLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Home Density'**
+  String get appearanceHomeDensityLabel;
+
+  /// No description provided for @appearanceHomeDensitySub.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose spacing style for Home cards and lists.'**
+  String get appearanceHomeDensitySub;
+
+  /// No description provided for @appearanceHomeDensityComfortable.
+  ///
+  /// In en, this message translates to:
+  /// **'Comfortable'**
+  String get appearanceHomeDensityComfortable;
+
+  /// No description provided for @appearanceHomeDensityCompact.
+  ///
+  /// In en, this message translates to:
+  /// **'Compact'**
+  String get appearanceHomeDensityCompact;
+
+  /// No description provided for @homeSectionContinueListening.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue Listening'**
+  String get homeSectionContinueListening;
+
+  /// No description provided for @homeSectionRecentlyLikedAlbums.
+  ///
+  /// In en, this message translates to:
+  /// **'Recently Liked Albums'**
+  String get homeSectionRecentlyLikedAlbums;
+
   /// No description provided for @homeSectionLikedTracks.
   ///
   /// In en, this message translates to:
-  /// **'Liked tracks'**
+  /// **'Liked Tracks'**
   String get homeSectionLikedTracks;
 
   /// No description provided for @homeSectionRecentlyAdded.
   ///
   /// In en, this message translates to:
-  /// **'Recently added'**
+  /// **'Recently Added'**
   String get homeSectionRecentlyAdded;
 
   /// No description provided for @homeSectionRecentlyPlayed.
   ///
   /// In en, this message translates to:
-  /// **'Recently played'**
+  /// **'Recently Played'**
   String get homeSectionRecentlyPlayed;
 
   /// No description provided for @homeSectionRandomAlbums.
   ///
   /// In en, this message translates to:
-  /// **'Random albums'**
+  /// **'Random Albums'**
   String get homeSectionRandomAlbums;
 
   /// No description provided for @homeSectionMostPlayed.
   ///
   /// In en, this message translates to:
-  /// **'Most played'**
+  /// **'Most Played'**
   String get homeSectionMostPlayed;
+
+  /// No description provided for @homeSectionRecentlyPlayedTracks.
+  ///
+  /// In en, this message translates to:
+  /// **'Recently Played Tracks'**
+  String get homeSectionRecentlyPlayedTracks;
+
+  /// No description provided for @homeSectionFrequentAlbums.
+  ///
+  /// In en, this message translates to:
+  /// **'Frequent Albums'**
+  String get homeSectionFrequentAlbums;
+
+  /// No description provided for @homeSectionQuickActions.
+  ///
+  /// In en, this message translates to:
+  /// **'Quick Actions'**
+  String get homeSectionQuickActions;
 
   /// No description provided for @cacheSettingsCoverArtSizeLabel.
   ///

@@ -154,6 +154,10 @@ class AppSettingsTable extends Table {
   /// Artist view layout: 'list' or 'grid'. Default 'grid'.
   TextColumn get artistViewMode => text().withDefault(const Constant('grid'))();
 
+  /// Home section density: 'comfortable' or 'compact'. Default 'comfortable'.
+  TextColumn get homeDensity =>
+      text().withDefault(const Constant('comfortable'))();
+
   /// JSON-encoded ordered list of home section IDs (e.g. ["recently_added",…]).
   /// Null = default order.
   TextColumn get homeSectionOrder => text().nullable()();

@@ -1543,6 +1543,20 @@ final downloadedOnlyFilterProvider =
       DownloadedOnlyFilterController.new,
     );
 
+class HomeLikedOnlyFilterController extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  bool get enabled => state;
+
+  set enabled(bool value) => state = value;
+}
+
+final homeLikedOnlyFilterProvider =
+    NotifierProvider<HomeLikedOnlyFilterController, bool>(
+      HomeLikedOnlyFilterController.new,
+    );
+
 final downloadedSongIdsProvider = StreamProvider<Set<String>>((ref) {
   final dao = ref.watch(navisDatabaseProvider).cacheDao;
   return dao
@@ -1739,6 +1753,14 @@ final artistViewModeProvider = Provider<String>((ref) {
       ref.watch(appSettingsProvider).asData?.value ??
       const AppSettingsModel.defaults();
   return settings.artistViewMode;
+});
+
+/// Home layout density: 'comfortable' or 'compact'.
+final homeDensityProvider = Provider<String>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.homeDensity == 'compact' ? 'compact' : 'comfortable';
 });
 
 /// Ordered list of home section IDs (null = default order).

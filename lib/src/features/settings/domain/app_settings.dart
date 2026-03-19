@@ -44,6 +44,7 @@ class AppSettingsModel {
     required this.nowPlayingArtShape,
     required this.artistCardShape,
     required this.artistViewMode,
+    this.homeDensity = 'comfortable',
     required this.homeSectionOrder,
     required this.homeSectionsHidden,
   });
@@ -89,6 +90,7 @@ class AppSettingsModel {
       nowPlayingArtShape = 'rounded',
       artistCardShape = 'circle',
       artistViewMode = 'grid',
+      homeDensity = 'comfortable',
       homeSectionOrder = null,
       homeSectionsHidden = null;
 
@@ -151,6 +153,9 @@ class AppSettingsModel {
   /// Artist view layout: 'list' or 'grid'.
   final String artistViewMode;
 
+  /// Home layout density: 'comfortable' or 'compact'.
+  final String homeDensity;
+
   /// Ordered list of home section IDs, or null for default order.
   final List<String>? homeSectionOrder;
 
@@ -198,6 +203,7 @@ class AppSettingsModel {
     String? nowPlayingArtShape,
     String? artistCardShape,
     String? artistViewMode,
+    String? homeDensity,
     List<String>? homeSectionOrder,
     List<String>? homeSectionsHidden,
     bool clearWifiBitRate = false,
@@ -271,6 +277,7 @@ class AppSettingsModel {
       nowPlayingArtShape: nowPlayingArtShape ?? this.nowPlayingArtShape,
       artistCardShape: artistCardShape ?? this.artistCardShape,
       artistViewMode: artistViewMode ?? this.artistViewMode,
+      homeDensity: homeDensity ?? this.homeDensity,
       homeSectionOrder: clearHomeSectionOrder
           ? null
           : homeSectionOrder ?? this.homeSectionOrder,

@@ -231,7 +231,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Display the Radio tab in bottom navigation.';
 
   @override
-  String get playbackSettingsAndroidDspSectionTitle => 'Android audio effects';
+  String get playbackSettingsAndroidDspSectionTitle => 'Android Audio Effects';
 
   @override
   String get playbackSettingsEqualizerTitle => 'Enable equalizer';
@@ -371,6 +371,25 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeLoadErrorTitle => 'Could not load section';
 
   @override
+  String get homeContinueListeningTitle => 'Continue listening';
+
+  @override
+  String get homeContinueListeningResume => 'Resume';
+
+  @override
+  String get homeContinueListeningOpenNowPlaying => 'Open player';
+
+  @override
+  String get homeRecentlyLikedAlbumsTitle => 'Recently liked albums';
+
+  @override
+  String get homeRecentlyLikedAlbumsEmptyTitle => 'No liked albums yet';
+
+  @override
+  String get homeRecentlyLikedAlbumsEmptySubtitle =>
+      'Like albums to pin your favorites here.';
+
+  @override
   String get homeRecentlyPlayedTitle => 'Recently played';
 
   @override
@@ -391,7 +410,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Pull to refresh to fetch newly added albums.';
 
   @override
-  String get homeFrequentTitle => 'Most played';
+  String get homeFrequentTitle => 'Frequent albums';
 
   @override
   String get homeFrequentEmptyTitle => 'No frequent albums yet';
@@ -434,6 +453,16 @@ class AppLocalizationsEn extends AppLocalizations {
       'Play more music to populate this section.';
 
   @override
+  String get homeRecentlyPlayedTracksTitle => 'Recently played tracks';
+
+  @override
+  String get homeRecentlyPlayedTracksEmptyTitle => 'No recently played tracks';
+
+  @override
+  String get homeRecentlyPlayedTracksEmptySubtitle =>
+      'Start listening to populate this section.';
+
+  @override
   String get homeRecentlyPlayedAlbumsTitle => 'Recently played albums';
 
   @override
@@ -442,6 +471,12 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get homeRecentlyPlayedAlbumsEmptySubtitle =>
       'Start listening to populate this section.';
+
+  @override
+  String get homeQuickActionsTitle => 'Quick actions';
+
+  @override
+  String get homeQuickActionShuffleLiked => 'Shuffle liked';
 
   @override
   String get radioTitle => 'Radio';
@@ -1647,7 +1682,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearanceTitle => 'Appearance';
 
   @override
-  String get appearanceThemeModeLabel => 'Theme mode';
+  String get appearanceThemeModeLabel => 'Theme Mode';
 
   @override
   String get appearanceThemeLight => 'Light';
@@ -1668,7 +1703,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearanceLanguageSystemDefault => 'System default';
 
   @override
-  String get appearanceColorSchemeLabel => 'Color scheme';
+  String get appearanceColorSchemeLabel => 'Color Scheme';
 
   @override
   String get appearanceColorSchemeSub =>
@@ -1838,35 +1873,35 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearancePagesSectionLabel => 'Page Visibility';
 
   @override
-  String get appearanceShowRadioPageTitle => 'Show Radio tab';
+  String get appearanceShowRadioPageTitle => 'Show Radio Tab';
 
   @override
   String get appearanceShowRadioPageSubtitle =>
       'Show the Radio tab in the Library screen.';
 
   @override
-  String get appearanceShowPlaylistsPageTitle => 'Show Playlists tab';
+  String get appearanceShowPlaylistsPageTitle => 'Show Playlists Tab';
 
   @override
   String get appearanceShowPlaylistsPageSubtitle =>
       'Show the Playlists tab in the Library screen.';
 
   @override
-  String get appearanceShowArtistsPageTitle => 'Show Artists tab';
+  String get appearanceShowArtistsPageTitle => 'Show Artists Tab';
 
   @override
   String get appearanceShowArtistsPageSubtitle =>
       'Show the Artists tab in the Library screen.';
 
   @override
-  String get appearanceShowLikedPageTitle => 'Show Liked tab';
+  String get appearanceShowLikedPageTitle => 'Show Liked Tab';
 
   @override
   String get appearanceShowLikedPageSubtitle =>
       'Show the Liked tab in the Library screen.';
 
   @override
-  String get appearanceGridDensityLabel => 'Grid density';
+  String get appearanceGridDensityLabel => 'Grid Density';
 
   @override
   String get appearanceGridDensitySub =>
@@ -1885,16 +1920,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearanceGridDensitySpaciousLabel => 'Spacious';
 
   @override
-  String get appearanceCoverArtShapeLabel => 'Cover art shape';
+  String get appearanceCoverArtShapeLabel => 'Cover Art Shape';
 
   @override
-  String get appearanceCoverArtShapeSubLabel => 'Library & carousel art';
+  String get appearanceCoverArtShapeSubLabel => 'Library & Carousel Art';
 
   @override
-  String get appearanceNpArtShapeLabel => 'Now Playing art';
+  String get appearanceNpArtShapeLabel => 'Now Playing Art';
 
   @override
-  String get appearanceArtistCardShapeLabel => 'Artist card art';
+  String get appearanceArtistCardShapeLabel => 'Artist Card Art';
 
   @override
   String get shapeSquare => 'Square';
@@ -1906,7 +1941,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get shapeCircle => 'Circle';
 
   @override
-  String get appearanceArtistViewModeLabel => 'Artist view mode';
+  String get appearanceArtistViewModeLabel => 'Artist View Mode';
 
   @override
   String get appearanceArtistViewModeGrid => 'Grid';
@@ -1915,26 +1950,54 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearanceArtistViewModeList => 'List';
 
   @override
-  String get appearanceHomeSectionsLabel => 'Home sections';
+  String get appearanceHomeSectionsLabel => 'Home Sections';
 
   @override
   String get appearanceHomeSectionsSub =>
       'Drag to reorder, toggle to show or hide.';
 
   @override
-  String get homeSectionLikedTracks => 'Liked tracks';
+  String get appearanceHomeDensityLabel => 'Home Density';
 
   @override
-  String get homeSectionRecentlyAdded => 'Recently added';
+  String get appearanceHomeDensitySub =>
+      'Choose spacing style for Home cards and lists.';
 
   @override
-  String get homeSectionRecentlyPlayed => 'Recently played';
+  String get appearanceHomeDensityComfortable => 'Comfortable';
 
   @override
-  String get homeSectionRandomAlbums => 'Random albums';
+  String get appearanceHomeDensityCompact => 'Compact';
 
   @override
-  String get homeSectionMostPlayed => 'Most played';
+  String get homeSectionContinueListening => 'Continue Listening';
+
+  @override
+  String get homeSectionRecentlyLikedAlbums => 'Recently Liked Albums';
+
+  @override
+  String get homeSectionLikedTracks => 'Liked Tracks';
+
+  @override
+  String get homeSectionRecentlyAdded => 'Recently Added';
+
+  @override
+  String get homeSectionRecentlyPlayed => 'Recently Played';
+
+  @override
+  String get homeSectionRandomAlbums => 'Random Albums';
+
+  @override
+  String get homeSectionMostPlayed => 'Most Played';
+
+  @override
+  String get homeSectionRecentlyPlayedTracks => 'Recently Played Tracks';
+
+  @override
+  String get homeSectionFrequentAlbums => 'Frequent Albums';
+
+  @override
+  String get homeSectionQuickActions => 'Quick Actions';
 
   @override
   String cacheSettingsCoverArtSizeLabel(String size) {

@@ -62,6 +62,7 @@ class SettingsRepository {
       nowPlayingArtShape: settings.nowPlayingArtShape,
       artistCardShape: settings.artistCardShape,
       artistViewMode: settings.artistViewMode,
+      homeDensity: settings.homeDensity,
       homeSectionOrder: _encodeStringList(settings.homeSectionOrder),
       homeSectionsHidden: _encodeStringList(settings.homeSectionsHidden),
     );
@@ -114,6 +115,7 @@ class SettingsRepository {
       nowPlayingArtShape: row.nowPlayingArtShape,
       artistCardShape: row.artistCardShape,
       artistViewMode: row.artistViewMode,
+      homeDensity: row.homeDensity,
       homeSectionOrder: _decodeStringList(row.homeSectionOrder),
       homeSectionsHidden: _decodeStringList(row.homeSectionsHidden),
     );

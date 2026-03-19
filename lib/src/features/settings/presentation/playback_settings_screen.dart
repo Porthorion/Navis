@@ -62,6 +62,7 @@ class _PlaybackSettingsScreenState
   bool _isSaving = false;
   bool _isAutoSaving = false;
   bool _pendingAutosave = false;
+  bool _experimentalExpanded = false;
   String _lastSavedSignature = '';
   Timer? _autosaveDebounce;
 
@@ -297,73 +298,6 @@ class _PlaybackSettingsScreenState
                   'Open lyrics in fullscreen directly from Now Playing.',
                 ),
               ),
-              if (_supportsAndroidDsp) ...<Widget>[
-                const SizedBox(height: 24),
-                Text(
-                  l10n.playbackSettingsAndroidDspSectionTitle,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 12),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  value: _equalizerEnabled,
-                  onChanged: _isSaving
-                      ? null
-                      : (value) => setState(() => _equalizerEnabled = value),
-                  title: Text(l10n.playbackSettingsEqualizerTitle),
-                  subtitle: Text(l10n.playbackSettingsEqualizerSubtitle),
-                ),
-                if (_equalizerEnabled)
-                  ...List<Widget>.generate(_equalizerBandGains.length, (
-                    index,
-                  ) {
-                    final value = _equalizerBandGains[index];
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text(
-                          l10n.playbackSettingsEqualizerBandLabel(index + 1),
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                        Slider(
-                          value: value.clamp(-12, 12),
-                          min: -12,
-                          max: 12,
-                          divisions: 24,
-                          label: value.toStringAsFixed(1),
-                          onChanged: _isSaving
-                              ? null
-                              : (nextValue) {
-                                  setState(() {
-                                    _equalizerBandGains[index] = nextValue;
-                                  });
-                                },
-                        ),
-                      ],
-                    );
-                  }),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  value: _loudnessEnabled,
-                  onChanged: _isSaving
-                      ? null
-                      : (value) => setState(() => _loudnessEnabled = value),
-                  title: Text(l10n.playbackSettingsLoudnessTitle),
-                  subtitle: Text(l10n.playbackSettingsLoudnessSubtitle),
-                ),
-                if (_loudnessEnabled)
-                  Slider(
-                    value: _loudnessTargetGainDb.clamp(0, 20),
-                    min: 0,
-                    max: 20,
-                    divisions: 20,
-                    label: _loudnessTargetGainDb.toStringAsFixed(0),
-                    onChanged: _isSaving
-                        ? null
-                        : (value) =>
-                              setState(() => _loudnessTargetGainDb = value),
-                  ),
-              ],
               // ── ReplayGain section ─────────────────────────────────────
               const SizedBox(height: 24),
               Text(
@@ -472,6 +406,10 @@ class _PlaybackSettingsScreenState
                   color: Theme.of(context).colorScheme.outline,
                 ),
               ),
+              if (_supportsAndroidDsp) ...<Widget>[
+                const SizedBox(height: 24),
+                _buildExperimentalSection(context, l10n),
+              ],
               const SizedBox(height: 20),
               Row(
                 children: <Widget>[
@@ -517,6 +455,148 @@ class _PlaybackSettingsScreenState
     return value == null
         ? l10n.playbackSettingsFormatOriginal
         : value.toUpperCase();
+  }
+
+  Widget _buildExperimentalSection(
+    BuildContext context,
+    AppLocalizations l10n,
+  ) {
+    final theme = Theme.of(context);
+    return Material(
+      color: theme.colorScheme.surfaceContainerLow,
+      borderRadius: BorderRadius.circular(14),
+      child: Column(
+        children: <Widget>[
+          InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: () {
+              setState(() {
+                _experimentalExpanded = !_experimentalExpanded;
+              });
+            },
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+              child: Row(
+                children: <Widget>[
+                  Icon(
+                    Icons.science_outlined,
+                    size: 22,
+                    color: theme.colorScheme.primary,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Experimental',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  AnimatedRotation(
+                    turns: _experimentalExpanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOutCubic,
+                    child: const Icon(Icons.keyboard_arrow_down_rounded),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          ClipRect(
+            child: AnimatedAlign(
+              alignment: Alignment.topCenter,
+              heightFactor: _experimentalExpanded ? 1 : 0,
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              child: AnimatedOpacity(
+                opacity: _experimentalExpanded ? 1 : 0,
+                duration: const Duration(milliseconds: 160),
+                curve: Curves.easeOutCubic,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 0, 8, 10),
+                  child: Column(
+                    children: _buildAndroidDspControls(context, l10n),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildAndroidDspControls(
+    BuildContext context,
+    AppLocalizations l10n,
+  ) {
+    return <Widget>[
+      Padding(
+        padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+        child: Text(
+          l10n.playbackSettingsAndroidDspSectionTitle,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ),
+      SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        value: _equalizerEnabled,
+        onChanged: _isSaving
+            ? null
+            : (value) => setState(() => _equalizerEnabled = value),
+        title: Text(l10n.playbackSettingsEqualizerTitle),
+        subtitle: Text(l10n.playbackSettingsEqualizerSubtitle),
+      ),
+      if (_equalizerEnabled)
+        ...List<Widget>.generate(_equalizerBandGains.length, (index) {
+          final value = _equalizerBandGains[index];
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                l10n.playbackSettingsEqualizerBandLabel(index + 1),
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              Slider(
+                value: value.clamp(-12, 12),
+                min: -12,
+                max: 12,
+                divisions: 24,
+                label: value.toStringAsFixed(1),
+                onChanged: _isSaving
+                    ? null
+                    : (nextValue) {
+                        setState(() {
+                          _equalizerBandGains[index] = nextValue;
+                        });
+                      },
+              ),
+            ],
+          );
+        }),
+      SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        value: _loudnessEnabled,
+        onChanged: _isSaving
+            ? null
+            : (value) => setState(() => _loudnessEnabled = value),
+        title: Text(l10n.playbackSettingsLoudnessTitle),
+        subtitle: Text(l10n.playbackSettingsLoudnessSubtitle),
+      ),
+      if (_loudnessEnabled)
+        Slider(
+          value: _loudnessTargetGainDb.clamp(0, 20),
+          min: 0,
+          max: 20,
+          divisions: 20,
+          label: _loudnessTargetGainDb.toStringAsFixed(0),
+          onChanged: _isSaving
+              ? null
+              : (value) => setState(() => _loudnessTargetGainDb = value),
+        ),
+    ];
   }
 
   void _hydrate(AppSettingsModel settings) {

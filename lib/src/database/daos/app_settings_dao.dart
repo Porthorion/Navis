@@ -69,6 +69,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     required String nowPlayingArtShape,
     required String artistCardShape,
     required String artistViewMode,
+    required String homeDensity,
     String? homeSectionOrder,
     String? homeSectionsHidden,
   }) {
@@ -115,6 +116,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         nowPlayingArtShape: Value(nowPlayingArtShape),
         artistCardShape: Value(artistCardShape),
         artistViewMode: Value(artistViewMode),
+        homeDensity: Value(homeDensity),
         homeSectionOrder: Value(homeSectionOrder),
         homeSectionsHidden: Value(homeSectionsHidden),
         updatedAt: DateTime.now(),
@@ -162,6 +164,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       nowPlayingArtShape: 'rounded',
       artistCardShape: 'circle',
       artistViewMode: 'grid',
+      homeDensity: 'comfortable',
       homeSectionOrder: null,
       homeSectionsHidden: null,
     );
@@ -528,6 +531,18 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     )..where((t) => t.id.equals(primarySettingsId))).write(
       AppSettingsTableCompanion(
         artistViewMode: Value(mode),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Targeted update for home section density ('comfortable' or 'compact').
+  Future<void> updateHomeDensity(String density) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        homeDensity: Value(density),
         updatedAt: Value(DateTime.now()),
       ),
     );

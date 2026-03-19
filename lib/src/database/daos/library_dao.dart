@@ -39,20 +39,32 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   Stream<List<ArtistsTableData>> watchLikedArtists() {
     // Recursive match: artist is liked, OR artist has a liked song,
     // OR artist has a liked album (album.starred IS NOT NULL).
+    // Order by the latest liked timestamp across those sources.
     return customSelect(
       '''
       SELECT DISTINCT a.*
       FROM artists a
+      LEFT JOIN (
+        SELECT s.artist_id, MAX(s.starred) AS song_starred
+        FROM songs s
+        WHERE s.starred IS NOT NULL
+        GROUP BY s.artist_id
+      ) song_likes ON song_likes.artist_id = a.id
+      LEFT JOIN (
+        SELECT al.artist_id, MAX(al.starred) AS album_starred
+        FROM albums al
+        WHERE al.starred IS NOT NULL
+        GROUP BY al.artist_id
+      ) album_likes ON album_likes.artist_id = a.id
       WHERE a.starred IS NOT NULL
-        OR EXISTS (
-          SELECT 1 FROM songs s
-          WHERE s.artist_id = a.id AND s.starred IS NOT NULL
-        )
-        OR EXISTS (
-          SELECT 1 FROM albums al
-          WHERE al.artist_id = a.id AND al.starred IS NOT NULL
-        )
-      ORDER BY a.name ASC
+        OR song_likes.song_starred IS NOT NULL
+        OR album_likes.album_starred IS NOT NULL
+      ORDER BY MAX(
+        IFNULL(a.starred, 0),
+        IFNULL(song_likes.song_starred, 0),
+        IFNULL(album_likes.album_starred, 0)
+      ) DESC,
+      LOWER(a.name) ASC
       ''',
       readsFrom: {artistsTable, songsTable, albumsTable},
     ).watch().map(
@@ -72,7 +84,13 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
              COALESCE((SELECT name FROM artists WHERE id = ?1 LIMIT 1), '')
            )
          )
-      ORDER BY al.year ASC, al.name ASC
+      ORDER BY
+        al.year IS NULL ASC,
+        al.year DESC,
+        al.server_created_at IS NULL ASC,
+        al.server_created_at DESC,
+        al.name ASC,
+        al.id ASC
       ''',
       variables: <Variable<Object>>[Variable<String>(artistId)],
       readsFrom: {albumsTable, artistsTable},
@@ -801,7 +819,13 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
              COALESCE((SELECT name FROM artists WHERE id = ?1 LIMIT 1), '')
            )
          )
-      ORDER BY al.year ASC, al.name ASC
+      ORDER BY
+        al.year IS NULL ASC,
+        al.year DESC,
+        al.server_created_at IS NULL ASC,
+        al.server_created_at DESC,
+        al.name ASC,
+        al.id ASC
       ''',
       variables: <Variable<Object>>[Variable<String>(artistId)],
       readsFrom: {albumsTable, artistsTable},

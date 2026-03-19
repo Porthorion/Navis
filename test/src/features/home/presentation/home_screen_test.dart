@@ -10,6 +10,8 @@ import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/home/presentation/home_screen.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 
 class _StaticLibrarySyncController extends LibrarySyncController {
@@ -88,10 +90,16 @@ Future<void> _pumpHomeWithSyncState(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        appSettingsProvider.overrideWithValue(
+          const AsyncData(AppSettingsModel.defaults()),
+        ),
         librarySyncControllerProvider.overrideWith(
           () => _FixedLibrarySyncController(syncState),
         ),
         homeLikedSongsProvider.overrideWithValue(
+          const AsyncData(<SongsTableData>[]),
+        ),
+        likedSongsProvider.overrideWithValue(
           const AsyncData(<SongsTableData>[]),
         ),
         homeRecentlyAddedProvider.overrideWithValue(
@@ -105,6 +113,9 @@ Future<void> _pumpHomeWithSyncState(
         ),
         homeMostPlayedSongsProvider.overrideWithValue(
           const AsyncData(<SongsTableData>[]),
+        ),
+        likedAlbumsRecentProvider.overrideWithValue(
+          const AsyncData(<AlbumsTableData>[]),
         ),
       ],
       child: MaterialApp(
@@ -125,8 +136,14 @@ Future<void> _pumpHomeWithControllerOverride(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        appSettingsProvider.overrideWithValue(
+          const AsyncData(AppSettingsModel.defaults()),
+        ),
         librarySyncControllerProvider.overrideWith(createController),
         homeLikedSongsProvider.overrideWithValue(
+          const AsyncData(<SongsTableData>[]),
+        ),
+        likedSongsProvider.overrideWithValue(
           const AsyncData(<SongsTableData>[]),
         ),
         homeRecentlyAddedProvider.overrideWithValue(
@@ -140,6 +157,9 @@ Future<void> _pumpHomeWithControllerOverride(
         ),
         homeMostPlayedSongsProvider.overrideWithValue(
           const AsyncData(<SongsTableData>[]),
+        ),
+        likedAlbumsRecentProvider.overrideWithValue(
+          const AsyncData(<AlbumsTableData>[]),
         ),
       ],
       child: MaterialApp(
@@ -168,6 +188,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          appSettingsProvider.overrideWithValue(
+            const AsyncData(AppSettingsModel.defaults()),
+          ),
           librarySyncControllerProvider.overrideWith(
             _StaticLibrarySyncController.new,
           ),
@@ -181,6 +204,9 @@ void main() {
                 coverArt: 'cover-song-1',
               ),
             ]),
+          ),
+          likedSongsProvider.overrideWithValue(
+            const AsyncData(<SongsTableData>[]),
           ),
           homeRecentlyAddedProvider.overrideWithValue(
             const AsyncData(<Album>[
@@ -225,6 +251,17 @@ void main() {
               ),
             ]),
           ),
+          likedAlbumsRecentProvider.overrideWithValue(
+            const AsyncData(<AlbumsTableData>[
+              AlbumsTableData(
+                id: 'album-4',
+                name: 'Liked album title',
+                artistName: 'Favorite Artist',
+                coverArt: 'cover-album-4',
+                songsHydrated: false,
+              ),
+            ]),
+          ),
         ],
         child: MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -244,8 +281,14 @@ void main() {
 
     await tester.pumpAndSettle();
 
+    await tester.scrollUntilVisible(
+      find.text('Recently added'),
+      320,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+
     expect(find.text('Recently added'), findsOneWidget);
-    expect(find.text('Liked tracks'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -261,10 +304,16 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          appSettingsProvider.overrideWithValue(
+            const AsyncData(AppSettingsModel.defaults()),
+          ),
           librarySyncControllerProvider.overrideWith(
             _StaticLibrarySyncController.new,
           ),
           homeLikedSongsProvider.overrideWithValue(
+            const AsyncData(<SongsTableData>[]),
+          ),
+          likedSongsProvider.overrideWithValue(
             const AsyncData(<SongsTableData>[]),
           ),
           homeRecentlyAddedProvider.overrideWithValue(
@@ -278,6 +327,9 @@ void main() {
           ),
           homeMostPlayedSongsProvider.overrideWithValue(
             const AsyncData(<SongsTableData>[]),
+          ),
+          likedAlbumsRecentProvider.overrideWithValue(
+            const AsyncData(<AlbumsTableData>[]),
           ),
         ],
         child: MaterialApp(
@@ -293,6 +345,56 @@ void main() {
     expect(find.text('Recently added'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'default home shows default-on sections and keeps optional sections hidden',
+    (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            appSettingsProvider.overrideWithValue(
+              const AsyncData(AppSettingsModel.defaults()),
+            ),
+            librarySyncControllerProvider.overrideWith(
+              _StaticLibrarySyncController.new,
+            ),
+            homeLikedSongsProvider.overrideWithValue(
+              const AsyncData(<SongsTableData>[]),
+            ),
+            likedSongsProvider.overrideWithValue(
+              const AsyncData(<SongsTableData>[]),
+            ),
+            homeRecentlyAddedProvider.overrideWithValue(
+              const AsyncData(<Album>[]),
+            ),
+            homeRecentlyPlayedAlbumsProvider.overrideWithValue(
+              const AsyncData(<AlbumsTableData>[]),
+            ),
+            homeRandomAlbumsProvider.overrideWithValue(
+              const AsyncData(<Album>[]),
+            ),
+            homeMostPlayedSongsProvider.overrideWithValue(
+              const AsyncData(<SongsTableData>[]),
+            ),
+            likedAlbumsRecentProvider.overrideWithValue(
+              const AsyncData(<AlbumsTableData>[]),
+            ),
+          ],
+          child: MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const HomeScreen(),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(find.text('Recently liked albums'), findsOneWidget);
+      expect(find.text('Quick actions'), findsOneWidget);
+      expect(find.text('Recently played tracks'), findsNothing);
+    },
+  );
 
   testWidgets('shows determinate sync ring around logo while syncing', (
     tester,
@@ -447,19 +549,42 @@ void main() {
       expect(
         HomeSectionIds.defaultOrder,
         containsAll(<String>[
+          HomeSectionIds.quickActions,
+          HomeSectionIds.continueListening,
+          HomeSectionIds.recentlyLikedAlbums,
           HomeSectionIds.likedTracks,
           HomeSectionIds.recentlyAdded,
           HomeSectionIds.recentlyPlayed,
           HomeSectionIds.randomAlbums,
           HomeSectionIds.mostPlayed,
+          HomeSectionIds.recentlyPlayedTracks,
+          HomeSectionIds.frequentAlbums,
         ]),
       );
+    });
+
+    test('quick actions is first in defaultOrder', () {
+      expect(HomeSectionIds.defaultOrder.first, HomeSectionIds.quickActions);
     });
 
     test('defaultOrder has no duplicates', () {
       expect(
         HomeSectionIds.defaultOrder.toSet().length,
         HomeSectionIds.defaultOrder.length,
+      );
+    });
+
+    test('defaultHidden marks optional sections as hidden', () {
+      expect(
+        HomeSectionIds.defaultHidden,
+        containsAll(<String>[
+          HomeSectionIds.recentlyPlayedTracks,
+          HomeSectionIds.frequentAlbums,
+        ]),
+      );
+      expect(
+        HomeSectionIds.defaultHidden,
+        isNot(contains(HomeSectionIds.quickActions)),
       );
     });
   });

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
@@ -20,19 +21,22 @@ class AppearanceSettingsScreen extends ConsumerWidget {
     final customPresetsAsync = ref.watch(customColorPresetsProvider);
     final customPresets = customPresetsAsync.asData?.value ?? <int>[];
     final appLocale = ref.watch(appLocaleProvider);
-    final languageSelectionEnabled =
-        AppLocalizations.supportedLocales.length > 1;
+    final languageControlVisible = bool.fromEnvironment(
+      'NAVIS_SHOW_LANGUAGE_SETTINGS',
+    );
+    final languageControlEnabled = AppLocalizations.supportedLocales.length > 1;
     final theme = Theme.of(context);
     final allowedHomeSectionIds = HomeSectionIds.defaultOrder.toSet();
     final persistedOrder = ref.watch(homeSectionOrderProvider);
-    final persistedHidden = ref.watch(homeSectionsHiddenProvider) ?? <String>[];
+    final persistedHidden = ref.watch(homeSectionsHiddenProvider);
+    final baseHidden = persistedHidden ?? HomeSectionIds.defaultHidden;
     final sanitizedOrder = <String>[
       ...?persistedOrder?.where(allowedHomeSectionIds.contains),
       ...HomeSectionIds.defaultOrder.where(
         (id) => !(persistedOrder?.contains(id) ?? false),
       ),
     ];
-    final sanitizedHidden = persistedHidden
+    final sanitizedHidden = baseHidden
         .where(allowedHomeSectionIds.contains)
         .toList(growable: false);
 
@@ -41,6 +45,27 @@ class AppearanceSettingsScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: 8),
         children: <Widget>[
+          if (languageControlVisible) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+              child: Text(
+                l10n.appearanceLanguageLabel,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+            ),
+            _LanguageSelector(
+              appLocale: appLocale,
+              enabled: languageControlEnabled,
+              onChanged: (localeCode) async {
+                final db = ref.read(navisDatabaseProvider);
+                await db.appSettingsDao.updateAppLocale(localeCode);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+
           // ── Theme Mode ──────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
@@ -57,46 +82,6 @@ class AppearanceSettingsScreen extends ConsumerWidget {
               final db = ref.read(navisDatabaseProvider);
               await db.appSettingsDao.updateThemeMode(mode);
             },
-          ),
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-            child: Text(
-              l10n.appearanceLanguageLabel,
-              style: theme.textTheme.titleSmall?.copyWith(
-                color: theme.colorScheme.primary,
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: DropdownButtonFormField<String?>(
-              initialValue: appLocale,
-              decoration: InputDecoration(
-                border: OutlineInputBorder(),
-                helperText: languageSelectionEnabled
-                    ? null
-                    : 'Language switching is disabled in this build.',
-              ),
-              items: <DropdownMenuItem<String?>>[
-                DropdownMenuItem<String?>(
-                  value: null,
-                  child: Text(l10n.appearanceLanguageSystemDefault),
-                ),
-                ...AppLocalizations.supportedLocales.map(
-                  (locale) => DropdownMenuItem<String?>(
-                    value: locale.languageCode,
-                    child: Text(_localeLabel(locale)),
-                  ),
-                ),
-              ],
-              onChanged: languageSelectionEnabled
-                  ? (localeCode) async {
-                      final db = ref.read(navisDatabaseProvider);
-                      await db.appSettingsDao.updateAppLocale(localeCode);
-                    }
-                  : null,
-            ),
           ),
           const Divider(height: 32),
 
@@ -240,43 +225,6 @@ class AppearanceSettingsScreen extends ConsumerWidget {
           ),
           const Divider(height: 32),
 
-          // ── Cover Art Shape ─────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-            child: Text(
-              l10n.appearanceCoverArtShapeLabel,
-              style: theme.textTheme.titleSmall?.copyWith(
-                color: theme.colorScheme.primary,
-              ),
-            ),
-          ),
-          _ShapeSelector(
-            label: l10n.appearanceCoverArtShapeSubLabel,
-            value: ref.watch(coverArtShapeProvider),
-            includeCircle: false,
-            onChanged: (shape) async {
-              final db = ref.read(navisDatabaseProvider);
-              await db.appSettingsDao.updateCoverArtShape(shape);
-            },
-          ),
-          _ShapeSelector(
-            label: l10n.appearanceNpArtShapeLabel,
-            value: ref.watch(nowPlayingArtShapeProvider),
-            onChanged: (shape) async {
-              final db = ref.read(navisDatabaseProvider);
-              await db.appSettingsDao.updateNowPlayingArtShape(shape);
-            },
-          ),
-          _ShapeSelector(
-            label: l10n.appearanceArtistCardShapeLabel,
-            value: ref.watch(artistCardShapeProvider),
-            onChanged: (shape) async {
-              final db = ref.read(navisDatabaseProvider);
-              await db.appSettingsDao.updateArtistCardShape(shape);
-            },
-          ),
-          const Divider(height: 32),
-
           // ── Artist View Mode ────────────────────────────────────
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
@@ -316,93 +264,156 @@ class AppearanceSettingsScreen extends ConsumerWidget {
           ),
           const Divider(height: 32),
 
-          // ── Home Sections (drag to reorder + visibility toggle) ─
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-            child: Text(
-              l10n.appearanceHomeSectionsLabel,
-              style: theme.textTheme.titleSmall?.copyWith(
-                color: theme.colorScheme.primary,
-              ),
+          _SettingsCollapsibleGroup(
+            leading: const _CyclingShapeIcon(),
+            title: l10n.appearanceCoverArtShapeLabel,
+            initiallyExpanded: false,
+            child: Column(
+              children: <Widget>[
+                _ShapeSelector(
+                  label: l10n.appearanceCoverArtShapeSubLabel,
+                  value: ref.watch(coverArtShapeProvider),
+                  includeCircle: false,
+                  onChanged: (shape) async {
+                    final db = ref.read(navisDatabaseProvider);
+                    await db.appSettingsDao.updateCoverArtShape(shape);
+                  },
+                ),
+                _ShapeSelector(
+                  label: l10n.appearanceNpArtShapeLabel,
+                  value: ref.watch(nowPlayingArtShapeProvider),
+                  onChanged: (shape) async {
+                    final db = ref.read(navisDatabaseProvider);
+                    await db.appSettingsDao.updateNowPlayingArtShape(shape);
+                  },
+                ),
+                _ShapeSelector(
+                  label: l10n.appearanceArtistCardShapeLabel,
+                  value: ref.watch(artistCardShapeProvider),
+                  onChanged: (shape) async {
+                    final db = ref.read(navisDatabaseProvider);
+                    await db.appSettingsDao.updateArtistCardShape(shape);
+                  },
+                ),
+              ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            child: Text(
-              l10n.appearanceHomeSectionsSub,
-              style: theme.textTheme.bodySmall,
-            ),
-          ),
-          _HomeSectionReorder(
-            order: sanitizedOrder,
-            hidden: sanitizedHidden,
-            onReorder: (newOrder) async {
-              final db = ref.read(navisDatabaseProvider);
-              await db.appSettingsDao.updateHomeSectionOrder(
-                jsonEncode(newOrder),
-              );
-            },
-            onToggleVisibility: (sectionId, visible) async {
-              final db = ref.read(navisDatabaseProvider);
-              final current = List<String>.from(sanitizedHidden);
-              if (visible) {
-                current.remove(sectionId);
-              } else {
-                if (!current.contains(sectionId)) current.add(sectionId);
-              }
-              await db.appSettingsDao.updateHomeSectionsHidden(
-                current.isEmpty ? null : jsonEncode(current),
-              );
-            },
-          ),
-          const Divider(height: 32),
+          const Divider(height: 24),
 
-          // ── Page Visibility ─────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-            child: Text(
-              l10n.appearancePagesSectionLabel,
-              style: theme.textTheme.titleSmall?.copyWith(
-                color: theme.colorScheme.primary,
-              ),
+          _SettingsCollapsibleGroup(
+            leading: const Icon(Icons.home_outlined),
+            title: l10n.appearanceHomeSectionsLabel,
+            initiallyExpanded: false,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                  child: Text(
+                    l10n.appearanceHomeDensityLabel,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 4,
+                  ),
+                  child: Text(
+                    l10n.appearanceHomeDensitySub,
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ),
+                _HomeDensitySelector(
+                  current: ref.watch(homeDensityProvider),
+                  onChanged: (value) async {
+                    final db = ref.read(navisDatabaseProvider);
+                    await db.appSettingsDao.updateHomeDensity(value);
+                  },
+                ),
+                _HomeSectionReorder(
+                  order: sanitizedOrder,
+                  hidden: sanitizedHidden,
+                  onReorder: (newOrder) async {
+                    final db = ref.read(navisDatabaseProvider);
+                    await db.appSettingsDao.updateHomeSectionOrder(
+                      jsonEncode(newOrder),
+                    );
+                  },
+                  onToggleVisibility: (sectionId, visible) async {
+                    final db = ref.read(navisDatabaseProvider);
+                    final current = List<String>.from(sanitizedHidden);
+                    if (visible) {
+                      current.remove(sectionId);
+                    } else {
+                      if (!current.contains(sectionId)) current.add(sectionId);
+                    }
+                    await db.appSettingsDao.updateHomeSectionsHidden(
+                      current.isEmpty ? null : jsonEncode(current),
+                    );
+                  },
+                ),
+              ],
             ),
           ),
-          SwitchListTile(
-            title: Text(l10n.appearanceShowLikedPageTitle),
-            subtitle: Text(l10n.appearanceShowLikedPageSubtitle),
-            value: ref.watch(showLikedPageProvider),
-            onChanged: (enabled) async {
-              final db = ref.read(navisDatabaseProvider);
-              await db.appSettingsDao.updateShowLikedPage(enabled: enabled);
-            },
+          const Divider(height: 24),
+
+          _SettingsCollapsibleGroup(
+            leading: const _BlinkingEyeIcon(),
+            title: l10n.appearancePagesSectionLabel,
+            initiallyExpanded: false,
+            child: Column(
+              children: <Widget>[
+                SwitchListTile(
+                  title: Text(l10n.appearanceShowLikedPageTitle),
+                  subtitle: Text(l10n.appearanceShowLikedPageSubtitle),
+                  value: ref.watch(showLikedPageProvider),
+                  onChanged: (enabled) async {
+                    final db = ref.read(navisDatabaseProvider);
+                    await db.appSettingsDao.updateShowLikedPage(
+                      enabled: enabled,
+                    );
+                  },
+                ),
+                SwitchListTile(
+                  title: Text(l10n.appearanceShowArtistsPageTitle),
+                  subtitle: Text(l10n.appearanceShowArtistsPageSubtitle),
+                  value: ref.watch(showArtistsPageProvider),
+                  onChanged: (enabled) async {
+                    final db = ref.read(navisDatabaseProvider);
+                    await db.appSettingsDao.updateShowArtistsPage(
+                      enabled: enabled,
+                    );
+                  },
+                ),
+                SwitchListTile(
+                  title: Text(l10n.appearanceShowPlaylistsPageTitle),
+                  subtitle: Text(l10n.appearanceShowPlaylistsPageSubtitle),
+                  value: ref.watch(showPlaylistsPageProvider),
+                  onChanged: (enabled) async {
+                    final db = ref.read(navisDatabaseProvider);
+                    await db.appSettingsDao.updateShowPlaylistsPage(
+                      enabled: enabled,
+                    );
+                  },
+                ),
+                SwitchListTile(
+                  title: Text(l10n.appearanceShowRadioPageTitle),
+                  subtitle: Text(l10n.appearanceShowRadioPageSubtitle),
+                  value: ref.watch(showRadioPageProvider),
+                  onChanged: (enabled) async {
+                    final db = ref.read(navisDatabaseProvider);
+                    await db.appSettingsDao.updateShowRadioPage(
+                      enabled: enabled,
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
-          SwitchListTile(
-            title: Text(l10n.appearanceShowArtistsPageTitle),
-            subtitle: Text(l10n.appearanceShowArtistsPageSubtitle),
-            value: ref.watch(showArtistsPageProvider),
-            onChanged: (enabled) async {
-              final db = ref.read(navisDatabaseProvider);
-              await db.appSettingsDao.updateShowArtistsPage(enabled: enabled);
-            },
-          ),
-          SwitchListTile(
-            title: Text(l10n.appearanceShowPlaylistsPageTitle),
-            subtitle: Text(l10n.appearanceShowPlaylistsPageSubtitle),
-            value: ref.watch(showPlaylistsPageProvider),
-            onChanged: (enabled) async {
-              final db = ref.read(navisDatabaseProvider);
-              await db.appSettingsDao.updateShowPlaylistsPage(enabled: enabled);
-            },
-          ),
-          SwitchListTile(
-            title: Text(l10n.appearanceShowRadioPageTitle),
-            subtitle: Text(l10n.appearanceShowRadioPageSubtitle),
-            value: ref.watch(showRadioPageProvider),
-            onChanged: (enabled) async {
-              final db = ref.read(navisDatabaseProvider);
-              await db.appSettingsDao.updateShowRadioPage(enabled: enabled);
-            },
-          ),
+          const SizedBox(height: 8),
         ],
       ),
     );
@@ -415,6 +426,272 @@ String _localeLabel(Locale locale) {
       return 'English';
     default:
       return locale.languageCode;
+  }
+}
+
+class _LanguageSelector extends StatelessWidget {
+  const _LanguageSelector({
+    required this.appLocale,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final String? appLocale;
+  final bool enabled;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: DropdownButtonFormField<String?>(
+        initialValue: appLocale,
+        decoration: InputDecoration(
+          border: const OutlineInputBorder(),
+          helperText: enabled
+              ? null
+              : 'Language switching is disabled in this build.',
+        ),
+        items: <DropdownMenuItem<String?>>[
+          DropdownMenuItem<String?>(
+            value: null,
+            child: Text(l10n.appearanceLanguageSystemDefault),
+          ),
+          ...AppLocalizations.supportedLocales.map(
+            (locale) => DropdownMenuItem<String?>(
+              value: locale.languageCode,
+              child: Text(_localeLabel(locale)),
+            ),
+          ),
+        ],
+        onChanged: enabled ? onChanged : null,
+      ),
+    );
+  }
+}
+
+class _SettingsCollapsibleGroup extends StatefulWidget {
+  const _SettingsCollapsibleGroup({
+    required this.leading,
+    required this.title,
+    required this.child,
+    this.initiallyExpanded = false,
+  });
+
+  final Widget leading;
+  final String title;
+  final Widget child;
+  final bool initiallyExpanded;
+
+  @override
+  State<_SettingsCollapsibleGroup> createState() =>
+      _SettingsCollapsibleGroupState();
+}
+
+class _SettingsCollapsibleGroupState extends State<_SettingsCollapsibleGroup> {
+  static const Duration _duration = Duration(milliseconds: 220);
+  bool _expanded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _expanded = widget.initiallyExpanded;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: Material(
+        color: theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(14),
+        child: Column(
+          children: <Widget>[
+            InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: () {
+                final nextExpanded = !_expanded;
+                setState(() => _expanded = nextExpanded);
+                if (!nextExpanded) {
+                  return;
+                }
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!mounted) {
+                    return;
+                  }
+                  Scrollable.ensureVisible(
+                    context,
+                    alignment: 0.02,
+                    duration: const Duration(milliseconds: 260),
+                    curve: Curves.easeOutCubic,
+                  );
+                });
+              },
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+                child: Row(
+                  children: <Widget>[
+                    IconTheme.merge(
+                      data: IconThemeData(
+                        color: theme.colorScheme.primary,
+                        size: 22,
+                      ),
+                      child: widget.leading,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            widget.title,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    AnimatedRotation(
+                      turns: _expanded ? 0.5 : 0,
+                      duration: _duration,
+                      curve: Curves.easeOutCubic,
+                      child: const Icon(Icons.keyboard_arrow_down_rounded),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            ClipRect(
+              child: AnimatedAlign(
+                alignment: Alignment.topCenter,
+                heightFactor: _expanded ? 1 : 0,
+                duration: _duration,
+                curve: Curves.easeOutCubic,
+                child: AnimatedOpacity(
+                  opacity: _expanded ? 1 : 0,
+                  duration: const Duration(milliseconds: 170),
+                  curve: Curves.easeOutCubic,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: widget.child,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CyclingShapeIcon extends StatefulWidget {
+  const _CyclingShapeIcon();
+
+  @override
+  State<_CyclingShapeIcon> createState() => _CyclingShapeIconState();
+}
+
+class _CyclingShapeIconState extends State<_CyclingShapeIcon> {
+  static const List<double> _cornerRadii = <double>[
+    1.5,
+    6,
+    999,
+  ];
+  Timer? _timer;
+  int _index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(milliseconds: 950), (_) {
+      if (!mounted) return;
+      setState(() => _index = (_index + 1) % _cornerRadii.length);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color =
+        IconTheme.of(context).color ?? Theme.of(context).iconTheme.color;
+    return SizedBox(
+      width: 22,
+      height: 22,
+      child: Center(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          width: 16,
+          height: 16,
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: color ?? Theme.of(context).colorScheme.primary,
+              width: 2,
+            ),
+            borderRadius: BorderRadius.circular(_cornerRadii[_index]),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BlinkingEyeIcon extends StatefulWidget {
+  const _BlinkingEyeIcon();
+
+  @override
+  State<_BlinkingEyeIcon> createState() => _BlinkingEyeIconState();
+}
+
+class _BlinkingEyeIconState extends State<_BlinkingEyeIcon>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2200),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  double _lerp(double a, double b, double t) => a + (b - a) * t;
+
+  double _blinkScaleY(double t) {
+    if (t < 0.78) return 1;
+    if (t < 0.86) return _lerp(1, 0.1, (t - 0.78) / 0.08);
+    if (t < 0.94) return _lerp(0.1, 1, (t - 0.86) / 0.08);
+    return 1;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Transform.scale(
+          scaleY: _blinkScaleY(_controller.value),
+          child: child,
+        );
+      },
+      child: const Icon(Icons.remove_red_eye_outlined),
+    );
   }
 }
 
@@ -843,6 +1120,76 @@ class _GridDensitySelector extends StatelessWidget {
   }
 }
 
+class _HomeDensitySelector extends StatelessWidget {
+  const _HomeDensitySelector({
+    required this.current,
+    required this.onChanged,
+  });
+
+  final String current;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final selectedValue = current == 'compact' ? 'compact' : 'comfortable';
+    final colorScheme = Theme.of(context).colorScheme;
+
+    Widget option({
+      required String value,
+      required String label,
+      required IconData icon,
+    }) {
+      final selected = selectedValue == value;
+      return Expanded(
+        child: SizedBox(
+          height: 48,
+          child: FilledButton.icon(
+            onPressed: () => onChanged(value),
+            icon: Icon(icon, size: 18),
+            label: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              backgroundColor: selected
+                  ? colorScheme.primaryContainer
+                  : colorScheme.surfaceContainerLow,
+              foregroundColor: selected
+                  ? colorScheme.onPrimaryContainer
+                  : colorScheme.onSurfaceVariant,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: <Widget>[
+          option(
+            value: 'comfortable',
+            label: l10n.appearanceHomeDensityComfortable,
+            icon: Icons.view_agenda_outlined,
+          ),
+          const SizedBox(width: 8),
+          option(
+            value: 'compact',
+            label: l10n.appearanceHomeDensityCompact,
+            icon: Icons.view_compact_alt_outlined,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Shape selector: square / rounded / circle
 // ---------------------------------------------------------------------------
@@ -874,30 +1221,33 @@ class _ShapeSelector extends ConsumerWidget {
         children: <Widget>[
           Text(label, style: theme.textTheme.bodyMedium),
           const SizedBox(height: 8),
-          SegmentedButton<String>(
-            segments: <ButtonSegment<String>>[
-              ButtonSegment<String>(
-                value: 'square',
-                label: Text(l10n.shapeSquare),
-                icon: const Icon(Icons.crop_square),
-              ),
-              ButtonSegment<String>(
-                value: 'rounded',
-                label: Text(l10n.shapeRounded),
-                icon: const Icon(Icons.rounded_corner),
-              ),
-              if (includeCircle)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: SegmentedButton<String>(
+              segments: <ButtonSegment<String>>[
                 ButtonSegment<String>(
-                  value: 'circle',
-                  label: Text(l10n.shapeCircle),
-                  icon: const Icon(Icons.circle_outlined),
+                  value: 'square',
+                  label: Text(l10n.shapeSquare),
+                  icon: const Icon(Icons.crop_square),
                 ),
-            ],
-            selected: {selectedValue},
-            onSelectionChanged: (selection) {
-              if (selection.isNotEmpty) onChanged(selection.first);
-            },
-            showSelectedIcon: false,
+                ButtonSegment<String>(
+                  value: 'rounded',
+                  label: Text(l10n.shapeRounded),
+                  icon: const Icon(Icons.rounded_corner),
+                ),
+                if (includeCircle)
+                  ButtonSegment<String>(
+                    value: 'circle',
+                    label: Text(l10n.shapeCircle),
+                    icon: const Icon(Icons.circle_outlined),
+                  ),
+              ],
+              selected: {selectedValue},
+              onSelectionChanged: (selection) {
+                if (selection.isNotEmpty) onChanged(selection.first);
+              },
+              showSelectedIcon: false,
+            ),
           ),
         ],
       ),
@@ -945,6 +1295,10 @@ class _HomeSectionReorderState extends State<_HomeSectionReorder> {
 
   String _sectionLabel(String id, AppLocalizations l10n) {
     switch (id) {
+      case HomeSectionIds.continueListening:
+        return l10n.homeSectionContinueListening;
+      case HomeSectionIds.recentlyLikedAlbums:
+        return l10n.homeSectionRecentlyLikedAlbums;
       case HomeSectionIds.likedTracks:
         return l10n.homeSectionLikedTracks;
       case HomeSectionIds.recentlyAdded:
@@ -955,6 +1309,12 @@ class _HomeSectionReorderState extends State<_HomeSectionReorder> {
         return l10n.homeSectionRandomAlbums;
       case HomeSectionIds.mostPlayed:
         return l10n.homeSectionMostPlayed;
+      case HomeSectionIds.recentlyPlayedTracks:
+        return l10n.homeSectionRecentlyPlayedTracks;
+      case HomeSectionIds.frequentAlbums:
+        return l10n.homeSectionFrequentAlbums;
+      case HomeSectionIds.quickActions:
+        return l10n.homeSectionQuickActions;
       default:
         return id;
     }

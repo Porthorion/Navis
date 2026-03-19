@@ -1110,6 +1110,18 @@ class $AppSettingsTableTable extends AppSettingsTable
     requiredDuringInsert: false,
     defaultValue: const Constant('grid'),
   );
+  static const VerificationMeta _homeDensityMeta = const VerificationMeta(
+    'homeDensity',
+  );
+  @override
+  late final GeneratedColumn<String> homeDensity = GeneratedColumn<String>(
+    'home_density',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('comfortable'),
+  );
   static const VerificationMeta _homeSectionOrderMeta = const VerificationMeta(
     'homeSectionOrder',
   );
@@ -1191,6 +1203,7 @@ class $AppSettingsTableTable extends AppSettingsTable
     nowPlayingArtShape,
     artistCardShape,
     artistViewMode,
+    homeDensity,
     homeSectionOrder,
     homeSectionsHidden,
     updatedAt,
@@ -1603,6 +1616,15 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
       );
     }
+    if (data.containsKey('home_density')) {
+      context.handle(
+        _homeDensityMeta,
+        homeDensity.isAcceptableOrUnknown(
+          data['home_density']!,
+          _homeDensityMeta,
+        ),
+      );
+    }
     if (data.containsKey('home_section_order')) {
       context.handle(
         _homeSectionOrderMeta,
@@ -1822,6 +1844,10 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.string,
         data['${effectivePrefix}artist_view_mode'],
       )!,
+      homeDensity: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}home_density'],
+      )!,
       homeSectionOrder: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}home_section_order'],
@@ -1955,6 +1981,9 @@ class AppSettingsTableData extends DataClass
   /// Artist view layout: 'list' or 'grid'. Default 'grid'.
   final String artistViewMode;
 
+  /// Home section density: 'comfortable' or 'compact'. Default 'comfortable'.
+  final String homeDensity;
+
   /// JSON-encoded ordered list of home section IDs (e.g. ["recently_added",…]).
   /// Null = default order.
   final String? homeSectionOrder;
@@ -2009,6 +2038,7 @@ class AppSettingsTableData extends DataClass
     required this.nowPlayingArtShape,
     required this.artistCardShape,
     required this.artistViewMode,
+    required this.homeDensity,
     this.homeSectionOrder,
     this.homeSectionsHidden,
     required this.updatedAt,
@@ -2092,6 +2122,7 @@ class AppSettingsTableData extends DataClass
     map['now_playing_art_shape'] = Variable<String>(nowPlayingArtShape);
     map['artist_card_shape'] = Variable<String>(artistCardShape);
     map['artist_view_mode'] = Variable<String>(artistViewMode);
+    map['home_density'] = Variable<String>(homeDensity);
     if (!nullToAbsent || homeSectionOrder != null) {
       map['home_section_order'] = Variable<String>(homeSectionOrder);
     }
@@ -2174,6 +2205,7 @@ class AppSettingsTableData extends DataClass
       nowPlayingArtShape: Value(nowPlayingArtShape),
       artistCardShape: Value(artistCardShape),
       artistViewMode: Value(artistViewMode),
+      homeDensity: Value(homeDensity),
       homeSectionOrder: homeSectionOrder == null && nullToAbsent
           ? const Value.absent()
           : Value(homeSectionOrder),
@@ -2264,6 +2296,7 @@ class AppSettingsTableData extends DataClass
       ),
       artistCardShape: serializer.fromJson<String>(json['artistCardShape']),
       artistViewMode: serializer.fromJson<String>(json['artistViewMode']),
+      homeDensity: serializer.fromJson<String>(json['homeDensity']),
       homeSectionOrder: serializer.fromJson<String?>(json['homeSectionOrder']),
       homeSectionsHidden: serializer.fromJson<String?>(
         json['homeSectionsHidden'],
@@ -2331,6 +2364,7 @@ class AppSettingsTableData extends DataClass
       'nowPlayingArtShape': serializer.toJson<String>(nowPlayingArtShape),
       'artistCardShape': serializer.toJson<String>(artistCardShape),
       'artistViewMode': serializer.toJson<String>(artistViewMode),
+      'homeDensity': serializer.toJson<String>(homeDensity),
       'homeSectionOrder': serializer.toJson<String?>(homeSectionOrder),
       'homeSectionsHidden': serializer.toJson<String?>(homeSectionsHidden),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
@@ -2384,6 +2418,7 @@ class AppSettingsTableData extends DataClass
     String? nowPlayingArtShape,
     String? artistCardShape,
     String? artistViewMode,
+    String? homeDensity,
     Value<String?> homeSectionOrder = const Value.absent(),
     Value<String?> homeSectionsHidden = const Value.absent(),
     DateTime? updatedAt,
@@ -2459,6 +2494,7 @@ class AppSettingsTableData extends DataClass
     nowPlayingArtShape: nowPlayingArtShape ?? this.nowPlayingArtShape,
     artistCardShape: artistCardShape ?? this.artistCardShape,
     artistViewMode: artistViewMode ?? this.artistViewMode,
+    homeDensity: homeDensity ?? this.homeDensity,
     homeSectionOrder: homeSectionOrder.present
         ? homeSectionOrder.value
         : this.homeSectionOrder,
@@ -2599,6 +2635,9 @@ class AppSettingsTableData extends DataClass
       artistViewMode: data.artistViewMode.present
           ? data.artistViewMode.value
           : this.artistViewMode,
+      homeDensity: data.homeDensity.present
+          ? data.homeDensity.value
+          : this.homeDensity,
       homeSectionOrder: data.homeSectionOrder.present
           ? data.homeSectionOrder.value
           : this.homeSectionOrder,
@@ -2658,6 +2697,7 @@ class AppSettingsTableData extends DataClass
           ..write('nowPlayingArtShape: $nowPlayingArtShape, ')
           ..write('artistCardShape: $artistCardShape, ')
           ..write('artistViewMode: $artistViewMode, ')
+          ..write('homeDensity: $homeDensity, ')
           ..write('homeSectionOrder: $homeSectionOrder, ')
           ..write('homeSectionsHidden: $homeSectionsHidden, ')
           ..write('updatedAt: $updatedAt')
@@ -2713,6 +2753,7 @@ class AppSettingsTableData extends DataClass
     nowPlayingArtShape,
     artistCardShape,
     artistViewMode,
+    homeDensity,
     homeSectionOrder,
     homeSectionsHidden,
     updatedAt,
@@ -2767,6 +2808,7 @@ class AppSettingsTableData extends DataClass
           other.nowPlayingArtShape == this.nowPlayingArtShape &&
           other.artistCardShape == this.artistCardShape &&
           other.artistViewMode == this.artistViewMode &&
+          other.homeDensity == this.homeDensity &&
           other.homeSectionOrder == this.homeSectionOrder &&
           other.homeSectionsHidden == this.homeSectionsHidden &&
           other.updatedAt == this.updatedAt);
@@ -2819,6 +2861,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<String> nowPlayingArtShape;
   final Value<String> artistCardShape;
   final Value<String> artistViewMode;
+  final Value<String> homeDensity;
   final Value<String?> homeSectionOrder;
   final Value<String?> homeSectionsHidden;
   final Value<DateTime> updatedAt;
@@ -2869,6 +2912,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.nowPlayingArtShape = const Value.absent(),
     this.artistCardShape = const Value.absent(),
     this.artistViewMode = const Value.absent(),
+    this.homeDensity = const Value.absent(),
     this.homeSectionOrder = const Value.absent(),
     this.homeSectionsHidden = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -2920,6 +2964,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.nowPlayingArtShape = const Value.absent(),
     this.artistCardShape = const Value.absent(),
     this.artistViewMode = const Value.absent(),
+    this.homeDensity = const Value.absent(),
     this.homeSectionOrder = const Value.absent(),
     this.homeSectionsHidden = const Value.absent(),
     required DateTime updatedAt,
@@ -2971,6 +3016,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<String>? nowPlayingArtShape,
     Expression<String>? artistCardShape,
     Expression<String>? artistViewMode,
+    Expression<String>? homeDensity,
     Expression<String>? homeSectionOrder,
     Expression<String>? homeSectionsHidden,
     Expression<DateTime>? updatedAt,
@@ -3039,6 +3085,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         'now_playing_art_shape': nowPlayingArtShape,
       if (artistCardShape != null) 'artist_card_shape': artistCardShape,
       if (artistViewMode != null) 'artist_view_mode': artistViewMode,
+      if (homeDensity != null) 'home_density': homeDensity,
       if (homeSectionOrder != null) 'home_section_order': homeSectionOrder,
       if (homeSectionsHidden != null)
         'home_sections_hidden': homeSectionsHidden,
@@ -3093,6 +3140,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<String>? nowPlayingArtShape,
     Value<String>? artistCardShape,
     Value<String>? artistViewMode,
+    Value<String>? homeDensity,
     Value<String?>? homeSectionOrder,
     Value<String?>? homeSectionsHidden,
     Value<DateTime>? updatedAt,
@@ -3149,6 +3197,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       nowPlayingArtShape: nowPlayingArtShape ?? this.nowPlayingArtShape,
       artistCardShape: artistCardShape ?? this.artistCardShape,
       artistViewMode: artistViewMode ?? this.artistViewMode,
+      homeDensity: homeDensity ?? this.homeDensity,
       homeSectionOrder: homeSectionOrder ?? this.homeSectionOrder,
       homeSectionsHidden: homeSectionsHidden ?? this.homeSectionsHidden,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -3312,6 +3361,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     if (artistViewMode.present) {
       map['artist_view_mode'] = Variable<String>(artistViewMode.value);
     }
+    if (homeDensity.present) {
+      map['home_density'] = Variable<String>(homeDensity.value);
+    }
     if (homeSectionOrder.present) {
       map['home_section_order'] = Variable<String>(homeSectionOrder.value);
     }
@@ -3373,6 +3425,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('nowPlayingArtShape: $nowPlayingArtShape, ')
           ..write('artistCardShape: $artistCardShape, ')
           ..write('artistViewMode: $artistViewMode, ')
+          ..write('homeDensity: $homeDensity, ')
           ..write('homeSectionOrder: $homeSectionOrder, ')
           ..write('homeSectionsHidden: $homeSectionsHidden, ')
           ..write('updatedAt: $updatedAt')
@@ -11847,6 +11900,7 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<String> nowPlayingArtShape,
       Value<String> artistCardShape,
       Value<String> artistViewMode,
+      Value<String> homeDensity,
       Value<String?> homeSectionOrder,
       Value<String?> homeSectionsHidden,
       required DateTime updatedAt,
@@ -11899,6 +11953,7 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<String> nowPlayingArtShape,
       Value<String> artistCardShape,
       Value<String> artistViewMode,
+      Value<String> homeDensity,
       Value<String?> homeSectionOrder,
       Value<String?> homeSectionsHidden,
       Value<DateTime> updatedAt,
@@ -12140,6 +12195,11 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<String> get artistViewMode => $composableBuilder(
     column: $table.artistViewMode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get homeDensity => $composableBuilder(
+    column: $table.homeDensity,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -12398,6 +12458,11 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get homeDensity => $composableBuilder(
+    column: $table.homeDensity,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get homeSectionOrder => $composableBuilder(
     column: $table.homeSectionOrder,
     builder: (column) => ColumnOrderings(column),
@@ -12645,6 +12710,11 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get homeDensity => $composableBuilder(
+    column: $table.homeDensity,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get homeSectionOrder => $composableBuilder(
     column: $table.homeSectionOrder,
     builder: (column) => column,
@@ -12742,6 +12812,7 @@ class $$AppSettingsTableTableTableManager
                 Value<String> nowPlayingArtShape = const Value.absent(),
                 Value<String> artistCardShape = const Value.absent(),
                 Value<String> artistViewMode = const Value.absent(),
+                Value<String> homeDensity = const Value.absent(),
                 Value<String?> homeSectionOrder = const Value.absent(),
                 Value<String?> homeSectionsHidden = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -12792,6 +12863,7 @@ class $$AppSettingsTableTableTableManager
                 nowPlayingArtShape: nowPlayingArtShape,
                 artistCardShape: artistCardShape,
                 artistViewMode: artistViewMode,
+                homeDensity: homeDensity,
                 homeSectionOrder: homeSectionOrder,
                 homeSectionsHidden: homeSectionsHidden,
                 updatedAt: updatedAt,
@@ -12844,6 +12916,7 @@ class $$AppSettingsTableTableTableManager
                 Value<String> nowPlayingArtShape = const Value.absent(),
                 Value<String> artistCardShape = const Value.absent(),
                 Value<String> artistViewMode = const Value.absent(),
+                Value<String> homeDensity = const Value.absent(),
                 Value<String?> homeSectionOrder = const Value.absent(),
                 Value<String?> homeSectionsHidden = const Value.absent(),
                 required DateTime updatedAt,
@@ -12894,6 +12967,7 @@ class $$AppSettingsTableTableTableManager
                 nowPlayingArtShape: nowPlayingArtShape,
                 artistCardShape: artistCardShape,
                 artistViewMode: artistViewMode,
+                homeDensity: homeDensity,
                 homeSectionOrder: homeSectionOrder,
                 homeSectionsHidden: homeSectionsHidden,
                 updatedAt: updatedAt,

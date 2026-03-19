@@ -56,6 +56,7 @@ void main() {
           nowPlayingArtShape: 'rounded',
           artistCardShape: 'circle',
           artistViewMode: 'grid',
+          homeDensity: 'comfortable',
         );
 
         final first = await database.appSettingsDao.getSettings();
@@ -111,6 +112,7 @@ void main() {
           nowPlayingArtShape: 'rounded',
           artistCardShape: 'circle',
           artistViewMode: 'grid',
+          homeDensity: 'compact',
         );
 
         final second = await database.appSettingsDao.getSettings();
@@ -170,6 +172,7 @@ void main() {
         nowPlayingArtShape: 'rounded',
         artistCardShape: 'circle',
         artistViewMode: 'grid',
+        homeDensity: 'compact',
       );
 
       await database.appSettingsDao.resetDefaults();
@@ -192,6 +195,7 @@ void main() {
       expect(settings.loudnessEnabled, isFalse);
       expect(settings.loudnessTargetGainDb, 0);
       expect(settings.dynamicAlbumColorEnabled, isFalse);
+      expect(settings.homeDensity, 'comfortable');
     }, skip: !sqliteAvailable);
   });
 }

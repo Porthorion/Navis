@@ -1341,6 +1341,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     final likedAlbumsRecentAsync = ref.watch(likedAlbumsRecentProvider);
     // Full list used only for the total count; data is not rendered directly.
     final likedAlbumsAllAsync = ref.watch(likedAlbumsProvider);
+    final likedArtistsAsync = ref.watch(likedArtistsProvider);
     final likedSongsAsync = ref.watch(likedSongsProvider);
     final downloadedContentIds = _downloadedOnly
         ? ref.watch(downloadedContentIdsProvider).asData?.value
@@ -1350,7 +1351,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         : null;
 
     final isLoading =
-        likedAlbumsRecentAsync.isLoading || likedSongsAsync.isLoading;
+        likedAlbumsRecentAsync.isLoading ||
+        likedArtistsAsync.isLoading ||
+        likedSongsAsync.isLoading;
     final albums = _downloadedOnly
         ? (likedAlbumsRecentAsync.asData?.value ?? const <AlbumsTableData>[])
               .where(
@@ -1372,9 +1375,26 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
               .where((song) => downloadedSongIds?.contains(song.id) ?? false)
               .toList(growable: false)
         : likedSongsAsync.asData?.value ?? const <SongsTableData>[];
-    final error = likedAlbumsRecentAsync.error ?? likedSongsAsync.error;
+    final artists = _downloadedOnly
+        ? (likedArtistsAsync.asData?.value ?? const <ArtistsTableData>[])
+              .where(
+                (artist) =>
+                    downloadedContentIds?.artistIds.contains(artist.id) ??
+                    false,
+              )
+              .toList(growable: false)
+        : likedArtistsAsync.asData?.value ?? const <ArtistsTableData>[];
+    const likedArtistsPreviewLimit = 14;
+    final artistPreview = artists
+        .take(likedArtistsPreviewLimit)
+        .toList(growable: false);
+    final hasMoreLikedArtists = artists.length > artistPreview.length;
+    final error =
+        likedAlbumsRecentAsync.error ??
+        likedArtistsAsync.error ??
+        likedSongsAsync.error;
 
-    if (error != null && albums.isEmpty && songs.isEmpty) {
+    if (error != null && albums.isEmpty && artists.isEmpty && songs.isEmpty) {
       return RefreshIndicator(
         onRefresh: _refreshLibrary,
         child: ListView(
@@ -1391,7 +1411,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       );
     }
 
-    if (isLoading && albums.isEmpty && songs.isEmpty) {
+    if (isLoading && albums.isEmpty && artists.isEmpty && songs.isEmpty) {
       return RefreshIndicator(
         onRefresh: _refreshLibrary,
         child: ListView(
@@ -1415,7 +1435,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
             controller: _likedScrollController,
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: <Widget>[
-              if (albums.isEmpty && songs.isEmpty)
+              if (albums.isEmpty && artists.isEmpty && songs.isEmpty)
                 SliverFillRemaining(
                   hasScrollBody: false,
                   child: EmptyState(
@@ -1431,6 +1451,52 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                   ),
                 )
               else ...<Widget>[
+                if (artists.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 12, 8),
+                      child: Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: Text(
+                              '${l10n.libraryLikedOnlyFilter} ${l10n.libraryTabArtists}',
+                              style: Theme.of(context).textTheme.titleLarge,
+                            ),
+                          ),
+                          if (hasMoreLikedArtists)
+                            TextButton(
+                              onPressed: _openLikedArtistsAll,
+                              child: Text(l10n.libraryLikedAlbumsSeeAll),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                if (artists.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: SizedBox(
+                      height: 118,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                        itemCount: artistPreview.length,
+                        separatorBuilder: (_, _) => const SizedBox(width: 8),
+                        itemBuilder: (context, index) {
+                          final artist = artistPreview[index];
+                          return SizedBox(
+                            width: 88,
+                            child: _LikedArtistStripTile(
+                              artist: artist,
+                              onTap: () =>
+                                  context.go('/library/artists/${artist.id}'),
+                              onLongPress: () =>
+                                  _showArtistMenu(context, artist),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
                 if (songs.isNotEmpty)
                   SliverToBoxAdapter(
                     child: Padding(
@@ -1652,6 +1718,36 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         },
       ),
     );
+  }
+
+  void _openLikedArtistsAll() {
+    if (!ref.read(showArtistsPageProvider)) {
+      return;
+    }
+    if (mounted) {
+      setState(() {
+        _artistsLikedOnly = true;
+      });
+    }
+    ref
+        .read(librarySectionProvider.notifier)
+        .setSection(LibrarySection.artists);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      if (_artistsItemScrollController.isAttached) {
+        unawaited(
+          _artistsItemScrollController.scrollTo(
+            index: 0,
+            duration: const Duration(milliseconds: 320),
+            curve: Curves.easeOutCubic,
+          ),
+        );
+        return;
+      }
+      _animateScrollControllerToTop(_artistsGridScrollController);
+    });
   }
 
   Future<void> _downloadLikedSong(SongsTableData song) async {
@@ -2657,6 +2753,60 @@ class _LoadingListPlaceholder extends StatelessWidget {
           SizedBox(height: 8),
           ShimmerPlaceholder(height: 14, width: 120),
         ],
+      ),
+    );
+  }
+}
+
+class _LikedArtistStripTile extends ConsumerWidget {
+  const _LikedArtistStripTile({
+    required this.artist,
+    this.onTap,
+    this.onLongPress,
+  });
+
+  final ArtistsTableData artist;
+  final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final shape = ref.watch(artistCardShapeProvider);
+    final borderRadius = coverArtShapeToRadius(shape);
+    final textStyle = Theme.of(context).textTheme.bodySmall;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: onTap,
+      onLongPress: onLongPress,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(4, 4, 4, 0),
+        child: Column(
+          mainAxisSize: MainAxisSize.max,
+          children: <Widget>[
+            CoverArtImage(
+              coverArtId: artist.coverArt,
+              size: 160,
+              width: 64,
+              height: 64,
+              borderRadius: borderRadius,
+              placeholderIcon: Icons.person_outline,
+            ),
+            const SizedBox(height: 4),
+            Expanded(
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: Text(
+                  artist.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: textStyle,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -151,8 +151,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       if (next.pendingSnackbar != null &&
           next.pendingSnackbar != prev?.pendingSnackbar) {
         final count = int.tryParse(next.pendingSnackbar ?? '') ?? 0;
-        showAppNotice(
-          context,
+        _appNoticeController.show(
           message: l10n.nowPlayingInstantMixStarted(count),
           level: AppNoticeLevel.success,
         );
@@ -162,8 +161,7 @@ class _AppShellState extends ConsumerState<AppShell> {
         final msg = next.error == InstantMixError.unsupported
             ? l10n.nowPlayingInstantMixUnsupported
             : l10n.nowPlayingInstantMixError;
-        showAppNotice(
-          context,
+        _appNoticeController.show(
           message: msg,
           level: AppNoticeLevel.error,
         );
@@ -177,8 +175,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       if (next.pendingSnackbar != null &&
           next.pendingSnackbar != prev?.pendingSnackbar) {
         final count = int.tryParse(next.pendingSnackbar ?? '') ?? 0;
-        showAppNotice(
-          context,
+        _appNoticeController.show(
           message: l10n.smartQueueStarted(count),
           level: AppNoticeLevel.success,
         );
@@ -188,8 +185,7 @@ class _AppShellState extends ConsumerState<AppShell> {
         final msg = next.error == SmartQueueError.unsupported
             ? l10n.smartQueueUnsupported
             : l10n.smartQueueError;
-        showAppNotice(
-          context,
+        _appNoticeController.show(
           message: msg,
           level: AppNoticeLevel.error,
         );
@@ -197,8 +193,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       }
       // Show a "stopped" notification when the session ends.
       if ((prev?.active ?? false) && !next.active && next.error == null) {
-        showAppNotice(
-          context,
+        _appNoticeController.show(
           message: l10n.smartQueueStopped,
         );
       }
@@ -207,8 +202,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     ref.listen<AsyncValue<void>>(radioStreamErrorProvider, (prev, next) {
       if (!mounted) return;
       if (next.hasValue && prev != null && prev.hasValue) {
-        showAppNotice(
-          context,
+        _appNoticeController.show(
           message: l10n.radioStreamUnavailable,
           level: AppNoticeLevel.error,
         );
@@ -482,6 +476,7 @@ class _AppShellState extends ConsumerState<AppShell> {
           context: context,
           navigationShell: navigationShell,
           homeBranchIndex: _homeBranchIndex,
+          noticeController: _appNoticeController,
         );
         return true;
       },
@@ -503,6 +498,7 @@ class _AppShellState extends ConsumerState<AppShell> {
             context: context,
             navigationShell: navigationShell,
             homeBranchIndex: _homeBranchIndex,
+            noticeController: _appNoticeController,
           );
         },
         child: AppNoticeScope(

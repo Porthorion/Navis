@@ -88,23 +88,15 @@ void showAppNotice(
   bool replaceCurrent = true,
 }) {
   final controller = AppNoticeScope.maybeOf(context);
-  if (controller != null) {
-    controller.show(
-      message: message,
-      level: level,
-      duration: duration,
-      replaceCurrent: replaceCurrent,
-    );
+  if (controller == null) {
     return;
   }
-  final messenger = ScaffoldMessenger.maybeOf(context);
-  if (messenger == null) {
-    return;
-  }
-  if (replaceCurrent) {
-    messenger.clearSnackBars();
-  }
-  messenger.showSnackBar(SnackBar(content: Text(message), duration: duration));
+  controller.show(
+    message: message,
+    level: level,
+    duration: duration,
+    replaceCurrent: replaceCurrent,
+  );
 }
 
 class AppNoticeMessenger {
@@ -118,28 +110,22 @@ class AppNoticeMessenger {
 
   void clearSnackBars() {
     final controller = AppNoticeScope.maybeOf(context);
-    if (controller != null) {
-      controller.dismiss();
+    if (controller == null) {
       return;
     }
-    ScaffoldMessenger.maybeOf(context)?.clearSnackBars();
+    controller.dismiss();
   }
 
   void showSnackBar(SnackBar snackBar) {
     final controller = AppNoticeScope.maybeOf(context);
     final message = _extractMessage(snackBar.content);
-    if (controller != null && message != null && message.trim().isNotEmpty) {
-      controller.show(
-        message: message,
-        duration: snackBar.duration,
-      );
+    if (controller == null || message == null || message.trim().isEmpty) {
       return;
     }
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    if (messenger == null) {
-      return;
-    }
-    messenger.showSnackBar(snackBar);
+    controller.show(
+      message: message,
+      duration: snackBar.duration,
+    );
   }
 
   String? _extractMessage(Widget content) {

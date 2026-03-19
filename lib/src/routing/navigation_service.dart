@@ -89,6 +89,7 @@ abstract final class NavService {
     required BuildContext context,
     required StatefulNavigationShell navigationShell,
     required int homeBranchIndex,
+    AppNoticeController? noticeController,
   }) {
     // 1. Dismiss the top-most shell-managed player surface.
     if (ref.read(playerOverlayStackProvider.notifier).dismissTop()) {
@@ -118,14 +119,10 @@ abstract final class NavService {
       SystemNavigator.pop();
     } else {
       _lastBackPress = now;
-      AppNoticeMessenger.of(context)
-        ..clearSnackBars()
-        ..showSnackBar(
-          const SnackBar(
-            content: Text('Press back again to exit'),
-            duration: Duration(seconds: 2),
-          ),
-        );
+      final controller = noticeController ?? AppNoticeScope.maybeOf(context);
+      if (controller != null) {
+        controller.show(message: 'Press back again to exit');
+      }
     }
   }
 
