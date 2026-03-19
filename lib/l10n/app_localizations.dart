@@ -823,19 +823,19 @@ abstract class AppLocalizations {
   /// No description provided for @homeRandomTitle.
   ///
   /// In en, this message translates to:
-  /// **'Random picks'**
+  /// **'You Might Like'**
   String get homeRandomTitle;
 
   /// No description provided for @homeRandomEmptyTitle.
   ///
   /// In en, this message translates to:
-  /// **'No random picks available'**
+  /// **'No recommendations available'**
   String get homeRandomEmptyTitle;
 
   /// No description provided for @homeRandomEmptySubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Pull to refresh to fetch random albums.'**
+  /// **'Like more songs or pull to refresh to discover new picks.'**
   String get homeRandomEmptySubtitle;
 
   /// No description provided for @homeStarredTitle.
@@ -3576,7 +3576,7 @@ abstract class AppLocalizations {
   /// No description provided for @homeSectionRandomAlbums.
   ///
   /// In en, this message translates to:
-  /// **'Random Albums'**
+  /// **'You Might Like'**
   String get homeSectionRandomAlbums;
 
   /// No description provided for @homeSectionMostPlayed.

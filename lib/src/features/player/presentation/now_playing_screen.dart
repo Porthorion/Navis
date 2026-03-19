@@ -1526,19 +1526,65 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
             });
           }
 
+          final compactWideArtSwitcher = AnimatedSwitcher(
+            duration: effectiveSongSwapArtDuration,
+            switchInCurve: Curves.linear,
+            switchOutCurve: Curves.linear,
+            layoutBuilder: _coverArtSwitcherLayoutBuilder,
+            transitionBuilder: effectiveSongSwapArtTransitionBuilder,
+            child: _buildInteractiveSwipeableArt(
+              key: ValueKey<String>(
+                'compact-wide-cover-$artVisualKey',
+              ),
+              swipeEnabled: !isRadio,
+              currentArt: hasCoverArtId
+                  ? _CoverArt(
+                      coverArtId: coverArtId,
+                      semanticLabel: title,
+                      maxSize: artMaxSize,
+                    )
+                  : (hasMediaArtUrl
+                        ? _RadioCoverArt(
+                            artUrl: mediaArtUrl,
+                            maxSize: artMaxSize,
+                          )
+                        : _CoverArt(
+                            coverArtId: null,
+                            semanticLabel: title,
+                            maxSize: artMaxSize,
+                          )),
+              previousArt: previousSong == null
+                  ? null
+                  : _CoverArt(
+                      coverArtId: previousSong.coverArt,
+                      semanticLabel: previousSong.title.isNotEmpty
+                          ? previousSong.title
+                          : l10n.nowPlayingUnknownTrack,
+                      maxSize: artMaxSize,
+                    ),
+              nextArt: nextSong == null
+                  ? null
+                  : _CoverArt(
+                      coverArtId: nextSong.coverArt,
+                      semanticLabel: nextSong.title.isNotEmpty
+                          ? nextSong.title
+                          : l10n.nowPlayingUnknownTrack,
+                      maxSize: artMaxSize,
+                    ),
+            ),
+          );
+
           final coverOrLyrics = isRadio
               ? _RadioCoverArt(
                   artUrl: radioMeta?.nowPlayingArtUrl,
                   maxSize: artMaxSize,
                 )
               : AnimatedSwitcher(
-                  duration: effectiveSongSwapArtDuration,
-                  switchInCurve: Curves.linear,
-                  switchOutCurve: Curves.linear,
+                  duration: const Duration(milliseconds: 220),
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
                   layoutBuilder: _coverArtSwitcherLayoutBuilder,
-                  transitionBuilder: showInlineLyrics
-                      ? _songSwapTransitionBuilder
-                      : effectiveSongSwapArtTransitionBuilder,
+                  transitionBuilder: _songSwapTransitionBuilder,
                   child: showInlineLyrics
                       ? _InlineLyrics(
                           key: ValueKey<String>(
@@ -1547,45 +1593,9 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                           songId: playback.currentSongId!,
                           maxSize: artMaxSize,
                         )
-                      : _buildInteractiveSwipeableArt(
-                          key: ValueKey<String>(
-                            'compact-wide-cover-$artVisualKey',
-                          ),
-                          swipeEnabled: !isRadio,
-                          currentArt: hasCoverArtId
-                              ? _CoverArt(
-                                  coverArtId: coverArtId,
-                                  semanticLabel: title,
-                                  maxSize: artMaxSize,
-                                )
-                              : (hasMediaArtUrl
-                                    ? _RadioCoverArt(
-                                        artUrl: mediaArtUrl,
-                                        maxSize: artMaxSize,
-                                      )
-                                    : _CoverArt(
-                                        coverArtId: null,
-                                        semanticLabel: title,
-                                        maxSize: artMaxSize,
-                                      )),
-                          previousArt: previousSong == null
-                              ? null
-                              : _CoverArt(
-                                  coverArtId: previousSong.coverArt,
-                                  semanticLabel: previousSong.title.isNotEmpty
-                                      ? previousSong.title
-                                      : l10n.nowPlayingUnknownTrack,
-                                  maxSize: artMaxSize,
-                                ),
-                          nextArt: nextSong == null
-                              ? null
-                              : _CoverArt(
-                                  coverArtId: nextSong.coverArt,
-                                  semanticLabel: nextSong.title.isNotEmpty
-                                      ? nextSong.title
-                                      : l10n.nowPlayingUnknownTrack,
-                                  maxSize: artMaxSize,
-                                ),
+                      : KeyedSubtree(
+                          key: const ValueKey<String>('compact-wide-art-shell'),
+                          child: compactWideArtSwitcher,
                         ),
                 );
 
@@ -1954,19 +1964,63 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
             _showLyrics &&
             playback.currentSongId != null &&
             !supportsSplitPanelOverlay;
+        final nowPlayingArtSwitcher = AnimatedSwitcher(
+          duration: effectiveSongSwapArtDuration,
+          switchInCurve: Curves.linear,
+          switchOutCurve: Curves.linear,
+          layoutBuilder: _coverArtSwitcherLayoutBuilder,
+          transitionBuilder: effectiveSongSwapArtTransitionBuilder,
+          child: _buildInteractiveSwipeableArt(
+            key: ValueKey<String>('cover-$artVisualKey'),
+            swipeEnabled: !isRadio,
+            currentArt: hasCoverArtId
+                ? _CoverArt(
+                    coverArtId: coverArtId,
+                    semanticLabel: title,
+                    maxSize: artMaxSize,
+                  )
+                : (hasMediaArtUrl
+                      ? _RadioCoverArt(
+                          artUrl: mediaArtUrl,
+                          maxSize: artMaxSize,
+                        )
+                      : _CoverArt(
+                          coverArtId: null,
+                          semanticLabel: title,
+                          maxSize: artMaxSize,
+                        )),
+            previousArt: previousSong == null
+                ? null
+                : _CoverArt(
+                    coverArtId: previousSong.coverArt,
+                    semanticLabel: previousSong.title.isNotEmpty
+                        ? previousSong.title
+                        : l10n.nowPlayingUnknownTrack,
+                    maxSize: artMaxSize,
+                  ),
+            nextArt: nextSong == null
+                ? null
+                : _CoverArt(
+                    coverArtId: nextSong.coverArt,
+                    semanticLabel: nextSong.title.isNotEmpty
+                        ? nextSong.title
+                        : l10n.nowPlayingUnknownTrack,
+                    maxSize: artMaxSize,
+                  ),
+          ),
+        );
+
         final artOrLyrics = isRadio
             ? _RadioCoverArt(
                 artUrl: radioMeta?.nowPlayingArtUrl,
                 maxSize: artMaxSize,
               )
             : AnimatedSwitcher(
-                duration: effectiveSongSwapArtDuration,
-                switchInCurve: Curves.linear,
-                switchOutCurve: Curves.linear,
+                duration: const Duration(milliseconds: 220),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
                 layoutBuilder: _coverArtSwitcherLayoutBuilder,
-                transitionBuilder: showInlineLyrics
-                    ? _songSwapTransitionBuilder
-                    : effectiveSongSwapArtTransitionBuilder,
+                transitionBuilder: _songSwapTransitionBuilder,
                 child: showInlineLyrics
                     ? _InlineLyrics(
                         key: ValueKey<String>(
@@ -1975,43 +2029,9 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                         songId: playback.currentSongId!,
                         maxSize: artMaxSize,
                       )
-                    : _buildInteractiveSwipeableArt(
-                        key: ValueKey<String>('cover-$artVisualKey'),
-                        swipeEnabled: !isRadio,
-                        currentArt: hasCoverArtId
-                            ? _CoverArt(
-                                coverArtId: coverArtId,
-                                semanticLabel: title,
-                                maxSize: artMaxSize,
-                              )
-                            : (hasMediaArtUrl
-                                  ? _RadioCoverArt(
-                                      artUrl: mediaArtUrl,
-                                      maxSize: artMaxSize,
-                                    )
-                                  : _CoverArt(
-                                      coverArtId: null,
-                                      semanticLabel: title,
-                                      maxSize: artMaxSize,
-                                    )),
-                        previousArt: previousSong == null
-                            ? null
-                            : _CoverArt(
-                                coverArtId: previousSong.coverArt,
-                                semanticLabel: previousSong.title.isNotEmpty
-                                    ? previousSong.title
-                                    : l10n.nowPlayingUnknownTrack,
-                                maxSize: artMaxSize,
-                              ),
-                        nextArt: nextSong == null
-                            ? null
-                            : _CoverArt(
-                                coverArtId: nextSong.coverArt,
-                                semanticLabel: nextSong.title.isNotEmpty
-                                    ? nextSong.title
-                                    : l10n.nowPlayingUnknownTrack,
-                                maxSize: artMaxSize,
-                              ),
+                    : KeyedSubtree(
+                        key: const ValueKey<String>('art-shell'),
+                        child: nowPlayingArtSwitcher,
                       ),
               );
 

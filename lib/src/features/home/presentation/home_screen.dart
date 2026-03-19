@@ -1,6 +1,9 @@
+import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -32,7 +35,6 @@ import 'package:url_launcher/url_launcher.dart';
 /// Section IDs for dynamic home ordering. The default order is the order below.
 class HomeSectionIds {
   HomeSectionIds._();
-  static const String continueListening = 'continue_listening';
   static const String recentlyLikedAlbums = 'recently_liked_albums';
   static const String likedTracks = 'liked_tracks';
   static const String recentlyAdded = 'recently_added';
@@ -44,13 +46,12 @@ class HomeSectionIds {
   static const String quickActions = 'quick_actions';
 
   static const List<String> defaultOrder = <String>[
+    randomAlbums,
     quickActions,
-    continueListening,
     recentlyLikedAlbums,
     likedTracks,
     recentlyAdded,
     recentlyPlayed,
-    randomAlbums,
     mostPlayed,
     recentlyPlayedTracks,
     frequentAlbums,
@@ -107,12 +108,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 
   Future<void> _runHomeRefresh() async {
+    ref.read(homeRandomShowcaseShuffleSeedProvider.notifier).reshuffle();
     await ref
         .read(librarySyncControllerProvider.notifier)
         .syncNow(preferIncremental: true);
     ref.invalidate(homeRecentlyAddedProvider);
     ref.invalidate(homeRandomAlbumsProvider);
     ref.invalidate(homeDownloadedRandomAlbumsProvider);
+    ref.invalidate(homeRandomShowcaseProvider);
     ref.invalidate(updateProvider);
   }
 
@@ -340,6 +343,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               sectionId,
               downloadedOnly,
               likedOnly,
+              syncState.isRunning,
               homeDensity,
               desktopMode,
               adaptiveLayoutClass,
@@ -402,6 +406,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     String sectionId,
     bool downloadedOnly,
     bool likedOnly,
+    bool syncRunning,
     String homeDensity,
     bool desktopMode,
     AdaptiveLayoutClass adaptiveLayoutClass,
@@ -412,66 +417,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         ? _HomeSectionDensity.compact
         : _HomeSectionDensity.comfortable;
     switch (sectionId) {
-      case HomeSectionIds.continueListening:
-        final playback = ref.watch(playerStateProvider);
-        if (!playback.hasActivePlayback) {
-          return const <Widget>[];
-        }
-        if (likedOnly && !playback.isCurrentSongLiked) {
-          return const <Widget>[];
-        }
-        final currentSongId = playback.currentSongId;
-        final currentSong = currentSongId == null
-            ? null
-            : ref.watch(songByIdProvider(currentSongId)).asData?.value;
-        final currentMediaItem = ref
-            .watch(currentMediaItemProvider)
-            .asData
-            ?.value;
-        final title = playback.isRadioMode
-            ? (playback.radioStation!.nowPlayingTitle ??
-                  playback.radioStation!.stationName)
-            : (currentSong?.title ??
-                  currentMediaItem?.title ??
-                  l10n.queueUnknownTrack);
-        final subtitle = playback.isRadioMode
-            ? (playback.radioStation!.nowPlayingArtist ??
-                  playback.radioStation!.stationName)
-            : (currentSong?.artistName ??
-                  currentMediaItem?.artist ??
-                  l10n.queueUnknownArtist);
-        final data = _ContinueListeningData(
-          title: title,
-          subtitle: subtitle,
-          coverArtId: currentSong?.coverArt,
-          isPlaying: playback.playing,
-        );
-        return <Widget>[
-          _HomeSection<_ContinueListeningData>(
-            title: l10n.homeContinueListeningTitle,
-            desktopMode: desktopMode,
-            adaptiveLayoutClass: adaptiveLayoutClass,
-            compactWideLandscapeMode: compactWideLandscapeMode,
-            template: _HomeSectionTemplate.compactList,
-            density: sectionDensity,
-            data: AsyncValue<_ContinueListeningData>.data(data),
-            isEmpty: (_) => false,
-            builder: (context, value) => _ContinueListeningCard(
-              data: value,
-              density: sectionDensity,
-              onActionPressed: () async {
-                final overlays = ref.read(playerOverlayStackProvider.notifier);
-                if (!playback.playing) {
-                  await ref.read(audioHandlerProvider)?.play();
-                }
-                overlays.expand();
-              },
-            ),
-            emptyTitle: '',
-            emptySubtitle: '',
-          ),
-        ];
-
       case HomeSectionIds.recentlyLikedAlbums:
         final downloadedAlbumIds = downloadedOnly
             ? (ref.watch(downloadedContentIdsProvider).asData?.value.albumIds ??
@@ -637,64 +582,35 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         ];
 
       case HomeSectionIds.randomAlbums:
-        if (downloadedOnly) {
-          return <Widget>[
-            _HomeSection<List<AlbumsTableData>>(
-              title: l10n.homeRandomTitle,
-              desktopMode: desktopMode,
-              adaptiveLayoutClass: adaptiveLayoutClass,
-              compactWideLandscapeMode: compactWideLandscapeMode,
-              template: _HomeSectionTemplate.carousel,
-              density: sectionDensity,
-              data: ref
-                  .watch(homeDownloadedRandomAlbumsProvider)
-                  .whenData(
-                    (albums) => likedOnly
-                        ? albums
-                              .where((album) => album.starred != null)
-                              .toList(growable: false)
-                        : albums,
-                  ),
-              isEmpty: (items) => items.isEmpty,
-              builder: (context, albums) => _LocalAlbumCarousel(
-                albums: albums,
-                heroContext: 'home_random',
-                density: sectionDensity,
-                onTap: (album) => context.push('/library/albums/${album.id}'),
-              ),
-              emptyTitle: l10n.libraryDownloadedOnlyEmpty,
-              emptySubtitle: l10n.libraryDownloadedOnlyEmptySubtitle,
-              onRetry: () => ref.invalidate(homeDownloadedRandomAlbumsProvider),
-            ),
-          ];
-        }
         return <Widget>[
-          _HomeSection<List<Album>>(
+          _HomeSection<List<HomeRandomShowcaseAlbum>>(
             title: l10n.homeRandomTitle,
             desktopMode: desktopMode,
             adaptiveLayoutClass: adaptiveLayoutClass,
             compactWideLandscapeMode: compactWideLandscapeMode,
             template: _HomeSectionTemplate.carousel,
             density: sectionDensity,
-            data: ref
-                .watch(homeRandomAlbumsProvider)
-                .whenData(
-                  (albums) => likedOnly
-                      ? albums
-                            .where((album) => album.starred != null)
-                            .toList(growable: false)
-                      : albums,
-                ),
+            loadingBuilder: () => _RandomHeroShimmer(density: sectionDensity),
+            keepPreviousDataWhileLoading: true,
+            data: ref.watch(
+              homeRandomShowcaseProvider((
+                downloadedOnly: downloadedOnly,
+                likedOnly: likedOnly,
+              )),
+            ),
             isEmpty: (items) => items.isEmpty,
-            builder: (context, albums) => _ServerAlbumCarousel(
+            builder: (context, albums) => _RandomAlbumsHeroCarousel(
               albums: albums,
               heroContext: 'home_random',
               density: sectionDensity,
-              onTap: (album) => context.push('/library/albums/${album.id}'),
+              freezeListUpdates: syncRunning,
             ),
             emptyTitle: l10n.homeRandomEmptyTitle,
             emptySubtitle: l10n.homeRandomEmptySubtitle,
-            onRetry: () => ref.invalidate(homeRandomAlbumsProvider),
+            onRetry: () {
+              ref.invalidate(homeRandomAlbumsProvider);
+              ref.invalidate(homeRandomShowcaseProvider);
+            },
           ),
         ];
 
@@ -998,6 +914,8 @@ class _HomeSection<T> extends StatelessWidget {
     this.compactWideLandscapeMode = false,
     this.template = _HomeSectionTemplate.carousel,
     this.density = _HomeSectionDensity.comfortable,
+    this.loadingBuilder,
+    this.keepPreviousDataWhileLoading = false,
     this.onRetry,
   });
 
@@ -1012,6 +930,8 @@ class _HomeSection<T> extends StatelessWidget {
   final bool compactWideLandscapeMode;
   final _HomeSectionTemplate template;
   final _HomeSectionDensity density;
+  final Widget Function()? loadingBuilder;
+  final bool keepPreviousDataWhileLoading;
   final VoidCallback? onRetry;
 
   @override
@@ -1027,6 +947,8 @@ class _HomeSection<T> extends StatelessWidget {
               ?.copyWith(fontWeight: FontWeight.w700),
     );
     final sectionBody = data.when(
+      skipLoadingOnRefresh: keepPreviousDataWhileLoading,
+      skipLoadingOnReload: keepPreviousDataWhileLoading,
       data: (value) {
         if (isEmpty(value)) {
           return Padding(
@@ -1042,9 +964,11 @@ class _HomeSection<T> extends StatelessWidget {
         }
         return builder(context, value);
       },
-      loading: () => template == _HomeSectionTemplate.carousel
-          ? _CarouselShimmer(density: density)
-          : _ListShimmer(density: density),
+      loading: () =>
+          loadingBuilder?.call() ??
+          (template == _HomeSectionTemplate.carousel
+              ? _CarouselShimmer(density: density)
+              : _ListShimmer(density: density)),
       error: (error, _) => Padding(
         padding: EdgeInsets.symmetric(
           horizontal: compactWideLandscapeMode ? 0 : 16,
@@ -1273,6 +1197,393 @@ class _LocalAlbumCarousel extends ConsumerWidget {
   }
 }
 
+class _RandomAlbumsHeroCarousel extends ConsumerStatefulWidget {
+  const _RandomAlbumsHeroCarousel({
+    required this.albums,
+    required this.heroContext,
+    this.density = _HomeSectionDensity.comfortable,
+    this.freezeListUpdates = false,
+  });
+
+  final List<HomeRandomShowcaseAlbum> albums;
+  final String heroContext;
+  final _HomeSectionDensity density;
+  final bool freezeListUpdates;
+
+  @override
+  ConsumerState<_RandomAlbumsHeroCarousel> createState() =>
+      _RandomAlbumsHeroCarouselState();
+}
+
+class _RandomAlbumsHeroCarouselState
+    extends ConsumerState<_RandomAlbumsHeroCarousel> {
+  static const int _kVirtualLoopCycles = 10000;
+  late final PageController _pageController;
+  late List<HomeRandomShowcaseAlbum> _displayedAlbums;
+  Timer? _autoAdvanceTimer;
+  Timer? _resumeTimer;
+  bool _autoAdvancePaused = false;
+  int _currentVirtualPage = 0;
+  int _currentLogicalPage = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _displayedAlbums = List<HomeRandomShowcaseAlbum>.unmodifiable(
+      widget.albums,
+    );
+    final initialPage = _initialVirtualPage(_displayedAlbums.length);
+    _currentVirtualPage = initialPage;
+    _currentLogicalPage = _logicalIndexForPage(
+      initialPage,
+      _displayedAlbums.length,
+    );
+    _pageController = PageController(
+      viewportFraction: 0.84,
+      initialPage: initialPage,
+    );
+    _startAutoAdvance();
+  }
+
+  @override
+  void didUpdateWidget(covariant _RandomAlbumsHeroCarousel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final incomingAlbums = List<HomeRandomShowcaseAlbum>.unmodifiable(
+      widget.albums,
+    );
+
+    if (widget.freezeListUpdates && _displayedAlbums.isNotEmpty) {
+      return;
+    }
+
+    final oldIds = _displayedAlbums.map((album) => album.id).toList();
+    final newIds = incomingAlbums.map((album) => album.id).toList();
+    final contentChanged = !listEquals(oldIds, newIds);
+    if (!contentChanged) {
+      return;
+    }
+
+    final previousDisplayedAlbums = _displayedAlbums;
+    _displayedAlbums = incomingAlbums;
+
+    if (_displayedAlbums.isEmpty) {
+      _currentVirtualPage = 0;
+      _currentLogicalPage = 0;
+      _stopAutoAdvance();
+      return;
+    }
+
+    String? currentAlbumId;
+    if (previousDisplayedAlbums.isNotEmpty) {
+      currentAlbumId =
+          previousDisplayedAlbums[_currentLogicalPage.clamp(
+                0,
+                previousDisplayedAlbums.length - 1,
+              )]
+              .id;
+    }
+    var nextLogicalPage = 0;
+    if (currentAlbumId != null) {
+      final matchedIndex = newIds.indexOf(currentAlbumId);
+      if (matchedIndex != -1) {
+        nextLogicalPage = matchedIndex;
+      }
+    }
+    nextLogicalPage = nextLogicalPage.clamp(0, _displayedAlbums.length - 1);
+    _currentLogicalPage = nextLogicalPage;
+    _currentVirtualPage = _rebaseVirtualPage(nextLogicalPage);
+    if (_pageController.hasClients) {
+      _pageController.jumpToPage(_currentVirtualPage);
+    }
+    _startAutoAdvance();
+  }
+
+  @override
+  void dispose() {
+    _autoAdvanceTimer?.cancel();
+    _resumeTimer?.cancel();
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _stopAutoAdvance() {
+    _autoAdvanceTimer?.cancel();
+    _autoAdvanceTimer = null;
+  }
+
+  void _startAutoAdvance() {
+    _stopAutoAdvance();
+    if (_displayedAlbums.length <= 1) {
+      return;
+    }
+    _autoAdvanceTimer = Timer.periodic(const Duration(milliseconds: 4200), (_) {
+      if (!mounted || _autoAdvancePaused || !_pageController.hasClients) {
+        return;
+      }
+      final nextIndex = _currentVirtualPage + 1;
+      _pageController.animateToPage(
+        nextIndex,
+        duration: const Duration(milliseconds: 460),
+        curve: Curves.easeOutCubic,
+      );
+    });
+  }
+
+  void _pauseAutoAdvanceTemporarily() {
+    if (!mounted) {
+      return;
+    }
+    _autoAdvancePaused = true;
+    _resumeTimer?.cancel();
+    _resumeTimer = Timer(const Duration(milliseconds: 2200), () {
+      _autoAdvancePaused = false;
+    });
+  }
+
+  int _initialVirtualPage(int albumCount) {
+    if (albumCount <= 1) {
+      return 0;
+    }
+    return albumCount * _kVirtualLoopCycles;
+  }
+
+  int _logicalIndexForPage(int page, int albumCount) {
+    if (albumCount <= 0) {
+      return 0;
+    }
+    final modulo = page % albumCount;
+    return modulo < 0 ? modulo + albumCount : modulo;
+  }
+
+  int _rebaseVirtualPage(int logicalPage) {
+    final albumCount = _displayedAlbums.length;
+    if (albumCount <= 1) {
+      return 0;
+    }
+    final cycle = _currentVirtualPage ~/ albumCount;
+    return cycle * albumCount + logicalPage;
+  }
+
+  double _heroHeight(BuildContext context) {
+    final compact = widget.density == _HomeSectionDensity.compact;
+    final viewport = MediaQuery.sizeOf(context);
+    final adaptiveLayoutClass = resolveAdaptiveLayoutClass(viewport.width);
+
+    if (isDesktopRuntime) {
+      return compact ? 248 : 272;
+    }
+    return switch (adaptiveLayoutClass) {
+      AdaptiveLayoutClass.phoneCompact => compact ? 208 : 228,
+      AdaptiveLayoutClass.tabletMedium => compact ? 224 : 244,
+      AdaptiveLayoutClass.tabletExpanded => compact ? 236 : 258,
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_displayedAlbums.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final height = _heroHeight(context);
+    final currentPageLabel =
+        'home-random-hero-carousel-page-${_currentLogicalPage.clamp(0, _displayedAlbums.length - 1)}';
+
+    return Column(
+      children: <Widget>[
+        SizedBox(
+          height: height,
+          child: NotificationListener<ScrollNotification>(
+            onNotification: (notification) {
+              if (notification is ScrollStartNotification) {
+                _pauseAutoAdvanceTemporarily();
+              } else if (notification is ScrollEndNotification) {
+                _pauseAutoAdvanceTemporarily();
+              } else if (notification is UserScrollNotification &&
+                  notification.direction == ScrollDirection.idle) {
+                _pauseAutoAdvanceTemporarily();
+              }
+              return false;
+            },
+            child: PageView.builder(
+              key: const ValueKey<String>('home-random-hero-carousel'),
+              controller: _pageController,
+              itemCount: _displayedAlbums.length <= 1 ? 1 : null,
+              onPageChanged: (index) {
+                if (!mounted) {
+                  return;
+                }
+                setState(() {
+                  _currentVirtualPage = index;
+                  _currentLogicalPage = _logicalIndexForPage(
+                    index,
+                    _displayedAlbums.length,
+                  );
+                });
+              },
+              itemBuilder: (context, index) {
+                final logicalIndex = _logicalIndexForPage(
+                  index,
+                  _displayedAlbums.length,
+                );
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: AnimatedScale(
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOutCubic,
+                    scale: _currentVirtualPage == index ? 1 : 0.94,
+                    child: _RandomAlbumsHeroCard(
+                      album: _displayedAlbums[logicalIndex],
+                      heroContext: widget.heroContext,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+        if (_displayedAlbums.length > 1) ...[
+          const SizedBox(height: 10),
+          Wrap(
+            key: ValueKey<String>(currentPageLabel),
+            spacing: 6,
+            runSpacing: 6,
+            alignment: WrapAlignment.center,
+            children: List<Widget>.generate(
+              _displayedAlbums.length,
+              (index) => AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                width: _currentLogicalPage == index ? 16 : 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: _currentLogicalPage == index
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(
+                          context,
+                        ).colorScheme.onSurfaceVariant.withValues(alpha: 0.35),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _RandomAlbumsHeroCard extends ConsumerWidget {
+  const _RandomAlbumsHeroCard({
+    required this.album,
+    required this.heroContext,
+  });
+
+  final HomeRandomShowcaseAlbum album;
+  final String heroContext;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final metadataParts = <String>[
+      if (album.year != null && album.year! > 0) album.year.toString(),
+      if (album.songCount != null && album.songCount! > 0)
+        '${album.songCount} tracks',
+    ];
+    return Card(
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: InkWell(
+        onTap: () => context.push('/library/albums/${album.id}'),
+        onLongPress: () => showAlbumContextMenu(context, ref, album.id),
+        onSecondaryTapDown: (details) => showAlbumContextMenu(
+          context,
+          ref,
+          album.id,
+          anchor: details.globalPosition,
+        ),
+        child: Stack(
+          fit: StackFit.expand,
+          children: <Widget>[
+            HeroCoverArt(
+              coverArtId: album.coverArtId,
+              heroTag: buildCoverArtHeroTag(
+                coverArtId: album.coverArtId,
+                context: '${heroContext}_hero',
+                entityId: album.id,
+              ),
+              size: 840,
+              fit: BoxFit.cover,
+              placeholderIcon: Icons.album_outlined,
+            ),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: <Color>[
+                    Colors.black.withValues(alpha: 0),
+                    Colors.black.withValues(alpha: 0.76),
+                  ],
+                ),
+              ),
+            ),
+            Align(
+              alignment: Alignment.bottomLeft,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 44, 14, 14),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      album.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (album.artist != null && album.artist!.trim().isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          album.artist!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: Colors.white.withValues(alpha: 0.86),
+                              ),
+                        ),
+                      ),
+                    if (metadataParts.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text(
+                          metadataParts.join(' • '),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: Colors.white.withValues(alpha: 0.72),
+                              ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// A small square card for server [Album] objects (same visual as [AlbumCard]
 /// but accepts the API model directly).
 class _ServerAlbumCard extends StatelessWidget {
@@ -1493,108 +1804,6 @@ class _SongListSection extends ConsumerWidget {
   }
 }
 
-@immutable
-class _ContinueListeningData {
-  const _ContinueListeningData({
-    required this.title,
-    required this.subtitle,
-    required this.coverArtId,
-    required this.isPlaying,
-  });
-
-  final String title;
-  final String subtitle;
-  final String? coverArtId;
-  final bool isPlaying;
-}
-
-class _ContinueListeningCard extends StatelessWidget {
-  const _ContinueListeningCard({
-    required this.data,
-    required this.density,
-    required this.onActionPressed,
-  });
-
-  final _ContinueListeningData data;
-  final _HomeSectionDensity density;
-  final VoidCallback onActionPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    final compactDensity = density == _HomeSectionDensity.compact;
-    final actionLabel = data.isPlaying
-        ? l10n.homeContinueListeningOpenNowPlaying
-        : l10n.homeContinueListeningResume;
-    final iconSize = compactDensity ? 52.0 : 60.0;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Card(
-        margin: EdgeInsets.zero,
-        clipBehavior: Clip.antiAlias,
-        child: Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: compactDensity ? 10 : 12,
-            vertical: compactDensity ? 8 : 10,
-          ),
-          child: Row(
-            children: <Widget>[
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: CoverArtImage(
-                  coverArtId: data.coverArtId,
-                  width: iconSize,
-                  height: iconSize,
-                  size: 180,
-                  placeholderIcon: Icons.music_note_outlined,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    Text(
-                      data.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      data.subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    const SizedBox(height: 8),
-                    FilledButton.icon(
-                      onPressed: onActionPressed,
-                      icon: Icon(
-                        data.isPlaying ? Icons.open_in_full : Icons.play_arrow,
-                        size: 18,
-                      ),
-                      label: Text(actionLabel),
-                      style: FilledButton.styleFrom(
-                        visualDensity: compactDensity
-                            ? VisualDensity.compact
-                            : null,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _QuickActionsSection extends ConsumerWidget {
   const _QuickActionsSection({
     required this.density,
@@ -1743,6 +1952,63 @@ class _QuickActionsSection extends ConsumerWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 // Shimmer placeholder for loading state
 // ─────────────────────────────────────────────────────────────────────────────
+
+class _RandomHeroShimmer extends StatelessWidget {
+  const _RandomHeroShimmer({
+    this.density = _HomeSectionDensity.comfortable,
+  });
+
+  final _HomeSectionDensity density;
+
+  double _heroHeight(BuildContext context) {
+    final compact = density == _HomeSectionDensity.compact;
+    final viewport = MediaQuery.sizeOf(context);
+    final adaptiveLayoutClass = resolveAdaptiveLayoutClass(viewport.width);
+
+    if (isDesktopRuntime) {
+      return compact ? 248 : 272;
+    }
+    return switch (adaptiveLayoutClass) {
+      AdaptiveLayoutClass.phoneCompact => compact ? 208 : 228,
+      AdaptiveLayoutClass.tabletMedium => compact ? 224 : 244,
+      AdaptiveLayoutClass.tabletExpanded => compact ? 236 : 258,
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final heroHeight = _heroHeight(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      child: Column(
+        children: <Widget>[
+          ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: ShimmerPlaceholder(
+              height: heroHeight,
+              width: double.infinity,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List<Widget>.generate(
+              3,
+              (index) => Padding(
+                padding: EdgeInsets.only(right: index == 2 ? 0 : 6),
+                child: ShimmerPlaceholder(
+                  height: 6,
+                  width: index == 1 ? 16 : 6,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _CarouselShimmer extends StatelessWidget {
   const _CarouselShimmer({

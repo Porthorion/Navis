@@ -1295,8 +1295,6 @@ class _HomeSectionReorderState extends State<_HomeSectionReorder> {
 
   String _sectionLabel(String id, AppLocalizations l10n) {
     switch (id) {
-      case HomeSectionIds.continueListening:
-        return l10n.homeSectionContinueListening;
       case HomeSectionIds.recentlyLikedAlbums:
         return l10n.homeSectionRecentlyLikedAlbums;
       case HomeSectionIds.likedTracks:

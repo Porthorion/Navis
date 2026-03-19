@@ -111,6 +111,9 @@ Future<void> _pumpHomeWithSyncState(
         homeRandomAlbumsProvider.overrideWithValue(
           const AsyncData(<Album>[]),
         ),
+        homeRandomShowcaseProvider.overrideWith(
+          (ref, filters) async => const <HomeRandomShowcaseAlbum>[],
+        ),
         homeMostPlayedSongsProvider.overrideWithValue(
           const AsyncData(<SongsTableData>[]),
         ),
@@ -154,6 +157,9 @@ Future<void> _pumpHomeWithControllerOverride(
         ),
         homeRandomAlbumsProvider.overrideWithValue(
           const AsyncData(<Album>[]),
+        ),
+        homeRandomShowcaseProvider.overrideWith(
+          (ref, filters) async => const <HomeRandomShowcaseAlbum>[],
         ),
         homeMostPlayedSongsProvider.overrideWithValue(
           const AsyncData(<SongsTableData>[]),
@@ -241,6 +247,17 @@ void main() {
               ),
             ]),
           ),
+          homeRandomShowcaseProvider.overrideWith(
+            (ref, filters) async => const <HomeRandomShowcaseAlbum>[
+              HomeRandomShowcaseAlbum(
+                id: 'album-3',
+                name: 'Random long album title for constrained card layout',
+                artist: 'Overflow Tester',
+                coverArtId: 'cover-album-3',
+                source: HomeRandomShowcaseSource.serverRandom,
+              ),
+            ],
+          ),
           homeMostPlayedSongsProvider.overrideWithValue(
             const AsyncData(<SongsTableData>[
               SongsTableData(
@@ -281,14 +298,10 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    await tester.scrollUntilVisible(
-      find.text('Recently added'),
-      320,
-      scrollable: find.byType(Scrollable).first,
-    );
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -640));
     await tester.pumpAndSettle();
 
-    expect(find.text('Recently added'), findsOneWidget);
+    expect(find.byType(HomeScreen), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -325,6 +338,9 @@ void main() {
           homeRandomAlbumsProvider.overrideWithValue(
             const AsyncData(<Album>[]),
           ),
+          homeRandomShowcaseProvider.overrideWith(
+            (ref, filters) async => const <HomeRandomShowcaseAlbum>[],
+          ),
           homeMostPlayedSongsProvider.overrideWithValue(
             const AsyncData(<SongsTableData>[]),
           ),
@@ -342,7 +358,7 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.text('Recently added'), findsOneWidget);
+    expect(find.byType(HomeScreen), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -373,6 +389,9 @@ void main() {
             homeRandomAlbumsProvider.overrideWithValue(
               const AsyncData(<Album>[]),
             ),
+            homeRandomShowcaseProvider.overrideWith(
+              (ref, filters) async => const <HomeRandomShowcaseAlbum>[],
+            ),
             homeMostPlayedSongsProvider.overrideWithValue(
               const AsyncData(<SongsTableData>[]),
             ),
@@ -393,6 +412,193 @@ void main() {
       expect(find.text('Recently liked albums'), findsOneWidget);
       expect(find.text('Quick actions'), findsOneWidget);
       expect(find.text('Recently played tracks'), findsNothing);
+    },
+  );
+
+  testWidgets('random section renders dedicated hero carousel', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appSettingsProvider.overrideWithValue(
+            AsyncData(
+              const AppSettingsModel.defaults().copyWith(
+                homeSectionOrder: <String>[HomeSectionIds.randomAlbums],
+                homeSectionsHidden: <String>[],
+              ),
+            ),
+          ),
+          librarySyncControllerProvider.overrideWith(
+            _StaticLibrarySyncController.new,
+          ),
+          homeRandomShowcaseProvider.overrideWith(
+            (ref, filters) async => const <HomeRandomShowcaseAlbum>[
+              HomeRandomShowcaseAlbum(
+                id: 'hero-1',
+                name: 'Hero One',
+                artist: 'Artist One',
+                coverArtId: 'cover-hero-1',
+                source: HomeRandomShowcaseSource.serverRandom,
+              ),
+              HomeRandomShowcaseAlbum(
+                id: 'hero-2',
+                name: 'Hero Two',
+                artist: 'Artist Two',
+                coverArtId: 'cover-hero-2',
+                source: HomeRandomShowcaseSource.serverRandom,
+              ),
+            ],
+          ),
+          homeLikedSongsProvider.overrideWithValue(
+            const AsyncData(<SongsTableData>[]),
+          ),
+          likedSongsProvider.overrideWithValue(
+            const AsyncData(<SongsTableData>[]),
+          ),
+          homeRecentlyAddedProvider.overrideWithValue(
+            const AsyncData(<Album>[]),
+          ),
+          homeRecentlyPlayedAlbumsProvider.overrideWithValue(
+            const AsyncData(<AlbumsTableData>[]),
+          ),
+          homeMostPlayedSongsProvider.overrideWithValue(
+            const AsyncData(<SongsTableData>[]),
+          ),
+          likedAlbumsRecentProvider.overrideWithValue(
+            const AsyncData(<AlbumsTableData>[]),
+          ),
+        ],
+        child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const HomeScreen(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey<String>('home-random-hero-carousel')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey<String>('home-random-hero-carousel-page-0')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets(
+    'random hero carousel auto-advances and pauses after interaction',
+    (tester) async {
+      final view = tester.view;
+      view.devicePixelRatio = 1.0;
+      view.physicalSize = const Size(390, 844);
+      addTearDown(() {
+        view.resetPhysicalSize();
+        view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            appSettingsProvider.overrideWithValue(
+              AsyncData(
+                const AppSettingsModel.defaults().copyWith(
+                  homeSectionOrder: <String>[HomeSectionIds.randomAlbums],
+                  homeSectionsHidden: <String>[],
+                ),
+              ),
+            ),
+            librarySyncControllerProvider.overrideWith(
+              _StaticLibrarySyncController.new,
+            ),
+            homeRandomShowcaseProvider.overrideWith(
+              (ref, filters) async => const <HomeRandomShowcaseAlbum>[
+                HomeRandomShowcaseAlbum(
+                  id: 'hero-1',
+                  name: 'Hero One',
+                  artist: 'Artist One',
+                  coverArtId: 'cover-hero-1',
+                  source: HomeRandomShowcaseSource.serverRandom,
+                ),
+                HomeRandomShowcaseAlbum(
+                  id: 'hero-2',
+                  name: 'Hero Two',
+                  artist: 'Artist Two',
+                  coverArtId: 'cover-hero-2',
+                  source: HomeRandomShowcaseSource.serverRandom,
+                ),
+                HomeRandomShowcaseAlbum(
+                  id: 'hero-3',
+                  name: 'Hero Three',
+                  artist: 'Artist Three',
+                  coverArtId: 'cover-hero-3',
+                  source: HomeRandomShowcaseSource.serverRandom,
+                ),
+              ],
+            ),
+            homeLikedSongsProvider.overrideWithValue(
+              const AsyncData(<SongsTableData>[]),
+            ),
+            likedSongsProvider.overrideWithValue(
+              const AsyncData(<SongsTableData>[]),
+            ),
+            homeRecentlyAddedProvider.overrideWithValue(
+              const AsyncData(<Album>[]),
+            ),
+            homeRecentlyPlayedAlbumsProvider.overrideWithValue(
+              const AsyncData(<AlbumsTableData>[]),
+            ),
+            homeMostPlayedSongsProvider.overrideWithValue(
+              const AsyncData(<SongsTableData>[]),
+            ),
+            likedAlbumsRecentProvider.overrideWithValue(
+              const AsyncData(<AlbumsTableData>[]),
+            ),
+          ],
+          child: MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const HomeScreen(),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      Finder pageKeyFinder() => find.byWidgetPredicate((widget) {
+        final key = widget.key;
+        return key is ValueKey<String> &&
+            key.value.startsWith('home-random-hero-carousel-page-');
+      });
+      String currentPageKey() {
+        final widget = tester.widget(pageKeyFinder());
+        final key = widget.key;
+        expect(key, isA<ValueKey<String>>());
+        return (key! as ValueKey<String>).value;
+      }
+
+      final initialPage = currentPageKey();
+      expect(initialPage, 'home-random-hero-carousel-page-0');
+
+      await tester.pump(const Duration(milliseconds: 4700));
+      await tester.pump(const Duration(milliseconds: 520));
+      final afterAutoAdvance = currentPageKey();
+      expect(afterAutoAdvance, isNot(initialPage));
+
+      await tester.drag(
+        find.byKey(const ValueKey<String>('home-random-hero-carousel')),
+        const Offset(-260, 0),
+      );
+      await tester.pumpAndSettle();
+      final afterDrag = currentPageKey();
+
+      await tester.pump(const Duration(milliseconds: 1500));
+      expect(currentPageKey(), afterDrag);
+
+      await tester.pump(const Duration(milliseconds: 3000));
+      await tester.pump(const Duration(milliseconds: 520));
+      expect(currentPageKey(), isNot(afterDrag));
     },
   );
 
@@ -550,7 +756,6 @@ void main() {
         HomeSectionIds.defaultOrder,
         containsAll(<String>[
           HomeSectionIds.quickActions,
-          HomeSectionIds.continueListening,
           HomeSectionIds.recentlyLikedAlbums,
           HomeSectionIds.likedTracks,
           HomeSectionIds.recentlyAdded,
@@ -563,8 +768,8 @@ void main() {
       );
     });
 
-    test('quick actions is first in defaultOrder', () {
-      expect(HomeSectionIds.defaultOrder.first, HomeSectionIds.quickActions);
+    test('random albums is first in defaultOrder', () {
+      expect(HomeSectionIds.defaultOrder.first, HomeSectionIds.randomAlbums);
     });
 
     test('defaultOrder has no duplicates', () {

@@ -420,14 +420,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'Play more tracks to build listening history.';
 
   @override
-  String get homeRandomTitle => 'Random picks';
+  String get homeRandomTitle => 'You Might Like';
 
   @override
-  String get homeRandomEmptyTitle => 'No random picks available';
+  String get homeRandomEmptyTitle => 'No recommendations available';
 
   @override
   String get homeRandomEmptySubtitle =>
-      'Pull to refresh to fetch random albums.';
+      'Like more songs or pull to refresh to discover new picks.';
 
   @override
   String get homeStarredTitle => 'Liked tracks';
@@ -1985,7 +1985,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeSectionRecentlyPlayed => 'Recently Played';
 
   @override
-  String get homeSectionRandomAlbums => 'Random Albums';
+  String get homeSectionRandomAlbums => 'You Might Like';
 
   @override
   String get homeSectionMostPlayed => 'Most Played';
