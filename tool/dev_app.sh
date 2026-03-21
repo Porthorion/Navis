@@ -28,19 +28,34 @@ fi
 export NAVIS_APP_ID_SUFFIX="${NAVIS_APP_ID_SUFFIX:-.dev}"
 export NAVIS_APP_NAME="${NAVIS_APP_NAME:-Navis Dev}"
 
-DART_DEFINE_UPDATE_CHANNEL="--dart-define=NAVIS_UPDATE_CHANNEL=dev"
+# Optional env bootstrap (matches release flow). Allows defining:
+# NAVIS_LASTFM_API_KEY=...
+if [[ -f "${SCRIPT_DIR}/release.env" ]]; then
+  # shellcheck disable=SC1091
+  source "${SCRIPT_DIR}/release.env"
+fi
+
+DART_DEFINE_ARGS=("--dart-define=NAVIS_UPDATE_CHANNEL=dev")
+if [[ -n "${NAVIS_LASTFM_API_KEY:-}" ]]; then
+  DART_DEFINE_ARGS+=("--dart-define=NAVIS_LASTFM_API_KEY=${NAVIS_LASTFM_API_KEY}")
+fi
 
 echo "==> Dev app identity"
 echo "    NAVIS_APP_ID_SUFFIX=${NAVIS_APP_ID_SUFFIX}"
 echo "    NAVIS_APP_NAME=${NAVIS_APP_NAME}"
 echo "    NAVIS_UPDATE_CHANNEL=dev"
+if [[ -n "${NAVIS_LASTFM_API_KEY:-}" ]]; then
+  echo "    NAVIS_LASTFM_API_KEY=provided"
+else
+  echo "    NAVIS_LASTFM_API_KEY=missing (Same Vibes will fallback)"
+fi
 
 case "${MODE}" in
   run)
-    flutter run --debug "${DART_DEFINE_UPDATE_CHANNEL}" "$@"
+    flutter run --debug "${DART_DEFINE_ARGS[@]}" "$@"
     ;;
   apk)
-    flutter build apk --release "${DART_DEFINE_UPDATE_CHANNEL}" "$@"
+    flutter build apk --release "${DART_DEFINE_ARGS[@]}" "$@"
     ;;
   *)
     echo "Unknown mode: ${MODE}"

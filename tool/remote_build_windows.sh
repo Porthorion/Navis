@@ -14,6 +14,7 @@ Options:
   --asset-prefix=<name>    Asset prefix (default: navis)
   --package=<zip|exe>      Windows package mode (default: zip)
   --channel=<stable|dev>   Update channel (default: stable)
+  --lastfm-key=<key>       Optional Last.fm API key dart-define
   --remote-dir=<path>      Remote working dir relative to remote HOME
                            (default: .navis/remote-windows-build)
   --repo-root=<path>       Local repo root (default: script/..)
@@ -25,6 +26,7 @@ VERSION=""
 ASSET_PREFIX="navis"
 PACKAGE_MODE="zip"
 UPDATE_CHANNEL="stable"
+LASTFM_API_KEY=""
 REMOTE_DIR=".navis/remote-windows-build"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
@@ -36,6 +38,7 @@ for arg in "$@"; do
     --asset-prefix=*) ASSET_PREFIX="${arg#--asset-prefix=}" ;;
     --package=*) PACKAGE_MODE="${arg#--package=}" ;;
     --channel=*) UPDATE_CHANNEL="${arg#--channel=}" ;;
+    --lastfm-key=*) LASTFM_API_KEY="${arg#--lastfm-key=}" ;;
     --remote-dir=*) REMOTE_DIR="${arg#--remote-dir=}" ;;
     --repo-root=*) REPO_ROOT="${arg#--repo-root=}" ;;
     -h|--help)
@@ -98,7 +101,8 @@ param(
   [Parameter(Mandatory = $true)][ValidateSet('zip', 'exe')][string]$PackageMode,
   [Parameter(Mandatory = $true)][string]$Version,
   [Parameter(Mandatory = $true)][string]$AssetPrefix,
-  [Parameter(Mandatory = $true)][ValidateSet('stable', 'dev')][string]$UpdateChannel
+  [Parameter(Mandatory = $true)][ValidateSet('stable', 'dev')][string]$UpdateChannel,
+  [string]$LastFmApiKey = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -117,7 +121,14 @@ tar -xzf $archivePath -C $workspaceDir
 Set-Location $workspaceDir
 
 flutter pub get
-flutter build windows --release --dart-define=NAVIS_UPDATE_CHANNEL=$UpdateChannel
+$buildArgs = @(
+  '--release',
+  "--dart-define=NAVIS_UPDATE_CHANNEL=$UpdateChannel"
+)
+if ($LastFmApiKey -ne '') {
+  $buildArgs += "--dart-define=NAVIS_LASTFM_API_KEY=$LastFmApiKey"
+}
+flutter build windows @buildArgs
 
 $releaseDir = Join-Path $workspaceDir 'build/windows/x64/runner/Release'
 if (-not (Test-Path $releaseDir)) {
@@ -159,7 +170,7 @@ scp "${REMOTE_SCRIPT}" "${SSH_TARGET}:${REMOTE_DIR}/navis_remote_windows_build.p
 
 printf '[remote-windows] Running remote build...\n'
 ssh "${SSH_TARGET}" \
-  "powershell -NoProfile -ExecutionPolicy Bypass -File '${REMOTE_DIR}/navis_remote_windows_build.ps1' -RemoteDir '${REMOTE_DIR}' -ArchiveName 'source.tgz' -PackageMode '${PACKAGE_MODE}' -Version '${VERSION}' -AssetPrefix '${ASSET_PREFIX}' -UpdateChannel '${UPDATE_CHANNEL}'"
+  "powershell -NoProfile -ExecutionPolicy Bypass -File '${REMOTE_DIR}/navis_remote_windows_build.ps1' -RemoteDir '${REMOTE_DIR}' -ArchiveName 'source.tgz' -PackageMode '${PACKAGE_MODE}' -Version '${VERSION}' -AssetPrefix '${ASSET_PREFIX}' -UpdateChannel '${UPDATE_CHANNEL}' -LastFmApiKey '${LASTFM_API_KEY}'"
 
 asset_name="$(ssh "${SSH_TARGET}" "powershell -NoProfile -Command \"Get-Content -Raw -Path (Join-Path (Join-Path \$HOME '${REMOTE_DIR}') 'asset_name.txt')\"")"
 asset_name="${asset_name//$'\r'/}"

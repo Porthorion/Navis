@@ -315,6 +315,7 @@ void main() {
                   audioMuseEnabled: false,
                   syncIntervalMinutes: 60,
                   useLrclib: true,
+                  legacyInstantMixEnabled: false,
                   replayGainMode: 'off',
                   replayGainPreamp: 0,
                   playbackSpeed: 1,

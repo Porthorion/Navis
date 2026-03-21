@@ -7,6 +7,7 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter/widgets.dart' show BorderRadius;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:navis/src/api/lastfm_api_client.dart';
 import 'package:navis/src/api/lrclib_client.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
@@ -36,6 +37,7 @@ import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/connectivity.dart';
+import 'package:navis/src/utils/constants.dart';
 import 'package:path_provider/path_provider.dart';
 
 final navisDatabaseProvider = Provider<NavisDatabase>((ref) {
@@ -175,6 +177,51 @@ final subsonicApiProvider = Provider<SubsonicApiClient?>((ref) {
       NetworkType.other => 12,
     },
   );
+});
+
+/// Build-time Last.fm API key used by Same Vibes mode.
+final lastFmApiKeyProvider = Provider<String>((_) {
+  return AppConstants.lastFmApiKey.trim();
+});
+
+final hasLastFmApiKeyProvider = Provider<bool>((ref) {
+  return ref.watch(lastFmApiKeyProvider).isNotEmpty;
+});
+
+/// Last.fm client used for recommendation lookups.
+///
+/// Returns `null` when no API key was provided at build time.
+final lastFmApiClientProvider = Provider<LastFmApiClient?>((ref) {
+  final apiKey = ref.watch(lastFmApiKeyProvider);
+  if (apiKey.isEmpty) {
+    return null;
+  }
+  return LastFmApiClient(apiKey: apiKey);
+});
+
+final legacyInstantMixSettingProvider = Provider<bool>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.legacyInstantMixEnabled;
+});
+
+final legacyInstantMixLockedProvider = Provider<bool>((ref) {
+  return !ref.watch(hasLastFmApiKeyProvider);
+});
+
+enum PreferredMixMode {
+  sameVibes,
+  legacyInstantMix,
+}
+
+final preferredMixModeProvider = Provider<PreferredMixMode>((ref) {
+  if (ref.watch(legacyInstantMixLockedProvider)) {
+    return PreferredMixMode.legacyInstantMix;
+  }
+  return ref.watch(legacyInstantMixSettingProvider)
+      ? PreferredMixMode.legacyInstantMix
+      : PreferredMixMode.sameVibes;
 });
 
 final scrobbleServiceProvider = Provider<ScrobbleService>((ref) {

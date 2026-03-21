@@ -484,6 +484,24 @@ abstract class AppLocalizations {
   /// **'Preload tracks to reduce gaps between songs.'**
   String get playbackSettingsGaplessSubtitle;
 
+  /// No description provided for @playbackSettingsLegacyInstantMixTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Legacy Instant Mix'**
+  String get playbackSettingsLegacyInstantMixTitle;
+
+  /// No description provided for @playbackSettingsLegacyInstantMixSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Use local-only similar songs instead of Last.fm recommendations.'**
+  String get playbackSettingsLegacyInstantMixSubtitle;
+
+  /// No description provided for @playbackSettingsLegacyInstantMixLocked.
+  ///
+  /// In en, this message translates to:
+  /// **'This build has no Last.fm API key, so Legacy Instant Mix is required.'**
+  String get playbackSettingsLegacyInstantMixLocked;
+
   /// No description provided for @playbackSettingsShowRadioPageTitle.
   ///
   /// In en, this message translates to:
@@ -2192,6 +2210,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Couldn\'t start Instant Mix.'**
   String get nowPlayingInstantMixError;
+
+  /// No description provided for @nowPlayingSameVibesLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Same Vibes'**
+  String get nowPlayingSameVibesLabel;
+
+  /// No description provided for @nowPlayingSameVibesDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Last.fm similar-song queueing'**
+  String get nowPlayingSameVibesDescription;
+
+  /// No description provided for @nowPlayingSameVibesStarted.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{No similar tracks found.} =1{Same Vibes started — 1 similar track queued.} other{Same Vibes started — {count} similar tracks queued.}}'**
+  String nowPlayingSameVibesStarted(int count);
+
+  /// No description provided for @nowPlayingSameVibesUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'Your server doesn\'t support similar-track lookups.'**
+  String get nowPlayingSameVibesUnsupported;
+
+  /// No description provided for @nowPlayingSameVibesError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t start Same Vibes.'**
+  String get nowPlayingSameVibesError;
+
+  /// No description provided for @nowPlayingSameVibesStopped.
+  ///
+  /// In en, this message translates to:
+  /// **'Same Vibes stopped.'**
+  String get nowPlayingSameVibesStopped;
 
   /// No description provided for @nowPlayingMixTitle.
   ///

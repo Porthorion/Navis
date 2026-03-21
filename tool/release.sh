@@ -152,6 +152,13 @@ WINDOWS_REMOTE_DIR="${WINDOWS_REMOTE_DIR:-${NAVIS_WINDOWS_REMOTE_DIR:-.navis/rem
 : "${FORGEJO_REPO:?Set FORGEJO_REPO in tool/release.env}"
 : "${FORGEJO_TOKEN:?Set FORGEJO_TOKEN in tool/release.env}"
 
+if [[ "${BUILD_ANDROID}" == "true" && -z "${NAVIS_LASTFM_API_KEY:-}" ]]; then
+  echo "Error: NAVIS_LASTFM_API_KEY is required for Android release builds."
+  echo "Set it in tool/release.env, for example:"
+  echo "  NAVIS_LASTFM_API_KEY=your_lastfm_api_key"
+  exit 1
+fi
+
 # ─── Validate tools ─────────────────────────────────────────────────────────
 for tool in jq flutter git curl; do
   if ! command -v "${tool}" &>/dev/null; then
@@ -246,6 +253,9 @@ if [[ "${FORCE_PRERELEASE}" == "true" ]]; then
 fi
 
 DART_DEFINE_ARGS=("--dart-define=NAVIS_UPDATE_CHANNEL=${UPDATE_CHANNEL}")
+if [[ -n "${NAVIS_LASTFM_API_KEY:-}" ]]; then
+  DART_DEFINE_ARGS+=("--dart-define=NAVIS_LASTFM_API_KEY=${NAVIS_LASTFM_API_KEY}")
+fi
 
 # ─── Clean tree ─────────────────────────────────────────────────────────────
 if [[ -n "$(git status --porcelain)" ]]; then
@@ -508,6 +518,7 @@ CONTROL
       --asset-prefix="${ASSET_PREFIX}" \
       --package="${LINUX_PACKAGE_MODE}" \
       --channel="${UPDATE_CHANNEL}" \
+      --lastfm-key="${NAVIS_LASTFM_API_KEY:-}" \
       --remote-dir="${LINUX_REMOTE_DIR}" \
       --repo-root="${SCRIPT_DIR}/.."
 
@@ -602,6 +613,7 @@ if [[ "${BUILD_WINDOWS}" == "true" ]]; then
       --asset-prefix="${ASSET_PREFIX}" \
       --package="${WINDOWS_PACKAGE_MODE}" \
       --channel="${UPDATE_CHANNEL}" \
+      --lastfm-key="${NAVIS_LASTFM_API_KEY:-}" \
       --remote-dir="${WINDOWS_REMOTE_DIR}" \
       --repo-root="${SCRIPT_DIR}/.."
     if [[ ! -f "${WINDOWS_ASSET}" ]]; then

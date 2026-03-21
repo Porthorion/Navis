@@ -24,9 +24,9 @@ import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/home/presentation/home_scroll_provider.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
-import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
+import 'package:navis/src/features/player/presentation/smart_queue_sheet.dart';
 import 'package:navis/src/features/settings/presentation/update_dialog.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
@@ -1931,9 +1931,10 @@ class _QuickActionsSection extends ConsumerWidget {
                           autoPlay: true,
                         )
                         .then((_) async {
-                          await ref
-                              .read(instantMixProvider.notifier)
-                              .activate(seedSongId);
+                          await activatePreferredMixMode(
+                            ref,
+                            seedSongId: seedSongId,
+                          );
                           ref
                               .read(playerOverlayStackProvider.notifier)
                               .expand();

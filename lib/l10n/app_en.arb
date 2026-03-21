@@ -84,6 +84,9 @@
   "playbackSettingsLrclibSubtitle": "When server lyrics are unavailable, try LRCLIB and cache per song.",
   "playbackSettingsGaplessTitle": "Enable gapless playback",
   "playbackSettingsGaplessSubtitle": "Preload tracks to reduce gaps between songs.",
+  "playbackSettingsLegacyInstantMixTitle": "Legacy Instant Mix",
+  "playbackSettingsLegacyInstantMixSubtitle": "Use local-only similar songs instead of Last.fm recommendations.",
+  "playbackSettingsLegacyInstantMixLocked": "This build has no Last.fm API key, so Legacy Instant Mix is required.",
   "playbackSettingsShowRadioPageTitle": "Show Radio page",
   "playbackSettingsShowRadioPageSubtitle": "Display the Radio tab in bottom navigation.",
   "playbackSettingsAndroidDspSectionTitle": "Android Audio Effects",
@@ -540,6 +543,19 @@
   },
   "nowPlayingInstantMixUnsupported": "Your server doesn\u0027t support Instant Mix.",
   "nowPlayingInstantMixError": "Couldn\u0027t start Instant Mix.",
+  "nowPlayingSameVibesLabel": "Same Vibes",
+  "nowPlayingSameVibesDescription": "Last.fm similar-song queueing",
+  "nowPlayingSameVibesStarted": "{count, plural, =0{No similar tracks found.} =1{Same Vibes started — 1 similar track queued.} other{Same Vibes started — {count} similar tracks queued.}}",
+  "@nowPlayingSameVibesStarted": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "nowPlayingSameVibesUnsupported": "Your server doesn\u0027t support similar-track lookups.",
+  "nowPlayingSameVibesError": "Couldn\u0027t start Same Vibes.",
+  "nowPlayingSameVibesStopped": "Same Vibes stopped.",
   "nowPlayingMixTitle": "Queue modes",
   "nowPlayingMixSubtitle": "Choose how similar tracks should be added next.",
   "nowPlayingMore": "More options",

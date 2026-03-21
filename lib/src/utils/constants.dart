@@ -31,4 +31,13 @@ abstract final class AppConstants {
   static const String updateAssetPrefix = updateChannel == 'dev'
       ? 'navis-dev'
       : 'navis';
+
+  /// Last.fm API key used by the Same Vibes mix mode.
+  ///
+  /// Inject at build time via:
+  /// `--dart-define=NAVIS_LASTFM_API_KEY=...`
+  static const String lastFmApiKey = String.fromEnvironment(
+    'NAVIS_LASTFM_API_KEY',
+    defaultValue: '',
+  );
 }

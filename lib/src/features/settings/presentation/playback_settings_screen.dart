@@ -46,6 +46,7 @@ class _PlaybackSettingsScreenState
   String? _cellularFormat;
   bool _scrobbleEnabled = true;
   bool _useLrclib = true;
+  bool _legacyInstantMixEnabled = false;
   bool _gaplessEnabled = true;
   bool _fullscreenModeLyrics = false;
   bool _equalizerEnabled = false;
@@ -102,6 +103,10 @@ class _PlaybackSettingsScreenState
 
   Widget _buildForm(BuildContext context, AppLocalizations l10n) {
     _scheduleAutosave();
+    final legacyInstantMixLocked = ref.watch(legacyInstantMixLockedProvider);
+    final effectiveLegacyInstantMix = legacyInstantMixLocked
+        ? true
+        : _legacyInstantMixEnabled;
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -219,74 +224,98 @@ class _PlaybackSettingsScreenState
                 subtitle: Text(l10n.playbackSettingsGaplessSubtitle),
               ),
               if (_gaplessEnabled) ...<Widget>[
-                // ── Cross-fade section ───────────────────────────────────
-                const SizedBox(height: 24),
-                Text(
-                  l10n.playbackSettingsCrossfadeSectionTitle,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 12),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  value: _crossfadeEnabled,
-                  onChanged: _isSaving ? null : _setCrossfadeEnabled,
-                  title: Text(l10n.playbackSettingsCrossfadeEnableTitle),
-                  subtitle: Text(l10n.playbackSettingsCrossfadeEnableSubtitle),
-                ),
-                if (_crossfadeEnabled) ...[
-                  Text(
-                    l10n.playbackSettingsCrossfadeDurationLabel(
-                      _crossfadeDurationSeconds,
-                    ),
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                  Slider(
-                    value: _crossfadeDurationSeconds.toDouble(),
-                    min: 1,
-                    max: 12,
-                    divisions: 11,
-                    label: '${_crossfadeDurationSeconds}s',
-                    onChanged: _isSaving
-                        ? null
-                        : (value) => setState(
-                            () => _crossfadeDurationSeconds = value.round(),
+                Padding(
+                  padding: const EdgeInsets.only(left: 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        value: _crossfadeEnabled,
+                        onChanged: _isSaving ? null : _setCrossfadeEnabled,
+                        title: Text(l10n.playbackSettingsCrossfadeEnableTitle),
+                        subtitle: Text(
+                          l10n.playbackSettingsCrossfadeEnableSubtitle,
+                        ),
+                      ),
+                      if (_crossfadeEnabled) ...[
+                        Text(
+                          l10n.playbackSettingsCrossfadeDurationLabel(
+                            _crossfadeDurationSeconds,
                           ),
-                  ),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<String>(
-                    initialValue: _crossfadeType,
-                    decoration: InputDecoration(
-                      labelText: l10n.playbackSettingsCrossfadeTypeLabel,
-                    ),
-                    items: [
-                      DropdownMenuItem(
-                        value: 'normal',
-                        child: Text(l10n.playbackSettingsCrossfadeTypeNormal),
-                      ),
-                      DropdownMenuItem(
-                        value: 'smart',
-                        child: Text(l10n.playbackSettingsCrossfadeTypeSmart),
-                      ),
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                        Slider(
+                          value: _crossfadeDurationSeconds.toDouble(),
+                          min: 1,
+                          max: 12,
+                          divisions: 11,
+                          label: '${_crossfadeDurationSeconds}s',
+                          onChanged: _isSaving
+                              ? null
+                              : (value) => setState(
+                                  () =>
+                                      _crossfadeDurationSeconds = value.round(),
+                                ),
+                        ),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<String>(
+                          initialValue: _crossfadeType,
+                          decoration: InputDecoration(
+                            labelText: l10n.playbackSettingsCrossfadeTypeLabel,
+                          ),
+                          items: [
+                            DropdownMenuItem(
+                              value: 'normal',
+                              child: Text(
+                                l10n.playbackSettingsCrossfadeTypeNormal,
+                              ),
+                            ),
+                            DropdownMenuItem(
+                              value: 'smart',
+                              child: Text(
+                                l10n.playbackSettingsCrossfadeTypeSmart,
+                              ),
+                            ),
+                          ],
+                          onChanged: _isSaving
+                              ? null
+                              : (value) {
+                                  if (value != null) {
+                                    setState(() => _crossfadeType = value);
+                                  }
+                                },
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _crossfadeType == 'smart'
+                              ? l10n.playbackSettingsCrossfadeTypeSmartDescription
+                              : l10n.playbackSettingsCrossfadeTypeNormalDescription,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: Theme.of(context).colorScheme.outline,
+                              ),
+                        ),
+                      ],
                     ],
-                    onChanged: _isSaving
-                        ? null
-                        : (value) {
-                            if (value != null) {
-                              setState(() => _crossfadeType = value);
-                            }
-                          },
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _crossfadeType == 'smart'
-                        ? l10n.playbackSettingsCrossfadeTypeSmartDescription
-                        : l10n.playbackSettingsCrossfadeTypeNormalDescription,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.outline,
-                    ),
-                  ),
-                ],
+                ),
               ],
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: effectiveLegacyInstantMix,
+                onChanged: (_isSaving || legacyInstantMixLocked)
+                    ? null
+                    : (value) => setState(
+                        () => _legacyInstantMixEnabled = value,
+                      ),
+                title: Text(l10n.playbackSettingsLegacyInstantMixTitle),
+                subtitle: Text(
+                  legacyInstantMixLocked
+                      ? l10n.playbackSettingsLegacyInstantMixLocked
+                      : l10n.playbackSettingsLegacyInstantMixSubtitle,
+                ),
+              ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 value: _fullscreenModeLyrics,
@@ -606,6 +635,7 @@ class _PlaybackSettingsScreenState
     _cellularFormat = settings.cellularFormat;
     _scrobbleEnabled = settings.scrobbleEnabled;
     _useLrclib = settings.useLrclib;
+    _legacyInstantMixEnabled = settings.legacyInstantMixEnabled;
     _gaplessEnabled = settings.gaplessEnabled || settings.crossfadeEnabled;
     _fullscreenModeLyrics = settings.skipSilenceEnabled;
     _equalizerEnabled = settings.equalizerEnabled;
@@ -644,6 +674,7 @@ class _PlaybackSettingsScreenState
       _cellularFormat,
       _scrobbleEnabled,
       _useLrclib,
+      _legacyInstantMixEnabled,
       _gaplessEnabled,
       _fullscreenModeLyrics,
       _equalizerEnabled,
@@ -674,6 +705,7 @@ class _PlaybackSettingsScreenState
       final currentSettings =
           ref.read(appSettingsProvider).asData?.value ??
           const AppSettingsModel.defaults();
+      final legacyInstantMixLocked = ref.read(legacyInstantMixLockedProvider);
       final settings = AppSettingsModel(
         wifiMaxBitRate: _wifiBitRate,
         wifiFormat: _normalizeFormat(_wifiFormat),
@@ -707,6 +739,9 @@ class _PlaybackSettingsScreenState
         audioMuseEnabled: currentSettings.audioMuseEnabled,
         syncIntervalMinutes: currentSettings.syncIntervalMinutes,
         useLrclib: _useLrclib,
+        legacyInstantMixEnabled: legacyInstantMixLocked
+            ? true
+            : _legacyInstantMixEnabled,
         replayGainMode: _replayGainMode,
         replayGainPreamp: _normalizeReplayGainPreamp(_replayGainPreamp),
         playbackSpeed: _normalizePlaybackSpeed(_playbackSpeed),

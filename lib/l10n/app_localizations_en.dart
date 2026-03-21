@@ -224,6 +224,17 @@ class AppLocalizationsEn extends AppLocalizations {
       'Preload tracks to reduce gaps between songs.';
 
   @override
+  String get playbackSettingsLegacyInstantMixTitle => 'Legacy Instant Mix';
+
+  @override
+  String get playbackSettingsLegacyInstantMixSubtitle =>
+      'Use local-only similar songs instead of Last.fm recommendations.';
+
+  @override
+  String get playbackSettingsLegacyInstantMixLocked =>
+      'This build has no Last.fm API key, so Legacy Instant Mix is required.';
+
+  @override
   String get playbackSettingsShowRadioPageTitle => 'Show Radio page';
 
   @override
@@ -1188,6 +1199,34 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get nowPlayingInstantMixError => 'Couldn\'t start Instant Mix.';
+
+  @override
+  String get nowPlayingSameVibesLabel => 'Same Vibes';
+
+  @override
+  String get nowPlayingSameVibesDescription => 'Last.fm similar-song queueing';
+
+  @override
+  String nowPlayingSameVibesStarted(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Same Vibes started — $count similar tracks queued.',
+      one: 'Same Vibes started — 1 similar track queued.',
+      zero: 'No similar tracks found.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get nowPlayingSameVibesUnsupported =>
+      'Your server doesn\'t support similar-track lookups.';
+
+  @override
+  String get nowPlayingSameVibesError => 'Couldn\'t start Same Vibes.';
+
+  @override
+  String get nowPlayingSameVibesStopped => 'Same Vibes stopped.';
 
   @override
   String get nowPlayingMixTitle => 'Queue modes';

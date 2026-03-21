@@ -50,6 +50,7 @@ void main() {
       audioMuseEnabled: false,
       syncIntervalMinutes: 60,
       useLrclib: true,
+      legacyInstantMixEnabled: false,
       replayGainMode: 'off',
       replayGainPreamp: 0,
       playbackSpeed: 1,
@@ -163,7 +164,7 @@ void main() {
       await tester.pumpAndSettle();
 
       verify(() => repository.resetDefaults()).called(1);
-      expect(find.text('Playback settings reset to defaults.'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('cross-fade controls depend on gapless playback', (

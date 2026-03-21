@@ -93,6 +93,24 @@ class QueueController extends Notifier<List<String>> {
     return add(song.id);
   }
 
+  /// Like [add], but accepts multiple [Song] API model objects and queues
+  /// them in one call after persisting all rows locally.
+  Future<void> addWithSongs(List<Song> songs) async {
+    if (songs.isEmpty) {
+      return;
+    }
+    await _ensureSongsInDatabase(songs);
+    final ids = songs
+        .map((song) => song.id.trim())
+        .where((id) => id.isNotEmpty)
+        .toList(growable: false);
+    if (ids.isEmpty) {
+      return;
+    }
+    final handler = _requireHandler();
+    await handler.addToQueue(ids);
+  }
+
   /// Like [playNext], but accepts a [Song] API model object.
   Future<void> playNextWithSong(Song song) async {
     await _ensureSongsInDatabase(<Song>[song]);

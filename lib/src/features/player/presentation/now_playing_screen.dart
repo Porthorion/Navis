@@ -12,7 +12,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
 import 'package:navis/src/features/player/presentation/queue_sheet.dart';
-import 'package:navis/src/features/player/presentation/smart_queue_notifier.dart';
+import 'package:navis/src/features/player/presentation/same_vibes_notifier.dart';
 import 'package:navis/src/features/player/presentation/smart_queue_sheet.dart';
 import 'package:navis/src/common_widgets/lyrics_display_widget.dart';
 import 'package:navis/src/common_widgets/rating_widget.dart';
@@ -20,7 +20,6 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
 import 'package:navis/src/features/library/domain/set_rating.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
-import 'package:navis/src/features/player/domain/smart_queue_state.dart';
 import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
@@ -4171,11 +4170,14 @@ class _ActionRowState extends ConsumerState<_ActionRow>
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final instantMix = ref.watch(instantMixProvider);
-    final smartQueue = ref.watch(smartQueueProvider);
-    final smartQueueAvailable =
-        ref.watch(smartQueueAvailableProvider).asData?.value ?? false;
-    final mixActive = instantMix.active || smartQueue.active;
-    final mixLoading = instantMix.refilling || smartQueue.refilling;
+    final sameVibes = ref.watch(sameVibesProvider);
+    final preferredMixMode = ref.watch(preferredMixModeProvider);
+    final mixActive = preferredMixMode == PreferredMixMode.legacyInstantMix
+        ? instantMix.active
+        : sameVibes.active;
+    final mixLoading = preferredMixMode == PreferredMixMode.legacyInstantMix
+        ? (instantMix.refilling && instantMix.active)
+        : (sameVibes.refilling && sameVibes.active);
     final colorScheme = Theme.of(context).colorScheme;
 
     final mixIcon = mixLoading
@@ -4190,13 +4192,7 @@ class _ActionRowState extends ConsumerState<_ActionRow>
             ),
           )
         : Icon(
-            smartQueue.active && smartQueue.profile != null
-                ? smartQueue.profile!.icon
-                : (instantMix.active
-                      ? Icons.explore
-                      : (smartQueueAvailable
-                            ? Icons.auto_awesome_outlined
-                            : Icons.explore_outlined)),
+            mixActive ? Icons.explore : Icons.explore_outlined,
             color: mixActive
                 ? colorScheme.primary
                 : colorScheme.onSurfaceVariant,
@@ -4220,18 +4216,9 @@ class _ActionRowState extends ConsumerState<_ActionRow>
           label: l10n.nowPlayingInstantMixLabel,
           onTap: widget.songId == null
               ? null
-              : () {
-                  if (widget.wideEmbeddedMode &&
-                      widget.onOpenMixPanel != null) {
-                    widget.onOpenMixPanel!.call();
-                    return;
-                  }
-                  if (smartQueueAvailable) {
-                    showMixModeSheet(context, seedSongId: widget.songId!);
-                  } else {
-                    ref.read(instantMixProvider.notifier).toggle(widget.songId);
-                  }
-                },
+              : () => unawaited(
+                  togglePreferredMixMode(ref, seedSongId: widget.songId!),
+                ),
         ),
         _NowPlayingActionButton(
           icon: ScaleTransition(
@@ -5062,46 +5049,35 @@ class _EmbeddedMixPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
-    final smartQueue = ref.watch(smartQueueProvider);
     final instantMix = ref.watch(instantMixProvider);
+    final sameVibes = ref.watch(sameVibesProvider);
+    final preferredMixMode = ref.watch(preferredMixModeProvider);
+    final useLegacy = preferredMixMode == PreferredMixMode.legacyInstantMix;
+    final active = useLegacy ? instantMix.active : sameVibes.active;
+    final loading = useLegacy
+        ? (instantMix.refilling && instantMix.active)
+        : (sameVibes.refilling && sameVibes.active);
+    final title = useLegacy
+        ? l10n.nowPlayingInstantMixLabel
+        : l10n.nowPlayingSameVibesLabel;
+    final subtitle = useLegacy
+        ? l10n.nowPlayingInstantMixDescription
+        : l10n.nowPlayingSameVibesDescription;
     final cards = <Widget>[
-      for (final profile in SmartQueueProfile.values)
-        Card(
-          child: ListTile(
-            leading: Icon(profile.icon, color: profile.color),
-            title: Text(_embeddedSmartQueueProfileTitle(l10n, profile)),
-            subtitle: Text(
-              _embeddedSmartQueueProfileDescription(l10n, profile),
-            ),
-            trailing: smartQueue.active && smartQueue.profile == profile
-                ? const Icon(Icons.check_circle)
-                : null,
-            onTap: () async {
-              ref.read(instantMixProvider.notifier).deactivate();
-              if (smartQueue.active && smartQueue.profile == profile) {
-                ref.read(smartQueueProvider.notifier).deactivate();
-                return;
-              }
-              ref.read(smartQueueProvider.notifier).deactivate();
-              await ref
-                  .read(smartQueueProvider.notifier)
-                  .activate(profile, seedSongId);
-            },
-          ),
-        ),
       Card(
         child: ListTile(
-          leading: const Icon(Icons.explore_outlined),
-          title: Text(l10n.nowPlayingInstantMixLabel),
-          subtitle: Text(l10n.nowPlayingInstantMixDescription),
-          trailing: instantMix.active ? const Icon(Icons.check_circle) : null,
+          leading: loading
+              ? const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.explore_outlined),
+          title: Text(title),
+          subtitle: Text(subtitle),
+          trailing: active ? const Icon(Icons.check_circle) : null,
           onTap: () async {
-            ref.read(smartQueueProvider.notifier).deactivate();
-            if (instantMix.active) {
-              ref.read(instantMixProvider.notifier).deactivate();
-              return;
-            }
-            await ref.read(instantMixProvider.notifier).activate(seedSongId);
+            await togglePreferredMixMode(ref, seedSongId: seedSongId);
           },
         ),
       ),
@@ -5111,37 +5087,5 @@ class _EmbeddedMixPanel extends ConsumerWidget {
       padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
       children: cards,
     );
-  }
-}
-
-String _embeddedSmartQueueProfileTitle(
-  AppLocalizations l10n,
-  SmartQueueProfile profile,
-) {
-  switch (profile) {
-    case SmartQueueProfile.steadyVibes:
-      return l10n.smartQueueSteadyVibes;
-    case SmartQueueProfile.discoveryMix:
-      return l10n.smartQueueDiscoveryMix;
-    case SmartQueueProfile.deepDive:
-      return l10n.smartQueueDeepDive;
-    case SmartQueueProfile.energyFlow:
-      return l10n.smartQueueEnergyFlow;
-  }
-}
-
-String _embeddedSmartQueueProfileDescription(
-  AppLocalizations l10n,
-  SmartQueueProfile profile,
-) {
-  switch (profile) {
-    case SmartQueueProfile.steadyVibes:
-      return l10n.smartQueueSteadyVibesDesc;
-    case SmartQueueProfile.discoveryMix:
-      return l10n.smartQueueDiscoveryMixDesc;
-    case SmartQueueProfile.deepDive:
-      return l10n.smartQueueDeepDiveDesc;
-    case SmartQueueProfile.energyFlow:
-      return l10n.smartQueueEnergyFlowDesc;
   }
 }

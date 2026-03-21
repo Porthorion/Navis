@@ -117,6 +117,10 @@ class AppSettingsTable extends Table {
   /// Whether LRCLIB fallback is used when server lyrics are unavailable.
   BoolColumn get useLrclib => boolean().withDefault(const Constant(true))();
 
+  /// When true, use legacy local-only Instant Mix instead of Last.fm Same Vibes.
+  BoolColumn get legacyInstantMixEnabled =>
+      boolean().withDefault(const Constant(false))();
+
   /// ReplayGain mode: 'off', 'track', or 'album'. Default 'off'.
   TextColumn get replayGainMode => text().withDefault(const Constant('off'))();
 

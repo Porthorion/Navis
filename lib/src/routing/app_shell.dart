@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:collection';
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/gestures.dart';
@@ -19,8 +21,10 @@ import 'package:navis/src/features/downloads/presentation/auto_download_starred_
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/domain/instant_mix_state.dart';
+import 'package:navis/src/features/player/domain/same_vibes_state.dart';
 import 'package:navis/src/features/player/domain/smart_queue_state.dart';
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
+import 'package:navis/src/features/player/presentation/same_vibes_notifier.dart';
 import 'package:navis/src/features/player/presentation/smart_queue_notifier.dart';
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
@@ -59,12 +63,19 @@ class AppShell extends ConsumerStatefulWidget {
 
 class _AppShellState extends ConsumerState<AppShell> {
   static const double _sideRailWidth = 270;
+  static const int _kQueueCoverArtPrefetchAheadCount = 6;
+  static const int _kQueueCoverArtPrefetchSizePx = 512;
+  static const int _kQueueCoverArtPrefetchDedupeCap = 320;
   final ValueNotifier<double> _playerSheetProgress = ValueNotifier<double>(0);
   final AppNoticeController _appNoticeController = AppNoticeController();
+  final Set<String> _queueCoverArtPrefetchedKeys = <String>{};
+  final ListQueue<String> _queueCoverArtPrefetchedOrder = ListQueue<String>();
   bool _didCheckBatteryOptimizationPrompt = false;
   bool Function()? _nowPlayingBackInterceptor;
   bool _compactWideInternalOverlayActive = false;
   VoidCallback? _compactWideQueueRequestHandler;
+  Timer? _queueCoverArtPrefetchDebounce;
+  int _queueCoverArtPrefetchToken = 0;
 
   // NOTE: We intentionally do NOT use WidgetsBindingObserver.didPopRoute()
   // for back-button handling. That observer fires BEFORE the Navigator
@@ -75,9 +86,116 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   @override
   void dispose() {
+    _queueCoverArtPrefetchDebounce?.cancel();
     _appNoticeController.dispose();
     _playerSheetProgress.dispose();
     super.dispose();
+  }
+
+  void _scheduleQueueCoverArtPrefetch() {
+    _queueCoverArtPrefetchDebounce?.cancel();
+    final token = ++_queueCoverArtPrefetchToken;
+    _queueCoverArtPrefetchDebounce = Timer(
+      const Duration(milliseconds: 180),
+      () {
+        unawaited(_prefetchUpcomingQueueCoverArt(token: token));
+      },
+    );
+  }
+
+  Future<void> _prefetchUpcomingQueueCoverArt({required int token}) async {
+    if (!mounted || token != _queueCoverArtPrefetchToken) {
+      return;
+    }
+
+    final snapshot = ref.read(playerStateProvider);
+    if (snapshot.isRadioMode || snapshot.queueSongIds.isEmpty) {
+      return;
+    }
+
+    final api = ref.read(subsonicApiProvider);
+    if (api == null) {
+      return;
+    }
+
+    final queueSongIds = snapshot.queueSongIds;
+    final rawStartIndex = snapshot.currentIndex ?? 0;
+    final startIndex = rawStartIndex < 0
+        ? 0
+        : (rawStartIndex >= queueSongIds.length
+              ? queueSongIds.length - 1
+              : rawStartIndex);
+    final endExclusive = math.min(
+      queueSongIds.length,
+      startIndex + _kQueueCoverArtPrefetchAheadCount + 1,
+    );
+    if (endExclusive <= startIndex) {
+      return;
+    }
+
+    final targetSongIds = queueSongIds
+        .sublist(startIndex, endExclusive)
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toList(growable: false);
+    if (targetSongIds.isEmpty) {
+      return;
+    }
+
+    final dao = ref.read(navisDatabaseProvider).libraryDao;
+    final songs = await dao.getSongsByIds(targetSongIds);
+    if (!mounted || token != _queueCoverArtPrefetchToken || songs.isEmpty) {
+      return;
+    }
+
+    final cacheManager =
+        ref.read(coverArtCacheManagerProvider).asData?.value ??
+        defaultCoverArtCacheManager;
+
+    for (final song in songs) {
+      if (!mounted || token != _queueCoverArtPrefetchToken) {
+        return;
+      }
+      final coverArtId = (song.coverArt ?? '').trim();
+      if (coverArtId.isEmpty) {
+        continue;
+      }
+      final cacheKey = '$coverArtId:$_kQueueCoverArtPrefetchSizePx';
+      if (_queueCoverArtPrefetchedKeys.contains(cacheKey)) {
+        continue;
+      }
+
+      final existing = await cacheManager.getFileFromCache(cacheKey);
+      if (existing != null) {
+        _rememberPrefetchedQueueCoverArt(cacheKey);
+        continue;
+      }
+
+      final url = api
+          .getCoverArtUrl(
+            id: coverArtId,
+            size: _kQueueCoverArtPrefetchSizePx,
+          )
+          .toString();
+      try {
+        await cacheManager.downloadFile(url, key: cacheKey);
+        _rememberPrefetchedQueueCoverArt(cacheKey);
+      } on Object {
+        // Best-effort warmup: ignore network/cache errors.
+      }
+    }
+  }
+
+  void _rememberPrefetchedQueueCoverArt(String cacheKey) {
+    if (!_queueCoverArtPrefetchedKeys.add(cacheKey)) {
+      return;
+    }
+    _queueCoverArtPrefetchedOrder.addLast(cacheKey);
+    while (_queueCoverArtPrefetchedOrder.length >
+        _kQueueCoverArtPrefetchDedupeCap) {
+      final oldest = _queueCoverArtPrefetchedOrder.removeFirst();
+      _queueCoverArtPrefetchedKeys.remove(oldest);
+    }
   }
 
   void _handleCompactWideOverlayActiveChanged(bool active) {
@@ -198,6 +316,39 @@ class _AppShellState extends ConsumerState<AppShell> {
         );
       }
     });
+    // Global Same Vibes snackbar / error notifications.
+    ref.listen<SameVibesState>(sameVibesProvider, (prev, next) {
+      if (!mounted) return;
+      if (!(prev?.active ?? false) && next.active && next.refilling) {
+        _appNoticeController.show(
+          message: '${l10n.nowPlayingSameVibesLabel}...',
+        );
+      }
+      if (next.pendingSnackbar != null &&
+          next.pendingSnackbar != prev?.pendingSnackbar) {
+        final count = int.tryParse(next.pendingSnackbar ?? '') ?? 0;
+        _appNoticeController.show(
+          message: l10n.nowPlayingSameVibesStarted(count),
+          level: AppNoticeLevel.success,
+        );
+        ref.read(sameVibesProvider.notifier).clearSnackbar();
+      }
+      if (next.error != null && next.error != prev?.error) {
+        final msg = next.error == SameVibesError.unsupported
+            ? l10n.nowPlayingSameVibesUnsupported
+            : l10n.nowPlayingSameVibesError;
+        _appNoticeController.show(
+          message: msg,
+          level: AppNoticeLevel.error,
+        );
+        ref.read(sameVibesProvider.notifier).clearError();
+      }
+      if ((prev?.active ?? false) && !next.active && next.error == null) {
+        _appNoticeController.show(
+          message: l10n.nowPlayingSameVibesStopped,
+        );
+      }
+    });
     // Global Radio stream error snackbar.
     ref.listen<AsyncValue<void>>(radioStreamErrorProvider, (prev, next) {
       if (!mounted) return;
@@ -212,9 +363,29 @@ class _AppShellState extends ConsumerState<AppShell> {
       playerStateProvider.select((snapshot) => snapshot.hasActivePlayback),
       (previous, next) {
         if (!next) {
+          _queueCoverArtPrefetchDebounce?.cancel();
           _playerSheetProgress.value = 0;
           ref.read(playerOverlayStackProvider.notifier).clear();
         }
+      },
+    );
+    ref.listen<(List<String>, int?, bool)>(
+      playerStateProvider.select(
+        (snapshot) => (
+          snapshot.queueSongIds,
+          snapshot.currentIndex,
+          snapshot.isRadioMode,
+        ),
+      ),
+      (previous, next) {
+        if (!mounted) return;
+        final queueSongIds = next.$1;
+        final isRadioMode = next.$3;
+        if (isRadioMode || queueSongIds.isEmpty) {
+          _queueCoverArtPrefetchDebounce?.cancel();
+          return;
+        }
+        _scheduleQueueCoverArtPrefetch();
       },
     );
     final isAuthenticated =

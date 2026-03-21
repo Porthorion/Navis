@@ -10,10 +10,10 @@ import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
-import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
+import 'package:navis/src/features/player/presentation/smart_queue_sheet.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
@@ -939,7 +939,12 @@ class _SongResultsSection extends ConsumerWidget {
                 showAddToPlaylistSheet(context, ref, [song.id]);
                 return Future<void>.value();
               case 'instant-mix':
-                ref.read(instantMixProvider.notifier).activate(song.id);
+                unawaited(
+                  activatePreferredMixMode(
+                    ref,
+                    seedSongId: song.id,
+                  ),
+                );
                 return Future<void>.value();
               default:
                 return Future<void>.value();
@@ -1019,7 +1024,12 @@ class _SongResultsSection extends ConsumerWidget {
               title: Text(l10n.nowPlayingInstantMix),
               onTap: () {
                 Navigator.of(sheetContext).pop();
-                ref.read(instantMixProvider.notifier).activate(song.id);
+                unawaited(
+                  activatePreferredMixMode(
+                    ref,
+                    seedSongId: song.id,
+                  ),
+                );
               },
             ),
           ],

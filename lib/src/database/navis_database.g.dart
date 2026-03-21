@@ -991,6 +991,21 @@ class $AppSettingsTableTable extends AppSettingsTable
     ),
     defaultValue: const Constant(true),
   );
+  static const VerificationMeta _legacyInstantMixEnabledMeta =
+      const VerificationMeta('legacyInstantMixEnabled');
+  @override
+  late final GeneratedColumn<bool> legacyInstantMixEnabled =
+      GeneratedColumn<bool>(
+        'legacy_instant_mix_enabled',
+        aliasedName,
+        false,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("legacy_instant_mix_enabled" IN (0, 1))',
+        ),
+        defaultValue: const Constant(false),
+      );
   static const VerificationMeta _replayGainModeMeta = const VerificationMeta(
     'replayGainMode',
   );
@@ -1193,6 +1208,7 @@ class $AppSettingsTableTable extends AppSettingsTable
     audioMuseEnabled,
     syncIntervalMinutes,
     useLrclib,
+    legacyInstantMixEnabled,
     replayGainMode,
     replayGainPreamp,
     playbackSpeed,
@@ -1526,6 +1542,15 @@ class $AppSettingsTableTable extends AppSettingsTable
         useLrclib.isAcceptableOrUnknown(data['use_lrclib']!, _useLrclibMeta),
       );
     }
+    if (data.containsKey('legacy_instant_mix_enabled')) {
+      context.handle(
+        _legacyInstantMixEnabledMeta,
+        legacyInstantMixEnabled.isAcceptableOrUnknown(
+          data['legacy_instant_mix_enabled']!,
+          _legacyInstantMixEnabledMeta,
+        ),
+      );
+    }
     if (data.containsKey('replay_gain_mode')) {
       context.handle(
         _replayGainModeMeta,
@@ -1804,6 +1829,10 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.bool,
         data['${effectivePrefix}use_lrclib'],
       )!,
+      legacyInstantMixEnabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}legacy_instant_mix_enabled'],
+      )!,
       replayGainMode: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}replay_gain_mode'],
@@ -1949,6 +1978,9 @@ class AppSettingsTableData extends DataClass
   /// Whether LRCLIB fallback is used when server lyrics are unavailable.
   final bool useLrclib;
 
+  /// When true, use legacy local-only Instant Mix instead of Last.fm Same Vibes.
+  final bool legacyInstantMixEnabled;
+
   /// ReplayGain mode: 'off', 'track', or 'album'. Default 'off'.
   final String replayGainMode;
 
@@ -2028,6 +2060,7 @@ class AppSettingsTableData extends DataClass
     required this.audioMuseEnabled,
     required this.syncIntervalMinutes,
     required this.useLrclib,
+    required this.legacyInstantMixEnabled,
     required this.replayGainMode,
     required this.replayGainPreamp,
     required this.playbackSpeed,
@@ -2108,6 +2141,7 @@ class AppSettingsTableData extends DataClass
     map['audio_muse_enabled'] = Variable<bool>(audioMuseEnabled);
     map['sync_interval_minutes'] = Variable<int>(syncIntervalMinutes);
     map['use_lrclib'] = Variable<bool>(useLrclib);
+    map['legacy_instant_mix_enabled'] = Variable<bool>(legacyInstantMixEnabled);
     map['replay_gain_mode'] = Variable<String>(replayGainMode);
     map['replay_gain_preamp'] = Variable<double>(replayGainPreamp);
     map['playback_speed'] = Variable<double>(playbackSpeed);
@@ -2193,6 +2227,7 @@ class AppSettingsTableData extends DataClass
       audioMuseEnabled: Value(audioMuseEnabled),
       syncIntervalMinutes: Value(syncIntervalMinutes),
       useLrclib: Value(useLrclib),
+      legacyInstantMixEnabled: Value(legacyInstantMixEnabled),
       replayGainMode: Value(replayGainMode),
       replayGainPreamp: Value(replayGainPreamp),
       playbackSpeed: Value(playbackSpeed),
@@ -2280,6 +2315,9 @@ class AppSettingsTableData extends DataClass
         json['syncIntervalMinutes'],
       ),
       useLrclib: serializer.fromJson<bool>(json['useLrclib']),
+      legacyInstantMixEnabled: serializer.fromJson<bool>(
+        json['legacyInstantMixEnabled'],
+      ),
       replayGainMode: serializer.fromJson<String>(json['replayGainMode']),
       replayGainPreamp: serializer.fromJson<double>(json['replayGainPreamp']),
       playbackSpeed: serializer.fromJson<double>(json['playbackSpeed']),
@@ -2352,6 +2390,9 @@ class AppSettingsTableData extends DataClass
       'audioMuseEnabled': serializer.toJson<bool>(audioMuseEnabled),
       'syncIntervalMinutes': serializer.toJson<int>(syncIntervalMinutes),
       'useLrclib': serializer.toJson<bool>(useLrclib),
+      'legacyInstantMixEnabled': serializer.toJson<bool>(
+        legacyInstantMixEnabled,
+      ),
       'replayGainMode': serializer.toJson<String>(replayGainMode),
       'replayGainPreamp': serializer.toJson<double>(replayGainPreamp),
       'playbackSpeed': serializer.toJson<double>(playbackSpeed),
@@ -2408,6 +2449,7 @@ class AppSettingsTableData extends DataClass
     bool? audioMuseEnabled,
     int? syncIntervalMinutes,
     bool? useLrclib,
+    bool? legacyInstantMixEnabled,
     String? replayGainMode,
     double? replayGainPreamp,
     double? playbackSpeed,
@@ -2481,6 +2523,8 @@ class AppSettingsTableData extends DataClass
     audioMuseEnabled: audioMuseEnabled ?? this.audioMuseEnabled,
     syncIntervalMinutes: syncIntervalMinutes ?? this.syncIntervalMinutes,
     useLrclib: useLrclib ?? this.useLrclib,
+    legacyInstantMixEnabled:
+        legacyInstantMixEnabled ?? this.legacyInstantMixEnabled,
     replayGainMode: replayGainMode ?? this.replayGainMode,
     replayGainPreamp: replayGainPreamp ?? this.replayGainPreamp,
     playbackSpeed: playbackSpeed ?? this.playbackSpeed,
@@ -2605,6 +2649,9 @@ class AppSettingsTableData extends DataClass
           ? data.syncIntervalMinutes.value
           : this.syncIntervalMinutes,
       useLrclib: data.useLrclib.present ? data.useLrclib.value : this.useLrclib,
+      legacyInstantMixEnabled: data.legacyInstantMixEnabled.present
+          ? data.legacyInstantMixEnabled.value
+          : this.legacyInstantMixEnabled,
       replayGainMode: data.replayGainMode.present
           ? data.replayGainMode.value
           : this.replayGainMode,
@@ -2687,6 +2734,7 @@ class AppSettingsTableData extends DataClass
           ..write('audioMuseEnabled: $audioMuseEnabled, ')
           ..write('syncIntervalMinutes: $syncIntervalMinutes, ')
           ..write('useLrclib: $useLrclib, ')
+          ..write('legacyInstantMixEnabled: $legacyInstantMixEnabled, ')
           ..write('replayGainMode: $replayGainMode, ')
           ..write('replayGainPreamp: $replayGainPreamp, ')
           ..write('playbackSpeed: $playbackSpeed, ')
@@ -2743,6 +2791,7 @@ class AppSettingsTableData extends DataClass
     audioMuseEnabled,
     syncIntervalMinutes,
     useLrclib,
+    legacyInstantMixEnabled,
     replayGainMode,
     replayGainPreamp,
     playbackSpeed,
@@ -2798,6 +2847,7 @@ class AppSettingsTableData extends DataClass
           other.audioMuseEnabled == this.audioMuseEnabled &&
           other.syncIntervalMinutes == this.syncIntervalMinutes &&
           other.useLrclib == this.useLrclib &&
+          other.legacyInstantMixEnabled == this.legacyInstantMixEnabled &&
           other.replayGainMode == this.replayGainMode &&
           other.replayGainPreamp == this.replayGainPreamp &&
           other.playbackSpeed == this.playbackSpeed &&
@@ -2851,6 +2901,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<bool> audioMuseEnabled;
   final Value<int> syncIntervalMinutes;
   final Value<bool> useLrclib;
+  final Value<bool> legacyInstantMixEnabled;
   final Value<String> replayGainMode;
   final Value<double> replayGainPreamp;
   final Value<double> playbackSpeed;
@@ -2902,6 +2953,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.audioMuseEnabled = const Value.absent(),
     this.syncIntervalMinutes = const Value.absent(),
     this.useLrclib = const Value.absent(),
+    this.legacyInstantMixEnabled = const Value.absent(),
     this.replayGainMode = const Value.absent(),
     this.replayGainPreamp = const Value.absent(),
     this.playbackSpeed = const Value.absent(),
@@ -2954,6 +3006,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.audioMuseEnabled = const Value.absent(),
     this.syncIntervalMinutes = const Value.absent(),
     this.useLrclib = const Value.absent(),
+    this.legacyInstantMixEnabled = const Value.absent(),
     this.replayGainMode = const Value.absent(),
     this.replayGainPreamp = const Value.absent(),
     this.playbackSpeed = const Value.absent(),
@@ -3006,6 +3059,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<bool>? audioMuseEnabled,
     Expression<int>? syncIntervalMinutes,
     Expression<bool>? useLrclib,
+    Expression<bool>? legacyInstantMixEnabled,
     Expression<String>? replayGainMode,
     Expression<double>? replayGainPreamp,
     Expression<double>? playbackSpeed,
@@ -3072,6 +3126,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       if (syncIntervalMinutes != null)
         'sync_interval_minutes': syncIntervalMinutes,
       if (useLrclib != null) 'use_lrclib': useLrclib,
+      if (legacyInstantMixEnabled != null)
+        'legacy_instant_mix_enabled': legacyInstantMixEnabled,
       if (replayGainMode != null) 'replay_gain_mode': replayGainMode,
       if (replayGainPreamp != null) 'replay_gain_preamp': replayGainPreamp,
       if (playbackSpeed != null) 'playback_speed': playbackSpeed,
@@ -3130,6 +3186,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<bool>? audioMuseEnabled,
     Value<int>? syncIntervalMinutes,
     Value<bool>? useLrclib,
+    Value<bool>? legacyInstantMixEnabled,
     Value<String>? replayGainMode,
     Value<double>? replayGainPreamp,
     Value<double>? playbackSpeed,
@@ -3186,6 +3243,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       audioMuseEnabled: audioMuseEnabled ?? this.audioMuseEnabled,
       syncIntervalMinutes: syncIntervalMinutes ?? this.syncIntervalMinutes,
       useLrclib: useLrclib ?? this.useLrclib,
+      legacyInstantMixEnabled:
+          legacyInstantMixEnabled ?? this.legacyInstantMixEnabled,
       replayGainMode: replayGainMode ?? this.replayGainMode,
       replayGainPreamp: replayGainPreamp ?? this.replayGainPreamp,
       playbackSpeed: playbackSpeed ?? this.playbackSpeed,
@@ -3327,6 +3386,11 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     if (useLrclib.present) {
       map['use_lrclib'] = Variable<bool>(useLrclib.value);
     }
+    if (legacyInstantMixEnabled.present) {
+      map['legacy_instant_mix_enabled'] = Variable<bool>(
+        legacyInstantMixEnabled.value,
+      );
+    }
     if (replayGainMode.present) {
       map['replay_gain_mode'] = Variable<String>(replayGainMode.value);
     }
@@ -3415,6 +3479,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('audioMuseEnabled: $audioMuseEnabled, ')
           ..write('syncIntervalMinutes: $syncIntervalMinutes, ')
           ..write('useLrclib: $useLrclib, ')
+          ..write('legacyInstantMixEnabled: $legacyInstantMixEnabled, ')
           ..write('replayGainMode: $replayGainMode, ')
           ..write('replayGainPreamp: $replayGainPreamp, ')
           ..write('playbackSpeed: $playbackSpeed, ')
@@ -11890,6 +11955,7 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<bool> audioMuseEnabled,
       Value<int> syncIntervalMinutes,
       Value<bool> useLrclib,
+      Value<bool> legacyInstantMixEnabled,
       Value<String> replayGainMode,
       Value<double> replayGainPreamp,
       Value<double> playbackSpeed,
@@ -11943,6 +12009,7 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<bool> audioMuseEnabled,
       Value<int> syncIntervalMinutes,
       Value<bool> useLrclib,
+      Value<bool> legacyInstantMixEnabled,
       Value<String> replayGainMode,
       Value<double> replayGainPreamp,
       Value<double> playbackSpeed,
@@ -12145,6 +12212,11 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<bool> get useLrclib => $composableBuilder(
     column: $table.useLrclib,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get legacyInstantMixEnabled => $composableBuilder(
+    column: $table.legacyInstantMixEnabled,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -12408,6 +12480,11 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get legacyInstantMixEnabled => $composableBuilder(
+    column: $table.legacyInstantMixEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get replayGainMode => $composableBuilder(
     column: $table.replayGainMode,
     builder: (column) => ColumnOrderings(column),
@@ -12660,6 +12737,11 @@ class $$AppSettingsTableTableAnnotationComposer
   GeneratedColumn<bool> get useLrclib =>
       $composableBuilder(column: $table.useLrclib, builder: (column) => column);
 
+  GeneratedColumn<bool> get legacyInstantMixEnabled => $composableBuilder(
+    column: $table.legacyInstantMixEnabled,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get replayGainMode => $composableBuilder(
     column: $table.replayGainMode,
     builder: (column) => column,
@@ -12802,6 +12884,7 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> audioMuseEnabled = const Value.absent(),
                 Value<int> syncIntervalMinutes = const Value.absent(),
                 Value<bool> useLrclib = const Value.absent(),
+                Value<bool> legacyInstantMixEnabled = const Value.absent(),
                 Value<String> replayGainMode = const Value.absent(),
                 Value<double> replayGainPreamp = const Value.absent(),
                 Value<double> playbackSpeed = const Value.absent(),
@@ -12853,6 +12936,7 @@ class $$AppSettingsTableTableTableManager
                 audioMuseEnabled: audioMuseEnabled,
                 syncIntervalMinutes: syncIntervalMinutes,
                 useLrclib: useLrclib,
+                legacyInstantMixEnabled: legacyInstantMixEnabled,
                 replayGainMode: replayGainMode,
                 replayGainPreamp: replayGainPreamp,
                 playbackSpeed: playbackSpeed,
@@ -12906,6 +12990,7 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> audioMuseEnabled = const Value.absent(),
                 Value<int> syncIntervalMinutes = const Value.absent(),
                 Value<bool> useLrclib = const Value.absent(),
+                Value<bool> legacyInstantMixEnabled = const Value.absent(),
                 Value<String> replayGainMode = const Value.absent(),
                 Value<double> replayGainPreamp = const Value.absent(),
                 Value<double> playbackSpeed = const Value.absent(),
@@ -12957,6 +13042,7 @@ class $$AppSettingsTableTableTableManager
                 audioMuseEnabled: audioMuseEnabled,
                 syncIntervalMinutes: syncIntervalMinutes,
                 useLrclib: useLrclib,
+                legacyInstantMixEnabled: legacyInstantMixEnabled,
                 replayGainMode: replayGainMode,
                 replayGainPreamp: replayGainPreamp,
                 playbackSpeed: playbackSpeed,
