@@ -65,6 +65,8 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
     final downloadedSongIds = _showDownloadedOnly
         ? ref.watch(downloadedSongIdsProvider).asData?.value ?? const <String>{}
         : const <String>{};
+    final coverShape = ref.watch(coverArtShapeProvider);
+    final coverRadius = coverArtShapeToRadius(coverShape);
 
     return Scaffold(
       appBar: AppBar(
@@ -191,7 +193,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
                         child: InkWell(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: coverRadius,
                           onTap: () => unawaited(
                             showCoverArtViewer(
                               context,
@@ -206,7 +208,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                             size: 200,
                             width: 180,
                             height: 180,
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: coverRadius,
                             placeholderIcon: Icons.album_outlined,
                           ),
                         ),
