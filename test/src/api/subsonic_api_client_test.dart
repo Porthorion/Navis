@@ -435,6 +435,51 @@ void main() {
       expect(stations.single.id, 'r1');
     });
 
+    test('getAlbum maps Subsonic song payload into album songs', () async {
+      final dio = Dio(BaseOptions(baseUrl: 'https://example.com'));
+      final client = createClient(dio: dio);
+
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            if (options.path == '/rest/getAlbum.view') {
+              handler.resolve(
+                Response<dynamic>(
+                  requestOptions: options,
+                  statusCode: 200,
+                  data: ok(<String, dynamic>{
+                    'album': <String, dynamic>{
+                      'id': 'al1',
+                      'name': 'Album 1',
+                      'song': <Map<String, dynamic>>[
+                        <String, dynamic>{
+                          'id': 's1',
+                          'title': 'Song 1',
+                          'albumId': 'al1',
+                        },
+                      ],
+                    },
+                  }),
+                ),
+              );
+              return;
+            }
+            handler.reject(
+              DioException(
+                requestOptions: options,
+                type: DioExceptionType.badResponse,
+              ),
+            );
+          },
+        ),
+      );
+
+      final album = await client.getAlbum('al1');
+      expect(album.id, 'al1');
+      expect(album.songs, hasLength(1));
+      expect(album.songs.single.id, 's1');
+    });
+
     test('forwards cancel token', () async {
       final dio = Dio(BaseOptions(baseUrl: 'https://example.com'));
       final client = createClient(dio: dio);

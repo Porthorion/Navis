@@ -672,7 +672,38 @@ Future<void> _hydrateAlbumFromServer(Ref ref, String albumId) async {
   }
 
   final db = ref.read(navisDatabaseProvider);
-  final detail = await api.getAlbum(albumId);
+  var detail = await api.getAlbum(albumId);
+  if (detail.songs.isEmpty && (detail.songCount ?? 0) > 0) {
+    AppLogger.warning(
+      'Album hydrate returned empty songs on first attempt for album=$albumId. '
+      'Retrying once.',
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    final retried = await api.getAlbum(albumId);
+    if (retried.songs.isNotEmpty) {
+      detail = retried;
+      AppLogger.info(
+        'Album hydrate retry recovered ${retried.songs.length} songs for '
+        'album=$albumId.',
+      );
+    }
+  }
+
+  final existingSongs = await db.libraryDao.watchSongsByAlbum(detail.id).first;
+  final shouldPreserveExistingSongs =
+      detail.songs.isEmpty &&
+      existingSongs.isNotEmpty &&
+      (detail.songCount == null || detail.songCount! > 0);
+  if (shouldPreserveExistingSongs) {
+    AppLogger.warning(
+      'Album hydrate returned empty songs for album=${detail.id}; preserving '
+      '${existingSongs.length} existing local tracks.',
+    );
+  }
+  final effectiveSongCount =
+      shouldPreserveExistingSongs && detail.songCount == null
+      ? existingSongs.length
+      : detail.songCount;
 
   final artistRows = <String, ArtistsTableCompanion>{};
   final primaryArtistId = detail.artistId?.trim();
@@ -711,7 +742,7 @@ Future<void> _hydrateAlbumFromServer(Ref ref, String albumId) async {
       name: detail.name,
       artistId: Value(detail.artistId),
       artistName: Value(detail.artist),
-      songCount: Value(detail.songCount),
+      songCount: Value(effectiveSongCount),
       duration: Value(detail.duration),
       year: Value(detail.year),
       genre: Value(detail.genre),
@@ -724,41 +755,82 @@ Future<void> _hydrateAlbumFromServer(Ref ref, String albumId) async {
     ),
   ]);
 
-  await db.libraryDao.replaceSongsForAlbum(
-    detail.id,
-    detail.songs
-        .map(
-          (song) => SongsTableCompanion.insert(
-            id: song.id,
-            title: song.title,
-            albumId: Value(song.albumId ?? detail.id),
-            artistId: Value(song.artistId),
-            artistName: Value(song.artist),
-            albumName: Value(song.album ?? detail.name),
-            track: Value(song.track),
-            discNumber: Value(song.discNumber),
-            duration: Value(song.duration),
-            bitRate: Value(song.bitRate),
-            sampleRate: Value(song.sampleRate),
-            contentType: Value(song.contentType),
-            suffix: Value(song.suffix),
-            size: Value(song.size),
-            coverArt: Value(song.coverArt),
-            starred: Value(song.starred),
-            userRating: Value(song.userRating),
-            playCount: Value(song.playCount),
-            createdAt: Value(song.created),
-            replayGainTrackGain: Value(song.replayGain?.trackGain),
-            replayGainAlbumGain: Value(song.replayGain?.albumGain),
-            replayGainTrackPeak: Value(song.replayGain?.trackPeak),
-            replayGainAlbumPeak: Value(song.replayGain?.albumPeak),
-          ),
-        )
-        .toList(growable: false),
-  );
+  if (!shouldPreserveExistingSongs) {
+    await db.libraryDao.replaceSongsForAlbum(
+      detail.id,
+      detail.songs
+          .map(
+            (song) => SongsTableCompanion.insert(
+              id: song.id,
+              title: song.title,
+              albumId: Value(song.albumId ?? detail.id),
+              artistId: Value(song.artistId),
+              artistName: Value(song.artist),
+              albumName: Value(song.album ?? detail.name),
+              track: Value(song.track),
+              discNumber: Value(song.discNumber),
+              duration: Value(song.duration),
+              bitRate: Value(song.bitRate),
+              sampleRate: Value(song.sampleRate),
+              contentType: Value(song.contentType),
+              suffix: Value(song.suffix),
+              size: Value(song.size),
+              coverArt: Value(song.coverArt),
+              starred: Value(song.starred),
+              userRating: Value(song.userRating),
+              playCount: Value(song.playCount),
+              createdAt: Value(song.created),
+              replayGainTrackGain: Value(song.replayGain?.trackGain),
+              replayGainAlbumGain: Value(song.replayGain?.albumGain),
+              replayGainTrackPeak: Value(song.replayGain?.trackPeak),
+              replayGainAlbumPeak: Value(song.replayGain?.albumPeak),
+            ),
+          )
+          .toList(growable: false),
+    );
+  }
 
   await db.libraryDao.markAlbumSongsHydrated(detail.id);
 }
+
+Future<void> _refreshAlbumInfoFromServer(Ref ref, String albumId) async {
+  final api = ref.read(subsonicApiProvider);
+  if (api == null) {
+    return;
+  }
+  final db = ref.read(navisDatabaseProvider);
+  final now = DateTime.now();
+  final info = await api.getAlbumInfo2(albumId);
+  await db.libraryDao.upsertAlbumInfoCache(
+    albumId: albumId,
+    notes: info.notes,
+    musicBrainzId: info.musicBrainzId,
+    lastFmUrl: info.lastFmUrl,
+    smallImageUrl: info.smallImageUrl,
+    mediumImageUrl: info.mediumImageUrl,
+    largeImageUrl: info.largeImageUrl,
+    fetchedAt: now,
+  );
+}
+
+Future<void> refreshAlbumFromServer(Ref ref, String albumId) async {
+  await _hydrateAlbumFromServer(ref, albumId);
+  try {
+    await _refreshAlbumInfoFromServer(ref, albumId);
+  } on Object catch (error, stackTrace) {
+    AppLogger.debug(
+      'Album info refresh failed for album=$albumId: $error\n$stackTrace',
+    );
+  }
+  ref.invalidate(albumInfoProvider(albumId));
+}
+
+final refreshAlbumFromServerProvider =
+    Provider.family<Future<void> Function(), String>(
+      (ref, albumId) {
+        return () => refreshAlbumFromServer(ref, albumId);
+      },
+    );
 
 final artistsProvider = StreamProvider<List<ArtistsTableData>>((ref) {
   final dao = ref.watch(navisDatabaseProvider).libraryDao;

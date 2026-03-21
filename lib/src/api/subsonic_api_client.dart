@@ -125,7 +125,13 @@ class SubsonicApiClient {
       query: {'id': id},
       cancelToken: cancelToken,
     );
-    return Album.fromJson(_asMap(root['album']));
+    final album = _asMap(root['album']);
+    return Album.fromJson(<String, dynamic>{
+      ...album,
+      // Subsonic uses `song` for album track payloads. Normalize it so
+      // Album.fromJson always receives the expected `songs` list key.
+      'songs': _asMapList(album['song']),
+    });
   }
 
   Future<Song> getSong(String id, {CancelToken? cancelToken}) async {

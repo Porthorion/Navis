@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -47,6 +48,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
   bool _isStarring = false;
   bool _isUpdatingRating = false;
   bool _isQueueActionInFlight = false;
+  bool _isRefreshingAlbum = false;
   late bool _showLikedOnly = widget.likedOnly;
   bool _showDownloadedOnly = false;
 
@@ -74,461 +76,538 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
         actions: <Widget>[
           IconButton(
             tooltip: l10n.commonRetry,
-            onPressed: () => ref.invalidate(albumInfoProvider(widget.albumId)),
-            icon: const Icon(Icons.refresh),
+            onPressed: _isRefreshingAlbum ? null : _refreshAlbum,
+            icon: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 180),
+              child: _isRefreshingAlbum
+                  ? const SizedBox(
+                      key: ValueKey<String>('album-refresh-loading'),
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2.2),
+                    )
+                  : const Icon(
+                      Icons.refresh,
+                      key: ValueKey<String>('album-refresh-idle'),
+                    ),
+            ),
           ),
         ],
       ),
-      body: album.when(
-        data: (data) {
-          if (data == null) {
-            return EmptyState(
-              title: l10n.albumDetailNotFoundTitle,
-              subtitle: l10n.albumDetailNotFoundSubtitle,
-              icon: Icons.album_outlined,
-            );
-          }
-          final details = data.album;
-          final songs = data.songs;
-          final filteredSongs = songs
-              .where((song) {
-                if (_showLikedOnly && song.starred == null) {
-                  return false;
-                }
-                if (_showDownloadedOnly &&
-                    !downloadedSongIds.contains(song.id)) {
-                  return false;
-                }
-                return true;
-              })
-              .toList(growable: false);
-          final isStarred = _isStarred || details.starred != null;
-          final albumInfoAsync = ref.watch(albumInfoProvider(widget.albumId));
-          final albumRating =
-              ref.watch(albumRatingProvider(widget.albumId)).asData?.value ??
-              details.userRating;
-          final coverArtHeroTag = buildCoverArtHeroTag(
-            coverArtId: details.coverArt,
-            context: 'album',
-            entityId: widget.albumId,
-          );
-          // ── Build render items with disc headers for multi-disc ──
-          final renderItems = _buildRenderItems(filteredSongs);
-          final tracksSliver = renderItems.isEmpty
-              ? SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: _showDownloadedOnly
-                      ? EmptyState(
-                          title: l10n.libraryDownloadedOnlyEmpty,
-                          subtitle: l10n.libraryDownloadedOnlyEmptySubtitle,
-                          icon: Icons.download_done_outlined,
-                        )
-                      : _showLikedOnly
-                      ? Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: <Widget>[
-                            EmptyState(
-                              title: l10n.albumDetailLikedTracksEmptyTitle,
-                              subtitle:
-                                  l10n.albumDetailLikedTracksEmptySubtitle,
-                              icon: Icons.favorite_border_outlined,
-                            ),
-                            const SizedBox(height: 12),
-                            FilledButton.tonal(
-                              onPressed: () =>
-                                  setState(() => _showLikedOnly = false),
-                              child: Text(l10n.albumDetailShowAllTracksAction),
-                            ),
-                          ],
-                        )
-                      : EmptyState(
-                          title: l10n.albumDetailTracksEmptyTitle,
-                          subtitle: l10n.albumDetailTracksEmptySubtitle,
-                          icon: Icons.music_note_outlined,
-                        ),
-                )
-              : SliverList(
-                  delegate: SliverChildBuilderDelegate((context, index) {
-                    final item = renderItems[index];
-                    return switch (item) {
-                      _DiscHeader(:final discNumber, :final isFirst) =>
-                        _buildDiscHeader(context, l10n, discNumber, isFirst),
-                      _SongItem(:final song) => TrackListTile(
-                        song: song,
-                        onTap: _isQueueActionInFlight
-                            ? null
-                            : () => unawaited(_playNow(song)),
-                        onLongPress: _isQueueActionInFlight
-                            ? null
-                            : () => unawaited(_showSongActions(song)),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: <Widget>[
-                            SongDownloadStatusIcon(
-                              songId: song.id,
-                              onDownload: _isQueueActionInFlight
-                                  ? null
-                                  : () => unawaited(_downloadSong(song)),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.more_vert),
-                              onPressed: _isQueueActionInFlight
-                                  ? null
-                                  : () => unawaited(_showSongActions(song)),
-                            ),
-                          ],
-                        ),
-                      ),
-                    };
-                  }, childCount: renderItems.length),
+      body: Stack(
+        children: <Widget>[
+          album.when(
+            data: (data) {
+              if (data == null) {
+                return EmptyState(
+                  title: l10n.albumDetailNotFoundTitle,
+                  subtitle: l10n.albumDetailNotFoundSubtitle,
+                  icon: Icons.album_outlined,
                 );
-
-          return CustomScrollView(
-            slivers: <Widget>[
-              SliverToBoxAdapter(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Center(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
-                        child: InkWell(
-                          borderRadius: coverRadius,
-                          onTap: () => unawaited(
-                            showCoverArtViewer(
+              }
+              final details = data.album;
+              final songs = data.songs;
+              final filteredSongs = songs
+                  .where((song) {
+                    if (_showLikedOnly && song.starred == null) {
+                      return false;
+                    }
+                    if (_showDownloadedOnly &&
+                        !downloadedSongIds.contains(song.id)) {
+                      return false;
+                    }
+                    return true;
+                  })
+                  .toList(growable: false);
+              final isStarred = _isStarred || details.starred != null;
+              final albumInfoAsync = ref.watch(
+                albumInfoProvider(widget.albumId),
+              );
+              final albumRating =
+                  ref
+                      .watch(albumRatingProvider(widget.albumId))
+                      .asData
+                      ?.value ??
+                  details.userRating;
+              final coverArtHeroTag = buildCoverArtHeroTag(
+                coverArtId: details.coverArt,
+                context: 'album',
+                entityId: widget.albumId,
+              );
+              // ── Build render items with disc headers for multi-disc ──
+              final renderItems = _buildRenderItems(filteredSongs);
+              final tracksSliver = renderItems.isEmpty
+                  ? SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: _showDownloadedOnly
+                          ? EmptyState(
+                              title: l10n.libraryDownloadedOnlyEmpty,
+                              subtitle: l10n.libraryDownloadedOnlyEmptySubtitle,
+                              icon: Icons.download_done_outlined,
+                            )
+                          : _showLikedOnly
+                          ? Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: <Widget>[
+                                EmptyState(
+                                  title: l10n.albumDetailLikedTracksEmptyTitle,
+                                  subtitle:
+                                      l10n.albumDetailLikedTracksEmptySubtitle,
+                                  icon: Icons.favorite_border_outlined,
+                                ),
+                                const SizedBox(height: 12),
+                                FilledButton.tonal(
+                                  onPressed: () =>
+                                      setState(() => _showLikedOnly = false),
+                                  child: Text(
+                                    l10n.albumDetailShowAllTracksAction,
+                                  ),
+                                ),
+                              ],
+                            )
+                          : EmptyState(
+                              title: l10n.albumDetailTracksEmptyTitle,
+                              subtitle: l10n.albumDetailTracksEmptySubtitle,
+                              icon: Icons.music_note_outlined,
+                            ),
+                    )
+                  : SliverList(
+                      delegate: SliverChildBuilderDelegate((context, index) {
+                        final item = renderItems[index];
+                        return switch (item) {
+                          _DiscHeader(:final discNumber, :final isFirst) =>
+                            _buildDiscHeader(
                               context,
-                              coverArtId: details.coverArt,
-                              heroTag: coverArtHeroTag,
-                              previewSize: 200,
+                              l10n,
+                              discNumber,
+                              isFirst,
+                            ),
+                          _SongItem(:final song) => TrackListTile(
+                            song: song,
+                            onTap: _isQueueActionInFlight
+                                ? null
+                                : () => unawaited(_playNow(song)),
+                            onLongPress: _isQueueActionInFlight
+                                ? null
+                                : () => unawaited(_showSongActions(song)),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                SongDownloadStatusIcon(
+                                  songId: song.id,
+                                  onDownload: _isQueueActionInFlight
+                                      ? null
+                                      : () => unawaited(_downloadSong(song)),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.more_vert),
+                                  onPressed: _isQueueActionInFlight
+                                      ? null
+                                      : () => unawaited(_showSongActions(song)),
+                                ),
+                              ],
                             ),
                           ),
-                          child: HeroCoverArt(
-                            coverArtId: details.coverArt,
-                            heroTag: coverArtHeroTag,
-                            size: 200,
-                            width: 180,
-                            height: 180,
-                            borderRadius: coverRadius,
-                            placeholderIcon: Icons.album_outlined,
+                        };
+                      }, childCount: renderItems.length),
+                    );
+
+              return CustomScrollView(
+                slivers: <Widget>[
+                  SliverToBoxAdapter(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Center(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+                            child: InkWell(
+                              borderRadius: coverRadius,
+                              onTap: () => unawaited(
+                                showCoverArtViewer(
+                                  context,
+                                  coverArtId: details.coverArt,
+                                  heroTag: coverArtHeroTag,
+                                  previewSize: 200,
+                                ),
+                              ),
+                              child: HeroCoverArt(
+                                coverArtId: details.coverArt,
+                                heroTag: coverArtHeroTag,
+                                size: 200,
+                                width: 180,
+                                height: 180,
+                                borderRadius: coverRadius,
+                                placeholderIcon: Icons.album_outlined,
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
-                      child: Text(
-                        details.name,
-                        style: Theme.of(context).textTheme.headlineSmall,
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                      child: Wrap(
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        spacing: 6,
-                        runSpacing: 4,
-                        children: <Widget>[
-                          if (details.artistId != null &&
-                              details.artistId!.isNotEmpty)
-                            InkWell(
-                              onTap: () => context.go(
-                                '/library/artists/${details.artistId}',
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+                          child: Text(
+                            details.name,
+                            style: Theme.of(context).textTheme.headlineSmall,
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                          child: Wrap(
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            spacing: 6,
+                            runSpacing: 4,
+                            children: <Widget>[
+                              if (details.artistId != null &&
+                                  details.artistId!.isNotEmpty)
+                                InkWell(
+                                  onTap: () => context.go(
+                                    '/library/artists/${details.artistId}',
+                                  ),
+                                  child: Text(
+                                    details.artistName ??
+                                        l10n.albumDetailUnknownArtist,
+                                    style: Theme.of(context).textTheme.bodyLarge
+                                        ?.copyWith(
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.primary,
+                                        ),
+                                  ),
+                                )
+                              else
+                                Text(
+                                  details.artistName ??
+                                      l10n.albumDetailUnknownArtist,
+                                  style: Theme.of(context).textTheme.bodyLarge,
+                                ),
+                              Text(
+                                '• ${details.year?.toString() ?? '-'} • ${filteredSongs.length}',
+                                style: Theme.of(context).textTheme.bodyMedium,
                               ),
-                              child: Text(
-                                details.artistName ??
-                                    l10n.albumDetailUnknownArtist,
-                                style: Theme.of(context).textTheme.bodyLarge
-                                    ?.copyWith(
+                            ],
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                          child: Row(
+                            children: <Widget>[
+                              Icon(
+                                isStarred
+                                    ? Icons.favorite
+                                    : Icons.favorite_border,
+                                size: 16,
+                                color: isStarred
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                isStarred ? l10n.actionLiked : l10n.actionLike,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                              const SizedBox(width: 16),
+                              Text(
+                                l10n.ratingTitle,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                              const SizedBox(width: 8),
+                              Opacity(
+                                opacity: _isUpdatingRating ? 0.6 : 1,
+                                child: RatingWidget(
+                                  rating: albumRating,
+                                  compact: true,
+                                  iconSize: 16,
+                                  onChanged: _isUpdatingRating
+                                      ? (_) {}
+                                      : (next) => unawaited(
+                                          _updateAlbumRating(next),
+                                        ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          child: Wrap(
+                            spacing: 8,
+                            children: <Widget>[
+                              FilledButton.tonalIcon(
+                                onPressed:
+                                    filteredSongs.isEmpty ||
+                                        _isQueueActionInFlight
+                                    ? null
+                                    : () => unawaited(
+                                        _queueAlbum(
+                                          filteredSongs,
+                                          shuffle: false,
+                                        ),
+                                      ),
+                                icon: const Icon(Icons.play_arrow_outlined),
+                                label: Text(l10n.albumDetailPlayAction),
+                              ),
+                              FilledButton.tonalIcon(
+                                onPressed:
+                                    filteredSongs.isEmpty ||
+                                        _isQueueActionInFlight
+                                    ? null
+                                    : () => unawaited(
+                                        _queueAlbum(
+                                          filteredSongs,
+                                          shuffle: true,
+                                        ),
+                                      ),
+                                icon: const Icon(Icons.shuffle_outlined),
+                                label: Text(l10n.albumDetailShuffleAction),
+                              ),
+                              StarButton(
+                                isStarred: isStarred,
+                                onPressed: _isStarring
+                                    ? null
+                                    : () => _toggleStar(isStarred: isStarred),
+                                label: l10n.actionLike,
+                                starredLabel: l10n.actionLiked,
+                              ),
+                              OutlinedButton.icon(
+                                onPressed: () async {
+                                  final choice = await showDownloadQualitySheet(
+                                    context,
+                                  );
+                                  if (choice == null || !context.mounted)
+                                    return;
+                                  final service = ref.read(
+                                    downloadServiceProvider,
+                                  );
+                                  final count = await service.enqueueAlbum(
+                                    widget.albumId,
+                                    quality: choice.quality,
+                                    format: choice.format,
+                                  );
+                                  if (context.mounted) {
+                                    AppNoticeMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          l10n.downloadAlbumQueued(count),
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                },
+                                icon: const Icon(Icons.download_outlined),
+                                label: Text(l10n.albumDetailDownloadAction),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+                          child: Row(
+                            children: <Widget>[
+                              Icon(
+                                Icons.filter_list,
+                                size: 16,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                l10n.albumDetailFilterLabel,
+                                style:
+                                    Theme.of(
+                                      context,
+                                    ).textTheme.labelSmall?.copyWith(
                                       color: Theme.of(
                                         context,
-                                      ).colorScheme.primary,
+                                      ).colorScheme.onSurfaceVariant,
                                     ),
                               ),
-                            )
-                          else
-                            Text(
-                              details.artistName ??
-                                  l10n.albumDetailUnknownArtist,
-                              style: Theme.of(context).textTheme.bodyLarge,
-                            ),
-                          Text(
-                            '• ${details.year?.toString() ?? '-'} • ${filteredSongs.length}',
-                            style: Theme.of(context).textTheme.bodyMedium,
+                            ],
                           ),
-                        ],
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                      child: Row(
-                        children: <Widget>[
-                          Icon(
-                            isStarred ? Icons.favorite : Icons.favorite_border,
-                            size: 16,
-                            color: isStarred
-                                ? Theme.of(context).colorScheme.primary
-                                : Theme.of(
-                                    context,
-                                  ).colorScheme.onSurfaceVariant,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            isStarred ? l10n.actionLiked : l10n.actionLike,
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                          const SizedBox(width: 16),
-                          Text(
-                            l10n.ratingTitle,
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                          const SizedBox(width: 8),
-                          Opacity(
-                            opacity: _isUpdatingRating ? 0.6 : 1,
-                            child: RatingWidget(
-                              rating: albumRating,
-                              compact: true,
-                              iconSize: 16,
-                              onChanged: _isUpdatingRating
-                                  ? (_) {}
-                                  : (next) => unawaited(
-                                      _updateAlbumRating(next),
-                                    ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: Wrap(
-                        spacing: 8,
-                        children: <Widget>[
-                          FilledButton.tonalIcon(
-                            onPressed:
-                                filteredSongs.isEmpty || _isQueueActionInFlight
-                                ? null
-                                : () => unawaited(
-                                    _queueAlbum(
-                                      filteredSongs,
-                                      shuffle: false,
-                                    ),
-                                  ),
-                            icon: const Icon(Icons.play_arrow_outlined),
-                            label: Text(l10n.albumDetailPlayAction),
-                          ),
-                          FilledButton.tonalIcon(
-                            onPressed:
-                                filteredSongs.isEmpty || _isQueueActionInFlight
-                                ? null
-                                : () => unawaited(
-                                    _queueAlbum(filteredSongs, shuffle: true),
-                                  ),
-                            icon: const Icon(Icons.shuffle_outlined),
-                            label: Text(l10n.albumDetailShuffleAction),
-                          ),
-                          StarButton(
-                            isStarred: isStarred,
-                            onPressed: _isStarring
-                                ? null
-                                : () => _toggleStar(isStarred: isStarred),
-                            label: l10n.actionLike,
-                            starredLabel: l10n.actionLiked,
-                          ),
-                          OutlinedButton.icon(
-                            onPressed: () async {
-                              final choice = await showDownloadQualitySheet(
-                                context,
-                              );
-                              if (choice == null || !context.mounted) return;
-                              final service = ref.read(downloadServiceProvider);
-                              final count = await service.enqueueAlbum(
-                                widget.albumId,
-                                quality: choice.quality,
-                                format: choice.format,
-                              );
-                              if (context.mounted) {
-                                AppNoticeMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      l10n.downloadAlbumQueued(count),
-                                    ),
-                                  ),
-                                );
-                              }
-                            },
-                            icon: const Icon(Icons.download_outlined),
-                            label: Text(l10n.albumDetailDownloadAction),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
-                      child: Row(
-                        children: <Widget>[
-                          Icon(
-                            Icons.filter_list,
-                            size: 16,
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurfaceVariant,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            l10n.albumDetailFilterLabel,
-                            style:
-                                Theme.of(
-                                  context,
-                                ).textTheme.labelSmall?.copyWith(
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSurfaceVariant,
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                          child: Wrap(
+                            spacing: 8,
+                            children: <Widget>[
+                              FilterChip(
+                                label: Text(l10n.libraryLikedOnlyFilter),
+                                avatar: Icon(
+                                  _showLikedOnly
+                                      ? Icons.favorite
+                                      : Icons.favorite_border,
+                                  size: 18,
                                 ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                      child: Wrap(
-                        spacing: 8,
-                        children: <Widget>[
-                          FilterChip(
-                            label: Text(l10n.libraryLikedOnlyFilter),
-                            avatar: Icon(
-                              _showLikedOnly
-                                  ? Icons.favorite
-                                  : Icons.favorite_border,
-                              size: 18,
-                            ),
-                            selected: _showLikedOnly,
-                            onSelected: (value) =>
-                                setState(() => _showLikedOnly = value),
-                          ),
-                          FilterChip(
-                            label: Text(l10n.libraryDownloadedOnlyFilter),
-                            avatar: Icon(
-                              _showDownloadedOnly
-                                  ? Icons.download_done
-                                  : Icons.download_outlined,
-                              size: 18,
-                            ),
-                            selected: _showDownloadedOnly,
-                            onSelected: (value) =>
-                                setState(() => _showDownloadedOnly = value),
-                          ),
-                        ],
-                      ),
-                    ),
-                    albumInfoAsync.when(
-                      data: (info) {
-                        if (info == null) {
-                          return const SizedBox.shrink();
-                        }
-                        final notes = _stripHtml(info.notes ?? '');
-                        final hasNotes = notes.trim().isNotEmpty;
-                        final hasLinks =
-                            (info.lastFmUrl ?? '').trim().isNotEmpty ||
-                            (info.musicBrainzId ?? '').trim().isNotEmpty;
-                        if (!hasNotes && !hasLinks) {
-                          return const SizedBox.shrink();
-                        }
-
-                        return Padding(
-                          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                          child: Card(
-                            child: Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: <Widget>[
-                                  Text(
-                                    l10n.albumDetailAboutSection,
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.titleSmall,
-                                  ),
-                                  if (hasNotes) ...<Widget>[
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      notes,
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.bodyMedium,
-                                    ),
-                                  ],
-                                  if (hasLinks) ...<Widget>[
-                                    const SizedBox(height: 10),
-                                    Wrap(
-                                      spacing: 8,
-                                      runSpacing: 8,
-                                      children: <Widget>[
-                                        if ((info.lastFmUrl ?? '')
-                                            .trim()
-                                            .isNotEmpty)
-                                          ActionChip(
-                                            avatar: const Icon(
-                                              Icons.open_in_new,
-                                              size: 16,
-                                            ),
-                                            label: Text(l10n.albumDetailLastFm),
-                                            onPressed: () => unawaited(
-                                              _openExternalLink(
-                                                info.lastFmUrl!,
-                                              ),
-                                            ),
-                                          ),
-                                        if ((info.musicBrainzId ?? '')
-                                            .trim()
-                                            .isNotEmpty)
-                                          ActionChip(
-                                            avatar: const Icon(
-                                              Icons.album_outlined,
-                                              size: 16,
-                                            ),
-                                            label: Text(
-                                              l10n.albumDetailMusicBrainz,
-                                            ),
-                                            onPressed: () => unawaited(
-                                              _openExternalLink(
-                                                'https://musicbrainz.org/release-group/${info.musicBrainzId}',
-                                              ),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  ],
-                                ],
+                                selected: _showLikedOnly,
+                                onSelected: (value) =>
+                                    setState(() => _showLikedOnly = value),
                               ),
-                            ),
+                              FilterChip(
+                                label: Text(l10n.libraryDownloadedOnlyFilter),
+                                avatar: Icon(
+                                  _showDownloadedOnly
+                                      ? Icons.download_done
+                                      : Icons.download_outlined,
+                                  size: 18,
+                                ),
+                                selected: _showDownloadedOnly,
+                                onSelected: (value) =>
+                                    setState(() => _showDownloadedOnly = value),
+                              ),
+                            ],
                           ),
-                        );
-                      },
-                      loading: () => const SizedBox.shrink(),
-                      error: (_, _) => const SizedBox.shrink(),
+                        ),
+                        albumInfoAsync.when(
+                          data: (info) {
+                            if (info == null) {
+                              return const SizedBox.shrink();
+                            }
+                            final notes = _stripHtml(info.notes ?? '');
+                            final hasNotes = notes.trim().isNotEmpty;
+                            final hasLinks =
+                                (info.lastFmUrl ?? '').trim().isNotEmpty ||
+                                (info.musicBrainzId ?? '').trim().isNotEmpty;
+                            if (!hasNotes && !hasLinks) {
+                              return const SizedBox.shrink();
+                            }
+
+                            return Padding(
+                              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                              child: Card(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(12),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: <Widget>[
+                                      Text(
+                                        l10n.albumDetailAboutSection,
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.titleSmall,
+                                      ),
+                                      if (hasNotes) ...<Widget>[
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          notes,
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.bodyMedium,
+                                        ),
+                                      ],
+                                      if (hasLinks) ...<Widget>[
+                                        const SizedBox(height: 10),
+                                        Wrap(
+                                          spacing: 8,
+                                          runSpacing: 8,
+                                          children: <Widget>[
+                                            if ((info.lastFmUrl ?? '')
+                                                .trim()
+                                                .isNotEmpty)
+                                              ActionChip(
+                                                avatar: const Icon(
+                                                  Icons.open_in_new,
+                                                  size: 16,
+                                                ),
+                                                label: Text(
+                                                  l10n.albumDetailLastFm,
+                                                ),
+                                                onPressed: () => unawaited(
+                                                  _openExternalLink(
+                                                    info.lastFmUrl!,
+                                                  ),
+                                                ),
+                                              ),
+                                            if ((info.musicBrainzId ?? '')
+                                                .trim()
+                                                .isNotEmpty)
+                                              ActionChip(
+                                                avatar: const Icon(
+                                                  Icons.album_outlined,
+                                                  size: 16,
+                                                ),
+                                                label: Text(
+                                                  l10n.albumDetailMusicBrainz,
+                                                ),
+                                                onPressed: () => unawaited(
+                                                  _openExternalLink(
+                                                    'https://musicbrainz.org/release-group/${info.musicBrainzId}',
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                          loading: () => const SizedBox.shrink(),
+                          error: (_, _) => const SizedBox.shrink(),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              ),
-              tracksSliver,
-              if (ref.watch(audioMuseAvailableProvider))
-                SliverToBoxAdapter(
-                  child: _AudioMuseSimilarAlbums(
-                    albumId: widget.albumId,
                   ),
-                ),
-            ],
-          );
-        },
-        loading: () => const ShimmerListPage(count: 8, leadingSize: 56),
-        error: (error, _) => ErrorState(
-          title: l10n.albumDetailLoadErrorTitle,
-          message: error.toString(),
-          onRetry: () => ref.invalidate(albumProvider(widget.albumId)),
-        ),
+                  tracksSliver,
+                  if (ref.watch(audioMuseAvailableProvider))
+                    SliverToBoxAdapter(
+                      child: _AudioMuseSimilarAlbums(
+                        albumId: widget.albumId,
+                      ),
+                    ),
+                ],
+              );
+            },
+            loading: () => const ShimmerListPage(count: 8, leadingSize: 56),
+            error: (error, _) => ErrorState(
+              title: l10n.albumDetailLoadErrorTitle,
+              message: error.toString(),
+              onRetry: () => ref.invalidate(albumProvider(widget.albumId)),
+            ),
+          ),
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 160),
+              opacity: _isRefreshingAlbum ? 1 : 0,
+              child: const LinearProgressIndicator(minHeight: 2),
+            ),
+          ),
+        ],
       ),
     );
+  }
+
+  Future<void> _refreshAlbum() async {
+    if (_isRefreshingAlbum) {
+      return;
+    }
+    await HapticFeedback.lightImpact();
+    setState(() => _isRefreshingAlbum = true);
+    try {
+      final refreshAlbum = ref.read(
+        refreshAlbumFromServerProvider(widget.albumId),
+      );
+      await refreshAlbum();
+    } on Object catch (error) {
+      if (!mounted) {
+        return;
+      }
+      AppNoticeMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString())),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isRefreshingAlbum = false);
+      }
+    }
   }
 
   Future<void> _queueAlbum(

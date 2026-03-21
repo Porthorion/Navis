@@ -286,7 +286,13 @@ ASSET_NAMES=()
 
 if [[ "${BUILD_ANDROID}" == "true" ]]; then
   echo "==> Building Android APK..."
-  flutter build apk --release "${DART_DEFINE_ARGS[@]}"
+  ANDROID_OBFUSCATION_DIR="${SCRIPT_DIR}/../build/obfuscation/android/${VERSION}"
+  mkdir -p "${ANDROID_OBFUSCATION_DIR}"
+  flutter build apk \
+    --release \
+    --obfuscate \
+    --split-debug-info="${ANDROID_OBFUSCATION_DIR}" \
+    "${DART_DEFINE_ARGS[@]}"
 
   APK_PATH="${SCRIPT_DIR}/../build/app/outputs/flutter-apk/app-release.apk"
   APK_ASSET_NAME="${ASSET_PREFIX}-${VERSION}.apk"
@@ -301,6 +307,7 @@ if [[ "${BUILD_ANDROID}" == "true" ]]; then
   ASSET_FILES+=("${APK_ASSET}")
   ASSET_NAMES+=("${APK_ASSET_NAME}")
   echo "    APK -> ${APK_ASSET_NAME}"
+  echo "    Obfuscation symbols -> ${ANDROID_OBFUSCATION_DIR}"
 
   ANDROID_SDK_DIR="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-$HOME/Library/Android/sdk}}"
   if [[ ! -d "${ANDROID_SDK_DIR}/build-tools" ]]; then
