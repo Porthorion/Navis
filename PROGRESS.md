@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-03-23
+Last updated: 2026-03-07
 
 ---
 
@@ -10,12 +10,8 @@ Last updated: 2026-03-23
 - Completed item format: `- [x] Task name — YYYY-MM-DD (evidence: command/file)`
 - Partially complete format: `- [ ] Task name — partial: YYYY-MM-DD (remaining: short note)`
 - If blocked, add/update the `Blockers` section with exact error and next action.
-- ACP task ID format: `ACP-M{milestone}-{nn}`.
-- ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
-- [x] ACP M0 documentation bootstrap (phase + trackers + baseline evidence capture) — 2026-03-23 (evidence: `DEVELOPMENT_PLAN.md`, `PROGRESS.md`, `docs/multi-os-release-implementation-progress.md`)
-- [ ] ACP M1 adaptive contract kickoff — status: ready
 - [x] Phase 0 end-to-end bootstrap — 2026-02-19 (evidence: `./tool/check.sh`, `flutter run -d linux`)
 - [x] Phase 1 close-out verification — 2026-02-19 (evidence: `LD_LIBRARY_PATH="/tmp/navis-sqlite:${LD_LIBRARY_PATH:-}" NAVIS_SMOKE_BASE_URL=... NAVIS_SMOKE_USERNAME=... NAVIS_SMOKE_PASSWORD=... NAVIS_SMOKE_USE_LEGACY_AUTH=true NAVIS_SMOKE_API_VERSION=1.16.1 ./tool/phase1_closeout.sh`)
 - [x] Phase 1 close-out automation gate added — 2026-02-19 (evidence: `tool/phase1_closeout.sh`, `tool/phase1_ping_smoke.dart`, `Makefile` target `phase1-closeout`)
@@ -801,50 +797,6 @@ Latest activity (2026-03-07): published `v0.8.0` APK via `tool/release.sh` and s
 - [ ] Prototype discovery entry points (home module or dedicated page) without coupling core playback flows
 - [ ] Validate licensing and maintenance constraints before reusing/cloning external implementation pieces
 - [ ] Define privacy and telemetry constraints before any production rollout
-
-## Phase 31: Adaptive Convergence Program (Desktop + Tablet + Phone)
-
-> Convergence execution block for one shared adaptive architecture across phone/tablet/desktop.
-
-### 31.0 — M0 Baseline + Tracking Setup
-- [x] ACP-M0-01 Add dedicated ACP phase spec + task/status model to development plan — 2026-03-23 (evidence: `DEVELOPMENT_PLAN.md` Phase 31 section)
-- [x] ACP-M0-02 Add ACP high-level checklist and milestone rows to progress tracker — 2026-03-23 (evidence: `PROGRESS.md` Phase 31 section)
-- [x] ACP-M0-03 Extend detailed execution log with ACP scope, blocker protocol, and baseline entry — 2026-03-23 (evidence: `docs/multi-os-release-implementation-progress.md` section P)
-- [x] ACP-M0-04 Record adaptive baseline before refactor — 2026-03-23 (evidence: `/home/khalifa/Flutter_SDK/flutter/bin/flutter test test/src/routing/desktop_layout_test.dart test/src/routing/desktop_commands_test.dart test/src/routing/app_shell_navigation_test.dart` (fails in `app_shell_navigation_test` with narrow-width desktop overflow and expectation mismatches), `/home/khalifa/Flutter_SDK/flutter/bin/flutter analyze lib/src/routing lib/src/features/settings/presentation/settings_screen.dart lib/src/features/home/presentation/home_screen.dart lib/src/features/search/presentation/search_screen.dart lib/src/features/library/presentation/library_screen.dart` (infos only, no compile errors))
-
-### 31.1 — M1 Unified Adaptive Contract
-- [ ] ACP-M1-01 Introduce shared adaptive context object consumed by shell + core surfaces — status: ready
-- [ ] ACP-M1-02 Standardize width/shell/form-factor flags from one resolver boundary — status: ready
-- [ ] ACP-M1-03 Replace duplicated ad-hoc adaptive branching in core entry surfaces — status: backlog
-- [ ] ACP-M1-04 Add explicit capability/policy boundary for platform-specific behavior — status: backlog
-
-### 31.2 — M2 Shell Stabilization First
-- [ ] ACP-M2-01 Refactor shell composition to window-size-first behavior on all runtimes — status: backlog
-- [ ] ACP-M2-02 Fix narrow-width desktop player overflow and constrained controls — status: backlog
-- [ ] ACP-M2-03 Preserve route continuity and overlay/back priority guarantees through transitions — status: backlog
-- [ ] ACP-M2-04 Keep desktop command guards intact for text-input contexts — status: backlog
-
-### 31.3 — M3 Screen Convergence
-- [ ] ACP-M3-01 Home adaptive logic migration to shared context — status: backlog
-- [ ] ACP-M3-02 Search adaptive logic migration to shared context — status: backlog
-- [ ] ACP-M3-03 Library adaptive logic migration to shared context — status: backlog
-- [ ] ACP-M3-04 Settings adaptive logic migration to shared context — status: backlog
-- [ ] ACP-M3-05 Now Playing adaptive logic migration to shared context — status: backlog
-
-### 31.4 — M4 Input and Accessibility Hardening
-- [ ] ACP-M4-01 Standardize focus traversal behavior across adaptive shells — status: backlog
-- [ ] ACP-M4-02 Standardize keyboard/mouse/right-click affordances across tablet/desktop modes — status: backlog
-- [ ] ACP-M4-03 Add explicit adaptive input checks to QA matrix — status: backlog
-
-### 31.5 — M5 Platform Capability Layer
-- [ ] ACP-M5-01 Centralize desktop media capability checks (`audio_service`, `audio_service_mpris`, `smtc_windows`) — status: backlog
-- [ ] ACP-M5-02 Harden graceful unsupported-feature fallbacks — status: backlog
-- [ ] ACP-M5-03 Evaluate `audio_service_mpris` version alignment and compatibility — status: backlog
-
-### 31.6 — M6 Validation + Release Readiness
-- [ ] ACP-M6-01 Pass strict adaptive gate (targeted tests + analyzer + viewport QA matrix) — status: backlog
-- [ ] ACP-M6-02 Close all ACP tasks in this tracker with dated evidence lines — status: backlog
-- [ ] ACP-M6-03 Update implemented architecture docs with final adaptive ownership model — status: backlog
 
 ---
 

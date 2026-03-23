@@ -1,13 +1,12 @@
 # Multi-OS Release Implementation Progress
 
-Last updated: 2026-03-23
+Last updated: 2026-03-08
 
 This document is the detailed execution log for preparing Navis as a native app release across Android, macOS, Windows, and Linux.
 
 ## Scope and tracking rules
 - This file is the detailed tracker (task-level evidence, environment readiness, command-level validation).
 - `PROGRESS.md` remains the high-level tracker and links here for Phase 26 execution details.
-- This file now also carries the detailed execution log for Phase 31 (Adaptive Convergence Program / ACP).
 - Entries are append-only unless corrected by a later dated note.
 
 ## Current baseline
@@ -265,41 +264,6 @@ This document is the detailed execution log for preparing Navis as a native app 
     - `flutter test test/src/routing/app_shell_navigation_test.dart test/src/features/library/presentation/library_screen_test.dart`
 - Change control:
   - Applied as local working-tree changes only (no commit/push in this step).
-
-### P. ACP baseline and tracker bootstrap (2026-03-23)
-- Status: completed (M0 scaffold)
-- Context:
-  - Execution has moved to branch `main` for ACP documentation and convergence prep.
-  - ACP will continue using existing documentation only:
-    - `DEVELOPMENT_PLAN.md` (phase/spec authority)
-    - `PROGRESS.md` (high-level status + dated evidence)
-    - this file (detailed execution/blocker log)
-- Actions:
-  - Added `Phase 31: Adaptive Convergence Program` to `DEVELOPMENT_PLAN.md`.
-  - Added ACP milestone/task checklist (`ACP-M0` through `ACP-M6`) to `PROGRESS.md`.
-  - Captured adaptive baseline tests/analyzer before refactor work.
-- Baseline evidence:
-  - `/home/khalifa/Flutter_SDK/flutter/bin/flutter test test/src/routing/desktop_layout_test.dart test/src/routing/desktop_commands_test.dart test/src/routing/app_shell_navigation_test.dart`
-    - Result: `desktop_layout_test.dart` and `desktop_commands_test.dart` pass; `app_shell_navigation_test.dart` fails.
-    - Failure profile: narrow-width desktop runtime currently forces desktop shell path and triggers `RenderFlex overflow` in desktop player bar; multiple expectation mismatches in shell navigation assertions.
-  - `/home/khalifa/Flutter_SDK/flutter/bin/flutter analyze lib/src/routing lib/src/features/settings/presentation/settings_screen.dart lib/src/features/home/presentation/home_screen.dart lib/src/features/search/presentation/search_screen.dart lib/src/features/library/presentation/library_screen.dart`
-    - Result: no compile errors; info-level lint debt reported on adaptive-heavy paths.
-- ACP blocker protocol (effective immediately):
-  - Every blocked ACP task must append:
-    - Task ID (`ACP-Mx-yy`)
-    - exact command or runtime path that failed
-    - exact error signature
-    - next attempted action
-    - unblock condition
-
-### ACP Daily Log Template
-- Date:
-- Active task IDs:
-- Status transitions:
-- Commands run:
-- Evidence produced:
-- Blockers encountered:
-- Next actions:
 
 ## Open work for plan implementation
 - Machine readiness
