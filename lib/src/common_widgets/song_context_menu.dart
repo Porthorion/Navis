@@ -5,6 +5,7 @@ import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
 import 'package:navis/src/common_widgets/rating_widget.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -255,10 +256,6 @@ Future<void> _showDesktopSongContextMenu(
   SongsTableData song, {
   required Offset anchor,
 }) async {
-  final overlayBox = Overlay.of(context).context.findRenderObject();
-  if (overlayBox is! RenderBox) {
-    return;
-  }
   final l10n = AppLocalizations.of(context)!;
   final downloadState = ref.read(songDownloadStateProvider(song.id));
   final isDownloaded = downloadState.status == SongDownloadStatus.downloaded;
@@ -266,12 +263,9 @@ Future<void> _showDesktopSongContextMenu(
       ref.read(songStarredProvider(song.id)).asData?.value ??
       song.starred != null;
 
-  final action = await showMenu<_SongContextAction>(
+  final action = await showDesktopContextMenu<_SongContextAction>(
     context: context,
-    position: RelativeRect.fromRect(
-      Rect.fromLTWH(anchor.dx, anchor.dy, 0, 0),
-      Offset.zero & overlayBox.size,
-    ),
+    anchor: anchor,
     items: <PopupMenuEntry<_SongContextAction>>[
       PopupMenuItem<_SongContextAction>(
         value: _SongContextAction.playNow,

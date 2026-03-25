@@ -6,12 +6,15 @@ import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
+import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_screen.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
+
+import '../../../../helpers/adaptive_test_harness.dart';
 
 class _FakeLibrarySyncController extends LibrarySyncController {
   _FakeLibrarySyncController(this._initialState, {this.onSyncNow});
@@ -598,57 +601,62 @@ void main() {
       },
     );
 
-    testWidgets('liked songs render desktop list rows on desktop runtime', (
-      tester,
-    ) async {
-      tester.view.devicePixelRatio = 1.0;
-      tester.view.physicalSize = const Size(800, 1200);
-      addTearDown(() {
-        tester.view.resetPhysicalSize();
-        tester.view.resetDevicePixelRatio();
-      });
-      await tester.pumpWidget(
-        _buildLibraryScreen(
-          overrides: [
-            showLikedPageProvider.overrideWithValue(true),
-            librarySyncControllerProvider.overrideWith(
-              () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
-            ),
-            artistsProvider.overrideWithValue(
-              const AsyncData(<ArtistsTableData>[]),
-            ),
-            albumCountProvider.overrideWithValue(const AsyncData(0)),
-            pagedAlbumsProvider.overrideWith(
-              (ref, request) => Stream.value(const <AlbumsTableData>[]),
-            ),
-            likedAlbumsRecentProvider.overrideWithValue(
-              const AsyncData(<AlbumsTableData>[]),
-            ),
-            likedAlbumsProvider.overrideWithValue(
-              const AsyncData(<AlbumsTableData>[]),
-            ),
-            likedSongsProvider.overrideWithValue(
-              const AsyncData(<SongsTableData>[
-                SongsTableData(
-                  id: 'liked-song-1',
-                  title: 'Desktop Liked Song',
-                  artistName: 'Desktop Artist',
-                  albumName: 'Desktop Album',
-                  duration: 245,
-                ),
-              ]),
-            ),
-          ],
-        ),
-      );
-      await tester.pumpAndSettle();
+    testWidgets(
+      'liked songs switch to desktop rows only in desktop-wide mode',
+      (
+        tester,
+      ) async {
+        setAdaptiveTestViewport(tester, const Size(700, 1200));
+        await tester.pumpWidget(
+          _buildLibraryScreen(
+            overrides: [
+              showLikedPageProvider.overrideWithValue(true),
+              librarySyncControllerProvider.overrideWith(
+                () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+              ),
+              artistsProvider.overrideWithValue(
+                const AsyncData(<ArtistsTableData>[]),
+              ),
+              albumCountProvider.overrideWithValue(const AsyncData(0)),
+              pagedAlbumsProvider.overrideWith(
+                (ref, request) => Stream.value(const <AlbumsTableData>[]),
+              ),
+              likedAlbumsRecentProvider.overrideWithValue(
+                const AsyncData(<AlbumsTableData>[]),
+              ),
+              likedAlbumsProvider.overrideWithValue(
+                const AsyncData(<AlbumsTableData>[]),
+              ),
+              likedSongsProvider.overrideWithValue(
+                const AsyncData(<SongsTableData>[
+                  SongsTableData(
+                    id: 'liked-song-1',
+                    title: 'Desktop Liked Song',
+                    artistName: 'Desktop Artist',
+                    albumName: 'Desktop Album',
+                    duration: 245,
+                  ),
+                ]),
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Liked'));
-      await tester.pumpAndSettle();
+        await tester.tap(find.text('Liked'));
+        await tester.pumpAndSettle();
 
-      expect(find.byType(DesktopListRow), findsOneWidget);
-      expect(find.text('Desktop Liked Song'), findsOneWidget);
-    });
+        expect(find.byType(TrackListTile), findsOneWidget);
+        expect(find.byType(DesktopListRow), findsNothing);
+
+        tester.view.physicalSize = const Size(1200, 1200);
+        await tester.pumpAndSettle();
+
+        expect(find.byType(DesktopListRow), findsOneWidget);
+        expect(find.byType(TrackListTile), findsNothing);
+        expect(find.text('Desktop Liked Song'), findsOneWidget);
+      },
+    );
   });
 
   group('computeGridCrossAxisCount', () {

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
@@ -175,23 +176,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final l10n = AppLocalizations.of(context)!;
     final query = ref.watch(searchQueryProvider);
     final hasQuery = query.trim().isNotEmpty;
-    final desktopMode = isDesktopRuntime;
-    final viewport = MediaQuery.sizeOf(context);
-    final screenWidth = viewport.width;
-    final safePadding = MediaQuery.paddingOf(context);
-    final layoutClass = resolveDesktopLayoutClass(screenWidth);
-    final adaptiveLayoutClass = resolveAdaptiveLayoutClass(screenWidth);
-    final adaptiveShellMode = resolveAdaptiveShellMode(
-      desktopRuntime: isDesktopRuntime,
-      viewportSize: viewport,
-      safePadding: safePadding,
-    );
-    final compactWideLandscapeMode =
-        adaptiveShellMode == AdaptiveShellMode.compactWideLandscape;
+    final adaptiveContext = resolveAdaptiveContextFor(context);
+    final desktopMode = adaptiveContext.useDesktopShell;
+    final layoutClass = adaptiveContext.desktopLayoutClass;
+    final adaptiveLayoutClass = adaptiveContext.adaptiveLayoutClass;
+    final compactWideLandscapeMode = adaptiveContext.useCompactWideLandscape;
     final compactHorizontalInset = compactWideLandscapeMode ? 10.0 : 12.0;
     final tabletMode =
-        !isDesktopRuntime &&
-        adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact;
+        !desktopMode && adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact;
 
     // Sync the text controller when the query changes externally
     // (e.g. NavService.goToSearch sets the provider from radio tap).
@@ -228,7 +220,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     padding: EdgeInsets.zero,
                     child: hasQuery
                         ? _buildResults(desktopMode: true)
-                        : _buildRecentSearches(desktopMode: true),
+                        : _buildRecentSearches(
+                            desktopMode: true,
+                            compactWideLandscapeMode: compactWideLandscapeMode,
+                          ),
                   ),
                 ),
               ],
@@ -288,7 +283,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                       clipBehavior: Clip.antiAlias,
                       child: hasQuery
                           ? _buildResults(desktopMode: true)
-                          : _buildRecentSearches(desktopMode: true),
+                          : _buildRecentSearches(
+                              desktopMode: true,
+                              compactWideLandscapeMode:
+                                  compactWideLandscapeMode,
+                            ),
                     ),
             ),
           ],
@@ -394,16 +393,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
-  Widget _buildRecentSearches({bool desktopMode = false}) {
+  Widget _buildRecentSearches({
+    bool desktopMode = false,
+    bool compactWideLandscapeMode = false,
+  }) {
     final recentAsync = ref.watch(recentSearchesProvider);
     final l10n = AppLocalizations.of(context)!;
-    final compactWideLandscapeMode =
-        resolveAdaptiveShellMode(
-          desktopRuntime: isDesktopRuntime,
-          viewportSize: MediaQuery.sizeOf(context),
-          safePadding: MediaQuery.paddingOf(context),
-        ) ==
-        AdaptiveShellMode.compactWideLandscape;
 
     return recentAsync.when(
       data: (searches) {
@@ -893,66 +888,60 @@ class _SongResultsSection extends ConsumerWidget {
   }) {
     final l10n = AppLocalizations.of(context)!;
     if (anchor != null) {
-      final overlayBox = Overlay.of(context).context.findRenderObject();
-      if (overlayBox is RenderBox) {
-        final result = showMenu<String>(
-          context: context,
-          position: RelativeRect.fromRect(
-            Rect.fromLTWH(anchor.dx, anchor.dy, 0, 0),
-            Offset.zero & overlayBox.size,
+      final result = showDesktopContextMenu<String>(
+        context: context,
+        anchor: anchor,
+        items: <PopupMenuEntry<String>>[
+          PopupMenuItem<String>(
+            value: 'play-next',
+            child: Text(l10n.searchPlayNext),
           ),
-          items: <PopupMenuEntry<String>>[
-            PopupMenuItem<String>(
-              value: 'play-next',
-              child: Text(l10n.searchPlayNext),
-            ),
-            PopupMenuItem<String>(
-              value: 'add-queue',
-              child: Text(l10n.searchAddToQueue),
-            ),
-            PopupMenuItem<String>(
-              value: 'add-playlist',
-              child: Text(l10n.librarySongMenuAddToPlaylist),
-            ),
-            PopupMenuItem<String>(
-              value: 'instant-mix',
-              child: Text(l10n.nowPlayingInstantMix),
-            ),
-          ],
-        );
-        unawaited(
-          result.then((value) {
-            switch (value) {
-              case 'play-next':
-                return _runQueueAction(
-                  context,
-                  () => ref.read(queueProvider.notifier).playNextWithSong(song),
-                  successMessage: l10n.librarySongPlayNextQueued(song.title),
-                );
-              case 'add-queue':
-                return _runQueueAction(
-                  context,
-                  () => ref.read(queueProvider.notifier).addWithSong(song),
-                  successMessage: l10n.librarySongAddedToQueue(song.title),
-                );
-              case 'add-playlist':
-                showAddToPlaylistSheet(context, ref, [song.id]);
-                return Future<void>.value();
-              case 'instant-mix':
-                unawaited(
-                  activatePreferredMixMode(
-                    ref,
-                    seedSongId: song.id,
-                  ),
-                );
-                return Future<void>.value();
-              default:
-                return Future<void>.value();
-            }
-          }),
-        );
-        return;
-      }
+          PopupMenuItem<String>(
+            value: 'add-queue',
+            child: Text(l10n.searchAddToQueue),
+          ),
+          PopupMenuItem<String>(
+            value: 'add-playlist',
+            child: Text(l10n.librarySongMenuAddToPlaylist),
+          ),
+          PopupMenuItem<String>(
+            value: 'instant-mix',
+            child: Text(l10n.nowPlayingInstantMix),
+          ),
+        ],
+      );
+      unawaited(
+        result.then((value) {
+          switch (value) {
+            case 'play-next':
+              return _runQueueAction(
+                context,
+                () => ref.read(queueProvider.notifier).playNextWithSong(song),
+                successMessage: l10n.librarySongPlayNextQueued(song.title),
+              );
+            case 'add-queue':
+              return _runQueueAction(
+                context,
+                () => ref.read(queueProvider.notifier).addWithSong(song),
+                successMessage: l10n.librarySongAddedToQueue(song.title),
+              );
+            case 'add-playlist':
+              showAddToPlaylistSheet(context, ref, [song.id]);
+              return Future<void>.value();
+            case 'instant-mix':
+              unawaited(
+                activatePreferredMixMode(
+                  ref,
+                  seedSongId: song.id,
+                ),
+              );
+              return Future<void>.value();
+            default:
+              return Future<void>.value();
+          }
+        }),
+      );
+      return;
     }
     showModalBottomSheet<void>(
       context: context,

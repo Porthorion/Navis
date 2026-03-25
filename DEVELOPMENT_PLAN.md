@@ -2265,6 +2265,7 @@ Canonical execution phase for converging desktop/tablet/phone UX into one adapti
 - `ACP-M4-01`: standardize focus traversal behavior across desktop/tablet surfaces.
 - `ACP-M4-02`: standardize keyboard and pointer affordances where adaptive modes diverge.
 - `ACP-M4-03`: add explicit adaptive input checks to QA matrix.
+- `ACP-M4-04`: add a deferred user-toggleable compact player window mode ("Focus Player Mode") that locks the app window to a compact-wide-friendly aspect/size preset and allows quick return to normal adaptive behavior.
 
 #### M5 — Platform capability layer
 

@@ -651,7 +651,7 @@ class NavisAudioHandler extends BaseAudioHandler
           (runtime.equalizerEnabled || runtime.loudnessEnabled);
       _player = _buildAudioPlayer(enableAndroidDsp: _androidDspPipelineEnabled);
     }
-    _crossfadePlayer = AudioPlayer();
+    _crossfadePlayer = _buildBaseAudioPlayer();
     _radioMetadataService = RadioMetadataService(
       handler: this,
       player: _player,
@@ -785,7 +785,7 @@ class NavisAudioHandler extends BaseAudioHandler
     if (_isAndroidRuntime && enableAndroidDsp) {
       _androidEqualizer = AndroidEqualizer();
       _androidLoudnessEnhancer = AndroidLoudnessEnhancer();
-      return AudioPlayer(
+      return _buildBaseAudioPlayer(
         audioPipeline: AudioPipeline(
           androidAudioEffects: [
             _androidEqualizer!,
@@ -797,7 +797,18 @@ class NavisAudioHandler extends BaseAudioHandler
 
     _androidEqualizer = null;
     _androidLoudnessEnhancer = null;
-    return AudioPlayer();
+    return _buildBaseAudioPlayer();
+  }
+
+  AudioPlayer _buildBaseAudioPlayer({AudioPipeline? audioPipeline}) {
+    // On desktop media_kit/mpv, prefer proxy-based requests so libmpv consumes
+    // local HTTP and avoids remote TLS/cache edge cases from some servers.
+    final desktopProxy = _isDesktopRuntime;
+    return AudioPlayer(
+      audioPipeline: audioPipeline,
+      userAgent: desktopProxy ? 'Navis Desktop' : null,
+      useProxyForRequestHeaders: desktopProxy,
+    );
   }
 
   Future<void> _initialize() async {
@@ -2135,7 +2146,7 @@ class NavisAudioHandler extends BaseAudioHandler
         // Best-effort reset only.
       }
     }
-    _crossfadePlayer = AudioPlayer();
+    _crossfadePlayer = _buildBaseAudioPlayer();
     await _syncInactiveDeckQueueFromActive(_crossfadePlayer!, force: true);
   }
 

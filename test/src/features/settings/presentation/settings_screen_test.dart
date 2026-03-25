@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/features/settings/presentation/settings_screen.dart';
-import 'package:navis/src/routing/desktop_layout.dart';
+
+import '../../../../helpers/adaptive_test_harness.dart';
 
 void main() {
   testWidgets(
@@ -24,16 +26,10 @@ void main() {
     },
   );
 
-  testWidgets('tablet settings uses grouped cards in non-desktop mode', (
+  testWidgets('settings layout follows adaptive width parity matrix', (
     tester,
   ) async {
-    tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(700, 1000);
-    addTearDown(() {
-      tester.view.resetPhysicalSize();
-      tester.view.resetDevicePixelRatio();
-    });
-
+    setAdaptiveTestViewport(tester, const Size(599, 1000));
     await tester.pumpWidget(
       ProviderScope(
         child: MaterialApp(
@@ -45,10 +41,30 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    if (!isDesktopRuntime) {
-      expect(find.text('Connection'), findsOneWidget);
-      expect(find.text('Storage'), findsOneWidget);
-      expect(find.text('Playback'), findsOneWidget);
+    expect(find.byType(DesktopFrame), findsNothing);
+    expect(find.byType(AppBar), findsOneWidget);
+    expect(find.text('Connection'), findsNothing);
+    expect(tester.takeException(), isNull);
+
+    final transitions = <({Size size, bool desktopFrame})>[
+      (size: const Size(700, 1000), desktopFrame: false),
+      (size: const Size(840, 1000), desktopFrame: false),
+      (size: const Size(1200, 1000), desktopFrame: true),
+      (size: const Size(900, 420), desktopFrame: false),
+    ];
+
+    for (final step in transitions) {
+      tester.view.physicalSize = step.size;
+      await tester.pumpAndSettle();
+      expect(
+        find.byType(DesktopFrame),
+        step.desktopFrame ? findsOneWidget : findsNothing,
+      );
+      expect(
+        find.byType(AppBar),
+        step.desktopFrame ? findsNothing : findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
     }
   });
 }

@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-03-23
+Last updated: 2026-03-26
 
 ---
 
@@ -15,7 +15,12 @@ Last updated: 2026-03-23
 
 ## Current Focus
 - [x] ACP M0 documentation bootstrap (phase + trackers + baseline evidence capture) — 2026-03-23 (evidence: `DEVELOPMENT_PLAN.md`, `PROGRESS.md`, `docs/multi-os-release-implementation-progress.md`)
-- [ ] ACP M1 adaptive contract kickoff — status: ready
+- [x] ACP M1+M2 shell stabilization slice (adaptive context + window-size-first shell + overflow fixes + shortcut guard coverage) — 2026-03-25 (evidence: `lib/src/routing/desktop_layout.dart`, `lib/src/routing/app_shell.dart`, `test/src/routing/desktop_layout_test.dart`, `test/src/routing/desktop_commands_test.dart`, `test/src/routing/app_shell_navigation_test.dart`, `/home/khalifa/Flutter_SDK/flutter/bin/flutter test test/src/routing/desktop_layout_test.dart test/src/routing/desktop_commands_test.dart test/src/routing/app_shell_navigation_test.dart`)
+- [x] ACP M3 Wave 1 convergence (adaptive scope propagation + Home/Search/Settings migration + width-matrix widget coverage) — 2026-03-25 (evidence: `lib/src/routing/desktop_layout.dart`, `lib/src/routing/app_shell.dart`, `lib/src/features/home/presentation/home_screen.dart`, `lib/src/features/search/presentation/search_screen.dart`, `lib/src/features/settings/presentation/settings_screen.dart`, `test/helpers/adaptive_test_harness.dart`, `test/src/features/home/presentation/home_screen_test.dart`, `test/src/features/search/search_screen_adaptive_test.dart`, `test/src/features/settings/presentation/settings_screen_test.dart`, `/home/khalifa/Flutter_SDK/flutter/bin/flutter test test/src/routing/desktop_layout_test.dart test/src/routing/desktop_commands_test.dart test/src/routing/app_shell_navigation_test.dart test/src/features/home/presentation/home_screen_test.dart test/src/features/settings/presentation/settings_screen_test.dart test/src/features/search/search_screen_adaptive_test.dart test/src/features/search/search_screen_focus_test.dart`)
+- [x] ACP M3 Wave 2 convergence (Library + Now Playing parity under shared adaptive context with expanded test gate) — 2026-03-25 (evidence: `lib/src/features/library/presentation/library_screen.dart`, `lib/src/features/player/presentation/now_playing_screen.dart`, `test/src/features/library/presentation/library_screen_test.dart`, `test/src/features/player/presentation/now_playing_screen_adaptive_test.dart`, `/home/khalifa/Flutter_SDK/flutter/bin/flutter test test/src/routing/desktop_layout_test.dart test/src/routing/desktop_commands_test.dart test/src/routing/app_shell_navigation_test.dart test/src/features/home/presentation/home_screen_test.dart test/src/features/search/search_screen_adaptive_test.dart test/src/features/settings/presentation/settings_screen_test.dart test/src/features/library/presentation/library_screen_test.dart test/src/features/player/presentation/now_playing_screen_transition_test.dart test/src/features/player/presentation/now_playing_screen_adaptive_test.dart`)
+- [x] ACP post-Wave usability hardening (tablet split lyrics action, explicit now-playing exit affordance, desktop bottom-player density stabilization) — 2026-03-25 (evidence: `lib/src/features/player/presentation/now_playing_screen.dart`, `lib/src/routing/app_shell.dart`, `test/src/features/player/presentation/now_playing_screen_adaptive_test.dart`, `/home/khalifa/Flutter_SDK/flutter/bin/flutter test test/src/features/player/presentation/now_playing_screen_adaptive_test.dart test/src/features/player/presentation/now_playing_screen_transition_test.dart test/src/routing/app_shell_navigation_test.dart`)
+- [x] ACP desktop-wide You Might Like redesign (manual pager + 1/3 art/2/3 track list + mini-cover strip; non-desktop modes unchanged) — 2026-03-26 (evidence: `lib/src/features/home/presentation/home_screen.dart`, `test/src/features/home/presentation/home_screen_test.dart`, `/home/khalifa/Flutter_SDK/flutter/bin/flutter test test/src/features/home/presentation/home_screen_test.dart test/src/features/home/presentation/home_random_showcase_provider_test.dart`, `/home/khalifa/Flutter_SDK/flutter/bin/flutter analyze lib/src/features/home/presentation/home_screen.dart test/src/features/home/presentation/home_screen_test.dart`)
+- [x] ACP desktop-wide You Might Like refinement pass (album/list alignment polish, adaptive row-capacity expansion, and no reshuffle-on-like stability) — 2026-03-26 (evidence: `lib/src/features/home/presentation/home_screen.dart`, `lib/src/features/home/presentation/home_providers.dart`, `test/src/features/home/presentation/home_screen_test.dart`, `test/src/features/home/presentation/home_random_showcase_provider_test.dart`, `/home/khalifa/Flutter_SDK/flutter/bin/flutter test test/src/features/home/presentation/home_screen_test.dart test/src/features/home/presentation/home_random_showcase_provider_test.dart`, `/home/khalifa/Flutter_SDK/flutter/bin/flutter analyze lib/src/features/home/presentation/home_providers.dart lib/src/features/home/presentation/home_screen.dart`)
 - [x] Phase 0 end-to-end bootstrap — 2026-02-19 (evidence: `./tool/check.sh`, `flutter run -d linux`)
 - [x] Phase 1 close-out verification — 2026-02-19 (evidence: `LD_LIBRARY_PATH="/tmp/navis-sqlite:${LD_LIBRARY_PATH:-}" NAVIS_SMOKE_BASE_URL=... NAVIS_SMOKE_USERNAME=... NAVIS_SMOKE_PASSWORD=... NAVIS_SMOKE_USE_LEGACY_AUTH=true NAVIS_SMOKE_API_VERSION=1.16.1 ./tool/phase1_closeout.sh`)
 - [x] Phase 1 close-out automation gate added — 2026-02-19 (evidence: `tool/phase1_closeout.sh`, `tool/phase1_ping_smoke.dart`, `Makefile` target `phase1-closeout`)
@@ -813,28 +818,30 @@ Latest activity (2026-03-07): published `v0.8.0` APK via `tool/release.sh` and s
 - [x] ACP-M0-04 Record adaptive baseline before refactor — 2026-03-23 (evidence: `/home/khalifa/Flutter_SDK/flutter/bin/flutter test test/src/routing/desktop_layout_test.dart test/src/routing/desktop_commands_test.dart test/src/routing/app_shell_navigation_test.dart` (fails in `app_shell_navigation_test` with narrow-width desktop overflow and expectation mismatches), `/home/khalifa/Flutter_SDK/flutter/bin/flutter analyze lib/src/routing lib/src/features/settings/presentation/settings_screen.dart lib/src/features/home/presentation/home_screen.dart lib/src/features/search/presentation/search_screen.dart lib/src/features/library/presentation/library_screen.dart` (infos only, no compile errors))
 
 ### 31.1 — M1 Unified Adaptive Contract
-- [ ] ACP-M1-01 Introduce shared adaptive context object consumed by shell + core surfaces — status: ready
-- [ ] ACP-M1-02 Standardize width/shell/form-factor flags from one resolver boundary — status: ready
-- [ ] ACP-M1-03 Replace duplicated ad-hoc adaptive branching in core entry surfaces — status: backlog
+- [x] ACP-M1-01 Introduce shared adaptive context object consumed by shell + core surfaces — 2026-03-25 (evidence: `lib/src/routing/desktop_layout.dart`, `lib/src/routing/app_shell.dart`, `lib/src/features/home/presentation/home_screen.dart`, `lib/src/features/search/presentation/search_screen.dart`, `lib/src/features/settings/presentation/settings_screen.dart`, `lib/src/features/library/presentation/library_screen.dart`, `lib/src/features/player/presentation/now_playing_screen.dart`)
+- [x] ACP-M1-02 Standardize width/shell/form-factor flags from one resolver boundary — 2026-03-25 (evidence: `resolveAdaptiveContext` in `lib/src/routing/desktop_layout.dart`, shell consumption in `lib/src/routing/app_shell.dart`)
+- [x] ACP-M1-03 Replace duplicated ad-hoc adaptive branching in core entry surfaces — 2026-03-25 (evidence: shared-context migrations in `lib/src/features/home/presentation/home_screen.dart`, `lib/src/features/search/presentation/search_screen.dart`, `lib/src/features/settings/presentation/settings_screen.dart`, `lib/src/features/library/presentation/library_screen.dart`, `lib/src/features/player/presentation/now_playing_screen.dart`)
 - [ ] ACP-M1-04 Add explicit capability/policy boundary for platform-specific behavior — status: backlog
 
 ### 31.2 — M2 Shell Stabilization First
-- [ ] ACP-M2-01 Refactor shell composition to window-size-first behavior on all runtimes — status: backlog
-- [ ] ACP-M2-02 Fix narrow-width desktop player overflow and constrained controls — status: backlog
-- [ ] ACP-M2-03 Preserve route continuity and overlay/back priority guarantees through transitions — status: backlog
-- [ ] ACP-M2-04 Keep desktop command guards intact for text-input contexts — status: backlog
+- [x] ACP-M2-01 Refactor shell composition to window-size-first behavior on all runtimes — 2026-03-25 (evidence: `lib/src/routing/app_shell.dart` now resolves shell mode via shared `AdaptiveContext`; full desktop workspace gated to wide desktop widths)
+- [x] ACP-M2-02 Fix narrow-width desktop player overflow and constrained controls — 2026-03-25 (evidence: responsive `_DesktopPlayerBar` and compact `_RailMiniPlayer` controls in `lib/src/routing/app_shell.dart`; targeted shell test gate passes)
+- [x] ACP-M2-03 Preserve route continuity and overlay/back priority guarantees through transitions — 2026-03-25 (evidence: `/home/khalifa/Flutter_SDK/flutter/bin/flutter test test/src/routing/app_shell_navigation_test.dart` pass including resize + back-priority coverage)
+- [x] ACP-M2-04 Keep desktop command guards intact for text-input contexts — 2026-03-25 (evidence: `test/src/routing/desktop_commands_test.dart` action-handler guard coverage + compact-width shortcut coverage in `test/src/routing/app_shell_navigation_test.dart`)
 
 ### 31.3 — M3 Screen Convergence
-- [ ] ACP-M3-01 Home adaptive logic migration to shared context — status: backlog
-- [ ] ACP-M3-02 Search adaptive logic migration to shared context — status: backlog
-- [ ] ACP-M3-03 Library adaptive logic migration to shared context — status: backlog
-- [ ] ACP-M3-04 Settings adaptive logic migration to shared context — status: backlog
-- [ ] ACP-M3-05 Now Playing adaptive logic migration to shared context — status: backlog
+- [x] ACP-M3-01 Home adaptive logic migration to shared context — 2026-03-25 (evidence: `lib/src/features/home/presentation/home_screen.dart`, `test/src/features/home/presentation/home_screen_test.dart`)
+- [x] ACP-M3-02 Search adaptive logic migration to shared context — 2026-03-25 (evidence: `lib/src/features/search/presentation/search_screen.dart`, `test/src/features/search/search_screen_adaptive_test.dart`, `test/src/features/search/search_screen_focus_test.dart`)
+- [x] ACP-M3-03 Library adaptive logic migration to shared context — 2026-03-25 (evidence: `lib/src/features/library/presentation/library_screen.dart`, `test/src/features/library/presentation/library_screen_test.dart`)
+- [x] ACP-M3-04 Settings adaptive logic migration to shared context — 2026-03-25 (evidence: `lib/src/features/settings/presentation/settings_screen.dart`, `test/src/features/settings/presentation/settings_screen_test.dart`)
+- [x] ACP-M3-05 Now Playing adaptive logic migration to shared context — 2026-03-25 (evidence: `lib/src/features/player/presentation/now_playing_screen.dart`, `test/src/features/player/presentation/now_playing_screen_adaptive_test.dart`)
+- [x] ACP-M3-06 Desktop-wide random/You Might Like convergence to manual pager + track list while preserving compact/tablet/phone carousel behavior — 2026-03-26 (evidence: `lib/src/features/home/presentation/home_screen.dart`, `lib/src/features/home/presentation/home_providers.dart`, `test/src/features/home/presentation/home_screen_test.dart`, `test/src/features/home/presentation/home_random_showcase_provider_test.dart`, `/home/khalifa/Flutter_SDK/flutter/bin/flutter test test/src/features/home/presentation/home_screen_test.dart test/src/features/home/presentation/home_random_showcase_provider_test.dart`, `/home/khalifa/Flutter_SDK/flutter/bin/flutter analyze lib/src/features/home/presentation/home_providers.dart lib/src/features/home/presentation/home_screen.dart`)
 
 ### 31.4 — M4 Input and Accessibility Hardening
 - [ ] ACP-M4-01 Standardize focus traversal behavior across adaptive shells — status: backlog
 - [ ] ACP-M4-02 Standardize keyboard/mouse/right-click affordances across tablet/desktop modes — status: backlog
 - [ ] ACP-M4-03 Add explicit adaptive input checks to QA matrix — status: backlog
+- [ ] ACP-M4-04 Add deferred "Focus Player Mode" window preset/toggle to lock compact-wide presentation and allow quick return to normal adaptive mode — status: backlog
 
 ### 31.5 — M5 Platform Capability Layer
 - [ ] ACP-M5-01 Centralize desktop media capability checks (`audio_service`, `audio_service_mpris`, `smtc_windows`) — status: backlog

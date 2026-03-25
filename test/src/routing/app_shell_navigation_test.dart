@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/app.dart';
@@ -23,7 +24,6 @@ import 'package:navis/src/features/player/presentation/scrobble_dispatch_provide
 import 'package:navis/src/features/search/presentation/search_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_router.dart';
-import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:riverpod/src/framework.dart' show Override;
 
 import '../../helpers/test_database.dart';
@@ -171,12 +171,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    if (isDesktopRuntime) {
-      expect(find.byType(NavigationBar), findsNothing);
-    } else {
-      expect(find.byType(NavigationBar), findsOneWidget);
-      expect(find.byType(NavigationRail), findsNothing);
-    }
+    expect(find.byType(NavigationBar), findsOneWidget);
+    expect(find.byType(NavigationRail), findsNothing);
   });
 
   testWidgets('expanded tablet layout uses side navigation at 840+ width', (
@@ -204,6 +200,89 @@ void main() {
     expect(find.byType(NavigationBar), findsNothing);
   });
 
+  testWidgets(
+    'desktop-wide shell uses unified desktop sidebar and player bar',
+    (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1280, 1000);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final container = _createContainerWithDatabase(
+        overrides: _authenticatedShellOverrides(),
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const NavisApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('desktopSidebarRegion')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('desktopPlayerBar')), findsOneWidget);
+      expect(find.byKey(const ValueKey('railMiniPlayer')), findsNothing);
+      expect(find.byType(ExpandablePlayerSheet), findsNothing);
+      expect(find.byIcon(Icons.open_in_full), findsNothing);
+      expect(container.read(playerSheetExpandedProvider), isFalse);
+
+      await tester.tap(find.byIcon(Icons.queue_music_outlined).first);
+      await tester.pumpAndSettle();
+
+      expect(container.read(queueOverlayVisibleProvider), isTrue);
+      expect(container.read(playerSheetExpandedProvider), isFalse);
+
+      await tester.tapAt(const Offset(360, 40));
+      await tester.pumpAndSettle();
+
+      expect(container.read(queueOverlayVisibleProvider), isFalse);
+
+      await tester.tap(find.byKey(const ValueKey('desktopPlayerOpenHit')));
+      await tester.pumpAndSettle();
+
+      expect(container.read(playerSheetExpandedProvider), isTrue);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'compact desktop rail keeps rail mini player and avoids desktop bar',
+    (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1024, 1000);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final container = _createContainerWithDatabase(
+        overrides: _authenticatedShellOverrides(),
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const NavisApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('railMiniPlayer')), findsOneWidget);
+      expect(find.byKey(const ValueKey('desktopPlayerBar')), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('phone landscape falls back to bottom nav when height is tight', (
     tester,
   ) async {
@@ -226,11 +305,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    if (isDesktopRuntime) {
-      expect(find.byType(NavigationBar), findsNothing);
-    } else {
-      expect(find.byType(NavigationBar), findsOneWidget);
-    }
+    expect(find.byType(NavigationBar), findsNothing);
   });
 
   testWidgets(
@@ -360,13 +435,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(container.read(playerSheetExpandedProvider), isTrue);
-    if (isDesktopRuntime) {
-      expect(find.byType(ExpandablePlayerSheet), findsNothing);
-      expect(find.byType(NowPlayingScreen), findsOneWidget);
-    } else {
-      expect(find.byType(ExpandablePlayerSheet), findsOneWidget);
-      expect(find.byType(NowPlayingScreen), findsNothing);
-    }
+    expect(find.byType(ExpandablePlayerSheet), findsOneWidget);
   });
 
   testWidgets(
@@ -443,11 +512,7 @@ void main() {
 
     tester.view.physicalSize = const Size(700, 1000);
     await tester.pumpAndSettle();
-    if (isDesktopRuntime) {
-      expect(find.byType(NavigationBar), findsNothing);
-    } else {
-      expect(find.byType(NavigationBar), findsOneWidget);
-    }
+    expect(find.byType(NavigationBar), findsOneWidget);
     expect(find.byType(SearchScreen), findsOneWidget);
 
     tester.view.physicalSize = const Size(1024, 1000);
@@ -464,6 +529,47 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(NavigationBar), findsOneWidget);
     expect(find.byType(SearchScreen), findsOneWidget);
+  });
+
+  testWidgets('desktop shortcuts stay active on compact desktop widths', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(700, 1000);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(),
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const NavisApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(container.read(queueOverlayVisibleProvider), isFalse);
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.keyJ);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.keyJ);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+
+    expect(container.read(queueOverlayVisibleProvider), isTrue);
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.keyJ);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.keyJ);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+
+    expect(container.read(queueOverlayVisibleProvider), isFalse);
   });
 
   testWidgets(
@@ -514,6 +620,45 @@ void main() {
 
       expect(find.text('Library - Albums'), findsOneWidget);
       expect(container.read(librarySectionProvider), LibrarySection.albums);
+    },
+  );
+
+  testWidgets(
+    'desktop-wide sidebar keeps library subsection navigation visible',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1280, 1000);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final container = _createContainerWithDatabase(
+        overrides: <Override>[
+          ..._authenticatedShellOverrides(),
+          showLikedPageProvider.overrideWithValue(true),
+          showArtistsPageProvider.overrideWithValue(true),
+          showPlaylistsPageProvider.overrideWithValue(true),
+          showRadioPageProvider.overrideWithValue(true),
+        ],
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const NavisApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('railNavTile-1')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('railLibrarySection-liked')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
     },
   );
 

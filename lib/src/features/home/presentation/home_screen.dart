@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/common_widgets/album_context_menu.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
@@ -22,6 +23,7 @@ import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/home/presentation/home_scroll_provider.dart';
+import 'package:navis/src/features/library/domain/toggle_song_star.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
@@ -259,25 +261,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       }
     });
 
-    final viewport = MediaQuery.sizeOf(context);
-    final safePadding = MediaQuery.paddingOf(context);
     final downloadedOnly = ref.watch(downloadedOnlyFilterProvider);
     final likedOnly = ref.watch(homeLikedOnlyFilterProvider);
-    final adaptiveLayoutClass = resolveAdaptiveLayoutClass(viewport.width);
-    final adaptiveShellMode = resolveAdaptiveShellMode(
-      desktopRuntime: isDesktopRuntime,
-      viewportSize: viewport,
-      safePadding: safePadding,
-    );
-    final compactWideLandscapeMode =
-        adaptiveShellMode == AdaptiveShellMode.compactWideLandscape;
+    final adaptiveContext = resolveAdaptiveContextFor(context);
+    final adaptiveLayoutClass = adaptiveContext.adaptiveLayoutClass;
+    final compactWideLandscapeMode = adaptiveContext.useCompactWideLandscape;
     final compactHorizontalInset = compactWideLandscapeMode ? 10.0 : 0.0;
     final tabletMode =
-        !isDesktopRuntime &&
+        !adaptiveContext.useDesktopShell &&
         adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact;
-    final desktopMode = isDesktopRuntime;
+    final desktopRuntime = adaptiveContext.desktopRuntime;
+    final desktopMode = adaptiveContext.useDesktopShell;
     final useCustomHomePullRefresh = !desktopMode;
-    final desktopLayoutClass = resolveDesktopLayoutClass(viewport.width);
     final homeDensity = ref.watch(homeDensityProvider);
     final order =
         ref.watch(homeSectionOrderProvider) ?? HomeSectionIds.defaultOrder;
@@ -295,28 +290,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       ),
       children: <Widget>[
         if (desktopMode)
-          DesktopFrame(
-            layoutClass: desktopLayoutClass,
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
-            child: DesktopPanel(
-              child: Row(
-                children: <Widget>[
-                  _HomeSyncLogo(
-                    size: 56,
-                    syncState: syncState,
-                    pullProgress: 0,
-                    showImmediateRefreshRing: false,
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Text(
-                      l10n.appName,
-                      style: Theme.of(context).textTheme.headlineSmall
-                          ?.copyWith(fontWeight: FontWeight.w700),
+          Padding(
+            key: const ValueKey<String>('homeDesktopBrandRow'),
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+            child: Row(
+              children: <Widget>[
+                _HomeSyncLogo(
+                  size: 48,
+                  syncState: syncState,
+                  pullProgress: 0,
+                  showImmediateRefreshRing: false,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    l10n.appName,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           )
         else
@@ -345,6 +339,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               likedOnly,
               syncState.isRunning,
               homeDensity,
+              desktopRuntime,
               desktopMode,
               adaptiveLayoutClass,
               compactWideLandscapeMode,
@@ -408,6 +403,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     bool likedOnly,
     bool syncRunning,
     String homeDensity,
+    bool desktopRuntime,
     bool desktopMode,
     AdaptiveLayoutClass adaptiveLayoutClass,
     bool compactWideLandscapeMode,
@@ -446,6 +442,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               albums: albums,
               heroContext: 'home_recently_liked',
               density: sectionDensity,
+              desktopMode: desktopMode,
+              tabletMode:
+                  !desktopMode &&
+                  adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact,
+              adaptiveLayoutClass: adaptiveLayoutClass,
+              compactWideLandscapeMode: compactWideLandscapeMode,
               onTap: (album) => context.push('/library/albums/${album.id}'),
             ),
             emptyTitle: l10n.homeRecentlyLikedAlbumsEmptyTitle,
@@ -457,7 +459,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         return <Widget>[
           _HomeSection<List<SongsTableData>>(
             title: l10n.homeStarredTitle,
-            desktopMode: desktopMode,
+            desktopMode: desktopRuntime,
             adaptiveLayoutClass: adaptiveLayoutClass,
             compactWideLandscapeMode: compactWideLandscapeMode,
             template: _HomeSectionTemplate.compactList,
@@ -471,7 +473,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             builder: (context, songs) => _SongListSection(
               songs: songs,
               density: sectionDensity,
-              desktopMode: desktopMode,
+              desktopMode: desktopRuntime,
               adaptiveLayoutClass: adaptiveLayoutClass,
               onTap: (song) {
                 ref.read(queueProvider.notifier).replace(<String>[
@@ -509,6 +511,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 albums: albums,
                 heroContext: 'home_recently_added',
                 density: sectionDensity,
+                desktopMode: desktopMode,
+                tabletMode:
+                    !desktopMode &&
+                    adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact,
+                adaptiveLayoutClass: adaptiveLayoutClass,
+                compactWideLandscapeMode: compactWideLandscapeMode,
                 onTap: (album) => context.push('/library/albums/${album.id}'),
               ),
               emptyTitle: l10n.libraryDownloadedOnlyEmpty,
@@ -538,6 +546,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               albums: albums,
               heroContext: 'home_recently_added',
               density: sectionDensity,
+              desktopMode: desktopMode,
+              tabletMode:
+                  !desktopMode &&
+                  adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact,
+              adaptiveLayoutClass: adaptiveLayoutClass,
+              compactWideLandscapeMode: compactWideLandscapeMode,
               onTap: (album) => context.push('/library/albums/${album.id}'),
             ),
             emptyTitle: l10n.homeRecentlyAddedEmptyTitle,
@@ -573,6 +587,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               albums: albums,
               heroContext: 'home_recently_played',
               density: sectionDensity,
+              desktopMode: desktopMode,
+              tabletMode:
+                  !desktopMode &&
+                  adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact,
+              adaptiveLayoutClass: adaptiveLayoutClass,
+              compactWideLandscapeMode: compactWideLandscapeMode,
               onTap: (album) => context.push('/library/albums/${album.id}'),
             ),
             emptyTitle: l10n.homeRecentlyPlayedAlbumsEmptyTitle,
@@ -590,7 +610,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             compactWideLandscapeMode: compactWideLandscapeMode,
             template: _HomeSectionTemplate.carousel,
             density: sectionDensity,
-            loadingBuilder: () => _RandomHeroShimmer(density: sectionDensity),
+            loadingBuilder: () => _RandomHeroShimmer(
+              density: sectionDensity,
+              desktopMode: desktopMode,
+              adaptiveLayoutClass: adaptiveLayoutClass,
+            ),
             keepPreviousDataWhileLoading: true,
             data: ref.watch(
               homeRandomShowcaseProvider((
@@ -599,12 +623,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               )),
             ),
             isEmpty: (items) => items.isEmpty,
-            builder: (context, albums) => _RandomAlbumsHeroCarousel(
-              albums: albums,
-              heroContext: 'home_random',
-              density: sectionDensity,
-              freezeListUpdates: syncRunning,
-            ),
+            builder: (context, albums) => desktopMode
+                ? _DesktopRandomAlbumsPager(
+                    albums: albums,
+                    heroContext: 'home_random',
+                    density: sectionDensity,
+                  )
+                : _RandomAlbumsHeroCarousel(
+                    albums: albums,
+                    heroContext: 'home_random',
+                    density: sectionDensity,
+                    freezeListUpdates: syncRunning,
+                    desktopMode: desktopMode,
+                    adaptiveLayoutClass: adaptiveLayoutClass,
+                  ),
             emptyTitle: l10n.homeRandomEmptyTitle,
             emptySubtitle: l10n.homeRandomEmptySubtitle,
             onRetry: () {
@@ -618,7 +650,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         return <Widget>[
           _HomeSection<List<SongsTableData>>(
             title: l10n.homeMostPlayedTracksTitle,
-            desktopMode: desktopMode,
+            desktopMode: desktopRuntime,
             adaptiveLayoutClass: adaptiveLayoutClass,
             compactWideLandscapeMode: compactWideLandscapeMode,
             template: _HomeSectionTemplate.compactList,
@@ -640,7 +672,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             builder: (context, songs) => _SongListSection(
               songs: songs,
               density: sectionDensity,
-              desktopMode: desktopMode,
+              desktopMode: desktopRuntime,
               adaptiveLayoutClass: adaptiveLayoutClass,
               onTap: (song) {
                 ref.read(queueProvider.notifier).replace(<String>[
@@ -662,7 +694,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         return <Widget>[
           _HomeSection<List<SongsTableData>>(
             title: l10n.homeRecentlyPlayedTracksTitle,
-            desktopMode: desktopMode,
+            desktopMode: desktopRuntime,
             adaptiveLayoutClass: adaptiveLayoutClass,
             compactWideLandscapeMode: compactWideLandscapeMode,
             template: _HomeSectionTemplate.compactList,
@@ -686,7 +718,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             builder: (context, songs) => _SongListSection(
               songs: songs,
               density: sectionDensity,
-              desktopMode: desktopMode,
+              desktopMode: desktopRuntime,
               adaptiveLayoutClass: adaptiveLayoutClass,
               onTap: (song) {
                 ref.read(queueProvider.notifier).replace(<String>[
@@ -734,6 +766,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               albums: albums,
               heroContext: 'home_frequent',
               density: sectionDensity,
+              desktopMode: desktopMode,
+              tabletMode:
+                  !desktopMode &&
+                  adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact,
+              adaptiveLayoutClass: adaptiveLayoutClass,
+              compactWideLandscapeMode: compactWideLandscapeMode,
               onTap: (album) => context.push('/library/albums/${album.id}'),
             ),
             emptyTitle: l10n.homeFrequentEmptyTitle,
@@ -746,7 +784,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         return <Widget>[
           _HomeSection<bool>(
             title: l10n.homeQuickActionsTitle,
-            desktopMode: desktopMode,
+            desktopMode: desktopRuntime,
             adaptiveLayoutClass: adaptiveLayoutClass,
             compactWideLandscapeMode: compactWideLandscapeMode,
             template: _HomeSectionTemplate.compactList,
@@ -967,7 +1005,10 @@ class _HomeSection<T> extends StatelessWidget {
       loading: () =>
           loadingBuilder?.call() ??
           (template == _HomeSectionTemplate.carousel
-              ? _CarouselShimmer(density: density)
+              ? _CarouselShimmer(
+                  density: density,
+                  compactWideLandscapeMode: compactWideLandscapeMode,
+                )
               : _ListShimmer(density: density)),
       error: (error, _) => Padding(
         padding: EdgeInsets.symmetric(
@@ -1056,30 +1097,26 @@ class _ServerAlbumCarousel extends ConsumerWidget {
     required this.albums,
     required this.onTap,
     required this.heroContext,
+    required this.desktopMode,
+    required this.tabletMode,
+    required this.adaptiveLayoutClass,
+    required this.compactWideLandscapeMode,
     this.density = _HomeSectionDensity.comfortable,
   });
 
   final List<Album> albums;
   final void Function(Album album) onTap;
   final String heroContext;
+  final bool desktopMode;
+  final bool tabletMode;
+  final AdaptiveLayoutClass adaptiveLayoutClass;
+  final bool compactWideLandscapeMode;
   final _HomeSectionDensity density;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final coverShape = ref.watch(coverArtShapeProvider);
     final coverRadius = coverArtShapeToRadius(coverShape);
-    final desktopMode = isDesktopRuntime;
-    final viewport = MediaQuery.sizeOf(context);
-    final adaptiveLayoutClass = resolveAdaptiveLayoutClass(viewport.width);
-    final compactWideLandscapeMode =
-        resolveAdaptiveShellMode(
-          desktopRuntime: isDesktopRuntime,
-          viewportSize: viewport,
-          safePadding: MediaQuery.paddingOf(context),
-        ) ==
-        AdaptiveShellMode.compactWideLandscape;
-    final tabletMode =
-        !desktopMode && adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact;
     final compactDensity = density == _HomeSectionDensity.compact;
     final cardSize = desktopMode
         ? (compactDensity ? 152.0 : 164.0)
@@ -1092,6 +1129,36 @@ class _ServerAlbumCarousel extends ConsumerWidget {
         ? 4.0
         : (tabletMode ? (compactWideLandscapeMode ? 0.0 : 12.0) : 16.0);
     final separatorWidth = compactDensity ? 10.0 : (tabletMode ? 14.0 : 12.0);
+    if (desktopMode) {
+      return _DesktopScrollableCarousel(
+        height: cardSize,
+        horizontalPadding: horizontalPadding,
+        separatorWidth: separatorWidth,
+        itemCount: albums.length,
+        itemBuilder: (context, index) {
+          final album = albums[index];
+          return _ServerAlbumCard(
+            name: album.name,
+            artist: album.artist,
+            coverArtId: album.coverArt,
+            width: cardSize,
+            borderRadius: coverRadius,
+            heroTag: buildCoverArtHeroTag(
+              coverArtId: album.coverArt,
+              context: '${heroContext}_${album.id}',
+            ),
+            onTap: () => onTap(album),
+            onLongPress: () => showAlbumContextMenu(context, ref, album.id),
+            onSecondaryTapDown: (details) => showAlbumContextMenu(
+              context,
+              ref,
+              album.id,
+              anchor: details.globalPosition,
+            ),
+          );
+        },
+      );
+    }
     return SizedBox(
       height: cardSize,
       child: ListView.separated(
@@ -1132,28 +1199,24 @@ class _LocalAlbumCarousel extends ConsumerWidget {
     required this.albums,
     required this.onTap,
     required this.heroContext,
+    required this.desktopMode,
+    required this.tabletMode,
+    required this.adaptiveLayoutClass,
+    required this.compactWideLandscapeMode,
     this.density = _HomeSectionDensity.comfortable,
   });
 
   final List<AlbumsTableData> albums;
   final void Function(AlbumsTableData album) onTap;
   final String heroContext;
+  final bool desktopMode;
+  final bool tabletMode;
+  final AdaptiveLayoutClass adaptiveLayoutClass;
+  final bool compactWideLandscapeMode;
   final _HomeSectionDensity density;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final desktopMode = isDesktopRuntime;
-    final viewport = MediaQuery.sizeOf(context);
-    final adaptiveLayoutClass = resolveAdaptiveLayoutClass(viewport.width);
-    final compactWideLandscapeMode =
-        resolveAdaptiveShellMode(
-          desktopRuntime: isDesktopRuntime,
-          viewportSize: viewport,
-          safePadding: MediaQuery.paddingOf(context),
-        ) ==
-        AdaptiveShellMode.compactWideLandscape;
-    final tabletMode =
-        !desktopMode && adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact;
     final compactDensity = density == _HomeSectionDensity.compact;
     final cardSize = desktopMode
         ? (compactDensity ? 152.0 : 164.0)
@@ -1166,6 +1229,33 @@ class _LocalAlbumCarousel extends ConsumerWidget {
         ? 4.0
         : (tabletMode ? (compactWideLandscapeMode ? 0.0 : 12.0) : 16.0);
     final separatorWidth = compactDensity ? 10.0 : (tabletMode ? 14.0 : 12.0);
+    if (desktopMode) {
+      return _DesktopScrollableCarousel(
+        height: cardSize,
+        horizontalPadding: horizontalPadding,
+        separatorWidth: separatorWidth,
+        itemCount: albums.length,
+        itemBuilder: (context, index) {
+          final album = albums[index];
+          return AlbumCard(
+            album: album,
+            size: AlbumCardSize.compact,
+            heroTag: buildCoverArtHeroTag(
+              coverArtId: album.coverArt,
+              context: '${heroContext}_${album.id}',
+            ),
+            onTap: () => onTap(album),
+            onLongPress: () => showAlbumContextMenu(context, ref, album.id),
+            onSecondaryTapDown: (details) => showAlbumContextMenu(
+              context,
+              ref,
+              album.id,
+              anchor: details.globalPosition,
+            ),
+          );
+        },
+      );
+    }
     return SizedBox(
       height: cardSize,
       child: ListView.separated(
@@ -1197,16 +1287,993 @@ class _LocalAlbumCarousel extends ConsumerWidget {
   }
 }
 
+class _DesktopScrollableCarousel extends StatefulWidget {
+  const _DesktopScrollableCarousel({
+    required this.height,
+    required this.horizontalPadding,
+    required this.separatorWidth,
+    required this.itemCount,
+    required this.itemBuilder,
+  });
+
+  final double height;
+  final double horizontalPadding;
+  final double separatorWidth;
+  final int itemCount;
+  final IndexedWidgetBuilder itemBuilder;
+
+  @override
+  State<_DesktopScrollableCarousel> createState() =>
+      _DesktopScrollableCarouselState();
+}
+
+class _DesktopScrollableCarouselState
+    extends State<_DesktopScrollableCarousel> {
+  static const double _arrowLaneWidth = 38;
+  static const double _edgeButtonSize = 34;
+
+  late final ScrollController _scrollController;
+  bool _canScrollBackward = false;
+  bool _canScrollForward = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController()..addListener(_syncArrowState);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _syncArrowState());
+  }
+
+  @override
+  void didUpdateWidget(covariant _DesktopScrollableCarousel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.itemCount != widget.itemCount) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _syncArrowState());
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController
+      ..removeListener(_syncArrowState)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _syncArrowState() {
+    if (!_scrollController.hasClients) {
+      if (_canScrollBackward || _canScrollForward) {
+        setState(() {
+          _canScrollBackward = false;
+          _canScrollForward = false;
+        });
+      }
+      return;
+    }
+    final position = _scrollController.position;
+    final nextBackward = position.pixels > 1;
+    final nextForward = (position.maxScrollExtent - position.pixels) > 1;
+    if (nextBackward == _canScrollBackward &&
+        nextForward == _canScrollForward) {
+      return;
+    }
+    setState(() {
+      _canScrollBackward = nextBackward;
+      _canScrollForward = nextForward;
+    });
+  }
+
+  void _animateBy(double delta) {
+    if (!_scrollController.hasClients) {
+      return;
+    }
+    final position = _scrollController.position;
+    final target = (position.pixels + delta).clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
+    );
+    _scrollController.animateTo(
+      target,
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final canHaveArrows = widget.itemCount > 1;
+    return SizedBox(
+      height: widget.height,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final viewportJump = constraints.maxWidth * 0.72;
+          final list = ListView.separated(
+            controller: _scrollController,
+            scrollDirection: Axis.horizontal,
+            padding: EdgeInsets.symmetric(
+              horizontal:
+                  widget.horizontalPadding +
+                  (canHaveArrows ? _arrowLaneWidth : 0),
+            ),
+            itemCount: widget.itemCount,
+            separatorBuilder: (_, _) => SizedBox(width: widget.separatorWidth),
+            itemBuilder: widget.itemBuilder,
+          );
+          if (!canHaveArrows) {
+            return list;
+          }
+          return Stack(
+            children: <Widget>[
+              Positioned.fill(child: list),
+              if (_canScrollBackward)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: _CarouselEdgeArrow(
+                    icon: Icons.chevron_left_rounded,
+                    onPressed: () => _animateBy(-viewportJump),
+                  ),
+                ),
+              if (_canScrollForward)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: _CarouselEdgeArrow(
+                    icon: Icons.chevron_right_rounded,
+                    onPressed: () => _animateBy(viewportJump),
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _CarouselEdgeArrow extends StatelessWidget {
+  const _CarouselEdgeArrow({
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      child: Material(
+        color: colors.surfaceContainerHigh.withValues(alpha: 0.92),
+        elevation: 3,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onPressed,
+          child: SizedBox(
+            width: _DesktopScrollableCarouselState._edgeButtonSize,
+            height: _DesktopScrollableCarouselState._edgeButtonSize,
+            child: Icon(icon),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+const int _kDesktopRandomSongsPerAlbum = 5;
+
+class _DesktopRandomAlbumsPager extends ConsumerStatefulWidget {
+  const _DesktopRandomAlbumsPager({
+    required this.albums,
+    required this.heroContext,
+    this.density = _HomeSectionDensity.comfortable,
+  });
+
+  final List<HomeRandomShowcaseAlbum> albums;
+  final String heroContext;
+  final _HomeSectionDensity density;
+
+  @override
+  ConsumerState<_DesktopRandomAlbumsPager> createState() =>
+      _DesktopRandomAlbumsPagerState();
+}
+
+class _DesktopRandomAlbumsPagerState
+    extends ConsumerState<_DesktopRandomAlbumsPager> {
+  late final PageController _pageController;
+  int _currentPage = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+  }
+
+  @override
+  void didUpdateWidget(covariant _DesktopRandomAlbumsPager oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.albums.isEmpty) {
+      if (_currentPage != 0) {
+        setState(() {
+          _currentPage = 0;
+        });
+      }
+      return;
+    }
+    final clampedPage = _currentPage.clamp(0, widget.albums.length - 1);
+    if (_currentPage != clampedPage) {
+      setState(() {
+        _currentPage = clampedPage;
+      });
+      if (_pageController.hasClients) {
+        _pageController.jumpToPage(clampedPage);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _animateToPage(int target) {
+    if (!_pageController.hasClients || widget.albums.isEmpty) {
+      return;
+    }
+    final clampedTarget = target.clamp(0, widget.albums.length - 1);
+    if (clampedTarget == _currentPage) {
+      return;
+    }
+    _pageController.animateToPage(
+      clampedTarget,
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  double _heroHeightFor(double availableWidth) {
+    final compact = widget.density == _HomeSectionDensity.compact;
+    return (availableWidth * (compact ? 0.26 : 0.29)).clamp(
+      compact ? 300.0 : 330.0,
+      compact ? 430.0 : 470.0,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.albums.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      key: const ValueKey<String>('home-random-desktop-pager'),
+      children: <Widget>[
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final availableWidth = constraints.maxWidth.isFinite
+                ? constraints.maxWidth
+                : MediaQuery.sizeOf(context).width;
+            final height = _heroHeightFor(availableWidth);
+            return SizedBox(
+              height: height,
+              child: Stack(
+                children: <Widget>[
+                  Positioned.fill(
+                    child: PageView.builder(
+                      key: const ValueKey<String>(
+                        'home-random-desktop-pageview',
+                      ),
+                      controller: _pageController,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: widget.albums.length,
+                      onPageChanged: (page) {
+                        if (!mounted) {
+                          return;
+                        }
+                        setState(() {
+                          _currentPage = page;
+                        });
+                      },
+                      itemBuilder: (context, index) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 2),
+                          child: KeyedSubtree(
+                            key: ValueKey<String>(
+                              'home-random-desktop-page-$index',
+                            ),
+                            child: _DesktopRandomAlbumPage(
+                              album: widget.albums[index],
+                              heroContext: widget.heroContext,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  if (widget.albums.length > 1 && _currentPage > 0)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: _CarouselEdgeArrow(
+                        icon: Icons.chevron_left_rounded,
+                        onPressed: () => _animateToPage(_currentPage - 1),
+                      ),
+                    ),
+                  if (widget.albums.length > 1 &&
+                      _currentPage < widget.albums.length - 1)
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: _CarouselEdgeArrow(
+                        icon: Icons.chevron_right_rounded,
+                        onPressed: () => _animateToPage(_currentPage + 1),
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
+        ),
+        if (widget.albums.length > 1) ...<Widget>[
+          const SizedBox(height: 10),
+          _DesktopRandomMiniCoverStrip(
+            albums: widget.albums,
+            currentPage: _currentPage,
+            onPageSelected: _animateToPage,
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _DesktopRandomAlbumPage extends ConsumerWidget {
+  const _DesktopRandomAlbumPage({
+    required this.album,
+    required this.heroContext,
+  });
+
+  final HomeRandomShowcaseAlbum album;
+  final String heroContext;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = Theme.of(context).colorScheme;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final pageHeight = constraints.maxHeight.isFinite
+            ? constraints.maxHeight
+            : 330.0;
+        final coverWidth = math.min(pageHeight, constraints.maxWidth * 0.4);
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            SizedBox(
+              width: coverWidth,
+              height: pageHeight,
+              child: _DesktopRandomAlbumVisual(
+                album: album,
+                heroContext: heroContext,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: SizedBox(
+                height: pageHeight,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: colors.surfaceContainerLowest.withValues(
+                      alpha: 0.28,
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: colors.outlineVariant.withValues(alpha: 0.34),
+                    ),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+                    child: _DesktopRandomAlbumSongList(album: album),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _DesktopRandomAlbumVisual extends ConsumerWidget {
+  const _DesktopRandomAlbumVisual({
+    required this.album,
+    required this.heroContext,
+  });
+
+  final HomeRandomShowcaseAlbum album;
+  final String heroContext;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final coverShape = ref.watch(coverArtShapeProvider);
+    final coverRadius = coverArtShapeToRadius(coverShape);
+
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => context.push('/library/albums/${album.id}'),
+        onLongPress: () => showAlbumContextMenu(context, ref, album.id),
+        onSecondaryTapDown: (details) => showAlbumContextMenu(
+          context,
+          ref,
+          album.id,
+          anchor: details.globalPosition,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(2, 4, 2, 4),
+          child: SizedBox.expand(
+            child: Card(
+              margin: EdgeInsets.zero,
+              clipBehavior: Clip.antiAlias,
+              shape: RoundedRectangleBorder(borderRadius: coverRadius),
+              child: Stack(
+                fit: StackFit.expand,
+                children: <Widget>[
+                  HeroCoverArt(
+                    coverArtId: album.coverArtId,
+                    heroTag: buildCoverArtHeroTag(
+                      coverArtId: album.coverArtId,
+                      context: '${heroContext}_${album.id}_desktop_page',
+                      entityId: album.id,
+                    ),
+                    size: 720,
+                    fit: BoxFit.cover,
+                    placeholderIcon: Icons.album_outlined,
+                  ),
+                  const Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: <Color>[
+                            Colors.transparent,
+                            Colors.transparent,
+                            Color(0x66000000),
+                            Color(0xD0000000),
+                          ],
+                          stops: <double>[0, 0.52, 0.74, 1],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: 12,
+                    right: 12,
+                    bottom: 10,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Text(
+                          album.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                shadows: const <Shadow>[
+                                  Shadow(
+                                    offset: Offset(0, 1),
+                                    blurRadius: 2,
+                                    color: Color(0x99000000),
+                                  ),
+                                ],
+                              ),
+                        ),
+                        if (album.artist != null &&
+                            album.artist!.trim().isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text(
+                              album.artist!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(
+                                    color: const Color(0xE6FFFFFF),
+                                    shadows: const <Shadow>[
+                                      Shadow(
+                                        offset: Offset(0, 1),
+                                        blurRadius: 2,
+                                        color: Color(0x99000000),
+                                      ),
+                                    ],
+                                  ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DesktopRandomAlbumSongList extends ConsumerWidget {
+  const _DesktopRandomAlbumSongList({required this.album});
+
+  final HomeRandomShowcaseAlbum album;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final albumAsync = ref.watch(albumProvider(album.id));
+    final fallbackAsync = ref.watch(songByIdProvider(album.id));
+    final albumData = albumAsync.asData?.value;
+    final fallbackSong = fallbackAsync.asData?.value;
+    final allSongs = _resolveDesktopRandomSongs(
+      albumSongs: albumData?.songs,
+      fallbackSong: fallbackSong,
+    );
+    final waitingForData =
+        (albumAsync.isLoading || fallbackAsync.isLoading) &&
+        albumData == null &&
+        fallbackSong == null;
+
+    if (waitingForData) {
+      return Center(
+        child: Text(
+          l10n.commonLoading,
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      );
+    }
+
+    if (allSongs.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Text(
+              l10n.homeRandomEmptySubtitle,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 10),
+            FilledButton.tonalIcon(
+              onPressed: () => context.push('/library/albums/${album.id}'),
+              icon: const Icon(Icons.album_outlined),
+              label: Text(l10n.librarySongMenuOpenAlbum),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final albumTrackIds = allSongs
+        .map((song) => song.id.trim())
+        .where((id) => id.isNotEmpty)
+        .toList(growable: false);
+    const separatorHeight = 4.0;
+    const preferredRowHeight = 52.0;
+    const minRowHeight = 46.0;
+    const maxRowHeight = 74.0;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availableHeight = constraints.maxHeight.isFinite
+            ? constraints.maxHeight
+            : 280.0;
+        final baselineRows = math.min(
+          _kDesktopRandomSongsPerAlbum,
+          allSongs.length,
+        );
+        final preferredRowsByHeight =
+            ((availableHeight + separatorHeight) /
+                    (preferredRowHeight + separatorHeight))
+                .floor();
+        final maxRowsByHeight =
+            ((availableHeight + separatorHeight) /
+                    (minRowHeight + separatorHeight))
+                .floor();
+        final targetRows = preferredRowsByHeight
+            .clamp(
+              baselineRows,
+              math.max(baselineRows, maxRowsByHeight),
+            )
+            .toInt();
+        final visibleRowCount = targetRows.clamp(1, allSongs.length);
+        final displayedSongs = allSongs
+            .take(visibleRowCount)
+            .toList(growable: false);
+        final rowHeight =
+            ((availableHeight - ((visibleRowCount - 1) * separatorHeight)) /
+                    visibleRowCount)
+                .clamp(minRowHeight, maxRowHeight);
+        return ListView.separated(
+          key: ValueKey<String>('home-random-desktop-song-list-${album.id}'),
+          physics: const NeverScrollableScrollPhysics(),
+          padding: EdgeInsets.zero,
+          itemCount: displayedSongs.length,
+          separatorBuilder: (_, _) => const SizedBox(height: separatorHeight),
+          itemBuilder: (context, index) {
+            final song = displayedSongs[index];
+            final queueIndex = allSongs.indexWhere(
+              (candidate) => candidate.id == song.id,
+            );
+            return _DesktopRandomAlbumSongRow(
+              song: song,
+              albumTrackIds: albumTrackIds,
+              queueStartIndex: queueIndex < 0 ? index : queueIndex,
+              displayIndex: index + 1,
+              rowHeight: rowHeight,
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _DesktopRandomAlbumSongRow extends ConsumerWidget {
+  const _DesktopRandomAlbumSongRow({
+    required this.song,
+    required this.albumTrackIds,
+    required this.queueStartIndex,
+    required this.displayIndex,
+    required this.rowHeight,
+  });
+
+  final SongsTableData song;
+  final List<String> albumTrackIds;
+  final int queueStartIndex;
+  final int displayIndex;
+  final double rowHeight;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final colors = Theme.of(context).colorScheme;
+    final currentSongId = ref.watch(currentSongProvider);
+    final isPlaying = ref.watch(isPlayingProvider);
+    final isCurrentSong = currentSongId == song.id;
+    final isLiked =
+        ref.watch(songStarredProvider(song.id)).asData?.value ??
+        song.starred != null;
+
+    Future<void> openMenuWithAnchor(Offset anchor) {
+      return showSongContextMenu(
+        context,
+        ref,
+        song,
+        anchor: anchor,
+      );
+    }
+
+    return SizedBox(
+      key: ValueKey<String>('home-random-desktop-song-row-${song.id}'),
+      height: rowHeight,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          mouseCursor: SystemMouseCursors.click,
+          hoverColor: colors.primary.withValues(alpha: 0.06),
+          highlightColor: colors.primary.withValues(alpha: 0.08),
+          onTap: () {
+            unawaited(
+              ref
+                  .read(queueProvider.notifier)
+                  .replace(
+                    albumTrackIds,
+                    startIndex: queueStartIndex,
+                    autoPlay: true,
+                  ),
+            );
+          },
+          onSecondaryTapDown: (details) {
+            unawaited(openMenuWithAnchor(details.globalPosition));
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              children: <Widget>[
+                SizedBox(
+                  width: 24,
+                  child: isCurrentSong && isPlaying
+                      ? Icon(
+                          Icons.graphic_eq_rounded,
+                          size: 17,
+                          color: colors.primary,
+                        )
+                      : Text(
+                          '$displayIndex',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: colors.onSurfaceVariant.withValues(
+                                  alpha: 0.75,
+                                ),
+                                fontFeatures: const <FontFeature>[
+                                  FontFeature.tabularFigures(),
+                                ],
+                              ),
+                        ),
+                ),
+                const SizedBox(width: 6),
+                SizedBox(
+                  width: 30,
+                  child: IconButton(
+                    key: ValueKey<String>(
+                      'home-random-desktop-heart-${song.id}',
+                    ),
+                    visualDensity: const VisualDensity(
+                      horizontal: -4,
+                      vertical: -4,
+                    ),
+                    padding: EdgeInsets.zero,
+                    iconSize: 18,
+                    icon: Icon(
+                      isLiked ? Icons.favorite : Icons.favorite_border,
+                      color: isLiked
+                          ? colors.primary
+                          : colors.onSurfaceVariant.withValues(alpha: 0.88),
+                    ),
+                    onPressed: () {
+                      unawaited(
+                        toggleSongStar(song.id, ref).catchError((_) {
+                          if (context.mounted) {
+                            AppNoticeMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(l10n.albumDetailStarFailure),
+                              ),
+                            );
+                          }
+                        }),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        song.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              fontWeight: FontWeight.w500,
+                            ),
+                      ),
+                      if (song.artistName != null &&
+                          song.artistName!.trim().isNotEmpty) ...<Widget>[
+                        const SizedBox(height: 1),
+                        Text(
+                          song.artistName!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: colors.onSurfaceVariant.withValues(
+                                  alpha: 0.8,
+                                ),
+                              ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                SizedBox(
+                  width: 32,
+                  child: Builder(
+                    builder: (buttonContext) => IconButton(
+                      key: ValueKey<String>(
+                        'home-random-desktop-menu-${song.id}',
+                      ),
+                      visualDensity: const VisualDensity(
+                        horizontal: -4,
+                        vertical: -4,
+                      ),
+                      padding: EdgeInsets.zero,
+                      iconSize: 18,
+                      color: colors.primary.withValues(alpha: 0.9),
+                      icon: const Icon(Icons.more_horiz_rounded),
+                      onPressed: () {
+                        final renderBox =
+                            buttonContext.findRenderObject() as RenderBox?;
+                        Offset? anchor;
+                        if (renderBox != null) {
+                          anchor = renderBox.localToGlobal(
+                            Offset(
+                              renderBox.size.width / 2,
+                              renderBox.size.height / 2,
+                            ),
+                          );
+                        }
+                        if (anchor != null) {
+                          unawaited(openMenuWithAnchor(anchor));
+                        } else {
+                          unawaited(showSongContextMenu(context, ref, song));
+                        }
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                SizedBox(
+                  width: 48,
+                  child: Text(
+                    _formatDesktopSongDuration(song.duration),
+                    textAlign: TextAlign.right,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: colors.onSurfaceVariant.withValues(alpha: 0.86),
+                      fontFeatures: const <FontFeature>[
+                        FontFeature.tabularFigures(),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DesktopRandomMiniCoverStrip extends ConsumerWidget {
+  const _DesktopRandomMiniCoverStrip({
+    required this.albums,
+    required this.currentPage,
+    required this.onPageSelected,
+  });
+
+  final List<HomeRandomShowcaseAlbum> albums;
+  final int currentPage;
+  final ValueChanged<int> onPageSelected;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final coverShape = ref.watch(coverArtShapeProvider);
+    final coverRadius = coverArtShapeToRadius(coverShape);
+    final colors = Theme.of(context).colorScheme;
+
+    return SizedBox(
+      height: 42,
+      child: Align(
+        alignment: Alignment.center,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: List<Widget>.generate(albums.length, (index) {
+              final album = albums[index];
+              final active = currentPage == index;
+              return Padding(
+                padding: EdgeInsets.only(
+                  right: index == albums.length - 1 ? 0 : 6,
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  borderRadius: coverRadius,
+                  child: InkWell(
+                    key: ValueKey<String>(
+                      'home-random-desktop-mini-cover-$index',
+                    ),
+                    borderRadius: coverRadius,
+                    onTap: () => onPageSelected(index),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.easeOutCubic,
+                      width: active ? 34 : 32,
+                      height: active ? 34 : 32,
+                      padding: const EdgeInsets.all(1.2),
+                      decoration: BoxDecoration(
+                        borderRadius: coverRadius,
+                        border: Border.all(
+                          color: active
+                              ? colors.primary
+                              : colors.outlineVariant.withValues(alpha: 0.42),
+                          width: active ? 1.6 : 1.0,
+                        ),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: coverRadius,
+                        child: CoverArtImage(
+                          coverArtId: album.coverArtId,
+                          size: 96,
+                          fit: BoxFit.cover,
+                          placeholderIcon: Icons.album_outlined,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+List<SongsTableData> _resolveDesktopRandomSongs({
+  required List<SongsTableData>? albumSongs,
+  required SongsTableData? fallbackSong,
+}) {
+  final candidates = <SongsTableData>[
+    ...(albumSongs ?? const <SongsTableData>[]),
+    if ((albumSongs == null || albumSongs.isEmpty) && fallbackSong != null)
+      fallbackSong,
+  ];
+  candidates.sort(_compareDesktopRandomSongs);
+  return List<SongsTableData>.unmodifiable(candidates);
+}
+
+int _compareDesktopRandomSongs(SongsTableData a, SongsTableData b) {
+  final discComparison = (a.discNumber ?? 1 << 20).compareTo(
+    b.discNumber ?? 1 << 20,
+  );
+  if (discComparison != 0) {
+    return discComparison;
+  }
+
+  final trackComparison = (a.track ?? 1 << 20).compareTo(b.track ?? 1 << 20);
+  if (trackComparison != 0) {
+    return trackComparison;
+  }
+
+  final titleComparison = a.title.toLowerCase().compareTo(
+    b.title.toLowerCase(),
+  );
+  if (titleComparison != 0) {
+    return titleComparison;
+  }
+
+  return a.id.compareTo(b.id);
+}
+
+String _formatDesktopSongDuration(int? seconds) {
+  if (seconds == null || seconds <= 0) {
+    return '--:--';
+  }
+  final minutes = seconds ~/ 60;
+  final remainder = seconds % 60;
+  return '$minutes:${remainder.toString().padLeft(2, '0')}';
+}
+
 class _RandomAlbumsHeroCarousel extends ConsumerStatefulWidget {
   const _RandomAlbumsHeroCarousel({
     required this.albums,
     required this.heroContext,
+    required this.desktopMode,
+    required this.adaptiveLayoutClass,
     this.density = _HomeSectionDensity.comfortable,
     this.freezeListUpdates = false,
   });
 
   final List<HomeRandomShowcaseAlbum> albums;
   final String heroContext;
+  final bool desktopMode;
+  final AdaptiveLayoutClass adaptiveLayoutClass;
   final _HomeSectionDensity density;
   final bool freezeListUpdates;
 
@@ -1239,7 +2306,7 @@ class _RandomAlbumsHeroCarouselState
       _displayedAlbums.length,
     );
     _pageController = PageController(
-      viewportFraction: 0.84,
+      viewportFraction: widget.desktopMode ? 0.58 : 0.84,
       initialPage: initialPage,
     );
     _startAutoAdvance();
@@ -1251,6 +2318,16 @@ class _RandomAlbumsHeroCarouselState
     final incomingAlbums = List<HomeRandomShowcaseAlbum>.unmodifiable(
       widget.albums,
     );
+
+    if (oldWidget.desktopMode != widget.desktopMode) {
+      final currentPage = _currentVirtualPage;
+      final previousController = _pageController;
+      _pageController = PageController(
+        viewportFraction: widget.desktopMode ? 0.58 : 0.84,
+        initialPage: currentPage,
+      );
+      previousController.dispose();
+    }
 
     if (widget.freezeListUpdates && _displayedAlbums.isNotEmpty) {
       return;
@@ -1340,6 +2417,20 @@ class _RandomAlbumsHeroCarouselState
     });
   }
 
+  void _animateToRelativePage(int delta) {
+    if (!mounted ||
+        !_pageController.hasClients ||
+        _displayedAlbums.length <= 1) {
+      return;
+    }
+    _pauseAutoAdvanceTemporarily();
+    _pageController.animateToPage(
+      _currentVirtualPage + delta,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
   int _initialVirtualPage(int albumCount) {
     if (albumCount <= 1) {
       return 0;
@@ -1364,15 +2455,15 @@ class _RandomAlbumsHeroCarouselState
     return cycle * albumCount + logicalPage;
   }
 
-  double _heroHeight(BuildContext context) {
+  double _heroHeightFor(double availableWidth) {
     final compact = widget.density == _HomeSectionDensity.compact;
-    final viewport = MediaQuery.sizeOf(context);
-    final adaptiveLayoutClass = resolveAdaptiveLayoutClass(viewport.width);
-
-    if (isDesktopRuntime) {
-      return compact ? 248 : 272;
+    if (widget.desktopMode) {
+      return (availableWidth * (compact ? 0.28 : 0.32)).clamp(
+        compact ? 260.0 : 300.0,
+        compact ? 420.0 : 500.0,
+      );
     }
-    return switch (adaptiveLayoutClass) {
+    return switch (widget.adaptiveLayoutClass) {
       AdaptiveLayoutClass.phoneCompact => compact ? 208 : 228,
       AdaptiveLayoutClass.tabletMedium => compact ? 224 : 244,
       AdaptiveLayoutClass.tabletExpanded => compact ? 236 : 258,
@@ -1385,27 +2476,19 @@ class _RandomAlbumsHeroCarouselState
       return const SizedBox.shrink();
     }
 
-    final height = _heroHeight(context);
     final currentPageLabel =
         'home-random-hero-carousel-page-${_currentLogicalPage.clamp(0, _displayedAlbums.length - 1)}';
 
     return Column(
       children: <Widget>[
-        SizedBox(
-          height: height,
-          child: NotificationListener<ScrollNotification>(
-            onNotification: (notification) {
-              if (notification is ScrollStartNotification) {
-                _pauseAutoAdvanceTemporarily();
-              } else if (notification is ScrollEndNotification) {
-                _pauseAutoAdvanceTemporarily();
-              } else if (notification is UserScrollNotification &&
-                  notification.direction == ScrollDirection.idle) {
-                _pauseAutoAdvanceTemporarily();
-              }
-              return false;
-            },
-            child: PageView.builder(
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final availableWidth = constraints.maxWidth.isFinite
+                ? constraints.maxWidth
+                : MediaQuery.sizeOf(context).width;
+            final height = _heroHeightFor(availableWidth);
+
+            Widget carouselViewport = PageView.builder(
               key: const ValueKey<String>('home-random-hero-carousel'),
               controller: _pageController,
               itemCount: _displayedAlbums.length <= 1 ? 1 : null,
@@ -1427,11 +2510,13 @@ class _RandomAlbumsHeroCarouselState
                   _displayedAlbums.length,
                 );
                 return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: widget.desktopMode ? 8 : 6,
+                  ),
                   child: AnimatedScale(
                     duration: const Duration(milliseconds: 220),
                     curve: Curves.easeOutCubic,
-                    scale: _currentVirtualPage == index ? 1 : 0.94,
+                    scale: _currentVirtualPage == index ? 1 : 0.93,
                     child: _RandomAlbumsHeroCard(
                       album: _displayedAlbums[logicalIndex],
                       heroContext: widget.heroContext,
@@ -1439,8 +2524,65 @@ class _RandomAlbumsHeroCarouselState
                   ),
                 );
               },
-            ),
-          ),
+            );
+
+            if (widget.desktopMode) {
+              carouselViewport = ShaderMask(
+                shaderCallback: (bounds) => const LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: <Color>[
+                    Colors.transparent,
+                    Colors.black,
+                    Colors.black,
+                    Colors.transparent,
+                  ],
+                  stops: <double>[0, 0.08, 0.92, 1],
+                ).createShader(bounds),
+                blendMode: BlendMode.dstIn,
+                child: carouselViewport,
+              );
+            }
+
+            Widget viewportChild = NotificationListener<ScrollNotification>(
+              onNotification: (notification) {
+                if (notification is ScrollStartNotification) {
+                  _pauseAutoAdvanceTemporarily();
+                } else if (notification is ScrollEndNotification) {
+                  _pauseAutoAdvanceTemporarily();
+                } else if (notification is UserScrollNotification &&
+                    notification.direction == ScrollDirection.idle) {
+                  _pauseAutoAdvanceTemporarily();
+                }
+                return false;
+              },
+              child: carouselViewport,
+            );
+
+            if (widget.desktopMode && _displayedAlbums.length > 1) {
+              viewportChild = Stack(
+                children: <Widget>[
+                  Positioned.fill(child: viewportChild),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: _CarouselEdgeArrow(
+                      icon: Icons.chevron_left_rounded,
+                      onPressed: () => _animateToRelativePage(-1),
+                    ),
+                  ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: _CarouselEdgeArrow(
+                      icon: Icons.chevron_right_rounded,
+                      onPressed: () => _animateToRelativePage(1),
+                    ),
+                  ),
+                ],
+              );
+            }
+
+            return SizedBox(height: height, child: viewportChild);
+          },
         ),
         if (_displayedAlbums.length > 1) ...[
           const SizedBox(height: 10),
@@ -1956,18 +3098,22 @@ class _QuickActionsSection extends ConsumerWidget {
 
 class _RandomHeroShimmer extends StatelessWidget {
   const _RandomHeroShimmer({
+    required this.desktopMode,
+    required this.adaptiveLayoutClass,
     this.density = _HomeSectionDensity.comfortable,
   });
 
+  final bool desktopMode;
+  final AdaptiveLayoutClass adaptiveLayoutClass;
   final _HomeSectionDensity density;
 
-  double _heroHeight(BuildContext context) {
+  double _heroHeightFor(double availableWidth) {
     final compact = density == _HomeSectionDensity.compact;
-    final viewport = MediaQuery.sizeOf(context);
-    final adaptiveLayoutClass = resolveAdaptiveLayoutClass(viewport.width);
-
-    if (isDesktopRuntime) {
-      return compact ? 248 : 272;
+    if (desktopMode) {
+      return (availableWidth * (compact ? 0.28 : 0.32)).clamp(
+        compact ? 260.0 : 300.0,
+        compact ? 420.0 : 500.0,
+      );
     }
     return switch (adaptiveLayoutClass) {
       AdaptiveLayoutClass.phoneCompact => compact ? 208 : 228,
@@ -1978,7 +3124,8 @@ class _RandomHeroShimmer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final heroHeight = _heroHeight(context);
+    final availableWidth = MediaQuery.sizeOf(context).width;
+    final heroHeight = _heroHeightFor(availableWidth);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14),
       child: Column(
@@ -2013,20 +3160,15 @@ class _RandomHeroShimmer extends StatelessWidget {
 
 class _CarouselShimmer extends StatelessWidget {
   const _CarouselShimmer({
+    required this.compactWideLandscapeMode,
     this.density = _HomeSectionDensity.comfortable,
   });
 
+  final bool compactWideLandscapeMode;
   final _HomeSectionDensity density;
 
   @override
   Widget build(BuildContext context) {
-    final compactWideLandscapeMode =
-        resolveAdaptiveShellMode(
-          desktopRuntime: isDesktopRuntime,
-          viewportSize: MediaQuery.sizeOf(context),
-          safePadding: MediaQuery.paddingOf(context),
-        ) ==
-        AdaptiveShellMode.compactWideLandscape;
     final compactDensity = density == _HomeSectionDensity.compact;
     final cardSize = compactDensity ? 138.0 : 150.0;
     return SizedBox(

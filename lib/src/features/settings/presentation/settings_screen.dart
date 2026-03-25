@@ -11,18 +11,12 @@ class SettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
-    final viewport = MediaQuery.sizeOf(context);
-    final adaptiveLayoutClass = resolveAdaptiveLayoutClass(viewport.width);
-    final adaptiveShellMode = resolveAdaptiveShellMode(
-      desktopRuntime: isDesktopRuntime,
-      viewportSize: viewport,
-      safePadding: MediaQuery.paddingOf(context),
-    );
-    final compactWideLandscapeMode =
-        adaptiveShellMode == AdaptiveShellMode.compactWideLandscape;
+    final adaptiveContext = resolveAdaptiveContextFor(context);
+    final adaptiveLayoutClass = adaptiveContext.adaptiveLayoutClass;
+    final compactWideLandscapeMode = adaptiveContext.useCompactWideLandscape;
     final compactHorizontalInset = compactWideLandscapeMode ? 10.0 : 12.0;
     final tabletMode =
-        !isDesktopRuntime &&
+        !adaptiveContext.useDesktopShell &&
         adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact;
     const groupConnection = 'Connection';
     const groupStorage = 'Storage';
@@ -86,7 +80,7 @@ class SettingsScreen extends ConsumerWidget {
       groups.putIfAbsent(entry.group, () => <_SettingsEntry>[]).add(entry);
     }
 
-    if (!isDesktopRuntime && !tabletMode) {
+    if (!adaptiveContext.useDesktopShell && !tabletMode) {
       return Scaffold(
         appBar: AppBar(title: Text(l10n.settingsTitle)),
         body: ListView(
@@ -104,7 +98,7 @@ class SettingsScreen extends ConsumerWidget {
       );
     }
 
-    if (!isDesktopRuntime && tabletMode) {
+    if (tabletMode) {
       final maxWidth = adaptiveLayoutClass == AdaptiveLayoutClass.tabletExpanded
           ? (compactWideLandscapeMode ? double.infinity : 980.0)
           : 860.0;
@@ -193,9 +187,7 @@ class SettingsScreen extends ConsumerWidget {
     return Scaffold(
       body: SafeArea(
         child: DesktopFrame(
-          layoutClass: resolveDesktopLayoutClass(
-            MediaQuery.sizeOf(context).width,
-          ),
+          layoutClass: adaptiveContext.desktopLayoutClass,
           child: ListView(
             children: <Widget>[
               DesktopSectionHeader(

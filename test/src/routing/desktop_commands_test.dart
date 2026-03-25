@@ -47,4 +47,43 @@ void main() {
     final context = tester.element(find.byType(SizedBox));
     expect(desktopCommandBlockedByTextInput(context), isFalse);
   });
+
+  testWidgets(
+    'desktop command action handler blocks transport commands with text focus',
+    (tester) async {
+      final focusNode = FocusNode();
+      addTearDown(focusNode.dispose);
+
+      DesktopCommandAction? receivedAction;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: TextField(focusNode: focusNode),
+          ),
+        ),
+      );
+
+      focusNode.requestFocus();
+      await tester.pump();
+
+      final context = tester.element(find.byType(TextField));
+      final handler = DesktopCommandActionHandler(
+        context: context,
+        executor: (action) {
+          receivedAction = action;
+        },
+      );
+
+      handler.invoke(
+        const DesktopCommandIntent(DesktopCommandAction.playPause),
+      );
+      expect(receivedAction, isNull);
+
+      handler.invoke(
+        const DesktopCommandIntent(DesktopCommandAction.toggleQueue),
+      );
+      expect(receivedAction, DesktopCommandAction.toggleQueue);
+    },
+  );
 }

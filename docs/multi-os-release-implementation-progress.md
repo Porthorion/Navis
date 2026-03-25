@@ -1,6 +1,6 @@
 # Multi-OS Release Implementation Progress
 
-Last updated: 2026-03-23
+Last updated: 2026-03-26
 
 This document is the detailed execution log for preparing Navis as a native app release across Android, macOS, Windows, and Linux.
 
@@ -291,6 +291,138 @@ This document is the detailed execution log for preparing Navis as a native app 
     - exact error signature
     - next attempted action
     - unblock condition
+
+### Q. ACP M1+M2 shell stabilization slice (2026-03-25)
+- Status: completed for M2 (`ACP-M2-01` through `ACP-M2-04`), partial for M1 (`ACP-M1-01`/`ACP-M1-02`)
+- Actions:
+  - Added shared adaptive contract in routing:
+    - `AdaptiveContext` + `resolveAdaptiveContext` in `lib/src/routing/desktop_layout.dart`
+    - keeps current breakpoint behavior while providing one canonical shell decision boundary.
+  - Refactored shell to window-size-first composition in `lib/src/routing/app_shell.dart`:
+    - full desktop workspace now gated to wide desktop widths
+    - non-wide widths use shared bottom-nav/rail/compact-wide modes from adaptive context
+    - desktop shortcut layer now remains active on desktop runtimes at all window widths
+    - prevented desktop `NavigationBar` leak while full desktop shell is active.
+  - Hardened constrained playback chrome:
+    - `_DesktopPlayerBar` now uses responsive control density with compact overflow actions
+    - `_RailMiniPlayer` control row now includes compact fallback to avoid narrow-width overflows.
+  - Extended ACP-focused test coverage:
+    - `test/src/routing/desktop_layout_test.dart` (adaptive context behavior)
+    - `test/src/routing/desktop_commands_test.dart` (action-handler text-input guard)
+    - `test/src/routing/app_shell_navigation_test.dart` (width-first shell expectations + compact desktop shortcuts).
+- Evidence:
+  - `/home/khalifa/Flutter_SDK/flutter/bin/flutter test test/src/routing/desktop_layout_test.dart test/src/routing/desktop_commands_test.dart test/src/routing/app_shell_navigation_test.dart`
+    - Result: pass (27 tests).
+  - `/home/khalifa/Flutter_SDK/flutter/bin/flutter analyze lib/src/routing lib/src/features/settings/presentation/settings_screen.dart lib/src/features/home/presentation/home_screen.dart lib/src/features/search/presentation/search_screen.dart lib/src/features/library/presentation/library_screen.dart`
+    - Result: no compile errors; existing info-level lint debt remains (57 infos, no new blockers).
+
+### R. ACP M3 Wave 1 convergence (2026-03-25)
+- Status: completed for `ACP-M3-01`, `ACP-M3-02`, and `ACP-M3-04`; `ACP-M1-03` advanced to partial.
+- Actions:
+  - Added adaptive context propagation and fallback resolver in routing:
+    - `AdaptiveContextScope` and `resolveAdaptiveContextFor` in `lib/src/routing/desktop_layout.dart`.
+    - `AppShell` now provides scoped adaptive context at the shell boundary in `lib/src/routing/app_shell.dart`.
+  - Migrated screen adaptive branching from runtime checks to shared adaptive contract:
+    - Home uses shared adaptive flags for desktop-wide gating and section/carousel/shimmer density paths.
+    - Search uses shared adaptive flags for desktop/tablet/phone selection and recent-search layout padding.
+    - Settings uses shared adaptive flags for width-parity mode selection and desktop-wide framing.
+  - Added reusable adaptive widget-test viewport utility:
+    - `test/helpers/adaptive_test_harness.dart`.
+  - Extended adaptive width-matrix widget coverage:
+    - Home: `test/src/features/home/presentation/home_screen_test.dart`.
+    - Search: `test/src/features/search/search_screen_adaptive_test.dart`.
+    - Settings: `test/src/features/settings/presentation/settings_screen_test.dart`.
+    - Routing adaptive resolver fallback/scope behavior: `test/src/routing/desktop_layout_test.dart`.
+- Evidence:
+  - `/home/khalifa/Flutter_SDK/flutter/bin/flutter test test/src/routing/desktop_layout_test.dart test/src/routing/desktop_commands_test.dart test/src/routing/app_shell_navigation_test.dart test/src/features/home/presentation/home_screen_test.dart test/src/features/settings/presentation/settings_screen_test.dart test/src/features/search/search_screen_adaptive_test.dart test/src/features/search/search_screen_focus_test.dart`
+    - Result: pass (49 tests).
+  - `/home/khalifa/Flutter_SDK/flutter/bin/flutter analyze lib/src/routing lib/src/features/home/presentation/home_screen.dart lib/src/features/search/presentation/search_screen.dart lib/src/features/settings/presentation/settings_screen.dart test/src/features/home/presentation/home_screen_test.dart test/src/features/settings/presentation/settings_screen_test.dart test/src/features/search/search_screen_adaptive_test.dart test/src/routing/desktop_layout_test.dart`
+    - Result: no compile errors; existing info-level lint debt remains (45 infos, no new blockers).
+
+### S. ACP M3 Wave 2 convergence (2026-03-25)
+- Status: completed for `ACP-M3-03` (Library) and `ACP-M3-05` (Now Playing); `ACP-M1-01` and `ACP-M1-03` completed.
+- Actions:
+  - Migrated Library to shared adaptive context consumption:
+    - replaced runtime+viewport branching with `resolveAdaptiveContextFor(context)` flags in `lib/src/features/library/presentation/library_screen.dart`
+    - desktop-native list-row treatment in liked songs now activates only for `desktopWide` (`useDesktopShell`) instead of all desktop runtimes.
+  - Migrated Now Playing wide-mode selection to shared adaptive context:
+    - `effectiveWideMode` now uses `resolveAdaptiveContextFor(context).useDesktopShell` in `lib/src/features/player/presentation/now_playing_screen.dart`.
+  - Extended adaptive widget coverage for Wave 2:
+    - updated Library adaptive parity expectation in `test/src/features/library/presentation/library_screen_test.dart` (compact desktop width uses non-desktop list rows, desktop-wide width uses desktop rows)
+    - added `test/src/features/player/presentation/now_playing_screen_adaptive_test.dart` to verify narrow desktop widths keep compact presentation and desktop-wide widths switch to wide mode.
+- Evidence:
+  - `/home/khalifa/Flutter_SDK/flutter/bin/flutter test test/src/routing/desktop_layout_test.dart test/src/routing/desktop_commands_test.dart test/src/routing/app_shell_navigation_test.dart test/src/features/home/presentation/home_screen_test.dart test/src/features/search/search_screen_adaptive_test.dart test/src/features/settings/presentation/settings_screen_test.dart test/src/features/library/presentation/library_screen_test.dart test/src/features/player/presentation/now_playing_screen_transition_test.dart test/src/features/player/presentation/now_playing_screen_adaptive_test.dart`
+    - Result: pass (70 tests).
+  - `/home/khalifa/Flutter_SDK/flutter/bin/flutter analyze lib/src/routing/desktop_layout.dart lib/src/routing/app_shell.dart lib/src/features/home/presentation/home_screen.dart lib/src/features/search/presentation/search_screen.dart lib/src/features/settings/presentation/settings_screen.dart lib/src/features/library/presentation/library_screen.dart lib/src/features/player/presentation/now_playing_screen.dart test/src/features/library/presentation/library_screen_test.dart test/src/features/player/presentation/now_playing_screen_adaptive_test.dart test/src/features/search/search_screen_adaptive_test.dart`
+    - Result: no compile errors; analyzer reports existing info-level lint debt only (81 infos, no new blockers).
+
+### T. ACP usability hardening follow-up (2026-03-25)
+- Status: completed (tablet/desktop now-playing interaction + desktop player bar density fix pass)
+- Actions:
+  - Fixed tablet split-layout lyrics action no-op in `NowPlayingScreen`:
+    - split action row now opens fullscreen lyrics route instead of using a no-op callback in `lib/src/features/player/presentation/now_playing_screen.dart`.
+  - Added explicit now-playing exit affordance:
+    - embedded now-playing now shows a visible collapse/close button (`nowPlayingCloseButton`) when collapse is available.
+    - applies across tablet/desktop embedded paths (including desktop-wide full player).
+  - Hardened desktop bottom player bar density around 1200px windows:
+    - updated control-collapse thresholds in `_DesktopPlayerBar` so compact controls and overflow menu activate earlier.
+    - reduces crowding/overlap risk when desktop shell rail consumes horizontal space.
+  - Added adaptive tests for the follow-up:
+    - `test/src/features/player/presentation/now_playing_screen_adaptive_test.dart` now verifies close button visibility at compact and desktop-wide widths.
+    - same suite now verifies split-layout lyrics action opens fullscreen lyrics route.
+- Evidence:
+  - `/home/khalifa/Flutter_SDK/flutter/bin/flutter test test/src/features/player/presentation/now_playing_screen_adaptive_test.dart test/src/features/player/presentation/now_playing_screen_transition_test.dart test/src/routing/app_shell_navigation_test.dart`
+    - Result: pass (19 tests).
+  - `/home/khalifa/Flutter_SDK/flutter/bin/flutter analyze lib/src/features/player/presentation/now_playing_screen.dart lib/src/routing/app_shell.dart test/src/features/player/presentation/now_playing_screen_adaptive_test.dart`
+    - Result: no compile errors; existing info-level lint debt only (58 infos, no new blockers).
+
+### U. ACP desktop-wide You Might Like redesign (2026-03-26)
+- Status: completed (`ACP-M3-06`)
+- Actions:
+  - Replaced desktop-wide random albums hero carousel with a manual pager in `lib/src/features/home/presentation/home_screen.dart`:
+    - desktop-wide now uses `_DesktopRandomAlbumsPager` with explicit left/right controls and mini-cover strip selection.
+    - compact desktop, tablet, and phone still use `_RandomAlbumsHeroCarousel` unchanged.
+  - Added new desktop-only composition widgets:
+    - `_DesktopRandomAlbumPage`, `_DesktopRandomAlbumVisual`, `_DesktopRandomAlbumSongList`, `_DesktopRandomAlbumSongRow`, `_DesktopRandomMiniCoverStrip`.
+  - Implemented right-side song list behavior per slice policy:
+    - primary source `albumProvider(album.id)` with `songByIdProvider(album.id)` fallback.
+    - stable ordering by disc number, track, then title/id.
+    - capped visible rows with `_kDesktopRandomSongsPerAlbum = 5`.
+    - row interactions wired for queue replace, heart toggle, and anchored menu actions (including right-click).
+  - Hardened edge behavior:
+    - added deterministic loading-vs-empty handling when album/fallback providers resolve to null.
+    - fixed anchor-resolution logic for three-dot menu to avoid analyzer warnings.
+  - Extended home widget coverage in `test/src/features/home/presentation/home_screen_test.dart`:
+    - width gating (desktop-wide pager vs non-desktop hero carousel)
+    - manual paging and no auto-advance expectations
+    - song cap behavior
+    - queue/heart/menu interaction checks
+    - desktop overflow guard at `1200/1366/1600`.
+- Evidence:
+  - `/home/khalifa/Flutter_SDK/flutter/bin/flutter test test/src/features/home/presentation/home_screen_test.dart test/src/features/home/presentation/home_random_showcase_provider_test.dart`
+    - Result: pass (25 tests); no failures.
+  - `/home/khalifa/Flutter_SDK/flutter/bin/flutter analyze lib/src/features/home/presentation/home_screen.dart test/src/features/home/presentation/home_screen_test.dart`
+    - Result: no compile errors and no new warnings; existing info-level lint debt remains in `home_screen.dart` (`discarded_futures` infos).
+
+### V. ACP desktop-wide You Might Like refinement pass (2026-03-26)
+- Status: completed (visual/layout polish + interaction stability)
+- Actions:
+  - Refined desktop page composition in `lib/src/features/home/presentation/home_screen.dart`:
+    - tightened art/list spacing and aligned the two panes as a single visual block.
+    - switched album metadata presentation to in-cover overlay treatment for desktop-wide mode.
+    - kept left cover and right track panel height-locked so both surfaces stay aligned as viewport changes.
+  - Added adaptive capacity logic for the right-side track list:
+    - replaced static 5-row-only behavior with available-height-based row capacity.
+    - preserves a minimum baseline while allowing additional rows when the desktop viewport has room.
+    - updated tests to assert expanded row rendering on taller desktop matrices.
+  - Stabilized random recommendations behavior on star toggles:
+    - `homeRandomShowcaseProvider` now snapshots liked songs via non-reactive read to avoid reshuffling "You Might Like" while users like/unlike tracks.
+    - section still refreshes through explicit invalidation/sync paths.
+- Evidence:
+  - `/home/khalifa/Flutter_SDK/flutter/bin/flutter test test/src/features/home/presentation/home_screen_test.dart test/src/features/home/presentation/home_random_showcase_provider_test.dart`
+    - Result: pass.
+  - `/home/khalifa/Flutter_SDK/flutter/bin/flutter analyze lib/src/features/home/presentation/home_providers.dart lib/src/features/home/presentation/home_screen.dart test/src/features/home/presentation/home_screen_test.dart test/src/features/home/presentation/home_random_showcase_provider_test.dart`
+    - Result: no compile errors; info-level lint debt only.
 
 ### ACP Daily Log Template
 - Date:

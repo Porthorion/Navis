@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/subsonic_error.dart';
+import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
@@ -149,23 +150,15 @@ Future<void> _showDesktopAlbumContextMenu(
   String albumId, {
   required Offset anchor,
 }) async {
-  final overlayBox = Overlay.of(context).context.findRenderObject();
-  if (overlayBox is! RenderBox) {
-    return;
-  }
-
   final l10n = AppLocalizations.of(context)!;
   final albumAsync = ref.read(albumProvider(albumId));
   final album = albumAsync.asData?.value;
   final songs = album?.songs ?? const <SongsTableData>[];
   final isStarred = album?.album.starred != null;
 
-  final action = await showMenu<_AlbumContextAction>(
+  final action = await showDesktopContextMenu<_AlbumContextAction>(
     context: context,
-    position: RelativeRect.fromRect(
-      Rect.fromLTWH(anchor.dx, anchor.dy, 0, 0),
-      Offset.zero & overlayBox.size,
-    ),
+    anchor: anchor,
     items: <PopupMenuEntry<_AlbumContextAction>>[
       PopupMenuItem<_AlbumContextAction>(
         value: _AlbumContextAction.open,

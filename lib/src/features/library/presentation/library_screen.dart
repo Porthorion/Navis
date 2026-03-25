@@ -407,22 +407,21 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     final showArtistsTab = ref.watch(showArtistsPageProvider);
     final showPlaylistsTab = ref.watch(showPlaylistsPageProvider);
     final showLikedTab = ref.watch(showLikedPageProvider);
+    final adaptiveContext = resolveAdaptiveContextFor(context);
     final tabCount =
         1 +
         (showLikedTab ? 1 : 0) +
         (showArtistsTab ? 1 : 0) +
         (showPlaylistsTab ? 1 : 0) +
         (showRadioTab ? 1 : 0);
-    final desktopMode = isDesktopRuntime;
+    final desktopMode = adaptiveContext.useDesktopShell;
     final hasActivePlayback = ref.watch(
       playerStateProvider.select((state) => state.hasActivePlayback),
     );
-    final adaptiveLayoutClass = resolveAdaptiveLayoutClass(
-      MediaQuery.sizeOf(context).width,
-    );
+    final adaptiveLayoutClass = adaptiveContext.adaptiveLayoutClass;
     final viewport = MediaQuery.sizeOf(context);
     final safePadding = MediaQuery.paddingOf(context);
-    final isPhoneFormFactor = !isDesktopRuntime && viewport.shortestSide < 600;
+    final isPhoneFormFactor = adaptiveContext.isPhoneFormFactor;
     const navTileEstimatedHeight = 64.0;
     const subNavTileEstimatedHeight = 44.0;
     const subNavTrailingGap = 6.0;
@@ -448,20 +447,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     // SafeArea + outer rail paddings consume ~44px before sidebar content.
     final estimatedRailHeight = viewport.height - safePadding.vertical - 44.0;
     final selectedSection = ref.watch(librarySectionProvider);
-    final adaptiveShellMode = resolveAdaptiveShellMode(
-      desktopRuntime: isDesktopRuntime,
-      viewportSize: viewport,
-      safePadding: safePadding,
-    );
-    final compactWideLandscapeMode =
-        adaptiveShellMode == AdaptiveShellMode.compactWideLandscape;
+    final compactWideLandscapeMode = adaptiveContext.useCompactWideLandscape;
     final tabletMode =
-        !isDesktopRuntime &&
-        adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact;
+        !desktopMode && adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact;
     final baseWideLibraryNavigation =
-        !isPhoneFormFactor &&
-        ((isDesktopRuntime && MediaQuery.sizeOf(context).width >= 840) ||
-            adaptiveLayoutClass == AdaptiveLayoutClass.tabletExpanded);
+        !isPhoneFormFactor && adaptiveContext.useRailNavigation;
     final forceTabbedLibraryNavigation =
         compactWideLandscapeMode ||
         (baseWideLibraryNavigation &&
@@ -557,7 +547,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                 : const PageScrollPhysics(),
             children: <Widget>[
               _buildAlbumsTab(context),
-              if (showLikedTab) _buildLikedTab(context),
+              if (showLikedTab)
+                _buildLikedTab(context, desktopMode: desktopMode),
               if (showArtistsTab) _buildArtistsTab(context),
               if (showPlaylistsTab)
                 _LibraryPlaylistsTab(
@@ -1334,9 +1325,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     );
   }
 
-  Widget _buildLikedTab(BuildContext context) {
+  Widget _buildLikedTab(BuildContext context, {required bool desktopMode}) {
     final l10n = AppLocalizations.of(context)!;
-    final desktopMode = isDesktopRuntime;
     // Recent 6 liked albums (ordered by starred desc) for the capped grid.
     final likedAlbumsRecentAsync = ref.watch(likedAlbumsRecentProvider);
     // Full list used only for the total count; data is not rendered directly.

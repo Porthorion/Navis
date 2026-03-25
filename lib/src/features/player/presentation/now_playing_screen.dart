@@ -138,6 +138,133 @@ Widget _identityTransitionBuilder(
   return child;
 }
 
+final Map<String, Color> _nowPlayingTintColorCache = <String, Color>{};
+final Map<String, Future<void>> _nowPlayingVisualPrewarmInflight =
+    <String, Future<void>>{};
+
+String? nowPlayingVisualCacheKeyFor({
+  required Brightness brightness,
+  String? coverArtId,
+  String? artUrl,
+}) {
+  final trimmedCoverArtId = coverArtId?.trim() ?? '';
+  if (trimmedCoverArtId.isNotEmpty) {
+    return 'id:$trimmedCoverArtId|b:${brightness.name}';
+  }
+  final trimmedArtUrl = artUrl?.trim() ?? '';
+  if (trimmedArtUrl.isNotEmpty) {
+    return 'url:$trimmedArtUrl|b:${brightness.name}';
+  }
+  return null;
+}
+
+Color? nowPlayingCachedTintColor({
+  required Brightness brightness,
+  String? coverArtId,
+  String? artUrl,
+}) {
+  final key = nowPlayingVisualCacheKeyFor(
+    brightness: brightness,
+    coverArtId: coverArtId,
+    artUrl: artUrl,
+  );
+  if (key == null) {
+    return null;
+  }
+  return _nowPlayingTintColorCache[key];
+}
+
+ImageProvider<Object>? _resolveNowPlayingImageProvider({
+  required WidgetRef ref,
+  String? coverArtId,
+  String? artUrl,
+}) {
+  final cacheManager = ref.read(coverArtCacheManagerProvider).asData?.value;
+  final trimmedCoverArtId = coverArtId?.trim() ?? '';
+  if (trimmedCoverArtId.isNotEmpty) {
+    final api = ref.read(subsonicApiProvider);
+    if (api == null) {
+      return null;
+    }
+    final coverUrl = api.getCoverArtUrl(id: trimmedCoverArtId, size: 768);
+    return cacheManager == null
+        ? NetworkImage(coverUrl.toString())
+        : CachedNetworkImageProvider(
+            coverUrl.toString(),
+            cacheManager: cacheManager,
+          );
+  }
+
+  final trimmedArtUrl = artUrl?.trim() ?? '';
+  if (trimmedArtUrl.isEmpty) {
+    return null;
+  }
+  return cacheManager == null
+      ? NetworkImage(trimmedArtUrl)
+      : CachedNetworkImageProvider(trimmedArtUrl, cacheManager: cacheManager);
+}
+
+Future<void> prewarmNowPlayingVisuals({
+  required BuildContext context,
+  required WidgetRef ref,
+  required Brightness brightness,
+  String? coverArtId,
+  String? artUrl,
+}) async {
+  final cacheKey = nowPlayingVisualCacheKeyFor(
+    brightness: brightness,
+    coverArtId: coverArtId,
+    artUrl: artUrl,
+  );
+  if (cacheKey == null) {
+    return;
+  }
+  if (_nowPlayingTintColorCache.containsKey(cacheKey)) {
+    return;
+  }
+  final inflight = _nowPlayingVisualPrewarmInflight[cacheKey];
+  if (inflight != null) {
+    await inflight;
+    return;
+  }
+
+  Future<void> warmTask() async {
+    final imageProvider = _resolveNowPlayingImageProvider(
+      ref: ref,
+      coverArtId: coverArtId,
+      artUrl: artUrl,
+    );
+    if (imageProvider == null) {
+      return;
+    }
+    await precacheImage(imageProvider, context);
+    try {
+      final scheme = await ColorScheme.fromImageProvider(
+        provider: imageProvider,
+        brightness: brightness,
+      );
+      _nowPlayingTintColorCache[cacheKey] = scheme.primary;
+    } on Exception {
+      // Best-effort warm path: ignore extraction failures.
+    }
+  }
+
+  final future = warmTask();
+
+  _nowPlayingVisualPrewarmInflight[cacheKey] = future;
+  try {
+    await future;
+  } finally {
+    final pending = _nowPlayingVisualPrewarmInflight[cacheKey];
+    if (identical(pending, future)) {
+      final removed = _nowPlayingVisualPrewarmInflight.remove(cacheKey);
+      if (removed != null) {
+        // The task has already been awaited above.
+      }
+    }
+  }
+}
+
 class NowPlayingScreen extends ConsumerStatefulWidget {
   const NowPlayingScreen({
     super.key,
@@ -165,60 +292,100 @@ class NowPlayingScreen extends ConsumerStatefulWidget {
 class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
   /// Dominant color extracted from the current cover art for tinting.
   Color? _artTintColor;
+  Color? _lastStableTintColor;
 
   /// The cover art ID that [_artTintColor] was extracted from.
   String? _extractedCoverArtId;
 
   Future<void> _extractArtColor(String? coverArtId) async {
-    if (coverArtId == _extractedCoverArtId) return;
-    _extractedCoverArtId = coverArtId;
+    final brightness = Theme.of(context).brightness;
+    final cacheKey = nowPlayingVisualCacheKeyFor(
+      brightness: brightness,
+      coverArtId: coverArtId,
+      artUrl: null,
+    );
+    if (cacheKey == _extractedCoverArtId) return;
+    _extractedCoverArtId = cacheKey;
 
-    if (coverArtId == null || coverArtId.trim().isEmpty) {
-      if (mounted) setState(() => _artTintColor = null);
+    if (cacheKey == null) {
+      // Keep the previous tint during transient metadata gaps so the surface
+      // does not flash back to default between track transitions.
+      return;
+    }
+    final cachedTint = nowPlayingCachedTintColor(
+      brightness: brightness,
+      coverArtId: coverArtId,
+      artUrl: null,
+    );
+    if (cachedTint != null) {
+      if (mounted) setState(() => _artTintColor = cachedTint);
       return;
     }
 
-    final api = ref.read(subsonicApiProvider);
-    if (api == null) {
-      if (mounted) setState(() => _artTintColor = null);
-      return;
-    }
-
-    final url = api.getCoverArtUrl(id: coverArtId, size: 64).toString();
-    try {
-      final scheme = await ColorScheme.fromImageProvider(
-        provider: NetworkImage(url),
-        brightness: Theme.of(context).brightness,
-      );
-      if (mounted) setState(() => _artTintColor = scheme.primary);
-    } on Exception {
-      if (mounted) setState(() => _artTintColor = null);
+    await prewarmNowPlayingVisuals(
+      context: context,
+      ref: ref,
+      brightness: brightness,
+      coverArtId: coverArtId,
+      artUrl: null,
+    );
+    final warmedTint = nowPlayingCachedTintColor(
+      brightness: brightness,
+      coverArtId: coverArtId,
+      artUrl: null,
+    );
+    if (mounted && warmedTint != null) {
+      setState(() => _artTintColor = warmedTint);
     }
   }
 
   Future<void> _extractArtColorFromUrl(String? artUrl) async {
-    if (artUrl == _extractedCoverArtId) return;
-    _extractedCoverArtId = artUrl;
+    final brightness = Theme.of(context).brightness;
+    final cacheKey = nowPlayingVisualCacheKeyFor(
+      brightness: brightness,
+      coverArtId: null,
+      artUrl: artUrl,
+    );
+    if (cacheKey == _extractedCoverArtId) return;
+    _extractedCoverArtId = cacheKey;
 
-    if (artUrl == null || artUrl.trim().isEmpty) {
-      if (mounted) setState(() => _artTintColor = null);
+    if (cacheKey == null) {
+      // Keep the previous tint during transient metadata gaps so the surface
+      // does not flash back to default between track transitions.
+      return;
+    }
+    final cachedTint = nowPlayingCachedTintColor(
+      brightness: brightness,
+      coverArtId: null,
+      artUrl: artUrl,
+    );
+    if (cachedTint != null) {
+      if (mounted) setState(() => _artTintColor = cachedTint);
       return;
     }
 
-    try {
-      final scheme = await ColorScheme.fromImageProvider(
-        provider: NetworkImage(artUrl),
-        brightness: Theme.of(context).brightness,
-      );
-      if (mounted) setState(() => _artTintColor = scheme.primary);
-    } on Exception {
-      if (mounted) setState(() => _artTintColor = null);
+    await prewarmNowPlayingVisuals(
+      context: context,
+      ref: ref,
+      brightness: brightness,
+      coverArtId: null,
+      artUrl: artUrl,
+    );
+    final warmedTint = nowPlayingCachedTintColor(
+      brightness: brightness,
+      coverArtId: null,
+      artUrl: artUrl,
+    );
+    if (mounted && warmedTint != null) {
+      setState(() => _artTintColor = warmedTint);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final effectiveWideMode = widget.wideEmbeddedMode || isDesktopRuntime;
+    final adaptiveContext = resolveAdaptiveContextFor(context);
+    final effectiveWideMode =
+        widget.wideEmbeddedMode || adaptiveContext.useDesktopShell;
     final playback = ref.watch(playerStateProvider);
     final currentSongId = playback.currentSongId;
     final songAsync = currentSongId == null
@@ -227,30 +394,83 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     final song = songAsync.asData?.value;
     final currentMediaItem = ref.watch(currentMediaItemProvider).asData?.value;
     final artTinted = ref.watch(artTintedNowPlayingProvider);
+    final brightness = Theme.of(context).brightness;
+    final activeArtUrl = playback.isRadioMode
+        ? playback.radioStation?.nowPlayingArtUrl
+        : currentMediaItem?.artUri?.toString();
+    final visualCacheKey = nowPlayingVisualCacheKeyFor(
+      brightness: brightness,
+      coverArtId: playback.isRadioMode ? null : song?.coverArt,
+      artUrl: activeArtUrl,
+    );
+    final cachedTintColor = artTinted
+        ? nowPlayingCachedTintColor(
+            brightness: brightness,
+            coverArtId: playback.isRadioMode ? null : song?.coverArt,
+            artUrl: activeArtUrl,
+          )
+        : null;
 
     // Trigger color extraction when art-tinted mode is on.
     if (artTinted) {
-      // Schedule after build to avoid setState during build.
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (playback.isRadioMode) {
-          _extractArtColorFromUrl(playback.radioStation?.nowPlayingArtUrl);
-        } else {
-          final coverArtId = song?.coverArt;
-          if (coverArtId != null && coverArtId.trim().isNotEmpty) {
-            _extractArtColor(coverArtId);
-          } else {
-            _extractArtColorFromUrl(currentMediaItem?.artUri?.toString());
+      if (!playback.hasActivePlayback) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && (_artTintColor != null || _lastStableTintColor != null)) {
+            setState(() {
+              _artTintColor = null;
+              _lastStableTintColor = null;
+            });
           }
-        }
-      });
-    } else if (!artTinted && _artTintColor != null) {
+        });
+      } else if (cachedTintColor == null) {
+        // Schedule after build to avoid setState during build.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (playback.isRadioMode) {
+            final radioArtUrl = playback.radioStation?.nowPlayingArtUrl;
+            if (radioArtUrl != null && radioArtUrl.trim().isNotEmpty) {
+              _extractArtColorFromUrl(radioArtUrl);
+            }
+          } else {
+            final coverArtId = song?.coverArt;
+            if (coverArtId != null && coverArtId.trim().isNotEmpty) {
+              _extractArtColor(coverArtId);
+            } else {
+              final mediaArtUrl = currentMediaItem?.artUri?.toString();
+              if (mediaArtUrl != null && mediaArtUrl.trim().isNotEmpty) {
+                _extractArtColorFromUrl(mediaArtUrl);
+              }
+            }
+          }
+        });
+      }
+    } else if (!artTinted &&
+        (_artTintColor != null || _lastStableTintColor != null)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) setState(() => _artTintColor = null);
+        if (mounted && (_artTintColor != null || _lastStableTintColor != null)) {
+          setState(() {
+            _artTintColor = null;
+            _lastStableTintColor = null;
+          });
+        }
       });
     }
 
     final surfaceColor = Theme.of(context).colorScheme.surface;
-    final tintColor = artTinted ? _artTintColor : null;
+    final extractedTintColor = cachedTintColor ?? _artTintColor;
+    if (artTinted &&
+        playback.hasActivePlayback &&
+        extractedTintColor != null &&
+        extractedTintColor != _lastStableTintColor) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _lastStableTintColor != extractedTintColor) {
+          setState(() => _lastStableTintColor = extractedTintColor);
+        }
+      });
+    }
+    final tintColor = artTinted
+        ? (extractedTintColor ??
+              (playback.hasActivePlayback ? _lastStableTintColor : null))
+        : null;
     final mediaQuery = MediaQuery.of(context);
     final flutterView = View.maybeOf(context);
     final rawViewPaddingBottom = flutterView == null
@@ -302,67 +522,65 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
         // outer SafeArea here.  The body's compactPlayerPage applies the
         // insets itself via MediaQuery.paddingOf so content stays clear of
         // camera cutouts and the status bar.
-        child: widget.compactWideLandscapeMode
-            ? _NowPlayingBody(
-                playback: playback,
-                song: playback.isRadioMode ? null : song,
-                wideEmbeddedMode: true,
-                compactWideLandscapeMode: true,
-                onCollapse: widget.onCollapse,
-                onBackInterceptorChanged: widget.onBackInterceptorChanged,
-                onCompactWideOverlayActiveChanged:
-                    widget.onCompactWideOverlayActiveChanged,
-                onCompactWideQueueRequestChanged:
-                    widget.onCompactWideQueueRequestChanged,
-              )
-            : SafeArea(
-                bottom: false,
-                child: Padding(
-                  padding: EdgeInsets.only(bottom: resolvedBottomSafeInset),
-                  child: effectiveWideMode
-                      ? Column(
-                          children: <Widget>[
-                            Expanded(
-                              child: _NowPlayingBody(
-                                playback: playback,
-                                song: playback.isRadioMode ? null : song,
-                                wideEmbeddedMode: effectiveWideMode,
-                                compactWideLandscapeMode:
-                                    widget.compactWideLandscapeMode,
-                                onCollapse: widget.onCollapse,
-                                onBackInterceptorChanged:
-                                    widget.onBackInterceptorChanged,
-                                onCompactWideOverlayActiveChanged:
-                                    widget.onCompactWideOverlayActiveChanged,
-                                onCompactWideQueueRequestChanged:
-                                    widget.onCompactWideQueueRequestChanged,
-                              ),
+        child: Builder(
+          builder: (context) {
+            final nowPlayingBody = _NowPlayingBody(
+              playback: playback,
+              song: playback.isRadioMode ? null : song,
+              wideEmbeddedMode: widget.compactWideLandscapeMode
+                  ? true
+                  : effectiveWideMode,
+              compactWideLandscapeMode: widget.compactWideLandscapeMode,
+              onCollapse: widget.onCollapse,
+              onBackInterceptorChanged: widget.onBackInterceptorChanged,
+              onCompactWideOverlayActiveChanged:
+                  widget.onCompactWideOverlayActiveChanged,
+              onCompactWideQueueRequestChanged:
+                  widget.onCompactWideQueueRequestChanged,
+            );
+
+            final surface = widget.compactWideLandscapeMode
+                ? nowPlayingBody
+                : SafeArea(
+                    bottom: false,
+                    child: Padding(
+                      padding: EdgeInsets.only(bottom: resolvedBottomSafeInset),
+                      child: effectiveWideMode
+                          ? Column(
+                              children: <Widget>[
+                                Expanded(child: nowPlayingBody),
+                              ],
+                            )
+                          : Column(
+                              children: <Widget>[
+                                const _NowPlayingHandle(),
+                                Expanded(child: nowPlayingBody),
+                              ],
                             ),
-                          ],
-                        )
-                      : Column(
-                          children: <Widget>[
-                            const _NowPlayingHandle(),
-                            Expanded(
-                              child: _NowPlayingBody(
-                                playback: playback,
-                                song: playback.isRadioMode ? null : song,
-                                wideEmbeddedMode: effectiveWideMode,
-                                compactWideLandscapeMode:
-                                    widget.compactWideLandscapeMode,
-                                onCollapse: widget.onCollapse,
-                                onBackInterceptorChanged:
-                                    widget.onBackInterceptorChanged,
-                                onCompactWideOverlayActiveChanged:
-                                    widget.onCompactWideOverlayActiveChanged,
-                                onCompactWideQueueRequestChanged:
-                                    widget.onCompactWideQueueRequestChanged,
-                              ),
-                            ),
-                          ],
-                        ),
+                    ),
+                  );
+
+            if (widget.onCollapse == null) {
+              return surface;
+            }
+
+            return Stack(
+              children: <Widget>[
+                Positioned.fill(child: surface),
+                Positioned(
+                  top: 6,
+                  right: 8,
+                  child: SafeArea(
+                    bottom: false,
+                    child: _NowPlayingCollapseButton(
+                      onPressed: widget.onCollapse!,
+                    ),
+                  ),
                 ),
-              ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -387,6 +605,22 @@ class _NowPlayingHandle extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _NowPlayingCollapseButton extends StatelessWidget {
+  const _NowPlayingCollapseButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton.filledTonal(
+      key: const Key('nowPlayingCloseButton'),
+      tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+      onPressed: onPressed,
+      icon: const Icon(Icons.keyboard_arrow_down_rounded),
     );
   }
 }
@@ -2462,7 +2696,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                 song: song,
                 songId: playback.currentSongId,
                 isLiked: playback.isCurrentSongLiked,
-                showLyrics: true,
+                showLyrics: false,
                 onOpenSettingsSheet: !supportsSplitPanelOverlay
                     ? () => _showNowPlayingSettingsSheet(
                         context,
@@ -2474,7 +2708,15 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                             : title,
                       )
                     : null,
-                onLyricsToggle: playback.currentSongId == null ? null : () {},
+                onLyricsToggle: playback.currentSongId == null
+                    ? null
+                    : () => unawaited(
+                        _openLyricsFullscreen(
+                          context,
+                          playback.currentSongId!,
+                          title,
+                        ),
+                      ),
                 wideEmbeddedMode: supportsSplitPanelOverlay,
                 onOpenQueuePanel: supportsSplitPanelOverlay
                     ? () => _updateWideOverlayState(

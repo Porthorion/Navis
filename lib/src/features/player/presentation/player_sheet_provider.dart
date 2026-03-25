@@ -24,6 +24,12 @@ class PlayerOverlayController extends Notifier<List<PlayerOverlayRoute>> {
     _push(PlayerOverlayRoute.queue);
   }
 
+  /// Shows only the queue overlay without forcing the now-playing route.
+  ///
+  /// Desktop's in-place queue panel uses this so queue can be treated like a
+  /// lightweight popover instead of a full now-playing transition.
+  void showQueueOnly() => _push(PlayerOverlayRoute.queue);
+
   void hideQueue() => _truncateFrom(PlayerOverlayRoute.queue);
 
   bool dismissTop() {
