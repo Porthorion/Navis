@@ -709,7 +709,10 @@ class NavisAudioHandler extends BaseAudioHandler
   final Map<String, StreamSubscription<double>> _cacheProgressSubscriptions =
       <String, StreamSubscription<double>>{};
   bool _isDucked = false;
-  double _volumeBeforeDuck = 1;
+  // The most-recently requested user volume (0–1). Used as the reference level
+  // for ducking and crossfade restoration so track changes never override the
+  // user's chosen volume.
+  double _userVolume = 1.0;
   bool _resumeAfterInterruption = false;
   bool _gaplessEnabled = true;
   String? _activeScrobbleQueueToken;
@@ -903,10 +906,9 @@ class NavisAudioHandler extends BaseAudioHandler
       if (event.begin) {
         if (event.type == AudioInterruptionType.duck) {
           if (!_isDucked) {
-            _volumeBeforeDuck = _player.volume;
             _isDucked = true;
             unawaited(
-              _player.setVolume((_volumeBeforeDuck * 2 / 5).clamp(0, 1)),
+              _player.setVolume((_userVolume * 2 / 5).clamp(0, 1)),
             );
           }
           return;
@@ -919,7 +921,7 @@ class NavisAudioHandler extends BaseAudioHandler
       if (event.type == AudioInterruptionType.duck) {
         if (_isDucked) {
           _isDucked = false;
-          unawaited(_player.setVolume(_volumeBeforeDuck));
+          unawaited(_player.setVolume(_userVolume));
         }
         return;
       }
@@ -1251,8 +1253,8 @@ class NavisAudioHandler extends BaseAudioHandler
 
         // If the main player is ducked, respect that by scaling the
         // outgoing volume relative to the duck level.
-        final outgoingBase = _isDucked ? _volumeBeforeDuck * 2 / 5 : 1.0;
-        final incomingBase = _isDucked ? _volumeBeforeDuck * 2 / 5 : 1.0;
+        final outgoingBase = _isDucked ? _userVolume * 2 / 5 : _userVolume;
+        final incomingBase = _isDucked ? _userVolume * 2 / 5 : _userVolume;
         unawaited(
           _player.setVolume(
             (outgoingBase * (1.0 - progress)).clamp(0.0, 1.0),
@@ -1360,8 +1362,8 @@ class NavisAudioHandler extends BaseAudioHandler
       final outgoingPlayer = _player;
       final incomingPlayer = cfPlayer;
       final mainTargetVolume = _isDucked
-          ? (_volumeBeforeDuck * 2 / 5).clamp(0.0, 1.0)
-          : 1.0;
+          ? (_userVolume * 2 / 5).clamp(0.0, 1.0)
+          : _userVolume;
       await _setVolumeIfChanged(incomingPlayer, mainTargetVolume);
       await _setVolumeIfChanged(outgoingPlayer, 0);
 
@@ -1461,8 +1463,8 @@ class NavisAudioHandler extends BaseAudioHandler
       unawaited(cfPlayer.pause());
     }
 
-    // Restore the main player's volume.
-    unawaited(_player.setVolume(_isDucked ? _volumeBeforeDuck * 2 / 5 : 1.0));
+    // Restore the main player's volume to the user-requested level.
+    unawaited(_player.setVolume(_isDucked ? _userVolume * 2 / 5 : _userVolume));
   }
 
   Future<void> _prepareInactiveDeckForCrossfade({
@@ -2536,28 +2538,29 @@ class NavisAudioHandler extends BaseAudioHandler
   /// Apply ReplayGain volume normalization for the current track.
   ///
   /// Converts the ReplayGain dB value to a linear volume multiplier and
-  /// sets it on the player. When the mode is 'off' (or metadata is missing),
-  /// resets to full volume (1.0).
+  /// sets it on the player, scaled by the current user volume.
+  /// When the mode is 'off' (or metadata is missing), restores to _userVolume.
   void _applyReplayGainVolume({bool forceDuringCrossfade = false}) {
     if (_isCrossfading && !forceDuringCrossfade) {
       return;
     }
+    final base = _isDucked ? _userVolume * 2 / 5 : _userVolume;
     final runtime = _readRuntimeSettings();
     final mode = runtime.replayGainMode;
     if (mode == 'off') {
-      unawaited(_player.setVolume(1));
+      unawaited(_player.setVolume(base));
       return;
     }
 
     final index = _player.currentIndex;
     if (index == null || index < 0 || index >= _queueItems.length) {
-      unawaited(_player.setVolume(1));
+      unawaited(_player.setVolume(base));
       return;
     }
 
     final extras = _queueItems[index].extras;
     if (extras == null) {
-      unawaited(_player.setVolume(1));
+      unawaited(_player.setVolume(base));
       return;
     }
 
@@ -2568,15 +2571,16 @@ class NavisAudioHandler extends BaseAudioHandler
               (extras['replayGainAlbumGain'] as double?);
 
     if (gainDb == null) {
-      unawaited(_player.setVolume(1));
+      unawaited(_player.setVolume(base));
       return;
     }
 
     final preamp = runtime.replayGainPreamp.clamp(-6, 6);
-    // dB to linear: 10^((gain + preamp) / 20), clamped to [0, 1].
-    final linear = math
-        .pow(10, (gainDb + preamp) / 20)
-        .toDouble()
+    // dB to linear: 10^((gain + preamp) / 20), scaled by user volume, clamped to [0, 1].
+    final linear = (math
+            .pow(10, (gainDb + preamp) / 20)
+            .toDouble() *
+        base)
         .clamp(0.0, 1.0);
     unawaited(_player.setVolume(linear));
   }
@@ -2705,7 +2709,8 @@ class NavisAudioHandler extends BaseAudioHandler
   @override
   Future<void> setVolume(double volume) async {
     await _ready;
-    await _player.setVolume(volume.clamp(0.0, 1.0));
+    _userVolume = volume.clamp(0.0, 1.0);
+    await _player.setVolume(_userVolume);
   }
 
   @override

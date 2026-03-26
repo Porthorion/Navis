@@ -115,6 +115,38 @@ void main() {
     expect(context.useRailNavigation, isFalse);
   });
 
+  test(
+    'resolveAdaptiveInputPolicy enables traversal and escape parity for tablet/desktop',
+    () {
+      final tabletContext = resolveAdaptiveContext(
+        desktopRuntime: false,
+        viewportSize: const Size(840, 1000),
+        safePadding: EdgeInsets.zero,
+      );
+      final tabletPolicy = resolveAdaptiveInputPolicy(
+        adaptiveContext: tabletContext,
+      );
+      expect(tabletPolicy.enableDeterministicTraversal, isTrue);
+      expect(tabletPolicy.enableEscapeOverlayPriority, isTrue);
+      expect(tabletPolicy.enableDesktopCommandShortcuts, isFalse);
+      expect(tabletPolicy.enableDesktopPointerAffordances, isFalse);
+
+      final desktopContext = resolveAdaptiveContext(
+        desktopRuntime: true,
+        viewportSize: const Size(1366, 900),
+        safePadding: EdgeInsets.zero,
+      );
+      final desktopPolicy = resolveAdaptiveInputPolicy(
+        adaptiveContext: desktopContext,
+      );
+      expect(desktopPolicy.enableDeterministicTraversal, isTrue);
+      expect(desktopPolicy.enableEscapeOverlayPriority, isTrue);
+      expect(desktopPolicy.enableDesktopCommandShortcuts, isTrue);
+      expect(desktopPolicy.enableDesktopPointerAffordances, isTrue);
+      expect(desktopPolicy.enableSecondaryClickMenus, isTrue);
+    },
+  );
+
   test('resolveAdaptiveContext keeps compact-wide fallback behavior', () {
     final context = resolveAdaptiveContext(
       desktopRuntime: true,
@@ -187,5 +219,35 @@ void main() {
 
     expect(resolved.desktopRuntime, isDesktopRuntime);
     expect(resolved.useDesktopShell, isTrue);
+  });
+
+  testWidgets('resolveAdaptiveInputPolicyFor prefers scoped policy', (
+    tester,
+  ) async {
+    const scopedPolicy = AdaptiveInputPolicy(
+      enableDeterministicTraversal: true,
+      enableEscapeOverlayPriority: true,
+      enableDesktopPointerAffordances: true,
+      enableSecondaryClickMenus: true,
+      enableDesktopCommandShortcuts: true,
+    );
+    late AdaptiveInputPolicy resolved;
+    await tester.pumpWidget(
+      AdaptiveInputPolicyScope(
+        policy: scopedPolicy,
+        child: Directionality(
+          textDirection: TextDirection.ltr,
+          child: Builder(
+            builder: (context) {
+              resolved = resolveAdaptiveInputPolicyFor(context);
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+      ),
+    );
+
+    expect(resolved.enableDesktopCommandShortcuts, isTrue);
+    expect(resolved.enableSecondaryClickMenus, isTrue);
   });
 }

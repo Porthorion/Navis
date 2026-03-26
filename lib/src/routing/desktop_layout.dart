@@ -51,6 +51,26 @@ class AdaptiveContext {
   final bool useRailNavigation;
 }
 
+/// Shared adaptive input policy resolved from [AdaptiveContext].
+///
+/// This keeps focus traversal, keyboard dismissal precedence, and pointer
+/// affordance behavior deterministic across desktop and tablet widths.
+class AdaptiveInputPolicy {
+  const AdaptiveInputPolicy({
+    required this.enableDeterministicTraversal,
+    required this.enableEscapeOverlayPriority,
+    required this.enableDesktopPointerAffordances,
+    required this.enableSecondaryClickMenus,
+    required this.enableDesktopCommandShortcuts,
+  });
+
+  final bool enableDeterministicTraversal;
+  final bool enableEscapeOverlayPriority;
+  final bool enableDesktopPointerAffordances;
+  final bool enableSecondaryClickMenus;
+  final bool enableDesktopCommandShortcuts;
+}
+
 /// Provides a shared [AdaptiveContext] to descendants.
 class AdaptiveContextScope extends InheritedWidget {
   const AdaptiveContextScope({
@@ -70,6 +90,28 @@ class AdaptiveContextScope extends InheritedWidget {
   @override
   bool updateShouldNotify(covariant AdaptiveContextScope oldWidget) {
     return oldWidget.adaptiveContext != adaptiveContext;
+  }
+}
+
+/// Provides a shared [AdaptiveInputPolicy] to descendants.
+class AdaptiveInputPolicyScope extends InheritedWidget {
+  const AdaptiveInputPolicyScope({
+    required this.policy,
+    required super.child,
+    super.key,
+  });
+
+  final AdaptiveInputPolicy policy;
+
+  static AdaptiveInputPolicy? maybeOf(BuildContext context) {
+    return context
+        .dependOnInheritedWidgetOfExactType<AdaptiveInputPolicyScope>()
+        ?.policy;
+  }
+
+  @override
+  bool updateShouldNotify(covariant AdaptiveInputPolicyScope oldWidget) {
+    return oldWidget.policy != policy;
   }
 }
 
@@ -192,6 +234,21 @@ AdaptiveContext resolveAdaptiveContext({
   );
 }
 
+AdaptiveInputPolicy resolveAdaptiveInputPolicy({
+  required AdaptiveContext adaptiveContext,
+}) {
+  final enableDeterministicTraversal =
+      adaptiveContext.desktopRuntime ||
+      adaptiveContext.adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact;
+  return AdaptiveInputPolicy(
+    enableDeterministicTraversal: enableDeterministicTraversal,
+    enableEscapeOverlayPriority: enableDeterministicTraversal,
+    enableDesktopPointerAffordances: adaptiveContext.desktopRuntime,
+    enableSecondaryClickMenus: adaptiveContext.desktopRuntime,
+    enableDesktopCommandShortcuts: adaptiveContext.desktopRuntime,
+  );
+}
+
 /// Returns the current [AdaptiveContext] from scope when available.
 ///
 /// Falls back to resolving context from [MediaQuery] when a screen is rendered
@@ -218,4 +275,24 @@ AdaptiveContext resolveAdaptiveContextFor(
     viewportSize: mediaQuery.size,
     safePadding: mediaQuery.padding,
   );
+}
+
+/// Returns the current [AdaptiveInputPolicy] from scope when available.
+///
+/// Falls back to policy resolution from [AdaptiveContext] when the scope is
+/// absent (for example in direct widget tests).
+AdaptiveInputPolicy resolveAdaptiveInputPolicyFor(
+  BuildContext context, {
+  bool? desktopRuntimeOverride,
+}) {
+  final scoped = AdaptiveInputPolicyScope.maybeOf(context);
+  if (scoped != null) {
+    return scoped;
+  }
+
+  final adaptiveContext = resolveAdaptiveContextFor(
+    context,
+    desktopRuntimeOverride: desktopRuntimeOverride,
+  );
+  return resolveAdaptiveInputPolicy(adaptiveContext: adaptiveContext);
 }

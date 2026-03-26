@@ -62,6 +62,7 @@ Future<T?> showDesktopContextMenu<T>({
     return await showMenu<T>(
       context: context,
       useRootNavigator: useRootNavigator,
+      requestFocus: true,
       position: menuPosition,
       popUpAnimationStyle: const AnimationStyle(
         duration: Duration(milliseconds: 170),

@@ -23,6 +23,7 @@ class SettingsScreen extends ConsumerWidget {
     const groupPlayback = 'Playback';
     const groupAutomation = 'Automation';
     const groupAbout = 'About';
+    const groupDesktop = 'Desktop';
     final entries = <_SettingsEntry>[
       _SettingsEntry(
         icon: Icons.storage_outlined,
@@ -73,6 +74,14 @@ class SettingsScreen extends ConsumerWidget {
         route: '/settings/about',
         group: groupAbout,
       ),
+      if (adaptiveContext.desktopRuntime)
+        const _SettingsEntry(
+          icon: Icons.keyboard_command_key_rounded,
+          title: 'Keyboard Shortcuts',
+          subtitle: 'Customize desktop key bindings',
+          route: '/settings/shortcuts',
+          group: groupDesktop,
+        ),
     ];
 
     final groups = <String, List<_SettingsEntry>>{};

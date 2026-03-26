@@ -424,6 +424,34 @@ This document is the detailed execution log for preparing Navis as a native app 
   - `/home/khalifa/Flutter_SDK/flutter/bin/flutter analyze lib/src/features/home/presentation/home_providers.dart lib/src/features/home/presentation/home_screen.dart test/src/features/home/presentation/home_screen_test.dart test/src/features/home/presentation/home_random_showcase_provider_test.dart`
     - Result: no compile errors; info-level lint debt only.
 
+### W. ACP M4 Wave A input + focus parity hardening (2026-03-26)
+- Status: completed for `ACP-M4-01`, `ACP-M4-02`, `ACP-M4-03`; `ACP-M4-04` remains deferred by design.
+- Actions:
+  - Added routing-layer adaptive input policy boundary:
+    - introduced `AdaptiveInputPolicy`, `AdaptiveInputPolicyScope`, `resolveAdaptiveInputPolicy`, and `resolveAdaptiveInputPolicyFor` in `lib/src/routing/desktop_layout.dart`.
+    - policy is derived from `AdaptiveContext` and consumed from shell scope with deterministic fallback for standalone/tests.
+  - Hardened shell focus/keyboard model in `lib/src/routing/app_shell.dart`:
+    - shell now provides both adaptive context and adaptive input policy scopes.
+    - deterministic traversal/focus regions are applied for desktop/tablet interactive layout.
+    - queue overlay dismissal now restores focus to invoker when available, else returns focus to shell root.
+    - `Esc` precedence is stack-aware: queue/overlay dismiss first, then player collapse.
+  - Standardized command/context menu behavior:
+    - `buildDesktopShortcutMap` now supports explicit escape inclusion toggling in `lib/src/routing/desktop_commands.dart`.
+    - desktop command action handler ignores non-current routes to avoid leaking commands under modal routes.
+    - desktop context menus request keyboard focus on open in `lib/src/common_widgets/desktop/desktop_context_menu.dart`.
+    - queue overlay binds `Esc` to dismiss through `Shortcuts`/`Actions` for deterministic keyboard close.
+  - Extended adaptive input regression coverage:
+    - `test/src/routing/desktop_layout_test.dart`: adaptive input policy resolver + scoped fallback checks.
+    - `test/src/routing/desktop_commands_test.dart`: text-input guard, escape-map control, route-current guard.
+    - `test/src/routing/app_shell_navigation_test.dart`: escape queue-first precedence, queue focus restoration, width matrix checks at `700/840/1200/1366`.
+- Evidence:
+  - `/home/khalifa/Flutter_SDK/flutter/bin/flutter test test/src/routing/desktop_commands_test.dart test/src/routing/app_shell_navigation_test.dart test/src/routing/desktop_layout_test.dart`
+    - Result: pass (39 tests).
+  - `/home/khalifa/Flutter_SDK/flutter/bin/flutter test test/src/features/home/presentation/home_screen_test.dart test/src/features/search/search_screen_adaptive_test.dart test/src/features/player/presentation/now_playing_screen_adaptive_test.dart`
+    - Result: pass (22 tests).
+  - `/home/khalifa/Flutter_SDK/flutter/bin/flutter analyze lib/src/routing lib/src/features/home/presentation/home_screen.dart lib/src/features/search/presentation/search_screen.dart lib/src/features/player/presentation/now_playing_screen.dart`
+    - Result: no compile errors; existing info-level lint debt remains and existing non-M4 warning in `now_playing_screen.dart` (`unused_local_variable`) persists.
+
 ### ACP Daily Log Template
 - Date:
 - Active task IDs:

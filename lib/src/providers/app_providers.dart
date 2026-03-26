@@ -1357,6 +1357,49 @@ final playbackPositionProvider = StreamProvider<Duration>((ref) {
   return handler.positionStream;
 });
 
+/// UI-tracked playback volume for desktop controls.
+///
+/// The audio handler currently exposes a setter but not a reactive stream for
+/// volume, so the UI keeps the latest user-selected value here.
+class PlaybackVolumeController extends Notifier<double> {
+  double _lastAudibleVolume = 1;
+
+  @override
+  double build() => 1;
+
+  double setVolume(double value, {bool rememberAsAudible = true}) {
+    if (value < 0) {
+      state = 0;
+      return state;
+    }
+    if (value > 1) {
+      state = 1;
+      return state;
+    }
+    state = value;
+    if (rememberAsAudible && state > 0.001) {
+      _lastAudibleVolume = state;
+    }
+    return state;
+  }
+
+  double toggleMute() {
+    if (state <= 0.001) {
+      final restored = _lastAudibleVolume <= 0.001 ? 1.0 : _lastAudibleVolume;
+      state = restored;
+      return state;
+    }
+    _lastAudibleVolume = state;
+    state = 0;
+    return state;
+  }
+}
+
+final playbackVolumeProvider =
+    NotifierProvider<PlaybackVolumeController, double>(
+      PlaybackVolumeController.new,
+    );
+
 final lyricsProvider = FutureProvider.family<LyricsResolution, String>((
   ref,
   songId,
