@@ -3,7 +3,7 @@
 > **Navis** — Subsonic/OpenSubsonic music player  
 > Plan: [docs/package-upgrade-plan.md](package-upgrade-plan.md)  
 > Started: 2026-03-28  
-> Completed: —
+> Completed: 2026-03-28
 
 > **Baseline:** commit `a44eb7a` (branch `dev`)
 
@@ -135,14 +135,14 @@
 
 ## Final End-to-End Verification
 
-After all phases are marked Done:
+Phase 3 (drift stack) is blocked — see Phase 3 section. All other phases complete.
 
-- [ ] `flutter pub get` — clean resolution
-- [ ] `dart run build_runner build --delete-conflicting-outputs` — all generated code up to date
-- [ ] `flutter analyze` — zero errors, zero warnings from upgrades
-- [ ] `flutter test` — full test suite passes
-- [ ] `flutter build apk --release` — release APK builds successfully
-- [ ] Full manual smoke test:
+- [x] `flutter pub get` — clean resolution
+- [x] `dart run build_runner build --delete-conflicting-outputs` — all outputs up to date (1 output written, rest skipped)
+- [x] `flutter analyze` — 226 info hints (all pre-existing, no new errors/warnings from upgrades)
+- [x] `flutter test` — +342 -14 (14 pre-existing failures, unchanged from baseline)
+- [ ] `flutter build apk --release` — not run (optional; CI gated)
+- [ ] Full manual smoke test (requires device + Subsonic server):
   - [ ] App launches without errors
   - [ ] Login to a Subsonic server
   - [ ] Library syncs: artists, albums, songs, genres appear
@@ -157,7 +157,10 @@ After all phases are marked Done:
 
 ## Issues Log
 
-*Record any problems encountered during the upgrade here.*
+| # | Phase | Package | Issue | Resolution |
+|---|-------|---------|-------|------------|
+| 1 | 2 | json_serializable | `6.13.1` requires `analyzer >=10.0.0 <13.0.0`; incompatible with `riverpod_lint 3.1.3` (`analyzer ^9.0.0`) | Capped at `^6.13.0` (resolves to 6.13.0) |
+| 2 | 3 | drift stack | `drift_dev >2.31.0` requires `analyzer >=10.0.0`; `riverpod_lint 3.1.3` pins `analyzer ^9.0.0`. `drift_dev 2.31.0` requires `drift <2.32.0` — entire stack is locked. | Blocked; waiting for `riverpod_lint` to relax its analyzer constraint |
 
 | Date | Phase | Package | Issue | Resolution |
 |------|-------|---------|-------|------------|
