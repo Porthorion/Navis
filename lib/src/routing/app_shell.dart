@@ -1206,6 +1206,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                                             playback: playback,
                                             songTitle: songTitle,
                                             songArtist: songArtist,
+                                            artistId: artistId,
                                             coverArtId: coverArtId,
                                             coverArtUrl: coverArtUrl,
                                             isRadio: playback.isRadioMode,
@@ -3490,6 +3491,7 @@ class _RailSidebar extends ConsumerWidget {
     required this.onOpenPlayer,
     this.songTitle,
     this.songArtist,
+    this.artistId,
     this.coverArtId,
     this.coverArtUrl,
     this.isRadio = false,
@@ -3511,6 +3513,7 @@ class _RailSidebar extends ConsumerWidget {
   final PlaybackSnapshot playback;
   final String? songTitle;
   final String? songArtist;
+  final String? artistId;
   final String? coverArtId;
   final String? coverArtUrl;
   final bool isRadio;
@@ -3646,6 +3649,7 @@ class _RailSidebar extends ConsumerWidget {
                         playback: playback,
                         songTitle: songTitle,
                         songArtist: songArtist,
+                        artistId: artistId,
                         coverArtId: coverArtId,
                         coverArtUrl: coverArtUrl,
                         isRadio: isRadio,
@@ -3799,6 +3803,7 @@ class _RailMiniPlayer extends ConsumerStatefulWidget {
     required this.onOpenPlayer,
     this.songTitle,
     this.songArtist,
+    this.artistId,
     this.coverArtId,
     this.coverArtUrl,
     this.isRadio = false,
@@ -3809,6 +3814,7 @@ class _RailMiniPlayer extends ConsumerStatefulWidget {
   final VoidCallback onOpenPlayer;
   final String? songTitle;
   final String? songArtist;
+  final String? artistId;
   final String? coverArtId;
   final String? coverArtUrl;
   final bool isRadio;
@@ -3844,6 +3850,12 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
     final progress = duration.inMilliseconds > 0
         ? (position.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0)
         : 0.0;
+    final artistDisplay =
+        (widget.songArtist == null || widget.songArtist!.trim().isEmpty)
+        ? l10n.miniPlayerUnknownArtist
+        : widget.songArtist!;
+    final resolvedArtistId = (widget.artistId ?? '').trim();
+    final canNavigateArtist = resolvedArtistId.isNotEmpty && !widget.isRadio;
     const compactButtonConstraints = BoxConstraints(
       minWidth: 46,
       minHeight: 46,
@@ -3924,23 +3936,48 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                                             ),
                                       ),
                                       const SizedBox(height: 1),
-                                      Text(
-                                        (widget.songArtist == null ||
-                                                widget.songArtist!
-                                                    .trim()
-                                                    .isEmpty)
-                                            ? l10n.miniPlayerUnknownArtist
-                                            : widget.songArtist!,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(
-                                              fontSize: 12,
-                                              color: cs.onSurfaceVariant,
+                                      canNavigateArtist
+                                          ? GestureDetector(
+                                              behavior:
+                                                  HitTestBehavior.opaque,
+                                              onTap: () =>
+                                                  NavService.goToArtist(
+                                                    context,
+                                                    ref,
+                                                    resolvedArtistId,
+                                                  ),
+                                              child: MouseRegion(
+                                                cursor:
+                                                    SystemMouseCursors.click,
+                                                child: Text(
+                                                  artistDisplay,
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .bodySmall
+                                                      ?.copyWith(
+                                                        fontSize: 12,
+                                                        color: cs.primary,
+                                                        fontWeight:
+                                                            FontWeight.w500,
+                                                      ),
+                                                ),
+                                              ),
+                                            )
+                                          : Text(
+                                              artistDisplay,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodySmall
+                                                  ?.copyWith(
+                                                    fontSize: 12,
+                                                    color: cs.onSurfaceVariant,
+                                                  ),
                                             ),
-                                      ),
                                     ],
                                   ),
                                 ),

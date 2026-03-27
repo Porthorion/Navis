@@ -249,6 +249,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   }
 
   void _updateTypeFilter(String query) {
+    if (query.isEmpty) {
+      _clearTypeFilter();
+      return;
+    }
     _typeFilterFadeTimer?.cancel();
     setState(() {
       _typeFilterQuery = query;
@@ -257,17 +261,15 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       _cachedYearSectionsSource = null; // invalidate year cache
     });
     ref.read(libraryTypeFilterActiveProvider.notifier).active = true;
-    if (query.isNotEmpty) {
-      _typeFilterFadeTimer = Timer(
-        const Duration(milliseconds: 900),
-        () {
-          if (mounted) {
-            setState(() => _typeFilterOverlayVisible = false);
-            ref.read(libraryTypeFilterActiveProvider.notifier).active = false;
-          }
-        },
-      );
-    }
+    _typeFilterFadeTimer = Timer(
+      const Duration(milliseconds: 900),
+      () {
+        if (mounted) {
+          setState(() => _typeFilterOverlayVisible = false);
+          ref.read(libraryTypeFilterActiveProvider.notifier).active = false;
+        }
+      },
+    );
   }
 
   void _clearTypeFilter() {
