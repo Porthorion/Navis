@@ -14,8 +14,8 @@
 | Phase | Description | Status |
 |-------|-------------|--------|
 | Phase 1 | Safe patch updates (5 packages) | ✅ Done |
-| Phase 2 | Code generation chain (4 packages) | 🔄 In progress |
-| Phase 3 | Drift stack (3 packages) | ⬜ Not started |
+| Phase 2 | Code generation chain (4 packages) | ✅ Done |
+| Phase 3 | Drift stack (3 packages) | 🔄 In progress |
 | Phase 4 | Riverpod minor update (1 package) | ⬜ Not started |
 | Phase 5 | Logger minor update (1 package) | ⬜ Not started |
 
@@ -53,22 +53,24 @@
 
 | Step | Package | Change | Status | Notes |
 |------|---------|--------|--------|-------|
-| 2a | json_annotation | `^4.9.0` → `^4.11.0` | 🔄 | |
-| 2b | json_serializable | `^6.11.2` → `^6.13.1` | 🔄 | |
-| 2c | freezed | `^3.2.3` → `^3.2.5` | 🔄 | |
-| 2d | build_runner | `^2.12.2` → `^2.13.1` | 🔄 | |
+| 2a | json_annotation | `^4.9.0` → `^4.11.0` | ✅ | |
+| 2b | json_serializable | `^6.11.2` → `^6.13.0` | ✅ | capped at 6.13.0 — 6.13.1 requires analyzer >=10 which conflicts with riverpod_lint 3.1.3 (analyzer ^9) |
+| 2c | freezed | `^3.2.3` → `^3.2.5` | ✅ | |
+| 2d | build_runner | `^2.12.2` → `^2.13.1` | ✅ | |
 
 ### Phase 2 Checklist
 
-- [ ] Update 4 version constraints in `pubspec.yaml`
-- [ ] `flutter pub get` succeeds with no version conflicts
-- [ ] `dart run build_runner build --delete-conflicting-outputs` succeeds
-- [ ] Regenerated files diff shows only cosmetic changes (no logic changes)
-  - [ ] `lib/src/api/models/*.g.dart` (13 files)
-  - [ ] `lib/src/features/auth/domain/server_config.g.dart`
-  - [ ] `.freezed.dart` files (API models + domain models)
-- [ ] `flutter analyze` — no new errors
-- [ ] `flutter test` — all tests pass
+- [x] Update 4 version constraints in `pubspec.yaml`
+- [x] `flutter pub get` succeeds with no version conflicts
+- [x] `dart run build_runner build --delete-conflicting-outputs` succeeds (570 outputs written in 23s)
+- [x] Regenerated files diff shows only cosmetic changes (no logic changes)
+  - [x] `lib/src/api/models/*.g.dart` (13 files)
+  - [x] `lib/src/features/auth/domain/server_config.g.dart`
+  - [x] `.freezed.dart` files (API models + domain models)
+- [x] `flutter analyze` — 226 issues (pre-existing, unchanged)
+- [x] `flutter test` — +342 -14 (14 pre-existing failures, unchanged)
+
+> **Note:** `json_serializable 6.13.1` was immediately incompatible: it requires `analyzer >=10.0.0` while `riverpod_lint 3.1.3` pins `analyzer ^9.0.0`. Capped at `^6.13.0` which resolves to 6.13.0 — still an upgrade from 6.11.2. Upgrade plan document updated to reflect this constraint.
 
 ---
 
@@ -80,9 +82,9 @@
 
 | Step | Package | Change | Status | Notes |
 |------|---------|--------|--------|-------|
-| 3a | drift | `^2.31.0` → `^2.32.1` | ⬜ | |
-| 3b | drift_dev | `^2.31.0` → `^2.32.1` | ⬜ | |
-| 3c | drift_flutter | `^0.2.5` → `^0.3.0` | ⬜ | |
+| 3a | drift | `^2.31.0` → `^2.32.1` | 🔄 | |
+| 3b | drift_dev | `^2.31.0` → `^2.32.1` | 🔄 | |
+| 3c | drift_flutter | `^0.2.5` → `^0.3.0` | 🔄 | |
 
 ### Phase 3 Checklist
 

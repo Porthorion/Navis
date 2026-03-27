@@ -2728,8 +2728,7 @@ class AppSettingsTableData extends DataClass
       artistViewMode: data.artistViewMode.present
           ? data.artistViewMode.value
           : this.artistViewMode,
-      desktopFocusPlayerModeEnabled:
-          data.desktopFocusPlayerModeEnabled.present
+      desktopFocusPlayerModeEnabled: data.desktopFocusPlayerModeEnabled.present
           ? data.desktopFocusPlayerModeEnabled.value
           : this.desktopFocusPlayerModeEnabled,
       homeDensity: data.homeDensity.present
@@ -12039,6 +12038,7 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<String> nowPlayingArtShape,
       Value<String> artistCardShape,
       Value<String> artistViewMode,
+      Value<bool> desktopFocusPlayerModeEnabled,
       Value<String> homeDensity,
       Value<String?> homeSectionOrder,
       Value<String?> homeSectionsHidden,
@@ -12093,6 +12093,7 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<String> nowPlayingArtShape,
       Value<String> artistCardShape,
       Value<String> artistViewMode,
+      Value<bool> desktopFocusPlayerModeEnabled,
       Value<String> homeDensity,
       Value<String?> homeSectionOrder,
       Value<String?> homeSectionsHidden,
@@ -12340,6 +12341,11 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<String> get artistViewMode => $composableBuilder(
     column: $table.artistViewMode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get desktopFocusPlayerModeEnabled => $composableBuilder(
+    column: $table.desktopFocusPlayerModeEnabled,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -12608,6 +12614,11 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get desktopFocusPlayerModeEnabled => $composableBuilder(
+    column: $table.desktopFocusPlayerModeEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get homeDensity => $composableBuilder(
     column: $table.homeDensity,
     builder: (column) => ColumnOrderings(column),
@@ -12865,6 +12876,11 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get desktopFocusPlayerModeEnabled => $composableBuilder(
+    column: $table.desktopFocusPlayerModeEnabled,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get homeDensity => $composableBuilder(
     column: $table.homeDensity,
     builder: (column) => column,
@@ -12968,6 +12984,8 @@ class $$AppSettingsTableTableTableManager
                 Value<String> nowPlayingArtShape = const Value.absent(),
                 Value<String> artistCardShape = const Value.absent(),
                 Value<String> artistViewMode = const Value.absent(),
+                Value<bool> desktopFocusPlayerModeEnabled =
+                    const Value.absent(),
                 Value<String> homeDensity = const Value.absent(),
                 Value<String?> homeSectionOrder = const Value.absent(),
                 Value<String?> homeSectionsHidden = const Value.absent(),
@@ -13020,6 +13038,7 @@ class $$AppSettingsTableTableTableManager
                 nowPlayingArtShape: nowPlayingArtShape,
                 artistCardShape: artistCardShape,
                 artistViewMode: artistViewMode,
+                desktopFocusPlayerModeEnabled: desktopFocusPlayerModeEnabled,
                 homeDensity: homeDensity,
                 homeSectionOrder: homeSectionOrder,
                 homeSectionsHidden: homeSectionsHidden,
@@ -13074,6 +13093,8 @@ class $$AppSettingsTableTableTableManager
                 Value<String> nowPlayingArtShape = const Value.absent(),
                 Value<String> artistCardShape = const Value.absent(),
                 Value<String> artistViewMode = const Value.absent(),
+                Value<bool> desktopFocusPlayerModeEnabled =
+                    const Value.absent(),
                 Value<String> homeDensity = const Value.absent(),
                 Value<String?> homeSectionOrder = const Value.absent(),
                 Value<String?> homeSectionsHidden = const Value.absent(),
@@ -13126,6 +13147,7 @@ class $$AppSettingsTableTableTableManager
                 nowPlayingArtShape: nowPlayingArtShape,
                 artistCardShape: artistCardShape,
                 artistViewMode: artistViewMode,
+                desktopFocusPlayerModeEnabled: desktopFocusPlayerModeEnabled,
                 homeDensity: homeDensity,
                 homeSectionOrder: homeSectionOrder,
                 homeSectionsHidden: homeSectionsHidden,

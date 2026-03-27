@@ -60,7 +60,7 @@
 | url_launcher | ^6.3.1 | ^6.3.2 | Patch | Low | 1 |
 | uuid | ^4.5.1 | ^4.5.3 | Patch | Low | 1 |
 | json_annotation | ^4.9.0 | ^4.11.0 | Minor | Medium | 2 |
-| json_serializable | ^6.11.2 | ^6.13.1 | Minor | Medium | 2 |
+| json_serializable | ^6.11.2 | ^6.13.0 | Minor | Medium | 2 |
 | freezed | ^3.2.3 | ^3.2.5 | Patch | Medium | 2 |
 | build_runner | ^2.12.2 | ^2.13.1 | Minor | Medium | 2 |
 | drift | ^2.31.0 | ^2.32.1 | Minor | High | 3 |
@@ -222,13 +222,14 @@ flutter test
 
 ---
 
-### 2b — json_serializable `^6.11.2` → `^6.13.1`
+### 2b — json_serializable `^6.11.2` → `^6.13.0`
 
 **What changed:**
 - Now requires `json_annotation >=4.11.0 <4.12.0` (hence the coupling with 2a)
-- Now requires `analyzer >=10.0.0 <13.0.0` and `sdk ^3.9.0`
 - Minor internal generator improvements; generated output format is functionally identical
 - No breaking changes to generated code
+
+> **Constraint note (discovered during implementation):** `json_serializable 6.13.1` requires `analyzer >=10.0.0 <13.0.0`, which conflicts with `riverpod_lint 3.1.3` which pins `analyzer ^9.0.0`. Use `^6.13.0` — the solver then picks 6.13.0, which is fully compatible with both.
 
 **Files that will be regenerated (output identical):**
 
@@ -296,7 +297,7 @@ json_serializable: ^6.11.2
 # After (dev_dependencies)
 build_runner: ^2.13.1
 freezed: ^3.2.5
-json_serializable: ^6.13.1
+json_serializable: ^6.13.0   # 6.13.1 incompatible with riverpod_lint 3.1.3
 ```
 
 ### Phase 2 Verification
