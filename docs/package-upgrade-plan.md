@@ -320,6 +320,8 @@ flutter test
 **Code changes:** None — code regeneration only  
 **All 3 packages must be upgraded together in a single `pubspec.yaml` edit**
 
+> **BLOCKED (as of 2026-03-28):** `drift_dev >2.31.0` requires `analyzer >=10.0.0 <13.0.0`, which conflicts with `riverpod_lint 3.1.3`'s `analyzer ^9.0.0`. Additionally, `drift_dev 2.31.0` requires `drift <2.32.0`, making it impossible to upgrade any part of the drift stack independently. Wait for `riverpod_lint` to release a version with a broader analyzer constraint before attempting this phase.
+
 > `drift_flutter 0.3.0` is labeled "potentially breaking" in its changelog.  
 > In practice, the **only change** is upgrading the internal `sqlite3` Dart package from version 2.x to 3.x.  
 > The `driftDatabase()` public API is completely unchanged.  

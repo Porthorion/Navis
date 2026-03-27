@@ -15,7 +15,7 @@
 |-------|-------------|--------|
 | Phase 1 | Safe patch updates (5 packages) | ✅ Done |
 | Phase 2 | Code generation chain (4 packages) | ✅ Done |
-| Phase 3 | Drift stack (3 packages) | 🔄 In progress |
+| Phase 3 | Drift stack (3 packages) | ❌ Blocked |
 | Phase 4 | Riverpod minor update (1 package) | ⬜ Not started |
 | Phase 5 | Logger minor update (1 package) | ⬜ Not started |
 
@@ -82,41 +82,18 @@
 
 | Step | Package | Change | Status | Notes |
 |------|---------|--------|--------|-------|
-| 3a | drift | `^2.31.0` → `^2.32.1` | 🔄 | |
-| 3b | drift_dev | `^2.31.0` → `^2.32.1` | 🔄 | |
-| 3c | drift_flutter | `^0.2.5` → `^0.3.0` | 🔄 | |
+| 3a | drift | `^2.31.0` → `^2.32.1` | ❌ | blocked by riverpod_lint analyzer conflict |
+| 3b | drift_dev | `^2.31.0` → `^2.32.1` | ❌ | `drift_dev >2.31.0` requires `analyzer >=10.0.0 <13.0.0`; `riverpod_lint 3.1.3` pins `analyzer ^9.0.0` — incompatible. `drift_dev 2.31.0` requires `drift <2.32.0` so all three are locked together. |
+| 3c | drift_flutter | `^0.2.5` → `^0.3.0` | ❌ | blocked by riverpod_lint analyzer conflict |
 
 ### Phase 3 Checklist
 
-- [ ] Update 3 version constraints in `pubspec.yaml`
-- [ ] `flutter pub get` succeeds with no version conflicts
-- [ ] `dart run build_runner build --delete-conflicting-outputs` succeeds
-- [ ] Regenerated database files reviewed
-  - [ ] `lib/src/database/navis_database.g.dart`
-  - [ ] `lib/src/database/daos/app_settings_dao.g.dart`
-  - [ ] `lib/src/database/daos/cache_dao.g.dart`
-  - [ ] `lib/src/database/daos/download_queue_dao.g.dart`
-  - [ ] `lib/src/database/daos/history_dao.g.dart`
-  - [ ] `lib/src/database/daos/library_dao.g.dart`
-  - [ ] `lib/src/database/daos/play_queue_dao.g.dart`
-  - [ ] `lib/src/database/daos/playlist_dao.g.dart`
-  - [ ] `lib/src/database/daos/scrobble_dao.g.dart`
-  - [ ] `lib/src/database/daos/server_dao.g.dart`
-  - [ ] `lib/src/database/daos/star_sync_dao.g.dart`
-- [ ] `flutter analyze` — no new errors
-- [ ] `flutter test` — paying close attention to:
-  - [ ] `test/src/database/migrations/navis_migration_test.dart` (all 35 migration steps)
-  - [ ] `test/src/database/library_dao_test.dart`
-  - [ ] `test/src/database/daos/download_queue_dao_test.dart`
-  - [ ] `test/src/providers/app_providers_test.dart`
-  - [ ] `test/src/features/downloads/download_service_test.dart`
-  - [ ] `test/src/features/cache/data/rolling_cache_manager_test.dart`
-- [ ] Smoke test on device with **existing database**:
-  - [ ] App launches without database migration errors in log
-  - [ ] Previously synced library is intact (artists, albums, songs visible)
-  - [ ] Download queue entries are intact
-  - [ ] Play history is intact
-  - [ ] Audio plays successfully
+> **BLOCKED — Cannot proceed until `riverpod_lint` supports `analyzer >=10.0.0`.**
+>
+> Root cause: `drift_dev >2.31.0` requires `analyzer >=10.0.0 <13.0.0`. `riverpod_lint 3.1.3` (current latest) pins `analyzer ^9.0.0`. These constraints are mutually exclusive.
+> Additionally, `drift_dev 2.31.0` (the last compatible version) requires `drift >=2.30.0 <2.32.0`, which prevents upgrading the drift runtime independently.
+>
+> **Resolution path:** Wait for `riverpod_lint ^3.2.x` (or any version that accepts `analyzer >=10.0.0`) to be published, then attempt this phase again.
 
 ---
 
