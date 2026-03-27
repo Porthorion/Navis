@@ -258,10 +258,9 @@ void main() {
 
       expect(container.read(queueOverlayVisibleProvider), isFalse);
 
-      await tester.tap(find.byKey(const ValueKey('desktopPlayerOpenHit')));
-      await tester.pumpAndSettle();
-
-      expect(container.read(playerSheetExpandedProvider), isTrue);
+      // Clicking the desktop player bar no longer opens the expanded player;
+      // the whole-bar InkWell was removed. Verify the bar itself is still present.
+      expect(find.byKey(const ValueKey('desktopPlayerBar')), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );
@@ -806,7 +805,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const ValueKey('desktopPlayerOpenHit')));
+      container.read(playerOverlayStackProvider.notifier).expand();
       await tester.pumpAndSettle();
       expect(container.read(playerSheetExpandedProvider), isTrue);
 
@@ -1086,7 +1085,7 @@ void main() {
       findsOneWidget,
     );
 
-    await tester.tap(find.byKey(const ValueKey('desktopPlayerOpenHit')));
+    container.read(playerOverlayStackProvider.notifier).expand();
     await tester.pumpAndSettle();
 
     expect(
@@ -1127,7 +1126,7 @@ void main() {
         await tester.pump();
 
         if (width >= 1200) {
-          await tester.tap(find.byKey(const ValueKey('desktopPlayerOpenHit')));
+          container.read(playerOverlayStackProvider.notifier).expand();
           await tester.pumpAndSettle();
           await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
           await tester.sendKeyDownEvent(LogicalKeyboardKey.keyJ);

@@ -804,13 +804,13 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   AudioPlayer _buildBaseAudioPlayer({AudioPipeline? audioPipeline}) {
-    // On desktop media_kit/mpv, prefer proxy-based requests so libmpv consumes
-    // local HTTP and avoids remote TLS/cache edge cases from some servers.
-    final desktopProxy = _isDesktopRuntime;
+    // Pass URLs directly to libmpv so lavf's cache:// protocol gets the
+    // original HTTPS stream rather than a local proxy, eliminating the
+    // "[error] lavf: Failed to create file cache" log noise. Subsonic auth
+    // is embedded in URL query params so no custom headers are needed.
     return AudioPlayer(
       audioPipeline: audioPipeline,
-      userAgent: desktopProxy ? 'Navis Desktop' : null,
-      useProxyForRequestHeaders: desktopProxy,
+      userAgent: _isDesktopRuntime ? 'Navis Desktop' : null,
     );
   }
 

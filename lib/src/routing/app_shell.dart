@@ -639,6 +639,9 @@ class _AppShellState extends ConsumerState<AppShell> {
     final artistId = playback.isRadioMode
         ? null
         : currentSongAsync.asData?.value?.artistId;
+    final albumId = playback.isRadioMode
+        ? null
+        : currentSongAsync.asData?.value?.albumId;
     final coverArtId = playback.isRadioMode
         ? null
         : currentSongAsync.asData?.value?.coverArt;
@@ -1090,6 +1093,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                         songTitle: songTitle,
                         songArtist: songArtist,
                         artistId: artistId,
+                        albumId: albumId,
                         coverArtId: coverArtId,
                         coverArtUrl: coverArtUrl,
                         onDestinationSelected: onDestinationSelected,
@@ -2016,6 +2020,7 @@ class _DesktopWorkspace extends StatelessWidget {
     required this.songTitle,
     required this.songArtist,
     required this.artistId,
+    required this.albumId,
     required this.coverArtId,
     required this.coverArtUrl,
     required this.onDestinationSelected,
@@ -2050,6 +2055,7 @@ class _DesktopWorkspace extends StatelessWidget {
   final String? songTitle;
   final String? songArtist;
   final String? artistId;
+  final String? albumId;
   final String? coverArtId;
   final String? coverArtUrl;
   final ValueChanged<int> onDestinationSelected;
@@ -2238,6 +2244,7 @@ class _DesktopWorkspace extends StatelessWidget {
               songTitle: songTitle,
               songArtist: songArtist,
               artistId: artistId,
+              albumId: albumId,
               coverArtId: coverArtId,
               coverArtUrl: coverArtUrl,
               onOpenPlayer: onOpenPlayer,
@@ -2258,6 +2265,7 @@ class _DesktopPlayerBar extends ConsumerStatefulWidget {
     required this.songTitle,
     required this.songArtist,
     required this.artistId,
+    required this.albumId,
     required this.coverArtId,
     required this.coverArtUrl,
     required this.onOpenPlayer,
@@ -2271,6 +2279,7 @@ class _DesktopPlayerBar extends ConsumerStatefulWidget {
   final String? songTitle;
   final String? songArtist;
   final String? artistId;
+  final String? albumId;
   final String? coverArtId;
   final String? coverArtUrl;
   final VoidCallback onOpenPlayer;
@@ -2285,10 +2294,6 @@ class _DesktopPlayerBar extends ConsumerStatefulWidget {
 
 class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
   double? _dragSliderValue;
-  Offset? _hoverPosition;
-  /// Last known hover alignment — retained during fade-out so the gradient
-  /// doesn't jump to center as the mouse leaves.
-  Alignment? _displayAlignment;
 
   @override
   Widget build(BuildContext context) {
@@ -2369,15 +2374,7 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
         color: barColor,
         child: SafeArea(
           top: false,
-          child: MouseRegion(
-            onHover: (event) =>
-                setState(() => _hoverPosition = event.localPosition),
-            onExit: (_) {
-              if (_hoverPosition != null) {
-                setState(() => _hoverPosition = null);
-              }
-            },
-            child: SizedBox(
+          child: SizedBox(
               height: 116,
               child: LayoutBuilder(
                 builder: (context, constraints) {
@@ -2492,28 +2489,43 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                     await ref.read(audioHandlerProvider)?.setVolume(volume);
                   }
 
-                  final hover = _hoverPosition;
-                  final hoverAlignment = hover == null
-                      ? null
-                      : Alignment(
-                          ((hover.dx / maxWidth).clamp(0.0, 1.0) * 2) - 1,
-                          ((hover.dy / constraints.maxHeight).clamp(0.0, 1.0) *
-                                  2) -
-                              1,
-                        );
-                  // Track last position so the fade-out gradient doesn't jump.
-                  if (hoverAlignment != null) {
-                    _displayAlignment = hoverAlignment;
+                  final resolvedAlbumId = (widget.albumId ?? '').trim();
+                  final canOpenAlbum =
+                      resolvedAlbumId.isNotEmpty && !playback.isRadioMode;
+
+                  Widget coverArtWidget;
+                  if (widget.coverArtId == null ||
+                      widget.coverArtId!.trim().isEmpty) {
+                    coverArtWidget = _MiniRemoteArt(
+                      artUrl: widget.coverArtUrl,
+                      colorScheme: colors,
+                      size: compactLayout ? 42 : 48,
+                    );
+                  } else {
+                    coverArtWidget = CoverArtImage(
+                      coverArtId: widget.coverArtId,
+                      size: 200,
+                      width: compactLayout ? 42 : 48,
+                      height: compactLayout ? 42 : 48,
+                      borderRadius: BorderRadius.circular(8),
+                    );
                   }
 
-                  final playerSurface = InkWell(
-                    key: const ValueKey<String>('desktopPlayerOpenHit'),
-                    onTap: widget.onOpenPlayer,
-                    overlayColor: WidgetStateProperty.all(Colors.transparent),
-                    splashColor: Colors.transparent,
-                    hoverColor: Colors.transparent,
-                    highlightColor: Colors.transparent,
-                    child: Padding(
+                  if (canOpenAlbum) {
+                    coverArtWidget = MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: GestureDetector(
+                        onTap: () => NavService.goToAlbum(
+                          context,
+                          ref,
+                          resolvedAlbumId,
+                        ),
+                        child: coverArtWidget,
+                      ),
+                    );
+                  }
+
+                  final playerSurface = Padding(
                       padding: EdgeInsets.fromLTRB(
                         compactLayout ? 10 : 14,
                         verticalInset,
@@ -2532,21 +2544,7 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                               ),
                               child: Row(
                                 children: <Widget>[
-                                  if (widget.coverArtId == null ||
-                                      widget.coverArtId!.trim().isEmpty)
-                                    _MiniRemoteArt(
-                                      artUrl: widget.coverArtUrl,
-                                      colorScheme: colors,
-                                      size: compactLayout ? 42 : 48,
-                                    )
-                                  else
-                                    CoverArtImage(
-                                      coverArtId: widget.coverArtId,
-                                      size: 200,
-                                      width: compactLayout ? 42 : 48,
-                                      height: compactLayout ? 42 : 48,
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
+                                  coverArtWidget,
                                   SizedBox(width: compactLayout ? 8 : 10),
                                   SizedBox(
                                     width: metadataTextWidth,
@@ -3018,37 +3016,11 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                           ),
                         ],
                       ),
-                    ),
                   );
 
-                  return Stack(
-                    fit: StackFit.expand,
-                    children: <Widget>[
-                      AnimatedOpacity(
-                        duration: const Duration(milliseconds: 220),
-                        curve: Curves.easeOutCubic,
-                        opacity: hoverAlignment != null ? 1.0 : 0.0,
-                        child: IgnorePointer(
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              gradient: RadialGradient(
-                                center: _displayAlignment ?? Alignment.center,
-                                radius: 0.4,
-                                colors: <Color>[
-                                  colors.primary.withValues(alpha: 0.088),
-                                  Colors.transparent,
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      playerSurface,
-                    ],
-                  );
+                  return playerSurface;
                 },
               ),
-            ),
           ),
         ),
       ),
