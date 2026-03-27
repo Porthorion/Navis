@@ -38,9 +38,23 @@ Minimum tested versions:
 - Windows: system media transport controls are bridged through `smtc_windows`.
 - macOS: desktop runtime is supported, but native `MPRemoteCommandCenter` / `MPNowPlayingInfoCenter` integration is still planned work.
 
+## Tech Stack
+
+| Layer | Package | Version |
+|---|---|---|
+| UI framework | Flutter | ≥ 3.41.0 |
+| Language | Dart | ^3.11.0 |
+| State management | flutter_riverpod | ^3.3.1 |
+| Navigation | go_router | ^17.1.0 |
+| Local database | drift + drift_flutter | ^2.32.1 |
+| Audio playback | just_audio + audio_service | ^0.10.5 / ^0.18.18 |
+| Data classes | freezed_annotation + json_annotation | ^3.1.0 / ^4.11.0 |
+| Linux desktop media | audio_service_mpris | ^0.2.1 |
+| Windows desktop media | smtc_windows | latest |
+
 ## Dependency Maintenance
 
-Dependency hygiene is tracked as part of release prep. The current `flutter pub outdated` backlog includes direct upgrades for `drift`, `drift_flutter`, `drift_dev`, and `json_serializable`, with additional transitive follow-up in the analyzer/sqlite/win32 chain.
+A comprehensive dependency sweep was completed in March 2026 (13 packages upgraded across 5 phases; `riverpod_lint` removed as its runner was already disabled). The current `flutter pub outdated` backlog contains packages that are hard-blocked by transitive constraints from other indirect dependencies and cannot be upgraded without corresponding upstream changes.
 
 ## Quick Start
 
