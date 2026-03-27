@@ -368,28 +368,32 @@ class _ArtistImageHeader extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: <Widget>[
                     Expanded(
-                      child: Text(
-                        artistName,
-                        style: Theme.of(context).textTheme.displayLarge
-                            ?.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: -1.0,
-                              height: 1.05,
-                              fontSize: 64,
-                              shadows: const <Shadow>[
-                                Shadow(
-                                  blurRadius: 4,
-                                  color: Color(0xCC000000),
-                                ),
-                                Shadow(
-                                  blurRadius: 24,
-                                  color: Color(0xAA000000),
-                                ),
-                              ],
-                            ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.bottomLeft,
+                        child: Text(
+                          artistName,
+                          style: Theme.of(context).textTheme.displayLarge
+                              ?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -1.0,
+                                height: 1.05,
+                                fontSize: 64,
+                                shadows: const <Shadow>[
+                                  Shadow(
+                                    blurRadius: 4,
+                                    color: Color(0xCC000000),
+                                  ),
+                                  Shadow(
+                                    blurRadius: 24,
+                                    color: Color(0xAA000000),
+                                  ),
+                                ],
+                              ),
+                          maxLines: 1,
+                          overflow: TextOverflow.clip,
+                        ),
                       ),
                     ),
                     IconButton(
@@ -455,12 +459,18 @@ class _ArtistNameHeader extends StatelessWidget {
           ),
           const SizedBox(width: 16),
           Expanded(
-            child: Text(
-              name,
-              style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                fontWeight: FontWeight.w900,
-                letterSpacing: -1.0,
-                fontSize: 56,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                name,
+                style: Theme.of(context).textTheme.displayLarge?.copyWith(
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -1.0,
+                  fontSize: 56,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.clip,
               ),
             ),
           ),
@@ -599,7 +609,7 @@ class _SimilarArtistsSection extends StatelessWidget {
                 itemCount: visibleArtists.length,
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: crossAxisCount,
-                  mainAxisExtent: 168,
+                  mainAxisExtent: 184,
                   crossAxisSpacing: spacing,
                   mainAxisSpacing: spacing,
                 ),

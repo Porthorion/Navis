@@ -21,6 +21,8 @@ enum DesktopCommandAction {
   playPause,
   nextTrack,
   previousTrack,
+  refreshLibrary,
+  forceRescanLibrary,
 }
 
 @immutable
@@ -99,6 +101,8 @@ const List<DesktopCommandAction> configurableDesktopShortcutActions =
       DesktopCommandAction.goLibrary,
       DesktopCommandAction.goSearch,
       DesktopCommandAction.goSettings,
+      DesktopCommandAction.refreshLibrary,
+      DesktopCommandAction.forceRescanLibrary,
     ];
 
 Map<DesktopCommandAction, DesktopShortcutBinding?>
@@ -126,6 +130,13 @@ defaultDesktopShortcutBindings() {
         ),
         DesktopCommandAction.goSettings: const DesktopShortcutBinding(
           key: LogicalKeyboardKey.digit4,
+        ),
+        DesktopCommandAction.refreshLibrary: const DesktopShortcutBinding(
+          key: LogicalKeyboardKey.keyR,
+        ),
+        DesktopCommandAction.forceRescanLibrary: const DesktopShortcutBinding(
+          key: LogicalKeyboardKey.keyR,
+          shift: true,
         ),
       },
     ),

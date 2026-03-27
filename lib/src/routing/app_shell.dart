@@ -1012,6 +1012,20 @@ class _AppShellState extends ConsumerState<AppShell> {
           }
           await ref.read(audioHandlerProvider)?.skipToPrevious();
           return;
+        case DesktopCommandAction.refreshLibrary:
+          unawaited(
+            ref
+                .read(librarySyncControllerProvider.notifier)
+                .syncNow(preferIncremental: true),
+          );
+          return;
+        case DesktopCommandAction.forceRescanLibrary:
+          unawaited(
+            ref
+                .read(librarySyncControllerProvider.notifier)
+                .syncNow(forceFull: true),
+          );
+          return;
       }
     }
 

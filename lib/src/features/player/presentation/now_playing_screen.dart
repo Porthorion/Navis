@@ -566,7 +566,12 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                     ),
                   );
 
-            if (widget.onCollapse == null) {
+            final platform = Theme.of(context).platform;
+            final showCollapseButton = widget.onCollapse != null &&
+                platform != TargetPlatform.android &&
+                platform != TargetPlatform.iOS;
+
+            if (!showCollapseButton) {
               return surface;
             }
 

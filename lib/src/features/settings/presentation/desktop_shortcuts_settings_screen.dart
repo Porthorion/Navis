@@ -301,6 +301,8 @@ class _DesktopShortcutsSettingsScreenState
       DesktopCommandAction.playPause => Icons.play_arrow_rounded,
       DesktopCommandAction.nextTrack => Icons.skip_next_rounded,
       DesktopCommandAction.previousTrack => Icons.skip_previous_rounded,
+      DesktopCommandAction.refreshLibrary => Icons.refresh_rounded,
+      DesktopCommandAction.forceRescanLibrary => Icons.find_replace_rounded,
     };
   }
 
@@ -317,6 +319,8 @@ class _DesktopShortcutsSettingsScreenState
       DesktopCommandAction.playPause => 'Play / Pause',
       DesktopCommandAction.nextTrack => 'Next Track',
       DesktopCommandAction.previousTrack => 'Previous Track',
+      DesktopCommandAction.refreshLibrary => 'Refresh Library',
+      DesktopCommandAction.forceRescanLibrary => 'Force Full Rescan',
     };
   }
 
@@ -335,6 +339,9 @@ class _DesktopShortcutsSettingsScreenState
       DesktopCommandAction.playPause => 'Toggle playback',
       DesktopCommandAction.nextTrack => 'Skip to next track',
       DesktopCommandAction.previousTrack => 'Skip to previous track',
+      DesktopCommandAction.refreshLibrary => 'Sync new changes to the library',
+      DesktopCommandAction.forceRescanLibrary =>
+        'Force a complete rescan of all library files',
     };
   }
 }
