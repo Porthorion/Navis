@@ -15,7 +15,7 @@
 |-------|-------------|--------|
 | Phase 1 | Safe patch updates (5 packages) | ✅ Done |
 | Phase 2 | Code generation chain (4 packages) | ✅ Done |
-| Phase 3 | Drift stack (3 packages) | ❌ Blocked |
+| Phase 3 | Drift stack (3 packages) | ✅ Done |
 | Phase 4 | Riverpod minor update (1 package) | ✅ Done |
 | Phase 5 | Logger minor update (1 package) | ✅ Done |
 
@@ -82,18 +82,18 @@
 
 | Step | Package | Change | Status | Notes |
 |------|---------|--------|--------|-------|
-| 3a | drift | `^2.31.0` → `^2.32.1` | ❌ | blocked by riverpod_lint analyzer conflict |
-| 3b | drift_dev | `^2.31.0` → `^2.32.1` | ❌ | `drift_dev >2.31.0` requires `analyzer >=10.0.0 <13.0.0`; `riverpod_lint 3.1.3` pins `analyzer ^9.0.0` — incompatible. `drift_dev 2.31.0` requires `drift <2.32.0` so all three are locked together. |
-| 3c | drift_flutter | `^0.2.5` → `^0.3.0` | ❌ | blocked by riverpod_lint analyzer conflict |
+| 3a | drift | `^2.31.0` → `^2.32.1` | ✅ | |
+| 3b | drift_dev | `^2.31.0` → `^2.32.1` | ✅ | unblocked by removing inactive `riverpod_lint` |
+| 3c | drift_flutter | `^0.2.5` → `^0.3.0` | ✅ | |
 
 ### Phase 3 Checklist
 
-> **BLOCKED — Cannot proceed until `riverpod_lint` supports `analyzer >=10.0.0`.**
->
-> Root cause: `drift_dev >2.31.0` requires `analyzer >=10.0.0 <13.0.0`. `riverpod_lint 3.1.3` (current latest) pins `analyzer ^9.0.0`. These constraints are mutually exclusive.
-> Additionally, `drift_dev 2.31.0` (the last compatible version) requires `drift >=2.30.0 <2.32.0`, which prevents upgrading the drift runtime independently.
->
-> **Resolution path:** Wait for `riverpod_lint ^3.2.x` (or any version that accepts `analyzer >=10.0.0`) to be published, then attempt this phase again.
+- [x] Remove inactive `riverpod_lint` dev dependency (unblocks analyzer constraint)
+- [x] Update 3 version constraints in `pubspec.yaml`
+- [x] `flutter pub get` succeeds (analyzer jumped to 10.0.1)
+- [x] `dart run build_runner build --delete-conflicting-outputs` succeeds (570 outputs in 22s)
+- [x] `flutter analyze` — 228 issues (226 pre-existing + 2 new `use_null_aware_elements` hints surfaced by analyzer 10.x on pre-existing code; no errors/warnings)
+- [x] `flutter test` — +342 -14 (14 pre-existing failures, unchanged)
 
 ---
 
@@ -160,7 +160,7 @@ Phase 3 (drift stack) is blocked — see Phase 3 section. All other phases compl
 | # | Phase | Package | Issue | Resolution |
 |---|-------|---------|-------|------------|
 | 1 | 2 | json_serializable | `6.13.1` requires `analyzer >=10.0.0 <13.0.0`; incompatible with `riverpod_lint 3.1.3` (`analyzer ^9.0.0`) | Capped at `^6.13.0` (resolves to 6.13.0) |
-| 2 | 3 | drift stack | `drift_dev >2.31.0` requires `analyzer >=10.0.0`; `riverpod_lint 3.1.3` pins `analyzer ^9.0.0`. `drift_dev 2.31.0` requires `drift <2.32.0` — entire stack is locked. | Blocked; waiting for `riverpod_lint` to relax its analyzer constraint |
+| 2 | 3 | drift stack | `drift_dev >2.31.0` requires `analyzer >=10.0.0`; `riverpod_lint 3.1.3` pins `analyzer ^9.0.0`. Entire stack was locked. | Removed inactive `riverpod_lint` (its runner `custom_lint` was already commented out — zero rules were firing). Drift stack upgraded successfully. |
 
 | Date | Phase | Package | Issue | Resolution |
 |------|-------|---------|-------|------------|
