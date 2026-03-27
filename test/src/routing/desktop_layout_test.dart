@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/widgets.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/routing/desktop_window_controller.dart';
 
 void main() {
   test('resolveDesktopLayoutClass uses expected breakpoints', () {
@@ -157,6 +158,28 @@ void main() {
     expect(context.useDesktopShell, isFalse);
     expect(context.useCompactWideLandscape, isTrue);
     expect(context.adaptiveShellMode, AdaptiveShellMode.compactWideLandscape);
+  });
+
+  test('focus player preset resolves to compact-wide landscape', () {
+    final context = resolveAdaptiveContext(
+      desktopRuntime: true,
+      viewportSize: DesktopWindowController.focusDefaultSize,
+      safePadding: EdgeInsets.zero,
+    );
+
+    expect(context.useDesktopShell, isFalse);
+    expect(context.useCompactWideLandscape, isTrue);
+  });
+
+  test('normal desktop minimum keeps desktop shell disabled at narrow width', () {
+    final context = resolveAdaptiveContext(
+      desktopRuntime: true,
+      viewportSize: DesktopWindowController.normalMinSize,
+      safePadding: EdgeInsets.zero,
+    );
+
+    expect(context.useDesktopShell, isFalse);
+    expect(context.adaptiveShellMode, AdaptiveShellMode.phoneBottomNav);
   });
 
   testWidgets('resolveAdaptiveContextFor prefers scoped context', (

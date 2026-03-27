@@ -968,6 +968,43 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('desktop player and desktop now playing expose focus mode toggles', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1280, 1000);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(),
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const NavisApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('desktopPlayerFocusButton')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('desktopPlayerOpenHit')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('desktopNowPlayingFocusButton')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'adaptive input interactions remain stable across tablet and desktop widths',
     (tester) async {

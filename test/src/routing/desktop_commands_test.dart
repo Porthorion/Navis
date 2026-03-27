@@ -94,6 +94,40 @@ void main() {
     );
   });
 
+  test('primary modifier activator uses meta on macOS', () {
+    const binding = DesktopShortcutBinding(key: LogicalKeyboardKey.keyF);
+
+    expect(
+      binding.toActivator(TargetPlatform.macOS).toString(),
+      contains('Meta + Key F'),
+    );
+  });
+
+  test('primary modifier activator uses control on Linux and Windows', () {
+    const binding = DesktopShortcutBinding(key: LogicalKeyboardKey.keyF);
+
+    expect(
+      binding.toActivator(TargetPlatform.linux).toString(),
+      contains('Control + Key F'),
+    );
+    expect(
+      binding.toActivator(TargetPlatform.windows).toString(),
+      contains('Control + Key F'),
+    );
+  });
+
+  test('shortcut labels use platform-specific modifier names', () {
+    const binding = DesktopShortcutBinding(
+      key: LogicalKeyboardKey.keyJ,
+      alt: true,
+      shift: true,
+    );
+
+    expect(binding.formatLabel(TargetPlatform.macOS), 'Cmd+Option+Shift+J');
+    expect(binding.formatLabel(TargetPlatform.linux), 'Ctrl+Alt+Shift+J');
+    expect(binding.formatLabel(TargetPlatform.windows), 'Ctrl+Alt+Shift+J');
+  });
+
   test('desktop shortcut bindings encode to null when unchanged', () {
     final defaults = defaultDesktopShortcutBindings();
     expect(encodeDesktopShortcutBindings(defaults), isNull);

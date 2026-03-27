@@ -45,6 +45,7 @@ class AppSettingsModel {
     required this.nowPlayingArtShape,
     required this.artistCardShape,
     required this.artistViewMode,
+    this.desktopFocusPlayerModeEnabled = false,
     this.homeDensity = 'comfortable',
     required this.homeSectionOrder,
     required this.homeSectionsHidden,
@@ -92,6 +93,7 @@ class AppSettingsModel {
       nowPlayingArtShape = 'rounded',
       artistCardShape = 'circle',
       artistViewMode = 'grid',
+      desktopFocusPlayerModeEnabled = false,
       homeDensity = 'comfortable',
       homeSectionOrder = null,
       homeSectionsHidden = null;
@@ -156,6 +158,9 @@ class AppSettingsModel {
   /// Artist view layout: 'list' or 'grid'.
   final String artistViewMode;
 
+  /// When true on desktop runtime, the app launches in compact focus mode.
+  final bool desktopFocusPlayerModeEnabled;
+
   /// Home layout density: 'comfortable' or 'compact'.
   final String homeDensity;
 
@@ -207,6 +212,7 @@ class AppSettingsModel {
     String? nowPlayingArtShape,
     String? artistCardShape,
     String? artistViewMode,
+    bool? desktopFocusPlayerModeEnabled,
     String? homeDensity,
     List<String>? homeSectionOrder,
     List<String>? homeSectionsHidden,
@@ -283,6 +289,8 @@ class AppSettingsModel {
       nowPlayingArtShape: nowPlayingArtShape ?? this.nowPlayingArtShape,
       artistCardShape: artistCardShape ?? this.artistCardShape,
       artistViewMode: artistViewMode ?? this.artistViewMode,
+      desktopFocusPlayerModeEnabled:
+          desktopFocusPlayerModeEnabled ?? this.desktopFocusPlayerModeEnabled,
       homeDensity: homeDensity ?? this.homeDensity,
       homeSectionOrder: clearHomeSectionOrder
           ? null

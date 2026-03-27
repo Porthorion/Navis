@@ -36,3 +36,18 @@ final librarySectionProvider =
     NotifierProvider<_LibrarySectionNotifier, LibrarySection>(
       _LibrarySectionNotifier.new,
     );
+
+/// Whether a library type-to-filter session is currently active (the overlay
+/// text is visible). While `true`, transport shortcuts like space → play/pause
+/// should be suppressed to avoid interfering with filter input.
+class _LibraryTypeFilterActiveNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  set active(bool value) => state = value;
+}
+
+final libraryTypeFilterActiveProvider =
+    NotifierProvider<_LibraryTypeFilterActiveNotifier, bool>(
+      _LibraryTypeFilterActiveNotifier.new,
+    );

@@ -6,11 +6,11 @@ Navis is a Flutter Subsonic/OpenSubsonic music client focused on fast library br
 
 | Platform | Status | Notes |
 |---|---|---|
-| Android | Supported | Primary mobile target, side-by-side dev build flow available |
-| iOS | Supported | Built from macOS/Xcode |
-| macOS | Supported | Native desktop build on macOS |
-| Linux | Supported | Built on Linux host or remote Linux builder |
-| Windows | Supported | Built on Windows host or remote Windows builder |
+| Android | Supported | Primary mobile target; `audio_service` media session/notification path active |
+| iOS | Supported | Built from macOS/Xcode; playback path active, CarPlay and media-session parity still under audit |
+| macOS | Supported | Native desktop build with adaptive shell and shortcuts; native Control Centre bridge still pending |
+| Linux | Supported | Native desktop build with adaptive shell, shortcuts, and MPRIS integration |
+| Windows | Supported | Native desktop build with adaptive shell, shortcuts, and SMTC integration |
 
 Minimum tested versions:
 - Android 8.0 (API 26)
@@ -27,7 +27,20 @@ Minimum tested versions:
 - Synced/unsynced lyrics with full-screen now playing
 - Offline cache plus permanent download modes
 - Adaptive layouts that scale from phone to tablet/desktop
+- Keyboard-first desktop controls with platform-aware shortcuts, quick search, queue toggle, and guarded transport actions while typing
+- Desktop volume controls in the bottom player and desktop-wide now playing surfaces
 - Channel-aware updater behavior for stable/dev release tracks
+
+## Media Integration Status
+
+- Android: media session and notification metadata are handled through `audio_service`.
+- Linux: desktop now-playing and media-key integration are exposed through MPRIS via `audio_service_mpris`.
+- Windows: system media transport controls are bridged through `smtc_windows`.
+- macOS: desktop runtime is supported, but native `MPRemoteCommandCenter` / `MPNowPlayingInfoCenter` integration is still planned work.
+
+## Dependency Maintenance
+
+Dependency hygiene is tracked as part of release prep. The current `flutter pub outdated` backlog includes direct upgrades for `drift`, `drift_flutter`, `drift_dev`, and `json_serializable`, with additional transitive follow-up in the analyzer/sqlite/win32 chain.
 
 ## Quick Start
 

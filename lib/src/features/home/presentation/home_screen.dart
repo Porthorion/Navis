@@ -310,6 +310,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     ),
                   ),
                 ),
+                const _DesktopHomeQuickActions(),
               ],
             ),
           )
@@ -408,6 +409,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     AdaptiveLayoutClass adaptiveLayoutClass,
     bool compactWideLandscapeMode,
   ) {
+    // Quick actions are shown inline in the desktop brand row instead.
+    if (desktopMode && sectionId == HomeSectionIds.quickActions) {
+      return const <Widget>[];
+    }
     final l10n = AppLocalizations.of(context)!;
     final sectionDensity = homeDensity == 'compact'
         ? _HomeSectionDensity.compact
@@ -1126,7 +1131,7 @@ class _ServerAlbumCarousel extends ConsumerWidget {
               : (compactDensity ? 152.0 : 162.0))
         : (compactDensity ? 138.0 : 150.0);
     final horizontalPadding = desktopMode
-        ? 4.0
+        ? 0.0
         : (tabletMode ? (compactWideLandscapeMode ? 0.0 : 12.0) : 16.0);
     final separatorWidth = compactDensity ? 10.0 : (tabletMode ? 14.0 : 12.0);
     if (desktopMode) {
@@ -1226,7 +1231,7 @@ class _LocalAlbumCarousel extends ConsumerWidget {
               : (compactDensity ? 152.0 : 162.0))
         : (compactDensity ? 138.0 : 150.0);
     final horizontalPadding = desktopMode
-        ? 4.0
+        ? 0.0
         : (tabletMode ? (compactWideLandscapeMode ? 0.0 : 12.0) : 16.0);
     final separatorWidth = compactDensity ? 10.0 : (tabletMode ? 14.0 : 12.0);
     if (desktopMode) {
@@ -1309,7 +1314,6 @@ class _DesktopScrollableCarousel extends StatefulWidget {
 
 class _DesktopScrollableCarouselState
     extends State<_DesktopScrollableCarousel> {
-  static const double _arrowLaneWidth = 38;
   static const double _edgeButtonSize = 34;
 
   late final ScrollController _scrollController;
@@ -1389,11 +1393,7 @@ class _DesktopScrollableCarouselState
           final list = ListView.separated(
             controller: _scrollController,
             scrollDirection: Axis.horizontal,
-            padding: EdgeInsets.symmetric(
-              horizontal:
-                  widget.horizontalPadding +
-                  (canHaveArrows ? _arrowLaneWidth : 0),
-            ),
+            padding: EdgeInsets.symmetric(horizontal: widget.horizontalPadding),
             itemCount: widget.itemCount,
             separatorBuilder: (_, _) => SizedBox(width: widget.separatorWidth),
             itemBuilder: widget.itemBuilder,
@@ -3088,6 +3088,90 @@ class _QuickActionsSection extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Desktop quick-action icon buttons (brand row, right side)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _DesktopHomeQuickActions extends ConsumerWidget {
+  const _DesktopHomeQuickActions();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final likedOnly = ref.watch(homeLikedOnlyFilterProvider);
+    final downloadedOnly = ref.watch(downloadedOnlyFilterProvider);
+    final downloadedSongIds = downloadedOnly
+        ? (ref.watch(downloadedSongIdsProvider).asData?.value ??
+              const <String>{})
+        : const <String>{};
+    final likedSongs =
+        ref.watch(likedSongsProvider).asData?.value ?? const <SongsTableData>[];
+    final likedIds =
+        (downloadedOnly
+                ? likedSongs.where(
+                    (s) => downloadedSongIds.contains(s.id),
+                  )
+                : likedSongs)
+            .map((s) => s.id)
+            .toList(growable: false);
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        IconButton(
+          tooltip: AppLocalizations.of(context)!.libraryLikedOnlyFilter,
+          icon: Icon(
+            likedOnly
+                ? Icons.favorite_rounded
+                : Icons.favorite_border_rounded,
+          ),
+          color: likedOnly ? colorScheme.primary : null,
+          onPressed: () {
+            ref.read(homeLikedOnlyFilterProvider.notifier).enabled = !likedOnly;
+          },
+        ),
+        IconButton(
+          tooltip:
+              AppLocalizations.of(context)!.libraryDownloadedOnlyFilter,
+          icon: Icon(
+            downloadedOnly
+                ? Icons.download_done_rounded
+                : Icons.download_rounded,
+          ),
+          color: downloadedOnly ? colorScheme.primary : null,
+          onPressed: () {
+            ref.read(downloadedOnlyFilterProvider.notifier).enabled =
+                !downloadedOnly;
+          },
+        ),
+        IconButton(
+          tooltip: 'Instant Radio',
+          icon: const Icon(Icons.radio_rounded),
+          onPressed: likedIds.isEmpty
+              ? null
+              : () {
+                  final seedSongId =
+                      likedIds[math.Random().nextInt(likedIds.length)];
+                  ref
+                      .read(queueProvider.notifier)
+                      .replace(<String>[seedSongId], autoPlay: true)
+                      .then((_) async {
+                        await activatePreferredMixMode(
+                          ref,
+                          seedSongId: seedSongId,
+                        );
+                        ref
+                            .read(playerOverlayStackProvider.notifier)
+                            .expand();
+                      })
+                      .ignore();
+                },
+        ),
+      ],
     );
   }
 }

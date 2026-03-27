@@ -64,6 +64,9 @@ void main() {
         find.byType(AppBar),
         step.desktopFrame ? findsNothing : findsOneWidget,
       );
+      if (step.size.width >= 1200) {
+        expect(find.text('Desktop Window'), findsOneWidget);
+      }
       expect(tester.takeException(), isNull);
     }
   });

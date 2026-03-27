@@ -16,19 +16,7 @@ class DesktopFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = desktopTokensOf(context);
-    final maxWidth = switch (layoutClass) {
-      DesktopLayoutClass.compactDesktop => tokens.frameMaxWidthCompact,
-      DesktopLayoutClass.standardDesktop => tokens.frameMaxWidthStandard,
-      DesktopLayoutClass.ultraWideDesktop => tokens.frameMaxWidthUltraWide,
-    };
-    return Align(
-      alignment: Alignment.topCenter,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: maxWidth),
-        child: Padding(padding: padding, child: child),
-      ),
-    );
+    return Padding(padding: padding, child: child);
   }
 }
 

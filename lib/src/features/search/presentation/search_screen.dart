@@ -30,7 +30,7 @@ class SearchScreen extends ConsumerStatefulWidget {
 class _SearchScreenState extends ConsumerState<SearchScreen> {
   final _controller = TextEditingController();
   final _focusNode = FocusNode();
-  final _expandedSections = <SearchResultType, bool>{};
+  // Filter chips navigate to the relevant section; no inline expansion tracking needed.
   late final ProviderSubscription<int> _focusRequestSubscription;
   late final ProviderSubscription<bool> _playerExpandedSubscription;
   int _lastFocusRequest = 0;
@@ -335,7 +335,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   Widget _buildResults({bool desktopMode = false}) {
     final results = ref.watch(debouncedSearchProvider);
+    final filter = ref.watch(searchFilterProvider);
     final l10n = AppLocalizations.of(context)!;
+
+    // When a category filter is active, auto-expand that section.
+    bool isExpanded(SearchResultType type) => filter == type;
 
     return results.when(
       data: (data) {
@@ -355,31 +359,46 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               _ArtistResultsSection(
                 artists: data.artists,
                 desktopMode: desktopMode,
-                expanded: _expandedSections[SearchResultType.artists] ?? false,
-                onToggleExpanded: () => setState(() {
-                  _expandedSections[SearchResultType.artists] =
-                      !(_expandedSections[SearchResultType.artists] ?? false);
-                }),
+                expanded: isExpanded(SearchResultType.artists),
+                onToggleExpanded: () {
+                  if (filter == SearchResultType.artists) {
+                    ref.read(searchFilterProvider.notifier).select(null);
+                  } else {
+                    ref
+                        .read(searchFilterProvider.notifier)
+                        .select(SearchResultType.artists);
+                  }
+                },
               ),
             if (data.albums.isNotEmpty)
               _AlbumResultsSection(
                 albums: data.albums,
                 desktopMode: desktopMode,
-                expanded: _expandedSections[SearchResultType.albums] ?? false,
-                onToggleExpanded: () => setState(() {
-                  _expandedSections[SearchResultType.albums] =
-                      !(_expandedSections[SearchResultType.albums] ?? false);
-                }),
+                expanded: isExpanded(SearchResultType.albums),
+                onToggleExpanded: () {
+                  if (filter == SearchResultType.albums) {
+                    ref.read(searchFilterProvider.notifier).select(null);
+                  } else {
+                    ref
+                        .read(searchFilterProvider.notifier)
+                        .select(SearchResultType.albums);
+                  }
+                },
               ),
             if (data.songs.isNotEmpty)
               _SongResultsSection(
                 songs: data.songs,
                 desktopMode: desktopMode,
-                expanded: _expandedSections[SearchResultType.songs] ?? false,
-                onToggleExpanded: () => setState(() {
-                  _expandedSections[SearchResultType.songs] =
-                      !(_expandedSections[SearchResultType.songs] ?? false);
-                }),
+                expanded: isExpanded(SearchResultType.songs),
+                onToggleExpanded: () {
+                  if (filter == SearchResultType.songs) {
+                    ref.read(searchFilterProvider.notifier).select(null);
+                  } else {
+                    ref
+                        .read(searchFilterProvider.notifier)
+                        .select(SearchResultType.songs);
+                  }
+                },
               ),
           ],
         );

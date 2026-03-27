@@ -24,7 +24,7 @@ class SettingsScreen extends ConsumerWidget {
     const groupAutomation = 'Automation';
     const groupAbout = 'About';
     const groupDesktop = 'Desktop';
-    final entries = <_SettingsEntry>[
+    final List<_SettingsEntry> coreEntries = <_SettingsEntry>[
       _SettingsEntry(
         icon: Icons.storage_outlined,
         title: l10n.settingsServerTitle,
@@ -67,13 +67,16 @@ class SettingsScreen extends ConsumerWidget {
         route: '/settings/appearance',
         group: groupPlayback,
       ),
-      _SettingsEntry(
-        icon: Icons.info_outline,
-        title: l10n.aboutTitle,
-        subtitle: null,
-        route: '/settings/about',
-        group: groupAbout,
-      ),
+    ];
+    final List<_SettingsEntry> desktopEntries = [
+      if (adaptiveContext.desktopRuntime)
+        const _SettingsEntry(
+          icon: Icons.picture_in_picture_alt_outlined,
+          title: 'Desktop Window',
+          subtitle: 'Configure Focus Player Mode and compact desktop behavior',
+          route: '/settings/desktop-window',
+          group: groupDesktop,
+        ),
       if (adaptiveContext.desktopRuntime)
         const _SettingsEntry(
           icon: Icons.keyboard_command_key_rounded,
@@ -82,6 +85,19 @@ class SettingsScreen extends ConsumerWidget {
           route: '/settings/shortcuts',
           group: groupDesktop,
         ),
+    ];
+    final _SettingsEntry aboutEntry = _SettingsEntry(
+      icon: Icons.info_outline,
+      title: l10n.aboutTitle,
+      subtitle: null,
+      route: '/settings/about',
+      group: groupAbout,
+    );
+    // Desktop entries come between core and About so About is always last.
+    final entries = <_SettingsEntry>[
+      ...coreEntries,
+      ...desktopEntries,
+      aboutEntry,
     ];
 
     final groups = <String, List<_SettingsEntry>>{};

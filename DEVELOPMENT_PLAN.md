@@ -271,6 +271,8 @@ flutter pub outdated
 dart pub outdated
 ```
 
+Known follow-up sweep (2026-03-27): prioritize `drift`, `drift_flutter`, `drift_dev`, and `json_serializable`, then review the transitive analyzer/sqlite/win32 chain before the next release hardening pass.
+
 **Tooling maintenance rule (mandatory for AI agent sessions)**:
 - Any change to quality gates, test commands, Flutter/Dart versions, or release packaging must be reflected in `tool/check.sh` and/or `tool/release.sh` in the same task/PR.
 - Record tooling updates in `PROGRESS.md` with date + evidence, same as code/test tasks.
@@ -2089,6 +2091,7 @@ Supporting implementation notes:
 - Keep `audio_service` dependency for shared pure-Dart media types used across code (`MediaItem`, shuffle/repeat enums) even when Windows bypasses `AudioService.init()`.
 - Add Linux desktop support through `audio_service_mpris` instead of a custom MPRIS bridge.
 - Use `smtc_windows` only on Windows for transport controls and metadata sync.
+- Current implementation status (2026-03-27): Android media session path is active, Linux MPRIS is active, Windows SMTC is active, and macOS still needs a native `MPRemoteCommandCenter` / `MPNowPlayingInfoCenter` bridge. iOS continues to use the shared `audio_service` path but needs an explicit parity audit for lock-screen/control-center metadata behavior.
 
 Desktop playback limitation accepted for Phase 26:
 
@@ -2126,11 +2129,12 @@ Execute in this order to reduce rework:
 1. Playback preflight and runtime split
 2. Linux MPRIS enablement via `audio_service_mpris`
 3. Windows handler implementation and SMTC bridge
-4. Desktop caching-compatibility guards in source resolver
-5. Bootstrap gate hardening so unsupported platform init does not block app launch
-6. Adaptive shell rollout with breakpoints and desktop/ultra-wide tuning
-7. Full-width desktop bottom player and immersive lyrics/player expansion flow
-8. Desktop window persistence and packaging profiles per target OS
+4. macOS native Control Centre / remote-command bridge and iOS media-session parity audit
+5. Desktop caching-compatibility guards in source resolver
+6. Bootstrap gate hardening so unsupported platform init does not block app launch
+7. Adaptive shell rollout with breakpoints and desktop/ultra-wide tuning
+8. Full-width desktop bottom player and immersive lyrics/player expansion flow
+9. Desktop window persistence and packaging profiles per target OS
 
 ### 26.E Dependencies Planned in This Phase
 
@@ -2148,6 +2152,10 @@ Keep existing playback deps in place for shared runtime paths:
 - `audio_service`
 - `just_audio`
 - `audio_session` (guarded at runtime where unsupported)
+
+Post-implementation dependency follow-up:
+
+- After the `0.9.0` documentation/release-prep pass, run a targeted dependency sweep over Drift/codegen/tooling and desktop platform packages before the next release hardening pass.
 
 ## Phase 27: Platform Surface Extensions (Priority Execution)
 
@@ -2266,12 +2274,15 @@ Canonical execution phase for converging desktop/tablet/phone UX into one adapti
 - `ACP-M4-02`: standardize keyboard and pointer affordances where adaptive modes diverge.
 - `ACP-M4-03`: add explicit adaptive input checks to QA matrix.
 - `ACP-M4-04`: add a deferred user-toggleable compact player window mode ("Focus Player Mode") that locks the app window to a compact-wide-friendly aspect/size preset and allows quick return to normal adaptive behavior.
+- `ACP-M4-05`: polish overlapping keyboard/input systems across desktop surfaces, including quick-search vs library-filter precedence, transport suppression while typing, and cross-platform primary-modifier parity.
 
 #### M5 — Platform capability layer
 
 - `ACP-M5-01`: centralize desktop media capability checks for `audio_service`, `audio_service_mpris`, and `smtc_windows`.
 - `ACP-M5-02`: ensure graceful runtime fallback for unsupported feature surfaces.
 - `ACP-M5-03`: evaluate dependency hygiene for `audio_service_mpris` version alignment.
+- `ACP-M5-04`: extend system media API parity to macOS native `MPRemoteCommandCenter` / `MPNowPlayingInfoCenter` handling and audit iOS media-session parity.
+- `ACP-M5-05`: run a dependency hygiene sweep over desktop/audio/adaptive packages before release hardening.
 
 #### M6 — Validation + release readiness
 

@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/home/presentation/home_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 
 class AppearanceSettingsScreen extends ConsumerWidget {
@@ -39,6 +40,14 @@ class AppearanceSettingsScreen extends ConsumerWidget {
     final sanitizedHidden = baseHidden
         .where(allowedHomeSectionIds.contains)
         .toList(growable: false);
+    final isDesktop =
+        resolveAdaptiveContextFor(context).useDesktopShell;
+    // Quick Actions move to the desktop brand row; hide from the setting.
+    final displayOrder = isDesktop
+        ? sanitizedOrder
+            .where((id) => id != HomeSectionIds.quickActions)
+            .toList(growable: false)
+        : sanitizedOrder;
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.appearanceTitle)),
@@ -334,7 +343,7 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                   },
                 ),
                 _HomeSectionReorder(
-                  order: sanitizedOrder,
+                  order: displayOrder,
                   hidden: sanitizedHidden,
                   onReorder: (newOrder) async {
                     final db = ref.read(navisDatabaseProvider);

@@ -28,6 +28,7 @@ import 'package:navis/src/features/player/presentation/same_vibes_notifier.dart'
 import 'package:navis/src/features/player/presentation/smart_queue_notifier.dart';
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/src/features/player/presentation/desktop_volume_slider.dart';
+import 'package:navis/src/common_widgets/lyrics_display_widget.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_sheet.dart';
 import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
@@ -36,10 +37,16 @@ import 'package:navis/src/features/library/presentation/star_sync_dispatch_provi
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/features/home/presentation/home_scroll_provider.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart'
-    show searchFocusRequestProvider, searchQueryProvider;
+    show
+        quickSearchOverlayVisibleProvider,
+        searchFocusRequestProvider,
+        searchFilterProvider,
+        searchQueryProvider,
+        SearchResultType;
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_commands.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/routing/desktop_window_controller.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/desktop_tokens.dart';
 import 'package:navis/src/utils/app_logger.dart';
@@ -92,6 +99,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   FocusNode? _queueReturnFocusNode;
   bool _restoreQueueFocusOnDismiss = false;
   bool _showQuickSearchOverlay = false;
+  bool _showDesktopLyricsOverlay = false;
   Timer? _queueCoverArtPrefetchDebounce;
   int _queueCoverArtPrefetchToken = 0;
   bool _globalKeyHandlerInstalled = false;
@@ -167,6 +175,13 @@ class _AppShellState extends ConsumerState<AppShell> {
     // Block transport commands when the user is typing in a text field.
     if (isTextSensitiveDesktopCommand(action) &&
         desktopCommandBlockedByTextInput()) {
+      return false;
+    }
+
+    // Block transport commands while the library type-to-filter overlay is
+    // visible so that e.g. Space doesn't trigger play/pause mid-filter.
+    if (isTextSensitiveDesktopCommand(action) &&
+        ref.read(libraryTypeFilterActiveProvider)) {
       return false;
     }
 
@@ -397,6 +412,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     setState(() {
       _showQuickSearchOverlay = true;
     });
+    ref.read(quickSearchOverlayVisibleProvider.notifier).visible = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_quickSearchFocusNode.canRequestFocus) {
         return;
@@ -418,7 +434,12 @@ class _AppShellState extends ConsumerState<AppShell> {
     setState(() {
       _showQuickSearchOverlay = false;
     });
+    ref.read(quickSearchOverlayVisibleProvider.notifier).visible = false;
     _requestShellFocus();
+  }
+
+  void _toggleDesktopLyricsOverlay() {
+    setState(() => _showDesktopLyricsOverlay = !_showDesktopLyricsOverlay);
   }
 
   @override
@@ -675,6 +696,13 @@ class _AppShellState extends ConsumerState<AppShell> {
     final useCompactWideLandscape = adaptiveContext.useCompactWideLandscape;
     final useStandardRailNavigation = adaptiveContext.useStandardRailNavigation;
     final useRailNavigation = adaptiveContext.useRailNavigation;
+    final isFocusPlayerMode = isDesktopRuntime
+        ? ref.watch(
+            desktopWindowControllerProvider.select(
+              (c) => c.isFocusPlayerMode,
+            ),
+          )
+        : false;
     final desktopTokens = desktopTokensOf(context);
     final desktopSidebarWidth = (screenWidth * 0.22)
         .clamp(
@@ -850,9 +878,16 @@ class _AppShellState extends ConsumerState<AppShell> {
       }
     }
 
-    void submitQuickSearch(String rawQuery) {
+    void submitQuickSearch(String rawQuery, {SearchResultType? filter}) {
       final query = rawQuery.trim();
-      AppLogger.debug('[ACP_INPUT] quickSearch submitted query="$query"');
+      AppLogger.debug('[ACP_INPUT] quickSearch submitted query="$query" filter=${filter?.name}');
+      // If no filter was used in the overlay, reset to "All" so the search
+      // screen starts unfiltered.  If a filter was picked, apply it.
+      if (filter == null) {
+        ref.read(searchFilterProvider.notifier).select(null);
+      } else {
+        ref.read(searchFilterProvider.notifier).select(filter);
+      }
       if (query.isNotEmpty) {
         ref.read(searchQueryProvider.notifier).submit(query);
         unawaited(
@@ -1048,7 +1083,6 @@ class _AppShellState extends ConsumerState<AppShell> {
                         showOfflineBanner: showOfflineBanner,
                         offlineBannerText: l10n.serverOfflineBanner,
                         showPlayer: showPlayer,
-                        isExpanded: isExpanded,
                         showQueueOverlay: showQueueOverlay,
                         hasPlayerOverlay: hasPlayerOverlay,
                         navigationShell: navigationShell,
@@ -1067,15 +1101,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                         showRadioLibraryPage: showRadioLibraryPage,
                         onLibrarySectionSelected: onLibrarySectionSelected,
                         allowScrollableRail: allowScrollableRail,
-                        onOpenPlayer: () {
-                          NavService.dismissKeyboard(context);
-                          ref
-                              .read(playerOverlayStackProvider.notifier)
-                              .expand();
-                        },
-                        onCollapsePlayer: () => ref
-                            .read(playerOverlayStackProvider.notifier)
-                            .collapse(),
+                        onOpenPlayer: _toggleDesktopLyricsOverlay,
                         onToggleQueue: () {
                           if (showQueueOverlay) {
                             _hideQueueWithAnimation();
@@ -1089,12 +1115,21 @@ class _AppShellState extends ConsumerState<AppShell> {
                         onDismissQueue: _handleQueueOverlayDismissed,
                         queueToggleFocusNode: _desktopQueueToggleFocusNode,
                         queueOverlayKey: _queueOverlayKey,
-                        onNowPlayingBackInterceptorChanged: (handler) {
-                          _nowPlayingBackInterceptor = handler;
-                        },
+                        showLyricsOverlay: _showDesktopLyricsOverlay,
+                        onToggleLyrics: _toggleDesktopLyricsOverlay,
                       )
                     else if (useRailNavigation)
-                      Padding(
+                      // In Focus Player Mode with active playback, fill the
+                      // entire window with the NowPlayingScreen and skip the
+                      // navigation rail entirely.
+                      isFocusPlayerMode && showPlayer
+                      ? NowPlayingScreen(
+                          wideEmbeddedMode: true,
+                          onBackInterceptorChanged: (handler) {
+                            _nowPlayingBackInterceptor = handler;
+                          },
+                        )
+                      : Padding(
                         padding: useCompactWideLandscape
                             ? EdgeInsets.only(
                                 left: mediaPadding.left,
@@ -1462,19 +1497,23 @@ class _AppShellState extends ConsumerState<AppShell> {
                               child: navigationShell,
                             ),
                           ),
-                          if (showPlayer && !isExpanded)
-                            SizedBox(
-                              height: ExpandablePlayerSheet.miniPlayerHeight,
-                            ),
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 260),
+                            curve: Curves.easeOutCubic,
+                            height: showPlayer && !isExpanded
+                                ? ExpandablePlayerSheet.miniPlayerHeight
+                                : 0.0,
+                          ),
                         ],
                       ),
-                    if (showPlayer && !useDesktopShell && !useRailNavigation)
-                      Positioned.fill(
-                        left: 0,
-                        child: FocusTraversalOrder(
-                          order: const NumericFocusOrder(20),
-                          child: ExpandablePlayerSheet(
-                            isExpanded: isExpanded,
+                    if (!useDesktopShell && !useRailNavigation)
+                      _SlideUpPlayerTransition(
+                        showPlayer: showPlayer,
+                        child: showPlayer
+                            ? FocusTraversalOrder(
+                                order: const NumericFocusOrder(20),
+                                child: ExpandablePlayerSheet(
+                                  isExpanded: isExpanded,
                             onProgressChanged: (value) {
                               final clamped = value.clamp(0.0, 1.0);
                               if ((_playerSheetProgress.value - clamped).abs() >
@@ -1528,7 +1567,8 @@ class _AppShellState extends ConsumerState<AppShell> {
                               },
                             ),
                           ),
-                        ),
+                        )
+                            : const SizedBox.shrink(),
                       ),
                     if (showPlayer &&
                         !useDesktopShell &&
@@ -1629,7 +1669,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 }
 
-class _DesktopQuickSearchOverlay extends StatelessWidget {
+class _DesktopQuickSearchOverlay extends StatefulWidget {
   const _DesktopQuickSearchOverlay({
     required this.controller,
     required this.focusNode,
@@ -1640,7 +1680,50 @@ class _DesktopQuickSearchOverlay extends StatelessWidget {
   final TextEditingController controller;
   final FocusNode focusNode;
   final VoidCallback onDismiss;
-  final ValueChanged<String> onSubmitted;
+  final void Function(String, {SearchResultType? filter}) onSubmitted;
+
+  @override
+  State<_DesktopQuickSearchOverlay> createState() =>
+      _DesktopQuickSearchOverlayState();
+}
+
+class _DesktopQuickSearchOverlayState
+    extends State<_DesktopQuickSearchOverlay> {
+  static const List<String> _filterLabels = [
+    'Search Everything',
+    'Artists',
+    'Albums',
+    'Songs',
+  ];
+
+  static const List<SearchResultType?> _filterValues = [
+    null,
+    SearchResultType.artists,
+    SearchResultType.albums,
+    SearchResultType.songs,
+  ];
+
+  int _selectedIndex = 0;
+
+  void _cycleNext() {
+    setState(() {
+      _selectedIndex = (_selectedIndex + 1) % _filterValues.length;
+    });
+  }
+
+  void _cyclePrev() {
+    setState(() {
+      _selectedIndex =
+          (_selectedIndex - 1 + _filterValues.length) % _filterValues.length;
+    });
+  }
+
+  void _submit() {
+    widget.onSubmitted(
+      widget.controller.text,
+      filter: _filterValues[_selectedIndex],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1655,7 +1738,7 @@ class _DesktopQuickSearchOverlay extends StatelessWidget {
           actions: <Type, Action<Intent>>{
             DismissIntent: CallbackAction<DismissIntent>(
               onInvoke: (intent) {
-                onDismiss();
+                widget.onDismiss();
                 return null;
               },
             ),
@@ -1672,7 +1755,7 @@ class _DesktopQuickSearchOverlay extends StatelessWidget {
             },
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTap: onDismiss,
+              onTap: widget.onDismiss,
               child: Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 620),
@@ -1686,31 +1769,83 @@ class _DesktopQuickSearchOverlay extends StatelessWidget {
                         borderRadius: BorderRadius.circular(18),
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-                          child: Row(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
                             children: <Widget>[
-                              const Icon(Icons.search),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: TextField(
-                                  key: const ValueKey(
-                                    'desktopQuickSearchField',
+                              Row(
+                                children: <Widget>[
+                                  const Icon(Icons.search),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Focus(
+                                      onKeyEvent: (node, event) {
+                                        if (event is KeyDownEvent) {
+                                          final key = event.logicalKey;
+                                          if (key ==
+                                              LogicalKeyboardKey.tab) {
+                                            if (HardwareKeyboard
+                                                .instance.isShiftPressed) {
+                                              _cyclePrev();
+                                            } else {
+                                              _cycleNext();
+                                            }
+                                            return KeyEventResult.handled;
+                                          } else if (key ==
+                                              LogicalKeyboardKey.arrowRight) {
+                                            _cycleNext();
+                                            return KeyEventResult.handled;
+                                          } else if (key ==
+                                              LogicalKeyboardKey.arrowLeft) {
+                                            _cyclePrev();
+                                            return KeyEventResult.handled;
+                                          }
+                                        }
+                                        return KeyEventResult.ignored;
+                                      },
+                                      child: TextField(
+                                        key: const ValueKey(
+                                          'desktopQuickSearchField',
+                                        ),
+                                        controller: widget.controller,
+                                        focusNode: widget.focusNode,
+                                        autofocus: true,
+                                        textInputAction: TextInputAction.search,
+                                        decoration: const InputDecoration(
+                                          hintText: 'Search library...',
+                                          border: InputBorder.none,
+                                          isDense: true,
+                                        ),
+                                        onSubmitted: (_) => _submit(),
+                                      ),
+                                    ),
                                   ),
-                                  controller: controller,
-                                  focusNode: focusNode,
-                                  autofocus: true,
-                                  textInputAction: TextInputAction.search,
-                                  decoration: const InputDecoration(
-                                    hintText: 'Search library...',
-                                    border: InputBorder.none,
-                                    isDense: true,
+                                  IconButton(
+                                    tooltip: 'Search',
+                                    onPressed: _submit,
+                                    icon: const Icon(
+                                      Icons.arrow_forward_rounded,
+                                    ),
                                   ),
-                                  onSubmitted: onSubmitted,
-                                ),
+                                ],
                               ),
-                              IconButton(
-                                tooltip: 'Search',
-                                onPressed: () => onSubmitted(controller.text),
-                                icon: const Icon(Icons.arrow_forward_rounded),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: <Widget>[
+                                  for (int i = 0;
+                                      i < _filterLabels.length;
+                                      i++) ...<Widget>[
+                                    if (i > 0) const SizedBox(width: 8),
+                                    FilterChip(
+                                      label: Text(_filterLabels[i]),
+                                      selected: _selectedIndex == i,
+                                      onSelected: (_) => setState(
+                                        () => _selectedIndex = i,
+                                      ),
+                                      visualDensity: VisualDensity.compact,
+                                      showCheckmark: false,
+                                    ),
+                                  ],
+                                ],
                               ),
                             ],
                           ),
@@ -1874,7 +2009,6 @@ class _DesktopWorkspace extends StatelessWidget {
     required this.showOfflineBanner,
     required this.offlineBannerText,
     required this.showPlayer,
-    required this.isExpanded,
     required this.showQueueOverlay,
     required this.hasPlayerOverlay,
     required this.navigationShell,
@@ -1894,12 +2028,12 @@ class _DesktopWorkspace extends StatelessWidget {
     required this.showRadioLibraryPage,
     required this.onLibrarySectionSelected,
     required this.onOpenPlayer,
-    required this.onCollapsePlayer,
     required this.onToggleQueue,
     required this.onDismissQueue,
     required this.queueToggleFocusNode,
     required this.queueOverlayKey,
-    required this.onNowPlayingBackInterceptorChanged,
+    required this.showLyricsOverlay,
+    required this.onToggleLyrics,
   });
 
   final DesktopLayoutClass desktopLayoutClass;
@@ -1909,7 +2043,6 @@ class _DesktopWorkspace extends StatelessWidget {
   final bool showOfflineBanner;
   final String offlineBannerText;
   final bool showPlayer;
-  final bool isExpanded;
   final bool showQueueOverlay;
   final bool hasPlayerOverlay;
   final StatefulNavigationShell navigationShell;
@@ -1929,12 +2062,12 @@ class _DesktopWorkspace extends StatelessWidget {
   final bool showRadioLibraryPage;
   final ValueChanged<LibrarySection> onLibrarySectionSelected;
   final VoidCallback onOpenPlayer;
-  final VoidCallback onCollapsePlayer;
   final VoidCallback onToggleQueue;
   final VoidCallback onDismissQueue;
   final FocusNode queueToggleFocusNode;
   final GlobalKey<_QueueOverlayState> queueOverlayKey;
-  final ValueChanged<bool Function()?> onNowPlayingBackInterceptorChanged;
+  final bool showLyricsOverlay;
+  final VoidCallback onToggleLyrics;
 
   @override
   Widget build(BuildContext context) {
@@ -2061,44 +2194,10 @@ class _DesktopWorkspace extends StatelessWidget {
                                             Positioned.fill(
                                               child: navigationShell,
                                             ),
-                                            if (showPlayer)
+                                            if (showLyricsOverlay)
                                               Positioned.fill(
-                                                child: IgnorePointer(
-                                                  ignoring: !isExpanded,
-                                                  child: AnimatedSlide(
-                                                    duration: const Duration(
-                                                      milliseconds: 240,
-                                                    ),
-                                                    curve: Curves.easeOutCubic,
-                                                    offset: isExpanded
-                                                        ? Offset.zero
-                                                        : const Offset(0, 1),
-                                                    child: AnimatedOpacity(
-                                                      duration: const Duration(
-                                                        milliseconds: 220,
-                                                      ),
-                                                      curve:
-                                                          Curves.easeOutCubic,
-                                                      opacity: isExpanded
-                                                          ? 1
-                                                          : 0,
-                                                      child: NowPlayingScreen(
-                                                        key:
-                                                            const ValueKey<
-                                                              String
-                                                            >(
-                                                              'desktopNowPlaying',
-                                                            ),
-                                                        wideEmbeddedMode: true,
-                                                        onShowQueue:
-                                                            onToggleQueue,
-                                                        onCollapse:
-                                                            onCollapsePlayer,
-                                                        onBackInterceptorChanged:
-                                                            onNowPlayingBackInterceptorChanged,
-                                                      ),
-                                                    ),
-                                                  ),
+                                                child: _DesktopLyricsOverlay(
+                                                  onClose: onToggleLyrics,
                                                 ),
                                               ),
                                           ],
@@ -2134,19 +2233,18 @@ class _DesktopWorkspace extends StatelessWidget {
         if (showPlayer)
           FocusTraversalOrder(
             order: const NumericFocusOrder(30),
-            child: _BottomNavReveal(
-              reveal: isExpanded ? 0 : 1,
-              child: _DesktopPlayerBar(
-                playback: playback,
-                songTitle: songTitle,
-                songArtist: songArtist,
-                artistId: artistId,
-                coverArtId: coverArtId,
-                coverArtUrl: coverArtUrl,
-                onOpenPlayer: onOpenPlayer,
-                onToggleQueue: onToggleQueue,
-                queueToggleFocusNode: queueToggleFocusNode,
-              ),
+            child: _DesktopPlayerBar(
+              playback: playback,
+              songTitle: songTitle,
+              songArtist: songArtist,
+              artistId: artistId,
+              coverArtId: coverArtId,
+              coverArtUrl: coverArtUrl,
+              onOpenPlayer: onOpenPlayer,
+              onToggleQueue: onToggleQueue,
+              queueToggleFocusNode: queueToggleFocusNode,
+              lyricsActive: showLyricsOverlay,
+              onToggleLyrics: onToggleLyrics,
             ),
           ),
       ],
@@ -2165,6 +2263,8 @@ class _DesktopPlayerBar extends ConsumerStatefulWidget {
     required this.onOpenPlayer,
     required this.onToggleQueue,
     required this.queueToggleFocusNode,
+    required this.lyricsActive,
+    required this.onToggleLyrics,
   });
 
   final PlaybackSnapshot playback;
@@ -2176,6 +2276,8 @@ class _DesktopPlayerBar extends ConsumerStatefulWidget {
   final VoidCallback onOpenPlayer;
   final VoidCallback onToggleQueue;
   final FocusNode queueToggleFocusNode;
+  final bool lyricsActive;
+  final VoidCallback onToggleLyrics;
 
   @override
   ConsumerState<_DesktopPlayerBar> createState() => _DesktopPlayerBarState();
@@ -2184,6 +2286,9 @@ class _DesktopPlayerBar extends ConsumerStatefulWidget {
 class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
   double? _dragSliderValue;
   Offset? _hoverPosition;
+  /// Last known hover alignment — retained during fade-out so the gradient
+  /// doesn't jump to center as the mouse leaves.
+  Alignment? _displayAlignment;
 
   @override
   Widget build(BuildContext context) {
@@ -2396,6 +2501,10 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                   2) -
                               1,
                         );
+                  // Track last position so the fade-out gradient doesn't jump.
+                  if (hoverAlignment != null) {
+                    _displayAlignment = hoverAlignment;
+                  }
 
                   final playerSurface = InkWell(
                     key: const ValueKey<String>('desktopPlayerOpenHit'),
@@ -2852,10 +2961,21 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                             ),
                           ),
                           SizedBox(
-                            width: showVolumeControl ? 248 : 56,
+                            width: showVolumeControl ? 344 : 152,
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.end,
                               children: <Widget>[
+                                if (!playback.isRadioMode)
+                                  IconButton(
+                                    tooltip: l10n.nowPlayingLyrics,
+                                    icon: Icon(
+                                      Icons.lyrics_outlined,
+                                      color: widget.lyricsActive
+                                          ? colors.primary
+                                          : null,
+                                    ),
+                                    onPressed: widget.onToggleLyrics,
+                                  ),
                                 if (showVolumeControl) ...<Widget>[
                                   DesktopVolumeSlider(
                                     key: const ValueKey<String>(
@@ -2903,22 +3023,24 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                     ),
                   );
 
-                  if (hoverAlignment == null) {
-                    return playerSurface;
-                  }
                   return Stack(
                     fit: StackFit.expand,
                     children: <Widget>[
-                      IgnorePointer(
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: RadialGradient(
-                              center: hoverAlignment,
-                              radius: 0.3,
-                              colors: <Color>[
-                                colors.primary.withValues(alpha: 0.088),
-                                Colors.transparent,
-                              ],
+                      AnimatedOpacity(
+                        duration: const Duration(milliseconds: 220),
+                        curve: Curves.easeOutCubic,
+                        opacity: hoverAlignment != null ? 1.0 : 0.0,
+                        child: IgnorePointer(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: RadialGradient(
+                                center: _displayAlignment ?? Alignment.center,
+                                radius: 0.4,
+                                colors: <Color>[
+                                  colors.primary.withValues(alpha: 0.088),
+                                  Colors.transparent,
+                                ],
+                              ),
                             ),
                           ),
                         ),
@@ -4678,6 +4800,213 @@ class _MiniRemoteArt extends StatelessWidget {
         size: size * 0.5,
         color: colorScheme.onSecondaryContainer,
       ),
+    );
+  }
+}
+
+/// Fullscreen lyrics overlay shown inside the desktop content area (excluding
+/// the sidebar and the bottom player bar).
+class _DesktopLyricsOverlay extends ConsumerWidget {
+  const _DesktopLyricsOverlay({required this.onClose});
+
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final colors = Theme.of(context).colorScheme;
+    final playback = ref.watch(playerStateProvider);
+    final songId = playback.currentSongId;
+    final position =
+        ref.watch(playbackPositionProvider).asData?.value ?? playback.position;
+
+    return Material(
+      color: colors.surface,
+      child: Column(
+        children: <Widget>[
+          // ── Header bar ──────────────────────────────────────────────
+          DecoratedBox(
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: colors.outlineVariant.withValues(alpha: 0.4),
+                ),
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 10, 8, 10),
+              child: Row(
+                children: <Widget>[
+                  Icon(Icons.lyrics_outlined, color: colors.primary, size: 20),
+                  const SizedBox(width: 10),
+                  Text(
+                    l10n.nowPlayingLyrics,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    tooltip:
+                        MaterialLocalizations.of(context).closeButtonTooltip,
+                    icon: const Icon(Icons.close),
+                    onPressed: onClose,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // ── Lyrics content ──────────────────────────────────────────
+          Expanded(
+            child: songId == null || songId.trim().isEmpty
+                ? Center(
+                    child: Text(
+                      l10n.lyricsNoneAvailable,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: colors.onSurface.withValues(alpha: 0.6),
+                      ),
+                    ),
+                  )
+                : _DesktopLyricsContent(songId: songId, position: position),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DesktopLyricsContent extends ConsumerWidget {
+  const _DesktopLyricsContent({
+    required this.songId,
+    required this.position,
+  });
+
+  final String songId;
+  final Duration position;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final colors = Theme.of(context).colorScheme;
+    final lyricsAsync = ref.watch(lyricsProvider(songId));
+
+    return lyricsAsync.when(
+      data: (resolution) => LyricsDisplayWidget(
+        lyrics: resolution.lyrics,
+        currentPosition: position,
+        onSeek: (seekPosition) {
+          unawaited(ref.read(audioHandlerProvider)?.seek(seekPosition));
+        },
+      ),
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, _) {
+        final message = l10n.lyricsNoneAvailable;
+        return Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Text(
+                message,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: colors.onSurface.withValues(alpha: 0.6),
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              TextButton.icon(
+                onPressed: () => ref.invalidate(lyricsProvider(songId)),
+                icon: const Icon(Icons.refresh),
+                label: Text(l10n.commonRetry),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Animates the bottom player sheet in/out with a slide-from-bottom transition.
+///
+/// When [showPlayer] transitions to `true`, the child slides up from below
+/// the viewport. When it transitions to `false`, the child slides back down
+/// and is then removed from the tree.
+class _SlideUpPlayerTransition extends StatefulWidget {
+  const _SlideUpPlayerTransition({
+    required this.showPlayer,
+    required this.child,
+  });
+
+  final bool showPlayer;
+  final Widget child;
+
+  @override
+  State<_SlideUpPlayerTransition> createState() =>
+      _SlideUpPlayerTransitionState();
+}
+
+class _SlideUpPlayerTransitionState extends State<_SlideUpPlayerTransition>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<Offset> _slideAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 260),
+      reverseDuration: const Duration(milliseconds: 220),
+      vsync: this,
+    );
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 1),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
+    );
+    if (widget.showPlayer) {
+      _controller.value = 1.0;
+    }
+  }
+
+  @override
+  void didUpdateWidget(_SlideUpPlayerTransition oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.showPlayer != oldWidget.showPlayer) {
+      if (widget.showPlayer) {
+        _controller.forward();
+      } else {
+        _controller.reverse();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        if (_controller.isDismissed) {
+          return const SizedBox.shrink();
+        }
+        return Positioned.fill(
+          left: 0,
+          child: IgnorePointer(
+            ignoring: !widget.showPlayer,
+            child: SlideTransition(
+              position: _slideAnimation,
+              child: child,
+            ),
+          ),
+        );
+      },
+      child: widget.child,
     );
   }
 }

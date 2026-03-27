@@ -1,6 +1,6 @@
 # Multi-OS Release Implementation Progress
 
-Last updated: 2026-03-26
+Last updated: 2026-03-27
 
 This document is the detailed execution log for preparing Navis as a native app release across Android, macOS, Windows, and Linux.
 
@@ -12,7 +12,7 @@ This document is the detailed execution log for preparing Navis as a native app 
 
 ## Current baseline
 - Active branch: `dev`
-- Target app version: `0.8.0+800`
+- Target app version: `0.9.0+900`
 - Release model: incremental commits and pushes on `dev`
 - Packaging/scaffolding files for platform folders (`macos/`, `windows/`) are intentionally not included in this app-first commit stream.
 
@@ -258,6 +258,26 @@ This document is the detailed execution log for preparing Navis as a native app 
 - Evidence:
   - Codegen: `flutter pub run build_runner build --delete-conflicting-outputs`
   - Analyzer (focused paths): `flutter analyze ...`
+
+### P. ACP M4-04 Focus Player Mode implementation
+- Status: in progress
+- Actions:
+  - Replaced the old single desktop window listener path with a dedicated `DesktopWindowController`.
+  - Added a mode-aware persisted window state record with separate normal/focus geometry and maximized restoration metadata.
+  - Added persisted app setting `desktopFocusPlayerModeEnabled`.
+  - Added desktop-only `Desktop Window` settings surface with `Focus Player Mode` toggle.
+  - Added quick toggle buttons to the desktop bottom player and desktop-wide Now Playing transport.
+  - Added focused controller/settings/shell/layout tests for the new mode.
+- Evidence:
+  - `lib/main.dart`
+  - `lib/src/routing/desktop_window_controller.dart`
+  - `lib/src/features/settings/presentation/desktop_window_settings_screen.dart`
+  - `lib/src/routing/app_shell.dart`
+  - `lib/src/features/player/presentation/now_playing_screen.dart`
+  - `test/src/routing/desktop_window_controller_test.dart`
+  - `test/src/features/settings/presentation/desktop_window_settings_screen_test.dart`
+- Verification note:
+  - Local command gate still pending. The Codex environment for this session did not have `flutter`/`dart` on `PATH`, so codegen/analyze/test commands could not be executed here and must be run on the developer machine before marking this slice done.
   - Test passes:
     - `flutter test test/src/routing/desktop_layout_test.dart test/src/routing/desktop_commands_test.dart`
     - `flutter test test/src/database/daos/app_settings_dao_test.dart test/src/features/settings/presentation/playback_settings_screen_test.dart test/src/providers/app_providers_test.dart test/src/routing/app_shell_navigation_test.dart`
@@ -451,6 +471,37 @@ This document is the detailed execution log for preparing Navis as a native app 
     - Result: pass (22 tests).
   - `/home/khalifa/Flutter_SDK/flutter/bin/flutter analyze lib/src/routing lib/src/features/home/presentation/home_screen.dart lib/src/features/search/presentation/search_screen.dart lib/src/features/player/presentation/now_playing_screen.dart`
     - Result: no compile errors; existing info-level lint debt remains and existing non-M4 warning in `now_playing_screen.dart` (`unused_local_variable`) persists.
+
+### X. ACP desktop input and library-filter follow-up (2026-03-27)
+- Status: completed
+- Actions:
+  - Extended the desktop quick-search overlay with explicit result-type filter selection so search intent can be applied before routing into Search.
+  - Resolved input-precedence conflicts between the desktop quick-search overlay and the library type-to-filter system.
+  - Suppressed transport shortcuts while the library type-to-filter overlay is active so space/arrow input does not leak into playback controls mid-filter.
+  - Fixed phone-layout bottom-player reveal behavior by switching from an implicit first-build animation assumption to an explicit slide transition.
+  - Completed type-filter parity in Library so albums search across the full collection, artist grid results match the alphabet rail, and radio stations participate in filtering.
+  - Re-checked the desktop shortcut implementation for cross-system behavior: primary modifier remains `Cmd` on macOS and `Ctrl` on Windows/Linux, with alternate labels preserved for `Option`/`Alt`.
+- Evidence:
+  - `lib/src/routing/app_shell.dart`
+  - `lib/src/routing/desktop_commands.dart`
+  - `lib/src/features/library/presentation/library_screen.dart`
+  - `lib/src/features/library/presentation/radio_screen.dart`
+  - `test/src/routing/desktop_commands_test.dart`
+  - `test/src/features/library/presentation/library_screen_test.dart`
+
+### Y. 0.9.0 documentation and release-prep pass (2026-03-27)
+- Status: completed
+- Actions:
+  - Bumped app metadata to `0.9.0+900` in `pubspec.yaml`.
+  - Updated top-level docs to capture the current desktop-input status, recent library filtering fixes, and release readiness notes.
+  - Recorded the current dependency backlog from `flutter pub outdated` so package-upgrade work is visible in the plan/progress docs.
+  - Clarified system media integration status by documenting that Android, Linux, and Windows paths are active while macOS native media-center integration and iOS parity audit remain pending.
+- Evidence:
+  - `pubspec.yaml`
+  - `README.md`
+  - `PROGRESS.md`
+  - `DEVELOPMENT_PLAN.md`
+  - `flutter pub outdated`
 
 ### ACP Daily Log Template
 - Date:

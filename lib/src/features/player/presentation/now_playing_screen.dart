@@ -25,8 +25,9 @@ import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
-import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/routing/desktop_window_controller.dart';
+import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/format_utils.dart';
@@ -400,6 +401,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     final activeArtUrl = playback.isRadioMode
         ? playback.radioStation?.nowPlayingArtUrl
         : currentMediaItem?.artUri?.toString();
+    // ignore: unused_local_variable
     final visualCacheKey = nowPlayingVisualCacheKeyFor(
       brightness: brightness,
       coverArtId: playback.isRadioMode ? null : song?.coverArt,
@@ -672,11 +674,55 @@ void _showNowPlayingSettingsSheet(
         final currentSongRating = song == null
             ? null
             : sheetRef.watch(songRatingProvider(song.id)).asData?.value;
+        final sheetVolume = sheetRef.watch(playbackVolumeProvider);
         return SafeArea(
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                  child: Row(
+                    children: <Widget>[
+                      Icon(
+                        sheetVolume <= 0.01
+                            ? Icons.volume_off_rounded
+                            : sheetVolume < 0.5
+                                ? Icons.volume_down_rounded
+                                : Icons.volume_up_rounded,
+                        size: 22,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Slider(
+                          value: sheetVolume,
+                          min: 0,
+                          max: 1,
+                          onChanged: (v) {
+                            final resolved = sheetRef
+                                .read(playbackVolumeProvider.notifier)
+                                .setVolume(v);
+                            unawaited(
+                              sheetRef
+                                  .read(audioHandlerProvider)
+                                  ?.setVolume(resolved),
+                            );
+                          },
+                        ),
+                      ),
+                      SizedBox(
+                        width: 40,
+                        child: Text(
+                          '${(sheetVolume * 100).round()}%',
+                          style: Theme.of(context).textTheme.bodySmall,
+                          textAlign: TextAlign.end,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.speed),
                   title: Text(l10n.playbackSettingsPlaybackSpeedLabel),
@@ -1126,7 +1172,9 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
     final sidePadding = widget.wideEmbeddedMode ? 14.0 : 16.0;
     final contentWidth = constraints.maxWidth - (sidePadding * 2);
     final contentHeight = constraints.maxHeight;
-    if (contentWidth < 860 || contentHeight < 460) {
+    // Allow the split layout down to focus-player-mode window sizes
+    // (min focus window: 840 × 376).
+    if (contentWidth < 790 || contentHeight < 360) {
       return null;
     }
 
@@ -2158,6 +2206,9 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
             widget.wideEmbeddedMode &&
             resolveAdaptiveContextFor(context).desktopRuntime &&
             !compactTransport;
+        // Focus Player Mode is not yet user-accessible; keep the flag false
+        // so no toggle button appears anywhere until the feature is released.
+        const showDesktopFocusPlayerToggle = false;
         final compactSpacing =
             tightHeight || layoutMode == _NowPlayingLayoutMode.compact;
         final splitGap =
@@ -2400,6 +2451,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
               isRadio: isRadio,
               compact: compactTransport,
               showVolumeControl: showDesktopTransportVolume,
+              showFocusPlayerToggle: showDesktopFocusPlayerToggle,
               onSkipPrevious: _handleManualPreviousButton,
               onSkipNext: _handleManualNextButton,
             ),
@@ -2722,6 +2774,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
               isRadio: isRadio,
               compact: compactTransport,
               showVolumeControl: showDesktopTransportVolume,
+              showFocusPlayerToggle: showDesktopFocusPlayerToggle,
               onSkipPrevious: _handleManualPreviousButton,
               onSkipNext: _handleManualNextButton,
             ),
@@ -3848,6 +3901,7 @@ class _TransportControls extends ConsumerWidget {
     this.isRadio = false,
     this.compact = false,
     this.showVolumeControl = false,
+    this.showFocusPlayerToggle = false,
     this.onSkipPrevious,
     this.onSkipNext,
   });
@@ -3856,6 +3910,7 @@ class _TransportControls extends ConsumerWidget {
   final bool isRadio;
   final bool compact;
   final bool showVolumeControl;
+  final bool showFocusPlayerToggle;
   final VoidCallback? onSkipPrevious;
   final VoidCallback? onSkipNext;
 
@@ -3949,8 +4004,18 @@ class _TransportControls extends ConsumerWidget {
 
     final isRepeatActive = repeatMode != AudioServiceRepeatMode.none;
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+    // Minimum width required to display all transport buttons + volume slider.
+    // Below this threshold the volume slider overflows the Row and is moved to
+    // the settings modal instead.
+    const transportVolumeMinWidth = 480.0;
+
+    final row = LayoutBuilder(
+      builder: (context, constraints) {
+        final effectiveShowVolume =
+            showVolumeControl &&
+            constraints.maxWidth >= transportVolumeMinWidth;
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.center,
       children: <Widget>[
         IconButton(
           icon: Icon(
@@ -4042,7 +4107,40 @@ class _TransportControls extends ConsumerWidget {
             unawaited(handler?.setRepeatMode(next));
           },
         ),
-        if (showVolumeControl) ...<Widget>[
+        if (showFocusPlayerToggle) ...<Widget>[
+          SizedBox(width: compact ? 4 : 8),
+          Consumer(
+            builder: (context, ref, _) {
+              final focusMode = ref.watch(
+                desktopWindowControllerProvider.select(
+                  (value) => value.isFocusPlayerMode,
+                ),
+              );
+              final busy = ref.watch(
+                desktopWindowControllerProvider.select(
+                  (value) => value.isApplyingMode,
+                ),
+              );
+              final controller = ref.read(desktopWindowControllerProvider);
+              return IconButton(
+                key: const ValueKey<String>('desktopNowPlayingFocusButton'),
+                visualDensity: compact ? VisualDensity.compact : null,
+                tooltip: focusMode
+                    ? 'Return to normal window'
+                    : 'Enter Focus Player Mode',
+                onPressed: busy
+                    ? null
+                    : () => unawaited(controller.toggleFocusPlayerMode()),
+                icon: Icon(
+                  focusMode
+                      ? Icons.close_fullscreen_rounded
+                      : Icons.fit_screen_rounded,
+                ),
+              );
+            },
+          ),
+        ],
+        if (effectiveShowVolume) ...<Widget>[
           SizedBox(width: compact ? 6 : 10),
           DesktopVolumeSlider(
             key: const ValueKey<String>(
@@ -4069,6 +4167,9 @@ class _TransportControls extends ConsumerWidget {
         ],
       ],
     );
+      }
+    );
+    return row;
   }
 }
 
