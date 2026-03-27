@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-03-27
+Last updated: 2026-03-28
 
 ---
 
@@ -854,7 +854,7 @@ Latest activity (2026-03-07): published `v0.8.0` APK via `tool/release.sh` and s
 - [ ] ACP-M5-02 Harden graceful unsupported-feature fallbacks — status: backlog
 - [ ] ACP-M5-03 Evaluate `audio_service_mpris` version alignment and compatibility — status: backlog
 - [ ] ACP-M5-04 Extend system media API parity to macOS native Control Centre / remote-command handling and audit iOS media-session parity — partial: 2026-03-27 (evidence: documentation and backlog updates in `README.md`, `DEVELOPMENT_PLAN.md`, `docs/multi-os-release-implementation-progress.md`; remaining: native implementation and runtime validation)
-- [ ] ACP-M5-05 Run dependency hygiene sweep for desktop/audio/adaptive packages — partial: 2026-03-27 (evidence: `flutter pub outdated`; remaining: upgrade packages, regenerate code, and rerun release gates)
+- [x] ACP-M5-05 Run dependency hygiene sweep for desktop/audio/adaptive packages — 2026-03-28 (evidence: 13 packages upgraded across 5 phases; `riverpod_lint` removed (its runner `custom_lint` was already disabled, zero rules firing); drift stack unblocked; `flutter analyze` 228 info hints, `flutter test` +342 -14, both unchanged from pre-sweep baseline; commits `cda82a4` through `6c0d2b2`)
 
 ### 31.6 — M6 Validation + Release Readiness
 - [ ] ACP-M6-01 Pass strict adaptive gate (targeted tests + analyzer + viewport QA matrix) — status: backlog

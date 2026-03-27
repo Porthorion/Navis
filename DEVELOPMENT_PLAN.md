@@ -273,6 +273,8 @@ dart pub outdated
 
 Known follow-up sweep (2026-03-27): prioritize `drift`, `drift_flutter`, `drift_dev`, and `json_serializable`, then review the transitive analyzer/sqlite/win32 chain before the next release hardening pass.
 
+> **Completed 2026-03-28:** Full sweep executed. 13 packages upgraded (`audio_session`, `audio_service_mpris`, `crypto`, `url_launcher`, `uuid`, `json_annotation`, `json_serializable`, `freezed`, `build_runner`, `flutter_riverpod`, `logger`, `drift`, `drift_flutter`, `drift_dev`). `riverpod_lint` removed (runner `custom_lint` was already disabled). Analyzer upgraded from 9.x to 10.x. Build baseline unchanged.
+
 **Tooling maintenance rule (mandatory for AI agent sessions)**:
 - Any change to quality gates, test commands, Flutter/Dart versions, or release packaging must be reflected in `tool/check.sh` and/or `tool/release.sh` in the same task/PR.
 - Record tooling updates in `PROGRESS.md` with date + evidence, same as code/test tasks.
