@@ -128,6 +128,18 @@ const PlaybackSnapshot _activePlayback = PlaybackSnapshot(
 );
 
 void main() {
+  Future<void> focusDesktopQueueButton(WidgetTester tester) async {
+    for (var attempt = 0; attempt < 20; attempt++) {
+      final label = FocusManager.instance.primaryFocus?.debugLabel ?? '';
+      if (label.contains('desktopQueueToggle')) {
+        return;
+      }
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+    }
+    fail('Failed to focus desktop queue toggle via Tab traversal.');
+  }
+
   testWidgets('phone layout uses bottom navigation', (tester) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(599, 1000);
@@ -966,6 +978,85 @@ void main() {
       contains('desktopQueueToggle'),
     );
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'space stays playback-only while enter activates focused desktop controls',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1280, 1000);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final container = _createContainerWithDatabase(
+        overrides: _authenticatedShellOverrides(),
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const NavisApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await focusDesktopQueueButton(tester);
+      expect(
+        FocusManager.instance.primaryFocus?.debugLabel,
+        contains('desktopQueueToggle'),
+      );
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await tester.pumpAndSettle();
+      expect(container.read(queueOverlayVisibleProvider), isFalse);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(container.read(queueOverlayVisibleProvider), isTrue);
+    },
+  );
+
+  testWidgets('mouse click clears tab-selected desktop focus', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1280, 1000);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(),
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const NavisApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await focusDesktopQueueButton(tester);
+
+    expect(
+      FocusManager.instance.primaryFocus?.debugLabel,
+      contains('desktopQueueToggle'),
+    );
+
+    await tester.tapAt(const Offset(420, 160));
+    await tester.pumpAndSettle();
+
+    final focusLabel = FocusManager.instance.primaryFocus?.debugLabel;
+    expect(
+      focusLabel == null || !focusLabel.contains('desktopQueueToggle'),
+      isTrue,
+    );
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+    expect(container.read(queueOverlayVisibleProvider), isFalse);
   });
 
   testWidgets('desktop player and desktop now playing expose focus mode toggles', (

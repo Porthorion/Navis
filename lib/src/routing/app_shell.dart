@@ -3002,17 +3002,15 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                   const SizedBox(width: 6),
                                 ],
                                 if (showQueueAction)
-                                  Focus(
+                                  IconButton(
+                                    key: const ValueKey<String>(
+                                      'desktopQueueButton',
+                                    ),
                                     focusNode: widget.queueToggleFocusNode,
-                                    child: IconButton(
-                                      key: const ValueKey<String>(
-                                        'desktopQueueButton',
-                                      ),
-                                      tooltip: l10n.queueTitle,
-                                      onPressed: widget.onToggleQueue,
-                                      icon: const Icon(
-                                        Icons.queue_music_outlined,
-                                      ),
+                                    tooltip: l10n.queueTitle,
+                                    onPressed: widget.onToggleQueue,
+                                    icon: const Icon(
+                                      Icons.queue_music_outlined,
                                     ),
                                   ),
                               ],
