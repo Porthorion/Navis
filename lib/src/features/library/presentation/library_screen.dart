@@ -723,19 +723,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
             ),
             child: Column(
               children: <Widget>[
-                DesktopPanel(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      DesktopSectionHeader(
-                        title: l10n.libraryTitle,
-                        subtitle:
-                            'Browse albums, artists, playlists, and radio',
-                      ),
-                      tabBar,
-                    ],
-                  ),
-                ),
+                DesktopPanel(child: tabBar),
                 const SizedBox(height: 12),
                 Expanded(
                   child: DesktopPanel(
@@ -760,30 +748,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                 MediaQuery.sizeOf(context).width,
               ),
               padding: EdgeInsets.zero,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-                    child: DesktopPanel(
-                      child: DesktopSectionHeader(
-                        title: wideHeaderTitle,
-                        subtitle:
-                            'Browse albums, artists, playlists, and radio',
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                      child: DesktopPanel(
-                        padding: EdgeInsets.zero,
-                        child: bodyContent,
-                      ),
-                    ),
-                  ),
-                ],
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: DesktopPanel(
+                  padding: EdgeInsets.zero,
+                  child: bodyContent,
+                ),
               ),
             ),
           ),

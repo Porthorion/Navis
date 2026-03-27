@@ -974,7 +974,21 @@ class _AppShellState extends ConsumerState<AppShell> {
           onDestinationSelected(0);
           return;
         case DesktopCommandAction.goLibrary:
-          onDestinationSelected(1);
+          if (navigationShell.currentIndex != _libraryBranchIndex) {
+            onDestinationSelected(1);
+          } else {
+            // Already on library — cycle to the next available section.
+            final availableSections = <LibrarySection>[
+              LibrarySection.albums,
+              if (showLikedLibraryPage) LibrarySection.liked,
+              if (showArtistsLibraryPage) LibrarySection.artists,
+              if (showPlaylistsLibraryPage) LibrarySection.playlists,
+              if (showRadioLibraryPage) LibrarySection.radio,
+            ];
+            final currentIdx = availableSections.indexOf(selectedLibrarySection);
+            final nextIdx = (currentIdx + 1) % availableSections.length;
+            onLibrarySectionSelected(availableSections[nextIdx]);
+          }
           return;
         case DesktopCommandAction.goSearch:
           onDestinationSelected(2);
