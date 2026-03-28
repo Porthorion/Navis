@@ -2304,7 +2304,14 @@ class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
                         duration: _animDuration,
                         curve: _animCurve,
                         width: effectiveSidebarWidth,
-                        child: ClipRect(child: sidebarContent),
+                        child: ClipRect(
+                          child: OverflowBox(
+                            alignment: Alignment.centerLeft,
+                            minWidth: widget.sidebarWidth,
+                            maxWidth: widget.sidebarWidth,
+                            child: sidebarContent,
+                          ),
+                        ),
                       ),
                     ),
                     VerticalDivider(
@@ -3849,15 +3856,15 @@ class _RailSidebar extends ConsumerWidget {
                 child: IconButton(
                   icon: Icon(
                     navbarAutohide
-                        ? Icons.lock_open_rounded
-                        : Icons.lock_rounded,
+                        ? Icons.lock_rounded
+                        : Icons.lock_open_rounded,
                     size: 16,
                   ),
                   tooltip: navbarAutohide
                       ? AppLocalizations.of(context)!
-                          .desktopNavbarUnlockTooltip
+                          .desktopNavbarLockTooltip
                       : AppLocalizations.of(context)!
-                          .desktopNavbarLockTooltip,
+                          .desktopNavbarUnlockTooltip,
                   onPressed: onToggleAutohide,
                   padding: EdgeInsets.zero,
                   style: IconButton.styleFrom(
