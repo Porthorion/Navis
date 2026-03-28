@@ -1174,6 +1174,33 @@ class $AppSettingsTableTable extends AppSettingsTable
         type: DriftSqlType.string,
         requiredDuringInsert: false,
       );
+  static const VerificationMeta _desktopNavbarStyleMeta =
+      const VerificationMeta('desktopNavbarStyle');
+  @override
+  late final GeneratedColumn<String> desktopNavbarStyle =
+      GeneratedColumn<String>(
+        'desktop_navbar_style',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant('comfortable'),
+      );
+  static const VerificationMeta _desktopNavbarAutohideMeta =
+      const VerificationMeta('desktopNavbarAutohide');
+  @override
+  late final GeneratedColumn<bool> desktopNavbarAutohide =
+      GeneratedColumn<bool>(
+        'desktop_navbar_autohide',
+        aliasedName,
+        false,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("desktop_navbar_autohide" IN (0, 1))',
+        ),
+        defaultValue: const Constant(false),
+      );
   static const VerificationMeta _updatedAtMeta = const VerificationMeta(
     'updatedAt',
   );
@@ -1238,6 +1265,8 @@ class $AppSettingsTableTable extends AppSettingsTable
     homeDensity,
     homeSectionOrder,
     homeSectionsHidden,
+    desktopNavbarStyle,
+    desktopNavbarAutohide,
     updatedAt,
   ];
   @override
@@ -1693,6 +1722,24 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
       );
     }
+    if (data.containsKey('desktop_navbar_style')) {
+      context.handle(
+        _desktopNavbarStyleMeta,
+        desktopNavbarStyle.isAcceptableOrUnknown(
+          data['desktop_navbar_style']!,
+          _desktopNavbarStyleMeta,
+        ),
+      );
+    }
+    if (data.containsKey('desktop_navbar_autohide')) {
+      context.handle(
+        _desktopNavbarAutohideMeta,
+        desktopNavbarAutohide.isAcceptableOrUnknown(
+          data['desktop_navbar_autohide']!,
+          _desktopNavbarAutohideMeta,
+        ),
+      );
+    }
     if (data.containsKey('updated_at')) {
       context.handle(
         _updatedAtMeta,
@@ -1914,6 +1961,14 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.string,
         data['${effectivePrefix}home_sections_hidden'],
       ),
+      desktopNavbarStyle: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}desktop_navbar_style'],
+      )!,
+      desktopNavbarAutohide: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}desktop_navbar_autohide'],
+      )!,
       updatedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
@@ -2054,6 +2109,12 @@ class AppSettingsTableData extends DataClass
 
   /// JSON-encoded list of hidden home section IDs. Null = none hidden.
   final String? homeSectionsHidden;
+
+  /// Desktop navigation style: 'comfortable', 'compact', or 'icons'. Default 'comfortable'.
+  final String desktopNavbarStyle;
+
+  /// When true on desktop, the navigation sidebar hides automatically. Default false.
+  final bool desktopNavbarAutohide;
   final DateTime updatedAt;
   const AppSettingsTableData({
     required this.id,
@@ -2107,6 +2168,8 @@ class AppSettingsTableData extends DataClass
     required this.homeDensity,
     this.homeSectionOrder,
     this.homeSectionsHidden,
+    required this.desktopNavbarStyle,
+    required this.desktopNavbarAutohide,
     required this.updatedAt,
   });
   @override
@@ -2199,6 +2262,8 @@ class AppSettingsTableData extends DataClass
     if (!nullToAbsent || homeSectionsHidden != null) {
       map['home_sections_hidden'] = Variable<String>(homeSectionsHidden);
     }
+    map['desktop_navbar_style'] = Variable<String>(desktopNavbarStyle);
+    map['desktop_navbar_autohide'] = Variable<bool>(desktopNavbarAutohide);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
   }
@@ -2284,6 +2349,8 @@ class AppSettingsTableData extends DataClass
       homeSectionsHidden: homeSectionsHidden == null && nullToAbsent
           ? const Value.absent()
           : Value(homeSectionsHidden),
+      desktopNavbarStyle: Value(desktopNavbarStyle),
+      desktopNavbarAutohide: Value(desktopNavbarAutohide),
       updatedAt: Value(updatedAt),
     );
   }
@@ -2379,6 +2446,12 @@ class AppSettingsTableData extends DataClass
       homeSectionsHidden: serializer.fromJson<String?>(
         json['homeSectionsHidden'],
       ),
+      desktopNavbarStyle: serializer.fromJson<String>(
+        json['desktopNavbarStyle'],
+      ),
+      desktopNavbarAutohide: serializer.fromJson<bool>(
+        json['desktopNavbarAutohide'],
+      ),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
   }
@@ -2451,6 +2524,8 @@ class AppSettingsTableData extends DataClass
       'homeDensity': serializer.toJson<String>(homeDensity),
       'homeSectionOrder': serializer.toJson<String?>(homeSectionOrder),
       'homeSectionsHidden': serializer.toJson<String?>(homeSectionsHidden),
+      'desktopNavbarStyle': serializer.toJson<String>(desktopNavbarStyle),
+      'desktopNavbarAutohide': serializer.toJson<bool>(desktopNavbarAutohide),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
   }
@@ -2507,6 +2582,8 @@ class AppSettingsTableData extends DataClass
     String? homeDensity,
     Value<String?> homeSectionOrder = const Value.absent(),
     Value<String?> homeSectionsHidden = const Value.absent(),
+    String? desktopNavbarStyle,
+    bool? desktopNavbarAutohide,
     DateTime? updatedAt,
   }) => AppSettingsTableData(
     id: id ?? this.id,
@@ -2591,6 +2668,8 @@ class AppSettingsTableData extends DataClass
     homeSectionsHidden: homeSectionsHidden.present
         ? homeSectionsHidden.value
         : this.homeSectionsHidden,
+    desktopNavbarStyle: desktopNavbarStyle ?? this.desktopNavbarStyle,
+    desktopNavbarAutohide: desktopNavbarAutohide ?? this.desktopNavbarAutohide,
     updatedAt: updatedAt ?? this.updatedAt,
   );
   AppSettingsTableData copyWithCompanion(AppSettingsTableCompanion data) {
@@ -2740,6 +2819,12 @@ class AppSettingsTableData extends DataClass
       homeSectionsHidden: data.homeSectionsHidden.present
           ? data.homeSectionsHidden.value
           : this.homeSectionsHidden,
+      desktopNavbarStyle: data.desktopNavbarStyle.present
+          ? data.desktopNavbarStyle.value
+          : this.desktopNavbarStyle,
+      desktopNavbarAutohide: data.desktopNavbarAutohide.present
+          ? data.desktopNavbarAutohide.value
+          : this.desktopNavbarAutohide,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
   }
@@ -2800,6 +2885,8 @@ class AppSettingsTableData extends DataClass
           ..write('homeDensity: $homeDensity, ')
           ..write('homeSectionOrder: $homeSectionOrder, ')
           ..write('homeSectionsHidden: $homeSectionsHidden, ')
+          ..write('desktopNavbarStyle: $desktopNavbarStyle, ')
+          ..write('desktopNavbarAutohide: $desktopNavbarAutohide, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
@@ -2858,6 +2945,8 @@ class AppSettingsTableData extends DataClass
     homeDensity,
     homeSectionOrder,
     homeSectionsHidden,
+    desktopNavbarStyle,
+    desktopNavbarAutohide,
     updatedAt,
   ]);
   @override
@@ -2916,6 +3005,8 @@ class AppSettingsTableData extends DataClass
           other.homeDensity == this.homeDensity &&
           other.homeSectionOrder == this.homeSectionOrder &&
           other.homeSectionsHidden == this.homeSectionsHidden &&
+          other.desktopNavbarStyle == this.desktopNavbarStyle &&
+          other.desktopNavbarAutohide == this.desktopNavbarAutohide &&
           other.updatedAt == this.updatedAt);
 }
 
@@ -2971,6 +3062,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<String> homeDensity;
   final Value<String?> homeSectionOrder;
   final Value<String?> homeSectionsHidden;
+  final Value<String> desktopNavbarStyle;
+  final Value<bool> desktopNavbarAutohide;
   final Value<DateTime> updatedAt;
   const AppSettingsTableCompanion({
     this.id = const Value.absent(),
@@ -3024,6 +3117,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.homeDensity = const Value.absent(),
     this.homeSectionOrder = const Value.absent(),
     this.homeSectionsHidden = const Value.absent(),
+    this.desktopNavbarStyle = const Value.absent(),
+    this.desktopNavbarAutohide = const Value.absent(),
     this.updatedAt = const Value.absent(),
   });
   AppSettingsTableCompanion.insert({
@@ -3078,6 +3173,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.homeDensity = const Value.absent(),
     this.homeSectionOrder = const Value.absent(),
     this.homeSectionsHidden = const Value.absent(),
+    this.desktopNavbarStyle = const Value.absent(),
+    this.desktopNavbarAutohide = const Value.absent(),
     required DateTime updatedAt,
   }) : updatedAt = Value(updatedAt);
   static Insertable<AppSettingsTableData> custom({
@@ -3132,6 +3229,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<String>? homeDensity,
     Expression<String>? homeSectionOrder,
     Expression<String>? homeSectionsHidden,
+    Expression<String>? desktopNavbarStyle,
+    Expression<bool>? desktopNavbarAutohide,
     Expression<DateTime>? updatedAt,
   }) {
     return RawValuesInsertable({
@@ -3206,6 +3305,10 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       if (homeSectionOrder != null) 'home_section_order': homeSectionOrder,
       if (homeSectionsHidden != null)
         'home_sections_hidden': homeSectionsHidden,
+      if (desktopNavbarStyle != null)
+        'desktop_navbar_style': desktopNavbarStyle,
+      if (desktopNavbarAutohide != null)
+        'desktop_navbar_autohide': desktopNavbarAutohide,
       if (updatedAt != null) 'updated_at': updatedAt,
     });
   }
@@ -3262,6 +3365,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<String>? homeDensity,
     Value<String?>? homeSectionOrder,
     Value<String?>? homeSectionsHidden,
+    Value<String>? desktopNavbarStyle,
+    Value<bool>? desktopNavbarAutohide,
     Value<DateTime>? updatedAt,
   }) {
     return AppSettingsTableCompanion(
@@ -3323,6 +3428,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       homeDensity: homeDensity ?? this.homeDensity,
       homeSectionOrder: homeSectionOrder ?? this.homeSectionOrder,
       homeSectionsHidden: homeSectionsHidden ?? this.homeSectionsHidden,
+      desktopNavbarStyle: desktopNavbarStyle ?? this.desktopNavbarStyle,
+      desktopNavbarAutohide:
+          desktopNavbarAutohide ?? this.desktopNavbarAutohide,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
@@ -3503,6 +3611,14 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     if (homeSectionsHidden.present) {
       map['home_sections_hidden'] = Variable<String>(homeSectionsHidden.value);
     }
+    if (desktopNavbarStyle.present) {
+      map['desktop_navbar_style'] = Variable<String>(desktopNavbarStyle.value);
+    }
+    if (desktopNavbarAutohide.present) {
+      map['desktop_navbar_autohide'] = Variable<bool>(
+        desktopNavbarAutohide.value,
+      );
+    }
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
@@ -3565,6 +3681,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('homeDensity: $homeDensity, ')
           ..write('homeSectionOrder: $homeSectionOrder, ')
           ..write('homeSectionsHidden: $homeSectionsHidden, ')
+          ..write('desktopNavbarStyle: $desktopNavbarStyle, ')
+          ..write('desktopNavbarAutohide: $desktopNavbarAutohide, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
@@ -12042,6 +12160,8 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<String> homeDensity,
       Value<String?> homeSectionOrder,
       Value<String?> homeSectionsHidden,
+      Value<String> desktopNavbarStyle,
+      Value<bool> desktopNavbarAutohide,
       required DateTime updatedAt,
     });
 typedef $$AppSettingsTableTableUpdateCompanionBuilder =
@@ -12097,6 +12217,8 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<String> homeDensity,
       Value<String?> homeSectionOrder,
       Value<String?> homeSectionsHidden,
+      Value<String> desktopNavbarStyle,
+      Value<bool> desktopNavbarAutohide,
       Value<DateTime> updatedAt,
     });
 
@@ -12361,6 +12483,16 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<String> get homeSectionsHidden => $composableBuilder(
     column: $table.homeSectionsHidden,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get desktopNavbarStyle => $composableBuilder(
+    column: $table.desktopNavbarStyle,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get desktopNavbarAutohide => $composableBuilder(
+    column: $table.desktopNavbarAutohide,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -12634,6 +12766,16 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get desktopNavbarStyle => $composableBuilder(
+    column: $table.desktopNavbarStyle,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get desktopNavbarAutohide => $composableBuilder(
+    column: $table.desktopNavbarAutohide,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
@@ -12896,6 +13038,16 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get desktopNavbarStyle => $composableBuilder(
+    column: $table.desktopNavbarStyle,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get desktopNavbarAutohide => $composableBuilder(
+    column: $table.desktopNavbarAutohide,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 }
@@ -12989,6 +13141,8 @@ class $$AppSettingsTableTableTableManager
                 Value<String> homeDensity = const Value.absent(),
                 Value<String?> homeSectionOrder = const Value.absent(),
                 Value<String?> homeSectionsHidden = const Value.absent(),
+                Value<String> desktopNavbarStyle = const Value.absent(),
+                Value<bool> desktopNavbarAutohide = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
               }) => AppSettingsTableCompanion(
                 id: id,
@@ -13042,6 +13196,8 @@ class $$AppSettingsTableTableTableManager
                 homeDensity: homeDensity,
                 homeSectionOrder: homeSectionOrder,
                 homeSectionsHidden: homeSectionsHidden,
+                desktopNavbarStyle: desktopNavbarStyle,
+                desktopNavbarAutohide: desktopNavbarAutohide,
                 updatedAt: updatedAt,
               ),
           createCompanionCallback:
@@ -13098,6 +13254,8 @@ class $$AppSettingsTableTableTableManager
                 Value<String> homeDensity = const Value.absent(),
                 Value<String?> homeSectionOrder = const Value.absent(),
                 Value<String?> homeSectionsHidden = const Value.absent(),
+                Value<String> desktopNavbarStyle = const Value.absent(),
+                Value<bool> desktopNavbarAutohide = const Value.absent(),
                 required DateTime updatedAt,
               }) => AppSettingsTableCompanion.insert(
                 id: id,
@@ -13151,6 +13309,8 @@ class $$AppSettingsTableTableTableManager
                 homeDensity: homeDensity,
                 homeSectionOrder: homeSectionOrder,
                 homeSectionsHidden: homeSectionsHidden,
+                desktopNavbarStyle: desktopNavbarStyle,
+                desktopNavbarAutohide: desktopNavbarAutohide,
                 updatedAt: updatedAt,
               ),
           withReferenceMapper: (p0) => p0

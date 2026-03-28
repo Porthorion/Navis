@@ -173,6 +173,14 @@ class AppSettingsTable extends Table {
   /// JSON-encoded list of hidden home section IDs. Null = none hidden.
   TextColumn get homeSectionsHidden => text().nullable()();
 
+  /// Desktop navigation style: 'comfortable', 'compact', or 'icons'. Default 'comfortable'.
+  TextColumn get desktopNavbarStyle =>
+      text().withDefault(const Constant('comfortable'))();
+
+  /// When true on desktop, the navigation sidebar hides automatically. Default false.
+  BoolColumn get desktopNavbarAutohide =>
+      boolean().withDefault(const Constant(false))();
+
   DateTimeColumn get updatedAt => dateTime()();
 
   @override

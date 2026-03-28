@@ -3669,6 +3669,48 @@ abstract class AppLocalizations {
   /// **'Compact'**
   String get appearanceHomeDensityCompact;
 
+  /// No description provided for @desktopNavbarSectionLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Desktop Navigation'**
+  String get desktopNavbarSectionLabel;
+
+  /// No description provided for @desktopNavbarStyleLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Navigation Style'**
+  String get desktopNavbarStyleLabel;
+
+  /// No description provided for @desktopNavbarStyleComfortable.
+  ///
+  /// In en, this message translates to:
+  /// **'Comfortable'**
+  String get desktopNavbarStyleComfortable;
+
+  /// No description provided for @desktopNavbarStyleCompact.
+  ///
+  /// In en, this message translates to:
+  /// **'Compact'**
+  String get desktopNavbarStyleCompact;
+
+  /// No description provided for @desktopNavbarStyleIcons.
+  ///
+  /// In en, this message translates to:
+  /// **'Icons'**
+  String get desktopNavbarStyleIcons;
+
+  /// No description provided for @desktopNavbarAutohideLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Autohide Sidebar'**
+  String get desktopNavbarAutohideLabel;
+
+  /// No description provided for @desktopNavbarAutohideSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Sidebar slides away automatically; hover the left edge to reveal it.'**
+  String get desktopNavbarAutohideSub;
+
   /// No description provided for @homeSectionContinueListening.
   ///
   /// In en, this message translates to:

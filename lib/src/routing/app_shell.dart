@@ -124,6 +124,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   int _queueCoverArtPrefetchToken = 0;
   bool _globalKeyHandlerInstalled = false;
   Future<void> Function(DesktopCommandAction)? _executeDesktopCommand;
+  final ValueNotifier<int> _navExpandRequestNotifier = ValueNotifier<int>(0);
   // Cached so the global HardwareKeyboard handler can read it outside build().
   // `AdaptiveInputPolicyScope` is a *descendant* of this widget, so
   // `context.dependOnInheritedWidgetOfExactType` cannot see it — caching is
@@ -147,6 +148,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     _desktopQueueToggleFocusNode.dispose();
     _appNoticeController.dispose();
     _playerSheetProgress.dispose();
+    _navExpandRequestNotifier.dispose();
     super.dispose();
   }
 
@@ -727,12 +729,22 @@ class _AppShellState extends ConsumerState<AppShell> {
           )
         : false;
     final desktopTokens = desktopTokensOf(context);
-    final desktopSidebarWidth = (screenWidth * 0.22)
-        .clamp(
-          math.max(260.0, desktopTokens.sidebarWidth * 0.9),
-          360.0,
-        )
-        .toDouble();
+    final navbarStyle = isDesktopRuntime
+        ? ref.watch(desktopNavbarStyleProvider)
+        : 'comfortable';
+    final navbarAutohide = isDesktopRuntime
+        ? ref.watch(desktopNavbarAutohideProvider)
+        : false;
+    final desktopSidebarWidth = switch (navbarStyle) {
+      'compact' => 220.0,
+      'icons' => 64.0,
+      _ => (screenWidth * 0.22)
+          .clamp(
+            math.max(260.0, desktopTokens.sidebarWidth * 0.9),
+            360.0,
+          )
+          .toDouble(),
+    };
     final compactWideSystemInset =
         (mediaPadding.left > mediaPadding.right
                 ? mediaPadding.left
@@ -856,6 +868,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       if (isExpanded) {
         overlay.collapse();
       }
+      _navExpandRequestNotifier.value++;
       final branchIndex = visibleBranchIndices[index];
       if (branchIndex == _libraryBranchIndex) {
         ref
@@ -1129,6 +1142,9 @@ class _AppShellState extends ConsumerState<AppShell> {
                       _DesktopWorkspace(
                         desktopLayoutClass: desktopLayoutClass,
                         sidebarWidth: desktopSidebarWidth,
+                        navbarStyle: navbarStyle,
+                        navbarAutohide: navbarAutohide,
+                        expandRequestNotifier: _navExpandRequestNotifier,
                         selectedIndex: selectedIndex,
                         destinations: railDestinations,
                         showOfflineBanner: showOfflineBanner,
@@ -2053,10 +2069,13 @@ class _BottomNavReveal extends StatelessWidget {
   }
 }
 
-class _DesktopWorkspace extends StatelessWidget {
+class _DesktopWorkspace extends StatefulWidget {
   const _DesktopWorkspace({
     required this.desktopLayoutClass,
     required this.sidebarWidth,
+    required this.navbarStyle,
+    required this.navbarAutohide,
+    required this.expandRequestNotifier,
     required this.selectedIndex,
     required this.destinations,
     required this.showOfflineBanner,
@@ -2092,6 +2111,9 @@ class _DesktopWorkspace extends StatelessWidget {
 
   final DesktopLayoutClass desktopLayoutClass;
   final double sidebarWidth;
+  final String navbarStyle;
+  final bool navbarAutohide;
+  final ValueNotifier<int> expandRequestNotifier;
   final int selectedIndex;
   final List<_ShellDestination> destinations;
   final bool showOfflineBanner;
@@ -2125,8 +2147,137 @@ class _DesktopWorkspace extends StatelessWidget {
   final VoidCallback onToggleLyrics;
 
   @override
+  State<_DesktopWorkspace> createState() => _DesktopWorkspaceState();
+}
+
+class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
+  static const Duration _animDuration = Duration(milliseconds: 280);
+  static const Curve _animCurve = Curves.easeOutCubic;
+  static const double _collapsedWidth = 4.0;
+  static const Duration _collapseDelay = Duration(milliseconds: 500);
+  static const Duration _navExpandHoldDuration = Duration(milliseconds: 1600);
+
+  bool _sidebarVisible = true;
+  bool _mouseIsOverSidebar = false;
+  Timer? _collapseTimer;
+  int _lastExpandRequest = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _sidebarVisible = !widget.navbarAutohide;
+    _lastExpandRequest = widget.expandRequestNotifier.value;
+    widget.expandRequestNotifier.addListener(_onExpandRequest);
+  }
+
+  @override
+  void didUpdateWidget(_DesktopWorkspace old) {
+    super.didUpdateWidget(old);
+    if (old.expandRequestNotifier != widget.expandRequestNotifier) {
+      old.expandRequestNotifier.removeListener(_onExpandRequest);
+      widget.expandRequestNotifier.addListener(_onExpandRequest);
+      _lastExpandRequest = widget.expandRequestNotifier.value;
+    }
+    if (!widget.navbarAutohide) {
+      _collapseTimer?.cancel();
+      if (!_sidebarVisible) {
+        setState(() => _sidebarVisible = true);
+      }
+    } else if (!old.navbarAutohide && widget.navbarAutohide) {
+      if (!_mouseIsOverSidebar) {
+        _scheduleCollapse();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.expandRequestNotifier.removeListener(_onExpandRequest);
+    _collapseTimer?.cancel();
+    super.dispose();
+  }
+
+  void _onExpandRequest() {
+    if (!widget.navbarAutohide) return;
+    final current = widget.expandRequestNotifier.value;
+    if (current == _lastExpandRequest) return;
+    _lastExpandRequest = current;
+    _collapseTimer?.cancel();
+    if (!mounted) return;
+    setState(() => _sidebarVisible = true);
+    _collapseTimer = Timer(_navExpandHoldDuration, () {
+      if (!mounted || _mouseIsOverSidebar) return;
+      setState(() => _sidebarVisible = false);
+    });
+  }
+
+  void _onMouseEnterSidebar(PointerEnterEvent _) {
+    if (!widget.navbarAutohide) return;
+    _collapseTimer?.cancel();
+    _mouseIsOverSidebar = true;
+    if (!mounted) return;
+    setState(() => _sidebarVisible = true);
+  }
+
+  void _onMouseExitSidebar(PointerExitEvent _) {
+    if (!widget.navbarAutohide) return;
+    _mouseIsOverSidebar = false;
+    _scheduleCollapse();
+  }
+
+  void _scheduleCollapse() {
+    _collapseTimer?.cancel();
+    _collapseTimer = Timer(_collapseDelay, () {
+      if (!mounted || _mouseIsOverSidebar) return;
+      setState(() => _sidebarVisible = false);
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final effectiveSidebarWidth = widget.navbarAutohide && !_sidebarVisible
+        ? _collapsedWidth
+        : widget.sidebarWidth;
+
+    final sidebarContent = Material(
+      color: colors.surfaceContainerLow,
+      child: SafeArea(
+        child: widget.navbarAutohide && !_sidebarVisible
+            ? const SizedBox.expand()
+            : SizedBox(
+                key: const ValueKey<String>('desktopSidebarRegion'),
+                width: widget.sidebarWidth,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                  child: _RailSidebar(
+                    navbarStyle: widget.navbarStyle,
+                    selectedIndex: widget.selectedIndex,
+                    onDestinationSelected: widget.onDestinationSelected,
+                    destinations: widget.destinations,
+                    showLibrarySubNavigation: widget.showLibrarySubNavigation,
+                    allowScrollableRail: widget.allowScrollableRail,
+                    selectedLibrarySection: widget.selectedLibrarySection,
+                    showLikedLibraryPage: widget.showLikedLibraryPage,
+                    showArtistsLibraryPage: widget.showArtistsLibraryPage,
+                    showPlaylistsLibraryPage: widget.showPlaylistsLibraryPage,
+                    showRadioLibraryPage: widget.showRadioLibraryPage,
+                    onLibrarySectionSelected: widget.onLibrarySectionSelected,
+                    showPlayer: false,
+                    playback: widget.playback,
+                    songTitle: widget.songTitle,
+                    songArtist: widget.songArtist,
+                    coverArtId: widget.coverArtId,
+                    coverArtUrl: widget.coverArtUrl,
+                    isRadio: widget.playback.isRadioMode,
+                    radioArtUrl: widget.playback.radioStation?.nowPlayingArtUrl,
+                    onOpenPlayer: widget.onOpenPlayer,
+                  ),
+                ),
+              ),
+      ),
+    );
+
     return Column(
       children: <Widget>[
         Expanded(
@@ -2134,38 +2285,14 @@ class _DesktopWorkspace extends StatelessWidget {
             children: <Widget>[
               FocusTraversalOrder(
                 order: const NumericFocusOrder(10),
-                child: Material(
-                  color: colors.surfaceContainerLow,
-                  child: SafeArea(
-                    child: SizedBox(
-                      key: const ValueKey<String>('desktopSidebarRegion'),
-                      width: sidebarWidth,
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-                        child: _RailSidebar(
-                          selectedIndex: selectedIndex,
-                          onDestinationSelected: onDestinationSelected,
-                          destinations: destinations,
-                          showLibrarySubNavigation: showLibrarySubNavigation,
-                          allowScrollableRail: allowScrollableRail,
-                          selectedLibrarySection: selectedLibrarySection,
-                          showLikedLibraryPage: showLikedLibraryPage,
-                          showArtistsLibraryPage: showArtistsLibraryPage,
-                          showPlaylistsLibraryPage: showPlaylistsLibraryPage,
-                          showRadioLibraryPage: showRadioLibraryPage,
-                          onLibrarySectionSelected: onLibrarySectionSelected,
-                          showPlayer: false,
-                          playback: playback,
-                          songTitle: songTitle,
-                          songArtist: songArtist,
-                          coverArtId: coverArtId,
-                          coverArtUrl: coverArtUrl,
-                          isRadio: playback.isRadioMode,
-                          radioArtUrl: playback.radioStation?.nowPlayingArtUrl,
-                          onOpenPlayer: onOpenPlayer,
-                        ),
-                      ),
-                    ),
+                child: MouseRegion(
+                  onEnter: _onMouseEnterSidebar,
+                  onExit: _onMouseExitSidebar,
+                  child: AnimatedContainer(
+                    duration: _animDuration,
+                    curve: _animCurve,
+                    width: effectiveSidebarWidth,
+                    child: ClipRect(child: sidebarContent),
                   ),
                 ),
               ),
@@ -2183,7 +2310,7 @@ class _DesktopWorkspace extends StatelessWidget {
                     right: false,
                     child: Column(
                       children: <Widget>[
-                        if (showOfflineBanner)
+                        if (widget.showOfflineBanner)
                           Material(
                             color: colors.errorContainer,
                             child: Padding(
@@ -2200,7 +2327,7 @@ class _DesktopWorkspace extends StatelessWidget {
                                   const SizedBox(width: 10),
                                   Expanded(
                                     child: Text(
-                                      offlineBannerText,
+                                      widget.offlineBannerText,
                                       style: TextStyle(
                                         color: colors.onErrorContainer,
                                       ),
@@ -2215,7 +2342,7 @@ class _DesktopWorkspace extends StatelessWidget {
                             builder: (context, constraints) {
                               final width = constraints.maxWidth;
                               final horizontalInset =
-                                  switch (desktopLayoutClass) {
+                                  switch (widget.desktopLayoutClass) {
                                     DesktopLayoutClass.compactDesktop => 12.0,
                                     DesktopLayoutClass.standardDesktop =>
                                       (width * 0.018).clamp(14.0, 30.0),
@@ -2225,7 +2352,7 @@ class _DesktopWorkspace extends StatelessWidget {
                               const verticalInset = 20.0;
 
                               return NavigatorPopHandler<Object?>(
-                                enabled: !hasPlayerOverlay,
+                                enabled: !widget.hasPlayerOverlay,
                                 onPopWithResult: (result) {
                                   final router = GoRouter.of(context);
                                   if (!router.canPop()) {
@@ -2247,27 +2374,28 @@ class _DesktopWorkspace extends StatelessWidget {
                                         child: Stack(
                                           children: <Widget>[
                                             Positioned.fill(
-                                              child: navigationShell,
+                                              child: widget.navigationShell,
                                             ),
-                                            if (showLyricsOverlay)
+                                            if (widget.showLyricsOverlay)
                                               Positioned.fill(
                                                 child: _DesktopLyricsOverlay(
-                                                  onClose: onToggleLyrics,
+                                                  onClose: widget.onToggleLyrics,
                                                 ),
                                               ),
                                           ],
                                         ),
                                       ),
                                     ),
-                                    if (showPlayer && showQueueOverlay)
+                                    if (widget.showPlayer &&
+                                        widget.showQueueOverlay)
                                       Positioned.fill(
                                         child: FocusTraversalOrder(
                                           order: const NumericFocusOrder(5),
                                           child: _QueueOverlay(
-                                            key: queueOverlayKey,
+                                            key: widget.queueOverlayKey,
                                             fullscreen: false,
                                             floatingWindow: true,
-                                            onDismiss: onDismissQueue,
+                                            onDismiss: widget.onDismissQueue,
                                           ),
                                         ),
                                       ),
@@ -2285,24 +2413,24 @@ class _DesktopWorkspace extends StatelessWidget {
             ],
           ),
         ),
-        if (showPlayer)
+        if (widget.showPlayer)
           FocusTraversalOrder(
             order: const NumericFocusOrder(30),
             child: _DesktopPlayerBar(
-              playback: playback,
-              songTitle: songTitle,
-              songArtist: songArtist,
-              artistId: artistId,
-              albumId: albumId,
-              coverArtId: coverArtId,
-              coverArtUrl: playback.isRadioMode
-                  ? playback.radioStation?.nowPlayingArtUrl
-                  : coverArtUrl,
-              onOpenPlayer: onOpenPlayer,
-              onToggleQueue: onToggleQueue,
-              queueToggleFocusNode: queueToggleFocusNode,
-              lyricsActive: showLyricsOverlay,
-              onToggleLyrics: onToggleLyrics,
+              playback: widget.playback,
+              songTitle: widget.songTitle,
+              songArtist: widget.songArtist,
+              artistId: widget.artistId,
+              albumId: widget.albumId,
+              coverArtId: widget.coverArtId,
+              coverArtUrl: widget.playback.isRadioMode
+                  ? widget.playback.radioStation?.nowPlayingArtUrl
+                  : widget.coverArtUrl,
+              onOpenPlayer: widget.onOpenPlayer,
+              onToggleQueue: widget.onToggleQueue,
+              queueToggleFocusNode: widget.queueToggleFocusNode,
+              lyricsActive: widget.showLyricsOverlay,
+              onToggleLyrics: widget.onToggleLyrics,
             ),
           ),
       ],
@@ -3637,6 +3765,7 @@ class _RailSidebar extends ConsumerWidget {
     required this.showPlayer,
     required this.playback,
     required this.onOpenPlayer,
+    this.navbarStyle = 'comfortable',
     this.songTitle,
     this.songArtist,
     this.artistId,
@@ -3667,9 +3796,12 @@ class _RailSidebar extends ConsumerWidget {
   final bool isRadio;
   final String? radioArtUrl;
   final VoidCallback onOpenPlayer;
+  final String navbarStyle;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final iconsOnly = navbarStyle == 'icons';
+    final compact = navbarStyle == 'compact';
     return Padding(
       padding: const EdgeInsets.fromLTRB(2, 8, 2, 8),
       child: Column(
@@ -3678,7 +3810,7 @@ class _RailSidebar extends ConsumerWidget {
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                const navTileEstimatedHeight = 64.0;
+                final navTileEstimatedHeight = compact ? 52.0 : 64.0;
                 const subNavTileEstimatedHeight = 44.0;
                 const subNavTrailingGap = 6.0;
                 const reservedMiniPlayerHeight = 170.0;
@@ -3703,6 +3835,7 @@ class _RailSidebar extends ConsumerWidget {
                     (librarySubSectionCount * subNavTileEstimatedHeight) +
                     subNavTrailingGap;
                 final showLibrarySectionsInline =
+                    !iconsOnly &&
                     showLibrarySubNavigation &&
                     navViewportHeight >=
                         (inlineLibraryNavHeight + railCutoffSlack);
@@ -3719,6 +3852,8 @@ class _RailSidebar extends ConsumerWidget {
                         destination: destinations[i],
                         selected: i == selectedIndex,
                         onTap: () => onDestinationSelected(i),
+                        iconsOnly: iconsOnly,
+                        compact: compact,
                       ),
                     ),
                     if (showLibrarySectionsInline && i == 1) ...<Widget>[
@@ -3848,11 +3983,15 @@ class _RailNavTile extends StatelessWidget {
     required this.destination,
     required this.selected,
     required this.onTap,
+    this.iconsOnly = false,
+    this.compact = false,
   });
 
   final _ShellDestination destination;
   final bool selected;
   final VoidCallback onTap;
+  final bool iconsOnly;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -3863,6 +4002,11 @@ class _RailNavTile extends StatelessWidget {
           ? colorScheme.onSecondaryContainer
           : colorScheme.onSurfaceVariant,
     );
+    final tilePadding = iconsOnly
+        ? const EdgeInsets.symmetric(horizontal: 12, vertical: 14)
+        : compact
+        ? const EdgeInsets.symmetric(horizontal: 12, vertical: 10)
+        : const EdgeInsets.symmetric(horizontal: 16, vertical: 14);
 
     return Material(
       color: selected
@@ -3873,8 +4017,10 @@ class _RailNavTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          padding: tilePadding,
           child: Row(
+            mainAxisAlignment:
+                iconsOnly ? MainAxisAlignment.center : MainAxisAlignment.start,
             children: <Widget>[
               Icon(
                 destination.icon,
@@ -3883,15 +4029,17 @@ class _RailNavTile extends StatelessWidget {
                     ? colorScheme.onSecondaryContainer
                     : colorScheme.onSurfaceVariant,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  destination.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: textStyle,
+              if (!iconsOnly) ...<Widget>[
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    destination.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: textStyle,
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ),

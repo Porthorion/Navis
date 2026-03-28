@@ -49,6 +49,8 @@ class AppSettingsModel {
     this.homeDensity = 'comfortable',
     required this.homeSectionOrder,
     required this.homeSectionsHidden,
+    this.desktopNavbarStyle = 'comfortable',
+    this.desktopNavbarAutohide = false,
   });
 
   const AppSettingsModel.defaults()
@@ -96,7 +98,9 @@ class AppSettingsModel {
       desktopFocusPlayerModeEnabled = false,
       homeDensity = 'comfortable',
       homeSectionOrder = null,
-      homeSectionsHidden = null;
+      homeSectionsHidden = null,
+      desktopNavbarStyle = 'comfortable',
+      desktopNavbarAutohide = false;
 
   final int? wifiMaxBitRate;
   final String? wifiFormat;
@@ -170,6 +174,12 @@ class AppSettingsModel {
   /// List of hidden home section IDs, or null meaning none hidden.
   final List<String>? homeSectionsHidden;
 
+  /// Desktop navigation sidebar style: 'comfortable', 'compact', or 'icons'.
+  final String desktopNavbarStyle;
+
+  /// When true on desktop, the navigation sidebar autohides.
+  final bool desktopNavbarAutohide;
+
   AppSettingsModel copyWith({
     int? wifiMaxBitRate,
     String? wifiFormat,
@@ -216,6 +226,8 @@ class AppSettingsModel {
     String? homeDensity,
     List<String>? homeSectionOrder,
     List<String>? homeSectionsHidden,
+    String? desktopNavbarStyle,
+    bool? desktopNavbarAutohide,
     bool clearWifiBitRate = false,
     bool clearWifiFormat = false,
     bool clearCellularBitRate = false,
@@ -298,6 +310,8 @@ class AppSettingsModel {
       homeSectionsHidden: clearHomeSectionsHidden
           ? null
           : homeSectionsHidden ?? this.homeSectionsHidden,
+      desktopNavbarStyle: desktopNavbarStyle ?? this.desktopNavbarStyle,
+      desktopNavbarAutohide: desktopNavbarAutohide ?? this.desktopNavbarAutohide,
     );
   }
 }

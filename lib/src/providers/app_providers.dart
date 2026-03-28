@@ -1925,6 +1925,23 @@ final homeDensityProvider = Provider<String>((ref) {
   return settings.homeDensity == 'compact' ? 'compact' : 'comfortable';
 });
 
+/// Desktop navigation sidebar style: 'comfortable', 'compact', or 'icons'.
+final desktopNavbarStyleProvider = Provider<String>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  final style = settings.desktopNavbarStyle;
+  return (style == 'compact' || style == 'icons') ? style : 'comfortable';
+});
+
+/// Whether the desktop navigation sidebar autohides.
+final desktopNavbarAutohideProvider = Provider<bool>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.desktopNavbarAutohide;
+});
+
 /// Ordered list of home section IDs (null = default order).
 final homeSectionOrderProvider = Provider<List<String>?>((ref) {
   final settings =
