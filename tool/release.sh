@@ -472,12 +472,14 @@ LAUNCHER
 Name=${DEB_APP_NAME}
 GenericName=Music Player
 Comment=Subsonic/OpenSubsonic music player
-Exec=${DEB_PACKAGE_NAME}
+Exec=${DEB_PACKAGE_NAME} %U
 Icon=${DEB_PACKAGE_NAME}
 Terminal=false
 Type=Application
 Categories=AudioVideo;Audio;Player;
 StartupNotify=true
+StartupWMClass=navis
+MimeType=audio/mpeg;audio/ogg;audio/flac;audio/x-flac;audio/wav;audio/aac;audio/x-m4a;
 DESKTOP
 
       ICON_SOURCE="${SCRIPT_DIR}/../lib/src/icon/Navis_Icon_light.png"

@@ -10,3 +10,14 @@ flutter_launcher_icons:
   ios: true
   image_path_ios: "lib/src/icon/Navis_Icon_dark.png"
   remove_alpha_ios: true
+
+  # macOS — generates all sizes in macos/Runner/Assets.xcassets/AppIcon.appiconset/
+  macos:
+    generate: true
+    image_path: "lib/src/icon/Navis_Icon_dark.png"
+
+  # Windows — generates windows/runner/resources/app_icon.ico
+  windows:
+    generate: true
+    image_path: "lib/src/icon/Navis_Icon_dark.png"
+    icon_size: 256

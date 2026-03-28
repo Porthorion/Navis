@@ -56,6 +56,19 @@ case "${MODE}" in
     flutter run --debug "${DART_DEFINE_ARGS[@]}" "$@"
     ;;
   linux)
+    # Install user-level desktop file + icon before running so Wayland
+    # compositors (GNOME, KDE Plasma, etc.) resolve the app icon via app-id.
+    # Safe to run repeatedly — only installs/updates local user files.
+    echo "==> Installing user-level desktop entry for Wayland icon support"
+    _icon_dir="${HOME}/.local/share/icons/hicolor/256x256/apps"
+    _app_dir="${HOME}/.local/share/applications"
+    mkdir -p "${_icon_dir}" "${_app_dir}"
+    cp -f "lib/src/icon/Navis_Icon_dark.png" "${_icon_dir}/navis.png"
+    cp -f "linux/packaging/com.navis.app.navis.desktop" \
+          "${_app_dir}/com.navis.app.navis.desktop"
+    gtk-update-icon-cache "${HOME}/.local/share/icons/hicolor" \
+      --ignore-theme-index --quiet 2>/dev/null || true
+
     flutter run -d linux --debug "${DART_DEFINE_ARGS[@]}" "$@"
     ;;
   apk)

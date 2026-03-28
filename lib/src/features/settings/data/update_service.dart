@@ -357,7 +357,8 @@ class UpdateService {
       case UpdateInstallMode.linuxDeb:
         return p.dirname(Platform.resolvedExecutable);
 
-      default:
+      case UpdateInstallMode.androidApk:
+      case UpdateInstallMode.windowsInstaller:
         return p.dirname(Platform.resolvedExecutable);
     }
   }
