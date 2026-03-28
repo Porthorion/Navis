@@ -1,31 +1,31 @@
-# Releasing Navis from Linux
+# Releasing Navis from a Linux Host
 
 This document describes how to build and publish Navis release artifacts for all
-supported platforms starting from a Linux development machine.
+supported platforms when your primary development machine is Linux.
 
 ## Platform Capabilities from Linux
 
 | Platform | Build Host | Method |
-|----------|-----------|--------|
-| Linux    | Linux (native) | `flutter build linux` |
-| Android  | Linux (native) | `flutter build appbundle` / `apk` |
-| Windows  | Linux (remote or cross) | SSH to Windows VM/machine |
-| macOS    | macOS only | SSH to macOS machine / CI |
-| iOS      | macOS only | SSH to macOS machine / CI |
+|---|---|---|
+| Linux | Linux (native) | `flutter build linux` |
+| Android | Linux (native) | `flutter build apk` |
+| Windows | Windows (remote via SSH) | `tool/remote_build_windows.sh` |
+| macOS | macOS only — run release.sh directly on Mac | No `--macos-ssh`; Mac must orchestrate its own build |
+| iOS | macOS only | Not scriptable from Linux |
 
-> **Hard constraint:** Flutter desktop builds are strictly host-native. There is
-> no practical cross-compilation path for Windows or macOS from Linux without a
-> remote builder running the target OS.
+> **Hard constraint:** Flutter desktop builds are strictly host-native. macOS builds
+> require running `tool/release.sh` *on the Mac*; there is no remote-SSH path for macOS.
+> Windows builds can be delegated to a remote Windows host via SSH from Linux.
 
 ---
 
-## Prerequisites (Linux)
+## Prerequisites
 
 ### 1. Flutter SDK
 
 ```bash
-flutter --version          # must be Flutter 3.x stable
-flutter doctor -v          # resolve any remaining issues
+flutter --version          # Flutter 3.x stable
+flutter doctor -v
 ```
 
 ### 2. Native Linux build dependencies
@@ -35,18 +35,19 @@ sudo apt-get update
 sudo apt-get install -y \
   clang cmake ninja-build pkg-config \
   libgtk-3-dev libmpv-dev \
-  dpkg-dev                 # only needed for .deb packaging
+  dpkg-dev jq curl git
 ```
 
 ### 3. Android toolchain
 
+Accept Android SDK licenses:
+
 ```bash
-# Accept Android licenses
 yes | flutter doctor --android-licenses
 ```
 
-Keystore file and `android/key.properties` must be provisioned locally (see
-[release-secrets.md](release-secrets.md)).
+Keystore and `android/key.properties` must be provisioned locally. See
+[release-secrets.md](release-secrets.md).
 
 ### 4. Forgejo token
 
@@ -60,27 +61,43 @@ FORGEJO_TOKEN="<personal-access-token-with-write:release>"
 
 ---
 
+## Release Artifacts
+
+All artifacts follow the naming convention `<prefix>-<version>-<platform>.<ext>`:
+
+| Target | Flag | Output filename |
+|---|---|---|
+| Android APK | `--targets=android` | `navis-v0.x.y.apk` |
+| Linux portable bundle | `--targets=linux --linux-package=bundle` | `navis-v0.x.y-linux.tar.gz` |
+| Linux Debian package | `--targets=linux --linux-package=deb` | `navis-v0.x.y-linux-amd64.deb` |
+| Windows portable | `--targets=windows` | `navis-v0.x.y-windows.zip` |
+| Windows installer | `--targets=windows --windows-package=exe` | `navis-v0.x.y-windows-installer.exe` |
+| macOS bundle | `--targets=macos` (run on Mac) | `navis-v0.x.y-macos.zip` |
+
+Dev channel assets are prefixed with `navis-dev-` instead of `navis-`.
+
+For full per-platform packaging details see:
+- [release-macos.md](release-macos.md)
+- [release-linux.md](release-linux.md)
+- [release-windows.md](release-windows.md)
+
+---
+
 ## Building Linux and Android Locally
 
 ```bash
-# Android release APK + AAB (default target)
+# Android APK only (default)
 ./tool/release.sh v0.9.0
 
-# Linux bundle + Android
+# Linux portable bundle + Android
 ./tool/release.sh v0.9.0 --targets=android,linux
 
-# Linux .deb package + Android
+# Linux .deb + Android
 ./tool/release.sh v0.9.0 --targets=android,linux --linux-package=deb
 ```
 
-All built artifacts land in the repo root as:
-
-| Artifact | Filename |
-|----------|---------|
-| Android APK | `navis-v0.9.0.apk` |
-| Android AAB | `navis-v0.9.0.aab` |
-| Linux bundle (.tar.gz) | `navis-linux-v0.9.0.tar.gz` |
-| Linux .deb | `navis-v0.9.0.amd64.deb` |
+> See [release-linux.md](release-linux.md) for instructions on publishing both
+> the `.deb` and `.tar.gz` in a single release.
 
 ---
 
@@ -90,6 +107,7 @@ You need a Windows machine (physical, VM, or cloud) with:
 - Flutter SDK on `PATH` for non-interactive SSH shells
 - Visual Studio C++ build tools (Desktop development with C++)
 - CMake + Ninja
+- Inno Setup 6 (`ISCC.exe`) for `--windows-package=exe`
 - OpenSSH Server running
 
 ### Enable OpenSSH on Windows (PowerShell, as Admin)
@@ -100,13 +118,15 @@ Start-Service sshd
 Set-Service -Name sshd -StartupType Automatic
 ```
 
-### Configure SSH alias (Linux `~/.ssh/config`)
+### Configure SSH alias on Linux (`~/.ssh/config`)
 
 ```
 Host windows-builder
     HostName 192.168.x.x
     User YourWindowsUser
     IdentityFile ~/.ssh/id_ed25519
+    ServerAliveInterval 60
+    ServerAliveCountMax 60
 ```
 
 ### Add to `tool/release.env`
@@ -119,126 +139,64 @@ NAVIS_WINDOWS_REMOTE_DIR=".navis/remote-windows-build"
 ### Run
 
 ```bash
-# Windows ZIP + Android + Linux
+# Windows portable ZIP + Android + Linux
 ./tool/release.sh v0.9.0 --targets=android,linux,windows
 
-# Windows MSIX installer
+# Windows Inno Setup installer
 ./tool/release.sh v0.9.0 --targets=windows --windows-package=exe
 ```
 
-The script (`tool/remote_build_windows.sh`) will:
-1. Archive the local source tree
-2. Upload to the Windows machine over SCP
-3. Execute `flutter build windows` remotely
-4. Package the output
-5. Copy the artifact back to the repo root
+The script (`tool/remote_build_windows.sh`) archives the local source, uploads to the
+Windows machine over SCP, executes the build remotely, packages the output, and copies the
+artifact back to the repo root.
 
 ---
 
-## Building macOS / iOS via Remote SSH Builder
+## Building macOS
 
-macOS builds require Xcode and can only run on Apple hardware or a macOS VM.
+macOS builds **cannot** be delegated from Linux — `tool/release.sh` exits with an error if
+`--targets=macos` is passed on a non-macOS host.
 
-### Requirements on the macOS machine
-
-- Xcode + Command Line Tools
-- Flutter SDK on `PATH`
-- Valid Apple Developer membership (for distribution signing + notarization)
-- OpenSSH enabled (System Settings → General → Sharing → Remote Login)
-
-### Configure SSH alias
-
-```
-Host mac-builder
-    HostName 192.168.x.x
-    User yourmacuser
-    IdentityFile ~/.ssh/id_ed25519
-```
-
-### Add to `tool/release.env`
+Run the macOS release directly on the Mac:
 
 ```bash
-NAVIS_LINUX_SSH=""           # leave empty; Linux is built locally
-NAVIS_MACOS_SSH="mac-builder"
-NAVIS_MACOS_REMOTE_DIR=".navis/remote-macos-build"
-```
-
-### Run
-
-```bash
-# macOS + Android + Linux
-./tool/release.sh v0.9.0 --targets=android,linux,macos
-
-# macOS signed + notarized DMG
+# On the Mac
+export MACOS_SIGN_IDENTITY="Developer ID Application: ..."
+export MACOS_NOTARY_PROFILE="navis-notary-profile"
 ./tool/release.sh v0.9.0 --targets=macos --macos-notarize
 ```
 
+See [release-macos.md](release-macos.md) for full macOS build and notarization
+instructions.
+
 ---
 
-## Full Multi-Platform Release from Linux
+## Full Multi-Platform Release
+
+### Android + Linux + Windows (from Linux)
 
 ```bash
 ./tool/release.sh v0.9.0 \
-  --all-platforms \
+  --targets=android,linux,windows \
   --linux-package=deb \
-  --windows-package=exe \
-  --macos-notarize
+  --windows-package=exe
 ```
 
-This will:
-1. Build Android APK + AAB natively on Linux
-2. Build Linux .deb natively on Linux
-3. SSH to the Windows machine, build and retrieve a Windows installer
-4. SSH to the macOS machine, build and retrieve a notarized macOS DMG
-5. Create a Forgejo release and upload all artifacts
+### Adding macOS
+
+Run the macOS portion separately on the Mac after the Forgejo release exists, then upload
+the `.zip` asset via the Forgejo API or web UI. See [release-macos.md](release-macos.md).
 
 ---
 
 ## Dev Channel Releases
 
-The dev channel uses a sidecar app identity so both channels can be installed
-side-by-side on Android:
-
 ```bash
 ./tool/release.sh v0.9.0-dev.1 --channel=dev --targets=android,linux
 ```
 
-Artifacts will be named `navis-dev-v0.9.0-dev.1.*`.
-
----
-
-## Useful Individual Commands
-
-```bash
-# Build only, no publish
-flutter build apk --release                      # Android APK
-flutter build appbundle --release                # Android AAB
-flutter build linux --release                    # Linux bundle
-
-# Run tests before releasing
-flutter test
-./tool/check.sh
-
-# Lint
-flutter analyze
-```
-
----
-
-## Desktop Download Info
-
-Downloads initiated inside the app are stored at:
-
-```
-<app support dir>/audio/permanent/
-```
-
-On Linux this is `~/.local/share/navis/audio/permanent/`.  
-On Windows this is `%APPDATA%\navis\audio\permanent\`.  
-On macOS this is `~/Library/Application Support/navis/audio/permanent/`.
-
-Notifications for completed downloads are Android-only by design; desktop
-platforms do not show system notifications for downloads.
+Assets will be named `navis-dev-v0.9.0-dev.1.*`. The `dev` channel also sets the Android
+sidecar identity (`com.navis.app.navis.dev`) so both channels coexist on the same device.
 
 ---
 
@@ -248,26 +206,27 @@ platforms do not show system notifications for downloads.
 
 ```bash
 sudo apt-get install -y clang
-```
-
-Or if clang is installed but not the default:
-
-```bash
 export CXX=clang++
 export CC=clang
 ```
 
 ### `flutter build linux` fails in CI / Docker
 
-Flutter Linux builds need `libmpv-dev` and a display-capable environment.
-For headless CI, set up a virtual display or use a Gtk-capable Docker image.
+Flutter Linux builds need `libmpv-dev` and a GTK display environment. For headless
+environments, set up Xvfb or use a Gtk-capable Docker image.
 
 ### Windows remote build times out
 
-Increase SSH `ServerAliveInterval` in `~/.ssh/config` or pass `-o` flags. Windows
-Flutter builds can take 3–5 min on first run.
+Windows Flutter builds can take 3–10 minutes on first run (MSVC compilation). Increase
+`ServerAliveInterval` in `~/.ssh/config` (example above).
 
-### MPV `[error] lavf: Failed to create file cache` at runtime
+### Remote artifact not found after Windows build
 
-This is suppressed in Navis ≥ 0.9.0 by removing the proxy layer — libmpv now
-receives the original HTTPS stream directly.
+Verify `flutter` is on `PATH` for non-interactive SSH shells on the Windows host:
+
+```bash
+ssh windows-builder "flutter --version"
+```
+
+If the command fails, add Flutter to the Windows user's system `PATH` (not just the
+interactive shell PATH).

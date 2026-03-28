@@ -289,10 +289,44 @@ handling. Commands are guarded before dispatch:
 The in-app update checker lives in `lib/src/features/settings/`:
 
 - `data/update_repository.dart` — fetches the Forgejo Releases API, filters by update
-  channel, parses semver, and returns `UpdateInfo` when a newer version is available
-- `data/update_service.dart` — downloads the APK asset into the app cache directory and
-  invokes the Android package installer via a `MethodChannel`
-- `domain/update_info.dart` — immutable value object describing the available release
+  channel, parses semver, and selects the correct platform artifact using
+  `detectInstallMode()`. Returns `UpdateInfo` (with `downloadUrl` and `assetFileName`)
+  when a newer version is available.
+- `data/update_service.dart` — downloads the release artifact into the system temp
+  directory and applies the update. On Android, invokes the system APK installer via a
+  `MethodChannel`. On desktop, runs a platform-appropriate apply strategy:
+  - **Linux deb:** `pkexec dpkg -i` + relaunch.
+  - **Linux portable / Windows portable / macOS:** extracts the archive to a staging
+    directory, writes a self-deleting shell/batch script with rollback logic, launches it
+    detached, and exits. The script replaces the running bundle, relaunches the app, and
+    cleans up automatically.
+  - **Windows installer:** launches the Inno Setup installer with `/SILENT /CLOSEAPPLICATIONS`.
+- `data/update_install_mode.dart` — `UpdateInstallMode` enum and `detectInstallMode()`
+  function. Detects the current install type from filesystem heuristics (e.g. presence of
+  `unins000.exe` for Windows installer mode; executable under `/opt/navis` for Linux deb).
+- `data/archive_utils.dart` — cross-platform archive extraction (`tar`, `ditto`, PowerShell
+  `Expand-Archive`).
+- `data/update_scripts.dart` — generates the platform-specific updater scripts (`.sh` for
+  Linux/macOS, `.bat` for Windows). Scripts include rollback on failure and self-delete
+  after successful update.
+- `domain/update_info.dart` — immutable value object. `downloadUrl` holds the direct asset
+  URL for the current platform; `apkDownloadUrl` is a backward-compatible alias.
+
+### Write-access guard
+
+Before starting any download, `UpdateService.canApplyUpdate(mode)` probes the target
+directory for write access. If the directory is not writable (e.g. app installed to
+`/Applications` by an admin user, or a read-only portable location), the update dialog
+shows a "Download Manually" prompt linking to the release page instead of attempting
+a doomed automatic update.
+
+### Startup cleanup
+
+`UpdateService.cleanupStaledUpdates()` is called on every desktop app launch. It removes
+any `.backup` directories and orphaned staging dirs left behind by a previous update
+script, preventing accumulation of stale files.
+
+### Update channel
 
 The update channel (`stable` or `dev`) is baked in at compile time via
 `--dart-define=NAVIS_UPDATE_CHANNEL=dev`. The `dev` channel matches release assets prefixed
