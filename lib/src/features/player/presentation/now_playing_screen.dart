@@ -27,10 +27,30 @@ import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/desktop_window_controller.dart';
+import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/format_utils.dart';
+
+/// Splits a combined artist string into individual artist names.
+/// Mirrors the same function in app_shell.dart.
+List<String> _splitArtists(String raw) {
+  final patterns = [
+    RegExp(r'\s*;\s*'),
+    RegExp(r'\s+feat(?:uring)?\.?\s+', caseSensitive: false),
+    RegExp(r'\s+ft\.\s+', caseSensitive: false),
+    RegExp(r'\s+/\s+'), // space-slash-space only — preserves K/DA, AC/DC
+  ];
+  List<String> parts = [raw.trim()];
+  for (final pat in patterns) {
+    parts = parts.expand((p) => p.split(pat)).toList();
+  }
+  return parts.map((p) => p.trim()).where((p) => p.isNotEmpty).toList();
+}
+
+/// A single artist entry for [_TrackInfo.artistLinks].
+typedef _ArtistLink = ({String name, VoidCallback? onTap});
 
 String _formatDuration(Duration d) {
   final totalSeconds = d.inSeconds;
@@ -1943,24 +1963,56 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                             onTitleTap: isRadio
                                 ? (radioMeta?.nowPlayingTitle != null &&
                                           radioMeta!.nowPlayingTitle!.isNotEmpty
-                                      ? () => NavService.goToSearch(
-                                          context,
-                                          ref,
-                                          radioMeta.nowPlayingTitle!,
-                                        )
+                                      ? () {
+                                          ref
+                                              .read(
+                                                searchFilterProvider.notifier,
+                                              )
+                                              .select(
+                                                SearchResultType.songs,
+                                              );
+                                          NavService.goToSearch(
+                                            context,
+                                            ref,
+                                            radioMeta.nowPlayingTitle!,
+                                          );
+                                        }
                                       : null)
                                 : null,
-                            onArtistTap: isRadio
+                            artistLinks: isRadio
                                 ? (radioMeta?.nowPlayingArtist != null &&
                                           radioMeta!
                                               .nowPlayingArtist!
                                               .isNotEmpty
-                                      ? () => NavService.goToSearch(
-                                          context,
-                                          ref,
+                                      ? _splitArtists(
                                           radioMeta.nowPlayingArtist!,
                                         )
+                                            .map(
+                                              (name) => (
+                                                name: name,
+                                                onTap: () {
+                                                  ref
+                                                      .read(
+                                                        searchFilterProvider
+                                                            .notifier,
+                                                      )
+                                                      .select(
+                                                        SearchResultType
+                                                            .artists,
+                                                      );
+                                                  NavService.goToSearch(
+                                                    context,
+                                                    ref,
+                                                    name,
+                                                  );
+                                                },
+                                              ),
+                                            )
+                                            .toList()
                                       : null)
+                                : null,
+                            onArtistTap: isRadio
+                                ? null
                                 : (resolvedArtistId != null
                                       ? () => NavService.goToArtist(
                                           context,
@@ -2385,22 +2437,42 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
               onTitleTap: isRadio
                   ? (radioMeta?.nowPlayingTitle != null &&
                             radioMeta!.nowPlayingTitle!.isNotEmpty
-                        ? () => NavService.goToSearch(
-                            context,
-                            ref,
-                            radioMeta.nowPlayingTitle!,
-                          )
+                        ? () {
+                            ref
+                                .read(searchFilterProvider.notifier)
+                                .select(SearchResultType.songs);
+                            NavService.goToSearch(
+                              context,
+                              ref,
+                              radioMeta.nowPlayingTitle!,
+                            );
+                          }
+                        : null)
+                  : null,
+              artistLinks: isRadio
+                  ? (radioMeta?.nowPlayingArtist != null &&
+                            radioMeta!.nowPlayingArtist!.isNotEmpty
+                        ? _splitArtists(radioMeta.nowPlayingArtist!)
+                            .map(
+                              (name) => (
+                                name: name,
+                                onTap: () {
+                                  ref
+                                      .read(searchFilterProvider.notifier)
+                                      .select(SearchResultType.artists);
+                                  NavService.goToSearch(
+                                    context,
+                                    ref,
+                                    name,
+                                  );
+                                },
+                              ),
+                            )
+                            .toList()
                         : null)
                   : null,
               onArtistTap: isRadio
-                  ? (radioMeta?.nowPlayingArtist != null &&
-                            radioMeta!.nowPlayingArtist!.isNotEmpty
-                        ? () => NavService.goToSearch(
-                            context,
-                            ref,
-                            radioMeta.nowPlayingArtist!,
-                          )
-                        : null)
+                  ? null
                   : (resolvedArtistId != null
                         ? () => NavService.goToArtist(
                             context,
@@ -2728,22 +2800,42 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                 onTitleTap: isRadio
                     ? (radioMeta?.nowPlayingTitle != null &&
                               radioMeta!.nowPlayingTitle!.isNotEmpty
-                          ? () => NavService.goToSearch(
-                              context,
-                              ref,
-                              radioMeta.nowPlayingTitle!,
-                            )
+                          ? () {
+                              ref
+                                  .read(searchFilterProvider.notifier)
+                                  .select(SearchResultType.songs);
+                              NavService.goToSearch(
+                                context,
+                                ref,
+                                radioMeta.nowPlayingTitle!,
+                              );
+                            }
+                          : null)
+                    : null,
+                artistLinks: isRadio
+                    ? (radioMeta?.nowPlayingArtist != null &&
+                              radioMeta!.nowPlayingArtist!.isNotEmpty
+                          ? _splitArtists(radioMeta.nowPlayingArtist!)
+                              .map(
+                                (name) => (
+                                  name: name,
+                                  onTap: () {
+                                    ref
+                                        .read(searchFilterProvider.notifier)
+                                        .select(SearchResultType.artists);
+                                    NavService.goToSearch(
+                                      context,
+                                      ref,
+                                      name,
+                                    );
+                                  },
+                                ),
+                              )
+                              .toList()
                           : null)
                     : null,
                 onArtistTap: isRadio
-                    ? (radioMeta?.nowPlayingArtist != null &&
-                              radioMeta!.nowPlayingArtist!.isNotEmpty
-                          ? () => NavService.goToSearch(
-                              context,
-                              ref,
-                              radioMeta.nowPlayingArtist!,
-                            )
-                          : null)
+                    ? null
                     : (resolvedArtistId != null
                           ? () => NavService.goToArtist(
                               context,
@@ -3165,6 +3257,7 @@ class _TrackInfo extends StatelessWidget {
     this.onTitleTap,
     this.onArtistTap,
     this.onAlbumTap,
+    this.artistLinks,
   });
 
   final String title;
@@ -3172,11 +3265,18 @@ class _TrackInfo extends StatelessWidget {
   final String album;
   final bool compact;
   final VoidCallback? onTitleTap;
+  /// Used when the artist is a single entity (regular tracks, non-split radio).
   final VoidCallback? onArtistTap;
   final VoidCallback? onAlbumTap;
+  /// When non-null, the artist row renders each entry as an individual
+  /// tappable link separated by commas. Takes precedence over [onArtistTap].
+  final List<_ArtistLink>? artistLinks;
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final links = artistLinks;
     return Column(
       children: <Widget>[
         GestureDetector(
@@ -3184,12 +3284,10 @@ class _TrackInfo extends StatelessWidget {
           onTap: onTitleTap,
           child: Text(
             title,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            style: textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.bold,
               fontSize: compact ? 20 : null,
-              color: onTitleTap != null
-                  ? Theme.of(context).colorScheme.primary
-                  : null,
+              color: onTitleTap != null ? colorScheme.primary : null,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -3197,33 +3295,65 @@ class _TrackInfo extends StatelessWidget {
           ),
         ),
         SizedBox(height: compact ? 2 : 4),
-        GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: onArtistTap,
-          child: Text(
-            artist,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              fontSize: compact ? 15 : null,
-              color: onArtistTap != null
-                  ? Theme.of(context).colorScheme.primary
-                  : Theme.of(context).colorScheme.onSurfaceVariant,
+        if (links != null && links.isNotEmpty)
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 0,
+            runSpacing: 0,
+            children: [
+              for (final (i, link) in links.indexed) ...<Widget>[
+                if (i > 0)
+                  Text(
+                    ', ',
+                    style: textTheme.bodyLarge?.copyWith(
+                      fontSize: compact ? 15 : null,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: link.onTap,
+                  child: Text(
+                    link.name,
+                    style: textTheme.bodyLarge?.copyWith(
+                      fontSize: compact ? 15 : null,
+                      color: link.onTap != null
+                          ? colorScheme.primary
+                          : colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          )
+        else
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onArtistTap,
+            child: Text(
+              artist,
+              style: textTheme.bodyLarge?.copyWith(
+                fontSize: compact ? 15 : null,
+                color: onArtistTap != null
+                    ? colorScheme.primary
+                    : colorScheme.onSurfaceVariant,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
           ),
-        ),
         SizedBox(height: compact ? 1 : 2),
         GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: onAlbumTap,
           child: Text(
             album,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            style: textTheme.bodyMedium?.copyWith(
               fontSize: compact ? 13 : null,
               color: onAlbumTap != null
-                  ? Theme.of(context).colorScheme.primary
-                  : Theme.of(context).colorScheme.onSurfaceVariant,
+                  ? colorScheme.primary
+                  : colorScheme.onSurfaceVariant,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
