@@ -3714,13 +3714,13 @@ abstract class AppLocalizations {
   /// No description provided for @desktopNavbarLockTooltip.
   ///
   /// In en, this message translates to:
-  /// **'Lock sidebar (disable autohide)'**
+  /// **'Lock sidebar'**
   String get desktopNavbarLockTooltip;
 
   /// No description provided for @desktopNavbarUnlockTooltip.
   ///
   /// In en, this message translates to:
-  /// **'Unlock sidebar (enable autohide)'**
+  /// **'Unlock sidebar'**
   String get desktopNavbarUnlockTooltip;
 
   /// No description provided for @homeSectionContinueListening.
