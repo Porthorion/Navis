@@ -8,6 +8,7 @@
 #
 # Usage:
 #   ./tool/dev_app.sh run [flutter-run-args...]
+#   ./tool/dev_app.sh linux [flutter-run-args...]
 #   ./tool/dev_app.sh apk [flutter-build-args...]
 #
 # Examples:
@@ -54,12 +55,15 @@ case "${MODE}" in
   run)
     flutter run --debug "${DART_DEFINE_ARGS[@]}" "$@"
     ;;
+  linux)
+    flutter run -d linux --debug "${DART_DEFINE_ARGS[@]}" "$@"
+    ;;
   apk)
     flutter build apk --release "${DART_DEFINE_ARGS[@]}" "$@"
     ;;
   *)
     echo "Unknown mode: ${MODE}"
-    echo "Usage: ./tool/dev_app.sh <run|apk> [flutter args...]"
+    echo "Usage: ./tool/dev_app.sh <run|linux|apk> [flutter args...]"
     exit 1
     ;;
 esac
