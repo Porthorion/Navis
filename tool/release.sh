@@ -422,7 +422,15 @@ fi
 if [[ "${BUILD_LINUX}" == "true" ]]; then
   if [[ "${UNAME}" == "Linux" ]]; then
     echo "==> Building Linux bundle..."
-    flutter build linux --release "${DART_DEFINE_ARGS[@]}"
+    # When running inside a Flatpak sandbox (e.g. VS Code Flatpak), clang++ and
+    # the system headers are not available. Delegate the build to the host OS.
+    if [[ -n "${FLATPAK_ID:-}" ]]; then
+      _flutter_bin="$(command -v flutter)"
+      /usr/bin/flatpak-spawn --host -- bash -c \
+        "export PATH=\"$(dirname "${_flutter_bin}"):\$HOME/.local/bin:\$PATH\"; cd \"${SCRIPT_DIR}/..\"; flutter build linux --release $(printf '%q ' "${DART_DEFINE_ARGS[@]}")"
+    else
+      flutter build linux --release "${DART_DEFINE_ARGS[@]}"
+    fi
 
     LINUX_BUNDLE_DIR="$(find "${SCRIPT_DIR}/../build/linux" -type d -path "*/release/bundle" | head -1)"
     if [[ -z "${LINUX_BUNDLE_DIR}" ]]; then
