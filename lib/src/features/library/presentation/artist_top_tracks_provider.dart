@@ -19,8 +19,9 @@ const int kArtistTopTracksMax = 10;
 /// Minimum tracks visible before "Show more".
 const int kArtistTopTracksCollapsed = 5;
 
-/// search3 songs per query (small — we only need the best candidate).
-const int _kSearchSongCount = 5;
+/// search3 songs per query — fetch more candidates so studio and live
+/// versions of the same song are both available for comparison.
+const int _kSearchSongCount = 10;
 
 /// Minimum combined title+artist score to accept a local Subsonic song
 /// as a match for a Last.fm top track.
@@ -28,6 +29,10 @@ const double _kMinimumMatchScore = 0.55;
 
 /// Maximum parallel search3 requests when resolving tracks.
 const int _kResolutionParallelism = 4;
+
+/// Score penalty applied to candidates that look like live or concert
+/// recordings, to prefer studio album / EP / single versions.
+const double _kLivePenalty = 0.20;
 
 // ---------------------------------------------------------------------------
 // Domain model
@@ -190,6 +195,10 @@ final artistTopTracksProvider =
 
 /// Returns the best-matching [Song] from [candidates] for [track], or `null`
 /// when no candidate exceeds [_kMinimumMatchScore].
+///
+/// Scoring priority: Albums / EPs / Singles > anything else > live recordings.
+/// Two candidates with the same title/artist score are ranked by release type
+/// via a penalty applied to live/concert/unplugged versions.
 Song? pickBestArtistTopTrackMatch({
   required LastFmArtistTopTrack track,
   required List<Song> candidates,
@@ -222,7 +231,12 @@ Song? pickBestArtistTopTrackMatch({
       partialWeight: 0.30,
       tokenWeight: 0.30,
     );
-    final score = math.max(0.0, math.min(1.0, titleScore + artistScore));
+    var score = math.max(0.0, math.min(1.0, titleScore + artistScore));
+
+    // Penalise live / concert / unplugged recordings so that studio album
+    // versions (Albums, EPs, Singles) are selected when available.
+    if (_isLiveVersion(candidate)) score = math.max(0.0, score - _kLivePenalty);
+
     if (score > bestScore) {
       bestScore = score;
       best = candidate;
@@ -253,4 +267,31 @@ double _tokenOverlap(String a, String b) {
   if (aTokens.isEmpty || bTokens.isEmpty) return 0;
   final overlap = aTokens.intersection(bTokens).length;
   return overlap / math.max(aTokens.length, bTokens.length);
+}
+
+/// Returns true when [song] appears to be a live recording or special
+/// non-studio release (live, concert, acoustic set, unplugged, etc.).
+///
+/// Both the song title and the album name are checked so that a song titled
+/// "Bohemian Rhapsody" on an album called "Live At Wembley" is also caught.
+bool _isLiveVersion(Song song) {
+  // Parenthetical / bracketed qualifiers in the title — e.g. "Song (Live)",
+  // "Song [Live at Madison Square Garden]", "Song - Live Version".
+  final titleExtra = RegExp(
+    r'[\(\[\-]\s*live|\blive version\b|\blive recording\b|\bin concert\b'
+    r'|\bunplugged\b|\bacoustic\s+(session|version|set)\b',
+    caseSensitive: false,
+  );
+
+  // Album name signals: "Live", "Live At/In/From ...", "... Live",
+  // "In Concert", "Unplugged", etc.
+  final albumSignal = RegExp(
+    r'\blive\b|\bin concert\b|\bunplugged\b|\bconcert\b',
+    caseSensitive: false,
+  );
+
+  if (titleExtra.hasMatch(song.title)) return true;
+  final albumName = song.album;
+  if (albumName != null && albumSignal.hasMatch(albumName)) return true;
+  return false;
 }

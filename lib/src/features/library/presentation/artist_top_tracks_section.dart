@@ -1,11 +1,18 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/lastfm_api_client.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
+import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
+import 'package:navis/src/common_widgets/song_context_menu.dart';
+import 'package:navis/src/common_widgets/song_download_status_icon.dart';
+import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -250,7 +257,7 @@ class _TrackList extends StatelessWidget {
 // Private: individual track tile
 // ---------------------------------------------------------------------------
 
-class _TopTrackTile extends StatelessWidget {
+class _TopTrackTile extends ConsumerWidget {
   const _TopTrackTile({
     required this.track,
     required this.enabled,
@@ -262,30 +269,99 @@ class _TopTrackTile extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
     final rankText = '${track.rank}';
     final subtitle = track.listeners != null
         ? _formatListeners(track.listeners!, context)
         : null;
 
-    return ListTile(
+    // Watch DB row for the resolved song (needed for context menu).
+    final resolvedId = track.resolvedSong?.id;
+    final dbSong =
+        resolvedId != null
+            ? ref.watch(songByIdProvider(resolvedId)).asData?.value
+            : null;
+
+    // ── Leading: rank number + album art thumbnail ──────────────────────
+    final leading = SizedBox(
+      height: 40,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: <Widget>[
+          SizedBox(
+            width: 28,
+            child: Center(
+              child: Text(
+                rankText,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                  fontWeight: FontWeight.w600,
+                  fontFeatures: const <FontFeature>[
+                    FontFeature.tabularFigures(),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 40,
+            height: 40,
+            child: CoverArtImage(
+              coverArtId: track.resolvedSong?.coverArt,
+              size: 80,
+              borderRadius: BorderRadius.circular(4),
+              placeholderIcon: Icons.music_note_outlined,
+              showLoadingPlaceholder: false,
+            ),
+          ),
+        ],
+      ),
+    );
+
+    // ── Trailing: download status + 3-dot menu (resolved tracks only) ───
+    Widget? trailing;
+    if (resolvedId != null) {
+      trailing = Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          SongDownloadStatusIcon(
+            songId: resolvedId,
+            onDownload: () => _downloadSong(context, ref, resolvedId),
+            size: 20,
+          ),
+          IconButton(
+            icon: const Icon(Icons.more_vert),
+            iconSize: 20,
+            constraints: const BoxConstraints(),
+            padding: const EdgeInsets.all(8),
+            onPressed:
+                dbSong != null
+                    ? () => unawaited(
+                        showSongContextMenu(context, ref, dbSong),
+                      )
+                    : null,
+          ),
+        ],
+      );
+    }
+
+    // ── Tile ────────────────────────────────────────────────────────────
+    final tile = ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       enabled: enabled,
       onTap: onTap,
-      leading: SizedBox(
-        width: 36,
-        child: Center(
-          child: Text(
-            rankText,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
-              fontWeight: FontWeight.w600,
-              fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
-            ),
-          ),
-        ),
-      ),
+      onLongPress:
+          dbSong != null
+              ? () {
+                  HapticFeedback.mediumImpact();
+                  unawaited(showSongContextMenu(context, ref, dbSong));
+                }
+              : null,
+      minLeadingWidth: 76,
+      leading: leading,
       title: Text(
         track.title,
         maxLines: 1,
@@ -294,30 +370,50 @@ class _TopTrackTile extends StatelessWidget {
           fontWeight: FontWeight.w500,
         ),
       ),
-      subtitle: subtitle != null
-          ? Text(
-              subtitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.75),
-              ),
-            )
-          : null,
-      trailing: track.isLocallyResolved
-          ? Tooltip(
-              message: 'In your library',
-              child: Icon(
-                Icons.library_music_rounded,
-                size: 18,
-                color: colorScheme.primary.withValues(alpha: 0.7),
-              ),
-            )
-          : Icon(
-              Icons.music_note_outlined,
-              size: 18,
-              color: colorScheme.onSurfaceVariant.withValues(alpha: 0.35),
+      subtitle:
+          subtitle != null
+              ? Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant.withValues(alpha: 0.75),
+                  ),
+                )
+              : null,
+      trailing: trailing,
+    );
+
+    // Wrap with GestureDetector to support desktop right-click context menu.
+    if (dbSong == null) return tile;
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onSecondaryTapDown:
+          (details) => unawaited(
+            showSongContextMenu(
+              context,
+              ref,
+              dbSong,
+              anchor: details.globalPosition,
             ),
+          ),
+      child: tile,
+    );
+  }
+
+  void _downloadSong(BuildContext context, WidgetRef ref, String songId) {
+    unawaited(
+      () async {
+        final choice = await showDownloadQualitySheet(context);
+        if (choice == null || !context.mounted) return;
+        unawaited(
+          ref.read(downloadServiceProvider).enqueueSong(
+            songId,
+            quality: choice.quality,
+            format: choice.format,
+          ),
+        );
+      }(),
     );
   }
 
@@ -354,7 +450,9 @@ class _TopTracksShimmer extends StatelessWidget {
               child: Row(
                 children: <Widget>[
                   const ShimmerPlaceholder(height: 16, width: 24),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 8),
+                  const ShimmerPlaceholder(height: 40, width: 40),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
