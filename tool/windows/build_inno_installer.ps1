@@ -53,7 +53,7 @@ $escapedOutputDir = $outputDir.Replace('\', '\\')
 $issBody = @"
 #define MyAppName "$appName"
 #define MyAppVersion "$semver"
-#define MyAppPublisher "Navis Team"
+#define MyAppPublisher "Khalifa"
 #define MyAppExeName "navis.exe"
 #define MySourceDir "$escapedReleaseDir"
 #define MyOutputDir "$escapedOutputDir"
