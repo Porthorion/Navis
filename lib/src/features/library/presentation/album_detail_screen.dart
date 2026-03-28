@@ -500,49 +500,35 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                         ],
                                       ),
                                       const SizedBox(height: 10),
-                                      // Star status + rating (secondary)
+                                      // Rating button
+                                      _RatingButton(
+                                        rating: albumRating,
+                                        loading: _isUpdatingRating,
+                                        onChanged: (next) => unawaited(
+                                          _updateAlbumRating(next),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      // Filter chips with header
                                       Row(
                                         children: <Widget>[
                                           Icon(
-                                            isStarred
-                                                ? Icons.favorite
-                                                : Icons.favorite_border,
-                                            size: 16,
-                                            color: isStarred
-                                                ? colors.primary
-                                                : colors.onSurfaceVariant,
+                                            Icons.filter_list,
+                                            size: 14,
+                                            color: colors.onSurfaceVariant,
                                           ),
-                                          const SizedBox(width: 6),
+                                          const SizedBox(width: 4),
                                           Text(
-                                            isStarred
-                                                ? l10n.actionLiked
-                                                : l10n.actionLike,
-                                            style: textTheme.bodySmall,
-                                          ),
-                                          const SizedBox(width: 16),
-                                          Text(
-                                            l10n.ratingTitle,
-                                            style: textTheme.bodySmall,
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Opacity(
-                                            opacity:
-                                                _isUpdatingRating ? 0.6 : 1.0,
-                                            child: RatingWidget(
-                                              rating: albumRating,
-                                              compact: true,
-                                              iconSize: 16,
-                                              onChanged: _isUpdatingRating
-                                                  ? (_) {}
-                                                  : (next) => unawaited(
-                                                      _updateAlbumRating(next),
-                                                    ),
-                                            ),
+                                            l10n.albumDetailFilterLabel,
+                                            style: textTheme.labelSmall
+                                                ?.copyWith(
+                                                  color:
+                                                      colors.onSurfaceVariant,
+                                                ),
                                           ),
                                         ],
                                       ),
-                                      const SizedBox(height: 10),
-                                      // Filter chips
+                                      const SizedBox(height: 6),
                                       Wrap(
                                         spacing: 8,
                                         runSpacing: 8,
@@ -702,44 +688,12 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                         ),
                         Padding(
                           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                          child: Row(
-                            children: <Widget>[
-                              Icon(
-                                isStarred
-                                    ? Icons.favorite
-                                    : Icons.favorite_border,
-                                size: 16,
-                                color: isStarred
-                                    ? Theme.of(context).colorScheme.primary
-                                    : Theme.of(
-                                        context,
-                                      ).colorScheme.onSurfaceVariant,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                isStarred ? l10n.actionLiked : l10n.actionLike,
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                              const SizedBox(width: 16),
-                              Text(
-                                l10n.ratingTitle,
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                              const SizedBox(width: 8),
-                              Opacity(
-                                opacity: _isUpdatingRating ? 0.6 : 1,
-                                child: RatingWidget(
-                                  rating: albumRating,
-                                  compact: true,
-                                  iconSize: 16,
-                                  onChanged: _isUpdatingRating
-                                      ? (_) {}
-                                      : (next) => unawaited(
-                                          _updateAlbumRating(next),
-                                        ),
-                                ),
-                              ),
-                            ],
+                          child: _RatingButton(
+                            rating: albumRating,
+                            loading: _isUpdatingRating,
+                            onChanged: (next) => unawaited(
+                              _updateAlbumRating(next),
+                            ),
                           ),
                         ),
                         Padding(
@@ -1156,7 +1110,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                         trailing: RatingWidget(
                           rating: rating,
                           compact: true,
-                          onChanged: (next) {
+                          onChanged: (int next) {
                             unawaited(
                               setSongRating(song.id, next, ref).catchError((_) {
                                 if (this.context.mounted) {
@@ -1564,6 +1518,171 @@ class _AudioMuseSimilarAlbums extends ConsumerWidget {
       },
       loading: () => const SizedBox.shrink(),
       error: (_, _) => const SizedBox.shrink(),
+    );
+  }
+}
+
+// ── Rating button ───────────────────────────────────────────────────────────
+
+/// Collapsed: an outlined button showing "[star] Rate" or "[star] n/5".
+/// Expanded: an inline row of 5 tappable stars with hover-fill on desktop.
+class _RatingButton extends StatefulWidget {
+  const _RatingButton({
+    required this.rating,
+    required this.onChanged,
+    this.loading = false,
+  });
+
+  final int? rating;
+  final ValueChanged<int> onChanged;
+  final bool loading;
+
+  @override
+  State<_RatingButton> createState() => _RatingButtonState();
+}
+
+class _RatingButtonState extends State<_RatingButton> {
+  bool _expanded = false;
+  int _hovered = 0;
+
+  void _confirm(int value) {
+    // Tapping the current rating deselects it (sets to 0).
+    final next = value == (widget.rating ?? 0) ? 0 : value;
+    widget.onChanged(next);
+    setState(() {
+      _expanded = false;
+      _hovered = 0;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final hasRating = (widget.rating ?? 0) > 0;
+    final effective = widget.rating ?? 0;
+
+    // Fixed height matches the OutlinedButton so expanding/collapsing never
+    // shifts sibling widgets in the parent Column layout.
+    return SizedBox(
+      height: 40,
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 160),
+        transitionBuilder: (child, anim) =>
+            FadeTransition(opacity: anim, child: child),
+        child: _expanded
+            ? Align(
+                key: const ValueKey('expanded'),
+                alignment: Alignment.centerLeft,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: <Widget>[
+                    for (var i = 1; i <= 5; i++)
+                      MouseRegion(
+                        cursor: SystemMouseCursors.click,
+                        onEnter: (_) => setState(() => _hovered = i),
+                        onExit: (_) => setState(() => _hovered = 0),
+                        child: GestureDetector(
+                          onTap:
+                              widget.loading ? null : () => _confirm(i),
+                          child: SizedBox(
+                            width: 32,
+                            height: 40,
+                            child: Center(
+                              child: AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 120),
+                                transitionBuilder: (child, anim) =>
+                                    ScaleTransition(
+                                      scale: anim,
+                                      child: child,
+                                    ),
+                                child: Icon(
+                                  (_hovered > 0
+                                          ? i <= _hovered
+                                          : i <= effective)
+                                      ? Icons.star_rounded
+                                      : Icons.star_border_rounded,
+                                  key: ValueKey(
+                                    _hovered > 0
+                                        ? i <= _hovered
+                                        : i <= effective,
+                                  ),
+                                  size: 22,
+                                  color: (_hovered > 0
+                                          ? i <= _hovered
+                                          : i <= effective)
+                                      ? cs.secondary
+                                      : cs.onSurfaceVariant.withValues(
+                                          alpha: 0.4,
+                                        ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    Tooltip(
+                      message: 'Cancel',
+                      child: InkResponse(
+                        onTap: () => setState(() {
+                          _expanded = false;
+                          _hovered = 0;
+                        }),
+                        radius: 16,
+                        child: Icon(
+                          Icons.close,
+                          size: 16,
+                          color:
+                              cs.onSurfaceVariant.withValues(alpha: 0.6),
+                        ),
+                      ),
+                    ),
+                    if (widget.loading)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 8),
+                        child: SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: cs.secondary,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              )
+            : Align(
+                key: const ValueKey('collapsed'),
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  onPressed: widget.loading
+                      ? null
+                      : () => setState(() => _expanded = true),
+                  icon: Icon(
+                    hasRating
+                        ? Icons.star_rounded
+                        : Icons.star_border_rounded,
+                    size: 18,
+                    color: hasRating ? cs.secondary : null,
+                  ),
+                  label: Text(
+                    hasRating ? '${widget.rating}/5' : 'Rate',
+                    style:
+                        hasRating
+                            ? TextStyle(color: cs.secondary)
+                            : null,
+                  ),
+                  style: hasRating
+                      ? OutlinedButton.styleFrom(
+                          side: BorderSide(
+                            color: cs.secondary.withValues(alpha: 0.45),
+                          ),
+                        )
+                      : null,
+                ),
+              ),
+      ),
     );
   }
 }
