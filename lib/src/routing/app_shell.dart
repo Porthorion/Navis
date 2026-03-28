@@ -1185,6 +1185,11 @@ class _AppShellState extends ConsumerState<AppShell> {
                         queueOverlayKey: _queueOverlayKey,
                         showLyricsOverlay: _showDesktopLyricsOverlay,
                         onToggleLyrics: _toggleDesktopLyricsOverlay,
+                        onToggleAutohide: () async {
+                          final db = ref.read(navisDatabaseProvider);
+                          await db.appSettingsDao
+                              .updateDesktopNavbarAutohide(!navbarAutohide);
+                        },
                       )
                     else if (useRailNavigation)
                       // In Focus Player Mode with active playback, fill the
@@ -2107,6 +2112,7 @@ class _DesktopWorkspace extends StatefulWidget {
     required this.queueOverlayKey,
     required this.showLyricsOverlay,
     required this.onToggleLyrics,
+    this.onToggleAutohide,
   });
 
   final DesktopLayoutClass desktopLayoutClass;
@@ -2145,6 +2151,7 @@ class _DesktopWorkspace extends StatefulWidget {
   final GlobalKey<_QueueOverlayState> queueOverlayKey;
   final bool showLyricsOverlay;
   final VoidCallback onToggleLyrics;
+  final VoidCallback? onToggleAutohide;
 
   @override
   State<_DesktopWorkspace> createState() => _DesktopWorkspaceState();
@@ -2154,6 +2161,7 @@ class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
   static const Duration _animDuration = Duration(milliseconds: 280);
   static const Curve _animCurve = Curves.easeOutCubic;
   static const double _collapsedWidth = 4.0;
+  static const double _magnetZoneWidth = 40.0;
   static const Duration _collapseDelay = Duration(milliseconds: 500);
   static const Duration _navExpandHoldDuration = Duration(milliseconds: 1600);
 
@@ -2249,7 +2257,9 @@ class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
                 key: const ValueKey<String>('desktopSidebarRegion'),
                 width: widget.sidebarWidth,
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                  padding: widget.navbarStyle == 'icons'
+                      ? const EdgeInsets.fromLTRB(4, 12, 4, 12)
+                      : const EdgeInsets.fromLTRB(14, 12, 14, 12),
                   child: _RailSidebar(
                     navbarStyle: widget.navbarStyle,
                     selectedIndex: widget.selectedIndex,
@@ -2272,6 +2282,8 @@ class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
                     isRadio: widget.playback.isRadioMode,
                     radioArtUrl: widget.playback.radioStation?.nowPlayingArtUrl,
                     onOpenPlayer: widget.onOpenPlayer,
+                    navbarAutohide: widget.navbarAutohide,
+                    onToggleAutohide: widget.onToggleAutohide,
                   ),
                 ),
               ),
@@ -2281,22 +2293,21 @@ class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
     return Column(
       children: <Widget>[
         Expanded(
-          child: Row(
+          child: Stack(
             children: <Widget>[
-              FocusTraversalOrder(
-                order: const NumericFocusOrder(10),
-                child: MouseRegion(
-                  onEnter: _onMouseEnterSidebar,
-                  onExit: _onMouseExitSidebar,
-                  child: AnimatedContainer(
-                    duration: _animDuration,
-                    curve: _animCurve,
-                    width: effectiveSidebarWidth,
-                    child: ClipRect(child: sidebarContent),
-                  ),
-                ),
-              ),
-              VerticalDivider(
+              Positioned.fill(
+                child: Row(
+                  children: <Widget>[
+                    FocusTraversalOrder(
+                      order: const NumericFocusOrder(10),
+                      child: AnimatedContainer(
+                        duration: _animDuration,
+                        curve: _animCurve,
+                        width: effectiveSidebarWidth,
+                        child: ClipRect(child: sidebarContent),
+                      ),
+                    ),
+                    VerticalDivider(
                 width: 1,
                 thickness: 1,
                 color: colors.outlineVariant.withValues(alpha: 0.35),
@@ -2410,6 +2421,23 @@ class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
                   ),
                 ),
               ),
+                  ],
+                ),
+              ),
+              if (widget.navbarAutohide)
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  width: _sidebarVisible
+                      ? widget.sidebarWidth
+                      : _magnetZoneWidth,
+                  child: MouseRegion(
+                    opaque: false,
+                    onEnter: _onMouseEnterSidebar,
+                    onExit: _onMouseExitSidebar,
+                  ),
+                ),
             ],
           ),
         ),
@@ -3773,6 +3801,8 @@ class _RailSidebar extends ConsumerWidget {
     this.coverArtUrl,
     this.isRadio = false,
     this.radioArtUrl,
+    this.navbarAutohide = false,
+    this.onToggleAutohide,
   });
 
   final List<_ShellDestination> destinations;
@@ -3797,6 +3827,8 @@ class _RailSidebar extends ConsumerWidget {
   final String? radioArtUrl;
   final VoidCallback onOpenPlayer;
   final String navbarStyle;
+  final bool navbarAutohide;
+  final VoidCallback? onToggleAutohide;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -3807,6 +3839,35 @@ class _RailSidebar extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
+          if (onToggleAutohide != null)
+            Align(
+              alignment:
+                  iconsOnly ? Alignment.center : Alignment.centerRight,
+              child: SizedBox(
+                width: 32,
+                height: 32,
+                child: IconButton(
+                  icon: Icon(
+                    navbarAutohide
+                        ? Icons.lock_open_rounded
+                        : Icons.lock_rounded,
+                    size: 16,
+                  ),
+                  tooltip: navbarAutohide
+                      ? AppLocalizations.of(context)!
+                          .desktopNavbarUnlockTooltip
+                      : AppLocalizations.of(context)!
+                          .desktopNavbarLockTooltip,
+                  onPressed: onToggleAutohide,
+                  padding: EdgeInsets.zero,
+                  style: IconButton.styleFrom(
+                    minimumSize: const Size(32, 32),
+                    maximumSize: const Size(32, 32),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+              ),
+            ),
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
@@ -4003,7 +4064,7 @@ class _RailNavTile extends StatelessWidget {
           : colorScheme.onSurfaceVariant,
     );
     final tilePadding = iconsOnly
-        ? const EdgeInsets.symmetric(horizontal: 12, vertical: 14)
+        ? const EdgeInsets.symmetric(horizontal: 4, vertical: 12)
         : compact
         ? const EdgeInsets.symmetric(horizontal: 12, vertical: 10)
         : const EdgeInsets.symmetric(horizontal: 16, vertical: 14);

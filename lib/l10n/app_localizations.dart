@@ -3711,6 +3711,18 @@ abstract class AppLocalizations {
   /// **'Sidebar slides away automatically; hover the left edge to reveal it.'**
   String get desktopNavbarAutohideSub;
 
+  /// No description provided for @desktopNavbarLockTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Lock sidebar (disable autohide)'**
+  String get desktopNavbarLockTooltip;
+
+  /// No description provided for @desktopNavbarUnlockTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlock sidebar (enable autohide)'**
+  String get desktopNavbarUnlockTooltip;
+
   /// No description provided for @homeSectionContinueListening.
   ///
   /// In en, this message translates to:

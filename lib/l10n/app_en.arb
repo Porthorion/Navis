@@ -929,6 +929,8 @@
   "desktopNavbarStyleIcons": "Icons",
   "desktopNavbarAutohideLabel": "Autohide Sidebar",
   "desktopNavbarAutohideSub": "Sidebar slides away automatically; hover the left edge to reveal it.",
+  "desktopNavbarLockTooltip": "Lock sidebar (disable autohide)",
+  "desktopNavbarUnlockTooltip": "Unlock sidebar (enable autohide)",
   "homeSectionContinueListening": "Continue Listening",
   "homeSectionRecentlyLikedAlbums": "Recently Liked Albums",
   "homeSectionLikedTracks": "Liked Tracks",

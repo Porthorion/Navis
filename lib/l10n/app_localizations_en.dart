@@ -2072,6 +2072,12 @@ class AppLocalizationsEn extends AppLocalizations {
       'Sidebar slides away automatically; hover the left edge to reveal it.';
 
   @override
+  String get desktopNavbarLockTooltip => 'Lock sidebar (disable autohide)';
+
+  @override
+  String get desktopNavbarUnlockTooltip => 'Unlock sidebar (enable autohide)';
+
+  @override
   String get homeSectionContinueListening => 'Continue Listening';
 
   @override
