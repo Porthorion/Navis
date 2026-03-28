@@ -288,11 +288,20 @@ if [[ "${BUILD_ANDROID}" == "true" ]]; then
   echo "==> Building Android APK..."
   ANDROID_OBFUSCATION_DIR="${SCRIPT_DIR}/../build/obfuscation/android/${VERSION}"
   mkdir -p "${ANDROID_OBFUSCATION_DIR}"
-  flutter build apk \
-    --release \
-    --obfuscate \
-    --split-debug-info="${ANDROID_OBFUSCATION_DIR}" \
-    "${DART_DEFINE_ARGS[@]}"
+  _apk_define_args="${DART_DEFINE_ARGS[*]}"
+  # When running inside a Flatpak sandbox, Gradle cannot find JAVA_HOME.
+  # Delegate to the host OS where the full JDK is available.
+  if [[ -n "${FLATPAK_ID:-}" ]]; then
+    _flutter_bin="$(command -v flutter)"
+    /usr/bin/flatpak-spawn --host -- bash -c \
+      "export PATH=\"$(dirname "${_flutter_bin}"):\$HOME/.local/bin:\$PATH\"; cd \"${SCRIPT_DIR}/..\"; flutter build apk --release --obfuscate --split-debug-info=\"${ANDROID_OBFUSCATION_DIR}\" $(printf '%q ' "${DART_DEFINE_ARGS[@]}")"
+  else
+    flutter build apk \
+      --release \
+      --obfuscate \
+      --split-debug-info="${ANDROID_OBFUSCATION_DIR}" \
+      "${DART_DEFINE_ARGS[@]}"
+  fi
 
   APK_PATH="${SCRIPT_DIR}/../build/app/outputs/flutter-apk/app-release.apk"
   APK_ASSET_NAME="${ASSET_PREFIX}-${VERSION}.apk"
