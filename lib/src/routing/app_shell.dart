@@ -3856,8 +3856,8 @@ class _RailSidebar extends ConsumerWidget {
                 child: IconButton(
                   icon: Icon(
                     navbarAutohide
-                        ? Icons.lock_rounded
-                        : Icons.lock_open_rounded,
+                        ? Icons.lock_open_rounded
+                        : Icons.lock_rounded,
                     size: 16,
                   ),
                   tooltip: navbarAutohide
