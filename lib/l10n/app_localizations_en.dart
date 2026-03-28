@@ -946,6 +946,27 @@ class AppLocalizationsEn extends AppLocalizations {
   String get artistDetailLoadErrorTitle => 'Could not load artist details';
 
   @override
+  String get artistTopTracksSection => 'Top Tracks';
+
+  @override
+  String get artistTopTracksShowMore => 'Show more';
+
+  @override
+  String get artistTopTracksShowLess => 'Show less';
+
+  @override
+  String artistTopTracksListeners(String count) {
+    return '$count listeners';
+  }
+
+  @override
+  String get artistTopTracksNotAvailable =>
+      'Track not available in your library.';
+
+  @override
+  String get artistTopTracksPlayError => 'Could not play track. Try again.';
+
+  @override
   String get albumDetailTitle => 'Album';
 
   @override

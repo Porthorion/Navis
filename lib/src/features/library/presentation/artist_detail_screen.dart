@@ -13,6 +13,7 @@ import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
+import 'package:navis/src/features/library/presentation/artist_top_tracks_section.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
@@ -170,6 +171,9 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                   ),
                   error: (_, _) => const SizedBox.shrink(),
                 ),
+                // ── Top Tracks (Last.fm, gated by build-time API key) ────────
+                if (ref.watch(hasLastFmApiKeyProvider))
+                  ArtistTopTracksSection(artistName: artistData.name),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
                   child: Text(

@@ -1755,6 +1755,42 @@ abstract class AppLocalizations {
   /// **'Could not load artist details'**
   String get artistDetailLoadErrorTitle;
 
+  /// No description provided for @artistTopTracksSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Top Tracks'**
+  String get artistTopTracksSection;
+
+  /// No description provided for @artistTopTracksShowMore.
+  ///
+  /// In en, this message translates to:
+  /// **'Show more'**
+  String get artistTopTracksShowMore;
+
+  /// No description provided for @artistTopTracksShowLess.
+  ///
+  /// In en, this message translates to:
+  /// **'Show less'**
+  String get artistTopTracksShowLess;
+
+  /// Formatted listener count for a Last.fm top track, e.g. '1.2M listeners'.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} listeners'**
+  String artistTopTracksListeners(String count);
+
+  /// No description provided for @artistTopTracksNotAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Track not available in your library.'**
+  String get artistTopTracksNotAvailable;
+
+  /// No description provided for @artistTopTracksPlayError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not play track. Try again.'**
+  String get artistTopTracksPlayError;
+
   /// No description provided for @albumDetailTitle.
   ///
   /// In en, this message translates to:
