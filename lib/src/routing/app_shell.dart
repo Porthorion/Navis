@@ -13,6 +13,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/cover_art_viewer.dart';
 import 'package:navis/src/common_widgets/expandable_player_sheet.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
@@ -2569,6 +2570,18 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                           context,
                           ref,
                           resolvedAlbumId,
+                        ),
+                        child: coverArtWidget,
+                      ),
+                    );
+                  } else if (playback.isRadioMode &&
+                      (widget.coverArtUrl ?? '').trim().isNotEmpty) {
+                    coverArtWidget = MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: GestureDetector(
+                        onTap: () => showRemoteArtViewer(
+                          context,
+                          artUrl: widget.coverArtUrl,
                         ),
                         child: coverArtWidget,
                       ),
