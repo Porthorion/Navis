@@ -335,7 +335,19 @@ class _ArtistImageHeader extends StatelessWidget {
         final availableWidth = constraints.maxWidth.isFinite
             ? constraints.maxWidth
             : MediaQuery.sizeOf(context).width;
-        final headerHeight = (availableWidth * 0.45).clamp(260.0, 520.0);
+        final headerHeight = (availableWidth * 0.43).clamp(260.0, 560.0);
+
+        // Gradually shift the vertical anchor from top (portrait/narrow screens
+        // where topCenter works well for portrait artist shots) toward center
+        // (wide/cinematic displays where topCenter cuts off the face).
+        // The transition spans aspect‑ratios 1.5 → 2.5:
+        //   ≤ 1.5  → Alignment(0, −1)  = topCenter
+        //   ≥ 2.5  → Alignment(0,  0)  = center
+        final displayRatio = availableWidth / headerHeight;
+        final alignY =
+            ((displayRatio - 1.5) / 1.0).clamp(0.0, 1.0) - 1.0;
+        final imageAlignment = Alignment(0.0, alignY);
+
         return SizedBox(
           height: headerHeight,
           width: double.infinity,
@@ -345,7 +357,7 @@ class _ArtistImageHeader extends StatelessWidget {
               CachedNetworkImage(
                 imageUrl: imageUrl,
                 fit: BoxFit.cover,
-                alignment: Alignment.topCenter,
+                alignment: imageAlignment,
                 errorWidget: (_, _, _) => const SizedBox.shrink(),
               ),
               // Dual gradient: slight top vignette + heavy bottom scrim
