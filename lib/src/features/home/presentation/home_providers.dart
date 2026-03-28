@@ -247,14 +247,16 @@ final homeRandomShowcaseProvider =
       final scopedById = <String, AlbumsTableData>{
         for (final album in scopedAlbums) album.id: album,
       };
+      // Intentional non-reactive snapshot: liking/unliking a song should not
+      // reshuffle the random showcase unless an explicit refresh/sync occurs.
+      final likedSongsSnapshot =
+          ref.read(likedSongsProvider).asData?.value ??
+          const <SongsTableData>[];
 
       if (!localPreferred) {
         final api = ref.watch(subsonicApiProvider);
         if (api != null) {
-          final likedSongs =
-              ref.watch(likedSongsProvider).asData?.value ??
-              const <SongsTableData>[];
-          final eligibleLikedSongs = likedSongs
+          final eligibleLikedSongs = likedSongsSnapshot
               .where((song) => song.id.trim().isNotEmpty)
               .toList(growable: true);
 
@@ -302,15 +304,12 @@ final homeRandomShowcaseProvider =
         }
 
         if (deduped.length < _homeRandomShowcaseLimit) {
-          final likedSongs =
-              ref.watch(likedSongsProvider).asData?.value ??
-              const <SongsTableData>[];
           final downloadedSongIds = downloadedOnly
               ? (ref.watch(downloadedSongIdsProvider).asData?.value ??
                     const <String>{})
               : const <String>{};
 
-          for (final song in likedSongs) {
+          for (final song in likedSongsSnapshot) {
             if (downloadedOnly && !downloadedSongIds.contains(song.id)) {
               continue;
             }

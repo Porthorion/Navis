@@ -151,7 +151,7 @@ class _QueueSheetHeader extends ConsumerWidget {
             child: Padding(
               padding: const EdgeInsets.only(top: 8, bottom: 4),
               child: Container(
-                width: 32,
+                width: 22,
                 height: 4,
                 decoration: BoxDecoration(
                   color: Theme.of(
@@ -367,9 +367,15 @@ class _QueueItem extends ConsumerWidget {
             subtitle: Text(song.artistName ?? l10n.queueUnknownArtist),
             trailing: ReorderableDragStartListener(
               index: index,
-              child: Icon(
-                Icons.drag_handle,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              child: SizedBox(
+                width: 28,
+                child: Center(
+                  child: Icon(
+                    Icons.drag_indicator_rounded,
+                    size: 18,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
               ),
             ),
             onTap: onTap,

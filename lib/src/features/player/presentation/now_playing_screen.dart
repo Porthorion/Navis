@@ -10,6 +10,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/features/player/presentation/desktop_volume_slider.dart';
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
 import 'package:navis/src/features/player/presentation/queue_sheet.dart';
 import 'package:navis/src/features/player/presentation/same_vibes_notifier.dart';
@@ -24,9 +25,11 @@ import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
-import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/routing/desktop_window_controller.dart';
+import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
+import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/format_utils.dart';
 
 String _formatDuration(Duration d) {
@@ -138,6 +141,133 @@ Widget _identityTransitionBuilder(
   return child;
 }
 
+final Map<String, Color> _nowPlayingTintColorCache = <String, Color>{};
+final Map<String, Future<void>> _nowPlayingVisualPrewarmInflight =
+    <String, Future<void>>{};
+
+String? nowPlayingVisualCacheKeyFor({
+  required Brightness brightness,
+  String? coverArtId,
+  String? artUrl,
+}) {
+  final trimmedCoverArtId = coverArtId?.trim() ?? '';
+  if (trimmedCoverArtId.isNotEmpty) {
+    return 'id:$trimmedCoverArtId|b:${brightness.name}';
+  }
+  final trimmedArtUrl = artUrl?.trim() ?? '';
+  if (trimmedArtUrl.isNotEmpty) {
+    return 'url:$trimmedArtUrl|b:${brightness.name}';
+  }
+  return null;
+}
+
+Color? nowPlayingCachedTintColor({
+  required Brightness brightness,
+  String? coverArtId,
+  String? artUrl,
+}) {
+  final key = nowPlayingVisualCacheKeyFor(
+    brightness: brightness,
+    coverArtId: coverArtId,
+    artUrl: artUrl,
+  );
+  if (key == null) {
+    return null;
+  }
+  return _nowPlayingTintColorCache[key];
+}
+
+ImageProvider<Object>? _resolveNowPlayingImageProvider({
+  required WidgetRef ref,
+  String? coverArtId,
+  String? artUrl,
+}) {
+  final cacheManager = ref.read(coverArtCacheManagerProvider).asData?.value;
+  final trimmedCoverArtId = coverArtId?.trim() ?? '';
+  if (trimmedCoverArtId.isNotEmpty) {
+    final api = ref.read(subsonicApiProvider);
+    if (api == null) {
+      return null;
+    }
+    final coverUrl = api.getCoverArtUrl(id: trimmedCoverArtId, size: 768);
+    return cacheManager == null
+        ? NetworkImage(coverUrl.toString())
+        : CachedNetworkImageProvider(
+            coverUrl.toString(),
+            cacheManager: cacheManager,
+          );
+  }
+
+  final trimmedArtUrl = artUrl?.trim() ?? '';
+  if (trimmedArtUrl.isEmpty) {
+    return null;
+  }
+  return cacheManager == null
+      ? NetworkImage(trimmedArtUrl)
+      : CachedNetworkImageProvider(trimmedArtUrl, cacheManager: cacheManager);
+}
+
+Future<void> prewarmNowPlayingVisuals({
+  required BuildContext context,
+  required WidgetRef ref,
+  required Brightness brightness,
+  String? coverArtId,
+  String? artUrl,
+}) async {
+  final cacheKey = nowPlayingVisualCacheKeyFor(
+    brightness: brightness,
+    coverArtId: coverArtId,
+    artUrl: artUrl,
+  );
+  if (cacheKey == null) {
+    return;
+  }
+  if (_nowPlayingTintColorCache.containsKey(cacheKey)) {
+    return;
+  }
+  final inflight = _nowPlayingVisualPrewarmInflight[cacheKey];
+  if (inflight != null) {
+    await inflight;
+    return;
+  }
+
+  Future<void> warmTask() async {
+    final imageProvider = _resolveNowPlayingImageProvider(
+      ref: ref,
+      coverArtId: coverArtId,
+      artUrl: artUrl,
+    );
+    if (imageProvider == null) {
+      return;
+    }
+    await precacheImage(imageProvider, context);
+    try {
+      final scheme = await ColorScheme.fromImageProvider(
+        provider: imageProvider,
+        brightness: brightness,
+      );
+      _nowPlayingTintColorCache[cacheKey] = scheme.primary;
+    } on Exception {
+      // Best-effort warm path: ignore extraction failures.
+    }
+  }
+
+  final future = warmTask();
+
+  _nowPlayingVisualPrewarmInflight[cacheKey] = future;
+  try {
+    await future;
+  } finally {
+    final pending = _nowPlayingVisualPrewarmInflight[cacheKey];
+    if (identical(pending, future)) {
+      final removed = _nowPlayingVisualPrewarmInflight.remove(cacheKey);
+      if (removed != null) {
+        // The task has already been awaited above.
+      }
+    }
+  }
+}
+
 class NowPlayingScreen extends ConsumerStatefulWidget {
   const NowPlayingScreen({
     super.key,
@@ -165,60 +295,100 @@ class NowPlayingScreen extends ConsumerStatefulWidget {
 class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
   /// Dominant color extracted from the current cover art for tinting.
   Color? _artTintColor;
+  Color? _lastStableTintColor;
 
   /// The cover art ID that [_artTintColor] was extracted from.
   String? _extractedCoverArtId;
 
   Future<void> _extractArtColor(String? coverArtId) async {
-    if (coverArtId == _extractedCoverArtId) return;
-    _extractedCoverArtId = coverArtId;
+    final brightness = Theme.of(context).brightness;
+    final cacheKey = nowPlayingVisualCacheKeyFor(
+      brightness: brightness,
+      coverArtId: coverArtId,
+      artUrl: null,
+    );
+    if (cacheKey == _extractedCoverArtId) return;
+    _extractedCoverArtId = cacheKey;
 
-    if (coverArtId == null || coverArtId.trim().isEmpty) {
-      if (mounted) setState(() => _artTintColor = null);
+    if (cacheKey == null) {
+      // Keep the previous tint during transient metadata gaps so the surface
+      // does not flash back to default between track transitions.
+      return;
+    }
+    final cachedTint = nowPlayingCachedTintColor(
+      brightness: brightness,
+      coverArtId: coverArtId,
+      artUrl: null,
+    );
+    if (cachedTint != null) {
+      if (mounted) setState(() => _artTintColor = cachedTint);
       return;
     }
 
-    final api = ref.read(subsonicApiProvider);
-    if (api == null) {
-      if (mounted) setState(() => _artTintColor = null);
-      return;
-    }
-
-    final url = api.getCoverArtUrl(id: coverArtId, size: 64).toString();
-    try {
-      final scheme = await ColorScheme.fromImageProvider(
-        provider: NetworkImage(url),
-        brightness: Theme.of(context).brightness,
-      );
-      if (mounted) setState(() => _artTintColor = scheme.primary);
-    } on Exception {
-      if (mounted) setState(() => _artTintColor = null);
+    await prewarmNowPlayingVisuals(
+      context: context,
+      ref: ref,
+      brightness: brightness,
+      coverArtId: coverArtId,
+      artUrl: null,
+    );
+    final warmedTint = nowPlayingCachedTintColor(
+      brightness: brightness,
+      coverArtId: coverArtId,
+      artUrl: null,
+    );
+    if (mounted && warmedTint != null) {
+      setState(() => _artTintColor = warmedTint);
     }
   }
 
   Future<void> _extractArtColorFromUrl(String? artUrl) async {
-    if (artUrl == _extractedCoverArtId) return;
-    _extractedCoverArtId = artUrl;
+    final brightness = Theme.of(context).brightness;
+    final cacheKey = nowPlayingVisualCacheKeyFor(
+      brightness: brightness,
+      coverArtId: null,
+      artUrl: artUrl,
+    );
+    if (cacheKey == _extractedCoverArtId) return;
+    _extractedCoverArtId = cacheKey;
 
-    if (artUrl == null || artUrl.trim().isEmpty) {
-      if (mounted) setState(() => _artTintColor = null);
+    if (cacheKey == null) {
+      // Keep the previous tint during transient metadata gaps so the surface
+      // does not flash back to default between track transitions.
+      return;
+    }
+    final cachedTint = nowPlayingCachedTintColor(
+      brightness: brightness,
+      coverArtId: null,
+      artUrl: artUrl,
+    );
+    if (cachedTint != null) {
+      if (mounted) setState(() => _artTintColor = cachedTint);
       return;
     }
 
-    try {
-      final scheme = await ColorScheme.fromImageProvider(
-        provider: NetworkImage(artUrl),
-        brightness: Theme.of(context).brightness,
-      );
-      if (mounted) setState(() => _artTintColor = scheme.primary);
-    } on Exception {
-      if (mounted) setState(() => _artTintColor = null);
+    await prewarmNowPlayingVisuals(
+      context: context,
+      ref: ref,
+      brightness: brightness,
+      coverArtId: null,
+      artUrl: artUrl,
+    );
+    final warmedTint = nowPlayingCachedTintColor(
+      brightness: brightness,
+      coverArtId: null,
+      artUrl: artUrl,
+    );
+    if (mounted && warmedTint != null) {
+      setState(() => _artTintColor = warmedTint);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final effectiveWideMode = widget.wideEmbeddedMode || isDesktopRuntime;
+    final adaptiveContext = resolveAdaptiveContextFor(context);
+    final effectiveWideMode =
+        widget.wideEmbeddedMode || adaptiveContext.useDesktopShell;
     final playback = ref.watch(playerStateProvider);
     final currentSongId = playback.currentSongId;
     final songAsync = currentSongId == null
@@ -227,30 +397,86 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     final song = songAsync.asData?.value;
     final currentMediaItem = ref.watch(currentMediaItemProvider).asData?.value;
     final artTinted = ref.watch(artTintedNowPlayingProvider);
+    final brightness = Theme.of(context).brightness;
+    final activeArtUrl = playback.isRadioMode
+        ? playback.radioStation?.nowPlayingArtUrl
+        : currentMediaItem?.artUri?.toString();
+    // ignore: unused_local_variable
+    final visualCacheKey = nowPlayingVisualCacheKeyFor(
+      brightness: brightness,
+      coverArtId: playback.isRadioMode ? null : song?.coverArt,
+      artUrl: activeArtUrl,
+    );
+    final cachedTintColor = artTinted
+        ? nowPlayingCachedTintColor(
+            brightness: brightness,
+            coverArtId: playback.isRadioMode ? null : song?.coverArt,
+            artUrl: activeArtUrl,
+          )
+        : null;
 
     // Trigger color extraction when art-tinted mode is on.
     if (artTinted) {
-      // Schedule after build to avoid setState during build.
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (playback.isRadioMode) {
-          _extractArtColorFromUrl(playback.radioStation?.nowPlayingArtUrl);
-        } else {
-          final coverArtId = song?.coverArt;
-          if (coverArtId != null && coverArtId.trim().isNotEmpty) {
-            _extractArtColor(coverArtId);
-          } else {
-            _extractArtColorFromUrl(currentMediaItem?.artUri?.toString());
+      if (!playback.hasActivePlayback) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted &&
+              (_artTintColor != null || _lastStableTintColor != null)) {
+            setState(() {
+              _artTintColor = null;
+              _lastStableTintColor = null;
+            });
           }
-        }
-      });
-    } else if (!artTinted && _artTintColor != null) {
+        });
+      } else if (cachedTintColor == null) {
+        // Schedule after build to avoid setState during build.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (playback.isRadioMode) {
+            final radioArtUrl = playback.radioStation?.nowPlayingArtUrl;
+            if (radioArtUrl != null && radioArtUrl.trim().isNotEmpty) {
+              _extractArtColorFromUrl(radioArtUrl);
+            }
+          } else {
+            final coverArtId = song?.coverArt;
+            if (coverArtId != null && coverArtId.trim().isNotEmpty) {
+              _extractArtColor(coverArtId);
+            } else {
+              final mediaArtUrl = currentMediaItem?.artUri?.toString();
+              if (mediaArtUrl != null && mediaArtUrl.trim().isNotEmpty) {
+                _extractArtColorFromUrl(mediaArtUrl);
+              }
+            }
+          }
+        });
+      }
+    } else if (!artTinted &&
+        (_artTintColor != null || _lastStableTintColor != null)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) setState(() => _artTintColor = null);
+        if (mounted &&
+            (_artTintColor != null || _lastStableTintColor != null)) {
+          setState(() {
+            _artTintColor = null;
+            _lastStableTintColor = null;
+          });
+        }
       });
     }
 
     final surfaceColor = Theme.of(context).colorScheme.surface;
-    final tintColor = artTinted ? _artTintColor : null;
+    final extractedTintColor = cachedTintColor ?? _artTintColor;
+    if (artTinted &&
+        playback.hasActivePlayback &&
+        extractedTintColor != null &&
+        extractedTintColor != _lastStableTintColor) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _lastStableTintColor != extractedTintColor) {
+          setState(() => _lastStableTintColor = extractedTintColor);
+        }
+      });
+    }
+    final tintColor = artTinted
+        ? (extractedTintColor ??
+              (playback.hasActivePlayback ? _lastStableTintColor : null))
+        : null;
     final mediaQuery = MediaQuery.of(context);
     final flutterView = View.maybeOf(context);
     final rawViewPaddingBottom = flutterView == null
@@ -278,7 +504,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
             ),
           );
 
-    return Material(
+    final nowPlayingSurface = Material(
       color: surfaceColor,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 420),
@@ -302,67 +528,94 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
         // outer SafeArea here.  The body's compactPlayerPage applies the
         // insets itself via MediaQuery.paddingOf so content stays clear of
         // camera cutouts and the status bar.
-        child: widget.compactWideLandscapeMode
-            ? _NowPlayingBody(
-                playback: playback,
-                song: playback.isRadioMode ? null : song,
-                wideEmbeddedMode: true,
-                compactWideLandscapeMode: true,
-                onCollapse: widget.onCollapse,
-                onBackInterceptorChanged: widget.onBackInterceptorChanged,
-                onCompactWideOverlayActiveChanged:
-                    widget.onCompactWideOverlayActiveChanged,
-                onCompactWideQueueRequestChanged:
-                    widget.onCompactWideQueueRequestChanged,
-              )
-            : SafeArea(
-                bottom: false,
-                child: Padding(
-                  padding: EdgeInsets.only(bottom: resolvedBottomSafeInset),
-                  child: effectiveWideMode
-                      ? Column(
-                          children: <Widget>[
-                            Expanded(
-                              child: _NowPlayingBody(
-                                playback: playback,
-                                song: playback.isRadioMode ? null : song,
-                                wideEmbeddedMode: effectiveWideMode,
-                                compactWideLandscapeMode:
-                                    widget.compactWideLandscapeMode,
-                                onCollapse: widget.onCollapse,
-                                onBackInterceptorChanged:
-                                    widget.onBackInterceptorChanged,
-                                onCompactWideOverlayActiveChanged:
-                                    widget.onCompactWideOverlayActiveChanged,
-                                onCompactWideQueueRequestChanged:
-                                    widget.onCompactWideQueueRequestChanged,
-                              ),
+        child: Builder(
+          builder: (context) {
+            final nowPlayingBody = _NowPlayingBody(
+              playback: playback,
+              song: playback.isRadioMode ? null : song,
+              wideEmbeddedMode: widget.compactWideLandscapeMode
+                  ? true
+                  : effectiveWideMode,
+              compactWideLandscapeMode: widget.compactWideLandscapeMode,
+              onCollapse: widget.onCollapse,
+              onBackInterceptorChanged: widget.onBackInterceptorChanged,
+              onCompactWideOverlayActiveChanged:
+                  widget.onCompactWideOverlayActiveChanged,
+              onCompactWideQueueRequestChanged:
+                  widget.onCompactWideQueueRequestChanged,
+            );
+
+            final surface = widget.compactWideLandscapeMode
+                ? nowPlayingBody
+                : SafeArea(
+                    bottom: false,
+                    child: Padding(
+                      padding: EdgeInsets.only(bottom: resolvedBottomSafeInset),
+                      child: effectiveWideMode
+                          ? Column(
+                              children: <Widget>[
+                                Expanded(child: nowPlayingBody),
+                              ],
+                            )
+                          : Column(
+                              children: <Widget>[
+                                const _NowPlayingHandle(),
+                                Expanded(child: nowPlayingBody),
+                              ],
                             ),
-                          ],
-                        )
-                      : Column(
-                          children: <Widget>[
-                            const _NowPlayingHandle(),
-                            Expanded(
-                              child: _NowPlayingBody(
-                                playback: playback,
-                                song: playback.isRadioMode ? null : song,
-                                wideEmbeddedMode: effectiveWideMode,
-                                compactWideLandscapeMode:
-                                    widget.compactWideLandscapeMode,
-                                onCollapse: widget.onCollapse,
-                                onBackInterceptorChanged:
-                                    widget.onBackInterceptorChanged,
-                                onCompactWideOverlayActiveChanged:
-                                    widget.onCompactWideOverlayActiveChanged,
-                                onCompactWideQueueRequestChanged:
-                                    widget.onCompactWideQueueRequestChanged,
-                              ),
-                            ),
-                          ],
-                        ),
+                    ),
+                  );
+
+            final platform = Theme.of(context).platform;
+            final showCollapseButton = widget.onCollapse != null &&
+                platform != TargetPlatform.android &&
+                platform != TargetPlatform.iOS;
+
+            if (!showCollapseButton) {
+              return surface;
+            }
+
+            return Stack(
+              children: <Widget>[
+                Positioned.fill(child: surface),
+                Positioned(
+                  top: 6,
+                  right: 8,
+                  child: SafeArea(
+                    bottom: false,
+                    child: _NowPlayingCollapseButton(
+                      onPressed: widget.onCollapse!,
+                    ),
+                  ),
                 ),
-              ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+
+    if (widget.onCollapse == null) {
+      return nowPlayingSurface;
+    }
+
+    return Shortcuts(
+      shortcuts: const <ShortcutActivator, Intent>{
+        SingleActivator(LogicalKeyboardKey.escape): DismissIntent(),
+      },
+      child: Actions(
+        actions: <Type, Action<Intent>>{
+          DismissIntent: CallbackAction<DismissIntent>(
+            onInvoke: (intent) {
+              AppLogger.debug(
+                '[ACP_INPUT] nowPlaying escape dismissed via local shortcut',
+              );
+              widget.onCollapse!.call();
+              return null;
+            },
+          ),
+        },
+        child: nowPlayingSurface,
       ),
     );
   }
@@ -391,6 +644,22 @@ class _NowPlayingHandle extends StatelessWidget {
   }
 }
 
+class _NowPlayingCollapseButton extends StatelessWidget {
+  const _NowPlayingCollapseButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton.filledTonal(
+      key: const Key('nowPlayingCloseButton'),
+      tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+      onPressed: onPressed,
+      icon: const Icon(Icons.keyboard_arrow_down_rounded),
+    );
+  }
+}
+
 void _showNowPlayingSettingsSheet(
   BuildContext context,
   WidgetRef ref,
@@ -410,11 +679,55 @@ void _showNowPlayingSettingsSheet(
         final currentSongRating = song == null
             ? null
             : sheetRef.watch(songRatingProvider(song.id)).asData?.value;
+        final sheetVolume = sheetRef.watch(playbackVolumeProvider);
         return SafeArea(
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                  child: Row(
+                    children: <Widget>[
+                      Icon(
+                        sheetVolume <= 0.01
+                            ? Icons.volume_off_rounded
+                            : sheetVolume < 0.5
+                                ? Icons.volume_down_rounded
+                                : Icons.volume_up_rounded,
+                        size: 22,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Slider(
+                          value: sheetVolume,
+                          min: 0,
+                          max: 1,
+                          onChanged: (v) {
+                            final resolved = sheetRef
+                                .read(playbackVolumeProvider.notifier)
+                                .setVolume(v);
+                            unawaited(
+                              sheetRef
+                                  .read(audioHandlerProvider)
+                                  ?.setVolume(resolved),
+                            );
+                          },
+                        ),
+                      ),
+                      SizedBox(
+                        width: 40,
+                        child: Text(
+                          '${(sheetVolume * 100).round()}%',
+                          style: Theme.of(context).textTheme.bodySmall,
+                          textAlign: TextAlign.end,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.speed),
                   title: Text(l10n.playbackSettingsPlaybackSpeedLabel),
@@ -864,7 +1177,9 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
     final sidePadding = widget.wideEmbeddedMode ? 14.0 : 16.0;
     final contentWidth = constraints.maxWidth - (sidePadding * 2);
     final contentHeight = constraints.maxHeight;
-    if (contentWidth < 860 || contentHeight < 460) {
+    // Allow the split layout down to focus-player-mode window sizes
+    // (min focus window: 840 × 376).
+    if (contentWidth < 790 || contentHeight < 360) {
       return null;
     }
 
@@ -1692,6 +2007,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                           playback: playback,
                           isRadio: isRadio,
                           compact: true,
+                          showVolumeControl: false,
                           onSkipPrevious: _handleManualPreviousButton,
                           onSkipNext: _handleManualNextButton,
                         ),
@@ -1891,6 +2207,13 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
         final compactHeight = constraints.maxHeight < 760;
         final compactTransport =
             compactHeight || layoutMode == _NowPlayingLayoutMode.compact;
+        final showDesktopTransportVolume =
+            widget.wideEmbeddedMode &&
+            resolveAdaptiveContextFor(context).desktopRuntime &&
+            !compactTransport;
+        // Focus Player Mode is not yet user-accessible; keep the flag false
+        // so no toggle button appears anywhere until the feature is released.
+        const showDesktopFocusPlayerToggle = false;
         final compactSpacing =
             tightHeight || layoutMode == _NowPlayingLayoutMode.compact;
         final splitGap =
@@ -2132,6 +2455,8 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
               playback: playback,
               isRadio: isRadio,
               compact: compactTransport,
+              showVolumeControl: showDesktopTransportVolume,
+              showFocusPlayerToggle: showDesktopFocusPlayerToggle,
               onSkipPrevious: _handleManualPreviousButton,
               onSkipNext: _handleManualNextButton,
             ),
@@ -2453,6 +2778,8 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
               playback: playback,
               isRadio: isRadio,
               compact: compactTransport,
+              showVolumeControl: showDesktopTransportVolume,
+              showFocusPlayerToggle: showDesktopFocusPlayerToggle,
               onSkipPrevious: _handleManualPreviousButton,
               onSkipNext: _handleManualNextButton,
             ),
@@ -2462,7 +2789,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                 song: song,
                 songId: playback.currentSongId,
                 isLiked: playback.isCurrentSongLiked,
-                showLyrics: true,
+                showLyrics: false,
                 onOpenSettingsSheet: !supportsSplitPanelOverlay
                     ? () => _showNowPlayingSettingsSheet(
                         context,
@@ -2474,7 +2801,15 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                             : title,
                       )
                     : null,
-                onLyricsToggle: playback.currentSongId == null ? null : () {},
+                onLyricsToggle: playback.currentSongId == null
+                    ? null
+                    : () => unawaited(
+                        _openLyricsFullscreen(
+                          context,
+                          playback.currentSongId!,
+                          title,
+                        ),
+                      ),
                 wideEmbeddedMode: supportsSplitPanelOverlay,
                 onOpenQueuePanel: supportsSplitPanelOverlay
                     ? () => _updateWideOverlayState(
@@ -3570,6 +3905,8 @@ class _TransportControls extends ConsumerWidget {
     required this.playback,
     this.isRadio = false,
     this.compact = false,
+    this.showVolumeControl = false,
+    this.showFocusPlayerToggle = false,
     this.onSkipPrevious,
     this.onSkipNext,
   });
@@ -3577,6 +3914,8 @@ class _TransportControls extends ConsumerWidget {
   final PlaybackSnapshot playback;
   final bool isRadio;
   final bool compact;
+  final bool showVolumeControl;
+  final bool showFocusPlayerToggle;
   final VoidCallback? onSkipPrevious;
   final VoidCallback? onSkipNext;
 
@@ -3626,6 +3965,32 @@ class _TransportControls extends ConsumerWidget {
 
     final shuffleOn = playback.shuffleMode == AudioServiceShuffleMode.all;
     final repeatMode = playback.repeatMode;
+    final volume = ref.watch(playbackVolumeProvider);
+
+    Future<void> setPlaybackVolume(
+      double rawValue, {
+      required String source,
+      bool logChange = false,
+    }) async {
+      final volumeNotifier = ref.read(playbackVolumeProvider.notifier);
+      final resolved = volumeNotifier.setVolume(rawValue);
+      if (logChange) {
+        AppLogger.debug(
+          '[ACP_INPUT] volume source=$source value=${resolved.toStringAsFixed(2)}',
+        );
+      }
+      await ref.read(audioHandlerProvider)?.setVolume(resolved);
+    }
+
+    Future<void> toggleMute({
+      required String source,
+    }) async {
+      final resolved = ref.read(playbackVolumeProvider.notifier).toggleMute();
+      AppLogger.debug(
+        '[ACP_INPUT] volume source=$source value=${resolved.toStringAsFixed(2)}',
+      );
+      await ref.read(audioHandlerProvider)?.setVolume(resolved);
+    }
 
     String repeatTooltip;
     IconData repeatIcon;
@@ -3644,8 +4009,18 @@ class _TransportControls extends ConsumerWidget {
 
     final isRepeatActive = repeatMode != AudioServiceRepeatMode.none;
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+    // Minimum width required to display all transport buttons + volume slider.
+    // Below this threshold the volume slider overflows the Row and is moved to
+    // the settings modal instead.
+    const transportVolumeMinWidth = 480.0;
+
+    final row = LayoutBuilder(
+      builder: (context, constraints) {
+        final effectiveShowVolume =
+            showVolumeControl &&
+            constraints.maxWidth >= transportVolumeMinWidth;
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.center,
       children: <Widget>[
         IconButton(
           icon: Icon(
@@ -3737,8 +4112,69 @@ class _TransportControls extends ConsumerWidget {
             unawaited(handler?.setRepeatMode(next));
           },
         ),
+        if (showFocusPlayerToggle) ...<Widget>[
+          SizedBox(width: compact ? 4 : 8),
+          Consumer(
+            builder: (context, ref, _) {
+              final focusMode = ref.watch(
+                desktopWindowControllerProvider.select(
+                  (value) => value.isFocusPlayerMode,
+                ),
+              );
+              final busy = ref.watch(
+                desktopWindowControllerProvider.select(
+                  (value) => value.isApplyingMode,
+                ),
+              );
+              final controller = ref.read(desktopWindowControllerProvider);
+              return IconButton(
+                key: const ValueKey<String>('desktopNowPlayingFocusButton'),
+                visualDensity: compact ? VisualDensity.compact : null,
+                tooltip: focusMode
+                    ? 'Return to normal window'
+                    : 'Enter Focus Player Mode',
+                onPressed: busy
+                    ? null
+                    : () => unawaited(controller.toggleFocusPlayerMode()),
+                icon: Icon(
+                  focusMode
+                      ? Icons.close_fullscreen_rounded
+                      : Icons.fit_screen_rounded,
+                ),
+              );
+            },
+          ),
+        ],
+        if (effectiveShowVolume) ...<Widget>[
+          SizedBox(width: compact ? 6 : 10),
+          DesktopVolumeSlider(
+            key: const ValueKey<String>(
+              'nowPlayingDesktopVolumeSlider',
+            ),
+            volume: volume,
+            compact: compact,
+            onChanged: (value) => unawaited(
+              setPlaybackVolume(
+                value,
+                source: 'desktop_now_playing_live',
+              ),
+            ),
+            onChangeEnd: (value) => unawaited(
+              setPlaybackVolume(
+                value,
+                source: 'desktop_now_playing_settle',
+                logChange: true,
+              ),
+            ),
+            onMuteToggle: () =>
+                unawaited(toggleMute(source: 'desktop_now_playing_icon')),
+          ),
+        ],
       ],
     );
+      }
+    );
+    return row;
   }
 }
 
@@ -4198,76 +4634,78 @@ class _ActionRowState extends ConsumerState<_ActionRow>
                 : colorScheme.onSurfaceVariant,
           );
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: <Widget>[
-        _NowPlayingActionButton(
-          icon: Icon(
-            Icons.queue_music_outlined,
-            color: colorScheme.onSurfaceVariant,
-          ),
-          label: l10n.nowPlayingQueue,
-          onTap: (widget.wideEmbeddedMode && widget.onOpenQueuePanel != null)
-              ? widget.onOpenQueuePanel
-              : () => NavService.showQueue(context, ref),
+    final actionButtons = <Widget>[
+      _NowPlayingActionButton(
+        icon: Icon(
+          Icons.queue_music_outlined,
+          color: colorScheme.onSurfaceVariant,
         ),
-        _NowPlayingActionButton(
-          icon: mixIcon,
-          label: l10n.nowPlayingInstantMixLabel,
-          onTap: widget.songId == null
-              ? null
-              : () => unawaited(
-                  togglePreferredMixMode(ref, seedSongId: widget.songId!),
-                ),
-        ),
-        _NowPlayingActionButton(
-          icon: ScaleTransition(
-            scale: _likeScale,
-            child: Icon(
-              widget.isLiked ? Icons.favorite : Icons.favorite_border,
-              color: widget.isLiked
-                  ? colorScheme.primary
-                  : colorScheme.onSurfaceVariant,
-            ),
-          ),
-          label: widget.isLiked ? l10n.actionLiked : l10n.actionLike,
-          onTap: widget.songId == null
-              ? null
-              : () {
-                  HapticFeedback.lightImpact();
-                  final handler = ref.read(audioHandlerProvider);
-                  handler?.toggleLike();
-                },
-        ),
-        _NowPlayingActionButton(
-          icon: Icon(
-            widget.showLyrics ? Icons.lyrics : Icons.lyrics_outlined,
-            color: widget.showLyrics
+        label: l10n.nowPlayingQueue,
+        onTap: (widget.wideEmbeddedMode && widget.onOpenQueuePanel != null)
+            ? widget.onOpenQueuePanel
+            : () => NavService.showQueue(context, ref),
+      ),
+      _NowPlayingActionButton(
+        icon: mixIcon,
+        label: l10n.nowPlayingInstantMixLabel,
+        onTap: widget.songId == null
+            ? null
+            : () => unawaited(
+                togglePreferredMixMode(ref, seedSongId: widget.songId!),
+              ),
+      ),
+      _NowPlayingActionButton(
+        icon: ScaleTransition(
+          scale: _likeScale,
+          child: Icon(
+            widget.isLiked ? Icons.favorite : Icons.favorite_border,
+            color: widget.isLiked
                 ? colorScheme.primary
                 : colorScheme.onSurfaceVariant,
           ),
-          label: l10n.nowPlayingLyrics,
-          onTap: widget.songId == null ? null : widget.onLyricsToggle,
         ),
-        _NowPlayingActionButton(
-          icon: Icon(
-            Icons.settings_outlined,
-            color: colorScheme.onSurfaceVariant,
-          ),
-          label: l10n.settingsTitle,
-          onTap: () {
-            if (widget.wideEmbeddedMode && widget.onOpenSettingsPanel != null) {
-              widget.onOpenSettingsPanel!.call();
-              return;
-            }
-            if (widget.onOpenSettingsSheet != null) {
-              widget.onOpenSettingsSheet!.call();
-              return;
-            }
-            _showNowPlayingSettingsSheet(context, ref, widget.song);
-          },
+        label: widget.isLiked ? l10n.actionLiked : l10n.actionLike,
+        onTap: widget.songId == null
+            ? null
+            : () {
+                HapticFeedback.lightImpact();
+                final handler = ref.read(audioHandlerProvider);
+                handler?.toggleLike();
+              },
+      ),
+      _NowPlayingActionButton(
+        icon: Icon(
+          widget.showLyrics ? Icons.lyrics : Icons.lyrics_outlined,
+          color: widget.showLyrics
+              ? colorScheme.primary
+              : colorScheme.onSurfaceVariant,
         ),
-      ],
+        label: l10n.nowPlayingLyrics,
+        onTap: widget.songId == null ? null : widget.onLyricsToggle,
+      ),
+      _NowPlayingActionButton(
+        icon: Icon(
+          Icons.settings_outlined,
+          color: colorScheme.onSurfaceVariant,
+        ),
+        label: l10n.settingsTitle,
+        onTap: () {
+          if (widget.wideEmbeddedMode && widget.onOpenSettingsPanel != null) {
+            widget.onOpenSettingsPanel!.call();
+            return;
+          }
+          if (widget.onOpenSettingsSheet != null) {
+            widget.onOpenSettingsSheet!.call();
+            return;
+          }
+          _showNowPlayingSettingsSheet(context, ref, widget.song);
+        },
+      ),
+    ];
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: actionButtons,
     );
   }
 }

@@ -24,11 +24,19 @@ class RadioScreen extends ConsumerWidget {
 }
 
 class RadioTabContent extends ConsumerWidget {
-  const RadioTabContent({super.key, this.scrollController});
+  const RadioTabContent({
+    super.key,
+    this.scrollController,
+    this.typeFilterQuery = '',
+  });
 
   /// Optional external [ScrollController] so that a parent widget (e.g.
   /// `LibraryScreen`) can programmatically scroll this tab to the top.
   final ScrollController? scrollController;
+
+  /// When non-empty, only stations whose name contains this query
+  /// (case-insensitive) are shown.
+  final String typeFilterQuery;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -48,6 +56,14 @@ class RadioTabContent extends ConsumerWidget {
       },
       child: stationsAsync.when(
         data: (stations) {
+          if (typeFilterQuery.isNotEmpty) {
+            final query = typeFilterQuery.toLowerCase();
+            stations = stations
+                .where(
+                  (s) => s.name.toLowerCase().contains(query),
+                )
+                .toList();
+          }
           if (stations.isEmpty) {
             return ListView(
               physics: const AlwaysScrollableScrollPhysics(),

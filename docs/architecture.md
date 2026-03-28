@@ -197,28 +197,144 @@ Routes are defined in `lib/src/routing/app_router.dart`:
 
 - `/login` - Login screen (unauthenticated)
 - `/` - Home screen (default after login)
-- `/library` - Library tabs (albums, artists, radio)
+- `/library` - Library tabs (albums, artists, playlists, liked albums)
 - `/library/artists/:id` - Artist detail
 - `/library/albums/:id` - Album detail
+- `/library/playlists/:id` - Playlist detail
+- `/library/liked-albums` - Liked albums list
 - `/search` - Search screen
-- `/playlists` - Playlists list
-- `/playlists/:id` - Playlist detail
 - `/settings` - Settings screen
 - `/settings/server` - Server settings
 - `/settings/cache` - Cache settings
+- `/settings/downloads` - Downloads queue
 - `/settings/playback` - Playback settings
 - `/settings/sync` - Sync settings
 - `/settings/appearance` - Appearance settings
-- `/downloads` - Download queue
-- `/now-playing` - Now playing screen (full-screen)
-- `/queue` - Queue screen
+- `/settings/about` - About / update checker
+- `/settings/desktop-window` - Desktop window settings
+- `/settings/shortcuts` - Keyboard shortcuts reference
 
 ### Shell Routes
 
-The app uses `StatefulShellRoute` for persistent navigation:
-- Bottom navigation bar persists across routes
-- Mini player persists above navigation bar
-- Each tab maintains its own navigation stack
+The app uses `StatefulShellRoute.indexedStack` for persistent navigation. The shell composition
+mode (bottom nav vs. navigation rail) is determined at runtime by `resolveAdaptiveShellMode`
+based on the current `AdaptiveContext`. On desktop, a persistent side rail and now-playing bar
+are shown instead of a bottom navigation bar. The expandable player sheet is embedded directly
+in the shell on all platforms — there is no separate `/now-playing` route.
+
+## Adaptive Shell Architecture
+
+The adaptive shell is the central coordination surface between platform, window size, and input
+modality. Its implementation lives in `lib/src/routing/desktop_layout.dart` and
+`lib/src/routing/app_shell.dart`.
+
+### Layout Classification
+
+Width buckets are resolved by `resolveAdaptiveLayoutClass(double width)`:
+
+| Width threshold | `AdaptiveLayoutClass` |
+|---|---|
+| ≥ 1200 dp | `desktopWide` (desktop-first workspace layout) |
+| ≥ 840 dp | `tabletExpanded` |
+| ≥ 550 dp | `tabletMedium` |
+| < 550 dp | `phoneCompact` |
+
+### Shell Composition
+
+`resolveAdaptiveShellMode` maps layout class + runtime + orientation to a shell mode:
+
+- **Desktop runtime + wide width** → `desktopWide` mode: persistent side rail + sidebar detail pane
+- **Desktop runtime + narrow width** → `phoneBottomNav` mode: compact bottom-bar player, no sidebar
+- **Phone/tablet, landscape, tabletExpanded** → navigation rail
+- **All other cases** → bottom navigation bar
+
+### AdaptiveContext
+
+`AdaptiveContext` is a value object computed once per `AppShell` layout pass and propagated
+downward via `AdaptiveContextScope`. It exposes:
+
+- `desktopRuntime` — true on Linux/macOS/Windows
+- `desktopWide` — true when width ≥ 1200 dp on desktop
+- `desktopLayoutClass` — the `DesktopLayoutClass` bucket (narrow / standard / wide)
+- `adaptiveLayoutClass` — the shared `AdaptiveLayoutClass` for non-desktop breakpoints
+- `useCompactWideLandscape` — compact landscape mode flag for phone-wide layouts
+
+Feature screens call `AdaptiveContextScope.maybeOf(context)` to read the context without
+triggering rebuilds on unrelated dimension changes.
+
+### AdaptiveInputPolicy
+
+`AdaptiveInputPolicy` separates capability decisions from layout decisions:
+
+- `enableKeyboardShortcuts` — whether global shortcuts are active
+- `enableRightClickMenus` — whether right-click context menus appear
+- `enableHoverEffects` — whether pointer-hover visual feedback is shown
+
+The policy is resolved from `AdaptiveContext` by `AdaptiveShell` and propagated via
+`AdaptiveInputPolicyScope`. This allows feature screens to adapt their affordances
+independently of layout decisions.
+
+### Desktop Command System
+
+`DesktopCommands` (`lib/src/routing/desktop_commands.dart`) centralises keyboard shortcut
+handling. Commands are guarded before dispatch:
+
+- **Text input guard** — shortcuts are suppressed when focus is inside any `EditableText`
+  descendent, preventing transport hotkeys from interfering with search/text fields
+- **Route-current guard** — shortcuts that target a specific screen only fire when that
+  screen is the active route in the navigator stack
+
+## Update Checker
+
+The in-app update checker lives in `lib/src/features/settings/`:
+
+- `data/update_repository.dart` — fetches the Forgejo Releases API, filters by update
+  channel, parses semver, and selects the correct platform artifact using
+  `detectInstallMode()`. Returns `UpdateInfo` (with `downloadUrl` and `assetFileName`)
+  when a newer version is available.
+- `data/update_service.dart` — downloads the release artifact into the system temp
+  directory and applies the update. On Android, invokes the system APK installer via a
+  `MethodChannel`. On desktop, runs a platform-appropriate apply strategy:
+  - **Linux deb:** `pkexec dpkg -i` + relaunch.
+  - **Linux portable / Windows portable / macOS:** extracts the archive to a staging
+    directory, writes a self-deleting shell/batch script with rollback logic, launches it
+    detached, and exits. The script replaces the running bundle, relaunches the app, and
+    cleans up automatically.
+  - **Windows installer:** launches the Inno Setup installer with `/SILENT /CLOSEAPPLICATIONS`.
+- `data/update_install_mode.dart` — `UpdateInstallMode` enum and `detectInstallMode()`
+  function. Detects the current install type from filesystem heuristics (e.g. presence of
+  `unins000.exe` for Windows installer mode; executable under `/opt/navis` for Linux deb).
+- `data/archive_utils.dart` — cross-platform archive extraction (`tar`, `ditto`, PowerShell
+  `Expand-Archive`).
+- `data/update_scripts.dart` — generates the platform-specific updater scripts (`.sh` for
+  Linux/macOS, `.bat` for Windows). Scripts include rollback on failure and self-delete
+  after successful update.
+- `domain/update_info.dart` — immutable value object. `downloadUrl` holds the direct asset
+  URL for the current platform; `apkDownloadUrl` is a backward-compatible alias.
+
+### Write-access guard
+
+Before starting any download, `UpdateService.canApplyUpdate(mode)` probes the target
+directory for write access. If the directory is not writable (e.g. app installed to
+`/Applications` by an admin user, or a read-only portable location), the update dialog
+shows a "Download Manually" prompt linking to the release page instead of attempting
+a doomed automatic update.
+
+### Startup cleanup
+
+`UpdateService.cleanupStaledUpdates()` is called on every desktop app launch. It removes
+any `.backup` directories and orphaned staging dirs left behind by a previous update
+script, preventing accumulation of stale files.
+
+### Update channel
+
+The update channel (`stable` or `dev`) is baked in at compile time via
+`--dart-define=NAVIS_UPDATE_CHANNEL=dev`. The `dev` channel matches release assets prefixed
+with `navis-dev-`, while the `stable` channel matches assets prefixed with `navis-`. This
+ensures sidecar/dev builds never suggest a stable release as an upgrade.
+
+The Last.fm API key used by "Same Vibes" instant mix mode is injected at build time via
+`--dart-define=NAVIS_LASTFM_API_KEY=...` and read from `AppConstants.lastFmApiKey`.
 
 ## Data Flow
 

@@ -439,6 +439,20 @@
   "artistDetailSimilarSection": "Similar artists",
   "artistDetailAlbumsErrorTitle": "Could not load artist albums",
   "artistDetailLoadErrorTitle": "Could not load artist details",
+  "artistTopTracksSection": "Top Tracks",
+  "artistTopTracksShowMore": "Show more",
+  "artistTopTracksShowLess": "Show less",
+  "artistTopTracksListeners": "{count} listeners",
+  "@artistTopTracksListeners": {
+    "description": "Formatted listener count for a Last.fm top track, e.g. '1.2M listeners'.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "artistTopTracksNotAvailable": "Track not available in your library.",
+  "artistTopTracksPlayError": "Could not play track. Try again.",
   "albumDetailTitle": "Album",
   "albumDetailNotFoundTitle": "Album not found",
   "albumDetailNotFoundSubtitle": "This album is not available in local data.",
@@ -858,6 +872,12 @@
   },
   "updateReadyToInstall": "Download complete. Ready to install.",
   "updateDownloadFailed": "Download failed. Please try again.",
+  "updateApplyFailed": "Could not apply the update automatically.",
+  "updateReadyToRestart": "Download complete. Restart the app to apply the update.",
+  "updateRestartAndUpdate": "Restart & Update",
+  "updateApplying": "Applying update…",
+  "updateNoWriteAccess": "Navis cannot update itself from this location. Please download manually.",
+  "updateDownloadManually": "Download Manually",
 
   "updateAutoCheckTitle": "Automatically check for updates",
   "updateAutoCheckSubtitle": "Check for new releases on each app launch.",

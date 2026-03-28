@@ -58,6 +58,20 @@ final searchFilterProvider =
       SearchFilterNotifier.new,
     );
 
+/// Whether the desktop quick-search overlay is currently visible.
+/// Updated by [_AppShellState] when the overlay opens / closes.
+class QuickSearchOverlayVisibleNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  set visible(bool value) => state = value;
+}
+
+final quickSearchOverlayVisibleProvider =
+    NotifierProvider<QuickSearchOverlayVisibleNotifier, bool>(
+      QuickSearchOverlayVisibleNotifier.new,
+    );
+
 /// Whether the current search is running against the local DB (offline).
 final searchIsOfflineProvider = Provider.autoDispose<bool>((ref) {
   final reachability = ref.watch(serverReachabilityControllerProvider);

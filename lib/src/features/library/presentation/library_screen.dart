@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -30,6 +31,8 @@ import 'package:navis/src/features/library/presentation/library_scroll_provider.
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
+import 'package:navis/src/features/search/presentation/search_controller_provider.dart'
+    show quickSearchOverlayVisibleProvider;
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
@@ -102,6 +105,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   late final ProviderSubscription<bool> _downloadedOnlySubscription;
   int _lastLibraryScrollRequest = 0;
 
+  // ── Type-to-filter (keyboard-driven inline search) ──────────────────────
+  String _typeFilterQuery = '';
+  bool _typeFilterOverlayVisible = false;
+  Timer? _typeFilterFadeTimer;
+
   @override
   void initState() {
     super.initState();
@@ -145,6 +153,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         });
       },
     );
+    HardwareKeyboard.instance.addHandler(_onLibraryKeyEvent);
   }
 
   @override
@@ -168,6 +177,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     _yearItemPositionsListener.itemPositions.removeListener(
       _onYearViewportChanged,
     );
+    HardwareKeyboard.instance.removeHandler(_onLibraryKeyEvent);
+    _typeFilterFadeTimer?.cancel();
     super.dispose();
   }
 
@@ -182,6 +193,96 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       return;
     }
     ref.read(downloadedOnlyFilterProvider.notifier).enabled = value;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Type-to-filter — keyboard handler & state helpers
+  // ---------------------------------------------------------------------------
+
+  bool _onLibraryKeyEvent(KeyEvent event) {
+    if (!mounted) return false;
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) return false;
+    // Don't intercept when the quick-search overlay is visible.
+    if (ref.read(quickSearchOverlayVisibleProvider)) return false;
+    // Only when library root is the active screen (not inside album/artist detail)
+    final nav = Navigator.maybeOf(context, rootNavigator: false);
+    if (nav != null && nav.canPop()) return false;
+    // Don't intercept modifier combos (shortcuts)
+    if (HardwareKeyboard.instance.isControlPressed ||
+        HardwareKeyboard.instance.isMetaPressed ||
+        HardwareKeyboard.instance.isAltPressed) return false;
+    // Don't intercept when a text field is being edited
+    final focusWidget = FocusManager.instance.primaryFocus?.context?.widget;
+    if (focusWidget is EditableText) return false;
+    if (FocusManager.instance.primaryFocus?.context
+            ?.findAncestorStateOfType<EditableTextState>() !=
+        null) {
+      return false;
+    }
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.backspace) {
+      if (_typeFilterQuery.isEmpty) return false;
+      _updateTypeFilter(
+        _typeFilterQuery.substring(0, _typeFilterQuery.length - 1),
+      );
+      return true;
+    }
+    if (key == LogicalKeyboardKey.escape && _typeFilterQuery.isNotEmpty) {
+      _clearTypeFilter();
+      return true;
+    }
+    final char = event.character;
+    if (char != null && char.isNotEmpty && !_isLibraryFilterControlChar(char)) {
+      // Don't start a new filter with a space — only add spaces to an
+      // existing query so play/pause isn't swallowed before typing begins.
+      if (char == ' ' && _typeFilterQuery.isEmpty) return false;
+      _updateTypeFilter(_typeFilterQuery + char);
+      return true;
+    }
+    return false;
+  }
+
+  bool _isLibraryFilterControlChar(String s) {
+    if (s.isEmpty) return true;
+    final code = s.codeUnitAt(0);
+    return code < 32 || code == 127;
+  }
+
+  void _updateTypeFilter(String query) {
+    if (query.isEmpty) {
+      _clearTypeFilter();
+      return;
+    }
+    _typeFilterFadeTimer?.cancel();
+    setState(() {
+      _typeFilterQuery = query;
+      _typeFilterOverlayVisible = true;
+      _cachedArtists = null; // invalidate artist cache so grouping rebuilds
+      _cachedYearSectionsSource = null; // invalidate year cache
+    });
+    ref.read(libraryTypeFilterActiveProvider.notifier).active = true;
+    _typeFilterFadeTimer = Timer(
+      const Duration(milliseconds: 900),
+      () {
+        if (mounted) {
+          setState(() => _typeFilterOverlayVisible = false);
+          ref.read(libraryTypeFilterActiveProvider.notifier).active = false;
+        }
+      },
+    );
+  }
+
+  void _clearTypeFilter() {
+    _typeFilterFadeTimer?.cancel();
+    setState(() {
+      _typeFilterQuery = '';
+      _typeFilterOverlayVisible = false;
+      _cachedArtists = null;
+      _cachedAlbums = null;
+      _yearListItems = const <_YearListItem>[];
+      _cachedYearSectionsSource = null;
+    });
+    ref.read(libraryTypeFilterActiveProvider.notifier).active = false;
   }
 
   void _animateScrollControllerToTop(ScrollController controller) {
@@ -407,22 +508,21 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     final showArtistsTab = ref.watch(showArtistsPageProvider);
     final showPlaylistsTab = ref.watch(showPlaylistsPageProvider);
     final showLikedTab = ref.watch(showLikedPageProvider);
+    final adaptiveContext = resolveAdaptiveContextFor(context);
     final tabCount =
         1 +
         (showLikedTab ? 1 : 0) +
         (showArtistsTab ? 1 : 0) +
         (showPlaylistsTab ? 1 : 0) +
         (showRadioTab ? 1 : 0);
-    final desktopMode = isDesktopRuntime;
+    final desktopMode = adaptiveContext.useDesktopShell;
     final hasActivePlayback = ref.watch(
       playerStateProvider.select((state) => state.hasActivePlayback),
     );
-    final adaptiveLayoutClass = resolveAdaptiveLayoutClass(
-      MediaQuery.sizeOf(context).width,
-    );
+    final adaptiveLayoutClass = adaptiveContext.adaptiveLayoutClass;
     final viewport = MediaQuery.sizeOf(context);
     final safePadding = MediaQuery.paddingOf(context);
-    final isPhoneFormFactor = !isDesktopRuntime && viewport.shortestSide < 600;
+    final isPhoneFormFactor = adaptiveContext.isPhoneFormFactor;
     const navTileEstimatedHeight = 64.0;
     const subNavTileEstimatedHeight = 44.0;
     const subNavTrailingGap = 6.0;
@@ -448,25 +548,23 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     // SafeArea + outer rail paddings consume ~44px before sidebar content.
     final estimatedRailHeight = viewport.height - safePadding.vertical - 44.0;
     final selectedSection = ref.watch(librarySectionProvider);
-    final adaptiveShellMode = resolveAdaptiveShellMode(
-      desktopRuntime: isDesktopRuntime,
-      viewportSize: viewport,
-      safePadding: safePadding,
-    );
-    final compactWideLandscapeMode =
-        adaptiveShellMode == AdaptiveShellMode.compactWideLandscape;
+    final compactWideLandscapeMode = adaptiveContext.useCompactWideLandscape;
     final tabletMode =
-        !isDesktopRuntime &&
-        adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact;
+        !desktopMode && adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact;
+    // On desktop the sidebar always shows library sub-navigation
+    // (AppShell's showLibrarySubNavigation == useDesktopShell || useRailNavigation),
+    // so the in-page TabBar must be suppressed for either condition.
     final baseWideLibraryNavigation =
         !isPhoneFormFactor &&
-        ((isDesktopRuntime && MediaQuery.sizeOf(context).width >= 840) ||
-            adaptiveLayoutClass == AdaptiveLayoutClass.tabletExpanded);
+        (adaptiveContext.useRailNavigation || desktopMode);
     final forceTabbedLibraryNavigation =
-        compactWideLandscapeMode ||
-        (baseWideLibraryNavigation &&
-            hasActivePlayback &&
-            estimatedRailHeight < railHeightNeededForInlineLibrary);
+        // On desktop, the sidebar always handles library section navigation —
+        // never fall back to the in-page TabBar, which would duplicate it.
+        !desktopMode &&
+        (compactWideLandscapeMode ||
+            (baseWideLibraryNavigation &&
+                hasActivePlayback &&
+                estimatedRailHeight < railHeightNeededForInlineLibrary));
     final useWideLibraryNavigation =
         baseWideLibraryNavigation && !forceTabbedLibraryNavigation;
     final tabController = _ensureTabController(tabCount);
@@ -540,34 +638,79 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         if (showRadioTab) Tab(text: l10n.navRadio),
       ],
     );
-    final bodyContent = Column(
+    final bodyContent = Stack(
       children: <Widget>[
-        _SyncStatusBanner(
-          syncState: syncState,
-          onRetry: _refreshLibrary,
-          onCancel: () {
-            ref.read(librarySyncControllerProvider.notifier).cancelSync();
-          },
+        Column(
+          children: <Widget>[
+            _SyncStatusBanner(
+              syncState: syncState,
+              onRetry: _refreshLibrary,
+              onCancel: () {
+                ref.read(librarySyncControllerProvider.notifier).cancelSync();
+              },
+            ),
+            if (_typeFilterQuery.isNotEmpty)
+              _TypeFilterBadge(
+                query: _typeFilterQuery,
+                onClear: _clearTypeFilter,
+              ),
+            Expanded(
+              child: TabBarView(
+                controller: tabController,
+                physics: (_isArtistRailScrubbing || _isYearRailScrubbing)
+                    ? const NeverScrollableScrollPhysics()
+                    : const PageScrollPhysics(),
+                children: <Widget>[
+                  _buildAlbumsTab(context),
+                  if (showLikedTab)
+                    _buildLikedTab(context, desktopMode: desktopMode),
+                  if (showArtistsTab) _buildArtistsTab(context),
+                  if (showPlaylistsTab)
+                    _LibraryPlaylistsTab(
+                      scrollController: _playlistsScrollController,
+                    ),
+                  if (showRadioTab)
+                    RadioTabContent(
+                      scrollController: _radioScrollController,
+                      typeFilterQuery: _typeFilterQuery,
+                    ),
+                ],
+              ),
+            ),
+          ],
         ),
-        Expanded(
-          child: TabBarView(
-            controller: tabController,
-            physics: (_isArtistRailScrubbing || _isYearRailScrubbing)
-                ? const NeverScrollableScrollPhysics()
-                : const PageScrollPhysics(),
-            children: <Widget>[
-              _buildAlbumsTab(context),
-              if (showLikedTab) _buildLikedTab(context),
-              if (showArtistsTab) _buildArtistsTab(context),
-              if (showPlaylistsTab)
-                _LibraryPlaylistsTab(
-                  scrollController: _playlistsScrollController,
+        // Type-to-filter: large typography overlay with dimming
+        if (_typeFilterOverlayVisible && _typeFilterQuery.isNotEmpty)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: AnimatedOpacity(
+                opacity: _typeFilterOverlayVisible ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 200),
+                child: ColoredBox(
+                  color: Colors.black.withValues(alpha: 0.35),
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 32),
+                      child: Text(
+                        _typeFilterQuery,
+                        style: Theme.of(context)
+                            .textTheme
+                            .displayLarge
+                            ?.copyWith(
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white.withValues(alpha: 0.85),
+                              letterSpacing: 2,
+                            ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
                 ),
-              if (showRadioTab)
-                RadioTabContent(scrollController: _radioScrollController),
-            ],
+              ),
+            ),
           ),
-        ),
       ],
     );
 
@@ -580,19 +723,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
             ),
             child: Column(
               children: <Widget>[
-                DesktopPanel(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      DesktopSectionHeader(
-                        title: l10n.libraryTitle,
-                        subtitle:
-                            'Browse albums, artists, playlists, and radio',
-                      ),
-                      tabBar,
-                    ],
-                  ),
-                ),
+                DesktopPanel(child: tabBar),
                 const SizedBox(height: 12),
                 Expanded(
                   child: DesktopPanel(
@@ -608,6 +739,26 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     }
 
     if (useWideLibraryNavigation) {
+      if (desktopMode) {
+        return Scaffold(
+          body: SafeArea(
+            bottom: false,
+            child: DesktopFrame(
+              layoutClass: resolveDesktopLayoutClass(
+                MediaQuery.sizeOf(context).width,
+              ),
+              padding: EdgeInsets.zero,
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: DesktopPanel(
+                  padding: EdgeInsets.zero,
+                  child: bodyContent,
+                ),
+              ),
+            ),
+          ),
+        );
+      }
       return Scaffold(
         body: SafeArea(
           bottom: false,
@@ -759,22 +910,37 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                 final filteredItems = _downloadedOnly
                     ? _filterDownloadedArtists(items)
                     : items;
-                if (filteredItems.isEmpty) {
+                final typeFiltered = _typeFilterQuery.isEmpty
+                    ? filteredItems
+                    : filteredItems
+                          .where(
+                            (a) => a.name
+                                .toLowerCase()
+                                .contains(_typeFilterQuery.toLowerCase()),
+                          )
+                          .toList(growable: false);
+                if (typeFiltered.isEmpty) {
                   return ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
                     children: <Widget>[
                       EmptyState(
-                        title: _artistsLikedOnly
+                        title: _typeFilterQuery.isNotEmpty
+                            ? 'No results for "$_typeFilterQuery"'
+                            : _artistsLikedOnly
                             ? l10n.libraryLikedOnlyEmptyTitle
                             : _downloadedOnly
                             ? l10n.libraryDownloadedOnlyEmpty
                             : l10n.libraryArtistsEmptyTitle,
-                        subtitle: _artistsLikedOnly
+                        subtitle: _typeFilterQuery.isNotEmpty
+                            ? null
+                            : _artistsLikedOnly
                             ? l10n.libraryLikedOnlyEmptySubtitle
                             : _downloadedOnly
                             ? l10n.libraryDownloadedOnlyEmptySubtitle
                             : l10n.libraryArtistsEmptySubtitle,
-                        icon: _artistsLikedOnly
+                        icon: _typeFilterQuery.isNotEmpty
+                            ? Icons.search_off
+                            : _artistsLikedOnly
                             ? Icons.favorite_border_outlined
                             : _downloadedOnly
                             ? Icons.download_done_outlined
@@ -784,7 +950,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                   );
                 }
 
-                _ensureArtistListCache(filteredItems);
+                _ensureArtistListCache(typeFiltered);
+                // When a type-filter query is active, enhance the alphabet
+                // rail to show the specific letters/prefixes available.
                 final letters = _artistLetterStartIndex.keys.toList(
                   growable: false,
                 );
@@ -792,7 +960,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                 if (isGridMode) {
                   return Stack(
                     children: <Widget>[
-                      _buildArtistsGrid(context, filteredItems),
+                      _buildArtistsGrid(context, typeFiltered),
                       Positioned(
                         right: 0,
                         top: 8,
@@ -930,7 +1098,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     }
     final sortOrder = _toAlbumSortOrder(_albumSort);
     final albumsAsync = ref.watch(
-      _downloadedOnly
+      _downloadedOnly || _typeFilterQuery.isNotEmpty
           ? sortedAlbumsProvider((sort: sortOrder, likedOnly: false))
           : pagedAlbumsProvider((sort: sortOrder, limit: limit)),
     );
@@ -979,11 +1147,22 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           final filteredItems = _downloadedOnly
               ? _filterDownloadedAlbums(items)
               : items;
-          _reportVisibleAlbumPriority(filteredItems);
-          final totalAlbums = _downloadedOnly
-              ? filteredItems.length
-              : (totalAlbumsAsync.asData?.value ?? items.length);
-          final hasMore = !_downloadedOnly && items.length < totalAlbums;
+          // Apply type-to-filter query (client-side substring match).
+          final typeFiltered = _typeFilterQuery.isEmpty
+              ? filteredItems
+              : filteredItems.where((album) {
+                  final q = _typeFilterQuery.toLowerCase();
+                  return album.name.toLowerCase().contains(q) ||
+                      (album.artistName?.toLowerCase().contains(q) ?? false);
+                }).toList(growable: false);
+          _reportVisibleAlbumPriority(typeFiltered);
+          final totalAlbums =
+              _downloadedOnly || _typeFilterQuery.isNotEmpty
+                  ? typeFiltered.length
+                  : (totalAlbumsAsync.asData?.value ?? items.length);
+          final hasMore = !_downloadedOnly &&
+              _typeFilterQuery.isEmpty &&
+              items.length < totalAlbums;
           return LayoutBuilder(
             builder: (context, constraints) {
               final gridWidth = (constraints.maxWidth - 24).clamp(
@@ -1042,17 +1221,23 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                         onDownloadedOnlyChanged: _updateDownloadedOnly,
                       ),
                     ),
-                    if (filteredItems.isEmpty)
+                    if (typeFiltered.isEmpty)
                       SliverFillRemaining(
                         hasScrollBody: false,
                         child: EmptyState(
-                          title: _downloadedOnly
+                          title: _typeFilterQuery.isNotEmpty
+                              ? 'No results for "$_typeFilterQuery"'
+                              : _downloadedOnly
                               ? l10n.libraryDownloadedOnlyEmpty
                               : l10n.libraryAlbumsEmptyTitle,
-                          subtitle: _downloadedOnly
+                          subtitle: _typeFilterQuery.isNotEmpty
+                              ? null
+                              : _downloadedOnly
                               ? l10n.libraryDownloadedOnlyEmptySubtitle
                               : l10n.libraryAlbumsEmptySubtitle,
-                          icon: _downloadedOnly
+                          icon: _typeFilterQuery.isNotEmpty
+                              ? Icons.search_off
+                              : _downloadedOnly
                               ? Icons.download_done_outlined
                               : Icons.album_outlined,
                         ),
@@ -1075,7 +1260,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                             context,
                             index,
                           ) {
-                            final album = filteredItems[index];
+                            final album = typeFiltered[index];
                             return RepaintBoundary(
                               child: AlbumCard(
                                 key: ValueKey(album.id),
@@ -1109,7 +1294,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                                     ),
                               ),
                             );
-                          }, childCount: filteredItems.length),
+                          }, childCount: typeFiltered.length),
                         ),
                       ),
                     if (hasMore)
@@ -1147,7 +1332,30 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       ),
     );
     if (sectionsAsync.asData != null) {
-      _ensureYearListCache(sectionsAsync.asData!.value);
+      var sections = sectionsAsync.asData!.value;
+      // Apply type-to-filter to the year-based view.
+      if (_typeFilterQuery.isNotEmpty) {
+        final q = _typeFilterQuery.toLowerCase();
+        sections = sections
+            .map(
+              (s) => AlbumYearSection(
+                title: s.title,
+                decadeStart: s.decadeStart,
+                year: s.year,
+                isUnknownYear: s.isUnknownYear,
+                albums: s.albums
+                    .where(
+                      (a) =>
+                          a.name.toLowerCase().contains(q) ||
+                          (a.artistName?.toLowerCase().contains(q) ?? false),
+                    )
+                    .toList(growable: false),
+              ),
+            )
+            .where((s) => s.albums.isNotEmpty)
+            .toList(growable: false);
+      }
+      _ensureYearListCache(sections);
     }
 
     return Column(
@@ -1208,9 +1416,15 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                     physics: const AlwaysScrollableScrollPhysics(),
                     children: <Widget>[
                       EmptyState(
-                        title: l10n.libraryAlbumsByYearEmptyTitle,
-                        subtitle: l10n.libraryAlbumsByYearEmptySubtitle,
-                        icon: Icons.calendar_today_outlined,
+                        title: _typeFilterQuery.isNotEmpty
+                            ? 'No results for "$_typeFilterQuery"'
+                            : l10n.libraryAlbumsByYearEmptyTitle,
+                        subtitle: _typeFilterQuery.isNotEmpty
+                            ? 'Try a different search'
+                            : l10n.libraryAlbumsByYearEmptySubtitle,
+                        icon: _typeFilterQuery.isNotEmpty
+                            ? Icons.search_off_rounded
+                            : Icons.calendar_today_outlined,
                       ),
                     ],
                   )
@@ -1334,9 +1548,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     );
   }
 
-  Widget _buildLikedTab(BuildContext context) {
+  Widget _buildLikedTab(BuildContext context, {required bool desktopMode}) {
     final l10n = AppLocalizations.of(context)!;
-    final desktopMode = isDesktopRuntime;
     // Recent 6 liked albums (ordered by starred desc) for the capped grid.
     final likedAlbumsRecentAsync = ref.watch(likedAlbumsRecentProvider);
     // Full list used only for the total count; data is not rendered directly.
@@ -1384,11 +1597,38 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
               )
               .toList(growable: false)
         : likedArtistsAsync.asData?.value ?? const <ArtistsTableData>[];
+    // Apply type-to-filter if active.
+    final queryLower = _typeFilterQuery.toLowerCase();
+    final filteredAlbums = _typeFilterQuery.isEmpty
+        ? albums
+        : albums
+              .where(
+                (a) =>
+                    a.name.toLowerCase().contains(queryLower) ||
+                    (a.artistName?.toLowerCase().contains(queryLower) ?? false),
+              )
+              .toList(growable: false);
+    final filteredArtists = _typeFilterQuery.isEmpty
+        ? artists
+        : artists
+              .where((a) => a.name.toLowerCase().contains(queryLower))
+              .toList(growable: false);
+    final filteredSongs = _typeFilterQuery.isEmpty
+        ? songs
+        : songs
+              .where(
+                (s) =>
+                    s.title.toLowerCase().contains(queryLower) ||
+                    (s.artistName?.toLowerCase().contains(queryLower) ??
+                        false) ||
+                    (s.albumName?.toLowerCase().contains(queryLower) ?? false),
+              )
+              .toList(growable: false);
     const likedArtistsPreviewLimit = 14;
-    final artistPreview = artists
+    final artistPreview = filteredArtists
         .take(likedArtistsPreviewLimit)
         .toList(growable: false);
-    final hasMoreLikedArtists = artists.length > artistPreview.length;
+    final hasMoreLikedArtists = filteredArtists.length > artistPreview.length;
     final error =
         likedAlbumsRecentAsync.error ??
         likedArtistsAsync.error ??
@@ -1435,23 +1675,29 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
             controller: _likedScrollController,
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: <Widget>[
-              if (albums.isEmpty && artists.isEmpty && songs.isEmpty)
+              if (filteredAlbums.isEmpty && filteredArtists.isEmpty && filteredSongs.isEmpty)
                 SliverFillRemaining(
                   hasScrollBody: false,
                   child: EmptyState(
-                    title: _downloadedOnly
-                        ? l10n.libraryDownloadedOnlyEmpty
-                        : l10n.libraryLikedEmptyTitle,
-                    subtitle: _downloadedOnly
-                        ? l10n.libraryDownloadedOnlyEmptySubtitle
-                        : l10n.libraryLikedEmptySubtitle,
-                    icon: _downloadedOnly
-                        ? Icons.download_done_outlined
-                        : Icons.favorite_border_outlined,
+                    title: _typeFilterQuery.isNotEmpty
+                        ? 'No results for "$_typeFilterQuery"'
+                        : _downloadedOnly
+                            ? l10n.libraryDownloadedOnlyEmpty
+                            : l10n.libraryLikedEmptyTitle,
+                    subtitle: _typeFilterQuery.isNotEmpty
+                        ? 'Try a different search'
+                        : _downloadedOnly
+                            ? l10n.libraryDownloadedOnlyEmptySubtitle
+                            : l10n.libraryLikedEmptySubtitle,
+                    icon: _typeFilterQuery.isNotEmpty
+                        ? Icons.search_off_rounded
+                        : _downloadedOnly
+                            ? Icons.download_done_outlined
+                            : Icons.favorite_border_outlined,
                   ),
                 )
               else ...<Widget>[
-                if (artists.isNotEmpty)
+                if (filteredArtists.isNotEmpty)
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 16, 12, 8),
@@ -1472,7 +1718,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                       ),
                     ),
                   ),
-                if (artists.isNotEmpty)
+                if (filteredArtists.isNotEmpty)
                   SliverToBoxAdapter(
                     child: SizedBox(
                       height: 118,
@@ -1497,7 +1743,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                       ),
                     ),
                   ),
-                if (songs.isNotEmpty)
+                if (filteredSongs.isNotEmpty)
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
@@ -1506,13 +1752,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                         runSpacing: 10,
                         children: <Widget>[
                           FilledButton.icon(
-                            onPressed: () => unawaited(_queueLikedSongs(songs)),
+                            onPressed: () => unawaited(_queueLikedSongs(filteredSongs)),
                             icon: const Icon(Icons.play_arrow_rounded),
                             label: Text(l10n.albumDetailPlayAction),
                           ),
                           OutlinedButton.icon(
                             onPressed: () => unawaited(
-                              _queueLikedSongs(songs, shuffle: true),
+                              _queueLikedSongs(filteredSongs, shuffle: true),
                             ),
                             icon: const Icon(Icons.shuffle_rounded),
                             label: Text(l10n.albumDetailShuffleAction),
@@ -1521,7 +1767,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                       ),
                     ),
                   ),
-                if (albums.isNotEmpty)
+                if (filteredAlbums.isNotEmpty)
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 16, 4, 0),
@@ -1543,7 +1789,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                       ),
                     ),
                   ),
-                if (albums.isNotEmpty)
+                if (filteredAlbums.isNotEmpty)
                   SliverPadding(
                     padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
                     sliver: SliverGrid(
@@ -1557,7 +1803,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                         mainAxisSpacing: 8,
                       ),
                       delegate: SliverChildBuilderDelegate((context, index) {
-                        final album = albums[index];
+                        final album = filteredAlbums[index];
                         return RepaintBoundary(
                           child: AlbumCard(
                             key: ValueKey('liked-album-${album.id}'),
@@ -1585,10 +1831,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                                 ),
                           ),
                         );
-                      }, childCount: albums.length),
+                      }, childCount: filteredAlbums.length),
                     ),
                   ),
-                if (songs.isNotEmpty)
+                if (filteredSongs.isNotEmpty)
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
@@ -1598,10 +1844,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                       ),
                     ),
                   ),
-                if (songs.isNotEmpty)
+                if (filteredSongs.isNotEmpty)
                   SliverList(
                     delegate: SliverChildBuilderDelegate((context, index) {
-                      final song = songs[index];
+                      final song = filteredSongs[index];
                       if (desktopMode) {
                         final subtitleParts = <String>[
                           if (song.artistName != null &&
@@ -1710,7 +1956,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                         onLongPress: () =>
                             showSongContextMenu(this.context, ref, song),
                       );
-                    }, childCount: songs.length),
+                    }, childCount: filteredSongs.length),
                   ),
               ],
             ],
@@ -2328,6 +2574,52 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           ),
         );
       },
+    );
+  }
+}
+
+class _TypeFilterBadge extends StatelessWidget {
+  const _TypeFilterBadge({
+    required this.query,
+    required this.onClear,
+  });
+
+  final String query;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.7),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Row(
+        children: <Widget>[
+          Icon(
+            Icons.filter_list_rounded,
+            size: 16,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Filtering: "$query"',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          GestureDetector(
+            onTap: onClear,
+            child: Icon(
+              Icons.close_rounded,
+              size: 18,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

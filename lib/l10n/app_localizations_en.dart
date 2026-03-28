@@ -946,6 +946,27 @@ class AppLocalizationsEn extends AppLocalizations {
   String get artistDetailLoadErrorTitle => 'Could not load artist details';
 
   @override
+  String get artistTopTracksSection => 'Top Tracks';
+
+  @override
+  String get artistTopTracksShowMore => 'Show more';
+
+  @override
+  String get artistTopTracksShowLess => 'Show less';
+
+  @override
+  String artistTopTracksListeners(String count) {
+    return '$count listeners';
+  }
+
+  @override
+  String get artistTopTracksNotAvailable =>
+      'Track not available in your library.';
+
+  @override
+  String get artistTopTracksPlayError => 'Could not play track. Try again.';
+
+  @override
   String get albumDetailTitle => 'Album';
 
   @override
@@ -1882,6 +1903,26 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get updateDownloadFailed => 'Download failed. Please try again.';
+
+  @override
+  String get updateApplyFailed => 'Could not apply the update automatically.';
+
+  @override
+  String get updateReadyToRestart =>
+      'Download complete. Restart the app to apply the update.';
+
+  @override
+  String get updateRestartAndUpdate => 'Restart & Update';
+
+  @override
+  String get updateApplying => 'Applying update…';
+
+  @override
+  String get updateNoWriteAccess =>
+      'Navis cannot update itself from this location. Please download manually.';
+
+  @override
+  String get updateDownloadManually => 'Download Manually';
 
   @override
   String get updateAutoCheckTitle => 'Automatically check for updates';

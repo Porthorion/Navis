@@ -1755,6 +1755,42 @@ abstract class AppLocalizations {
   /// **'Could not load artist details'**
   String get artistDetailLoadErrorTitle;
 
+  /// No description provided for @artistTopTracksSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Top Tracks'**
+  String get artistTopTracksSection;
+
+  /// No description provided for @artistTopTracksShowMore.
+  ///
+  /// In en, this message translates to:
+  /// **'Show more'**
+  String get artistTopTracksShowMore;
+
+  /// No description provided for @artistTopTracksShowLess.
+  ///
+  /// In en, this message translates to:
+  /// **'Show less'**
+  String get artistTopTracksShowLess;
+
+  /// Formatted listener count for a Last.fm top track, e.g. '1.2M listeners'.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} listeners'**
+  String artistTopTracksListeners(String count);
+
+  /// No description provided for @artistTopTracksNotAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Track not available in your library.'**
+  String get artistTopTracksNotAvailable;
+
+  /// No description provided for @artistTopTracksPlayError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not play track. Try again.'**
+  String get artistTopTracksPlayError;
+
   /// No description provided for @albumDetailTitle.
   ///
   /// In en, this message translates to:
@@ -3362,6 +3398,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Download failed. Please try again.'**
   String get updateDownloadFailed;
+
+  /// No description provided for @updateApplyFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not apply the update automatically.'**
+  String get updateApplyFailed;
+
+  /// No description provided for @updateReadyToRestart.
+  ///
+  /// In en, this message translates to:
+  /// **'Download complete. Restart the app to apply the update.'**
+  String get updateReadyToRestart;
+
+  /// No description provided for @updateRestartAndUpdate.
+  ///
+  /// In en, this message translates to:
+  /// **'Restart & Update'**
+  String get updateRestartAndUpdate;
+
+  /// No description provided for @updateApplying.
+  ///
+  /// In en, this message translates to:
+  /// **'Applying update…'**
+  String get updateApplying;
+
+  /// No description provided for @updateNoWriteAccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Navis cannot update itself from this location. Please download manually.'**
+  String get updateNoWriteAccess;
+
+  /// No description provided for @updateDownloadManually.
+  ///
+  /// In en, this message translates to:
+  /// **'Download Manually'**
+  String get updateDownloadManually;
 
   /// No description provided for @updateAutoCheckTitle.
   ///

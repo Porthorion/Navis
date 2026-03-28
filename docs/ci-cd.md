@@ -14,8 +14,7 @@ Checks performed (in order, fail-fast):
 1. `dart format --set-exit-if-changed .`
 2. `dart run build_runner build --delete-conflicting-outputs`
 3. `flutter analyze`
-4. `dart run custom_lint`
-5. `flutter test`
+4. `flutter test`
 
 The script also checks `/tmp` disk space before starting to prevent misleading test hangs.
 

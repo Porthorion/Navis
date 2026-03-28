@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
+import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -12,9 +13,10 @@ import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
-import 'package:navis/src/common_widgets/star_button.dart';
+import 'package:navis/src/features/library/presentation/artist_top_tracks_section.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 
 class ArtistDetailScreen extends ConsumerStatefulWidget {
   const ArtistDetailScreen({required this.artistId, super.key});
@@ -86,9 +88,8 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
     final albums = ref.watch(albumsByArtistProvider(widget.artistId));
     final artistInfo = ref.watch(artistInfoProvider(widget.artistId));
 
-    return Scaffold(
-      appBar: AppBar(title: Text(l10n.artistDetailTitle)),
-      body: artist.when(
+    final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
+    final artistBody = artist.when(
         data: (artistData) {
           if (artistData == null) {
             return EmptyState(
@@ -108,44 +109,49 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
               physics: const AlwaysScrollableScrollPhysics(),
               padding: EdgeInsets.zero,
               children: <Widget>[
-                // ── Artist image header ─────────────────────────────────────
+                // ── Artist image header with name + heart overlaid ──────────
                 artistInfo.when(
                   data: (info) {
                     final url =
                         info?.largeImageUrl ?? info?.mediumImageUrl ?? '';
-                    if (url.isEmpty) return const SizedBox.shrink();
-                    return _ArtistImageHeader(imageUrl: url);
-                  },
-                  loading: () => const SizedBox.shrink(),
-                  error: (_, _) => const SizedBox.shrink(),
-                ),
-                // ── Name + star ─────────────────────────────────────────────
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-                  child: Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: Text(
-                          artistData.name,
-                          style: Theme.of(context).textTheme.headlineSmall,
-                        ),
-                      ),
-                      StarButton(
+                    if (url.isNotEmpty) {
+                      return _ArtistImageHeader(
+                        imageUrl: url,
+                        artistName: artistData.name,
                         isStarred: isStarred,
-                        onPressed: _isStarring
+                        isStarring: _isStarring,
+                        onStarToggle: _isStarring
                             ? null
                             : () => _toggleStar(isStarred: isStarred),
-                        compact: true,
-                        tooltip: l10n.albumDetailStarAction,
-                      ),
-                    ],
+                        starTooltip: l10n.albumDetailStarAction,
+                      );
+                    }
+                    // No photo — plain name row
+                    return _ArtistNameHeader(
+                      name: artistData.name,
+                      isStarred: isStarred,
+                      isStarring: _isStarring,
+                      onStarToggle: _isStarring
+                          ? null
+                          : () => _toggleStar(isStarred: isStarred),
+                      starTooltip: l10n.albumDetailStarAction,
+                    );
+                  },
+                  loading: () => _ArtistNameHeader(
+                    name: artistData.name,
+                    isStarred: isStarred,
+                    isStarring: _isStarring,
+                    onStarToggle: null,
+                    starTooltip: l10n.albumDetailStarAction,
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                  child: Text(
-                    l10n.artistDetailAlbumCount(artistData.albumCount ?? 0),
-                    style: Theme.of(context).textTheme.bodyMedium,
+                  error: (_, _) => _ArtistNameHeader(
+                    name: artistData.name,
+                    isStarred: isStarred,
+                    isStarring: _isStarring,
+                    onStarToggle: _isStarring
+                        ? null
+                        : () => _toggleStar(isStarred: isStarred),
+                    starTooltip: l10n.albumDetailStarAction,
                   ),
                 ),
                 // ── Bio ─────────────────────────────────────────────────────
@@ -154,7 +160,10 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                     if (info == null) {
                       return const SizedBox.shrink();
                     }
-                    return _ArtistInfoSection(info: info);
+                    return _ArtistInfoSection(
+                      info: info,
+                      albumCount: artistData.albumCount,
+                    );
                   },
                   loading: () => const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -162,11 +171,16 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                   ),
                   error: (_, _) => const SizedBox.shrink(),
                 ),
+                // ── Top Tracks (Last.fm, gated by build-time API key) ────────
+                if (ref.watch(hasLastFmApiKeyProvider))
+                  ArtistTopTracksSection(artistName: artistData.name),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
                   child: Text(
                     l10n.artistDetailAlbumsSection,
-                    style: Theme.of(context).textTheme.titleMedium,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
                 albums.when(
@@ -279,17 +293,40 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
           message: error.toString(),
           onRetry: () => ref.invalidate(artistByIdProvider(widget.artistId)),
         ),
-      ),
+    );
+    return Scaffold(
+      appBar: AppBar(title: Text(l10n.artistDetailTitle)),
+      body: desktopMode
+          ? DesktopFrame(
+              layoutClass: resolveDesktopLayoutClass(
+                MediaQuery.sizeOf(context).width,
+              ),
+              child: artistBody,
+            )
+          : artistBody,
     );
   }
 }
 
 /// Full-width header image shown at the top of the artist detail page when
 /// the artist has a photo from the Last.fm / MusicBrainz metadata.
+/// Overlays the artist name and heart/star icon at the bottom of the image.
 class _ArtistImageHeader extends StatelessWidget {
-  const _ArtistImageHeader({required this.imageUrl});
+  const _ArtistImageHeader({
+    required this.imageUrl,
+    required this.artistName,
+    required this.isStarred,
+    required this.isStarring,
+    required this.onStarToggle,
+    required this.starTooltip,
+  });
 
   final String imageUrl;
+  final String artistName;
+  final bool isStarred;
+  final bool isStarring;
+  final VoidCallback? onStarToggle;
+  final String starTooltip;
 
   @override
   Widget build(BuildContext context) {
@@ -298,7 +335,19 @@ class _ArtistImageHeader extends StatelessWidget {
         final availableWidth = constraints.maxWidth.isFinite
             ? constraints.maxWidth
             : MediaQuery.sizeOf(context).width;
-        final headerHeight = (availableWidth * 0.42).clamp(240.0, 460.0);
+        final headerHeight = (availableWidth * 0.43).clamp(260.0, 560.0);
+
+        // Gradually shift the vertical anchor from top (portrait/narrow screens
+        // where topCenter works well for portrait artist shots) toward center
+        // (wide/cinematic displays where topCenter cuts off the face).
+        // The transition spans aspect‑ratios 1.5 → 2.5:
+        //   ≤ 1.5  → Alignment(0, −1)  = topCenter
+        //   ≥ 2.5  → Alignment(0,  0)  = center
+        final displayRatio = availableWidth / headerHeight;
+        final alignY =
+            ((displayRatio - 1.5) / 1.0).clamp(0.0, 1.0) - 1.0;
+        final imageAlignment = Alignment(0.0, alignY);
+
         return SizedBox(
           height: headerHeight,
           width: double.infinity,
@@ -308,20 +357,73 @@ class _ArtistImageHeader extends StatelessWidget {
               CachedNetworkImage(
                 imageUrl: imageUrl,
                 fit: BoxFit.cover,
+                alignment: imageAlignment,
                 errorWidget: (_, _, _) => const SizedBox.shrink(),
               ),
-              // Gradient overlay — fades to scaffold background at the bottom
-              // so the artist name blends in naturally.
+              // Dual gradient: slight top vignette + heavy bottom scrim
               const DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: <Color>[
+                      Color(0x55000000),
                       Color(0x00000000),
-                      Color(0xCC000000),
+                      Color(0xF2000000),
                     ],
+                    stops: <double>[0.0, 0.35, 1.0],
                   ),
+                ),
+              ),
+              // Artist name (bottom-left) + heart (bottom-right) overlaid
+              Positioned(
+                left: 20,
+                right: 8,
+                bottom: 20,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: <Widget>[
+                    Expanded(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.bottomLeft,
+                        child: Text(
+                          artistName,
+                          style: Theme.of(context).textTheme.displayLarge
+                              ?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -1.0,
+                                height: 1.05,
+                                fontSize: 64,
+                                shadows: const <Shadow>[
+                                  Shadow(
+                                    blurRadius: 4,
+                                    color: Color(0xCC000000),
+                                  ),
+                                  Shadow(
+                                    blurRadius: 24,
+                                    color: Color(0xAA000000),
+                                  ),
+                                ],
+                              ),
+                          maxLines: 1,
+                          overflow: TextOverflow.clip,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        isStarred ? Icons.favorite : Icons.favorite_border,
+                        color: isStarred
+                            ? Colors.red[300]
+                            : Colors.white.withValues(alpha: 0.8),
+                        size: 26,
+                      ),
+                      tooltip: starTooltip,
+                      onPressed: onStarToggle,
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -332,10 +434,84 @@ class _ArtistImageHeader extends StatelessWidget {
   }
 }
 
+/// Fallback header shown when there is no artist photo.
+class _ArtistNameHeader extends StatelessWidget {
+  const _ArtistNameHeader({
+    required this.name,
+    required this.isStarred,
+    required this.isStarring,
+    required this.onStarToggle,
+    required this.starTooltip,
+  });
+
+  final String name;
+  final bool isStarred;
+  final bool isStarring;
+  final VoidCallback? onStarToggle;
+  final String starTooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 32, 12, 24),
+      color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: <Widget>[
+          CircleAvatar(
+            radius: 36,
+            backgroundColor: colorScheme.primaryContainer,
+            child: Text(
+              initial,
+              style: TextStyle(
+                fontSize: 30,
+                fontWeight: FontWeight.bold,
+                color: colorScheme.onPrimaryContainer,
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                name,
+                style: Theme.of(context).textTheme.displayLarge?.copyWith(
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -1.0,
+                  fontSize: 56,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.clip,
+              ),
+            ),
+          ),
+          IconButton(
+            icon: Icon(
+              isStarred ? Icons.favorite : Icons.favorite_border,
+              color: isStarred
+                  ? colorScheme.primary
+                  : colorScheme.onSurfaceVariant,
+              size: 26,
+            ),
+            tooltip: starTooltip,
+            onPressed: onStarToggle,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ArtistInfoSection extends StatelessWidget {
-  const _ArtistInfoSection({required this.info});
+  const _ArtistInfoSection({required this.info, this.albumCount});
 
   final ArtistInfo info;
+  final int? albumCount;
 
   @override
   Widget build(BuildContext context) {
@@ -344,20 +520,35 @@ class _ArtistInfoSection extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
+    final bioTitle = albumCount != null && albumCount! > 0
+        ? '${l10n.artistDetailBioSection} · ${l10n.artistDetailAlbumCount(albumCount!)}'
+        : l10n.artistDetailBioSection;
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.fromLTRB(16, 32, 16, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           if (info.biography != null &&
               info.biography!.trim().isNotEmpty) ...<Widget>[
             Text(
-              l10n.artistDetailBioSection,
-              style: Theme.of(context).textTheme.titleMedium,
+              bioTitle,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
             ),
-            const SizedBox(height: 6),
-            Text(info.biography!),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
+            Text(
+              info.biography!,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                height: 1.65,
+                color: Theme.of(context)
+                    .colorScheme
+                    .onSurface
+                    .withValues(alpha: 0.85),
+              ),
+            ),
+            const SizedBox(height: 16),
           ],
         ],
       ),
@@ -401,7 +592,9 @@ class _SimilarArtistsSection extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Text(
               title,
-              style: Theme.of(context).textTheme.titleMedium,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
           const SizedBox(height: 8),
@@ -432,7 +625,7 @@ class _SimilarArtistsSection extends StatelessWidget {
                 itemCount: visibleArtists.length,
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: crossAxisCount,
-                  childAspectRatio: 0.82,
+                  mainAxisExtent: 184,
                   crossAxisSpacing: spacing,
                   mainAxisSpacing: spacing,
                 ),
@@ -462,38 +655,29 @@ class _SimilarArtistCard extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(8),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            Expanded(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final side = constraints.maxWidth < constraints.maxHeight
-                      ? constraints.maxWidth
-                      : constraints.maxHeight;
-                  return Align(
-                    alignment: Alignment.topCenter,
-                    child: SizedBox(
-                      width: side,
-                      height: side,
-                      child: CoverArtImage(
-                        coverArtId: artist.coverArt,
-                        size: 200,
-                        width: side,
-                        height: side,
-                        circular: true,
-                        placeholderIcon: Icons.person_outline,
-                      ),
-                    ),
-                  );
-                },
+            SizedBox(
+              width: 110,
+              height: 110,
+              child: CoverArtImage(
+                coverArtId: artist.coverArt,
+                size: 220,
+                width: 110,
+                height: 110,
+                circular: true,
+                placeholderIcon: Icons.person_outline,
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             Text(
               artist.name,
               textAlign: TextAlign.center,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ],
         ),

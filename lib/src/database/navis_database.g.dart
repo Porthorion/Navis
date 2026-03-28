@@ -1125,6 +1125,21 @@ class $AppSettingsTableTable extends AppSettingsTable
     requiredDuringInsert: false,
     defaultValue: const Constant('grid'),
   );
+  static const VerificationMeta _desktopFocusPlayerModeEnabledMeta =
+      const VerificationMeta('desktopFocusPlayerModeEnabled');
+  @override
+  late final GeneratedColumn<bool> desktopFocusPlayerModeEnabled =
+      GeneratedColumn<bool>(
+        'desktop_focus_player_mode_enabled',
+        aliasedName,
+        false,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("desktop_focus_player_mode_enabled" IN (0, 1))',
+        ),
+        defaultValue: const Constant(false),
+      );
   static const VerificationMeta _homeDensityMeta = const VerificationMeta(
     'homeDensity',
   );
@@ -1219,6 +1234,7 @@ class $AppSettingsTableTable extends AppSettingsTable
     nowPlayingArtShape,
     artistCardShape,
     artistViewMode,
+    desktopFocusPlayerModeEnabled,
     homeDensity,
     homeSectionOrder,
     homeSectionsHidden,
@@ -1641,6 +1657,15 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
       );
     }
+    if (data.containsKey('desktop_focus_player_mode_enabled')) {
+      context.handle(
+        _desktopFocusPlayerModeEnabledMeta,
+        desktopFocusPlayerModeEnabled.isAcceptableOrUnknown(
+          data['desktop_focus_player_mode_enabled']!,
+          _desktopFocusPlayerModeEnabledMeta,
+        ),
+      );
+    }
     if (data.containsKey('home_density')) {
       context.handle(
         _homeDensityMeta,
@@ -1873,6 +1898,10 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.string,
         data['${effectivePrefix}artist_view_mode'],
       )!,
+      desktopFocusPlayerModeEnabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}desktop_focus_player_mode_enabled'],
+      )!,
       homeDensity: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}home_density'],
@@ -2013,6 +2042,9 @@ class AppSettingsTableData extends DataClass
   /// Artist view layout: 'list' or 'grid'. Default 'grid'.
   final String artistViewMode;
 
+  /// When true on desktop runtime, the app restores Focus Player Mode on launch.
+  final bool desktopFocusPlayerModeEnabled;
+
   /// Home section density: 'comfortable' or 'compact'. Default 'comfortable'.
   final String homeDensity;
 
@@ -2071,6 +2103,7 @@ class AppSettingsTableData extends DataClass
     required this.nowPlayingArtShape,
     required this.artistCardShape,
     required this.artistViewMode,
+    required this.desktopFocusPlayerModeEnabled,
     required this.homeDensity,
     this.homeSectionOrder,
     this.homeSectionsHidden,
@@ -2156,6 +2189,9 @@ class AppSettingsTableData extends DataClass
     map['now_playing_art_shape'] = Variable<String>(nowPlayingArtShape);
     map['artist_card_shape'] = Variable<String>(artistCardShape);
     map['artist_view_mode'] = Variable<String>(artistViewMode);
+    map['desktop_focus_player_mode_enabled'] = Variable<bool>(
+      desktopFocusPlayerModeEnabled,
+    );
     map['home_density'] = Variable<String>(homeDensity);
     if (!nullToAbsent || homeSectionOrder != null) {
       map['home_section_order'] = Variable<String>(homeSectionOrder);
@@ -2240,6 +2276,7 @@ class AppSettingsTableData extends DataClass
       nowPlayingArtShape: Value(nowPlayingArtShape),
       artistCardShape: Value(artistCardShape),
       artistViewMode: Value(artistViewMode),
+      desktopFocusPlayerModeEnabled: Value(desktopFocusPlayerModeEnabled),
       homeDensity: Value(homeDensity),
       homeSectionOrder: homeSectionOrder == null && nullToAbsent
           ? const Value.absent()
@@ -2334,6 +2371,9 @@ class AppSettingsTableData extends DataClass
       ),
       artistCardShape: serializer.fromJson<String>(json['artistCardShape']),
       artistViewMode: serializer.fromJson<String>(json['artistViewMode']),
+      desktopFocusPlayerModeEnabled: serializer.fromJson<bool>(
+        json['desktopFocusPlayerModeEnabled'],
+      ),
       homeDensity: serializer.fromJson<String>(json['homeDensity']),
       homeSectionOrder: serializer.fromJson<String?>(json['homeSectionOrder']),
       homeSectionsHidden: serializer.fromJson<String?>(
@@ -2405,6 +2445,9 @@ class AppSettingsTableData extends DataClass
       'nowPlayingArtShape': serializer.toJson<String>(nowPlayingArtShape),
       'artistCardShape': serializer.toJson<String>(artistCardShape),
       'artistViewMode': serializer.toJson<String>(artistViewMode),
+      'desktopFocusPlayerModeEnabled': serializer.toJson<bool>(
+        desktopFocusPlayerModeEnabled,
+      ),
       'homeDensity': serializer.toJson<String>(homeDensity),
       'homeSectionOrder': serializer.toJson<String?>(homeSectionOrder),
       'homeSectionsHidden': serializer.toJson<String?>(homeSectionsHidden),
@@ -2460,6 +2503,7 @@ class AppSettingsTableData extends DataClass
     String? nowPlayingArtShape,
     String? artistCardShape,
     String? artistViewMode,
+    bool? desktopFocusPlayerModeEnabled,
     String? homeDensity,
     Value<String?> homeSectionOrder = const Value.absent(),
     Value<String?> homeSectionsHidden = const Value.absent(),
@@ -2538,6 +2582,8 @@ class AppSettingsTableData extends DataClass
     nowPlayingArtShape: nowPlayingArtShape ?? this.nowPlayingArtShape,
     artistCardShape: artistCardShape ?? this.artistCardShape,
     artistViewMode: artistViewMode ?? this.artistViewMode,
+    desktopFocusPlayerModeEnabled:
+        desktopFocusPlayerModeEnabled ?? this.desktopFocusPlayerModeEnabled,
     homeDensity: homeDensity ?? this.homeDensity,
     homeSectionOrder: homeSectionOrder.present
         ? homeSectionOrder.value
@@ -2682,6 +2728,9 @@ class AppSettingsTableData extends DataClass
       artistViewMode: data.artistViewMode.present
           ? data.artistViewMode.value
           : this.artistViewMode,
+      desktopFocusPlayerModeEnabled: data.desktopFocusPlayerModeEnabled.present
+          ? data.desktopFocusPlayerModeEnabled.value
+          : this.desktopFocusPlayerModeEnabled,
       homeDensity: data.homeDensity.present
           ? data.homeDensity.value
           : this.homeDensity,
@@ -2745,6 +2794,9 @@ class AppSettingsTableData extends DataClass
           ..write('nowPlayingArtShape: $nowPlayingArtShape, ')
           ..write('artistCardShape: $artistCardShape, ')
           ..write('artistViewMode: $artistViewMode, ')
+          ..write(
+            'desktopFocusPlayerModeEnabled: $desktopFocusPlayerModeEnabled, ',
+          )
           ..write('homeDensity: $homeDensity, ')
           ..write('homeSectionOrder: $homeSectionOrder, ')
           ..write('homeSectionsHidden: $homeSectionsHidden, ')
@@ -2802,6 +2854,7 @@ class AppSettingsTableData extends DataClass
     nowPlayingArtShape,
     artistCardShape,
     artistViewMode,
+    desktopFocusPlayerModeEnabled,
     homeDensity,
     homeSectionOrder,
     homeSectionsHidden,
@@ -2858,6 +2911,8 @@ class AppSettingsTableData extends DataClass
           other.nowPlayingArtShape == this.nowPlayingArtShape &&
           other.artistCardShape == this.artistCardShape &&
           other.artistViewMode == this.artistViewMode &&
+          other.desktopFocusPlayerModeEnabled ==
+              this.desktopFocusPlayerModeEnabled &&
           other.homeDensity == this.homeDensity &&
           other.homeSectionOrder == this.homeSectionOrder &&
           other.homeSectionsHidden == this.homeSectionsHidden &&
@@ -2912,6 +2967,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<String> nowPlayingArtShape;
   final Value<String> artistCardShape;
   final Value<String> artistViewMode;
+  final Value<bool> desktopFocusPlayerModeEnabled;
   final Value<String> homeDensity;
   final Value<String?> homeSectionOrder;
   final Value<String?> homeSectionsHidden;
@@ -2964,6 +3020,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.nowPlayingArtShape = const Value.absent(),
     this.artistCardShape = const Value.absent(),
     this.artistViewMode = const Value.absent(),
+    this.desktopFocusPlayerModeEnabled = const Value.absent(),
     this.homeDensity = const Value.absent(),
     this.homeSectionOrder = const Value.absent(),
     this.homeSectionsHidden = const Value.absent(),
@@ -3017,6 +3074,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.nowPlayingArtShape = const Value.absent(),
     this.artistCardShape = const Value.absent(),
     this.artistViewMode = const Value.absent(),
+    this.desktopFocusPlayerModeEnabled = const Value.absent(),
     this.homeDensity = const Value.absent(),
     this.homeSectionOrder = const Value.absent(),
     this.homeSectionsHidden = const Value.absent(),
@@ -3070,6 +3128,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<String>? nowPlayingArtShape,
     Expression<String>? artistCardShape,
     Expression<String>? artistViewMode,
+    Expression<bool>? desktopFocusPlayerModeEnabled,
     Expression<String>? homeDensity,
     Expression<String>? homeSectionOrder,
     Expression<String>? homeSectionsHidden,
@@ -3141,6 +3200,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         'now_playing_art_shape': nowPlayingArtShape,
       if (artistCardShape != null) 'artist_card_shape': artistCardShape,
       if (artistViewMode != null) 'artist_view_mode': artistViewMode,
+      if (desktopFocusPlayerModeEnabled != null)
+        'desktop_focus_player_mode_enabled': desktopFocusPlayerModeEnabled,
       if (homeDensity != null) 'home_density': homeDensity,
       if (homeSectionOrder != null) 'home_section_order': homeSectionOrder,
       if (homeSectionsHidden != null)
@@ -3197,6 +3258,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<String>? nowPlayingArtShape,
     Value<String>? artistCardShape,
     Value<String>? artistViewMode,
+    Value<bool>? desktopFocusPlayerModeEnabled,
     Value<String>? homeDensity,
     Value<String?>? homeSectionOrder,
     Value<String?>? homeSectionsHidden,
@@ -3256,6 +3318,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       nowPlayingArtShape: nowPlayingArtShape ?? this.nowPlayingArtShape,
       artistCardShape: artistCardShape ?? this.artistCardShape,
       artistViewMode: artistViewMode ?? this.artistViewMode,
+      desktopFocusPlayerModeEnabled:
+          desktopFocusPlayerModeEnabled ?? this.desktopFocusPlayerModeEnabled,
       homeDensity: homeDensity ?? this.homeDensity,
       homeSectionOrder: homeSectionOrder ?? this.homeSectionOrder,
       homeSectionsHidden: homeSectionsHidden ?? this.homeSectionsHidden,
@@ -3425,6 +3489,11 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     if (artistViewMode.present) {
       map['artist_view_mode'] = Variable<String>(artistViewMode.value);
     }
+    if (desktopFocusPlayerModeEnabled.present) {
+      map['desktop_focus_player_mode_enabled'] = Variable<bool>(
+        desktopFocusPlayerModeEnabled.value,
+      );
+    }
     if (homeDensity.present) {
       map['home_density'] = Variable<String>(homeDensity.value);
     }
@@ -3490,6 +3559,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('nowPlayingArtShape: $nowPlayingArtShape, ')
           ..write('artistCardShape: $artistCardShape, ')
           ..write('artistViewMode: $artistViewMode, ')
+          ..write(
+            'desktopFocusPlayerModeEnabled: $desktopFocusPlayerModeEnabled, ',
+          )
           ..write('homeDensity: $homeDensity, ')
           ..write('homeSectionOrder: $homeSectionOrder, ')
           ..write('homeSectionsHidden: $homeSectionsHidden, ')
@@ -11966,6 +12038,7 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<String> nowPlayingArtShape,
       Value<String> artistCardShape,
       Value<String> artistViewMode,
+      Value<bool> desktopFocusPlayerModeEnabled,
       Value<String> homeDensity,
       Value<String?> homeSectionOrder,
       Value<String?> homeSectionsHidden,
@@ -12020,6 +12093,7 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<String> nowPlayingArtShape,
       Value<String> artistCardShape,
       Value<String> artistViewMode,
+      Value<bool> desktopFocusPlayerModeEnabled,
       Value<String> homeDensity,
       Value<String?> homeSectionOrder,
       Value<String?> homeSectionsHidden,
@@ -12267,6 +12341,11 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<String> get artistViewMode => $composableBuilder(
     column: $table.artistViewMode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get desktopFocusPlayerModeEnabled => $composableBuilder(
+    column: $table.desktopFocusPlayerModeEnabled,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -12535,6 +12614,11 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get desktopFocusPlayerModeEnabled => $composableBuilder(
+    column: $table.desktopFocusPlayerModeEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get homeDensity => $composableBuilder(
     column: $table.homeDensity,
     builder: (column) => ColumnOrderings(column),
@@ -12792,6 +12876,11 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get desktopFocusPlayerModeEnabled => $composableBuilder(
+    column: $table.desktopFocusPlayerModeEnabled,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get homeDensity => $composableBuilder(
     column: $table.homeDensity,
     builder: (column) => column,
@@ -12895,6 +12984,8 @@ class $$AppSettingsTableTableTableManager
                 Value<String> nowPlayingArtShape = const Value.absent(),
                 Value<String> artistCardShape = const Value.absent(),
                 Value<String> artistViewMode = const Value.absent(),
+                Value<bool> desktopFocusPlayerModeEnabled =
+                    const Value.absent(),
                 Value<String> homeDensity = const Value.absent(),
                 Value<String?> homeSectionOrder = const Value.absent(),
                 Value<String?> homeSectionsHidden = const Value.absent(),
@@ -12947,6 +13038,7 @@ class $$AppSettingsTableTableTableManager
                 nowPlayingArtShape: nowPlayingArtShape,
                 artistCardShape: artistCardShape,
                 artistViewMode: artistViewMode,
+                desktopFocusPlayerModeEnabled: desktopFocusPlayerModeEnabled,
                 homeDensity: homeDensity,
                 homeSectionOrder: homeSectionOrder,
                 homeSectionsHidden: homeSectionsHidden,
@@ -13001,6 +13093,8 @@ class $$AppSettingsTableTableTableManager
                 Value<String> nowPlayingArtShape = const Value.absent(),
                 Value<String> artistCardShape = const Value.absent(),
                 Value<String> artistViewMode = const Value.absent(),
+                Value<bool> desktopFocusPlayerModeEnabled =
+                    const Value.absent(),
                 Value<String> homeDensity = const Value.absent(),
                 Value<String?> homeSectionOrder = const Value.absent(),
                 Value<String?> homeSectionsHidden = const Value.absent(),
@@ -13053,6 +13147,7 @@ class $$AppSettingsTableTableTableManager
                 nowPlayingArtShape: nowPlayingArtShape,
                 artistCardShape: artistCardShape,
                 artistViewMode: artistViewMode,
+                desktopFocusPlayerModeEnabled: desktopFocusPlayerModeEnabled,
                 homeDensity: homeDensity,
                 homeSectionOrder: homeSectionOrder,
                 homeSectionsHidden: homeSectionsHidden,

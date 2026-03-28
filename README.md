@@ -6,11 +6,11 @@ Navis is a Flutter Subsonic/OpenSubsonic music client focused on fast library br
 
 | Platform | Status | Notes |
 |---|---|---|
-| Android | Supported | Primary mobile target, side-by-side dev build flow available |
-| iOS | Supported | Built from macOS/Xcode |
-| macOS | Supported | Native desktop build on macOS |
-| Linux | Supported | Built on Linux host or remote Linux builder |
-| Windows | Supported | Built on Windows host or remote Windows builder |
+| Android | Supported | Primary mobile target; `audio_service` media session/notification path active |
+| iOS | Supported | Built from macOS/Xcode; playback path active, CarPlay and media-session parity still under audit |
+| macOS | Supported | Native desktop build with adaptive shell and shortcuts; native Control Centre bridge still pending |
+| Linux | Supported | Native desktop build with adaptive shell, shortcuts, and MPRIS integration |
+| Windows | Supported | Native desktop build with adaptive shell, shortcuts, and SMTC integration |
 
 Minimum tested versions:
 - Android 8.0 (API 26)
@@ -27,7 +27,34 @@ Minimum tested versions:
 - Synced/unsynced lyrics with full-screen now playing
 - Offline cache plus permanent download modes
 - Adaptive layouts that scale from phone to tablet/desktop
+- Keyboard-first desktop controls with platform-aware shortcuts, quick search, queue toggle, and guarded transport actions while typing
+- Desktop volume controls in the bottom player and desktop-wide now playing surfaces
 - Channel-aware updater behavior for stable/dev release tracks
+
+## Media Integration Status
+
+- Android: media session and notification metadata are handled through `audio_service`.
+- Linux: desktop now-playing and media-key integration are exposed through MPRIS via `audio_service_mpris`.
+- Windows: system media transport controls are bridged through `smtc_windows`.
+- macOS: desktop runtime is supported, but native `MPRemoteCommandCenter` / `MPNowPlayingInfoCenter` integration is still planned work.
+
+## Tech Stack
+
+| Layer | Package | Version |
+|---|---|---|
+| UI framework | Flutter | ≥ 3.41.0 |
+| Language | Dart | ^3.11.0 |
+| State management | flutter_riverpod | ^3.3.1 |
+| Navigation | go_router | ^17.1.0 |
+| Local database | drift + drift_flutter | ^2.32.1 |
+| Audio playback | just_audio + audio_service | ^0.10.5 / ^0.18.18 |
+| Data classes | freezed_annotation + json_annotation | ^3.1.0 / ^4.11.0 |
+| Linux desktop media | audio_service_mpris | ^0.2.1 |
+| Windows desktop media | smtc_windows | latest |
+
+## Dependency Maintenance
+
+A comprehensive dependency sweep was completed in March 2026 (13 packages upgraded across 5 phases; `riverpod_lint` removed as its runner was already disabled). The current `flutter pub outdated` backlog contains packages that are hard-blocked by transitive constraints from other indirect dependencies and cannot be upgraded without corresponding upstream changes.
 
 ## Quick Start
 

@@ -3,6 +3,7 @@ import 'dart:collection';
 import 'dart:math' as math;
 import 'dart:ui';
 
+import 'package:audio_service/audio_service.dart' show AudioServiceRepeatMode;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -12,7 +13,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
-import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
+import 'package:navis/src/common_widgets/cover_art_viewer.dart';
 import 'package:navis/src/common_widgets/expandable_player_sheet.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
@@ -27,19 +28,29 @@ import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart
 import 'package:navis/src/features/player/presentation/same_vibes_notifier.dart';
 import 'package:navis/src/features/player/presentation/smart_queue_notifier.dart';
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
+import 'package:navis/src/features/player/presentation/desktop_volume_slider.dart';
+import 'package:navis/src/common_widgets/lyrics_display_widget.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_sheet.dart';
 import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
+import 'package:navis/src/features/player/presentation/smart_queue_sheet.dart';
 import 'package:navis/src/features/library/presentation/star_sync_dispatch_provider.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/features/home/presentation/home_scroll_provider.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart'
-    show searchFocusRequestProvider;
+    show
+        quickSearchOverlayVisibleProvider,
+        searchFocusRequestProvider,
+        searchFilterProvider,
+        searchQueryProvider,
+        SearchResultType;
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_commands.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/routing/desktop_window_controller.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/desktop_tokens.dart';
+import 'package:navis/src/utils/app_logger.dart';
 
 String _formatMiniPlayerDuration(Duration duration) {
   final totalSeconds = duration.inSeconds;
@@ -50,6 +61,25 @@ String _formatMiniPlayerDuration(Duration duration) {
     return '$hours:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
   }
   return '$minutes:${seconds.toString().padLeft(2, '0')}';
+}
+
+/// Splits a combined artist string into individual artist names.
+///
+/// Splits on unambiguous multi-artist delimiters: `;`, `feat.`/`feat`/
+/// `featuring`, `ft.`, and ` / ` (space-slash-space).
+/// Bare `/` (e.g. K/DA, AC/DC) and suffixes like "Jr." are preserved.
+List<String> _splitArtists(String raw) {
+  final patterns = [
+    RegExp(r'\s*;\s*'),
+    RegExp(r'\s+feat(?:uring)?\.?\s+', caseSensitive: false),
+    RegExp(r'\s+ft\.\s+', caseSensitive: false),
+    RegExp(r'\s+/\s+'), // space-slash-space only — preserves K/DA, AC/DC
+  ];
+  List<String> parts = [raw.trim()];
+  for (final pat in patterns) {
+    parts = parts.expand((p) => p.split(pat)).toList();
+  }
+  return parts.map((p) => p.trim()).where((p) => p.isNotEmpty).toList();
 }
 
 class AppShell extends ConsumerStatefulWidget {
@@ -70,12 +100,35 @@ class _AppShellState extends ConsumerState<AppShell> {
   final AppNoticeController _appNoticeController = AppNoticeController();
   final Set<String> _queueCoverArtPrefetchedKeys = <String>{};
   final ListQueue<String> _queueCoverArtPrefetchedOrder = ListQueue<String>();
+  final GlobalKey<_QueueOverlayState> _queueOverlayKey =
+      GlobalKey<_QueueOverlayState>();
+  final FocusNode _shellFocusNode = FocusNode(debugLabel: 'appShellRoot');
+  final FocusNode _desktopQueueToggleFocusNode = FocusNode(
+    debugLabel: 'desktopQueueToggle',
+  );
+  final TextEditingController _quickSearchController = TextEditingController();
+  final FocusNode _quickSearchFocusNode = FocusNode(
+    debugLabel: 'desktopQuickSearch',
+  );
   bool _didCheckBatteryOptimizationPrompt = false;
   bool Function()? _nowPlayingBackInterceptor;
   bool _compactWideInternalOverlayActive = false;
   VoidCallback? _compactWideQueueRequestHandler;
+  String? _lastNowPlayingVisualPrewarmKey;
+  String? _lastNowPlayingLyricsPrewarmSongId;
+  FocusNode? _queueReturnFocusNode;
+  bool _restoreQueueFocusOnDismiss = false;
+  bool _showQuickSearchOverlay = false;
+  bool _showDesktopLyricsOverlay = false;
   Timer? _queueCoverArtPrefetchDebounce;
   int _queueCoverArtPrefetchToken = 0;
+  bool _globalKeyHandlerInstalled = false;
+  Future<void> Function(DesktopCommandAction)? _executeDesktopCommand;
+  // Cached so the global HardwareKeyboard handler can read it outside build().
+  // `AdaptiveInputPolicyScope` is a *descendant* of this widget, so
+  // `context.dependOnInheritedWidgetOfExactType` cannot see it — caching is
+  // the only correct approach.
+  AdaptiveInputPolicy? _cachedInputPolicy;
 
   // NOTE: We intentionally do NOT use WidgetsBindingObserver.didPopRoute()
   // for back-button handling. That observer fires BEFORE the Navigator
@@ -86,10 +139,79 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   @override
   void dispose() {
+    _removeGlobalKeyHandler();
     _queueCoverArtPrefetchDebounce?.cancel();
+    _quickSearchController.dispose();
+    _quickSearchFocusNode.dispose();
+    _shellFocusNode.dispose();
+    _desktopQueueToggleFocusNode.dispose();
     _appNoticeController.dispose();
     _playerSheetProgress.dispose();
     super.dispose();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Global hardware-keyboard handler
+  // ---------------------------------------------------------------------------
+
+  void _installGlobalKeyHandler() {
+    if (_globalKeyHandlerInstalled) return;
+    HardwareKeyboard.instance.addHandler(_onGlobalKeyEvent);
+    _globalKeyHandlerInstalled = true;
+  }
+
+  void _removeGlobalKeyHandler() {
+    if (!_globalKeyHandlerInstalled) return;
+    HardwareKeyboard.instance.removeHandler(_onGlobalKeyEvent);
+    _globalKeyHandlerInstalled = false;
+  }
+
+  /// The single global key-event handler that replaces the previous
+  /// `Shortcuts` / `Actions` / `onKeyEvent` widget-tree wiring.
+  ///
+  /// It fires regardless of which widget has focus, making shortcuts reliable
+  /// across all views, dialogs, and overlays.
+  bool _onGlobalKeyEvent(KeyEvent event) {
+    if (event is! KeyDownEvent) return false;
+    if (!mounted) return false;
+
+    final platform = Theme.of(context).platform;
+    final policy = _cachedInputPolicy;
+    final enableShortcuts = policy?.enableDesktopCommandShortcuts ?? false;
+    final enableEsc = policy?.enableEscapeOverlayPriority ?? false;
+
+    if (!enableShortcuts && !enableEsc) return false;
+
+    final bindings = ref.read(desktopShortcutBindingsProvider);
+    final action = matchAnyDesktopCommandForKeyEvent(
+      event,
+      platform,
+      enableShortcuts: enableShortcuts,
+      enableEscapeOverlay: enableEsc,
+      shortcutBindings: bindings,
+    );
+    if (action == null) return false;
+
+    // Block transport commands when the user is typing in a text field.
+    if (isTextSensitiveDesktopCommand(action) &&
+        desktopCommandBlockedByTextInput()) {
+      return false;
+    }
+
+    // Block transport commands while the library type-to-filter overlay is
+    // visible so that e.g. Space doesn't trigger play/pause mid-filter.
+    if (isTextSensitiveDesktopCommand(action) &&
+        ref.read(libraryTypeFilterActiveProvider)) {
+      return false;
+    }
+
+    AppLogger.debug(
+      '[ACP_INPUT] global key handler matched ${action.name}',
+    );
+    final executor = _executeDesktopCommand;
+    if (executor == null) return false;
+    unawaited(executor(action));
+    return true;
   }
 
   void _scheduleQueueCoverArtPrefetch() {
@@ -214,6 +336,130 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   void _handleCompactWideQueueRequestChanged(VoidCallback? handler) {
     _compactWideQueueRequestHandler = handler;
+  }
+
+  void _hideQueueWithAnimation() {
+    AppLogger.debug('[ACP_INPUT] queue dismiss requested (animated)');
+    _restoreQueueFocusOnDismiss = true;
+    final overlayState = _queueOverlayKey.currentState;
+    if (overlayState != null) {
+      overlayState.dismissAnimated();
+      return;
+    }
+    ref.read(playerOverlayStackProvider.notifier).hideQueue();
+    _restoreQueueInvokerFocus();
+    _restoreQueueFocusOnDismiss = false;
+  }
+
+  void _showQueueOverlay({
+    required bool queueOnly,
+    FocusNode? invokerFocusNode,
+  }) {
+    AppLogger.debug('[ACP_INPUT] queue show requested (queueOnly=$queueOnly)');
+    _queueReturnFocusNode =
+        invokerFocusNode ?? FocusManager.instance.primaryFocus;
+    final overlay = ref.read(playerOverlayStackProvider.notifier);
+    if (queueOnly) {
+      overlay.showQueueOnly();
+    } else {
+      overlay.showQueue();
+    }
+  }
+
+  void _hideQueueImmediately({bool restoreFocus = false}) {
+    AppLogger.debug(
+      '[ACP_INPUT] queue dismiss requested (immediate, restoreFocus=$restoreFocus)',
+    );
+    ref.read(playerOverlayStackProvider.notifier).hideQueue();
+    if (restoreFocus) {
+      _restoreQueueInvokerFocus();
+    }
+    _restoreQueueFocusOnDismiss = false;
+  }
+
+  void _handleQueueOverlayDismissed() {
+    AppLogger.debug('[ACP_INPUT] queue dismissed');
+    ref.read(playerOverlayStackProvider.notifier).hideQueue();
+    if (_restoreQueueFocusOnDismiss) {
+      _restoreQueueInvokerFocus();
+    } else {
+      _requestShellFocus();
+    }
+    _restoreQueueFocusOnDismiss = false;
+  }
+
+  void _restoreQueueInvokerFocus() {
+    final focusNode = _queueReturnFocusNode;
+    _queueReturnFocusNode = null;
+    if (focusNode == null || !focusNode.canRequestFocus) {
+      _requestShellFocus();
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !focusNode.canRequestFocus) {
+        return;
+      }
+      focusNode.requestFocus();
+    });
+  }
+
+  void _requestShellFocus() {
+    if (!_shellFocusNode.canRequestFocus) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_shellFocusNode.canRequestFocus) {
+        return;
+      }
+      _shellFocusNode.requestFocus();
+    });
+  }
+
+  void _openQuickSearchOverlay() {
+    final expanded = ref.read(playerSheetExpandedProvider);
+    final queueVisible = ref.read(queueOverlayVisibleProvider);
+    AppLogger.debug(
+      '[ACP_INPUT] quickSearch open requested (alreadyOpen=$_showQuickSearchOverlay, expanded=$expanded, queue=$queueVisible)',
+    );
+    if (queueVisible) {
+      _hideQueueImmediately();
+    }
+    if (_showQuickSearchOverlay) {
+      setState(() {});
+      _quickSearchFocusNode.requestFocus();
+      return;
+    }
+    setState(() {
+      _showQuickSearchOverlay = true;
+    });
+    ref.read(quickSearchOverlayVisibleProvider.notifier).visible = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_quickSearchFocusNode.canRequestFocus) {
+        return;
+      }
+      _quickSearchFocusNode.requestFocus();
+      final text = _quickSearchController.text;
+      _quickSearchController.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: text.length,
+      );
+    });
+  }
+
+  void _closeQuickSearchOverlay() {
+    if (!_showQuickSearchOverlay) {
+      return;
+    }
+    AppLogger.debug('[ACP_INPUT] quickSearch close requested');
+    setState(() {
+      _showQuickSearchOverlay = false;
+    });
+    ref.read(quickSearchOverlayVisibleProvider.notifier).visible = false;
+    _requestShellFocus();
+  }
+
+  void _toggleDesktopLyricsOverlay() {
+    setState(() => _showDesktopLyricsOverlay = !_showDesktopLyricsOverlay);
   }
 
   @override
@@ -410,12 +656,21 @@ class _AppShellState extends ConsumerState<AppShell> {
               playback.radioStation!.stationName)
         : (currentSongAsync.asData?.value?.artistName ??
               currentMediaItem?.artist);
+    final artistId = playback.isRadioMode
+        ? null
+        : currentSongAsync.asData?.value?.artistId;
+    final albumId = playback.isRadioMode
+        ? null
+        : currentSongAsync.asData?.value?.albumId;
     final coverArtId = playback.isRadioMode
         ? null
         : currentSongAsync.asData?.value?.coverArt;
     final coverArtUrl = playback.isRadioMode
         ? null
         : currentMediaItem?.artUri?.toString();
+    final nowPlayingArtUrl = playback.isRadioMode
+        ? playback.radioStation?.nowPlayingArtUrl
+        : coverArtUrl;
     final showPlayer = playback.hasActivePlayback;
     final isExpanded = ref.watch(playerSheetExpandedProvider);
     final showQueueOverlay = ref.watch(queueOverlayVisibleProvider);
@@ -440,6 +695,17 @@ class _AppShellState extends ConsumerState<AppShell> {
     final selectedIndex = selectedVisibleIndex >= 0 ? selectedVisibleIndex : 0;
     final mediaSize = MediaQuery.sizeOf(context);
     final mediaPadding = MediaQuery.paddingOf(context);
+    final adaptiveContext = resolveAdaptiveContext(
+      desktopRuntime: isDesktopRuntime,
+      viewportSize: mediaSize,
+      safePadding: mediaPadding,
+    );
+    final adaptiveInputPolicy = resolveAdaptiveInputPolicy(
+      adaptiveContext: adaptiveContext,
+    );
+    // Watch shortcut bindings so that the global key handler (which reads them
+    // via ref.read) always operates on the latest values after a rebuild.
+    ref.watch(desktopShortcutBindingsProvider);
     final screenWidth = mediaSize.width;
     final screenHeight = mediaSize.height;
     final safeHorizontalWidth =
@@ -447,26 +713,26 @@ class _AppShellState extends ConsumerState<AppShell> {
           0.0,
           double.infinity,
         );
-    final isPhoneFormFactor = !isDesktopRuntime && mediaSize.shortestSide < 600;
-    final useDesktopShell = isDesktopRuntime;
-    final desktopLayoutClass = resolveDesktopLayoutClass(screenWidth);
-    final adaptiveShellMode = resolveAdaptiveShellMode(
-      desktopRuntime: isDesktopRuntime,
-      viewportSize: mediaSize,
-      safePadding: mediaPadding,
-    );
-    final useCompactWideLandscape =
-        !useDesktopShell &&
-        adaptiveShellMode == AdaptiveShellMode.compactWideLandscape;
-    final useStandardRailNavigation =
-        !useDesktopShell && adaptiveShellMode == AdaptiveShellMode.standardRail;
-    final useRailNavigation =
-        useStandardRailNavigation || useCompactWideLandscape;
+    final isPhoneFormFactor = adaptiveContext.isPhoneFormFactor;
+    final useDesktopShell = adaptiveContext.useDesktopShell;
+    final desktopLayoutClass = adaptiveContext.desktopLayoutClass;
+    final useCompactWideLandscape = adaptiveContext.useCompactWideLandscape;
+    final useStandardRailNavigation = adaptiveContext.useStandardRailNavigation;
+    final useRailNavigation = adaptiveContext.useRailNavigation;
+    final isFocusPlayerMode = isDesktopRuntime
+        ? ref.watch(
+            desktopWindowControllerProvider.select(
+              (c) => c.isFocusPlayerMode,
+            ),
+          )
+        : false;
     final desktopTokens = desktopTokensOf(context);
-    final desktopSidebarWidth = (screenWidth * 0.25).clamp(
-      desktopTokens.sidebarWidth,
-      420.0,
-    );
+    final desktopSidebarWidth = (screenWidth * 0.22)
+        .clamp(
+          math.max(260.0, desktopTokens.sidebarWidth * 0.9),
+          360.0,
+        )
+        .toDouble();
     final compactWideSystemInset =
         (mediaPadding.left > mediaPadding.right
                 ? mediaPadding.left
@@ -484,20 +750,81 @@ class _AppShellState extends ConsumerState<AppShell> {
               ? (screenWidth * 0.22).clamp(188.0, 236.0)
               : (screenWidth * 0.25).clamp(_sideRailWidth, 360.0));
     final showLibrarySubNavigation =
-        useStandardRailNavigation && screenWidth >= 840 && !isPhoneFormFactor;
+        (useDesktopShell || useStandardRailNavigation) &&
+        screenWidth >= 840 &&
+        !isPhoneFormFactor;
     final allowScrollableRail = !isPhoneFormFactor && !useCompactWideLandscape;
     final useWideMiniPlayerStyle = screenWidth >= 960;
     final compactBottomMiniPlayerHeight = (screenHeight * 0.18).clamp(
       80.0,
       140.0,
     );
+    if (!adaptiveInputPolicy.enableDesktopCommandShortcuts &&
+        _showQuickSearchOverlay) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        AppLogger.debug(
+          '[ACP_INPUT] quickSearch force-closed because desktop shortcuts disabled',
+        );
+        _closeQuickSearchOverlay();
+      });
+    }
+    final brightness = Theme.of(context).brightness;
+    final nowPlayingVisualPrewarmKey = showPlayer
+        ? nowPlayingVisualCacheKeyFor(
+            brightness: brightness,
+            coverArtId: coverArtId,
+            artUrl: nowPlayingArtUrl,
+          )
+        : null;
+
+    if (nowPlayingVisualPrewarmKey != _lastNowPlayingVisualPrewarmKey) {
+      _lastNowPlayingVisualPrewarmKey = nowPlayingVisualPrewarmKey;
+      if (nowPlayingVisualPrewarmKey != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) {
+            return;
+          }
+          unawaited(
+            prewarmNowPlayingVisuals(
+              context: context,
+              ref: ref,
+              brightness: brightness,
+              coverArtId: coverArtId,
+              artUrl: nowPlayingArtUrl,
+            ),
+          );
+        });
+      }
+    }
+
+    if (showPlayer &&
+        currentSongId != null &&
+        currentSongId != _lastNowPlayingLyricsPrewarmSongId) {
+      final lyricsSongId = currentSongId;
+      _lastNowPlayingLyricsPrewarmSongId = lyricsSongId;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        unawaited(() async {
+          try {
+            await ref.read(lyricsProvider(lyricsSongId).future);
+          } on Object {
+            // Best-effort preload: keep navigation smooth, ignore fetch errors.
+          }
+        }());
+      });
+    }
 
     if (useCompactWideLandscape && showQueueOverlay) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) {
           return;
         }
-        ref.read(playerOverlayStackProvider.notifier).hideQueue();
+        _hideQueueImmediately();
       });
     }
     final railDestinations = <_ShellDestination>[
@@ -524,7 +851,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       NavService.clearExitPrompt();
       final overlay = ref.read(playerOverlayStackProvider.notifier);
       if (showQueueOverlay) {
-        overlay.hideQueue();
+        _hideQueueImmediately();
       }
       if (isExpanded) {
         overlay.collapse();
@@ -559,7 +886,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       NavService.clearExitPrompt();
       final overlay = ref.read(playerOverlayStackProvider.notifier);
       if (showQueueOverlay) {
-        overlay.hideQueue();
+        _hideQueueImmediately();
       }
       if (isExpanded) {
         overlay.collapse();
@@ -574,354 +901,447 @@ class _AppShellState extends ConsumerState<AppShell> {
       }
     }
 
+    void submitQuickSearch(String rawQuery, {SearchResultType? filter}) {
+      final query = rawQuery.trim();
+      AppLogger.debug('[ACP_INPUT] quickSearch submitted query="$query" filter=${filter?.name}');
+      // If no filter was used in the overlay, reset to "All" so the search
+      // screen starts unfiltered.  If a filter was picked, apply it.
+      if (filter == null) {
+        ref.read(searchFilterProvider.notifier).select(null);
+      } else {
+        ref.read(searchFilterProvider.notifier).select(filter);
+      }
+      if (query.isNotEmpty) {
+        ref.read(searchQueryProvider.notifier).submit(query);
+        unawaited(
+          ref.read(navisDatabaseProvider).historyDao.saveSearchQuery(query),
+        );
+      }
+      _closeQuickSearchOverlay();
+      onDestinationSelected(2);
+    }
+
     Future<void> executeDesktopCommand(DesktopCommandAction action) async {
       final overlay = ref.read(playerOverlayStackProvider.notifier);
+      final hasPlayback = ref.read(playerStateProvider).hasActivePlayback;
+      final expanded = ref.read(playerSheetExpandedProvider);
+      final queueVisible = ref.read(queueOverlayVisibleProvider);
+      AppLogger.debug(
+        '[ACP_INPUT] desktopCommand action=${action.name} quickSearch=$_showQuickSearchOverlay queue=$queueVisible expanded=$expanded hasPlayback=$hasPlayback',
+      );
       switch (action) {
         case DesktopCommandAction.focusSearch:
           onDestinationSelected(2);
-          break;
+          return;
+        case DesktopCommandAction.openQuickSearch:
+          _openQuickSearchOverlay();
+          return;
         case DesktopCommandAction.toggleQueue:
-          if (!showPlayer) {
+          if (!hasPlayback) {
             return;
           }
-          if (showQueueOverlay) {
-            overlay.hideQueue();
-          } else {
-            overlay.showQueue();
+          if (queueVisible) {
+            _hideQueueWithAnimation();
+          } else if (hasPlayback) {
+            _showQueueOverlay(queueOnly: useDesktopShell);
           }
-          break;
+          return;
         case DesktopCommandAction.toggleNowPlaying:
-          if (!showPlayer) {
+          if (_showQuickSearchOverlay) {
+            AppLogger.debug(
+              '[ACP_INPUT] desktopCommand escape dismissed quick-search',
+            );
+            _closeQuickSearchOverlay();
             return;
           }
-          if (isExpanded) {
+          final queueOverlayState = _queueOverlayKey.currentState;
+          final queueDismissing = queueOverlayState?.isDismissing ?? false;
+          if (queueVisible && !queueDismissing) {
+            AppLogger.debug(
+              '[ACP_INPUT] desktopCommand escape dismissed queue overlay',
+            );
+            _hideQueueWithAnimation();
+            return;
+          }
+          if (expanded && (_nowPlayingBackInterceptor?.call() ?? false)) {
+            AppLogger.debug(
+              '[ACP_INPUT] desktopCommand escape handled by now-playing internal overlay',
+            );
+            return;
+          }
+          if (expanded) {
+            AppLogger.debug(
+              '[ACP_INPUT] desktopCommand escape collapsed now-playing',
+            );
             overlay.collapse();
           } else {
-            overlay.expand();
+            // Dismiss any Navigator-pushed modal (dialog, bottom sheet, etc.)
+            // before falling through to no-op.
+            final rootNav = Navigator.maybeOf(context, rootNavigator: true);
+            if (rootNav != null && rootNav.canPop()) {
+              AppLogger.debug(
+                '[ACP_INPUT] desktopCommand escape popped navigator modal',
+              );
+              rootNav.pop();
+            } else {
+              AppLogger.debug(
+                '[ACP_INPUT] desktopCommand escape no-op (nothing to dismiss)',
+              );
+            }
           }
-          break;
+          return;
+        case DesktopCommandAction.goHome:
+          onDestinationSelected(0);
+          return;
+        case DesktopCommandAction.goLibrary:
+          if (navigationShell.currentIndex != _libraryBranchIndex) {
+            onDestinationSelected(1);
+          } else {
+            // Already on library — cycle to the next available section.
+            final availableSections = <LibrarySection>[
+              LibrarySection.albums,
+              if (showLikedLibraryPage) LibrarySection.liked,
+              if (showArtistsLibraryPage) LibrarySection.artists,
+              if (showPlaylistsLibraryPage) LibrarySection.playlists,
+              if (showRadioLibraryPage) LibrarySection.radio,
+            ];
+            final currentIdx = availableSections.indexOf(selectedLibrarySection);
+            final nextIdx = (currentIdx + 1) % availableSections.length;
+            onLibrarySectionSelected(availableSections[nextIdx]);
+          }
+          return;
+        case DesktopCommandAction.goSearch:
+          onDestinationSelected(2);
+          return;
+        case DesktopCommandAction.goSettings:
+          onDestinationSelected(3);
+          return;
         case DesktopCommandAction.playPause:
           final handler = ref.read(audioHandlerProvider);
+          final playbackSnapshot = ref.read(playerStateProvider);
           if (handler == null) {
             return;
           }
-          if (playback.playing) {
+          if (playbackSnapshot.playing) {
             await handler.pause();
           } else {
             await handler.play();
           }
-          break;
+          return;
         case DesktopCommandAction.nextTrack:
           final handler = ref.read(audioHandlerProvider);
+          final playbackSnapshot = ref.read(playerStateProvider);
           if (handler == null) {
             return;
           }
-          if (playback.isRadioMode) {
+          if (playbackSnapshot.isRadioMode) {
             await handler.stopRadio();
           } else {
             await handler.skipToNext();
           }
-          break;
+          return;
         case DesktopCommandAction.previousTrack:
-          if (playback.isRadioMode) {
+          if (ref.read(playerStateProvider).isRadioMode) {
             return;
           }
           await ref.read(audioHandlerProvider)?.skipToPrevious();
-          break;
+          return;
+        case DesktopCommandAction.refreshLibrary:
+          unawaited(
+            ref
+                .read(librarySyncControllerProvider.notifier)
+                .syncNow(preferIncremental: true),
+          );
+          return;
+        case DesktopCommandAction.forceRescanLibrary:
+          unawaited(
+            ref
+                .read(librarySyncControllerProvider.notifier)
+                .syncNow(forceFull: true),
+          );
+          return;
       }
     }
 
-    final shell = BackButtonListener(
-      onBackButtonPressed: () async {
-        // Intercept Android back-button presses before nested branch
-        // navigators pop their detail routes. This is what gives the shell's
-        // overlay stack priority over pages like album detail.
-        if (!hasPlayerOverlay || !(ModalRoute.of(context)?.isCurrent ?? true)) {
-          return false;
-        }
-        if (isExpanded && (_nowPlayingBackInterceptor?.call() ?? false)) {
-          return true;
-        }
-        NavService.handleSystemBack(
-          ref: ref,
-          context: context,
-          navigationShell: navigationShell,
-          homeBranchIndex: _homeBranchIndex,
-          noticeController: _appNoticeController,
-        );
-        return true;
-      },
-      child: PopScope(
-        // canPop: false means the shell route itself cannot be popped by the
-        // Navigator. Shell-managed player overlays are dismissed explicitly in
-        // NavService.handleSystemBack, and Navigator-owned modal routes above
-        // this shell are ignored by the route-current guard below.
-        canPop: false,
-        onPopInvokedWithResult: (didPop, _) {
-          // route. Navigator-owned modals above the shell should consume back
-          // without also mutating the shell state underneath.
-          if (didPop || !(ModalRoute.of(context)?.isCurrent ?? true)) return;
-          if (isExpanded && (_nowPlayingBackInterceptor?.call() ?? false)) {
-            return;
-          }
-          NavService.handleSystemBack(
-            ref: ref,
-            context: context,
-            navigationShell: navigationShell,
-            homeBranchIndex: _homeBranchIndex,
-            noticeController: _appNoticeController,
-          );
-        },
-        child: AppNoticeScope(
-          notifier: _appNoticeController,
-          child: Scaffold(
-            // Keep the expanded player at full height even if a hidden text field
-            // elsewhere (e.g. Search) still has keyboard insets in flight.
-            resizeToAvoidBottomInset:
-                !useCompactWideLandscape && !(showPlayer && isExpanded),
-            body: Stack(
-              children: <Widget>[
-                if (useDesktopShell)
-                  _DesktopWorkspace(
-                    desktopLayoutClass: desktopLayoutClass,
-                    sidebarWidth: desktopSidebarWidth,
-                    selectedIndex: selectedIndex,
-                    destinations: railDestinations,
-                    showOfflineBanner: showOfflineBanner,
-                    offlineBannerText: l10n.serverOfflineBanner,
-                    showPlayer: showPlayer,
-                    isExpanded: isExpanded,
-                    showQueueOverlay: showQueueOverlay,
-                    hasPlayerOverlay: hasPlayerOverlay,
-                    navigationShell: navigationShell,
-                    playback: playback,
-                    songTitle: songTitle,
-                    songArtist: songArtist,
-                    coverArtId: coverArtId,
-                    coverArtUrl: coverArtUrl,
-                    onDestinationSelected: onDestinationSelected,
-                    showLibrarySubNavigation: showLibrarySubNavigation,
-                    selectedLibrarySection: selectedLibrarySection,
-                    showLikedLibraryPage: showLikedLibraryPage,
-                    showArtistsLibraryPage: showArtistsLibraryPage,
-                    showPlaylistsLibraryPage: showPlaylistsLibraryPage,
-                    showRadioLibraryPage: showRadioLibraryPage,
-                    onLibrarySectionSelected: onLibrarySectionSelected,
-                    allowScrollableRail: allowScrollableRail,
-                    onOpenPlayer: () {
-                      NavService.dismissKeyboard(context);
-                      ref.read(playerOverlayStackProvider.notifier).expand();
-                    },
-                    onCollapsePlayer: () => ref
-                        .read(playerOverlayStackProvider.notifier)
-                        .collapse(),
-                    onToggleQueue: () {
-                      final overlay = ref.read(
-                        playerOverlayStackProvider.notifier,
-                      );
-                      if (showQueueOverlay) {
-                        overlay.hideQueue();
-                      } else {
-                        overlay.showQueue();
-                      }
-                    },
-                    onDismissQueue: () => ref
-                        .read(playerOverlayStackProvider.notifier)
-                        .hideQueue(),
-                    onNowPlayingBackInterceptorChanged: (handler) {
-                      _nowPlayingBackInterceptor = handler;
-                    },
-                  )
-                else if (useRailNavigation)
-                  Padding(
-                    padding: useCompactWideLandscape
-                        ? EdgeInsets.only(
-                            left: mediaPadding.left,
-                            right: mediaPadding.right,
-                          )
-                        : EdgeInsets.zero,
-                    child: Row(
-                      children: <Widget>[
-                        Material(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.surfaceContainerLow,
-                          child: SafeArea(
-                            left: !useCompactWideLandscape,
-                            right: !useCompactWideLandscape,
-                            child: SizedBox(
-                              width: sideRailWidth,
-                              child: Padding(
-                                padding: useCompactWideLandscape
-                                    ? const EdgeInsets.fromLTRB(0, 8, 0, 8)
-                                    : const EdgeInsets.fromLTRB(18, 14, 18, 14),
-                                child: useCompactWideLandscape
-                                    ? _CompactIconRail(
-                                        destinations: railDestinations,
-                                        selectedIndex: selectedIndex,
-                                        onDestinationSelected:
-                                            onDestinationSelected,
-                                      )
-                                    : _RailSidebar(
-                                        selectedIndex: selectedIndex,
-                                        onDestinationSelected:
-                                            onDestinationSelected,
-                                        destinations: railDestinations,
-                                        showLibrarySubNavigation:
-                                            showLibrarySubNavigation,
-                                        selectedLibrarySection:
-                                            selectedLibrarySection,
-                                        showLikedLibraryPage:
-                                            showLikedLibraryPage,
-                                        showArtistsLibraryPage:
-                                            showArtistsLibraryPage,
-                                        showPlaylistsLibraryPage:
-                                            showPlaylistsLibraryPage,
-                                        showRadioLibraryPage:
-                                            showRadioLibraryPage,
-                                        onLibrarySectionSelected:
-                                            onLibrarySectionSelected,
-                                        allowScrollableRail:
-                                            allowScrollableRail,
-                                        showPlayer: showPlayer,
-                                        playback: playback,
-                                        songTitle: songTitle,
-                                        songArtist: songArtist,
-                                        coverArtId: coverArtId,
-                                        coverArtUrl: coverArtUrl,
-                                        isRadio: playback.isRadioMode,
-                                        radioArtUrl: playback
-                                            .radioStation
-                                            ?.nowPlayingArtUrl,
-                                        onOpenPlayer: () {
-                                          NavService.dismissKeyboard(context);
-                                          ref
-                                              .read(
-                                                playerOverlayStackProvider
-                                                    .notifier,
-                                              )
-                                              .expand();
-                                        },
-                                      ),
+    // Cache policy and executor so the global keyboard handler can read them
+    // outside of build() (InheritedWidget lookups from a descendant scope are
+    // not visible via this widget's own context).
+    _cachedInputPolicy = adaptiveInputPolicy;
+    _executeDesktopCommand = executeDesktopCommand;
+
+    final shell = AdaptiveContextScope(
+      adaptiveContext: adaptiveContext,
+      child: AdaptiveInputPolicyScope(
+        policy: adaptiveInputPolicy,
+        child: BackButtonListener(
+          onBackButtonPressed: () async {
+            // Intercept Android back-button presses before nested branch
+            // navigators pop their detail routes. This is what gives the shell's
+            // overlay stack priority over pages like album detail.
+            if (!hasPlayerOverlay ||
+                !(ModalRoute.of(context)?.isCurrent ?? true)) {
+              return false;
+            }
+            if (isExpanded && (_nowPlayingBackInterceptor?.call() ?? false)) {
+              return true;
+            }
+            NavService.handleSystemBack(
+              ref: ref,
+              context: context,
+              navigationShell: navigationShell,
+              homeBranchIndex: _homeBranchIndex,
+              noticeController: _appNoticeController,
+            );
+            return true;
+          },
+          child: PopScope(
+            // canPop: false means the shell route itself cannot be popped by the
+            // Navigator. Shell-managed player overlays are dismissed explicitly in
+            // NavService.handleSystemBack, and Navigator-owned modal routes above
+            // this shell are ignored by the route-current guard below.
+            canPop: false,
+            onPopInvokedWithResult: (didPop, _) {
+              // route. Navigator-owned modals above the shell should consume back
+              // without also mutating the shell state underneath.
+              if (didPop || !(ModalRoute.of(context)?.isCurrent ?? true))
+                return;
+              if (isExpanded && (_nowPlayingBackInterceptor?.call() ?? false)) {
+                return;
+              }
+              NavService.handleSystemBack(
+                ref: ref,
+                context: context,
+                navigationShell: navigationShell,
+                homeBranchIndex: _homeBranchIndex,
+                noticeController: _appNoticeController,
+              );
+            },
+            child: AppNoticeScope(
+              notifier: _appNoticeController,
+              child: Scaffold(
+                // Keep the expanded player at full height even if a hidden text field
+                // elsewhere (e.g. Search) still has keyboard insets in flight.
+                resizeToAvoidBottomInset:
+                    !useCompactWideLandscape && !(showPlayer && isExpanded),
+                body: Stack(
+                  children: <Widget>[
+                    if (useDesktopShell)
+                      _DesktopWorkspace(
+                        desktopLayoutClass: desktopLayoutClass,
+                        sidebarWidth: desktopSidebarWidth,
+                        selectedIndex: selectedIndex,
+                        destinations: railDestinations,
+                        showOfflineBanner: showOfflineBanner,
+                        offlineBannerText: l10n.serverOfflineBanner,
+                        showPlayer: showPlayer,
+                        showQueueOverlay: showQueueOverlay,
+                        hasPlayerOverlay: hasPlayerOverlay,
+                        navigationShell: navigationShell,
+                        playback: playback,
+                        songTitle: songTitle,
+                        songArtist: songArtist,
+                        artistId: artistId,
+                        albumId: albumId,
+                        coverArtId: coverArtId,
+                        coverArtUrl: coverArtUrl,
+                        onDestinationSelected: onDestinationSelected,
+                        showLibrarySubNavigation: showLibrarySubNavigation,
+                        selectedLibrarySection: selectedLibrarySection,
+                        showLikedLibraryPage: showLikedLibraryPage,
+                        showArtistsLibraryPage: showArtistsLibraryPage,
+                        showPlaylistsLibraryPage: showPlaylistsLibraryPage,
+                        showRadioLibraryPage: showRadioLibraryPage,
+                        onLibrarySectionSelected: onLibrarySectionSelected,
+                        allowScrollableRail: allowScrollableRail,
+                        onOpenPlayer: _toggleDesktopLyricsOverlay,
+                        onToggleQueue: () {
+                          if (showQueueOverlay) {
+                            _hideQueueWithAnimation();
+                          } else {
+                            _showQueueOverlay(
+                              queueOnly: useDesktopShell,
+                              invokerFocusNode: _desktopQueueToggleFocusNode,
+                            );
+                          }
+                        },
+                        onDismissQueue: _handleQueueOverlayDismissed,
+                        queueToggleFocusNode: _desktopQueueToggleFocusNode,
+                        queueOverlayKey: _queueOverlayKey,
+                        showLyricsOverlay: _showDesktopLyricsOverlay,
+                        onToggleLyrics: _toggleDesktopLyricsOverlay,
+                      )
+                    else if (useRailNavigation)
+                      // In Focus Player Mode with active playback, fill the
+                      // entire window with the NowPlayingScreen and skip the
+                      // navigation rail entirely.
+                      isFocusPlayerMode && showPlayer
+                      ? NowPlayingScreen(
+                          wideEmbeddedMode: true,
+                          onBackInterceptorChanged: (handler) {
+                            _nowPlayingBackInterceptor = handler;
+                          },
+                        )
+                      : Padding(
+                        padding: useCompactWideLandscape
+                            ? EdgeInsets.only(
+                                left: mediaPadding.left,
+                                right: mediaPadding.right,
+                              )
+                            : EdgeInsets.zero,
+                        child: Row(
+                          children: <Widget>[
+                            Material(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.surfaceContainerLow,
+                              child: SafeArea(
+                                left: !useCompactWideLandscape,
+                                right: !useCompactWideLandscape,
+                                child: SizedBox(
+                                  width: sideRailWidth,
+                                  child: Padding(
+                                    padding: useCompactWideLandscape
+                                        ? const EdgeInsets.fromLTRB(0, 8, 0, 8)
+                                        : const EdgeInsets.fromLTRB(
+                                            18,
+                                            14,
+                                            18,
+                                            14,
+                                          ),
+                                    child: useCompactWideLandscape
+                                        ? _CompactIconRail(
+                                            destinations: railDestinations,
+                                            selectedIndex: selectedIndex,
+                                            onDestinationSelected:
+                                                onDestinationSelected,
+                                          )
+                                        : _RailSidebar(
+                                            selectedIndex: selectedIndex,
+                                            onDestinationSelected:
+                                                onDestinationSelected,
+                                            destinations: railDestinations,
+                                            showLibrarySubNavigation:
+                                                showLibrarySubNavigation,
+                                            selectedLibrarySection:
+                                                selectedLibrarySection,
+                                            showLikedLibraryPage:
+                                                showLikedLibraryPage,
+                                            showArtistsLibraryPage:
+                                                showArtistsLibraryPage,
+                                            showPlaylistsLibraryPage:
+                                                showPlaylistsLibraryPage,
+                                            showRadioLibraryPage:
+                                                showRadioLibraryPage,
+                                            onLibrarySectionSelected:
+                                                onLibrarySectionSelected,
+                                            allowScrollableRail:
+                                                allowScrollableRail,
+                                            showPlayer: showPlayer,
+                                            playback: playback,
+                                            songTitle: songTitle,
+                                            songArtist: songArtist,
+                                            artistId: artistId,
+                                            coverArtId: coverArtId,
+                                            coverArtUrl: coverArtUrl,
+                                            isRadio: playback.isRadioMode,
+                                            radioArtUrl: playback
+                                                .radioStation
+                                                ?.nowPlayingArtUrl,
+                                            onOpenPlayer: () {
+                                              NavService.dismissKeyboard(
+                                                context,
+                                              );
+                                              ref
+                                                  .read(
+                                                    playerOverlayStackProvider
+                                                        .notifier,
+                                                  )
+                                                  .expand();
+                                            },
+                                          ),
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
-                        ),
-                        Expanded(
-                          child: SafeArea(
-                            left: false,
-                            top: false,
-                            right: false,
-                            child: Column(
-                              children: <Widget>[
-                                if (showOfflineBanner)
-                                  Material(
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.errorContainer,
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 16,
-                                        vertical: 12,
-                                      ),
-                                      child: Row(
-                                        children: <Widget>[
-                                          Icon(
-                                            Icons.cloud_off_outlined,
-                                            color: Theme.of(
-                                              context,
-                                            ).colorScheme.onErrorContainer,
+                            Expanded(
+                              child: SafeArea(
+                                left: false,
+                                top: false,
+                                right: false,
+                                child: Column(
+                                  children: <Widget>[
+                                    if (showOfflineBanner)
+                                      Material(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.errorContainer,
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                            vertical: 12,
                                           ),
-                                          const SizedBox(width: 10),
-                                          Expanded(
-                                            child: Text(
-                                              l10n.serverOfflineBanner,
-                                              style: TextStyle(
+                                          child: Row(
+                                            children: <Widget>[
+                                              Icon(
+                                                Icons.cloud_off_outlined,
                                                 color: Theme.of(
                                                   context,
                                                 ).colorScheme.onErrorContainer,
                                               ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                Expanded(
-                                  child: NavigatorPopHandler<Object?>(
-                                    enabled: !hasPlayerOverlay,
-                                    onPopWithResult: (result) {
-                                      final router = GoRouter.of(context);
-                                      if (!router.canPop()) {
-                                        return;
-                                      }
-                                      NavService.clearExitPrompt();
-                                      router.pop(result);
-                                    },
-                                    child: useCompactWideLandscape && showPlayer
-                                        ? Stack(
-                                            children: <Widget>[
-                                              // Inset the content area from the
-                                              // bottom so the mini player strip
-                                              // never covers page content.
-                                              AnimatedPositioned(
-                                                duration: const Duration(
-                                                  milliseconds: 280,
+                                              const SizedBox(width: 10),
+                                              Expanded(
+                                                child: Text(
+                                                  l10n.serverOfflineBanner,
+                                                  style: TextStyle(
+                                                    color:
+                                                        Theme.of(
+                                                              context,
+                                                            )
+                                                            .colorScheme
+                                                            .onErrorContainer,
+                                                  ),
                                                 ),
-                                                curve: Curves.easeOut,
-                                                top: 0,
-                                                left: 0,
-                                                right: 0,
-                                                bottom: isExpanded
-                                                    ? 0
-                                                    : compactBottomMiniPlayerHeight,
-                                                child: navigationShell,
                                               ),
-                                              Positioned.fill(
-                                                child: ExpandablePlayerSheet(
-                                                  isExpanded: isExpanded,
-                                                  onExpand: () {
-                                                    NavService.dismissKeyboard(
-                                                      context,
-                                                    );
-                                                    ref
-                                                        .read(
-                                                          playerOverlayStackProvider
-                                                              .notifier,
-                                                        )
-                                                        .expand();
-                                                  },
-                                                  onCollapse: () => ref
-                                                      .read(
-                                                        playerOverlayStackProvider
-                                                            .notifier,
-                                                      )
-                                                      .collapse(),
-                                                  dragEnabled:
-                                                      !_compactWideInternalOverlayActive,
-                                                  onSwipeUp: () =>
-                                                      _compactWideQueueRequestHandler
-                                                          ?.call(),
-                                                  miniPlayer: SizedBox(
-                                                    height:
-                                                        compactBottomMiniPlayerHeight,
-                                                    child: _MiniPlayerStrip(
-                                                      playback: playback,
-                                                      flattenWideStyle: true,
-                                                      compactWideLandscapeMode:
-                                                          true,
-                                                      enableVerticalExpandGesture:
-                                                          false,
-                                                      songTitle: songTitle,
-                                                      songArtist: songArtist,
-                                                      coverArtId: coverArtId,
-                                                      coverArtUrl: coverArtUrl,
-                                                      isRadio:
-                                                          playback.isRadioMode,
-                                                      radioArtUrl: playback
-                                                          .radioStation
-                                                          ?.nowPlayingArtUrl,
-                                                      onTap: () {
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    Expanded(
+                                      child: NavigatorPopHandler<Object?>(
+                                        enabled: !hasPlayerOverlay,
+                                        onPopWithResult: (result) {
+                                          final router = GoRouter.of(context);
+                                          if (!router.canPop()) {
+                                            return;
+                                          }
+                                          NavService.clearExitPrompt();
+                                          router.pop(result);
+                                        },
+                                        child:
+                                            useCompactWideLandscape &&
+                                                showPlayer
+                                            ? Stack(
+                                                children: <Widget>[
+                                                  // Inset the content area from the
+                                                  // bottom so the mini player strip
+                                                  // never covers page content.
+                                                  AnimatedPositioned(
+                                                    duration: const Duration(
+                                                      milliseconds: 280,
+                                                    ),
+                                                    curve: Curves.easeOut,
+                                                    top: 0,
+                                                    left: 0,
+                                                    right: 0,
+                                                    bottom: isExpanded
+                                                        ? 0
+                                                        : compactBottomMiniPlayerHeight,
+                                                    child: navigationShell,
+                                                  ),
+                                                  Positioned.fill(
+                                                    child: ExpandablePlayerSheet(
+                                                      isExpanded: isExpanded,
+                                                      onExpand: () {
                                                         NavService.dismissKeyboard(
                                                           context,
                                                         );
@@ -932,286 +1352,563 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                             )
                                                             .expand();
                                                       },
-                                                    ),
-                                                  ),
-                                                  fullPlayer: NowPlayingScreen(
-                                                    wideEmbeddedMode: true,
-                                                    compactWideLandscapeMode:
-                                                        useCompactWideLandscape,
-                                                    onShowQueue: () =>
-                                                        _compactWideQueueRequestHandler
-                                                            ?.call(),
-                                                    onCollapse: () => ref
-                                                        .read(
-                                                          playerOverlayStackProvider
-                                                              .notifier,
-                                                        )
-                                                        .collapse(),
-                                                    onBackInterceptorChanged:
-                                                        (handler) {
-                                                          _nowPlayingBackInterceptor =
-                                                              handler;
-                                                        },
-                                                    onCompactWideOverlayActiveChanged:
-                                                        _handleCompactWideOverlayActiveChanged,
-                                                    onCompactWideQueueRequestChanged:
-                                                        _handleCompactWideQueueRequestChanged,
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          )
-                                        : showPlayer
-                                        ? Stack(
-                                            children: <Widget>[
-                                              Positioned.fill(
-                                                child: navigationShell,
-                                              ),
-                                              Positioned.fill(
-                                                child: IgnorePointer(
-                                                  ignoring: !isExpanded,
-                                                  child: AnimatedSlide(
-                                                    duration: const Duration(
-                                                      milliseconds: 280,
-                                                    ),
-                                                    curve: Curves.easeOut,
-                                                    offset: isExpanded
-                                                        ? Offset.zero
-                                                        : const Offset(0, 1),
-                                                    child: NowPlayingScreen(
-                                                      wideEmbeddedMode: true,
-                                                      compactWideLandscapeMode:
-                                                          useCompactWideLandscape,
-                                                      onShowQueue: () =>
-                                                          NavService.showQueue(
-                                                            context,
-                                                            ref,
-                                                          ),
                                                       onCollapse: () => ref
                                                           .read(
                                                             playerOverlayStackProvider
                                                                 .notifier,
                                                           )
                                                           .collapse(),
-                                                      onBackInterceptorChanged:
-                                                          (handler) {
-                                                            _nowPlayingBackInterceptor =
-                                                                handler;
+                                                      dragEnabled:
+                                                          !_compactWideInternalOverlayActive,
+                                                      onSwipeUp: () =>
+                                                          _compactWideQueueRequestHandler
+                                                              ?.call(),
+                                                      miniPlayer: SizedBox(
+                                                        height:
+                                                            compactBottomMiniPlayerHeight,
+                                                        child: _MiniPlayerStrip(
+                                                          playback: playback,
+                                                          flattenWideStyle:
+                                                              true,
+                                                          compactWideLandscapeMode:
+                                                              true,
+                                                          enableVerticalExpandGesture:
+                                                              false,
+                                                          songTitle: songTitle,
+                                                          songArtist:
+                                                              songArtist,
+                                                          coverArtId:
+                                                              coverArtId,
+                                                          coverArtUrl:
+                                                              coverArtUrl,
+                                                          isRadio: playback
+                                                              .isRadioMode,
+                                                          radioArtUrl: playback
+                                                              .radioStation
+                                                              ?.nowPlayingArtUrl,
+                                                          onTap: () {
+                                                            NavService.dismissKeyboard(
+                                                              context,
+                                                            );
+                                                            ref
+                                                                .read(
+                                                                  playerOverlayStackProvider
+                                                                      .notifier,
+                                                                )
+                                                                .expand();
                                                           },
+                                                        ),
+                                                      ),
+                                                      fullPlayer: NowPlayingScreen(
+                                                        wideEmbeddedMode: true,
+                                                        compactWideLandscapeMode:
+                                                            useCompactWideLandscape,
+                                                        onShowQueue: () =>
+                                                            _compactWideQueueRequestHandler
+                                                                ?.call(),
+                                                        onCollapse: () => ref
+                                                            .read(
+                                                              playerOverlayStackProvider
+                                                                  .notifier,
+                                                            )
+                                                            .collapse(),
+                                                        onBackInterceptorChanged:
+                                                            (handler) {
+                                                              _nowPlayingBackInterceptor =
+                                                                  handler;
+                                                            },
+                                                        onCompactWideOverlayActiveChanged:
+                                                            _handleCompactWideOverlayActiveChanged,
+                                                        onCompactWideQueueRequestChanged:
+                                                            _handleCompactWideQueueRequestChanged,
+                                                      ),
                                                     ),
                                                   ),
-                                                ),
-                                              ),
-                                              if (showQueueOverlay)
-                                                Positioned.fill(
-                                                  child: _QueueOverlay(
-                                                    fullscreen: true,
-                                                    onDismiss: () => ref
-                                                        .read(
-                                                          playerOverlayStackProvider
-                                                              .notifier,
-                                                        )
-                                                        .hideQueue(),
+                                                ],
+                                              )
+                                            : showPlayer
+                                            ? Stack(
+                                                children: <Widget>[
+                                                  Positioned.fill(
+                                                    child: navigationShell,
                                                   ),
-                                                ),
-                                            ],
-                                          )
-                                        : navigationShell,
-                                  ),
+                                                  Positioned.fill(
+                                                    child: IgnorePointer(
+                                                      ignoring: !isExpanded,
+                                                      child: AnimatedSlide(
+                                                        duration:
+                                                            const Duration(
+                                                              milliseconds: 280,
+                                                            ),
+                                                        curve: Curves.easeOut,
+                                                        offset: isExpanded
+                                                            ? Offset.zero
+                                                            : const Offset(
+                                                                0,
+                                                                1,
+                                                              ),
+                                                        child: NowPlayingScreen(
+                                                          wideEmbeddedMode:
+                                                              true,
+                                                          compactWideLandscapeMode:
+                                                              useCompactWideLandscape,
+                                                          onShowQueue: () =>
+                                                              NavService.showQueue(
+                                                                context,
+                                                                ref,
+                                                              ),
+                                                          onCollapse: () => ref
+                                                              .read(
+                                                                playerOverlayStackProvider
+                                                                    .notifier,
+                                                              )
+                                                              .collapse(),
+                                                          onBackInterceptorChanged:
+                                                              (handler) {
+                                                                _nowPlayingBackInterceptor =
+                                                                    handler;
+                                                              },
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  if (showQueueOverlay)
+                                                    Positioned.fill(
+                                                      child: _QueueOverlay(
+                                                        key: _queueOverlayKey,
+                                                        fullscreen: true,
+                                                        onDismiss: () => ref
+                                                            .read(
+                                                              playerOverlayStackProvider
+                                                                  .notifier,
+                                                            )
+                                                            .hideQueue(),
+                                                      ),
+                                                    ),
+                                                ],
+                                              )
+                                            : navigationShell,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ],
+                              ),
                             ),
-                          ),
+                          ],
                         ),
-                      ],
-                    ),
-                  )
-                else
-                  Column(
-                    children: <Widget>[
-                      if (showOfflineBanner)
-                        Material(
-                          color: Theme.of(context).colorScheme.errorContainer,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                            child: Row(
-                              children: <Widget>[
-                                Icon(
-                                  Icons.cloud_off_outlined,
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onErrorContainer,
+                      )
+                    else
+                      Column(
+                        children: <Widget>[
+                          if (showOfflineBanner)
+                            Material(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.errorContainer,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
                                 ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Text(
-                                    l10n.serverOfflineBanner,
-                                    style: TextStyle(
+                                child: Row(
+                                  children: <Widget>[
+                                    Icon(
+                                      Icons.cloud_off_outlined,
                                       color: Theme.of(
                                         context,
                                       ).colorScheme.onErrorContainer,
                                     ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        l10n.serverOfflineBanner,
+                                        style: TextStyle(
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.onErrorContainer,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          Expanded(
+                            child: NavigatorPopHandler<Object?>(
+                              // When a shell-managed player overlay is visible, the
+                              // nested branch navigator must not consume system back
+                              // before the shell dismisses that overlay.
+                              enabled: !hasPlayerOverlay,
+                              onPopWithResult: (result) {
+                                final router = GoRouter.of(context);
+                                if (!router.canPop()) {
+                                  return;
+                                }
+                                NavService.clearExitPrompt();
+                                router.pop(result);
+                              },
+                              child: navigationShell,
+                            ),
+                          ),
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 260),
+                            curve: Curves.easeOutCubic,
+                            height: showPlayer && !isExpanded
+                                ? ExpandablePlayerSheet.miniPlayerHeight
+                                : 0.0,
+                          ),
+                        ],
+                      ),
+                    if (!useDesktopShell && !useRailNavigation)
+                      _SlideUpPlayerTransition(
+                        showPlayer: showPlayer,
+                        child: showPlayer
+                            ? FocusTraversalOrder(
+                                order: const NumericFocusOrder(20),
+                                child: ExpandablePlayerSheet(
+                                  isExpanded: isExpanded,
+                            onProgressChanged: (value) {
+                              final clamped = value.clamp(0.0, 1.0);
+                              if ((_playerSheetProgress.value - clamped).abs() >
+                                  0.001) {
+                                _playerSheetProgress.value = clamped;
+                              }
+                            },
+                            onExpand: () {
+                              // Dismiss the keyboard (e.g. search bar) before expanding
+                              // so the Now Playing screen isn't squished.
+                              NavService.dismissKeyboard(context);
+                              ref
+                                  .read(playerOverlayStackProvider.notifier)
+                                  .expand();
+                            },
+                            onCollapse: () => ref
+                                .read(playerOverlayStackProvider.notifier)
+                                .collapse(),
+                            onSwipeUp: () => NavService.showQueue(context, ref),
+                            miniPlayer: useRailNavigation
+                                ? const SizedBox.shrink()
+                                : _MiniPlayerStrip(
+                                    playback: playback,
+                                    flattenWideStyle: useWideMiniPlayerStyle,
+                                    enableVerticalExpandGesture: false,
+                                    songTitle: songTitle,
+                                    songArtist: songArtist,
+                                    coverArtId: coverArtId,
+                                    coverArtUrl: coverArtUrl,
+                                    isRadio: playback.isRadioMode,
+                                    radioArtUrl:
+                                        playback.radioStation?.nowPlayingArtUrl,
+                                    onTap: () {
+                                      // Dismiss keyboard before expanding.
+                                      NavService.dismissKeyboard(context);
+                                      ref
+                                          .read(
+                                            playerOverlayStackProvider.notifier,
+                                          )
+                                          .expand();
+                                    },
                                   ),
+                            fullPlayer: NowPlayingScreen(
+                              onShowQueue: () =>
+                                  NavService.showQueue(context, ref),
+                              onCollapse: () => ref
+                                  .read(playerOverlayStackProvider.notifier)
+                                  .collapse(),
+                              onBackInterceptorChanged: (handler) {
+                                _nowPlayingBackInterceptor = handler;
+                              },
+                            ),
+                          ),
+                        )
+                            : const SizedBox.shrink(),
+                      ),
+                    if (showPlayer &&
+                        !useDesktopShell &&
+                        showQueueOverlay &&
+                        !useRailNavigation)
+                      Positioned.fill(
+                        left: 0,
+                        child: FocusTraversalOrder(
+                          order: const NumericFocusOrder(10),
+                          child: _QueueOverlay(
+                            key: _queueOverlayKey,
+                            fullscreen: useRailNavigation,
+                            onDismiss: _handleQueueOverlayDismissed,
+                          ),
+                        ),
+                      ),
+                    if (_showQuickSearchOverlay &&
+                        adaptiveInputPolicy.enableDesktopCommandShortcuts)
+                      Positioned.fill(
+                        child: _DesktopQuickSearchOverlay(
+                          controller: _quickSearchController,
+                          focusNode: _quickSearchFocusNode,
+                          onDismiss: _closeQuickSearchOverlay,
+                          onSubmitted: submitQuickSearch,
+                        ),
+                      ),
+                    AppNoticeHost(
+                      controller: _appNoticeController,
+                      topOffset: appNoticeTopOffset,
+                    ),
+                  ],
+                ),
+                bottomNavigationBar: useDesktopShell || useRailNavigation
+                    ? null
+                    : ValueListenableBuilder<double>(
+                        valueListenable: _playerSheetProgress,
+                        builder: (context, progress, _) {
+                          final reveal = showPlayer
+                              ? (1 - progress).clamp(0.0, 1.0)
+                              : 1.0;
+
+                          return _BottomNavReveal(
+                            reveal: reveal,
+                            child: NavigationBar(
+                              selectedIndex: selectedIndex,
+                              labelBehavior:
+                                  NavigationDestinationLabelBehavior.alwaysHide,
+                              onDestinationSelected: onDestinationSelected,
+                              destinations: <NavigationDestination>[
+                                NavigationDestination(
+                                  icon: Icon(railDestinations[0].icon),
+                                  label: railDestinations[0].label,
+                                ),
+                                NavigationDestination(
+                                  icon: Icon(railDestinations[1].icon),
+                                  label: railDestinations[1].label,
+                                ),
+                                NavigationDestination(
+                                  icon: Icon(railDestinations[2].icon),
+                                  label: railDestinations[2].label,
+                                ),
+                                NavigationDestination(
+                                  icon: Icon(railDestinations[3].icon),
+                                  label: railDestinations[3].label,
                                 ),
                               ],
                             ),
-                          ),
-                        ),
-                      Expanded(
-                        child: NavigatorPopHandler<Object?>(
-                          // When a shell-managed player overlay is visible, the
-                          // nested branch navigator must not consume system back
-                          // before the shell dismisses that overlay.
-                          enabled: !hasPlayerOverlay,
-                          onPopWithResult: (result) {
-                            final router = GoRouter.of(context);
-                            if (!router.canPop()) {
-                              return;
-                            }
-                            NavService.clearExitPrompt();
-                            router.pop(result);
-                          },
-                          child: navigationShell,
-                        ),
-                      ),
-                      if (showPlayer && !isExpanded)
-                        SizedBox(
-                          height: ExpandablePlayerSheet.miniPlayerHeight,
-                        ),
-                    ],
-                  ),
-                if (showPlayer && !useRailNavigation)
-                  Positioned.fill(
-                    left: 0,
-                    child: ExpandablePlayerSheet(
-                      isExpanded: isExpanded,
-                      onProgressChanged: (value) {
-                        final clamped = value.clamp(0.0, 1.0);
-                        if ((_playerSheetProgress.value - clamped).abs() >
-                            0.001) {
-                          _playerSheetProgress.value = clamped;
-                        }
-                      },
-                      onExpand: () {
-                        // Dismiss the keyboard (e.g. search bar) before expanding
-                        // so the Now Playing screen isn't squished.
-                        NavService.dismissKeyboard(context);
-                        ref.read(playerOverlayStackProvider.notifier).expand();
-                      },
-                      onCollapse: () => ref
-                          .read(playerOverlayStackProvider.notifier)
-                          .collapse(),
-                      onSwipeUp: () => NavService.showQueue(context, ref),
-                      miniPlayer: useRailNavigation
-                          ? const SizedBox.shrink()
-                          : _MiniPlayerStrip(
-                              playback: playback,
-                              flattenWideStyle: useWideMiniPlayerStyle,
-                              enableVerticalExpandGesture: false,
-                              songTitle: songTitle,
-                              songArtist: songArtist,
-                              coverArtId: coverArtId,
-                              coverArtUrl: coverArtUrl,
-                              isRadio: playback.isRadioMode,
-                              radioArtUrl:
-                                  playback.radioStation?.nowPlayingArtUrl,
-                              onTap: () {
-                                // Dismiss keyboard before expanding.
-                                NavService.dismissKeyboard(context);
-                                ref
-                                    .read(playerOverlayStackProvider.notifier)
-                                    .expand();
-                              },
-                            ),
-                      fullPlayer: NowPlayingScreen(
-                        onShowQueue: () => NavService.showQueue(context, ref),
-                        onCollapse: () => ref
-                            .read(playerOverlayStackProvider.notifier)
-                            .collapse(),
-                        onBackInterceptorChanged: (handler) {
-                          _nowPlayingBackInterceptor = handler;
+                          );
                         },
                       ),
-                    ),
-                  ),
-                if (showPlayer && showQueueOverlay && !useRailNavigation)
-                  Positioned.fill(
-                    left: 0,
-                    child: _QueueOverlay(
-                      fullscreen: useRailNavigation,
-                      onDismiss: () => ref
-                          .read(playerOverlayStackProvider.notifier)
-                          .hideQueue(),
-                    ),
-                  ),
-                AppNoticeHost(
-                  controller: _appNoticeController,
-                  topOffset: appNoticeTopOffset,
-                ),
-              ],
+              ),
             ),
-            bottomNavigationBar: useRailNavigation
-                ? null
-                : ValueListenableBuilder<double>(
-                    valueListenable: _playerSheetProgress,
-                    builder: (context, progress, _) {
-                      final reveal = showPlayer
-                          ? (1 - progress).clamp(0.0, 1.0)
-                          : 1.0;
-
-                      return _BottomNavReveal(
-                        reveal: reveal,
-                        child: NavigationBar(
-                          selectedIndex: selectedIndex,
-                          labelBehavior:
-                              NavigationDestinationLabelBehavior.alwaysHide,
-                          onDestinationSelected: onDestinationSelected,
-                          destinations: <NavigationDestination>[
-                            NavigationDestination(
-                              icon: Icon(railDestinations[0].icon),
-                              label: railDestinations[0].label,
-                            ),
-                            NavigationDestination(
-                              icon: Icon(railDestinations[1].icon),
-                              label: railDestinations[1].label,
-                            ),
-                            NavigationDestination(
-                              icon: Icon(railDestinations[2].icon),
-                              label: railDestinations[2].label,
-                            ),
-                            NavigationDestination(
-                              icon: Icon(railDestinations[3].icon),
-                              label: railDestinations[3].label,
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
           ),
         ),
       ),
     );
-    if (!useDesktopShell) {
+
+    // Install/remove the global hardware-keyboard handler based on policy.
+    if (adaptiveInputPolicy.enableDesktopCommandShortcuts ||
+        adaptiveInputPolicy.enableEscapeOverlayPriority) {
+      _installGlobalKeyHandler();
+    } else {
+      _removeGlobalKeyHandler();
+    }
+
+    if (!adaptiveInputPolicy.enableDeterministicTraversal) {
       return shell;
     }
-    return Shortcuts(
-      shortcuts: buildDesktopShortcutMap(Theme.of(context).platform),
-      child: Actions(
-        actions: <Type, Action<Intent>>{
-          DesktopCommandIntent: DesktopCommandActionHandler(
-            context: context,
-            executor: executeDesktopCommand,
-          ),
+
+    return FocusTraversalGroup(
+      policy: OrderedTraversalPolicy(),
+      child: Focus(
+        focusNode: _shellFocusNode,
+        autofocus: true,
+        child: shell,
+      ),
+    );
+  }
+}
+
+class _DesktopQuickSearchOverlay extends StatefulWidget {
+  const _DesktopQuickSearchOverlay({
+    required this.controller,
+    required this.focusNode,
+    required this.onDismiss,
+    required this.onSubmitted,
+  });
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final VoidCallback onDismiss;
+  final void Function(String, {SearchResultType? filter}) onSubmitted;
+
+  @override
+  State<_DesktopQuickSearchOverlay> createState() =>
+      _DesktopQuickSearchOverlayState();
+}
+
+class _DesktopQuickSearchOverlayState
+    extends State<_DesktopQuickSearchOverlay> {
+  static const List<String> _filterLabels = [
+    'Search Everything',
+    'Artists',
+    'Albums',
+    'Songs',
+  ];
+
+  static const List<SearchResultType?> _filterValues = [
+    null,
+    SearchResultType.artists,
+    SearchResultType.albums,
+    SearchResultType.songs,
+  ];
+
+  int _selectedIndex = 0;
+
+  void _cycleNext() {
+    setState(() {
+      _selectedIndex = (_selectedIndex + 1) % _filterValues.length;
+    });
+  }
+
+  void _cyclePrev() {
+    setState(() {
+      _selectedIndex =
+          (_selectedIndex - 1 + _filterValues.length) % _filterValues.length;
+    });
+  }
+
+  void _submit() {
+    widget.onSubmitted(
+      widget.controller.text,
+      filter: _filterValues[_selectedIndex],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return FocusScope(
+      autofocus: true,
+      child: Shortcuts(
+        shortcuts: const <ShortcutActivator, Intent>{
+          SingleActivator(LogicalKeyboardKey.escape): DismissIntent(),
         },
-        child: FocusTraversalGroup(
-          policy: OrderedTraversalPolicy(),
-          child: Focus(
-            autofocus: true,
-            child: shell,
+        child: Actions(
+          actions: <Type, Action<Intent>>{
+            DismissIntent: CallbackAction<DismissIntent>(
+              onInvoke: (intent) {
+                widget.onDismiss();
+                return null;
+              },
+            ),
+          },
+          child: TweenAnimationBuilder<double>(
+            tween: Tween<double>(begin: 0, end: 1),
+            duration: const Duration(milliseconds: 150),
+            curve: Curves.easeOutCubic,
+            builder: (context, value, child) {
+              return ColoredBox(
+                color: Colors.black.withValues(alpha: 0.44 * value),
+                child: child,
+              );
+            },
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: widget.onDismiss,
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 620),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: GestureDetector(
+                      onTap: () {},
+                      child: Material(
+                        elevation: 12,
+                        color: colorScheme.surfaceContainerHigh,
+                        borderRadius: BorderRadius.circular(18),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              Row(
+                                children: <Widget>[
+                                  const Icon(Icons.search),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Focus(
+                                      onKeyEvent: (node, event) {
+                                        if (event is KeyDownEvent) {
+                                          final key = event.logicalKey;
+                                          if (key ==
+                                              LogicalKeyboardKey.tab) {
+                                            if (HardwareKeyboard
+                                                .instance.isShiftPressed) {
+                                              _cyclePrev();
+                                            } else {
+                                              _cycleNext();
+                                            }
+                                            return KeyEventResult.handled;
+                                          } else if (key ==
+                                              LogicalKeyboardKey.arrowRight) {
+                                            _cycleNext();
+                                            return KeyEventResult.handled;
+                                          } else if (key ==
+                                              LogicalKeyboardKey.arrowLeft) {
+                                            _cyclePrev();
+                                            return KeyEventResult.handled;
+                                          }
+                                        }
+                                        return KeyEventResult.ignored;
+                                      },
+                                      child: TextField(
+                                        key: const ValueKey(
+                                          'desktopQuickSearchField',
+                                        ),
+                                        controller: widget.controller,
+                                        focusNode: widget.focusNode,
+                                        autofocus: true,
+                                        textInputAction: TextInputAction.search,
+                                        decoration: const InputDecoration(
+                                          hintText: 'Search library...',
+                                          border: InputBorder.none,
+                                          isDense: true,
+                                        ),
+                                        onSubmitted: (_) => _submit(),
+                                      ),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    tooltip: 'Search',
+                                    onPressed: _submit,
+                                    icon: const Icon(
+                                      Icons.arrow_forward_rounded,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: <Widget>[
+                                  for (int i = 0;
+                                      i < _filterLabels.length;
+                                      i++) ...<Widget>[
+                                    if (i > 0) const SizedBox(width: 8),
+                                    FilterChip(
+                                      label: Text(_filterLabels[i]),
+                                      selected: _selectedIndex == i,
+                                      onSelected: (_) => setState(
+                                        () => _selectedIndex = i,
+                                      ),
+                                      visualDensity: VisualDensity.compact,
+                                      showCheckmark: false,
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       ),
@@ -1365,13 +2062,14 @@ class _DesktopWorkspace extends StatelessWidget {
     required this.showOfflineBanner,
     required this.offlineBannerText,
     required this.showPlayer,
-    required this.isExpanded,
     required this.showQueueOverlay,
     required this.hasPlayerOverlay,
     required this.navigationShell,
     required this.playback,
     required this.songTitle,
     required this.songArtist,
+    required this.artistId,
+    required this.albumId,
     required this.coverArtId,
     required this.coverArtUrl,
     required this.onDestinationSelected,
@@ -1384,10 +2082,12 @@ class _DesktopWorkspace extends StatelessWidget {
     required this.showRadioLibraryPage,
     required this.onLibrarySectionSelected,
     required this.onOpenPlayer,
-    required this.onCollapsePlayer,
     required this.onToggleQueue,
     required this.onDismissQueue,
-    required this.onNowPlayingBackInterceptorChanged,
+    required this.queueToggleFocusNode,
+    required this.queueOverlayKey,
+    required this.showLyricsOverlay,
+    required this.onToggleLyrics,
   });
 
   final DesktopLayoutClass desktopLayoutClass;
@@ -1397,13 +2097,14 @@ class _DesktopWorkspace extends StatelessWidget {
   final bool showOfflineBanner;
   final String offlineBannerText;
   final bool showPlayer;
-  final bool isExpanded;
   final bool showQueueOverlay;
   final bool hasPlayerOverlay;
   final StatefulNavigationShell navigationShell;
   final PlaybackSnapshot playback;
   final String? songTitle;
   final String? songArtist;
+  final String? artistId;
+  final String? albumId;
   final String? coverArtId;
   final String? coverArtUrl;
   final ValueChanged<int> onDestinationSelected;
@@ -1416,243 +2117,370 @@ class _DesktopWorkspace extends StatelessWidget {
   final bool showRadioLibraryPage;
   final ValueChanged<LibrarySection> onLibrarySectionSelected;
   final VoidCallback onOpenPlayer;
-  final VoidCallback onCollapsePlayer;
   final VoidCallback onToggleQueue;
   final VoidCallback onDismissQueue;
-  final ValueChanged<bool Function()?> onNowPlayingBackInterceptorChanged;
+  final FocusNode queueToggleFocusNode;
+  final GlobalKey<_QueueOverlayState> queueOverlayKey;
+  final bool showLyricsOverlay;
+  final VoidCallback onToggleLyrics;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return Row(
+    return Column(
       children: <Widget>[
-        Material(
-          color: colors.surfaceContainerLowest,
-          child: SafeArea(
-            child: SizedBox(
-              width: sidebarWidth,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
-                child: _RailSidebar(
-                  selectedIndex: selectedIndex,
-                  onDestinationSelected: onDestinationSelected,
-                  destinations: destinations,
-                  showLibrarySubNavigation: showLibrarySubNavigation,
-                  allowScrollableRail: allowScrollableRail,
-                  selectedLibrarySection: selectedLibrarySection,
-                  showLikedLibraryPage: showLikedLibraryPage,
-                  showArtistsLibraryPage: showArtistsLibraryPage,
-                  showPlaylistsLibraryPage: showPlaylistsLibraryPage,
-                  showRadioLibraryPage: showRadioLibraryPage,
-                  onLibrarySectionSelected: onLibrarySectionSelected,
-                  showPlayer: false,
-                  playback: playback,
-                  songTitle: songTitle,
-                  songArtist: songArtist,
-                  coverArtId: coverArtId,
-                  coverArtUrl: coverArtUrl,
-                  isRadio: playback.isRadioMode,
-                  radioArtUrl: playback.radioStation?.nowPlayingArtUrl,
-                  onOpenPlayer: onOpenPlayer,
+        Expanded(
+          child: Row(
+            children: <Widget>[
+              FocusTraversalOrder(
+                order: const NumericFocusOrder(10),
+                child: Material(
+                  color: colors.surfaceContainerLow,
+                  child: SafeArea(
+                    child: SizedBox(
+                      key: const ValueKey<String>('desktopSidebarRegion'),
+                      width: sidebarWidth,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                        child: _RailSidebar(
+                          selectedIndex: selectedIndex,
+                          onDestinationSelected: onDestinationSelected,
+                          destinations: destinations,
+                          showLibrarySubNavigation: showLibrarySubNavigation,
+                          allowScrollableRail: allowScrollableRail,
+                          selectedLibrarySection: selectedLibrarySection,
+                          showLikedLibraryPage: showLikedLibraryPage,
+                          showArtistsLibraryPage: showArtistsLibraryPage,
+                          showPlaylistsLibraryPage: showPlaylistsLibraryPage,
+                          showRadioLibraryPage: showRadioLibraryPage,
+                          onLibrarySectionSelected: onLibrarySectionSelected,
+                          showPlayer: false,
+                          playback: playback,
+                          songTitle: songTitle,
+                          songArtist: songArtist,
+                          coverArtId: coverArtId,
+                          coverArtUrl: coverArtUrl,
+                          isRadio: playback.isRadioMode,
+                          radioArtUrl: playback.radioStation?.nowPlayingArtUrl,
+                          onOpenPlayer: onOpenPlayer,
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ),
-        ),
-        Expanded(
-          child: SafeArea(
-            left: false,
-            top: false,
-            right: false,
-            child: Column(
-              children: <Widget>[
-                if (showOfflineBanner)
-                  Material(
-                    color: colors.errorContainer,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      child: Row(
-                        children: <Widget>[
-                          Icon(
-                            Icons.cloud_off_outlined,
-                            color: colors.onErrorContainer,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              offlineBannerText,
-                              style: TextStyle(color: colors.onErrorContainer),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                Expanded(
-                  child: DesktopFrame(
-                    layoutClass: desktopLayoutClass,
-                    child: NavigatorPopHandler<Object?>(
-                      enabled: !hasPlayerOverlay,
-                      onPopWithResult: (result) {
-                        final router = GoRouter.of(context);
-                        if (!router.canPop()) {
-                          return;
-                        }
-                        NavService.clearExitPrompt();
-                        router.pop(result);
-                      },
-                      child: Stack(
-                        children: <Widget>[
-                          Positioned.fill(child: navigationShell),
-                          if (showPlayer && isExpanded)
-                            Positioned.fill(
-                              child: NowPlayingScreen(
-                                wideEmbeddedMode: true,
-                                onShowQueue: onToggleQueue,
-                                onCollapse: onCollapsePlayer,
-                                onBackInterceptorChanged:
-                                    onNowPlayingBackInterceptorChanged,
-                              ),
-                            ),
-                          if (showPlayer && showQueueOverlay)
-                            Positioned.fill(
-                              child: _QueueOverlay(
-                                fullscreen: true,
-                                onDismiss: onDismissQueue,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                if (showPlayer && !isExpanded)
-                  _DesktopPlayerBar(
-                    playback: playback,
-                    songTitle: songTitle,
-                    songArtist: songArtist,
-                    coverArtId: coverArtId,
-                    coverArtUrl: coverArtUrl,
-                    onOpenPlayer: onOpenPlayer,
-                    onToggleQueue: onToggleQueue,
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _DesktopPlayerBar extends ConsumerWidget {
-  const _DesktopPlayerBar({
-    required this.playback,
-    required this.songTitle,
-    required this.songArtist,
-    required this.coverArtId,
-    required this.coverArtUrl,
-    required this.onOpenPlayer,
-    required this.onToggleQueue,
-  });
-
-  final PlaybackSnapshot playback;
-  final String? songTitle;
-  final String? songArtist;
-  final String? coverArtId;
-  final String? coverArtUrl;
-  final VoidCallback onOpenPlayer;
-  final VoidCallback onToggleQueue;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context)!;
-    final colors = Theme.of(context).colorScheme;
-    final isPlaying = playback.playing;
-    final title = (songTitle == null || songTitle!.trim().isEmpty)
-        ? l10n.miniPlayerUnknownTrack
-        : songTitle!;
-    final artist = (songArtist == null || songArtist!.trim().isEmpty)
-        ? l10n.miniPlayerUnknownArtist
-        : songArtist!;
-
-    return Material(
-      color: colors.surfaceContainerLow,
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          height: 84,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: <Widget>[
-                InkWell(
-                  borderRadius: BorderRadius.circular(10),
-                  onTap: onOpenPlayer,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 8,
-                    ),
-                    child: Row(
+              VerticalDivider(
+                width: 1,
+                thickness: 1,
+                color: colors.outlineVariant.withValues(alpha: 0.35),
+              ),
+              Expanded(
+                child: FocusTraversalOrder(
+                  order: const NumericFocusOrder(20),
+                  child: SafeArea(
+                    left: false,
+                    top: false,
+                    right: false,
+                    child: Column(
                       children: <Widget>[
-                        if (coverArtId == null || coverArtId!.trim().isEmpty)
-                          _MiniRemoteArt(
-                            artUrl: coverArtUrl,
-                            colorScheme: colors,
-                          )
-                        else
-                          CoverArtImage(
-                            coverArtId: coverArtId,
-                            size: 200,
-                            width: 52,
-                            height: 52,
-                            borderRadius: BorderRadius.circular(8),
+                        if (showOfflineBanner)
+                          Material(
+                            color: colors.errorContainer,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                              child: Row(
+                                children: <Widget>[
+                                  Icon(
+                                    Icons.cloud_off_outlined,
+                                    color: colors.onErrorContainer,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      offlineBannerText,
+                                      style: TextStyle(
+                                        color: colors.onErrorContainer,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
-                        const SizedBox(width: 12),
-                        ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 280),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: <Widget>[
-                              Text(
-                                title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodyMedium
-                                    ?.copyWith(fontWeight: FontWeight.w700),
-                              ),
-                              Text(
-                                artist,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(color: colors.onSurfaceVariant),
-                              ),
-                            ],
+                        Expanded(
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              final width = constraints.maxWidth;
+                              final horizontalInset =
+                                  switch (desktopLayoutClass) {
+                                    DesktopLayoutClass.compactDesktop => 12.0,
+                                    DesktopLayoutClass.standardDesktop =>
+                                      (width * 0.018).clamp(14.0, 30.0),
+                                    DesktopLayoutClass.ultraWideDesktop =>
+                                      (width * 0.022).clamp(18.0, 44.0),
+                                  };
+                              const verticalInset = 20.0;
+
+                              return NavigatorPopHandler<Object?>(
+                                enabled: !hasPlayerOverlay,
+                                onPopWithResult: (result) {
+                                  final router = GoRouter.of(context);
+                                  if (!router.canPop()) {
+                                    return;
+                                  }
+                                  NavService.clearExitPrompt();
+                                  router.pop(result);
+                                },
+                                child: Stack(
+                                  children: <Widget>[
+                                    Positioned.fill(
+                                      child: Padding(
+                                        padding: EdgeInsets.fromLTRB(
+                                          horizontalInset,
+                                          verticalInset,
+                                          horizontalInset,
+                                          verticalInset,
+                                        ),
+                                        child: Stack(
+                                          children: <Widget>[
+                                            Positioned.fill(
+                                              child: navigationShell,
+                                            ),
+                                            if (showLyricsOverlay)
+                                              Positioned.fill(
+                                                child: _DesktopLyricsOverlay(
+                                                  onClose: onToggleLyrics,
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    if (showPlayer && showQueueOverlay)
+                                      Positioned.fill(
+                                        child: FocusTraversalOrder(
+                                          order: const NumericFocusOrder(5),
+                                          child: _QueueOverlay(
+                                            key: queueOverlayKey,
+                                            fullscreen: false,
+                                            floatingWindow: true,
+                                            onDismiss: onDismissQueue,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              );
+                            },
                           ),
                         ),
                       ],
                     ),
                   ),
                 ),
-                const Spacer(),
-                IconButton(
-                  tooltip: l10n.nowPlayingPrevious,
-                  onPressed: playback.isRadioMode
-                      ? null
-                      : () {
-                          ref.read(audioHandlerProvider)?.skipToPrevious();
-                        },
-                  icon: const Icon(Icons.skip_previous_rounded),
-                ),
-                const SizedBox(width: 4),
-                FilledButton.tonalIcon(
-                  onPressed: () async {
+              ),
+            ],
+          ),
+        ),
+        if (showPlayer)
+          FocusTraversalOrder(
+            order: const NumericFocusOrder(30),
+            child: _DesktopPlayerBar(
+              playback: playback,
+              songTitle: songTitle,
+              songArtist: songArtist,
+              artistId: artistId,
+              albumId: albumId,
+              coverArtId: coverArtId,
+              coverArtUrl: playback.isRadioMode
+                  ? playback.radioStation?.nowPlayingArtUrl
+                  : coverArtUrl,
+              onOpenPlayer: onOpenPlayer,
+              onToggleQueue: onToggleQueue,
+              queueToggleFocusNode: queueToggleFocusNode,
+              lyricsActive: showLyricsOverlay,
+              onToggleLyrics: onToggleLyrics,
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _DesktopPlayerBar extends ConsumerStatefulWidget {
+  const _DesktopPlayerBar({
+    required this.playback,
+    required this.songTitle,
+    required this.songArtist,
+    required this.artistId,
+    required this.albumId,
+    required this.coverArtId,
+    required this.coverArtUrl,
+    required this.onOpenPlayer,
+    required this.onToggleQueue,
+    required this.queueToggleFocusNode,
+    required this.lyricsActive,
+    required this.onToggleLyrics,
+  });
+
+  final PlaybackSnapshot playback;
+  final String? songTitle;
+  final String? songArtist;
+  final String? artistId;
+  final String? albumId;
+  final String? coverArtId;
+  final String? coverArtUrl;
+  final VoidCallback onOpenPlayer;
+  final VoidCallback onToggleQueue;
+  final FocusNode queueToggleFocusNode;
+  final bool lyricsActive;
+  final VoidCallback onToggleLyrics;
+
+  @override
+  ConsumerState<_DesktopPlayerBar> createState() => _DesktopPlayerBarState();
+}
+
+class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
+  double? _dragSliderValue;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final colors = Theme.of(context).colorScheme;
+    final playback = widget.playback;
+    final playbackVolume = ref.watch(playbackVolumeProvider);
+    final isPlaying = playback.playing;
+    final title = (widget.songTitle == null || widget.songTitle!.trim().isEmpty)
+        ? l10n.miniPlayerUnknownTrack
+        : widget.songTitle!;
+    final artist =
+        (widget.songArtist == null || widget.songArtist!.trim().isEmpty)
+        ? l10n.miniPlayerUnknownArtist
+        : widget.songArtist!;
+    final resolvedArtistId = (widget.artistId ?? '').trim();
+    final canOpenArtist = resolvedArtistId.isNotEmpty && !playback.isRadioMode;
+
+    final livePosition = ref.watch(playbackPositionProvider).asData?.value;
+    final position = livePosition ?? playback.position;
+    final duration = playback.duration;
+    final durationMs = duration.inMilliseconds;
+    final canSeek = !playback.isRadioMode && durationMs > 0;
+    final sliderMax = canSeek ? durationMs.toDouble() : 1.0;
+    final positionMs = canSeek
+        ? position.inMilliseconds.clamp(0, durationMs).toDouble()
+        : 0.0;
+    final sliderValue = canSeek
+        ? ((_dragSliderValue ?? positionMs).clamp(0.0, sliderMax))
+        : 0.0;
+    final seekPreviewPosition = Duration(milliseconds: sliderValue.round());
+    final progress = duration.inMilliseconds > 0
+        ? (position.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0)
+        : 0.0;
+
+    final preferredMixMode = ref.watch(preferredMixModeProvider);
+    final instantMix = ref.watch(instantMixProvider);
+    final sameVibes = ref.watch(sameVibesProvider);
+    final mixActive = preferredMixMode == PreferredMixMode.legacyInstantMix
+        ? instantMix.active
+        : sameVibes.active;
+    final mixLoading = preferredMixMode == PreferredMixMode.legacyInstantMix
+        ? (instantMix.refilling && instantMix.active)
+        : (sameVibes.refilling && sameVibes.active);
+    final mixSeedSongId = playback.currentSongId;
+    final canToggleMix =
+        mixSeedSongId != null && mixSeedSongId.trim().isNotEmpty;
+
+    final repeatMode = playback.repeatMode;
+    String repeatTooltip;
+    IconData repeatIcon;
+    switch (repeatMode) {
+      case AudioServiceRepeatMode.one:
+        repeatTooltip = l10n.nowPlayingRepeatOne;
+        repeatIcon = Icons.repeat_one;
+      case AudioServiceRepeatMode.all:
+      case AudioServiceRepeatMode.group:
+        repeatTooltip = l10n.nowPlayingRepeatAll;
+        repeatIcon = Icons.repeat;
+      case AudioServiceRepeatMode.none:
+        repeatTooltip = l10n.nowPlayingRepeatOff;
+        repeatIcon = Icons.repeat;
+    }
+    final isRepeatActive = repeatMode != AudioServiceRepeatMode.none;
+    final barColor = Color.alphaBlend(
+      colors.primary.withValues(alpha: 0.024),
+      colors.surfaceContainerLow,
+    );
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(color: colors.outlineVariant.withValues(alpha: 0.55)),
+        ),
+      ),
+      child: Material(
+        key: const ValueKey<String>('desktopPlayerBar'),
+        color: barColor,
+        child: SafeArea(
+          top: false,
+          child: SizedBox(
+              height: 116,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final maxWidth = constraints.maxWidth;
+                  final compactLayout = maxWidth < 980;
+                  final showQueueAction = maxWidth >= 720;
+                  final showVolumeControl = maxWidth >= 860;
+                  final showInlineLikeAction =
+                      !playback.isRadioMode && maxWidth >= 760;
+                  final metadataWidth = compactLayout ? 292.0 : 352.0;
+                  final metadataTextWidth = compactLayout ? 156.0 : 208.0;
+                  const likeGapWidth = 8.0;
+                  const likeSlotWidth = 40.0;
+                  final controlRailMaxWidth = math
+                      .min(760, math.max(280, maxWidth * 0.58))
+                      .toDouble();
+                  final tightHeight = constraints.maxHeight <= 100;
+                  final denseControls = maxWidth <= 820 || tightHeight;
+                  final controlButtonExtent = tightHeight
+                      ? 36.0
+                      : (denseControls ? 40.0 : 44.0);
+                  final primaryControlExtent = tightHeight
+                      ? 44.0
+                      : (denseControls ? 48.0 : 54.0);
+                  final controlIconSize = tightHeight
+                      ? 20.0
+                      : (denseControls ? 22.0 : 24.0);
+                  final primaryIconSize = tightHeight
+                      ? 24.0
+                      : (denseControls ? 26.0 : 28.0);
+                  final verticalInset = tightHeight
+                      ? 4.0
+                      : (denseControls ? 6.0 : 8.0);
+                  final sliderBottomSpacing = tightHeight
+                      ? 1.0
+                      : (denseControls ? 4.0 : 6.0);
+                  final timeBottomSpacing = tightHeight
+                      ? 0.0
+                      : (denseControls ? 2.0 : 4.0);
+                  final sliderTrackHeight = tightHeight ? 2.5 : 3.0;
+                  final sliderThumbRadius = tightHeight ? 4.0 : 5.0;
+                  final sliderOverlayRadius = tightHeight ? 8.0 : 11.0;
+                  final sliderAreaHeight = tightHeight ? 28.0 : null;
+                  final controlsAreaHeight = tightHeight
+                      ? primaryControlExtent
+                      : null;
+                  final showTimeLabels = !tightHeight;
+                  final timeStyle = Theme.of(context).textTheme.labelSmall
+                      ?.copyWith(
+                        color: colors.onSurfaceVariant,
+                        fontSize: tightHeight ? 10 : null,
+                        height: tightHeight ? 1 : null,
+                      );
+
+                  Future<void> togglePlayPause() async {
                     final handler = ref.read(audioHandlerProvider);
                     if (handler == null) {
                       return;
@@ -1662,20 +2490,9 @@ class _DesktopPlayerBar extends ConsumerWidget {
                     } else {
                       await handler.play();
                     }
-                  },
-                  icon: Icon(
-                    isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                  ),
-                  label: Text(
-                    isPlaying ? l10n.miniPlayerPause : l10n.miniPlayerPlay,
-                  ),
-                ),
-                const SizedBox(width: 4),
-                IconButton(
-                  tooltip: playback.isRadioMode
-                      ? l10n.radioStopStation
-                      : l10n.miniPlayerSkipNext,
-                  onPressed: () async {
+                  }
+
+                  Future<void> skipForwardOrStopRadio() async {
                     final handler = ref.read(audioHandlerProvider);
                     if (handler == null) {
                       return;
@@ -1685,26 +2502,688 @@ class _DesktopPlayerBar extends ConsumerWidget {
                     } else {
                       await handler.skipToNext();
                     }
-                  },
-                  icon: Icon(
-                    playback.isRadioMode
-                        ? Icons.stop_rounded
-                        : Icons.skip_next_rounded,
-                  ),
-                ),
-                const SizedBox(width: 18),
-                IconButton(
-                  tooltip: l10n.queueTitle,
-                  onPressed: onToggleQueue,
-                  icon: const Icon(Icons.queue_music_outlined),
-                ),
-                IconButton(
-                  tooltip: l10n.nowPlayingTitle,
-                  onPressed: onOpenPlayer,
-                  icon: const Icon(Icons.open_in_full),
-                ),
-              ],
-            ),
+                  }
+
+                  void skipBackward() {
+                    if (playback.isRadioMode) {
+                      return;
+                    }
+                    unawaited(ref.read(audioHandlerProvider)?.skipToPrevious());
+                  }
+
+                  Future<void> setPlaybackVolume(
+                    double rawValue, {
+                    required String source,
+                    bool logChange = false,
+                  }) async {
+                    final volumeNotifier = ref.read(
+                      playbackVolumeProvider.notifier,
+                    );
+                    final volume = volumeNotifier.setVolume(rawValue);
+                    if (logChange) {
+                      AppLogger.debug(
+                        '[ACP_INPUT] volume source=$source value=${volume.toStringAsFixed(2)}',
+                      );
+                    }
+                    await ref.read(audioHandlerProvider)?.setVolume(volume);
+                  }
+
+                  Future<void> toggleMute({
+                    required String source,
+                  }) async {
+                    final volume = ref
+                        .read(playbackVolumeProvider.notifier)
+                        .toggleMute();
+                    AppLogger.debug(
+                      '[ACP_INPUT] volume source=$source value=${volume.toStringAsFixed(2)}',
+                    );
+                    await ref.read(audioHandlerProvider)?.setVolume(volume);
+                  }
+
+                  final resolvedAlbumId = (widget.albumId ?? '').trim();
+                  final canOpenAlbum =
+                      resolvedAlbumId.isNotEmpty && !playback.isRadioMode;
+
+                  Widget coverArtWidget;
+                  if (widget.coverArtId == null ||
+                      widget.coverArtId!.trim().isEmpty) {
+                    coverArtWidget = _MiniRemoteArt(
+                      artUrl: widget.coverArtUrl,
+                      colorScheme: colors,
+                      size: compactLayout ? 42 : 48,
+                    );
+                  } else {
+                    coverArtWidget = CoverArtImage(
+                      coverArtId: widget.coverArtId,
+                      size: 200,
+                      width: compactLayout ? 42 : 48,
+                      height: compactLayout ? 42 : 48,
+                      borderRadius: BorderRadius.circular(8),
+                    );
+                  }
+
+                  if (canOpenAlbum) {
+                    coverArtWidget = MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: GestureDetector(
+                        onTap: () => NavService.goToAlbum(
+                          context,
+                          ref,
+                          resolvedAlbumId,
+                        ),
+                        child: coverArtWidget,
+                      ),
+                    );
+                  } else if (playback.isRadioMode &&
+                      (widget.coverArtUrl ?? '').trim().isNotEmpty) {
+                    coverArtWidget = MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: GestureDetector(
+                        onTap: () => showRemoteArtViewer(
+                          context,
+                          artUrl: widget.coverArtUrl,
+                        ),
+                        child: coverArtWidget,
+                      ),
+                    );
+                  }
+
+                  final playerSurface = Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        compactLayout ? 10 : 14,
+                        verticalInset,
+                        compactLayout ? 8 : 12,
+                        verticalInset,
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: <Widget>[
+                          SizedBox(
+                            width: metadataWidth,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                                vertical: 4,
+                              ),
+                              child: Row(
+                                children: <Widget>[
+                                  coverArtWidget,
+                                  SizedBox(width: compactLayout ? 8 : 10),
+                                  SizedBox(
+                                    width: metadataTextWidth,
+                                    child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: <Widget>[
+                                        // Title — tappable for radio (search songs)
+                                        if (playback.isRadioMode &&
+                                            (widget.songTitle ?? '')
+                                                .trim()
+                                                .isNotEmpty)
+                                          MouseRegion(
+                                            cursor: SystemMouseCursors.click,
+                                            child: GestureDetector(
+                                              onTap: () {
+                                                ref
+                                                    .read(
+                                                      searchFilterProvider
+                                                          .notifier,
+                                                    )
+                                                    .select(
+                                                      SearchResultType.songs,
+                                                    );
+                                                NavService.goToSearch(
+                                                  context,
+                                                  ref,
+                                                  widget.songTitle!.trim(),
+                                                );
+                                              },
+                                              child: Text(
+                                                title,
+                                                maxLines: 1,
+                                                overflow:
+                                                    TextOverflow.ellipsis,
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .bodyMedium
+                                                    ?.copyWith(
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                    ),
+                                              ),
+                                            ),
+                                          )
+                                        else
+                                          Text(
+                                            title,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodyMedium
+                                                ?.copyWith(
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                          ),
+                                        if (canOpenArtist)
+                                          MouseRegion(
+                                            cursor: SystemMouseCursors.click,
+                                            child: TextButton(
+                                              style: TextButton.styleFrom(
+                                                padding: EdgeInsets.zero,
+                                                minimumSize: Size.zero,
+                                                tapTargetSize:
+                                                    MaterialTapTargetSize
+                                                        .shrinkWrap,
+                                                visualDensity:
+                                                    VisualDensity.compact,
+                                                alignment: Alignment.centerLeft,
+                                                foregroundColor: colors.primary,
+                                              ),
+                                              onPressed: () =>
+                                                  NavService.goToArtist(
+                                                    context,
+                                                    ref,
+                                                    resolvedArtistId,
+                                                  ),
+                                              child: Text(
+                                                artist,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .bodySmall
+                                                    ?.copyWith(
+                                                      color: colors.primary,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                    ),
+                                              ),
+                                            ),
+                                          )
+                                        else if (playback.isRadioMode &&
+                                            (widget.songArtist ?? '')
+                                                .trim()
+                                                .isNotEmpty)
+                                          Wrap(
+                                            spacing: 0,
+                                            runSpacing: 0,
+                                            children: [
+                                              for (final (i, name)
+                                                  in _splitArtists(
+                                                    widget.songArtist!,
+                                                  ).indexed) ...<Widget>[
+                                                if (i > 0)
+                                                  Text(
+                                                    ', ',
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .bodySmall
+                                                        ?.copyWith(
+                                                          color: colors
+                                                              .onSurfaceVariant,
+                                                        ),
+                                                  ),
+                                                MouseRegion(
+                                                  cursor:
+                                                      SystemMouseCursors.click,
+                                                  child: GestureDetector(
+                                                    onTap: () {
+                                                      ref
+                                                          .read(
+                                                            searchFilterProvider
+                                                                .notifier,
+                                                          )
+                                                          .select(
+                                                            SearchResultType
+                                                                .artists,
+                                                          );
+                                                      NavService.goToSearch(
+                                                        context,
+                                                        ref,
+                                                        name,
+                                                      );
+                                                    },
+                                                    child: Text(
+                                                      name,
+                                                      style: Theme.of(context)
+                                                          .textTheme
+                                                          .bodySmall
+                                                          ?.copyWith(
+                                                            color:
+                                                                colors.primary,
+                                                          ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ],
+                                          )
+                                        else
+                                          Text(
+                                            artist,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall
+                                                ?.copyWith(
+                                                  color:
+                                                      colors.onSurfaceVariant,
+                                                ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: likeGapWidth),
+                                  SizedBox(
+                                    width: likeSlotWidth,
+                                    child: showInlineLikeAction
+                                        ? IconButton(
+                                            tooltip: playback.isCurrentSongLiked
+                                                ? l10n.actionLiked
+                                                : l10n.actionLike,
+                                            visualDensity:
+                                                VisualDensity.compact,
+                                            style: IconButton.styleFrom(
+                                              minimumSize: const Size(38, 38),
+                                              padding: const EdgeInsets.all(4),
+                                            ),
+                                            onPressed: () {
+                                              unawaited(
+                                                ref
+                                                    .read(audioHandlerProvider)
+                                                    ?.toggleLike(),
+                                              );
+                                            },
+                                            icon: Icon(
+                                              playback.isCurrentSongLiked
+                                                  ? Icons.favorite
+                                                  : Icons.favorite_border,
+                                              color: playback.isCurrentSongLiked
+                                                  ? colors.primary
+                                                  : null,
+                                            ),
+                                          )
+                                        : const SizedBox.shrink(),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: Center(
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  maxWidth: controlRailMaxWidth,
+                                ),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: <Widget>[
+                                    if (!playback.isRadioMode)
+                                    Padding(
+                                      padding: EdgeInsets.only(
+                                        bottom: sliderBottomSpacing,
+                                      ),
+                                      child: SizedBox(
+                                        height: sliderAreaHeight,
+                                        child: canSeek
+                                            ? SliderTheme(
+                                                data: SliderTheme.of(context).copyWith(
+                                                  padding: EdgeInsets.zero,
+                                                  trackHeight:
+                                                      sliderTrackHeight,
+                                                  thumbShape:
+                                                      RoundSliderThumbShape(
+                                                        enabledThumbRadius:
+                                                            sliderThumbRadius,
+                                                      ),
+                                                  overlayShape:
+                                                      RoundSliderOverlayShape(
+                                                        overlayRadius:
+                                                            sliderOverlayRadius,
+                                                      ),
+                                                ),
+                                                child: Slider(
+                                                  value: sliderValue,
+                                                  max: sliderMax,
+                                                  onChangeStart: (value) {
+                                                    setState(() {
+                                                      _dragSliderValue = value;
+                                                    });
+                                                  },
+                                                  onChanged: (value) {
+                                                    setState(() {
+                                                      _dragSliderValue = value;
+                                                    });
+                                                  },
+                                                  onChangeEnd: (value) {
+                                                    setState(() {
+                                                      _dragSliderValue = null;
+                                                    });
+                                                    unawaited(
+                                                      ref
+                                                          .read(
+                                                            audioHandlerProvider,
+                                                          )
+                                                          ?.seek(
+                                                            Duration(
+                                                              milliseconds:
+                                                                  value.round(),
+                                                            ),
+                                                          ),
+                                                    );
+                                                  },
+                                                ),
+                                              )
+                                            : Align(
+                                                alignment: Alignment.center,
+                                                child: LinearProgressIndicator(
+                                                  value: playback.isRadioMode
+                                                      ? (playback.processingState ==
+                                                                    AudioProcessingState
+                                                                        .loading ||
+                                                                playback.processingState ==
+                                                                    AudioProcessingState
+                                                                        .buffering
+                                                            ? null
+                                                            : 0.0)
+                                                      : progress,
+                                                  minHeight: 3,
+                                                  color: colors.primary,
+                                                  backgroundColor: colors
+                                                      .primary
+                                                      .withValues(alpha: 0.12),
+                                                ),
+                                              ),
+                                      ),
+                                    ),
+                                    if (!playback.isRadioMode && showTimeLabels)
+                                      Padding(
+                                        padding: EdgeInsets.fromLTRB(
+                                          4,
+                                          0,
+                                          4,
+                                          timeBottomSpacing,
+                                        ),
+                                        child: Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: <Widget>[
+                                            Text(
+                                              _formatMiniPlayerDuration(
+                                                seekPreviewPosition,
+                                              ),
+                                              style: timeStyle,
+                                            ),
+                                            Text(
+                                              canSeek
+                                                  ? _formatMiniPlayerDuration(
+                                                      duration,
+                                                    )
+                                                  : '--:--',
+                                              style: timeStyle,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    SizedBox(
+                                      height: controlsAreaHeight,
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: <Widget>[
+                                          if (!playback.isRadioMode)
+                                          IconButton(
+                                            tooltip:
+                                                l10n.nowPlayingInstantMixLabel,
+                                            iconSize: controlIconSize,
+                                            style: IconButton.styleFrom(
+                                              minimumSize: Size.square(
+                                                controlButtonExtent,
+                                              ),
+                                              maximumSize: Size.square(
+                                                controlButtonExtent,
+                                              ),
+                                              shape: const CircleBorder(),
+                                              padding: EdgeInsets.zero,
+                                              tapTargetSize:
+                                                  MaterialTapTargetSize
+                                                      .shrinkWrap,
+                                            ),
+                                            onPressed:
+                                                !playback.isRadioMode &&
+                                                    canToggleMix
+                                                ? () => unawaited(
+                                                    togglePreferredMixMode(
+                                                      ref,
+                                                      seedSongId: mixSeedSongId,
+                                                    ),
+                                                  )
+                                                : null,
+                                            icon: mixLoading
+                                                ? SizedBox(
+                                                    width: 20,
+                                                    height: 20,
+                                                    child: CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                      color: mixActive
+                                                          ? colors.primary
+                                                          : colors
+                                                                .onSurfaceVariant,
+                                                    ),
+                                                  )
+                                                : Icon(
+                                                    mixActive
+                                                        ? Icons.explore
+                                                        : Icons
+                                                              .explore_outlined,
+                                                    color: mixActive
+                                                        ? colors.primary
+                                                        : null,
+                                                  ),
+                                          ),
+                                          if (!playback.isRadioMode)
+                                            IconButton(
+                                              tooltip: l10n.nowPlayingPrevious,
+                                              iconSize: controlIconSize,
+                                              style: IconButton.styleFrom(
+                                                minimumSize: Size.square(
+                                                  controlButtonExtent,
+                                                ),
+                                                maximumSize: Size.square(
+                                                  controlButtonExtent,
+                                                ),
+                                                shape: const CircleBorder(),
+                                                padding: EdgeInsets.zero,
+                                                tapTargetSize:
+                                                    MaterialTapTargetSize
+                                                        .shrinkWrap,
+                                              ),
+                                              onPressed: skipBackward,
+                                              icon: const Icon(
+                                                Icons.skip_previous_rounded,
+                                              ),
+                                            ),
+                                          IconButton.filledTonal(
+                                            tooltip: isPlaying
+                                                ? l10n.miniPlayerPause
+                                                : l10n.miniPlayerPlay,
+                                            style: IconButton.styleFrom(
+                                              minimumSize: Size.square(
+                                                primaryControlExtent,
+                                              ),
+                                              maximumSize: Size.square(
+                                                primaryControlExtent,
+                                              ),
+                                              shape: const CircleBorder(),
+                                              padding: EdgeInsets.zero,
+                                              tapTargetSize:
+                                                  MaterialTapTargetSize
+                                                      .shrinkWrap,
+                                            ),
+                                            onPressed: () =>
+                                                unawaited(togglePlayPause()),
+                                            icon: Icon(
+                                              isPlaying
+                                                  ? Icons.pause_rounded
+                                                  : Icons.play_arrow_rounded,
+                                              size: primaryIconSize,
+                                            ),
+                                          ),
+                                          IconButton(
+                                            tooltip: playback.isRadioMode
+                                                ? l10n.radioStopStation
+                                                : l10n.miniPlayerSkipNext,
+                                            iconSize: controlIconSize,
+                                            style: IconButton.styleFrom(
+                                              minimumSize: Size.square(
+                                                controlButtonExtent,
+                                              ),
+                                              maximumSize: Size.square(
+                                                controlButtonExtent,
+                                              ),
+                                              shape: const CircleBorder(),
+                                              padding: EdgeInsets.zero,
+                                              tapTargetSize:
+                                                  MaterialTapTargetSize
+                                                      .shrinkWrap,
+                                            ),
+                                            onPressed: () => unawaited(
+                                              skipForwardOrStopRadio(),
+                                            ),
+                                            icon: Icon(
+                                              playback.isRadioMode
+                                                  ? Icons.stop_rounded
+                                                  : Icons.skip_next_rounded,
+                                            ),
+                                          ),
+                                          if (!playback.isRadioMode)
+                                          IconButton(
+                                            tooltip: repeatTooltip,
+                                            iconSize: controlIconSize,
+                                            style: IconButton.styleFrom(
+                                              minimumSize: Size.square(
+                                                controlButtonExtent,
+                                              ),
+                                              maximumSize: Size.square(
+                                                controlButtonExtent,
+                                              ),
+                                              shape: const CircleBorder(),
+                                              padding: EdgeInsets.zero,
+                                              tapTargetSize:
+                                                  MaterialTapTargetSize
+                                                      .shrinkWrap,
+                                            ),
+                                            onPressed: playback.isRadioMode
+                                                ? null
+                                                : () {
+                                                    final handler = ref.read(
+                                                      audioHandlerProvider,
+                                                    );
+                                                    final next = switch (repeatMode) {
+                                                      AudioServiceRepeatMode
+                                                          .none =>
+                                                        AudioServiceRepeatMode
+                                                            .all,
+                                                      AudioServiceRepeatMode
+                                                          .all =>
+                                                        AudioServiceRepeatMode
+                                                            .one,
+                                                      AudioServiceRepeatMode
+                                                          .one =>
+                                                        AudioServiceRepeatMode
+                                                            .none,
+                                                      AudioServiceRepeatMode
+                                                          .group =>
+                                                        AudioServiceRepeatMode
+                                                            .none,
+                                                    };
+                                                    unawaited(
+                                                      handler?.setRepeatMode(
+                                                        next,
+                                                      ),
+                                                    );
+                                                  },
+                                            icon: Icon(
+                                              repeatIcon,
+                                              color: isRepeatActive
+                                                  ? colors.primary
+                                                  : null,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          SizedBox(
+                            width: showVolumeControl ? 344 : 152,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: <Widget>[
+                                if (!playback.isRadioMode)
+                                  IconButton(
+                                    tooltip: l10n.nowPlayingLyrics,
+                                    icon: Icon(
+                                      Icons.lyrics_outlined,
+                                      color: widget.lyricsActive
+                                          ? colors.primary
+                                          : null,
+                                    ),
+                                    onPressed: widget.onToggleLyrics,
+                                  ),
+                                if (showVolumeControl) ...<Widget>[
+                                  DesktopVolumeSlider(
+                                    key: const ValueKey<String>(
+                                      'desktopPlayerVolumeSlider',
+                                    ),
+                                    volume: playbackVolume,
+                                    onChanged: (value) => unawaited(
+                                      setPlaybackVolume(
+                                        value,
+                                        source: 'desktop_player_bar_live',
+                                      ),
+                                    ),
+                                    onChangeEnd: (value) => unawaited(
+                                      setPlaybackVolume(
+                                        value,
+                                        source: 'desktop_player_bar_settle',
+                                        logChange: true,
+                                      ),
+                                    ),
+                                    onMuteToggle: () => unawaited(
+                                      toggleMute(source: 'desktop_player_icon'),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                ],
+                                if (showQueueAction && !playback.isRadioMode)
+                                  IconButton(
+                                    key: const ValueKey<String>(
+                                      'desktopQueueButton',
+                                    ),
+                                    focusNode: widget.queueToggleFocusNode,
+                                    tooltip: l10n.queueTitle,
+                                    onPressed: widget.onToggleQueue,
+                                    icon: const Icon(
+                                      Icons.queue_music_outlined,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                  );
+
+                  return playerSurface;
+                },
+              ),
           ),
         ),
       ),
@@ -1714,12 +3193,15 @@ class _DesktopPlayerBar extends ConsumerWidget {
 
 class _QueueOverlay extends StatefulWidget {
   const _QueueOverlay({
+    super.key,
     required this.onDismiss,
     this.fullscreen = false,
+    this.floatingWindow = false,
   });
 
   final VoidCallback onDismiss;
   final bool fullscreen;
+  final bool floatingWindow;
 
   @override
   State<_QueueOverlay> createState() => _QueueOverlayState();
@@ -1728,6 +3210,7 @@ class _QueueOverlay extends StatefulWidget {
 class _QueueOverlayState extends State<_QueueOverlay>
     with SingleTickerProviderStateMixin {
   static const double _sheetHeightFactor = 0.95;
+  static const Duration _openDuration = Duration(milliseconds: 230);
   static const Duration _closeDuration = Duration(milliseconds: 220);
   static const double _flingVelocityThreshold = 300;
   static const double _scrollDismissDistance = 96;
@@ -1760,11 +3243,10 @@ class _QueueOverlayState extends State<_QueueOverlay>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 220),
+      duration: _openDuration,
       reverseDuration: _closeDuration,
     );
-    // Open with a spring fling — matches the player sheet's feel.
-    _controller.fling(velocity: 2.5);
+    _controller.animateTo(1, curve: Curves.easeOutCubic);
   }
 
   @override
@@ -1779,8 +3261,14 @@ class _QueueOverlayState extends State<_QueueOverlay>
     if (_dismissing) return;
     _scrollPullSettleTimer?.cancel();
     _dismissing = true;
-    _controller.fling(velocity: -2.5).whenComplete(widget.onDismiss);
+    _controller
+        .animateBack(0, duration: _closeDuration, curve: Curves.easeInCubic)
+        .whenComplete(widget.onDismiss);
   }
+
+  void dismissAnimated() => _dismiss();
+
+  bool get isDismissing => _dismissing;
 
   void _setDraggingSheet(bool value) {
     if (_draggingSheet == value || !mounted) {
@@ -1950,7 +3438,11 @@ class _QueueOverlayState extends State<_QueueOverlay>
       animation: _controller,
       builder: (context, _) {
         final progress = _controller.value;
-        final heightFactor = widget.fullscreen ? 1.0 : _sheetHeightFactor;
+        final scrimOpacity = Curves.easeOutCubic.transform(progress) * 0.45;
+        final useFloatingWindow = widget.floatingWindow && !widget.fullscreen;
+        final heightFactor = widget.fullscreen
+            ? 1.0
+            : (useFloatingWindow ? 0.72 : _sheetHeightFactor);
 
         final queueContent = widget.fullscreen
             ? Material(
@@ -1969,48 +3461,97 @@ class _QueueOverlayState extends State<_QueueOverlay>
                 sheetDragActive: _draggingSheet,
                 onReorderDragChanged: _setQueueReorderActive,
                 onClose: _dismiss,
+                embeddedMode: useFloatingWindow,
               );
 
-        return Stack(
-          children: <Widget>[
-            if (!widget.fullscreen)
-              // Scrim — fades in/out with the sheet; tap to dismiss.
-              Positioned.fill(
-                child: IgnorePointer(
-                  ignoring: progress < 0.01,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: _dismiss,
-                    child: ColoredBox(
-                      color: Colors.black.withValues(alpha: progress * 0.45),
-                    ),
-                  ),
-                ),
-              ),
-            // Sheet — slides up from the bottom with 1:1 finger tracking.
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: FractionallySizedBox(
-                heightFactor: heightFactor,
-                widthFactor: 1,
-                child: FractionalTranslation(
-                  translation: Offset(0, 1 - progress),
+        final queueSurface = useFloatingWindow
+            ? Material(
+                color: Theme.of(context).colorScheme.surface,
+                elevation: 14,
+                borderRadius: BorderRadius.circular(18),
+                clipBehavior: Clip.antiAlias,
+                child: queueContent,
+              )
+            : queueContent;
+
+        return FocusScope(
+          autofocus: true,
+          child: Stack(
+            children: <Widget>[
+              if (!widget.fullscreen)
+                Positioned.fill(
                   child: IgnorePointer(
-                    ignoring: _dismissing,
-                    child: Listener(
-                      behavior: HitTestBehavior.translucent,
-                      onPointerDown: _onPointerDown,
-                      onPointerMove: _onPointerMove,
-                      onPointerUp: _onPointerUp,
-                      onPointerCancel: _onPointerCancel,
-                      onPointerSignal: _onPointerSignal,
-                      child: queueContent,
+                    ignoring: progress < 0.01,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: _dismiss,
+                      child: ColoredBox(
+                        color: Colors.black.withValues(alpha: scrimOpacity),
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ),
-          ],
+              // Sheet — slides up from the bottom with 1:1 finger tracking.
+              if (useFloatingWindow)
+                Align(
+                  alignment: Alignment.bottomRight,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minWidth: 320,
+                        maxWidth: math.min(
+                          560,
+                          MediaQuery.sizeOf(context).width * 0.46,
+                        ),
+                      ),
+                      child: FractionallySizedBox(
+                        heightFactor: heightFactor,
+                        widthFactor: 1,
+                        child: FractionalTranslation(
+                          translation: Offset(0, 1 - progress),
+                          child: IgnorePointer(
+                            ignoring: _dismissing,
+                            child: Listener(
+                              behavior: HitTestBehavior.translucent,
+                              onPointerDown: _onPointerDown,
+                              onPointerMove: _onPointerMove,
+                              onPointerUp: _onPointerUp,
+                              onPointerCancel: _onPointerCancel,
+                              onPointerSignal: _onPointerSignal,
+                              child: queueSurface,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                )
+              else
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: FractionallySizedBox(
+                    heightFactor: heightFactor,
+                    widthFactor: 1,
+                    child: FractionalTranslation(
+                      translation: Offset(0, 1 - progress),
+                      child: IgnorePointer(
+                        ignoring: _dismissing,
+                        child: Listener(
+                          behavior: HitTestBehavior.translucent,
+                          onPointerDown: _onPointerDown,
+                          onPointerMove: _onPointerMove,
+                          onPointerUp: _onPointerUp,
+                          onPointerCancel: _onPointerCancel,
+                          onPointerSignal: _onPointerSignal,
+                          child: queueSurface,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         );
       },
     );
@@ -2098,6 +3639,7 @@ class _RailSidebar extends ConsumerWidget {
     required this.onOpenPlayer,
     this.songTitle,
     this.songArtist,
+    this.artistId,
     this.coverArtId,
     this.coverArtUrl,
     this.isRadio = false,
@@ -2119,6 +3661,7 @@ class _RailSidebar extends ConsumerWidget {
   final PlaybackSnapshot playback;
   final String? songTitle;
   final String? songArtist;
+  final String? artistId;
   final String? coverArtId;
   final String? coverArtUrl;
   final bool isRadio;
@@ -2254,6 +3797,7 @@ class _RailSidebar extends ConsumerWidget {
                         playback: playback,
                         songTitle: songTitle,
                         songArtist: songArtist,
+                        artistId: artistId,
                         coverArtId: coverArtId,
                         coverArtUrl: coverArtUrl,
                         isRadio: isRadio,
@@ -2407,6 +3951,7 @@ class _RailMiniPlayer extends ConsumerStatefulWidget {
     required this.onOpenPlayer,
     this.songTitle,
     this.songArtist,
+    this.artistId,
     this.coverArtId,
     this.coverArtUrl,
     this.isRadio = false,
@@ -2417,6 +3962,7 @@ class _RailMiniPlayer extends ConsumerStatefulWidget {
   final VoidCallback onOpenPlayer;
   final String? songTitle;
   final String? songArtist;
+  final String? artistId;
   final String? coverArtId;
   final String? coverArtUrl;
   final bool isRadio;
@@ -2452,301 +3998,355 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
     final progress = duration.inMilliseconds > 0
         ? (position.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0)
         : 0.0;
+    final artistDisplay =
+        (widget.songArtist == null || widget.songArtist!.trim().isEmpty)
+        ? l10n.miniPlayerUnknownArtist
+        : widget.songArtist!;
+    final resolvedArtistId = (widget.artistId ?? '').trim();
+    final canNavigateArtist = resolvedArtistId.isNotEmpty && !widget.isRadio;
     const compactButtonConstraints = BoxConstraints(
       minWidth: 46,
       minHeight: 46,
     );
 
-    final fullMiniPlayer = Align(
-      alignment: Alignment.bottomCenter,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(6, 12, 6, 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            Material(
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(20),
-              clipBehavior: Clip.antiAlias,
-              child: InkWell(
-                onTap: widget.onOpenPlayer,
+    final fullMiniPlayer = KeyedSubtree(
+      key: const ValueKey<String>('railMiniPlayer'),
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(6, 12, 6, 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              Material(
+                color: Colors.transparent,
                 borderRadius: BorderRadius.circular(20),
-                child: Stack(
-                  children: <Widget>[
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(10, 12, 10, 8),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          Row(
-                            children: <Widget>[
-                              if (widget.isRadio)
-                                _MiniRadioArt(
-                                  artUrl: widget.radioArtUrl,
-                                  colorScheme: cs,
-                                  size: 44,
-                                )
-                              else if (widget.coverArtId == null ||
-                                  widget.coverArtId!.trim().isEmpty)
-                                _MiniRemoteArt(
-                                  artUrl: widget.coverArtUrl,
-                                  colorScheme: cs,
-                                  size: 44,
-                                )
-                              else
-                                CoverArtImage(
-                                  coverArtId: widget.coverArtId,
-                                  size: 300,
-                                  width: 44,
-                                  height: 44,
-                                  borderRadius: BorderRadius.circular(9),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: widget.onOpenPlayer,
+                  borderRadius: BorderRadius.circular(20),
+                  child: Stack(
+                    children: <Widget>[
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(10, 12, 10, 8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            Row(
+                              children: <Widget>[
+                                if (widget.isRadio)
+                                  _MiniRadioArt(
+                                    artUrl: widget.radioArtUrl,
+                                    colorScheme: cs,
+                                    size: 44,
+                                  )
+                                else if (widget.coverArtId == null ||
+                                    widget.coverArtId!.trim().isEmpty)
+                                  _MiniRemoteArt(
+                                    artUrl: widget.coverArtUrl,
+                                    colorScheme: cs,
+                                    size: 44,
+                                  )
+                                else
+                                  CoverArtImage(
+                                    coverArtId: widget.coverArtId,
+                                    size: 300,
+                                    width: 44,
+                                    height: 44,
+                                    borderRadius: BorderRadius.circular(9),
+                                  ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: <Widget>[
+                                      Text(
+                                        (widget.songTitle == null ||
+                                                widget.songTitle!
+                                                    .trim()
+                                                    .isEmpty)
+                                            ? l10n.miniPlayerUnknownTrack
+                                            : widget.songTitle!,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        softWrap: false,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyMedium
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 17,
+                                              height: 1.15,
+                                            ),
+                                      ),
+                                      const SizedBox(height: 1),
+                                      canNavigateArtist
+                                          ? GestureDetector(
+                                              behavior:
+                                                  HitTestBehavior.opaque,
+                                              onTap: () =>
+                                                  NavService.goToArtist(
+                                                    context,
+                                                    ref,
+                                                    resolvedArtistId,
+                                                  ),
+                                              child: MouseRegion(
+                                                cursor:
+                                                    SystemMouseCursors.click,
+                                                child: Text(
+                                                  artistDisplay,
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .bodySmall
+                                                      ?.copyWith(
+                                                        fontSize: 12,
+                                                        color: cs.primary,
+                                                        fontWeight:
+                                                            FontWeight.w500,
+                                                      ),
+                                                ),
+                                              ),
+                                            )
+                                          : Text(
+                                              artistDisplay,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodySmall
+                                                  ?.copyWith(
+                                                    fontSize: 12,
+                                                    color: cs.onSurfaceVariant,
+                                                  ),
+                                            ),
+                                    ],
+                                  ),
                                 ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: <Widget>[
-                                    Text(
-                                      (widget.songTitle == null ||
-                                              widget.songTitle!.trim().isEmpty)
-                                          ? l10n.miniPlayerUnknownTrack
-                                          : widget.songTitle!,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      softWrap: false,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodyMedium
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.w700,
-                                            fontSize: 17,
-                                            height: 1.15,
-                                          ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            LayoutBuilder(
+                              builder: (context, controlsConstraints) {
+                                final ultraCompact =
+                                    controlsConstraints.maxWidth < 150;
+                                final controls = <Widget>[
+                                  IconButton(
+                                    tooltip: l10n.nowPlayingPrevious,
+                                    constraints: compactButtonConstraints,
+                                    padding: EdgeInsets.zero,
+                                    iconSize: 24,
+                                    visualDensity: VisualDensity.compact,
+                                    onPressed: widget.isRadio
+                                        ? null
+                                        : () {
+                                            unawaited(
+                                              HapticFeedback.lightImpact(),
+                                            );
+                                            unawaited(
+                                              ref
+                                                  .read(audioHandlerProvider)
+                                                  ?.skipToPrevious(),
+                                            );
+                                          },
+                                    icon: const Icon(
+                                      Icons.skip_previous_rounded,
                                     ),
-                                    const SizedBox(height: 1),
-                                    Text(
-                                      (widget.songArtist == null ||
-                                              widget.songArtist!.trim().isEmpty)
-                                          ? l10n.miniPlayerUnknownArtist
-                                          : widget.songArtist!,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodySmall
-                                          ?.copyWith(
-                                            fontSize: 12,
-                                            color: cs.onSurfaceVariant,
-                                          ),
+                                  ),
+                                  IconButton(
+                                    tooltip: isPlaying
+                                        ? l10n.miniPlayerPause
+                                        : l10n.miniPlayerPlay,
+                                    constraints: compactButtonConstraints,
+                                    style: IconButton.styleFrom(
+                                      backgroundColor: cs.primaryContainer,
+                                      foregroundColor: cs.onPrimaryContainer,
+                                      padding: EdgeInsets.zero,
+                                      minimumSize: const Size(46, 46),
+                                      tapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                      visualDensity: VisualDensity.compact,
                                     ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceAround,
-                            children: <Widget>[
-                              IconButton(
-                                tooltip: l10n.nowPlayingPrevious,
-                                constraints: compactButtonConstraints,
-                                padding: EdgeInsets.zero,
-                                iconSize: 24,
-                                visualDensity: VisualDensity.compact,
-                                onPressed: widget.isRadio
-                                    ? null
-                                    : () {
-                                        unawaited(
-                                          HapticFeedback.lightImpact(),
-                                        );
-                                        unawaited(
-                                          ref
-                                              .read(audioHandlerProvider)
-                                              ?.skipToPrevious(),
-                                        );
-                                      },
-                                icon: const Icon(Icons.skip_previous_rounded),
-                              ),
-                              IconButton(
-                                tooltip: isPlaying
-                                    ? l10n.miniPlayerPause
-                                    : l10n.miniPlayerPlay,
-                                constraints: compactButtonConstraints,
-                                style: IconButton.styleFrom(
-                                  backgroundColor: cs.primaryContainer,
-                                  foregroundColor: cs.onPrimaryContainer,
-                                  padding: EdgeInsets.zero,
-                                  minimumSize: const Size(46, 46),
-                                  tapTargetSize:
-                                      MaterialTapTargetSize.shrinkWrap,
-                                  visualDensity: VisualDensity.compact,
-                                ),
-                                onPressed: () async {
-                                  final handler = ref.read(
-                                    audioHandlerProvider,
-                                  );
-                                  if (handler == null) {
-                                    return;
-                                  }
-                                  if (isPlaying) {
-                                    await handler.pause();
-                                  } else {
-                                    await handler.play();
-                                  }
-                                },
-                                icon: Icon(
-                                  isPlaying
-                                      ? Icons.pause_rounded
-                                      : Icons.play_arrow_rounded,
-                                ),
-                              ),
-                              IconButton(
-                                tooltip: widget.isRadio
-                                    ? l10n.radioStopStation
-                                    : l10n.miniPlayerSkipNext,
-                                constraints: compactButtonConstraints,
-                                padding: EdgeInsets.zero,
-                                iconSize: 24,
-                                visualDensity: VisualDensity.compact,
-                                onPressed: () async {
-                                  final handler = ref.read(
-                                    audioHandlerProvider,
-                                  );
-                                  if (handler == null) {
-                                    return;
-                                  }
-                                  unawaited(HapticFeedback.lightImpact());
-                                  if (widget.isRadio) {
-                                    await handler.stopRadio();
-                                  } else {
-                                    unawaited(handler.skipToNext());
-                                  }
-                                },
-                                icon: Icon(
-                                  widget.isRadio
-                                      ? Icons.stop_rounded
-                                      : Icons.skip_next_rounded,
-                                ),
-                              ),
-                              IconButton(
-                                tooltip: playback.isCurrentSongLiked
-                                    ? l10n.actionLiked
-                                    : l10n.actionLike,
-                                constraints: compactButtonConstraints,
-                                padding: EdgeInsets.zero,
-                                iconSize: 24,
-                                visualDensity: VisualDensity.compact,
-                                onPressed: widget.isRadio
-                                    ? null
-                                    : () {
-                                        unawaited(
-                                          HapticFeedback.lightImpact(),
-                                        );
-                                        unawaited(
-                                          ref
-                                              .read(audioHandlerProvider)
-                                              ?.toggleLike(),
-                                        );
-                                      },
-                                icon: Icon(
-                                  playback.isCurrentSongLiked
-                                      ? Icons.favorite
-                                      : Icons.favorite_border,
-                                  color: playback.isCurrentSongLiked
-                                      ? cs.primary
-                                      : null,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
+                                    onPressed: () async {
+                                      final handler = ref.read(
+                                        audioHandlerProvider,
+                                      );
+                                      if (handler == null) {
+                                        return;
+                                      }
+                                      if (isPlaying) {
+                                        await handler.pause();
+                                      } else {
+                                        await handler.play();
+                                      }
+                                    },
+                                    icon: Icon(
+                                      isPlaying
+                                          ? Icons.pause_rounded
+                                          : Icons.play_arrow_rounded,
+                                    ),
+                                  ),
+                                  IconButton(
+                                    tooltip: widget.isRadio
+                                        ? l10n.radioStopStation
+                                        : l10n.miniPlayerSkipNext,
+                                    constraints: compactButtonConstraints,
+                                    padding: EdgeInsets.zero,
+                                    iconSize: 24,
+                                    visualDensity: VisualDensity.compact,
+                                    onPressed: () async {
+                                      final handler = ref.read(
+                                        audioHandlerProvider,
+                                      );
+                                      if (handler == null) {
+                                        return;
+                                      }
+                                      unawaited(HapticFeedback.lightImpact());
+                                      if (widget.isRadio) {
+                                        await handler.stopRadio();
+                                      } else {
+                                        unawaited(handler.skipToNext());
+                                      }
+                                    },
+                                    icon: Icon(
+                                      widget.isRadio
+                                          ? Icons.stop_rounded
+                                          : Icons.skip_next_rounded,
+                                    ),
+                                  ),
+                                  if (!ultraCompact)
+                                    IconButton(
+                                      tooltip: playback.isCurrentSongLiked
+                                          ? l10n.actionLiked
+                                          : l10n.actionLike,
+                                      constraints: compactButtonConstraints,
+                                      padding: EdgeInsets.zero,
+                                      iconSize: 24,
+                                      visualDensity: VisualDensity.compact,
+                                      onPressed: widget.isRadio
+                                          ? null
+                                          : () {
+                                              unawaited(
+                                                HapticFeedback.lightImpact(),
+                                              );
+                                              unawaited(
+                                                ref
+                                                    .read(audioHandlerProvider)
+                                                    ?.toggleLike(),
+                                              );
+                                            },
+                                      icon: Icon(
+                                        playback.isCurrentSongLiked
+                                            ? Icons.favorite
+                                            : Icons.favorite_border,
+                                        color: playback.isCurrentSongLiked
+                                            ? cs.primary
+                                            : null,
+                                      ),
+                                    ),
+                                ];
+                                return SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: controls,
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    Positioned.fill(
-                      child: IgnorePointer(
-                        child: AnimatedOpacity(
-                          duration: const Duration(milliseconds: 120),
-                          curve: Curves.easeOut,
-                          opacity: _isSeeking && canSeek ? 1 : 0,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(20),
-                            child: BackdropFilter(
-                              filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                              child: Container(
-                                color: cs.surface.withValues(alpha: 0.24),
-                                alignment: Alignment.center,
-                                child: Text(
-                                  '${_formatMiniPlayerDuration(seekPreviewPosition)} / '
-                                  '${_formatMiniPlayerDuration(duration)}',
-                                  style: Theme.of(context).textTheme.titleMedium
-                                      ?.copyWith(fontWeight: FontWeight.w700),
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: AnimatedOpacity(
+                            duration: const Duration(milliseconds: 120),
+                            curve: Curves.easeOut,
+                            opacity: _isSeeking && canSeek ? 1 : 0,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(20),
+                              child: BackdropFilter(
+                                filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                                child: Container(
+                                  color: cs.surface.withValues(alpha: 0.24),
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    '${_formatMiniPlayerDuration(seekPreviewPosition)} / '
+                                    '${_formatMiniPlayerDuration(duration)}',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(fontWeight: FontWeight.w700),
+                                  ),
                                 ),
                               ),
                             ),
                           ),
                         ),
                       ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              if (canSeek)
+                SliderTheme(
+                  data: SliderTheme.of(context).copyWith(
+                    trackHeight: 3,
+                    thumbShape: const RoundSliderThumbShape(
+                      enabledThumbRadius: 6,
                     ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 6),
-            if (canSeek)
-              SliderTheme(
-                data: SliderTheme.of(context).copyWith(
-                  trackHeight: 3,
-                  thumbShape: const RoundSliderThumbShape(
-                    enabledThumbRadius: 6,
+                    overlayShape: const RoundSliderOverlayShape(
+                      overlayRadius: 12,
+                    ),
                   ),
-                  overlayShape: const RoundSliderOverlayShape(
-                    overlayRadius: 12,
+                  child: Slider(
+                    value: sliderValue,
+                    max: sliderMax,
+                    onChangeStart: (value) {
+                      setState(() {
+                        _isSeeking = true;
+                        _dragSliderValue = value;
+                      });
+                    },
+                    onChanged: (value) {
+                      setState(() => _dragSliderValue = value);
+                    },
+                    onChangeEnd: (value) {
+                      setState(() {
+                        _isSeeking = false;
+                        _dragSliderValue = null;
+                      });
+                      unawaited(
+                        ref
+                            .read(audioHandlerProvider)
+                            ?.seek(Duration(milliseconds: value.round())),
+                      );
+                    },
                   ),
+                )
+              else
+                LinearProgressIndicator(
+                  value: widget.isRadio
+                      ? (playback.processingState ==
+                                    AudioProcessingState.loading ||
+                                playback.processingState ==
+                                    AudioProcessingState.buffering
+                            ? null
+                            : 0.0)
+                      : progress,
+                  minHeight: 3,
+                  color: cs.primary,
+                  backgroundColor: cs.primary.withValues(alpha: 0.12),
                 ),
-                child: Slider(
-                  value: sliderValue,
-                  max: sliderMax,
-                  onChangeStart: (value) {
-                    setState(() {
-                      _isSeeking = true;
-                      _dragSliderValue = value;
-                    });
-                  },
-                  onChanged: (value) {
-                    setState(() => _dragSliderValue = value);
-                  },
-                  onChangeEnd: (value) {
-                    setState(() {
-                      _isSeeking = false;
-                      _dragSliderValue = null;
-                    });
-                    unawaited(
-                      ref
-                          .read(audioHandlerProvider)
-                          ?.seek(Duration(milliseconds: value.round())),
-                    );
-                  },
-                ),
-              )
-            else
-              LinearProgressIndicator(
-                value: widget.isRadio
-                    ? (playback.processingState ==
-                                  AudioProcessingState.loading ||
-                              playback.processingState ==
-                                  AudioProcessingState.buffering
-                          ? null
-                          : 0.0)
-                    : progress,
-                minHeight: 3,
-                color: cs.primary,
-                backgroundColor: cs.primary.withValues(alpha: 0.12),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -3369,6 +4969,213 @@ class _MiniRemoteArt extends StatelessWidget {
         size: size * 0.5,
         color: colorScheme.onSecondaryContainer,
       ),
+    );
+  }
+}
+
+/// Fullscreen lyrics overlay shown inside the desktop content area (excluding
+/// the sidebar and the bottom player bar).
+class _DesktopLyricsOverlay extends ConsumerWidget {
+  const _DesktopLyricsOverlay({required this.onClose});
+
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final colors = Theme.of(context).colorScheme;
+    final playback = ref.watch(playerStateProvider);
+    final songId = playback.currentSongId;
+    final position =
+        ref.watch(playbackPositionProvider).asData?.value ?? playback.position;
+
+    return Material(
+      color: colors.surface,
+      child: Column(
+        children: <Widget>[
+          // ── Header bar ──────────────────────────────────────────────
+          DecoratedBox(
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: colors.outlineVariant.withValues(alpha: 0.4),
+                ),
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 10, 8, 10),
+              child: Row(
+                children: <Widget>[
+                  Icon(Icons.lyrics_outlined, color: colors.primary, size: 20),
+                  const SizedBox(width: 10),
+                  Text(
+                    l10n.nowPlayingLyrics,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    tooltip:
+                        MaterialLocalizations.of(context).closeButtonTooltip,
+                    icon: const Icon(Icons.close),
+                    onPressed: onClose,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // ── Lyrics content ──────────────────────────────────────────
+          Expanded(
+            child: songId == null || songId.trim().isEmpty
+                ? Center(
+                    child: Text(
+                      l10n.lyricsNoneAvailable,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: colors.onSurface.withValues(alpha: 0.6),
+                      ),
+                    ),
+                  )
+                : _DesktopLyricsContent(songId: songId, position: position),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DesktopLyricsContent extends ConsumerWidget {
+  const _DesktopLyricsContent({
+    required this.songId,
+    required this.position,
+  });
+
+  final String songId;
+  final Duration position;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final colors = Theme.of(context).colorScheme;
+    final lyricsAsync = ref.watch(lyricsProvider(songId));
+
+    return lyricsAsync.when(
+      data: (resolution) => LyricsDisplayWidget(
+        lyrics: resolution.lyrics,
+        currentPosition: position,
+        onSeek: (seekPosition) {
+          unawaited(ref.read(audioHandlerProvider)?.seek(seekPosition));
+        },
+      ),
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, _) {
+        final message = l10n.lyricsNoneAvailable;
+        return Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Text(
+                message,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: colors.onSurface.withValues(alpha: 0.6),
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              TextButton.icon(
+                onPressed: () => ref.invalidate(lyricsProvider(songId)),
+                icon: const Icon(Icons.refresh),
+                label: Text(l10n.commonRetry),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Animates the bottom player sheet in/out with a slide-from-bottom transition.
+///
+/// When [showPlayer] transitions to `true`, the child slides up from below
+/// the viewport. When it transitions to `false`, the child slides back down
+/// and is then removed from the tree.
+class _SlideUpPlayerTransition extends StatefulWidget {
+  const _SlideUpPlayerTransition({
+    required this.showPlayer,
+    required this.child,
+  });
+
+  final bool showPlayer;
+  final Widget child;
+
+  @override
+  State<_SlideUpPlayerTransition> createState() =>
+      _SlideUpPlayerTransitionState();
+}
+
+class _SlideUpPlayerTransitionState extends State<_SlideUpPlayerTransition>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<Offset> _slideAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 260),
+      reverseDuration: const Duration(milliseconds: 220),
+      vsync: this,
+    );
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 1),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
+    );
+    if (widget.showPlayer) {
+      _controller.value = 1.0;
+    }
+  }
+
+  @override
+  void didUpdateWidget(_SlideUpPlayerTransition oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.showPlayer != oldWidget.showPlayer) {
+      if (widget.showPlayer) {
+        _controller.forward();
+      } else {
+        _controller.reverse();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        if (_controller.isDismissed) {
+          return const SizedBox.shrink();
+        }
+        return Positioned.fill(
+          left: 0,
+          child: IgnorePointer(
+            ignoring: !widget.showPlayer,
+            child: SlideTransition(
+              position: _slideAnimation,
+              child: child,
+            ),
+          ),
+        );
+      },
+      child: widget.child,
     );
   }
 }

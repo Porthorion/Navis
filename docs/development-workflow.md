@@ -42,7 +42,6 @@ Checks performed:
 - Dart formatting (`dart format --set-exit-if-changed .`)
 - code generation (`build_runner`)
 - static analysis (`flutter analyze`)
-- lint rules (`custom_lint`)
 - tests (`flutter test`)
 
 The script fails fast when `/tmp` is critically low to avoid misleading test hangs.

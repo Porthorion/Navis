@@ -126,3 +126,17 @@ if(NOT CMAKE_BUILD_TYPE MATCHES "Debug")
   install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
     COMPONENT Runtime)
 endif()
+
+# App icon — installed into the XDG icon theme hierarchy so both GTK and
+# Wayland compositors can find it via icon name "navis".
+install(FILES "${PROJECT_SOURCE_DIR}/../lib/src/icon/Navis_Icon_dark.png"
+  DESTINATION "${INSTALL_BUNDLE_DATA_DIR}/icons/hicolor/256x256/apps"
+  RENAME "navis.png"
+  COMPONENT Runtime)
+
+# Desktop file — bundled alongside the app so .deb post-install scripts
+# and the portable tar.gz setup helper can install it without unpacking
+# the Flutter assets archive.
+install(FILES "${PROJECT_SOURCE_DIR}/packaging/com.navis.app.navis.desktop"
+  DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
+  COMPONENT Runtime)

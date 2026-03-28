@@ -1,6 +1,9 @@
+import 'dart:io';
+
 import 'package:dio/dio.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import 'package:navis/src/features/settings/data/update_install_mode.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/utils/constants.dart';
 
@@ -86,28 +89,24 @@ class UpdateRepository {
 
     final rawTag = (candidate['tag_name'] as String?) ?? '';
 
-    // Look for an APK asset attached to the release.
+    // Determine which artifact to download for the current platform/install mode.
     final assets = (candidate['assets'] as List<dynamic>?) ?? [];
-    final preferredAssetName =
-        '${_assetPrefixForChannel(resolvedChannel)}-$rawTag.apk'.toLowerCase();
+    final assetPrefix = _assetPrefixForChannel(resolvedChannel);
+    final installMode = detectInstallMode();
 
-    final apkAsset =
-        assets.cast<Map<String, dynamic>>().firstWhereOrNull((asset) {
-          final name = ((asset['name'] as String?) ?? '').toLowerCase();
-          return name == preferredAssetName;
-        }) ??
-        assets.cast<Map<String, dynamic>>().firstWhereOrNull((asset) {
-          final name = ((asset['name'] as String?) ?? '').toLowerCase();
-          return name.endsWith('.apk');
-        });
-
-    final apkUrl = apkAsset?['browser_download_url'] as String?;
+    final (assetUrl, assetFileName) = _findAsset(
+      assets.cast<Map<String, dynamic>>(),
+      assetPrefix: assetPrefix,
+      rawTag: rawTag,
+      installMode: installMode,
+    );
 
     return UpdateInfo(
       tagName: rawTag,
       htmlUrl: (candidate['html_url'] as String?) ?? AppConstants.repoUrl,
       releaseNotes: candidate['body'] as String?,
-      apkDownloadUrl: apkUrl,
+      downloadUrl: assetUrl,
+      assetFileName: assetFileName,
     );
   }
 }
@@ -119,6 +118,86 @@ String _assetPrefixForChannel(String channel) {
   return channel == _devUpdateChannel
       ? 'navis-dev'
       : AppConstants.updateAssetPrefix;
+}
+
+/// Finds the best-matching release asset for [installMode] and returns its
+/// `(downloadUrl, fileName)`. Both values are `null` when no matching asset
+/// was attached to the release.
+(String?, String?) _findAsset(
+  List<Map<String, dynamic>> assets, {
+  required String assetPrefix,
+  required String rawTag,
+  required UpdateInstallMode installMode,
+}) {
+  // Build a list of candidate asset name patterns in priority order.
+  final candidates = _assetNamesFor(
+    installMode: installMode,
+    assetPrefix: assetPrefix,
+    rawTag: rawTag,
+  );
+
+  for (final name in candidates) {
+    final match = assets.firstWhereOrNull(
+      (a) => ((a['name'] as String?) ?? '').toLowerCase() == name.toLowerCase(),
+    );
+    if (match != null) {
+      return (
+        match['browser_download_url'] as String?,
+        match['name'] as String?,
+      );
+    }
+  }
+  return (null, null);
+}
+
+/// Returns the ordered list of asset filenames to probe for [installMode].
+List<String> _assetNamesFor({
+  required UpdateInstallMode installMode,
+  required String assetPrefix,
+  required String rawTag,
+}) {
+  switch (installMode) {
+    case UpdateInstallMode.androidApk:
+      return [
+        '$assetPrefix-$rawTag.apk',
+        '$assetPrefix-$rawTag.apk'.toLowerCase(),
+      ];
+
+    case UpdateInstallMode.windowsInstaller:
+      return ['$assetPrefix-$rawTag-windows-installer.exe'];
+
+    case UpdateInstallMode.windowsPortable:
+      return ['$assetPrefix-$rawTag-windows.zip'];
+
+    case UpdateInstallMode.macosBundle:
+      return ['$assetPrefix-$rawTag-macos.zip'];
+
+    case UpdateInstallMode.linuxDeb:
+      // Probe arch-specific first, then generic amd64 as fallback.
+      final arch = _linuxDebArch();
+      return [
+        '$assetPrefix-$rawTag-linux-$arch.deb',
+        '$assetPrefix-$rawTag-linux-amd64.deb',
+        '$assetPrefix-$rawTag-linux-arm64.deb',
+      ];
+
+    case UpdateInstallMode.linuxPortable:
+      return ['$assetPrefix-$rawTag-linux.tar.gz'];
+  }
+}
+
+/// Returns the Debian architecture string for the current CPU, e.g. `amd64`.
+String _linuxDebArch() {
+  try {
+    final result = Process.runSync('uname', ['-m']);
+    if (result.exitCode == 0) {
+      final machine = (result.stdout as String).trim();
+      if (machine == 'x86_64') return 'amd64';
+      if (machine == 'aarch64' || machine == 'arm64') return 'arm64';
+      return machine;
+    }
+  } catch (_) {}
+  return 'amd64'; // safe default
 }
 
 List<int>? _parseSemverCore(String raw) {

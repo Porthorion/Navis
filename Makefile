@@ -1,4 +1,4 @@
-.PHONY: bootstrap check gen gen-watch test test-coverage lint format format-check release outdated phase1-closeout phase4-codec-closeout
+.PHONY: bootstrap check gen gen-watch test test-coverage lint format format-check release outdated dev-linux phase1-closeout phase4-codec-closeout
 
 bootstrap:
 	./tool/bootstrap.sh
@@ -36,6 +36,9 @@ release:
 outdated:
 	flutter pub outdated
 	dart pub outdated
+
+dev-linux:
+	./tool/dev_app.sh linux
 
 phase1-closeout:
 	./tool/phase1_closeout.sh

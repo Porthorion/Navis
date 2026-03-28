@@ -43,7 +43,7 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
         AppNoticeMessenger.of(context).showSnackBar(
           SnackBar(content: Text(l10n.updateUpToDate)),
         );
-      } else if (info != null && info.apkDownloadUrl != null) {
+      } else if (info != null && info.downloadUrl != null) {
         showUpdateDialog(context, info);
       }
     });
@@ -144,7 +144,7 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
                 ? FilledButton.icon(
                     onPressed: () {
                       final info = updateAsync.asData!.value!;
-                      if (info.apkDownloadUrl != null) {
+                      if (info.downloadUrl != null) {
                         showUpdateDialog(context, info);
                       } else {
                         launchUrl(

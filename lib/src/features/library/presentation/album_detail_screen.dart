@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/cover_art_viewer.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/rating_widget.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
@@ -22,6 +23,7 @@ import 'package:navis/src/features/downloads/presentation/download_quality_sheet
 import 'package:navis/src/features/library/domain/set_rating.dart';
 import 'package:navis/src/features/library/domain/toggle_song_star.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/utils/file_utils.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
@@ -69,10 +71,15 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
         : const <String>{};
     final coverShape = ref.watch(coverArtShapeProvider);
     final coverRadius = coverArtShapeToRadius(coverShape);
+    final desktopMode =
+        resolveAdaptiveContextFor(context).useDesktopShell;
 
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.albumDetailTitle),
+        backgroundColor: desktopMode
+            ? Theme.of(context).colorScheme.surfaceContainerHigh
+            : null,
         actions: <Widget>[
           IconButton(
             tooltip: l10n.commonRetry,
@@ -212,6 +219,398 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                       }, childCount: renderItems.length),
                     );
 
+              // ── Desktop layout: horizontal header + scrollable track panel ──
+              if (desktopMode) {
+                const artSize = 260.0;
+                final colors = Theme.of(context).colorScheme;
+                final textTheme = Theme.of(context).textTheme;
+                final albumInfoWidget = albumInfoAsync.when(
+                  data: (info) {
+                    if (info == null) return const SizedBox.shrink();
+                    final notes = _stripHtml(info.notes ?? '');
+                    final hasNotes = notes.trim().isNotEmpty;
+                    final hasLinks =
+                        (info.lastFmUrl ?? '').trim().isNotEmpty ||
+                        (info.musicBrainzId ?? '').trim().isNotEmpty;
+                    if (!hasNotes && !hasLinks) return const SizedBox.shrink();
+                    return Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          const Divider(height: 1),
+                          const SizedBox(height: 14),
+                          Text(
+                            l10n.albumDetailAboutSection,
+                            style: textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          if (hasNotes) ...<Widget>[
+                            const SizedBox(height: 8),
+                            Text(
+                              notes,
+                              style: textTheme.bodyMedium?.copyWith(
+                                height: 1.6,
+                                color: colors.onSurface.withValues(alpha: 0.8),
+                              ),
+                            ),
+                          ],
+                          if (hasLinks) ...<Widget>[
+                            const SizedBox(height: 10),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: <Widget>[
+                                if ((info.lastFmUrl ?? '').trim().isNotEmpty)
+                                  ActionChip(
+                                    avatar: const Icon(
+                                      Icons.open_in_new,
+                                      size: 16,
+                                    ),
+                                    label: Text(l10n.albumDetailLastFm),
+                                    onPressed: () => unawaited(
+                                      _openExternalLink(info.lastFmUrl!),
+                                    ),
+                                  ),
+                                if ((info.musicBrainzId ?? '')
+                                    .trim()
+                                    .isNotEmpty)
+                                  ActionChip(
+                                    avatar: const Icon(
+                                      Icons.album_outlined,
+                                      size: 16,
+                                    ),
+                                    label: Text(
+                                      l10n.albumDetailMusicBrainz,
+                                    ),
+                                    onPressed: () => unawaited(
+                                      _openExternalLink(
+                                        'https://musicbrainz.org/release-group/${info.musicBrainzId}',
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ],
+                          const SizedBox(height: 12),
+                        ],
+                      ),
+                    );
+                  },
+                  loading: () => const SizedBox.shrink(),
+                  error: (_, _) => const SizedBox.shrink(),
+                );
+                return SafeArea(
+                  bottom: false,
+                  child: DesktopFrame(
+                    layoutClass: resolveDesktopLayoutClass(
+                      MediaQuery.sizeOf(context).width,
+                    ),
+                    padding: EdgeInsets.zero,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        // ── Spotify-style header: tinted background ──
+                        ColoredBox(
+                          color: colors.surfaceContainerHigh,
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: <Widget>[
+                                InkWell(
+                                  borderRadius: coverRadius,
+                                  onTap: () => unawaited(
+                                    showCoverArtViewer(
+                                      context,
+                                      coverArtId: details.coverArt,
+                                      heroTag: coverArtHeroTag,
+                                      previewSize: 300,
+                                    ),
+                                  ),
+                                  child: HeroCoverArt(
+                                    coverArtId: details.coverArt,
+                                    heroTag: coverArtHeroTag,
+                                    size: 300,
+                                    width: artSize,
+                                    height: artSize,
+                                    borderRadius: coverRadius,
+                                    placeholderIcon: Icons.album_outlined,
+                                  ),
+                                ),
+                                const SizedBox(width: 28),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: <Widget>[
+                                      // Album title — large
+                                      Text(
+                                        details.name,
+                                        style: textTheme.displaySmall
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w800,
+                                              letterSpacing: -0.5,
+                                              height: 1.1,
+                                            ),
+                                        maxLines: 3,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 10),
+                                      // Artist · Year · Count
+                                      Wrap(
+                                        crossAxisAlignment:
+                                            WrapCrossAlignment.center,
+                                        spacing: 6,
+                                        runSpacing: 4,
+                                        children: <Widget>[
+                                          if (details.artistId != null &&
+                                              details.artistId!.isNotEmpty)
+                                            InkWell(
+                                              onTap: () => context.go(
+                                                '/library/artists/${details.artistId}',
+                                              ),
+                                              child: Text(
+                                                details.artistName ??
+                                                    l10n.albumDetailUnknownArtist,
+                                                style: textTheme.titleMedium
+                                                    ?.copyWith(
+                                                      color: colors.primary,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                    ),
+                                              ),
+                                            )
+                                          else
+                                            Text(
+                                              details.artistName ??
+                                                  l10n.albumDetailUnknownArtist,
+                                              style: textTheme.titleMedium
+                                                  ?.copyWith(
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                            ),
+                                          Text(
+                                            '• ${details.year?.toString() ?? '-'} • ${filteredSongs.length}',
+                                            style: textTheme.bodyMedium
+                                                ?.copyWith(
+                                                  color:
+                                                      colors.onSurfaceVariant,
+                                                ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 20),
+                                      // Primary action buttons
+                                      Wrap(
+                                        spacing: 8,
+                                        runSpacing: 8,
+                                        children: <Widget>[
+                                          FilledButton.icon(
+                                            onPressed:
+                                                filteredSongs.isEmpty ||
+                                                    _isQueueActionInFlight
+                                                ? null
+                                                : () => unawaited(
+                                                    _queueAlbum(
+                                                      filteredSongs,
+                                                      shuffle: false,
+                                                    ),
+                                                  ),
+                                            icon: const Icon(
+                                              Icons.play_arrow,
+                                              size: 20,
+                                            ),
+                                            label: Text(
+                                              l10n.albumDetailPlayAction,
+                                            ),
+                                          ),
+                                          FilledButton.tonalIcon(
+                                            onPressed:
+                                                filteredSongs.isEmpty ||
+                                                    _isQueueActionInFlight
+                                                ? null
+                                                : () => unawaited(
+                                                    _queueAlbum(
+                                                      filteredSongs,
+                                                      shuffle: true,
+                                                    ),
+                                                  ),
+                                            icon: const Icon(
+                                              Icons.shuffle,
+                                              size: 18,
+                                            ),
+                                            label: Text(
+                                              l10n.albumDetailShuffleAction,
+                                            ),
+                                          ),
+                                          StarButton(
+                                            isStarred: isStarred,
+                                            onPressed: _isStarring
+                                                ? null
+                                                : () => _toggleStar(
+                                                    isStarred: isStarred,
+                                                  ),
+                                            label: l10n.actionLike,
+                                            starredLabel: l10n.actionLiked,
+                                          ),
+                                          OutlinedButton.icon(
+                                            onPressed: () async {
+                                              final choice =
+                                                  await showDownloadQualitySheet(
+                                                    context,
+                                                  );
+                                              if (choice == null ||
+                                                  !context.mounted) {
+                                                return;
+                                              }
+                                              final service = ref.read(
+                                                downloadServiceProvider,
+                                              );
+                                              final count =
+                                                  await service.enqueueAlbum(
+                                                    widget.albumId,
+                                                    quality: choice.quality,
+                                                    format: choice.format,
+                                                  );
+                                              if (context.mounted) {
+                                                AppNoticeMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  SnackBar(
+                                                    content: Text(
+                                                      l10n.downloadAlbumQueued(
+                                                        count,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                );
+                                              }
+                                            },
+                                            icon: const Icon(
+                                              Icons.download_outlined,
+                                              size: 18,
+                                            ),
+                                            label: Text(
+                                              l10n.albumDetailDownloadAction,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 10),
+                                      // Rating button
+                                      _RatingButton(
+                                        rating: albumRating,
+                                        loading: _isUpdatingRating,
+                                        onChanged: (next) => unawaited(
+                                          _updateAlbumRating(next),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      // Filter chips with header
+                                      Row(
+                                        children: <Widget>[
+                                          Icon(
+                                            Icons.filter_list,
+                                            size: 14,
+                                            color: colors.onSurfaceVariant,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            l10n.albumDetailFilterLabel,
+                                            style: textTheme.labelSmall
+                                                ?.copyWith(
+                                                  color:
+                                                      colors.onSurfaceVariant,
+                                                ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Wrap(
+                                        spacing: 8,
+                                        runSpacing: 8,
+                                        children: <Widget>[
+                                          FilterChip(
+                                            label: Text(
+                                              l10n.libraryLikedOnlyFilter,
+                                            ),
+                                            avatar: Icon(
+                                              _showLikedOnly
+                                                  ? Icons.favorite
+                                                  : Icons.favorite_border,
+                                              size: 18,
+                                            ),
+                                            selected: _showLikedOnly,
+                                            onSelected: (value) => setState(
+                                              () => _showLikedOnly = value,
+                                            ),
+                                          ),
+                                          FilterChip(
+                                            label: Text(
+                                              l10n.libraryDownloadedOnlyFilter,
+                                            ),
+                                            avatar: Icon(
+                                              _showDownloadedOnly
+                                                  ? Icons.download_done
+                                                  : Icons.download_outlined,
+                                              size: 18,
+                                            ),
+                                            selected: _showDownloadedOnly,
+                                            onSelected: (value) => setState(
+                                              () =>
+                                                  _showDownloadedOnly = value,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        // ── Gradient fade from header into track list ──
+                        Container(
+                          height: 28,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: <Color>[
+                                colors.surfaceContainerHigh,
+                                colors.surface,
+                              ],
+                            ),
+                          ),
+                        ),
+                        // ── Track list — flat, no card ──
+                        Expanded(
+                          child: CustomScrollView(
+                            slivers: <Widget>[
+                              SliverToBoxAdapter(child: albumInfoWidget),
+                              tracksSliver,
+                              if (ref.watch(audioMuseAvailableProvider))
+                                SliverToBoxAdapter(
+                                  child: _AudioMuseSimilarAlbums(
+                                    albumId: widget.albumId,
+                                  ),
+                                ),
+                              const SliverToBoxAdapter(
+                                child: SizedBox(height: 16),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
               return CustomScrollView(
                 slivers: <Widget>[
                   SliverToBoxAdapter(
@@ -289,44 +688,12 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                         ),
                         Padding(
                           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                          child: Row(
-                            children: <Widget>[
-                              Icon(
-                                isStarred
-                                    ? Icons.favorite
-                                    : Icons.favorite_border,
-                                size: 16,
-                                color: isStarred
-                                    ? Theme.of(context).colorScheme.primary
-                                    : Theme.of(
-                                        context,
-                                      ).colorScheme.onSurfaceVariant,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                isStarred ? l10n.actionLiked : l10n.actionLike,
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                              const SizedBox(width: 16),
-                              Text(
-                                l10n.ratingTitle,
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                              const SizedBox(width: 8),
-                              Opacity(
-                                opacity: _isUpdatingRating ? 0.6 : 1,
-                                child: RatingWidget(
-                                  rating: albumRating,
-                                  compact: true,
-                                  iconSize: 16,
-                                  onChanged: _isUpdatingRating
-                                      ? (_) {}
-                                      : (next) => unawaited(
-                                          _updateAlbumRating(next),
-                                        ),
-                                ),
-                              ),
-                            ],
+                          child: _RatingButton(
+                            rating: albumRating,
+                            loading: _isUpdatingRating,
+                            onChanged: (next) => unawaited(
+                              _updateAlbumRating(next),
+                            ),
                           ),
                         ),
                         Padding(
@@ -743,7 +1110,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                         trailing: RatingWidget(
                           rating: rating,
                           compact: true,
-                          onChanged: (next) {
+                          onChanged: (int next) {
                             unawaited(
                               setSongRating(song.id, next, ref).catchError((_) {
                                 if (this.context.mounted) {
@@ -1069,17 +1436,33 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
     int discNumber,
     bool isFirst,
   ) {
+    final textTheme = Theme.of(context).textTheme;
+    final colors = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        if (!isFirst) const Divider(height: 1),
+        if (!isFirst) const SizedBox(height: 8),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-          child: Text(
-            l10n.albumDetailDiscHeader(discNumber),
-            style: Theme.of(context).textTheme.titleSmall,
+          child: Row(
+            children: <Widget>[
+              Icon(
+                Icons.album_outlined,
+                size: 16,
+                color: colors.onSurfaceVariant,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                l10n.albumDetailDiscHeader(discNumber),
+                style: textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+            ],
           ),
         ),
+        const Divider(height: 1, indent: 16, endIndent: 16),
       ],
     );
   }
@@ -1135,6 +1518,171 @@ class _AudioMuseSimilarAlbums extends ConsumerWidget {
       },
       loading: () => const SizedBox.shrink(),
       error: (_, _) => const SizedBox.shrink(),
+    );
+  }
+}
+
+// ── Rating button ───────────────────────────────────────────────────────────
+
+/// Collapsed: an outlined button showing "[star] Rate" or "[star] n/5".
+/// Expanded: an inline row of 5 tappable stars with hover-fill on desktop.
+class _RatingButton extends StatefulWidget {
+  const _RatingButton({
+    required this.rating,
+    required this.onChanged,
+    this.loading = false,
+  });
+
+  final int? rating;
+  final ValueChanged<int> onChanged;
+  final bool loading;
+
+  @override
+  State<_RatingButton> createState() => _RatingButtonState();
+}
+
+class _RatingButtonState extends State<_RatingButton> {
+  bool _expanded = false;
+  int _hovered = 0;
+
+  void _confirm(int value) {
+    // Tapping the current rating deselects it (sets to 0).
+    final next = value == (widget.rating ?? 0) ? 0 : value;
+    widget.onChanged(next);
+    setState(() {
+      _expanded = false;
+      _hovered = 0;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final hasRating = (widget.rating ?? 0) > 0;
+    final effective = widget.rating ?? 0;
+
+    // Fixed height matches the OutlinedButton so expanding/collapsing never
+    // shifts sibling widgets in the parent Column layout.
+    return SizedBox(
+      height: 40,
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 160),
+        transitionBuilder: (child, anim) =>
+            FadeTransition(opacity: anim, child: child),
+        child: _expanded
+            ? Align(
+                key: const ValueKey('expanded'),
+                alignment: Alignment.centerLeft,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: <Widget>[
+                    for (var i = 1; i <= 5; i++)
+                      MouseRegion(
+                        cursor: SystemMouseCursors.click,
+                        onEnter: (_) => setState(() => _hovered = i),
+                        onExit: (_) => setState(() => _hovered = 0),
+                        child: GestureDetector(
+                          onTap:
+                              widget.loading ? null : () => _confirm(i),
+                          child: SizedBox(
+                            width: 32,
+                            height: 40,
+                            child: Center(
+                              child: AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 120),
+                                transitionBuilder: (child, anim) =>
+                                    ScaleTransition(
+                                      scale: anim,
+                                      child: child,
+                                    ),
+                                child: Icon(
+                                  (_hovered > 0
+                                          ? i <= _hovered
+                                          : i <= effective)
+                                      ? Icons.star_rounded
+                                      : Icons.star_border_rounded,
+                                  key: ValueKey(
+                                    _hovered > 0
+                                        ? i <= _hovered
+                                        : i <= effective,
+                                  ),
+                                  size: 22,
+                                  color: (_hovered > 0
+                                          ? i <= _hovered
+                                          : i <= effective)
+                                      ? cs.secondary
+                                      : cs.onSurfaceVariant.withValues(
+                                          alpha: 0.4,
+                                        ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    Tooltip(
+                      message: 'Cancel',
+                      child: InkResponse(
+                        onTap: () => setState(() {
+                          _expanded = false;
+                          _hovered = 0;
+                        }),
+                        radius: 16,
+                        child: Icon(
+                          Icons.close,
+                          size: 16,
+                          color:
+                              cs.onSurfaceVariant.withValues(alpha: 0.6),
+                        ),
+                      ),
+                    ),
+                    if (widget.loading)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 8),
+                        child: SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: cs.secondary,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              )
+            : Align(
+                key: const ValueKey('collapsed'),
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  onPressed: widget.loading
+                      ? null
+                      : () => setState(() => _expanded = true),
+                  icon: Icon(
+                    hasRating
+                        ? Icons.star_rounded
+                        : Icons.star_border_rounded,
+                    size: 18,
+                    color: hasRating ? cs.secondary : null,
+                  ),
+                  label: Text(
+                    hasRating ? '${widget.rating}/5' : 'Rate',
+                    style:
+                        hasRating
+                            ? TextStyle(color: cs.secondary)
+                            : null,
+                  ),
+                  style: hasRating
+                      ? OutlinedButton.styleFrom(
+                          side: BorderSide(
+                            color: cs.secondary.withValues(alpha: 0.45),
+                          ),
+                        )
+                      : null,
+                ),
+              ),
+      ),
     );
   }
 }

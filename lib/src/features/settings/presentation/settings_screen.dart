@@ -11,25 +11,20 @@ class SettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
-    final viewport = MediaQuery.sizeOf(context);
-    final adaptiveLayoutClass = resolveAdaptiveLayoutClass(viewport.width);
-    final adaptiveShellMode = resolveAdaptiveShellMode(
-      desktopRuntime: isDesktopRuntime,
-      viewportSize: viewport,
-      safePadding: MediaQuery.paddingOf(context),
-    );
-    final compactWideLandscapeMode =
-        adaptiveShellMode == AdaptiveShellMode.compactWideLandscape;
+    final adaptiveContext = resolveAdaptiveContextFor(context);
+    final adaptiveLayoutClass = adaptiveContext.adaptiveLayoutClass;
+    final compactWideLandscapeMode = adaptiveContext.useCompactWideLandscape;
     final compactHorizontalInset = compactWideLandscapeMode ? 10.0 : 12.0;
     final tabletMode =
-        !isDesktopRuntime &&
+        !adaptiveContext.useDesktopShell &&
         adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact;
     const groupConnection = 'Connection';
     const groupStorage = 'Storage';
     const groupPlayback = 'Playback';
     const groupAutomation = 'Automation';
     const groupAbout = 'About';
-    final entries = <_SettingsEntry>[
+    const groupDesktop = 'Desktop';
+    final List<_SettingsEntry> coreEntries = <_SettingsEntry>[
       _SettingsEntry(
         icon: Icons.storage_outlined,
         title: l10n.settingsServerTitle,
@@ -72,13 +67,37 @@ class SettingsScreen extends ConsumerWidget {
         route: '/settings/appearance',
         group: groupPlayback,
       ),
-      _SettingsEntry(
-        icon: Icons.info_outline,
-        title: l10n.aboutTitle,
-        subtitle: null,
-        route: '/settings/about',
-        group: groupAbout,
-      ),
+    ];
+    final List<_SettingsEntry> desktopEntries = [
+      if (adaptiveContext.desktopRuntime)
+        const _SettingsEntry(
+          icon: Icons.picture_in_picture_alt_outlined,
+          title: 'Desktop Window',
+          subtitle: 'Configure Focus Player Mode and compact desktop behavior',
+          route: '/settings/desktop-window',
+          group: groupDesktop,
+        ),
+      if (adaptiveContext.desktopRuntime)
+        const _SettingsEntry(
+          icon: Icons.keyboard_command_key_rounded,
+          title: 'Keyboard Shortcuts',
+          subtitle: 'Customize desktop key bindings',
+          route: '/settings/shortcuts',
+          group: groupDesktop,
+        ),
+    ];
+    final _SettingsEntry aboutEntry = _SettingsEntry(
+      icon: Icons.info_outline,
+      title: l10n.aboutTitle,
+      subtitle: null,
+      route: '/settings/about',
+      group: groupAbout,
+    );
+    // Desktop entries come between core and About so About is always last.
+    final entries = <_SettingsEntry>[
+      ...coreEntries,
+      ...desktopEntries,
+      aboutEntry,
     ];
 
     final groups = <String, List<_SettingsEntry>>{};
@@ -86,7 +105,7 @@ class SettingsScreen extends ConsumerWidget {
       groups.putIfAbsent(entry.group, () => <_SettingsEntry>[]).add(entry);
     }
 
-    if (!isDesktopRuntime && !tabletMode) {
+    if (!adaptiveContext.useDesktopShell && !tabletMode) {
       return Scaffold(
         appBar: AppBar(title: Text(l10n.settingsTitle)),
         body: ListView(
@@ -104,7 +123,7 @@ class SettingsScreen extends ConsumerWidget {
       );
     }
 
-    if (!isDesktopRuntime && tabletMode) {
+    if (tabletMode) {
       final maxWidth = adaptiveLayoutClass == AdaptiveLayoutClass.tabletExpanded
           ? (compactWideLandscapeMode ? double.infinity : 980.0)
           : 860.0;
@@ -193,9 +212,7 @@ class SettingsScreen extends ConsumerWidget {
     return Scaffold(
       body: SafeArea(
         child: DesktopFrame(
-          layoutClass: resolveDesktopLayoutClass(
-            MediaQuery.sizeOf(context).width,
-          ),
+          layoutClass: adaptiveContext.desktopLayoutClass,
           child: ListView(
             children: <Widget>[
               DesktopSectionHeader(

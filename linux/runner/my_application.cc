@@ -4,6 +4,7 @@
 #ifdef GDK_WINDOWING_X11
 #include <gdk/gdkx.h>
 #endif
+#include <gdk-pixbuf/gdk-pixbuf.h>
 
 #include "flutter/generated_plugin_registrant.h"
 
@@ -13,6 +14,21 @@ struct _MyApplication {
 };
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
+
+static gchar* resolve_app_icon_path() {
+  g_autofree gchar* executable_path = g_file_read_link("/proc/self/exe", nullptr);
+  if (executable_path == nullptr) {
+    return nullptr;
+  }
+  g_autofree gchar* executable_dir = g_path_get_dirname(executable_path);
+  g_autofree gchar* bundled_icon_path =
+      g_build_filename(executable_dir, "data", "flutter_assets", "lib", "src",
+                       "icon", "Navis_Icon_dark.png", nullptr);
+  if (g_file_test(bundled_icon_path, G_FILE_TEST_EXISTS)) {
+    return g_strdup(bundled_icon_path);
+  }
+  return nullptr;
+}
 
 // Called when first Flutter frame received.
 static void first_frame_cb(MyApplication* self, FlView* view) {
@@ -24,6 +40,39 @@ static void my_application_activate(GApplication* application) {
   MyApplication* self = MY_APPLICATION(application);
   GtkWindow* window =
       GTK_WINDOW(gtk_application_window_new(GTK_APPLICATION(application)));
+
+  // Register the bundled icon directory in the GTK icon theme search path.
+  // This lets gtk_window_set_icon_name() resolve "navis" from the bundle's
+  // data/icons/hicolor/256x256/apps/navis.png, which is also the path that
+  // Wayland compositors query when the app-id matches an installed .desktop
+  // file's Icon= field.
+  g_autofree gchar* exe_path = g_file_read_link("/proc/self/exe", nullptr);
+  if (exe_path != nullptr) {
+    g_autofree gchar* exe_dir = g_path_get_dirname(exe_path);
+    g_autofree gchar* icons_dir =
+        g_build_filename(exe_dir, "data", "icons", nullptr);
+    if (g_file_test(icons_dir, G_FILE_TEST_IS_DIR)) {
+      GtkIconTheme* theme = gtk_icon_theme_get_default();
+      gtk_icon_theme_prepend_search_path(theme, icons_dir);
+      gtk_window_set_icon_name(window, "navis");
+    }
+  }
+
+  // Fallback: load the PNG directly from flutter_assets (works on X11 even
+  // when the icons/hicolor/ directory is not present, e.g. during `flutter
+  // run` before the bundle has been fully assembled).
+  g_autofree gchar* app_icon_path = resolve_app_icon_path();
+  if (app_icon_path != nullptr) {
+    g_autoptr(GError) icon_error = nullptr;
+    g_autoptr(GdkPixbuf) app_icon =
+        gdk_pixbuf_new_from_file(app_icon_path, &icon_error);
+    if (app_icon != nullptr) {
+      gtk_window_set_icon(window, app_icon);
+    } else if (icon_error != nullptr) {
+      g_warning("Unable to load app icon from %s: %s", app_icon_path,
+                icon_error->message);
+    }
+  }
 
   // Use a header bar when running in GNOME as this is the common style used
   // by applications and is the setup most users will be using (e.g. Ubuntu
@@ -52,7 +101,7 @@ static void my_application_activate(GApplication* application) {
     gtk_window_set_title(window, "navis");
   }
 
-  gtk_window_set_default_size(window, 1280, 720);
+  gtk_window_set_default_size(window, 1440, 900);
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();
   fl_dart_project_set_dart_entrypoint_arguments(

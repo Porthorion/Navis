@@ -107,6 +107,21 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+# Add Rust toolchain binaries to PATH for non-interactive SSH sessions.
+# rustup installs zero-byte symlinks in .cargo/bin which don't work in SSH;
+# we resolve the actual toolchain bin directory directly.
+$rustupHome = if ($env:RUSTUP_HOME) { $env:RUSTUP_HOME } else { Join-Path $HOME '.rustup' }
+$toolchainBin = Get-ChildItem (Join-Path $rustupHome 'toolchains') -Directory |
+    Where-Object { $_.Name -match 'stable' } |
+    Select-Object -First 1 |
+    ForEach-Object { Join-Path $_.FullName 'bin' }
+if ($toolchainBin -and (Test-Path $toolchainBin)) {
+    $env:PATH = "$toolchainBin;$env:PATH"
+}
+# NOTE: do NOT add .cargo/bin — it contains 0-byte rustup proxy stubs that
+# fail silently in non-interactive SSH sessions. The toolchain bin above has
+# the real cargo.exe and rustc.exe binaries.
+
 $baseDir = Join-Path $HOME $RemoteDir
 $archivePath = Join-Path $baseDir $ArchiveName
 $workspaceDir = Join-Path $baseDir 'workspace'
@@ -121,6 +136,34 @@ tar -xzf $archivePath -C $workspaceDir
 Set-Location $workspaceDir
 
 flutter pub get
+
+# Locate VsDevCmd.bat — used later to run flutter build in a VS developer shell
+# so that all subprocesses (cmake, MSBuild, cargokit, cargo) inherit link.exe.
+$_devCmd = $null
+$_vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+if (-not (Test-Path $_vswhere)) {
+    $_vswhere = Join-Path $env:ProgramFiles 'Microsoft Visual Studio\Installer\vswhere.exe'
+}
+if (Test-Path $_vswhere) {
+    $_vsInstall = ((& $_vswhere -latest -prerelease -property installationPath 2>$null) -join '').Trim()
+    if ($_vsInstall -and (Test-Path $_vsInstall)) {
+        $_candidate = Join-Path $_vsInstall 'Common7\Tools\VsDevCmd.bat'
+        if (Test-Path $_candidate) { $_devCmd = $_candidate }
+    }
+}
+
+# Patch cargokit's resolve_symlinks.ps1 if present.
+# cargokit uses Get-Item on path components that may include hidden Windows
+# system junctions (e.g. AppData), which fails without -Force in SSH sessions.
+# Use .NET file APIs to bypass the PowerShell hidden-item restriction.
+$_resolvePs1 = [System.IO.Path]::Combine($workspaceDir, 'windows', 'flutter', 'ephemeral', '.plugin_symlinks', 'smtc_windows', 'cargokit', 'cmake', 'resolve_symlinks.ps1')
+if ([System.IO.File]::Exists($_resolvePs1)) {
+    $_c = [System.IO.File]::ReadAllText($_resolvePs1)
+    if ($_c -match 'Get-Item \$realPath' -and $_c -notmatch 'Get-Item -Force \$realPath') {
+        [System.IO.File]::WriteAllText($_resolvePs1, ($_c -replace 'Get-Item \$realPath', 'Get-Item -Force $realPath'))
+    }
+}
+
 $buildArgs = @(
   '--release',
   "--dart-define=NAVIS_UPDATE_CHANNEL=$UpdateChannel"
@@ -128,7 +171,27 @@ $buildArgs = @(
 if ($LastFmApiKey -ne '') {
   $buildArgs += "--dart-define=NAVIS_LASTFM_API_KEY=$LastFmApiKey"
 }
-flutter build windows @buildArgs
+
+# Run flutter build inside a VS Developer Command Prompt so that every child
+# process (cmake → MSBuild → cargokit → cargo) inherits link.exe/cl.exe from
+# MSVC. Writing the command to a .cmd file avoids PowerShell quoting issues.
+if ($_devCmd) {
+    $_buildCmd = Join-Path $env:TEMP 'navis_flutter_build.cmd'
+    $flutterArgs = 'build windows ' + ($buildArgs -join ' ')
+    $cmdContent  = '@echo off' + [Environment]::NewLine
+    $cmdContent += 'call "' + $_devCmd + '" -arch=x64 -host_arch=x64 -no_logo' + [Environment]::NewLine
+    $cmdContent += 'if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%' + [Environment]::NewLine
+    $cmdContent += 'cd /D "' + $workspaceDir + '"' + [Environment]::NewLine
+    $cmdContent += 'flutter ' + $flutterArgs + [Environment]::NewLine
+    [System.IO.File]::WriteAllText($_buildCmd, $cmdContent)
+    cmd.exe /c $_buildCmd
+    if ($LASTEXITCODE -ne 0) {
+        throw "flutter build windows failed with exit code $LASTEXITCODE"
+    }
+} else {
+    Write-Warning 'VsDevCmd.bat not found — building without VS developer environment'
+    flutter build windows @buildArgs
+}
 
 $releaseDir = Join-Path $workspaceDir 'build/windows/x64/runner/Release'
 if (-not (Test-Path $releaseDir)) {
@@ -169,8 +232,15 @@ scp "${SOURCE_ARCHIVE}" "${SSH_TARGET}:${REMOTE_DIR}/source.tgz" >/dev/null
 scp "${REMOTE_SCRIPT}" "${SSH_TARGET}:${REMOTE_DIR}/navis_remote_windows_build.ps1" >/dev/null
 
 printf '[remote-windows] Running remote build...\n'
+# Windows OpenSSH runs commands through cmd.exe, which doesn't treat single-quotes as
+# string delimiters. Use backslash-separated path (no spaces) and omit quotes.
+_win_script="${REMOTE_DIR//\//\\}\\navis_remote_windows_build.ps1"
+_lastfm_arg=""
+if [[ -n "${LASTFM_API_KEY}" ]]; then
+  _lastfm_arg="-LastFmApiKey ${LASTFM_API_KEY}"
+fi
 ssh "${SSH_TARGET}" \
-  "powershell -NoProfile -ExecutionPolicy Bypass -File '${REMOTE_DIR}/navis_remote_windows_build.ps1' -RemoteDir '${REMOTE_DIR}' -ArchiveName 'source.tgz' -PackageMode '${PACKAGE_MODE}' -Version '${VERSION}' -AssetPrefix '${ASSET_PREFIX}' -UpdateChannel '${UPDATE_CHANNEL}' -LastFmApiKey '${LASTFM_API_KEY}'"
+  "powershell -NoProfile -ExecutionPolicy Bypass -File ${_win_script} -RemoteDir ${REMOTE_DIR} -ArchiveName source.tgz -PackageMode ${PACKAGE_MODE} -Version ${VERSION} -AssetPrefix ${ASSET_PREFIX} -UpdateChannel ${UPDATE_CHANNEL} ${_lastfm_arg}"
 
 asset_name="$(ssh "${SSH_TARGET}" "powershell -NoProfile -Command \"Get-Content -Raw -Path (Join-Path (Join-Path \$HOME '${REMOTE_DIR}') 'asset_name.txt')\"")"
 asset_name="${asset_name//$'\r'/}"

@@ -40,6 +40,27 @@ class LastFmTrackRecommendation {
   bool get isUsable => artist.trim().isNotEmpty && title.trim().isNotEmpty;
 }
 
+/// A single entry in an artist's top-tracks chart from Last.fm.
+class LastFmArtistTopTrack {
+  const LastFmArtistTopTrack({
+    required this.rank,
+    required this.title,
+    required this.artist,
+    this.listeners,
+  });
+
+  /// 1-based chart position as returned by Last.fm.
+  final int rank;
+  final String title;
+  final String artist;
+
+  /// Total unique listener count (may be absent).
+  final int? listeners;
+
+  bool get isUsable =>
+      rank > 0 && title.trim().isNotEmpty && artist.trim().isNotEmpty;
+}
+
 class LastFmApiClient {
   LastFmApiClient({
     required String apiKey,
@@ -264,5 +285,95 @@ class LastFmApiClient {
       ];
     }
     return const <Map<String, dynamic>>[];
+  }
+
+  /// Fetches the top tracks for [artist] from Last.fm.
+  ///
+  /// Returns an empty list when the API key is absent, the artist is empty,
+  /// or any network / parse error occurs.  Results are sorted ascending by
+  /// rank (position 1 first).
+  Future<List<LastFmArtistTopTrack>> getArtistTopTracks({
+    required String artist,
+    int limit = 10,
+  }) async {
+    final normalizedArtist = artist.trim();
+    if (_apiKey.isEmpty || normalizedArtist.isEmpty || limit <= 0) {
+      return const [];
+    }
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '',
+        queryParameters: <String, dynamic>{
+          'method': 'artist.getTopTracks',
+          'artist': normalizedArtist,
+          'api_key': _apiKey,
+          'format': 'json',
+          'autocorrect': 1,
+          'limit': limit,
+        },
+      );
+      final data = response.data;
+      if (data == null || data['error'] != null) {
+        AppLogger.debug(
+          'LastFm getArtistTopTracks: api error or empty payload '
+          'for artist="$normalizedArtist"',
+        );
+        return const [];
+      }
+
+      final topTracksRoot = _asMap(data['toptracks']);
+      final tracks = _asMapList(topTracksRoot['track']);
+      if (tracks.isEmpty) return const [];
+
+      final result = <LastFmArtistTopTrack>[];
+      for (final track in tracks) {
+        final title = (track['name'] as String?)?.trim() ?? '';
+        final artistMap = _asMap(track['artist']);
+        final trackArtist =
+            ((artistMap['name'] as String?)?.trim() ?? '').isNotEmpty
+                ? (artistMap['name'] as String).trim()
+                : normalizedArtist;
+        final attrMap = _asMap(track['@attr']);
+        final rankRaw = attrMap['rank'];
+        final rank = switch (rankRaw) {
+          final int r => r,
+          final String s => int.tryParse(s) ?? 0,
+          _ => 0,
+        };
+        final listenersRaw = track['listeners'];
+        final listeners = switch (listenersRaw) {
+          final int l => l,
+          final String s => int.tryParse(s),
+          _ => null,
+        };
+        if (title.isEmpty || rank <= 0) continue;
+        result.add(
+          LastFmArtistTopTrack(
+            rank: rank,
+            title: title,
+            artist: trackArtist,
+            listeners: listeners,
+          ),
+        );
+      }
+      result.sort((a, b) => a.rank.compareTo(b.rank));
+      AppLogger.debug(
+        'LastFm getArtistTopTracks: fetched ${result.length} tracks '
+        'for artist="$normalizedArtist"',
+      );
+      return List.unmodifiable(result);
+    } on DioException catch (e) {
+      AppLogger.debug(
+        'LastFm getArtistTopTracks: network error for '
+        'artist="$normalizedArtist": ${e.message}',
+      );
+      return const [];
+    } on FormatException catch (e) {
+      AppLogger.debug(
+        'LastFm getArtistTopTracks: parse error for '
+        'artist="$normalizedArtist": $e',
+      );
+      return const [];
+    }
   }
 }

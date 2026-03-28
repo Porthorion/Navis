@@ -288,11 +288,20 @@ if [[ "${BUILD_ANDROID}" == "true" ]]; then
   echo "==> Building Android APK..."
   ANDROID_OBFUSCATION_DIR="${SCRIPT_DIR}/../build/obfuscation/android/${VERSION}"
   mkdir -p "${ANDROID_OBFUSCATION_DIR}"
-  flutter build apk \
-    --release \
-    --obfuscate \
-    --split-debug-info="${ANDROID_OBFUSCATION_DIR}" \
-    "${DART_DEFINE_ARGS[@]}"
+  _apk_define_args="${DART_DEFINE_ARGS[*]}"
+  # When running inside a Flatpak sandbox, Gradle cannot find JAVA_HOME.
+  # Delegate to the host OS where the full JDK is available.
+  if [[ -n "${FLATPAK_ID:-}" ]]; then
+    _flutter_bin="$(command -v flutter)"
+    /usr/bin/flatpak-spawn --host -- bash -c \
+      "export PATH=\"$(dirname "${_flutter_bin}"):\$HOME/.local/bin:\$PATH\"; cd \"${SCRIPT_DIR}/..\"; flutter build apk --release --obfuscate --split-debug-info=\"${ANDROID_OBFUSCATION_DIR}\" $(printf '%q ' "${DART_DEFINE_ARGS[@]}")"
+  else
+    flutter build apk \
+      --release \
+      --obfuscate \
+      --split-debug-info="${ANDROID_OBFUSCATION_DIR}" \
+      "${DART_DEFINE_ARGS[@]}"
+  fi
 
   APK_PATH="${SCRIPT_DIR}/../build/app/outputs/flutter-apk/app-release.apk"
   APK_ASSET_NAME="${ASSET_PREFIX}-${VERSION}.apk"
@@ -422,7 +431,15 @@ fi
 if [[ "${BUILD_LINUX}" == "true" ]]; then
   if [[ "${UNAME}" == "Linux" ]]; then
     echo "==> Building Linux bundle..."
-    flutter build linux --release "${DART_DEFINE_ARGS[@]}"
+    # When running inside a Flatpak sandbox (e.g. VS Code Flatpak), clang++ and
+    # the system headers are not available. Delegate the build to the host OS.
+    if [[ -n "${FLATPAK_ID:-}" ]]; then
+      _flutter_bin="$(command -v flutter)"
+      /usr/bin/flatpak-spawn --host -- bash -c \
+        "export PATH=\"$(dirname "${_flutter_bin}"):\$HOME/.local/bin:\$PATH\"; cd \"${SCRIPT_DIR}/..\"; flutter build linux --release $(printf '%q ' "${DART_DEFINE_ARGS[@]}")"
+    else
+      flutter build linux --release "${DART_DEFINE_ARGS[@]}"
+    fi
 
     LINUX_BUNDLE_DIR="$(find "${SCRIPT_DIR}/../build/linux" -type d -path "*/release/bundle" | head -1)"
     if [[ -z "${LINUX_BUNDLE_DIR}" ]]; then
@@ -472,12 +489,14 @@ LAUNCHER
 Name=${DEB_APP_NAME}
 GenericName=Music Player
 Comment=Subsonic/OpenSubsonic music player
-Exec=${DEB_PACKAGE_NAME}
+Exec=${DEB_PACKAGE_NAME} %U
 Icon=${DEB_PACKAGE_NAME}
 Terminal=false
 Type=Application
 Categories=AudioVideo;Audio;Player;
 StartupNotify=true
+StartupWMClass=navis
+MimeType=audio/mpeg;audio/ogg;audio/flac;audio/x-flac;audio/wav;audio/aac;audio/x-m4a;
 DESKTOP
 
       ICON_SOURCE="${SCRIPT_DIR}/../lib/src/icon/Navis_Icon_light.png"

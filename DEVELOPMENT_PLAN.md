@@ -44,6 +44,7 @@ A Flutter-based Subsonic/OpenSubsonic music player client targeting Android and 
 - [Phase 28: Share System & Cross-Server Resolution (Deferred Priority)](#phase-28-share-system--cross-server-resolution-deferred-priority)
 - [Phase 29: ListenBrainz Scrobbling (Future Priority)](#phase-29-listenbrainz-scrobbling-future-priority)
 - [Phase 30: Discovery System (Idea Backlog)](#phase-30-discovery-system-idea-backlog)
+- [Phase 31: Adaptive Convergence Program (Desktop + Tablet + Phone)](#phase-31-adaptive-convergence-program-desktop--tablet--phone)
 - [AI Agent Development Guidelines](#ai-agent-development-guidelines)
 - [Verification Strategy](#verification-strategy)
 - [Key Technical Decisions](#key-technical-decisions)
@@ -269,6 +270,10 @@ Run these locally whenever you want to check for outdated dependencies:
 flutter pub outdated
 dart pub outdated
 ```
+
+Known follow-up sweep (2026-03-27): prioritize `drift`, `drift_flutter`, `drift_dev`, and `json_serializable`, then review the transitive analyzer/sqlite/win32 chain before the next release hardening pass.
+
+> **Completed 2026-03-28:** Full sweep executed. 13 packages upgraded (`audio_session`, `audio_service_mpris`, `crypto`, `url_launcher`, `uuid`, `json_annotation`, `json_serializable`, `freezed`, `build_runner`, `flutter_riverpod`, `logger`, `drift`, `drift_flutter`, `drift_dev`). `riverpod_lint` removed (runner `custom_lint` was already disabled). Analyzer upgraded from 9.x to 10.x. Build baseline unchanged.
 
 **Tooling maintenance rule (mandatory for AI agent sessions)**:
 - Any change to quality gates, test commands, Flutter/Dart versions, or release packaging must be reflected in `tool/check.sh` and/or `tool/release.sh` in the same task/PR.
@@ -2088,6 +2093,7 @@ Supporting implementation notes:
 - Keep `audio_service` dependency for shared pure-Dart media types used across code (`MediaItem`, shuffle/repeat enums) even when Windows bypasses `AudioService.init()`.
 - Add Linux desktop support through `audio_service_mpris` instead of a custom MPRIS bridge.
 - Use `smtc_windows` only on Windows for transport controls and metadata sync.
+- Current implementation status (2026-03-27): Android media session path is active, Linux MPRIS is active, Windows SMTC is active, and macOS still needs a native `MPRemoteCommandCenter` / `MPNowPlayingInfoCenter` bridge. iOS continues to use the shared `audio_service` path but needs an explicit parity audit for lock-screen/control-center metadata behavior.
 
 Desktop playback limitation accepted for Phase 26:
 
@@ -2125,11 +2131,12 @@ Execute in this order to reduce rework:
 1. Playback preflight and runtime split
 2. Linux MPRIS enablement via `audio_service_mpris`
 3. Windows handler implementation and SMTC bridge
-4. Desktop caching-compatibility guards in source resolver
-5. Bootstrap gate hardening so unsupported platform init does not block app launch
-6. Adaptive shell rollout with breakpoints and desktop/ultra-wide tuning
-7. Full-width desktop bottom player and immersive lyrics/player expansion flow
-8. Desktop window persistence and packaging profiles per target OS
+4. macOS native Control Centre / remote-command bridge and iOS media-session parity audit
+5. Desktop caching-compatibility guards in source resolver
+6. Bootstrap gate hardening so unsupported platform init does not block app launch
+7. Adaptive shell rollout with breakpoints and desktop/ultra-wide tuning
+8. Full-width desktop bottom player and immersive lyrics/player expansion flow
+9. Desktop window persistence and packaging profiles per target OS
 
 ### 26.E Dependencies Planned in This Phase
 
@@ -2147,6 +2154,10 @@ Keep existing playback deps in place for shared runtime paths:
 - `audio_service`
 - `just_audio`
 - `audio_session` (guarded at runtime where unsupported)
+
+Post-implementation dependency follow-up:
+
+- After the `0.9.0` documentation/release-prep pass, run a targeted dependency sweep over Drift/codegen/tooling and desktop platform packages before the next release hardening pass.
 
 ## Phase 27: Platform Surface Extensions (Priority Execution)
 
@@ -2196,6 +2207,98 @@ Future-facing concept phase similar to Share System deferral: do not schedule as
 - Define a desktop/mobile-safe discovery surface (Home module or dedicated page) without coupling core playback/library flows.
 - Reuse or clone proven components from an external project only when licensing and maintenance constraints are satisfied.
 - Establish privacy and telemetry boundaries before any production rollout.
+
+## Phase 31: Adaptive Convergence Program (Desktop + Tablet + Phone)
+
+**Priority**: P5.5 (execution block immediately after active Phase 26 shell/audio stream)
+
+Canonical execution phase for converging desktop/tablet/phone UX into one adaptive architecture while preserving current product direction.
+
+**Locked defaults (2026-03-23)**:
+- Scope: full product convergence (not shell-only).
+- Platforms: Android/iOS + macOS/Linux/Windows.
+- Behavior model: window-size-first adaptation across runtimes.
+- UX direction: keep current desktop/tablet/phone direction; improve consistency and structure.
+- Quality gate: strict milestone closeout gate.
+- Tracking system: use existing docs only (`DEVELOPMENT_PLAN.md`, `PROGRESS.md`, `docs/multi-os-release-implementation-progress.md`).
+
+### 31.A Goals and outcomes
+
+- One shared adaptive contract consumed by shell and all primary screens.
+- No narrow-width desktop overflow/regression in shell/player/navigation surfaces.
+- Breakpoint behavior deterministic at all target widths: 480, 599, 600, 839, 840, 959, 960, 1199, 1200, 1599, 1600.
+- Progress tracking and evidence formatting standardized for agentic execution.
+
+### 31.B Task identity and status model
+
+- Task ID format: `ACP-M{milestone}-{nn}` (example: `ACP-M2-04`).
+- Status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
+- Definition of done for each task:
+  - implemented and locally integrated
+  - targeted tests pass
+  - no new overflow/regression in the task's adaptive scope
+  - evidence added to `PROGRESS.md` and detailed log when required
+
+### 31.C Milestones (M0-M6)
+
+#### M0 — Baseline + tracking setup
+
+- `ACP-M0-01`: add this phase definition and execution contract to `DEVELOPMENT_PLAN.md`.
+- `ACP-M0-02`: add ACP checklist sections and task rows to `PROGRESS.md`.
+- `ACP-M0-03`: extend `docs/multi-os-release-implementation-progress.md` with ACP execution log and blocker protocol.
+- `ACP-M0-04`: record adaptive baseline evidence (tests/analyzer) before structural refactor work.
+
+#### M1 — Unified adaptive contract
+
+- `ACP-M1-01`: introduce shared adaptive context object resolved once per build surface.
+- `ACP-M1-02`: keep existing breakpoints unless evidence proves regressions.
+- `ACP-M1-03`: replace ad-hoc `isDesktopRuntime + MediaQuery` branching where duplicate logic exists.
+- `ACP-M1-04`: add explicit capability/policy abstraction boundary for platform-dependent behavior.
+
+#### M2 — Shell stabilization first
+
+- `ACP-M2-01`: move shell composition to window-size-first behavior for desktop and mobile runtimes.
+- `ACP-M2-02`: fix narrow-width desktop player bar overflow and constrained-control behavior.
+- `ACP-M2-03`: preserve branch stack continuity and shell overlay back-priority guarantees.
+- `ACP-M2-04`: retain keyboard shortcuts and text-input guard behavior.
+
+#### M3 — Screen convergence (full product)
+
+- `ACP-M3-01`: migrate Home adaptive branching to shared contract.
+- `ACP-M3-02`: migrate Search adaptive branching to shared contract.
+- `ACP-M3-03`: migrate Library adaptive branching to shared contract.
+- `ACP-M3-04`: migrate Settings adaptive branching to shared contract.
+- `ACP-M3-05`: migrate Now Playing adaptive branching to shared contract.
+
+#### M4 — Input and accessibility hardening
+
+- `ACP-M4-01`: standardize focus traversal behavior across desktop/tablet surfaces.
+- `ACP-M4-02`: standardize keyboard and pointer affordances where adaptive modes diverge.
+- `ACP-M4-03`: add explicit adaptive input checks to QA matrix.
+- `ACP-M4-04`: add a deferred user-toggleable compact player window mode ("Focus Player Mode") that locks the app window to a compact-wide-friendly aspect/size preset and allows quick return to normal adaptive behavior.
+- `ACP-M4-05`: polish overlapping keyboard/input systems across desktop surfaces, including quick-search vs library-filter precedence, transport suppression while typing, and cross-platform primary-modifier parity.
+
+#### M5 — Platform capability layer
+
+- `ACP-M5-01`: centralize desktop media capability checks for `audio_service`, `audio_service_mpris`, and `smtc_windows`.
+- `ACP-M5-02`: ensure graceful runtime fallback for unsupported feature surfaces.
+- `ACP-M5-03`: evaluate dependency hygiene for `audio_service_mpris` version alignment.
+- `ACP-M5-04`: extend system media API parity to macOS native `MPRemoteCommandCenter` / `MPNowPlayingInfoCenter` handling and audit iOS media-session parity.
+- `ACP-M5-05`: run a dependency hygiene sweep over desktop/audio/adaptive packages before release hardening.
+
+#### M6 — Validation + release readiness
+
+- `ACP-M6-01`: run strict adaptive gate (targeted tests + analyzer + viewport QA matrix).
+- `ACP-M6-02`: close remaining ACP tasks with dated evidence in `PROGRESS.md`.
+- `ACP-M6-03`: update architecture docs with final adaptive contract ownership and data flow.
+
+### 31.D Agent execution loop
+
+1. Select highest-priority `ready` task without unresolved dependencies.
+2. Implement minimal safe vertical slice.
+3. Run targeted tests first, then milestone gate.
+4. Update `PROGRESS.md` evidence line in same session.
+5. If blocked, append exact error + next action to detailed progress doc.
 
 ---
 
@@ -2311,6 +2414,7 @@ Global verification rule for every phase completion:
 | 19 | For songs missing server lyrics, LRCLIB fallback resolves lyrics using strict confidence rules (duration + normalized metadata) and prefers synced lyrics over plain text. Source attribution and cache behavior are visible and deterministic. |
 | 20 | User-selected album grid density (1/2/3/4) persists across restarts, Home sections can be hidden/reordered and reset, and extreme accent colors remain legible across core surfaces without contrast regressions. |
 | 21 | Shared links open the exact entity when resolvable; otherwise route to prefilled Search fallback. Cold-start and warm-start deep-link ingestion works on Android and iOS, and malformed payloads fail safely without crashes. |
+| 31 | Adaptive shell and core screens follow a shared adaptive contract across phone/tablet/desktop; no `RenderFlex overflow` at defined breakpoint matrix widths (480, 599, 600, 839, 840, 959, 960, 1199, 1200, 1599, 1600). Runtime matrix checks confirm expected shell mode behavior on Android/iOS/macOS/Linux/Windows. Regression checks cover route continuity across resize, overlay/back priority, queue/now-playing transitions, and keyboard shortcut behavior with text-focus guards. |
 
 ---
 
