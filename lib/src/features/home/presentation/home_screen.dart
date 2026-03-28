@@ -3344,7 +3344,7 @@ class _UpdateBanner extends ConsumerWidget {
             ),
             TextButton(
               onPressed: () {
-                if (info.apkDownloadUrl != null) {
+                if (info.downloadUrl != null) {
                   showUpdateDialog(context, info);
                 } else {
                   launchUrl(
@@ -3354,7 +3354,7 @@ class _UpdateBanner extends ConsumerWidget {
                 }
               },
               child: Text(
-                info.apkDownloadUrl != null
+                info.downloadUrl != null
                     ? l10n.updateInstall
                     : l10n.updateDownload,
               ),

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -8,6 +9,7 @@ import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:navis/src/app.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
+import 'package:navis/src/features/settings/data/update_service.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_window_controller.dart';
 import 'package:navis/src/utils/app_logger.dart';
@@ -18,6 +20,9 @@ Future<void> main() async {
   await _unlockMobileOrientations();
 
   _initializeDesktopAudioBackend();
+  if (_isDesktopRuntime) {
+    unawaited(UpdateService.cleanupStaledUpdates());
+  }
   final desktopBootstrap = await _configureDesktopWindow();
 
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);

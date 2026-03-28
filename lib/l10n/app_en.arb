@@ -872,6 +872,12 @@
   },
   "updateReadyToInstall": "Download complete. Ready to install.",
   "updateDownloadFailed": "Download failed. Please try again.",
+  "updateApplyFailed": "Could not apply the update automatically.",
+  "updateReadyToRestart": "Download complete. Restart the app to apply the update.",
+  "updateRestartAndUpdate": "Restart & Update",
+  "updateApplying": "Applying update…",
+  "updateNoWriteAccess": "Navis cannot update itself from this location. Please download manually.",
+  "updateDownloadManually": "Download Manually",
 
   "updateAutoCheckTitle": "Automatically check for updates",
   "updateAutoCheckSubtitle": "Check for new releases on each app launch.",

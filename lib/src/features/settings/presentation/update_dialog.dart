@@ -1,10 +1,14 @@
+import 'dart:io';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/features/settings/data/update_install_mode.dart';
 import 'package:navis/src/features/settings/data/update_service.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// Shows a dialog that downloads an APK update and triggers the system
 /// installer when the download completes.
@@ -20,7 +24,7 @@ Future<void> showUpdateDialog(BuildContext context, UpdateInfo info) {
 
 // ---------------------------------------------------------------------------
 
-enum _DownloadPhase { confirm, downloading, done, error }
+enum _DownloadPhase { confirm, downloading, done, applying, noWriteAccess, error }
 
 class _UpdateDownloadDialog extends StatefulWidget {
   const _UpdateDownloadDialog({required this.info});
@@ -35,8 +39,18 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
   _DownloadPhase _phase = _DownloadPhase.confirm;
   double _progress = 0;
   String? _error;
+  // True when the error occurred while *applying* the downloaded artifact
+  // (as opposed to during the download itself). Used to tailor the error UI.
+  bool _isApplyError = false;
   String? _apkPath;
   CancelToken? _cancelToken;
+  late final UpdateInstallMode _installMode;
+
+  @override
+  void initState() {
+    super.initState();
+    _installMode = detectInstallMode();
+  }
 
   @override
   void dispose() {
@@ -45,16 +59,24 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
   }
 
   Future<void> _startDownload() async {
+    // On desktop, check write access before downloading.
+    if (isDesktopInstallMode(_installMode) &&
+        !_service.canApplyUpdate(_installMode)) {
+      setState(() => _phase = _DownloadPhase.noWriteAccess);
+      return;
+    }
+
     setState(() {
       _phase = _DownloadPhase.downloading;
       _progress = 0;
       _error = null;
+      _isApplyError = false;
     });
 
     _cancelToken = CancelToken();
 
     try {
-      final path = await _service.downloadApk(
+      final path = await _service.downloadArtifact(
         widget.info,
         onProgress: (p) {
           if (mounted) setState(() => _progress = p);
@@ -69,8 +91,10 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
         _apkPath = path;
       });
 
-      // Immediately trigger install.
-      await _service.installApk(path);
+      // On Android, immediately trigger the system installer.
+      if (Platform.isAndroid) {
+        await _service.installApk(path);
+      }
     } on DioException catch (e) {
       if (e.type == DioExceptionType.cancel) {
         // User cancelled — just close.
@@ -83,7 +107,7 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
           _error = e.message;
         });
       }
-    } on Exception catch (e) {
+    } on Object catch (e) {
       AppLogger.error('Update download failed', e);
       if (mounted) {
         setState(() {
@@ -156,7 +180,35 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
           children: [
             Icon(Icons.check_circle, color: theme.colorScheme.primary),
             const SizedBox(width: 12),
-            Expanded(child: Text(l10n.updateReadyToInstall)),
+            Expanded(
+              child: Text(
+                isDesktopInstallMode(_installMode)
+                    ? l10n.updateReadyToRestart
+                    : l10n.updateReadyToInstall,
+              ),
+            ),
+          ],
+        );
+
+      case _DownloadPhase.applying:
+        return Row(
+          children: [
+            const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            const SizedBox(width: 16),
+            Expanded(child: Text(l10n.updateApplying)),
+          ],
+        );
+
+      case _DownloadPhase.noWriteAccess:
+        return Row(
+          children: [
+            Icon(Icons.lock_outline, color: theme.colorScheme.error),
+            const SizedBox(width: 12),
+            Expanded(child: Text(l10n.updateNoWriteAccess)),
           ],
         );
 
@@ -169,7 +221,13 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
               children: [
                 Icon(Icons.error_outline, color: theme.colorScheme.error),
                 const SizedBox(width: 12),
-                Expanded(child: Text(l10n.updateDownloadFailed)),
+                Expanded(
+                  child: Text(
+                    _isApplyError
+                        ? l10n.updateApplyFailed
+                        : l10n.updateDownloadFailed,
+                  ),
+                ),
               ],
             ),
             if (_error != null) ...[
@@ -215,6 +273,34 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
         ];
 
       case _DownloadPhase.done:
+        if (isDesktopInstallMode(_installMode)) {
+          return [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(l10n.updateDismiss),
+            ),
+            FilledButton.icon(
+              onPressed: () async {
+                if (_apkPath == null) return;
+                setState(() => _phase = _DownloadPhase.applying);
+                try {
+                  await _service.applyDesktopUpdate(_apkPath!, _installMode);
+                } on Object catch (e) {
+                  AppLogger.error('Failed to apply desktop update', e);
+                  if (mounted) {
+                    setState(() {
+                      _isApplyError = true;
+                      _phase = _DownloadPhase.error;
+                      _error = e.toString();
+                    });
+                  }
+                }
+              },
+              icon: const Icon(Icons.restart_alt),
+              label: Text(l10n.updateRestartAndUpdate),
+            ),
+          ];
+        }
         return [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -231,16 +317,39 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
           ),
         ];
 
-      case _DownloadPhase.error:
+      case _DownloadPhase.applying:
+        return const [];
+
+      case _DownloadPhase.noWriteAccess:
         return [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
             child: Text(l10n.updateDismiss),
           ),
-          FilledButton(
-            onPressed: _startDownload,
-            child: Text(l10n.updateRetry),
+          FilledButton.icon(
+            onPressed: () => launchUrl(
+              Uri.parse(widget.info.htmlUrl),
+              mode: LaunchMode.externalApplication,
+            ),
+            icon: const Icon(Icons.open_in_new),
+            label: Text(l10n.updateDownloadManually),
           ),
+        ];
+
+      case _DownloadPhase.error:
+        return [
+          TextButton(
+            onPressed: () => launchUrl(
+              Uri.parse(widget.info.htmlUrl),
+              mode: LaunchMode.externalApplication,
+            ),
+            child: Text(l10n.updateDownloadManually),
+          ),
+          if (!_isApplyError)
+            FilledButton(
+              onPressed: _startDownload,
+              child: Text(l10n.updateRetry),
+            ),
         ];
     }
   }

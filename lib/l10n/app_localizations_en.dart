@@ -1905,6 +1905,26 @@ class AppLocalizationsEn extends AppLocalizations {
   String get updateDownloadFailed => 'Download failed. Please try again.';
 
   @override
+  String get updateApplyFailed => 'Could not apply the update automatically.';
+
+  @override
+  String get updateReadyToRestart =>
+      'Download complete. Restart the app to apply the update.';
+
+  @override
+  String get updateRestartAndUpdate => 'Restart & Update';
+
+  @override
+  String get updateApplying => 'Applying update…';
+
+  @override
+  String get updateNoWriteAccess =>
+      'Navis cannot update itself from this location. Please download manually.';
+
+  @override
+  String get updateDownloadManually => 'Download Manually';
+
+  @override
   String get updateAutoCheckTitle => 'Automatically check for updates';
 
   @override

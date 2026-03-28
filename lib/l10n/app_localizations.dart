@@ -3399,6 +3399,42 @@ abstract class AppLocalizations {
   /// **'Download failed. Please try again.'**
   String get updateDownloadFailed;
 
+  /// No description provided for @updateApplyFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not apply the update automatically.'**
+  String get updateApplyFailed;
+
+  /// No description provided for @updateReadyToRestart.
+  ///
+  /// In en, this message translates to:
+  /// **'Download complete. Restart the app to apply the update.'**
+  String get updateReadyToRestart;
+
+  /// No description provided for @updateRestartAndUpdate.
+  ///
+  /// In en, this message translates to:
+  /// **'Restart & Update'**
+  String get updateRestartAndUpdate;
+
+  /// No description provided for @updateApplying.
+  ///
+  /// In en, this message translates to:
+  /// **'Applying update…'**
+  String get updateApplying;
+
+  /// No description provided for @updateNoWriteAccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Navis cannot update itself from this location. Please download manually.'**
+  String get updateNoWriteAccess;
+
+  /// No description provided for @updateDownloadManually.
+  ///
+  /// In en, this message translates to:
+  /// **'Download Manually'**
+  String get updateDownloadManually;
+
   /// No description provided for @updateAutoCheckTitle.
   ///
   /// In en, this message translates to:
