@@ -95,12 +95,12 @@ final debouncedSearchProvider = FutureProvider.autoDispose<SearchResult3?>((
   final isOffline = ref.watch(searchIsOfflineProvider);
 
   if (isOffline) {
-    return _searchLocal(ref, query, filter);
+    return _rankByRelevance(await _searchLocal(ref, query, filter), query);
   }
 
   final api = ref.watch(subsonicApiProvider);
   if (api == null) {
-    return _searchLocal(ref, query, filter);
+    return _rankByRelevance(await _searchLocal(ref, query, filter), query);
   }
 
   final cancelToken = CancelToken();
@@ -109,22 +109,25 @@ final debouncedSearchProvider = FutureProvider.autoDispose<SearchResult3?>((
   const defaultCount = 20;
 
   try {
-    return await api.search3(
-      query: query,
-      artistCount: filter == null || filter == SearchResultType.artists
-          ? defaultCount
-          : 0,
-      albumCount: filter == null || filter == SearchResultType.albums
-          ? defaultCount
-          : 0,
-      songCount: filter == null || filter == SearchResultType.songs
-          ? defaultCount
-          : 0,
-      cancelToken: cancelToken,
+    return _rankByRelevance(
+      await api.search3(
+        query: query,
+        artistCount: filter == null || filter == SearchResultType.artists
+            ? defaultCount
+            : 0,
+        albumCount: filter == null || filter == SearchResultType.albums
+            ? defaultCount
+            : 0,
+        songCount: filter == null || filter == SearchResultType.songs
+            ? defaultCount
+            : 0,
+        cancelToken: cancelToken,
+      ),
+      query,
     );
   } on Object {
     // Fall back to local search on any network error.
-    return _searchLocal(ref, query, filter);
+    return _rankByRelevance(await _searchLocal(ref, query, filter), query);
   }
 });
 
@@ -233,49 +236,59 @@ final expandedSearchProvider = FutureProvider.autoDispose
               params.query,
               limit: expandedLimit,
             );
-            return SearchResult3(
-              artists: results
-                  .map(
-                    (a) => Artist(id: a.id, name: a.name, coverArt: a.coverArt),
-                  )
-                  .toList(),
+            return _rankByRelevance(
+              SearchResult3(
+                artists: results
+                    .map(
+                      (a) =>
+                          Artist(id: a.id, name: a.name, coverArt: a.coverArt),
+                    )
+                    .toList(),
+              ),
+              params.query,
             );
           case SearchResultType.albums:
             final results = await dao.searchAlbumsLocal(
               params.query,
               limit: expandedLimit,
             );
-            return SearchResult3(
-              albums: results
-                  .map(
-                    (a) => Album(
-                      id: a.id,
-                      name: a.name,
-                      artist: a.artistName,
-                      coverArt: a.coverArt,
-                    ),
-                  )
-                  .toList(),
+            return _rankByRelevance(
+              SearchResult3(
+                albums: results
+                    .map(
+                      (a) => Album(
+                        id: a.id,
+                        name: a.name,
+                        artist: a.artistName,
+                        coverArt: a.coverArt,
+                      ),
+                    )
+                    .toList(),
+              ),
+              params.query,
             );
           case SearchResultType.songs:
             final results = await dao.searchSongsLocal(
               params.query,
               limit: expandedLimit,
             );
-            return SearchResult3(
-              songs: results
-                  .map(
-                    (s) => Song(
-                      id: s.id,
-                      title: s.title,
-                      artist: s.artistName,
-                      album: s.albumName,
-                      albumId: s.albumId,
-                      duration: s.duration,
-                      coverArt: s.coverArt,
-                    ),
-                  )
-                  .toList(),
+            return _rankByRelevance(
+              SearchResult3(
+                songs: results
+                    .map(
+                      (s) => Song(
+                        id: s.id,
+                        title: s.title,
+                        artist: s.artistName,
+                        album: s.albumName,
+                        albumId: s.albumId,
+                        duration: s.duration,
+                        coverArt: s.coverArt,
+                      ),
+                    )
+                    .toList(),
+              ),
+              params.query,
             );
         }
       }
@@ -290,16 +303,69 @@ final expandedSearchProvider = FutureProvider.autoDispose
 
       const pageSize = 20;
 
-      return api.search3(
-        query: params.query,
-        artistCount: params.type == SearchResultType.artists ? pageSize : 0,
-        albumCount: params.type == SearchResultType.albums ? pageSize : 0,
-        songCount: params.type == SearchResultType.songs ? pageSize : 0,
-        artistOffset: params.type == SearchResultType.artists
-            ? params.offset
-            : 0,
-        albumOffset: params.type == SearchResultType.albums ? params.offset : 0,
-        songOffset: params.type == SearchResultType.songs ? params.offset : 0,
-        cancelToken: cancelToken,
+      return _rankByRelevance(
+        await api.search3(
+          query: params.query,
+          artistCount: params.type == SearchResultType.artists ? pageSize : 0,
+          albumCount: params.type == SearchResultType.albums ? pageSize : 0,
+          songCount: params.type == SearchResultType.songs ? pageSize : 0,
+          artistOffset: params.type == SearchResultType.artists
+              ? params.offset
+              : 0,
+          albumOffset:
+              params.type == SearchResultType.albums ? params.offset : 0,
+          songOffset:
+              params.type == SearchResultType.songs ? params.offset : 0,
+          cancelToken: cancelToken,
+        ),
+        params.query,
       );
     });
+
+// ---------------------------------------------------------------------------
+// Relevance ranking helpers
+// ---------------------------------------------------------------------------
+
+/// Scores [field] against [query] (both already lowercased at call site).
+/// Lower score = better match.
+///
+/// 0 – exact match
+/// 1 – field starts with query
+/// 2 – field contains the full query as a substring
+/// 3 – field contains every individual query word (handles "troopers" ⊃ "trooper")
+/// 4 – no direct match
+int _relevanceScore(String field, String query) {
+  final f = field.toLowerCase();
+  final q = query.toLowerCase();
+  if (f == q) return 0;
+  if (f.startsWith(q)) return 1;
+  if (f.contains(q)) return 2;
+  final words = q.split(RegExp(r'\s+'));
+  if (words.length > 1 && words.every(f.contains)) return 3;
+  return 4;
+}
+
+/// Stably re-sorts each list in [result] so the items whose primary field
+/// best matches [query] come first.  Items with equal scores preserve their
+/// original (server-returned) order.
+SearchResult3 _rankByRelevance(SearchResult3 result, String query) {
+  if (query.isEmpty) return result;
+
+  List<T> rank<T>(List<T> items, String Function(T) field) {
+    final indexed =
+        List<(int, T)>.generate(items.length, (i) => (i, items[i]));
+    indexed.sort((a, b) {
+      final diff =
+          _relevanceScore(field(a.$2), query)
+              .compareTo(_relevanceScore(field(b.$2), query));
+      return diff != 0 ? diff : a.$1.compareTo(b.$1);
+    });
+    return indexed.map((e) => e.$2).toList(growable: false);
+  }
+
+  return SearchResult3(
+    artists: rank(result.artists, (a) => a.name),
+    albums: rank(result.albums, (a) => a.name),
+    songs: rank(result.songs, (s) => s.title),
+  );
+}
