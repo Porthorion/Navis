@@ -25,16 +25,13 @@ class NavisIcon extends StatelessWidget {
     final brightness = Theme.of(context).brightness;
     // Dark icon is used on light backgrounds, light icon on dark backgrounds.
     final asset = brightness == Brightness.dark ? _lightAsset : _darkAsset;
-    final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
-    final decodeSize = (size * devicePixelRatio).round().clamp(24, 384);
 
     final image = Image.asset(
       asset,
       width: size,
       height: size,
-      cacheWidth: decodeSize,
       fit: BoxFit.contain,
-      filterQuality: FilterQuality.medium,
+      filterQuality: FilterQuality.high,
       color: tintWithAccent ? colorScheme.primary : null,
       colorBlendMode: tintWithAccent ? BlendMode.srcATop : null,
     );
