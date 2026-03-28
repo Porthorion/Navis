@@ -62,6 +62,25 @@ String _formatMiniPlayerDuration(Duration duration) {
   return '$minutes:${seconds.toString().padLeft(2, '0')}';
 }
 
+/// Splits a combined artist string into individual artist names.
+///
+/// Splits on unambiguous multi-artist delimiters: `;`, `feat.`/`feat`/
+/// `featuring`, `ft.`, and ` / ` (space-slash-space).
+/// Bare `/` (e.g. K/DA, AC/DC) and suffixes like "Jr." are preserved.
+List<String> _splitArtists(String raw) {
+  final patterns = [
+    RegExp(r'\s*;\s*'),
+    RegExp(r'\s+feat(?:uring)?\.?\s+', caseSensitive: false),
+    RegExp(r'\s+ft\.\s+', caseSensitive: false),
+    RegExp(r'\s+/\s+'), // space-slash-space only — preserves K/DA, AC/DC
+  ];
+  List<String> parts = [raw.trim()];
+  for (final pat in patterns) {
+    parts = parts.expand((p) => p.split(pat)).toList();
+  }
+  return parts.map((p) => p.trim()).where((p) => p.isNotEmpty).toList();
+}
+
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({required this.navigationShell, super.key});
 
@@ -2275,7 +2294,9 @@ class _DesktopWorkspace extends StatelessWidget {
               artistId: artistId,
               albumId: albumId,
               coverArtId: coverArtId,
-              coverArtUrl: coverArtUrl,
+              coverArtUrl: playback.isRadioMode
+                  ? playback.radioStation?.nowPlayingArtUrl
+                  : coverArtUrl,
               onOpenPlayer: onOpenPlayer,
               onToggleQueue: onToggleQueue,
               queueToggleFocusNode: queueToggleFocusNode,
@@ -2583,17 +2604,56 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: <Widget>[
-                                        Text(
-                                          title,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .bodyMedium
-                                              ?.copyWith(
-                                                fontWeight: FontWeight.w700,
+                                        // Title — tappable for radio (search songs)
+                                        if (playback.isRadioMode &&
+                                            (widget.songTitle ?? '')
+                                                .trim()
+                                                .isNotEmpty)
+                                          MouseRegion(
+                                            cursor: SystemMouseCursors.click,
+                                            child: GestureDetector(
+                                              onTap: () {
+                                                ref
+                                                    .read(
+                                                      searchFilterProvider
+                                                          .notifier,
+                                                    )
+                                                    .select(
+                                                      SearchResultType.songs,
+                                                    );
+                                                NavService.goToSearch(
+                                                  context,
+                                                  ref,
+                                                  widget.songTitle!.trim(),
+                                                );
+                                              },
+                                              child: Text(
+                                                title,
+                                                maxLines: 1,
+                                                overflow:
+                                                    TextOverflow.ellipsis,
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .bodyMedium
+                                                    ?.copyWith(
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                    ),
                                               ),
-                                        ),
+                                            ),
+                                          )
+                                        else
+                                          Text(
+                                            title,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodyMedium
+                                                ?.copyWith(
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                          ),
                                         if (canOpenArtist)
                                           MouseRegion(
                                             cursor: SystemMouseCursors.click,
@@ -2629,6 +2689,64 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                                     ),
                                               ),
                                             ),
+                                          )
+                                        else if (playback.isRadioMode &&
+                                            (widget.songArtist ?? '')
+                                                .trim()
+                                                .isNotEmpty)
+                                          Wrap(
+                                            spacing: 0,
+                                            runSpacing: 0,
+                                            children: [
+                                              for (final (i, name)
+                                                  in _splitArtists(
+                                                    widget.songArtist!,
+                                                  ).indexed) ...<Widget>[
+                                                if (i > 0)
+                                                  Text(
+                                                    ', ',
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .bodySmall
+                                                        ?.copyWith(
+                                                          color: colors
+                                                              .onSurfaceVariant,
+                                                        ),
+                                                  ),
+                                                MouseRegion(
+                                                  cursor:
+                                                      SystemMouseCursors.click,
+                                                  child: GestureDetector(
+                                                    onTap: () {
+                                                      ref
+                                                          .read(
+                                                            searchFilterProvider
+                                                                .notifier,
+                                                          )
+                                                          .select(
+                                                            SearchResultType
+                                                                .artists,
+                                                          );
+                                                      NavService.goToSearch(
+                                                        context,
+                                                        ref,
+                                                        name,
+                                                      );
+                                                    },
+                                                    child: Text(
+                                                      name,
+                                                      style: Theme.of(context)
+                                                          .textTheme
+                                                          .bodySmall
+                                                          ?.copyWith(
+                                                            color:
+                                                                colors.primary,
+                                                          ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ],
                                           )
                                         else
                                           Text(
@@ -2691,6 +2809,7 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                 child: Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: <Widget>[
+                                    if (!playback.isRadioMode)
                                     Padding(
                                       padding: EdgeInsets.only(
                                         bottom: sliderBottomSpacing,
@@ -2768,7 +2887,7 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                               ),
                                       ),
                                     ),
-                                    if (showTimeLabels)
+                                    if (!playback.isRadioMode && showTimeLabels)
                                       Padding(
                                         padding: EdgeInsets.fromLTRB(
                                           4,
@@ -2802,6 +2921,7 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: <Widget>[
+                                          if (!playback.isRadioMode)
                                           IconButton(
                                             tooltip:
                                                 l10n.nowPlayingInstantMixLabel,
@@ -2926,6 +3046,7 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                                   : Icons.skip_next_rounded,
                                             ),
                                           ),
+                                          if (!playback.isRadioMode)
                                           IconButton(
                                             tooltip: repeatTooltip,
                                             iconSize: controlIconSize,
@@ -3028,7 +3149,7 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                   ),
                                   const SizedBox(width: 6),
                                 ],
-                                if (showQueueAction)
+                                if (showQueueAction && !playback.isRadioMode)
                                   IconButton(
                                     key: const ValueKey<String>(
                                       'desktopQueueButton',
