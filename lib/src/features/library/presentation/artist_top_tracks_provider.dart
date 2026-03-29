@@ -80,8 +80,8 @@ class ResolvedArtistTopTrack {
 ///   `resolvedSong == null` and resolved lazily at tap time by the UI.
 ///
 /// Keyed by the artist's display name as stored in the Subsonic library.
-final artistTopTracksProvider =
-    FutureProvider.autoDispose.family<List<ResolvedArtistTopTrack>, String>(
+final artistTopTracksProvider = FutureProvider.autoDispose
+    .family<List<ResolvedArtistTopTrack>, String>(
       (ref, artistName) async {
         final hasKey = ref.watch(hasLastFmApiKeyProvider);
         if (!hasKey) return const [];
@@ -138,38 +138,39 @@ final artistTopTracksProvider =
             rawTracks.length,
             batchStart + _kResolutionParallelism,
           );
-          final batchFutures = Iterable<int>.generate(
-            batchEnd - batchStart,
-            (i) => batchStart + i,
-          ).map((idx) async {
-            final track = rawTracks[idx];
-            Song? bestSong;
-            try {
-              final query = '${track.title} ${track.artist}'.trim();
-              final result = await api.search3(
-                query: query,
-                artistCount: 0,
-                albumCount: 0,
-                songCount: _kSearchSongCount,
-              );
-              bestSong = pickBestArtistTopTrackMatch(
-                track: track,
-                candidates: result.songs,
-              );
-            } on Object catch (e) {
-              AppLogger.debug(
-                'artistTopTracksProvider: resolution error for '
-                '"${track.title}" by "${track.artist}": $e',
-              );
-            }
-            resolved[idx] = ResolvedArtistTopTrack(
-              rank: track.rank,
-              title: track.title,
-              artist: track.artist,
-              listeners: track.listeners,
-              resolvedSong: bestSong,
-            );
-          });
+          final batchFutures =
+              Iterable<int>.generate(
+                batchEnd - batchStart,
+                (i) => batchStart + i,
+              ).map((idx) async {
+                final track = rawTracks[idx];
+                Song? bestSong;
+                try {
+                  final query = '${track.title} ${track.artist}'.trim();
+                  final result = await api.search3(
+                    query: query,
+                    artistCount: 0,
+                    albumCount: 0,
+                    songCount: _kSearchSongCount,
+                  );
+                  bestSong = pickBestArtistTopTrackMatch(
+                    track: track,
+                    candidates: result.songs,
+                  );
+                } on Object catch (e) {
+                  AppLogger.debug(
+                    'artistTopTracksProvider: resolution error for '
+                    '"${track.title}" by "${track.artist}": $e',
+                  );
+                }
+                resolved[idx] = ResolvedArtistTopTrack(
+                  rank: track.rank,
+                  title: track.title,
+                  artist: track.artist,
+                  listeners: track.listeners,
+                  resolvedSong: bestSong,
+                );
+              });
 
           await Future.wait(batchFutures);
         }
@@ -182,9 +183,9 @@ final artistTopTracksProvider =
           'artistTopTracksProvider: resolved $localCount/'
           '${rawTracks.length} tracks locally for "$trimmedArtist"',
         );
-        return resolved
-            .whereType<ResolvedArtistTopTrack>()
-            .toList(growable: false);
+        return resolved.whereType<ResolvedArtistTopTrack>().toList(
+          growable: false,
+        );
       },
     );
 

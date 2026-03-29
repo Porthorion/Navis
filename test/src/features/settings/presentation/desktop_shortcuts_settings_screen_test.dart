@@ -36,9 +36,9 @@ void main() {
     await tester.pump();
 
     expect(
-      container.read(desktopShortcutBindingsProvider)[
-        DesktopCommandAction.openQuickSearch
-      ],
+      container.read(
+        desktopShortcutBindingsProvider,
+      )[DesktopCommandAction.openQuickSearch],
       const DesktopShortcutBinding(
         key: LogicalKeyboardKey.keyP,
         shift: true,
@@ -60,9 +60,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final original = container.read(desktopShortcutBindingsProvider)[
-      DesktopCommandAction.openQuickSearch
-    ];
+    final original = container.read(
+      desktopShortcutBindingsProvider,
+    )[DesktopCommandAction.openQuickSearch];
 
     await tester.tap(
       find.byKey(
@@ -78,9 +78,9 @@ void main() {
     await tester.pump();
 
     expect(
-      container.read(desktopShortcutBindingsProvider)[
-        DesktopCommandAction.openQuickSearch
-      ],
+      container.read(
+        desktopShortcutBindingsProvider,
+      )[DesktopCommandAction.openQuickSearch],
       original,
     );
   });

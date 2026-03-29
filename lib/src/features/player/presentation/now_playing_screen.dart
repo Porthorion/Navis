@@ -587,7 +587,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                   );
 
             final platform = Theme.of(context).platform;
-            final showCollapseButton = widget.onCollapse != null &&
+            final showCollapseButton =
+                widget.onCollapse != null &&
                 platform != TargetPlatform.android &&
                 platform != TargetPlatform.iOS;
 
@@ -713,8 +714,8 @@ void _showNowPlayingSettingsSheet(
                         sheetVolume <= 0.01
                             ? Icons.volume_off_rounded
                             : sheetVolume < 0.5
-                                ? Icons.volume_down_rounded
-                                : Icons.volume_up_rounded,
+                            ? Icons.volume_down_rounded
+                            : Icons.volume_up_rounded,
                         size: 22,
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
@@ -1985,8 +1986,8 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                                               .nowPlayingArtist!
                                               .isNotEmpty
                                       ? _splitArtists(
-                                          radioMeta.nowPlayingArtist!,
-                                        )
+                                              radioMeta.nowPlayingArtist!,
+                                            )
                                             .map(
                                               (name) => (
                                                 name: name,
@@ -2453,22 +2454,22 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                   ? (radioMeta?.nowPlayingArtist != null &&
                             radioMeta!.nowPlayingArtist!.isNotEmpty
                         ? _splitArtists(radioMeta.nowPlayingArtist!)
-                            .map(
-                              (name) => (
-                                name: name,
-                                onTap: () {
-                                  ref
-                                      .read(searchFilterProvider.notifier)
-                                      .select(SearchResultType.artists);
-                                  NavService.goToSearch(
-                                    context,
-                                    ref,
-                                    name,
-                                  );
-                                },
-                              ),
-                            )
-                            .toList()
+                              .map(
+                                (name) => (
+                                  name: name,
+                                  onTap: () {
+                                    ref
+                                        .read(searchFilterProvider.notifier)
+                                        .select(SearchResultType.artists);
+                                    NavService.goToSearch(
+                                      context,
+                                      ref,
+                                      name,
+                                    );
+                                  },
+                                ),
+                              )
+                              .toList()
                         : null)
                   : null,
               onArtistTap: isRadio
@@ -2816,22 +2817,22 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                     ? (radioMeta?.nowPlayingArtist != null &&
                               radioMeta!.nowPlayingArtist!.isNotEmpty
                           ? _splitArtists(radioMeta.nowPlayingArtist!)
-                              .map(
-                                (name) => (
-                                  name: name,
-                                  onTap: () {
-                                    ref
-                                        .read(searchFilterProvider.notifier)
-                                        .select(SearchResultType.artists);
-                                    NavService.goToSearch(
-                                      context,
-                                      ref,
-                                      name,
-                                    );
-                                  },
-                                ),
-                              )
-                              .toList()
+                                .map(
+                                  (name) => (
+                                    name: name,
+                                    onTap: () {
+                                      ref
+                                          .read(searchFilterProvider.notifier)
+                                          .select(SearchResultType.artists);
+                                      NavService.goToSearch(
+                                        context,
+                                        ref,
+                                        name,
+                                      );
+                                    },
+                                  ),
+                                )
+                                .toList()
                           : null)
                     : null,
                 onArtistTap: isRadio
@@ -3265,9 +3266,11 @@ class _TrackInfo extends StatelessWidget {
   final String album;
   final bool compact;
   final VoidCallback? onTitleTap;
+
   /// Used when the artist is a single entity (regular tracks, non-split radio).
   final VoidCallback? onArtistTap;
   final VoidCallback? onAlbumTap;
+
   /// When non-null, the artist row renders each entry as an individual
   /// tappable link separated by commas. Takes precedence over [onArtistTap].
   final List<_ArtistLink>? artistLinks;
@@ -4151,158 +4154,158 @@ class _TransportControls extends ConsumerWidget {
             constraints.maxWidth >= transportVolumeMinWidth;
         return Row(
           mainAxisAlignment: MainAxisAlignment.center,
-      children: <Widget>[
-        IconButton(
-          icon: Icon(
-            Icons.shuffle,
-            color: shuffleOn ? Theme.of(context).colorScheme.primary : null,
-          ),
-          visualDensity: compact ? VisualDensity.compact : null,
-          tooltip: shuffleOn
-              ? l10n.nowPlayingShuffle
-              : l10n.nowPlayingShuffleOff,
-          onPressed: () {
-            final handler = ref.read(audioHandlerProvider);
-            final next = shuffleOn
-                ? AudioServiceShuffleMode.none
-                : AudioServiceShuffleMode.all;
-            unawaited(handler?.setShuffleMode(next));
-          },
-        ),
-        SizedBox(width: compact ? 4 : 8),
-        IconButton(
-          icon: Icon(Icons.skip_previous, size: compact ? 28 : 32),
-          visualDensity: compact ? VisualDensity.compact : null,
-          tooltip: l10n.nowPlayingPrevious,
-          onPressed: () {
-            if (onSkipPrevious != null) {
-              onSkipPrevious!.call();
-              return;
-            }
-            HapticFeedback.mediumImpact();
-            final handler = ref.read(audioHandlerProvider);
-            unawaited(handler?.skipToPrevious());
-          },
-        ),
-        SizedBox(width: compact ? 4 : 8),
-        Tooltip(
-          message: isPlaying ? l10n.nowPlayingPause : l10n.nowPlayingPlay,
-          child: FilledButton(
-            style: FilledButton.styleFrom(
-              shape: const CircleBorder(),
-              padding: EdgeInsets.all(compact ? 12 : 16),
+          children: <Widget>[
+            IconButton(
+              icon: Icon(
+                Icons.shuffle,
+                color: shuffleOn ? Theme.of(context).colorScheme.primary : null,
+              ),
+              visualDensity: compact ? VisualDensity.compact : null,
+              tooltip: shuffleOn
+                  ? l10n.nowPlayingShuffle
+                  : l10n.nowPlayingShuffleOff,
+              onPressed: () {
+                final handler = ref.read(audioHandlerProvider);
+                final next = shuffleOn
+                    ? AudioServiceShuffleMode.none
+                    : AudioServiceShuffleMode.all;
+                unawaited(handler?.setShuffleMode(next));
+              },
             ),
-            onPressed: () {
-              final handler = ref.read(audioHandlerProvider);
-              if (isPlaying) {
-                unawaited(handler?.pause());
-              } else {
-                unawaited(handler?.play());
-              }
-            },
-            child: Icon(
-              isPlaying ? Icons.pause : Icons.play_arrow,
-              size: compact ? 30 : 36,
+            SizedBox(width: compact ? 4 : 8),
+            IconButton(
+              icon: Icon(Icons.skip_previous, size: compact ? 28 : 32),
+              visualDensity: compact ? VisualDensity.compact : null,
+              tooltip: l10n.nowPlayingPrevious,
+              onPressed: () {
+                if (onSkipPrevious != null) {
+                  onSkipPrevious!.call();
+                  return;
+                }
+                HapticFeedback.mediumImpact();
+                final handler = ref.read(audioHandlerProvider);
+                unawaited(handler?.skipToPrevious());
+              },
             ),
-          ),
-        ),
-        SizedBox(width: compact ? 4 : 8),
-        IconButton(
-          icon: Icon(Icons.skip_next, size: compact ? 28 : 32),
-          visualDensity: compact ? VisualDensity.compact : null,
-          tooltip: l10n.nowPlayingNext,
-          onPressed: () {
-            if (onSkipNext != null) {
-              onSkipNext!.call();
-              return;
-            }
-            HapticFeedback.mediumImpact();
-            final handler = ref.read(audioHandlerProvider);
-            unawaited(handler?.skipToNext());
-          },
-        ),
-        SizedBox(width: compact ? 4 : 8),
-        IconButton(
-          icon: Icon(
-            repeatIcon,
-            color: isRepeatActive
-                ? Theme.of(context).colorScheme.primary
-                : null,
-          ),
-          visualDensity: compact ? VisualDensity.compact : null,
-          tooltip: repeatTooltip,
-          onPressed: () {
-            final handler = ref.read(audioHandlerProvider);
-            final next = switch (repeatMode) {
-              AudioServiceRepeatMode.none => AudioServiceRepeatMode.all,
-              AudioServiceRepeatMode.all => AudioServiceRepeatMode.one,
-              AudioServiceRepeatMode.one => AudioServiceRepeatMode.none,
-              AudioServiceRepeatMode.group => AudioServiceRepeatMode.none,
-            };
-            unawaited(handler?.setRepeatMode(next));
-          },
-        ),
-        if (showFocusPlayerToggle) ...<Widget>[
-          SizedBox(width: compact ? 4 : 8),
-          Consumer(
-            builder: (context, ref, _) {
-              final focusMode = ref.watch(
-                desktopWindowControllerProvider.select(
-                  (value) => value.isFocusPlayerMode,
+            SizedBox(width: compact ? 4 : 8),
+            Tooltip(
+              message: isPlaying ? l10n.nowPlayingPause : l10n.nowPlayingPlay,
+              child: FilledButton(
+                style: FilledButton.styleFrom(
+                  shape: const CircleBorder(),
+                  padding: EdgeInsets.all(compact ? 12 : 16),
                 ),
-              );
-              final busy = ref.watch(
-                desktopWindowControllerProvider.select(
-                  (value) => value.isApplyingMode,
+                onPressed: () {
+                  final handler = ref.read(audioHandlerProvider);
+                  if (isPlaying) {
+                    unawaited(handler?.pause());
+                  } else {
+                    unawaited(handler?.play());
+                  }
+                },
+                child: Icon(
+                  isPlaying ? Icons.pause : Icons.play_arrow,
+                  size: compact ? 30 : 36,
                 ),
-              );
-              final controller = ref.read(desktopWindowControllerProvider);
-              return IconButton(
-                key: const ValueKey<String>('desktopNowPlayingFocusButton'),
-                visualDensity: compact ? VisualDensity.compact : null,
-                tooltip: focusMode
-                    ? 'Return to normal window'
-                    : 'Enter Focus Player Mode',
-                onPressed: busy
-                    ? null
-                    : () => unawaited(controller.toggleFocusPlayerMode()),
-                icon: Icon(
-                  focusMode
-                      ? Icons.close_fullscreen_rounded
-                      : Icons.fit_screen_rounded,
-                ),
-              );
-            },
-          ),
-        ],
-        if (effectiveShowVolume) ...<Widget>[
-          SizedBox(width: compact ? 6 : 10),
-          DesktopVolumeSlider(
-            key: const ValueKey<String>(
-              'nowPlayingDesktopVolumeSlider',
-            ),
-            volume: volume,
-            compact: compact,
-            onChanged: (value) => unawaited(
-              setPlaybackVolume(
-                value,
-                source: 'desktop_now_playing_live',
               ),
             ),
-            onChangeEnd: (value) => unawaited(
-              setPlaybackVolume(
-                value,
-                source: 'desktop_now_playing_settle',
-                logChange: true,
-              ),
+            SizedBox(width: compact ? 4 : 8),
+            IconButton(
+              icon: Icon(Icons.skip_next, size: compact ? 28 : 32),
+              visualDensity: compact ? VisualDensity.compact : null,
+              tooltip: l10n.nowPlayingNext,
+              onPressed: () {
+                if (onSkipNext != null) {
+                  onSkipNext!.call();
+                  return;
+                }
+                HapticFeedback.mediumImpact();
+                final handler = ref.read(audioHandlerProvider);
+                unawaited(handler?.skipToNext());
+              },
             ),
-            onMuteToggle: () =>
-                unawaited(toggleMute(source: 'desktop_now_playing_icon')),
-          ),
-        ],
-      ],
-    );
-      }
+            SizedBox(width: compact ? 4 : 8),
+            IconButton(
+              icon: Icon(
+                repeatIcon,
+                color: isRepeatActive
+                    ? Theme.of(context).colorScheme.primary
+                    : null,
+              ),
+              visualDensity: compact ? VisualDensity.compact : null,
+              tooltip: repeatTooltip,
+              onPressed: () {
+                final handler = ref.read(audioHandlerProvider);
+                final next = switch (repeatMode) {
+                  AudioServiceRepeatMode.none => AudioServiceRepeatMode.all,
+                  AudioServiceRepeatMode.all => AudioServiceRepeatMode.one,
+                  AudioServiceRepeatMode.one => AudioServiceRepeatMode.none,
+                  AudioServiceRepeatMode.group => AudioServiceRepeatMode.none,
+                };
+                unawaited(handler?.setRepeatMode(next));
+              },
+            ),
+            if (showFocusPlayerToggle) ...<Widget>[
+              SizedBox(width: compact ? 4 : 8),
+              Consumer(
+                builder: (context, ref, _) {
+                  final focusMode = ref.watch(
+                    desktopWindowControllerProvider.select(
+                      (value) => value.isFocusPlayerMode,
+                    ),
+                  );
+                  final busy = ref.watch(
+                    desktopWindowControllerProvider.select(
+                      (value) => value.isApplyingMode,
+                    ),
+                  );
+                  final controller = ref.read(desktopWindowControllerProvider);
+                  return IconButton(
+                    key: const ValueKey<String>('desktopNowPlayingFocusButton'),
+                    visualDensity: compact ? VisualDensity.compact : null,
+                    tooltip: focusMode
+                        ? 'Return to normal window'
+                        : 'Enter Focus Player Mode',
+                    onPressed: busy
+                        ? null
+                        : () => unawaited(controller.toggleFocusPlayerMode()),
+                    icon: Icon(
+                      focusMode
+                          ? Icons.close_fullscreen_rounded
+                          : Icons.fit_screen_rounded,
+                    ),
+                  );
+                },
+              ),
+            ],
+            if (effectiveShowVolume) ...<Widget>[
+              SizedBox(width: compact ? 6 : 10),
+              DesktopVolumeSlider(
+                key: const ValueKey<String>(
+                  'nowPlayingDesktopVolumeSlider',
+                ),
+                volume: volume,
+                compact: compact,
+                onChanged: (value) => unawaited(
+                  setPlaybackVolume(
+                    value,
+                    source: 'desktop_now_playing_live',
+                  ),
+                ),
+                onChangeEnd: (value) => unawaited(
+                  setPlaybackVolume(
+                    value,
+                    source: 'desktop_now_playing_settle',
+                    logChange: true,
+                  ),
+                ),
+                onMuteToggle: () =>
+                    unawaited(toggleMute(source: 'desktop_now_playing_icon')),
+              ),
+            ],
+          ],
+        );
+      },
     );
     return row;
   }

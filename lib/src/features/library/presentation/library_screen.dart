@@ -210,7 +210,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     // Don't intercept modifier combos (shortcuts)
     if (HardwareKeyboard.instance.isControlPressed ||
         HardwareKeyboard.instance.isMetaPressed ||
-        HardwareKeyboard.instance.isAltPressed) return false;
+        HardwareKeyboard.instance.isAltPressed)
+      return false;
     // Don't intercept when a text field is being edited
     final focusWidget = FocusManager.instance.primaryFocus?.context?.widget;
     if (focusWidget is EditableText) return false;
@@ -693,9 +694,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                       padding: const EdgeInsets.symmetric(horizontal: 32),
                       child: Text(
                         _typeFilterQuery,
-                        style: Theme.of(context)
-                            .textTheme
-                            .displayLarge
+                        style: Theme.of(context).textTheme.displayLarge
                             ?.copyWith(
                               fontWeight: FontWeight.w900,
                               color: Colors.white.withValues(alpha: 0.85),
@@ -914,9 +913,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                     ? filteredItems
                     : filteredItems
                           .where(
-                            (a) => a.name
-                                .toLowerCase()
-                                .contains(_typeFilterQuery.toLowerCase()),
+                            (a) => a.name.toLowerCase().contains(
+                              _typeFilterQuery.toLowerCase(),
+                            ),
                           )
                           .toList(growable: false);
                 if (typeFiltered.isEmpty) {
@@ -1150,17 +1149,20 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           // Apply type-to-filter query (client-side substring match).
           final typeFiltered = _typeFilterQuery.isEmpty
               ? filteredItems
-              : filteredItems.where((album) {
-                  final q = _typeFilterQuery.toLowerCase();
-                  return album.name.toLowerCase().contains(q) ||
-                      (album.artistName?.toLowerCase().contains(q) ?? false);
-                }).toList(growable: false);
+              : filteredItems
+                    .where((album) {
+                      final q = _typeFilterQuery.toLowerCase();
+                      return album.name.toLowerCase().contains(q) ||
+                          (album.artistName?.toLowerCase().contains(q) ??
+                              false);
+                    })
+                    .toList(growable: false);
           _reportVisibleAlbumPriority(typeFiltered);
-          final totalAlbums =
-              _downloadedOnly || _typeFilterQuery.isNotEmpty
-                  ? typeFiltered.length
-                  : (totalAlbumsAsync.asData?.value ?? items.length);
-          final hasMore = !_downloadedOnly &&
+          final totalAlbums = _downloadedOnly || _typeFilterQuery.isNotEmpty
+              ? typeFiltered.length
+              : (totalAlbumsAsync.asData?.value ?? items.length);
+          final hasMore =
+              !_downloadedOnly &&
               _typeFilterQuery.isEmpty &&
               items.length < totalAlbums;
           return LayoutBuilder(
@@ -1675,25 +1677,27 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
             controller: _likedScrollController,
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: <Widget>[
-              if (filteredAlbums.isEmpty && filteredArtists.isEmpty && filteredSongs.isEmpty)
+              if (filteredAlbums.isEmpty &&
+                  filteredArtists.isEmpty &&
+                  filteredSongs.isEmpty)
                 SliverFillRemaining(
                   hasScrollBody: false,
                   child: EmptyState(
                     title: _typeFilterQuery.isNotEmpty
                         ? 'No results for "$_typeFilterQuery"'
                         : _downloadedOnly
-                            ? l10n.libraryDownloadedOnlyEmpty
-                            : l10n.libraryLikedEmptyTitle,
+                        ? l10n.libraryDownloadedOnlyEmpty
+                        : l10n.libraryLikedEmptyTitle,
                     subtitle: _typeFilterQuery.isNotEmpty
                         ? 'Try a different search'
                         : _downloadedOnly
-                            ? l10n.libraryDownloadedOnlyEmptySubtitle
-                            : l10n.libraryLikedEmptySubtitle,
+                        ? l10n.libraryDownloadedOnlyEmptySubtitle
+                        : l10n.libraryLikedEmptySubtitle,
                     icon: _typeFilterQuery.isNotEmpty
                         ? Icons.search_off_rounded
                         : _downloadedOnly
-                            ? Icons.download_done_outlined
-                            : Icons.favorite_border_outlined,
+                        ? Icons.download_done_outlined
+                        : Icons.favorite_border_outlined,
                   ),
                 )
               else ...<Widget>[
@@ -1752,7 +1756,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                         runSpacing: 10,
                         children: <Widget>[
                           FilledButton.icon(
-                            onPressed: () => unawaited(_queueLikedSongs(filteredSongs)),
+                            onPressed: () =>
+                                unawaited(_queueLikedSongs(filteredSongs)),
                             icon: const Icon(Icons.play_arrow_rounded),
                             label: Text(l10n.albumDetailPlayAction),
                           ),

@@ -312,10 +312,10 @@ final expandedSearchProvider = FutureProvider.autoDispose
           artistOffset: params.type == SearchResultType.artists
               ? params.offset
               : 0,
-          albumOffset:
-              params.type == SearchResultType.albums ? params.offset : 0,
-          songOffset:
-              params.type == SearchResultType.songs ? params.offset : 0,
+          albumOffset: params.type == SearchResultType.albums
+              ? params.offset
+              : 0,
+          songOffset: params.type == SearchResultType.songs ? params.offset : 0,
           cancelToken: cancelToken,
         ),
         params.query,
@@ -352,12 +352,12 @@ SearchResult3 _rankByRelevance(SearchResult3 result, String query) {
   if (query.isEmpty) return result;
 
   List<T> rank<T>(List<T> items, String Function(T) field) {
-    final indexed =
-        List<(int, T)>.generate(items.length, (i) => (i, items[i]));
+    final indexed = List<(int, T)>.generate(items.length, (i) => (i, items[i]));
     indexed.sort((a, b) {
-      final diff =
-          _relevanceScore(field(a.$2), query)
-              .compareTo(_relevanceScore(field(b.$2), query));
+      final diff = _relevanceScore(
+        field(a.$2),
+        query,
+      ).compareTo(_relevanceScore(field(b.$2), query));
       return diff != 0 ? diff : a.$1.compareTo(b.$1);
     });
     return indexed.map((e) => e.$2).toList(growable: false);

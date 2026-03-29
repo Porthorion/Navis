@@ -700,7 +700,10 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   Future<void> from34To35(Migrator migrator) async {
-    if (!await _columnExists('app_settings', 'desktop_focus_player_mode_enabled')) {
+    if (!await _columnExists(
+      'app_settings',
+      'desktop_focus_player_mode_enabled',
+    )) {
       await migrator.addColumn(
         appSettingsTable,
         appSettingsTable.desktopFocusPlayerModeEnabled,

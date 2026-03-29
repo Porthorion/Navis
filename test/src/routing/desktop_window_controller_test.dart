@@ -108,7 +108,9 @@ void main() {
     setUp(() async {
       database = NavisDatabase(NativeDatabase.memory());
       repository = SettingsRepository(database.appSettingsDao);
-      tempDir = await Directory.systemTemp.createTemp('navis-focus-window-test');
+      tempDir = await Directory.systemTemp.createTemp(
+        'navis-focus-window-test',
+      );
       stateFile = File('${tempDir.path}/window_state.json');
     });
 
@@ -119,37 +121,40 @@ void main() {
       }
     });
 
-    test('entering focus mode snapshots normal bounds and persists mode', () async {
-      final adapter = _FakeWindowManagerAdapter(
-        bounds: const Rect.fromLTWH(40, 50, 1366, 900),
-      );
-      final controller = DesktopWindowController(
-        desktopRuntime: true,
-        stateFile: stateFile,
-        settingsRepository: repository,
-        adapter: adapter,
-      );
+    test(
+      'entering focus mode snapshots normal bounds and persists mode',
+      () async {
+        final adapter = _FakeWindowManagerAdapter(
+          bounds: const Rect.fromLTWH(40, 50, 1366, 900),
+        );
+        final controller = DesktopWindowController(
+          desktopRuntime: true,
+          stateFile: stateFile,
+          settingsRepository: repository,
+          adapter: adapter,
+        );
 
-      await controller.initialize();
-      await controller.setFocusPlayerMode(true);
+        await controller.initialize();
+        await controller.setFocusPlayerMode(true);
 
-      expect(controller.mode, DesktopWindowMode.focusPlayer);
-      expect(adapter.minimumSize, DesktopWindowController.focusMinSize);
-      expect(adapter.maximumSize, DesktopWindowController.focusMaxSize);
-      expect(
-        adapter.aspectRatio,
-        closeTo(DesktopWindowController.focusAspectRatio, 0.0001),
-      );
+        expect(controller.mode, DesktopWindowMode.focusPlayer);
+        expect(adapter.minimumSize, DesktopWindowController.focusMinSize);
+        expect(adapter.maximumSize, DesktopWindowController.focusMaxSize);
+        expect(
+          adapter.aspectRatio,
+          closeTo(DesktopWindowController.focusAspectRatio, 0.0001),
+        );
 
-      final persisted = DesktopWindowStateRecord.fromJson(
-        await _readJson(stateFile),
-      );
-      expect(persisted.activeMode, DesktopWindowMode.focusPlayer);
-      expect(persisted.normalBounds?.bounds.size, const Size(1366, 900));
+        final persisted = DesktopWindowStateRecord.fromJson(
+          await _readJson(stateFile),
+        );
+        expect(persisted.activeMode, DesktopWindowMode.focusPlayer);
+        expect(persisted.normalBounds?.bounds.size, const Size(1366, 900));
 
-      final settings = await repository.getSettings();
-      expect(settings.desktopFocusPlayerModeEnabled, isTrue);
-    });
+        final settings = await repository.getSettings();
+        expect(settings.desktopFocusPlayerModeEnabled, isTrue);
+      },
+    );
 
     test('exiting focus mode restores maximized normal state', () async {
       final adapter = _FakeWindowManagerAdapter(
@@ -208,8 +213,8 @@ void main() {
     test('startup focus mode clamps invalid persisted focus bounds', () async {
       await repository.saveSettings(
         const AppSettingsModel.defaults().copyWith(
-              desktopFocusPlayerModeEnabled: true,
-            ),
+          desktopFocusPlayerModeEnabled: true,
+        ),
       );
       await stateFile.writeAsString(
         '{"version":2,"activeMode":"focusPlayer","focusBounds":{"x":0,"y":0,"width":1400,"height":900}}',

@@ -171,16 +171,19 @@ void main() {
     expect(context.useCompactWideLandscape, isTrue);
   });
 
-  test('normal desktop minimum keeps desktop shell disabled at narrow width', () {
-    final context = resolveAdaptiveContext(
-      desktopRuntime: true,
-      viewportSize: DesktopWindowController.normalMinSize,
-      safePadding: EdgeInsets.zero,
-    );
+  test(
+    'normal desktop minimum keeps desktop shell disabled at narrow width',
+    () {
+      final context = resolveAdaptiveContext(
+        desktopRuntime: true,
+        viewportSize: DesktopWindowController.normalMinSize,
+        safePadding: EdgeInsets.zero,
+      );
 
-    expect(context.useDesktopShell, isFalse);
-    expect(context.adaptiveShellMode, AdaptiveShellMode.phoneBottomNav);
-  });
+      expect(context.useDesktopShell, isFalse);
+      expect(context.adaptiveShellMode, AdaptiveShellMode.phoneBottomNav);
+    },
+  );
 
   testWidgets('resolveAdaptiveContextFor prefers scoped context', (
     tester,

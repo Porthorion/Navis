@@ -40,13 +40,12 @@ class AppearanceSettingsScreen extends ConsumerWidget {
     final sanitizedHidden = baseHidden
         .where(allowedHomeSectionIds.contains)
         .toList(growable: false);
-    final isDesktop =
-        resolveAdaptiveContextFor(context).useDesktopShell;
+    final isDesktop = resolveAdaptiveContextFor(context).useDesktopShell;
     // Quick Actions move to the desktop brand row; hide from the setting.
     final displayOrder = isDesktop
         ? sanitizedOrder
-            .where((id) => id != HomeSectionIds.quickActions)
-            .toList(growable: false)
+              .where((id) => id != HomeSectionIds.quickActions)
+              .toList(growable: false)
         : sanitizedOrder;
 
     return Scaffold(

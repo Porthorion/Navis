@@ -50,9 +50,9 @@ class _ArtistTopTracksSectionState
     try {
       // Fast path: pre-resolved local song.
       if (track.resolvedSong != null) {
-        await ref
-            .read(queueProvider.notifier)
-            .replaceWithSongs([track.resolvedSong!]);
+        await ref.read(queueProvider.notifier).replaceWithSongs([
+          track.resolvedSong!,
+        ]);
         return;
       }
 
@@ -99,9 +99,7 @@ class _ArtistTopTracksSectionState
         return;
       }
 
-      await ref
-          .read(queueProvider.notifier)
-          .replaceWithSongs([playable]);
+      await ref.read(queueProvider.notifier).replaceWithSongs([playable]);
     } on SubsonicConnectionException {
       if (context.mounted) _showNotAvailable(context);
     } on Object catch (e) {
@@ -187,10 +185,11 @@ class _TrackList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final visibleCount = (expanded
-            ? kArtistTopTracksMax
-            : kArtistTopTracksCollapsed)
-        .clamp(0, tracks.length);
+    final visibleCount =
+        (expanded ? kArtistTopTracksMax : kArtistTopTracksCollapsed).clamp(
+          0,
+          tracks.length,
+        );
     final visible = tracks.take(visibleCount).toList(growable: false);
     final canExpand = tracks.length > kArtistTopTracksCollapsed;
 
@@ -235,7 +234,9 @@ class _TrackList extends StatelessWidget {
                   size: 18,
                 ),
                 label: Text(
-                  expanded ? l10n.artistTopTracksShowLess : l10n.artistTopTracksShowMore,
+                  expanded
+                      ? l10n.artistTopTracksShowLess
+                      : l10n.artistTopTracksShowMore,
                 ),
                 style: TextButton.styleFrom(
                   padding: const EdgeInsets.symmetric(
@@ -278,10 +279,9 @@ class _TopTrackTile extends ConsumerWidget {
 
     // Watch DB row for the resolved song (needed for context menu).
     final resolvedId = track.resolvedSong?.id;
-    final dbSong =
-        resolvedId != null
-            ? ref.watch(songByIdProvider(resolvedId)).asData?.value
-            : null;
+    final dbSong = resolvedId != null
+        ? ref.watch(songByIdProvider(resolvedId)).asData?.value
+        : null;
 
     // ── Leading: rank number + album art thumbnail ──────────────────────
     final leading = SizedBox(
@@ -337,12 +337,11 @@ class _TopTrackTile extends ConsumerWidget {
             iconSize: 20,
             constraints: const BoxConstraints(),
             padding: const EdgeInsets.all(8),
-            onPressed:
-                dbSong != null
-                    ? () => unawaited(
-                        showSongContextMenu(context, ref, dbSong),
-                      )
-                    : null,
+            onPressed: dbSong != null
+                ? () => unawaited(
+                    showSongContextMenu(context, ref, dbSong),
+                  )
+                : null,
           ),
         ],
       );
@@ -353,13 +352,12 @@ class _TopTrackTile extends ConsumerWidget {
       contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       enabled: enabled,
       onTap: onTap,
-      onLongPress:
-          dbSong != null
-              ? () {
-                  HapticFeedback.mediumImpact();
-                  unawaited(showSongContextMenu(context, ref, dbSong));
-                }
-              : null,
+      onLongPress: dbSong != null
+          ? () {
+              HapticFeedback.mediumImpact();
+              unawaited(showSongContextMenu(context, ref, dbSong));
+            }
+          : null,
       minLeadingWidth: 76,
       leading: leading,
       title: Text(
@@ -370,17 +368,16 @@ class _TopTrackTile extends ConsumerWidget {
           fontWeight: FontWeight.w500,
         ),
       ),
-      subtitle:
-          subtitle != null
-              ? Text(
-                  subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant.withValues(alpha: 0.75),
-                  ),
-                )
-              : null,
+      subtitle: subtitle != null
+          ? Text(
+              subtitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.75),
+              ),
+            )
+          : null,
       trailing: trailing,
     );
 
@@ -388,15 +385,14 @@ class _TopTrackTile extends ConsumerWidget {
     if (dbSong == null) return tile;
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
-      onSecondaryTapDown:
-          (details) => unawaited(
-            showSongContextMenu(
-              context,
-              ref,
-              dbSong,
-              anchor: details.globalPosition,
-            ),
-          ),
+      onSecondaryTapDown: (details) => unawaited(
+        showSongContextMenu(
+          context,
+          ref,
+          dbSong,
+          anchor: details.globalPosition,
+        ),
+      ),
       child: tile,
     );
   }
@@ -407,11 +403,13 @@ class _TopTrackTile extends ConsumerWidget {
         final choice = await showDownloadQualitySheet(context);
         if (choice == null || !context.mounted) return;
         unawaited(
-          ref.read(downloadServiceProvider).enqueueSong(
-            songId,
-            quality: choice.quality,
-            format: choice.format,
-          ),
+          ref
+              .read(downloadServiceProvider)
+              .enqueueSong(
+                songId,
+                quality: choice.quality,
+                format: choice.format,
+              ),
         );
       }(),
     );

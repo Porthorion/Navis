@@ -3125,9 +3125,7 @@ class _DesktopHomeQuickActions extends ConsumerWidget {
         IconButton(
           tooltip: AppLocalizations.of(context)!.libraryLikedOnlyFilter,
           icon: Icon(
-            likedOnly
-                ? Icons.favorite_rounded
-                : Icons.favorite_border_rounded,
+            likedOnly ? Icons.favorite_rounded : Icons.favorite_border_rounded,
           ),
           color: likedOnly ? colorScheme.primary : null,
           onPressed: () {
@@ -3135,8 +3133,7 @@ class _DesktopHomeQuickActions extends ConsumerWidget {
           },
         ),
         IconButton(
-          tooltip:
-              AppLocalizations.of(context)!.libraryDownloadedOnlyFilter,
+          tooltip: AppLocalizations.of(context)!.libraryDownloadedOnlyFilter,
           icon: Icon(
             downloadedOnly
                 ? Icons.download_done_rounded
@@ -3164,9 +3161,7 @@ class _DesktopHomeQuickActions extends ConsumerWidget {
                           ref,
                           seedSongId: seedSongId,
                         );
-                        ref
-                            .read(playerOverlayStackProvider.notifier)
-                            .expand();
+                        ref.read(playerOverlayStackProvider.notifier).expand();
                       })
                       .ignore();
                 },

@@ -19,6 +19,7 @@ class _DesktopShortcutsSettingsScreenState
   DesktopCommandAction? _capturingAction;
   DesktopShortcutBinding? _capturedBinding;
   DesktopShortcutBinding? _originalBinding;
+
   /// Partially-held modifier combo shown while the user hasn't yet pressed the
   /// non-modifier key, e.g. "Ctrl+" or "Ctrl+Shift+". Null when idle.
   String? _liveInput;
@@ -334,8 +335,7 @@ class _DesktopShortcutsSettingsScreenState
       DesktopCommandAction.goLibrary => 'Navigate to the library',
       DesktopCommandAction.goSearch => 'Navigate to search',
       DesktopCommandAction.goSettings => 'Open settings',
-      DesktopCommandAction.toggleNowPlaying =>
-        'Expand or collapse now playing',
+      DesktopCommandAction.toggleNowPlaying => 'Expand or collapse now playing',
       DesktopCommandAction.playPause => 'Toggle playback',
       DesktopCommandAction.nextTrack => 'Skip to next track',
       DesktopCommandAction.previousTrack => 'Skip to previous track',
@@ -371,6 +371,7 @@ class _ShortcutCaptureTile extends StatelessWidget {
   final bool isCapturing;
   final DesktopShortcutBinding? binding;
   final DesktopShortcutBinding? capturedBinding;
+
   /// Partially-held modifier string, e.g. "Ctrl+", shown while the user is
   /// building a combo but hasn't pressed the final key yet.
   final String? liveInput;
@@ -429,8 +430,10 @@ class _ShortcutCaptureTile extends StatelessWidget {
                 style: OutlinedButton.styleFrom(
                   side: BorderSide(color: colors.primary, width: 2),
                   foregroundColor: colors.primary,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                 ),
                 onPressed: onPressed,
                 child: Text(
@@ -444,8 +447,10 @@ class _ShortcutCaptureTile extends StatelessWidget {
             : OutlinedButton(
                 key: ValueKey<String>('desktopShortcut-${action.name}'),
                 style: OutlinedButton.styleFrom(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                 ),
                 onPressed: onPressed,
                 child: Text(
@@ -488,7 +493,11 @@ class _BuiltInShortcutTile extends StatelessWidget {
       elevation: 0,
       color: colors.surfaceContainerLow,
       child: ListTile(
-        leading: Icon(icon, color: colors.onSurfaceVariant.withValues(alpha: 0.6), size: 22),
+        leading: Icon(
+          icon,
+          color: colors.onSurfaceVariant.withValues(alpha: 0.6),
+          size: 22,
+        ),
         title: Text(
           title,
           style: textTheme.bodyLarge?.copyWith(

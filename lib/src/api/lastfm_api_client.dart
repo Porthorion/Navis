@@ -331,8 +331,8 @@ class LastFmApiClient {
         final artistMap = _asMap(track['artist']);
         final trackArtist =
             ((artistMap['name'] as String?)?.trim() ?? '').isNotEmpty
-                ? (artistMap['name'] as String).trim()
-                : normalizedArtist;
+            ? (artistMap['name'] as String).trim()
+            : normalizedArtist;
         final attrMap = _asMap(track['@attr']);
         final rankRaw = attrMap['rank'];
         final rank = switch (rankRaw) {

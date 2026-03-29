@@ -90,45 +90,33 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
 
     final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
     final artistBody = artist.when(
-        data: (artistData) {
-          if (artistData == null) {
-            return EmptyState(
-              title: l10n.artistDetailNotFoundTitle,
-              subtitle: l10n.artistDetailNotFoundSubtitle,
-              icon: Icons.person_off_outlined,
-            );
-          }
+      data: (artistData) {
+        if (artistData == null) {
+          return EmptyState(
+            title: l10n.artistDetailNotFoundTitle,
+            subtitle: l10n.artistDetailNotFoundSubtitle,
+            icon: Icons.person_off_outlined,
+          );
+        }
 
-          final isStarred = _isStarred || artistData.starred != null;
+        final isStarred = _isStarred || artistData.starred != null;
 
-          return RefreshIndicator(
-            onRefresh: () => ref
-                .read(librarySyncControllerProvider.notifier)
-                .syncNow(preferIncremental: true),
-            child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: EdgeInsets.zero,
-              children: <Widget>[
-                // ── Artist image header with name + heart overlaid ──────────
-                artistInfo.when(
-                  data: (info) {
-                    final url =
-                        info?.largeImageUrl ?? info?.mediumImageUrl ?? '';
-                    if (url.isNotEmpty) {
-                      return _ArtistImageHeader(
-                        imageUrl: url,
-                        artistName: artistData.name,
-                        isStarred: isStarred,
-                        isStarring: _isStarring,
-                        onStarToggle: _isStarring
-                            ? null
-                            : () => _toggleStar(isStarred: isStarred),
-                        starTooltip: l10n.albumDetailStarAction,
-                      );
-                    }
-                    // No photo — plain name row
-                    return _ArtistNameHeader(
-                      name: artistData.name,
+        return RefreshIndicator(
+          onRefresh: () => ref
+              .read(librarySyncControllerProvider.notifier)
+              .syncNow(preferIncremental: true),
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.zero,
+            children: <Widget>[
+              // ── Artist image header with name + heart overlaid ──────────
+              artistInfo.when(
+                data: (info) {
+                  final url = info?.largeImageUrl ?? info?.mediumImageUrl ?? '';
+                  if (url.isNotEmpty) {
+                    return _ArtistImageHeader(
+                      imageUrl: url,
+                      artistName: artistData.name,
                       isStarred: isStarred,
                       isStarring: _isStarring,
                       onStarToggle: _isStarring
@@ -136,15 +124,9 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                           : () => _toggleStar(isStarred: isStarred),
                       starTooltip: l10n.albumDetailStarAction,
                     );
-                  },
-                  loading: () => _ArtistNameHeader(
-                    name: artistData.name,
-                    isStarred: isStarred,
-                    isStarring: _isStarring,
-                    onStarToggle: null,
-                    starTooltip: l10n.albumDetailStarAction,
-                  ),
-                  error: (_, _) => _ArtistNameHeader(
+                  }
+                  // No photo — plain name row
+                  return _ArtistNameHeader(
                     name: artistData.name,
                     isStarred: isStarred,
                     isStarring: _isStarring,
@@ -152,147 +134,163 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                         ? null
                         : () => _toggleStar(isStarred: isStarred),
                     starTooltip: l10n.albumDetailStarAction,
+                  );
+                },
+                loading: () => _ArtistNameHeader(
+                  name: artistData.name,
+                  isStarred: isStarred,
+                  isStarring: _isStarring,
+                  onStarToggle: null,
+                  starTooltip: l10n.albumDetailStarAction,
+                ),
+                error: (_, _) => _ArtistNameHeader(
+                  name: artistData.name,
+                  isStarred: isStarred,
+                  isStarring: _isStarring,
+                  onStarToggle: _isStarring
+                      ? null
+                      : () => _toggleStar(isStarred: isStarred),
+                  starTooltip: l10n.albumDetailStarAction,
+                ),
+              ),
+              // ── Bio ─────────────────────────────────────────────────────
+              artistInfo.when(
+                data: (info) {
+                  if (info == null) {
+                    return const SizedBox.shrink();
+                  }
+                  return _ArtistInfoSection(
+                    info: info,
+                    albumCount: artistData.albumCount,
+                  );
+                },
+                loading: () => const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  child: LinearProgressIndicator(minHeight: 2),
+                ),
+                error: (_, _) => const SizedBox.shrink(),
+              ),
+              // ── Top Tracks (Last.fm, gated by build-time API key) ────────
+              if (ref.watch(hasLastFmApiKeyProvider))
+                ArtistTopTracksSection(artistName: artistData.name),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+                child: Text(
+                  l10n.artistDetailAlbumsSection,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                // ── Bio ─────────────────────────────────────────────────────
-                artistInfo.when(
-                  data: (info) {
-                    if (info == null) {
-                      return const SizedBox.shrink();
-                    }
-                    return _ArtistInfoSection(
-                      info: info,
-                      albumCount: artistData.albumCount,
-                    );
-                  },
-                  loading: () => const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                    child: LinearProgressIndicator(minHeight: 2),
-                  ),
-                  error: (_, _) => const SizedBox.shrink(),
-                ),
-                // ── Top Tracks (Last.fm, gated by build-time API key) ────────
-                if (ref.watch(hasLastFmApiKeyProvider))
-                  ArtistTopTracksSection(artistName: artistData.name),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-                  child: Text(
-                    l10n.artistDetailAlbumsSection,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                albums.when(
-                  data: (items) {
-                    if (items.isEmpty) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: EmptyState(
-                          title: l10n.artistDetailAlbumsEmptyTitle,
-                          subtitle: l10n.artistDetailAlbumsEmptySubtitle,
-                          icon: Icons.album_outlined,
-                        ),
-                      );
-                    }
+              ),
+              albums.when(
+                data: (items) {
+                  if (items.isEmpty) {
                     return Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          final availableWidth = constraints.maxWidth;
-                          final spacing = availableWidth >= 900 ? 12.0 : 8.0;
-                          final minTileWidth = switch (availableWidth) {
-                            >= 1400 => 220.0,
-                            >= 1100 => 200.0,
-                            >= 840 => 180.0,
-                            _ => 160.0,
-                          };
-                          final crossAxisCount =
-                              ((availableWidth + spacing) /
-                                      (minTileWidth + spacing))
-                                  .floor()
-                                  .clamp(2, 7);
-                          return GridView.builder(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: items.length,
-                            gridDelegate:
-                                SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: crossAxisCount,
-                                  childAspectRatio: 1,
-                                  crossAxisSpacing: spacing,
-                                  mainAxisSpacing: spacing,
-                                ),
-                            itemBuilder: (context, index) {
-                              final album = items[index];
-                              return RepaintBoundary(
-                                child: AlbumCard(
-                                  album: album,
-                                  size: AlbumCardSize.library,
-                                  badge: AlbumDownloadBadge(albumId: album.id),
-                                  onTap: () => context.push(
-                                    '/library/albums/${album.id}',
-                                  ),
-                                ),
-                              );
-                            },
-                          );
-                        },
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: EmptyState(
+                        title: l10n.artistDetailAlbumsEmptyTitle,
+                        subtitle: l10n.artistDetailAlbumsEmptySubtitle,
+                        icon: Icons.album_outlined,
                       ),
                     );
-                  },
-                  loading: () =>
-                      const ShimmerListPage(count: 4, leadingSize: 56),
-                  error: (error, _) => ErrorState(
-                    title: l10n.artistDetailAlbumsErrorTitle,
-                    message: error.toString(),
-                    onRetry: () =>
-                        ref.invalidate(albumsByArtistProvider(widget.artistId)),
-                  ),
+                  }
+                  return Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final availableWidth = constraints.maxWidth;
+                        final spacing = availableWidth >= 900 ? 12.0 : 8.0;
+                        final minTileWidth = switch (availableWidth) {
+                          >= 1400 => 220.0,
+                          >= 1100 => 200.0,
+                          >= 840 => 180.0,
+                          _ => 160.0,
+                        };
+                        final crossAxisCount =
+                            ((availableWidth + spacing) /
+                                    (minTileWidth + spacing))
+                                .floor()
+                                .clamp(2, 7);
+                        return GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: items.length,
+                          gridDelegate:
+                              SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: crossAxisCount,
+                                childAspectRatio: 1,
+                                crossAxisSpacing: spacing,
+                                mainAxisSpacing: spacing,
+                              ),
+                          itemBuilder: (context, index) {
+                            final album = items[index];
+                            return RepaintBoundary(
+                              child: AlbumCard(
+                                album: album,
+                                size: AlbumCardSize.library,
+                                badge: AlbumDownloadBadge(albumId: album.id),
+                                onTap: () => context.push(
+                                  '/library/albums/${album.id}',
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  );
+                },
+                loading: () => const ShimmerListPage(count: 4, leadingSize: 56),
+                error: (error, _) => ErrorState(
+                  title: l10n.artistDetailAlbumsErrorTitle,
+                  message: error.toString(),
+                  onRetry: () =>
+                      ref.invalidate(albumsByArtistProvider(widget.artistId)),
                 ),
-                // ── Similar Artists (below albums for navigation continuity) ─
-                artistInfo.when(
-                  data: (info) {
-                    final currentArtistId = widget.artistId.trim();
-                    final similar = (info?.similarArtists ?? const <Artist>[])
-                        .where((artist) {
-                          final candidateId = artist.id.trim();
-                          return candidateId.isNotEmpty &&
-                              candidateId != currentArtistId;
-                        })
-                        .toList(growable: false);
-                    if (similar.isEmpty) {
-                      return const SizedBox.shrink();
-                    }
-                    return _SimilarArtistsSection(
-                      title: l10n.artistDetailSimilarSection,
-                      artists: similar
-                          .map(
-                            (artist) => _SimilarArtistEntry(
-                              id: artist.id,
-                              name: artist.name,
-                              coverArt: artist.coverArt,
-                            ),
-                          )
-                          .toList(growable: false),
-                    );
-                  },
-                  loading: () => const SizedBox.shrink(),
-                  error: (_, _) => const SizedBox.shrink(),
-                ),
-                if (ref.watch(audioMuseAvailableProvider))
-                  _AudioMuseSimilarArtists(artistId: widget.artistId),
-                const SizedBox(height: 12),
-              ],
-            ),
-          );
-        },
-        loading: () => const ShimmerListPage(count: 8, leadingSize: 56),
-        error: (error, _) => ErrorState(
-          title: l10n.artistDetailLoadErrorTitle,
-          message: error.toString(),
-          onRetry: () => ref.invalidate(artistByIdProvider(widget.artistId)),
-        ),
+              ),
+              // ── Similar Artists (below albums for navigation continuity) ─
+              artistInfo.when(
+                data: (info) {
+                  final currentArtistId = widget.artistId.trim();
+                  final similar = (info?.similarArtists ?? const <Artist>[])
+                      .where((artist) {
+                        final candidateId = artist.id.trim();
+                        return candidateId.isNotEmpty &&
+                            candidateId != currentArtistId;
+                      })
+                      .toList(growable: false);
+                  if (similar.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+                  return _SimilarArtistsSection(
+                    title: l10n.artistDetailSimilarSection,
+                    artists: similar
+                        .map(
+                          (artist) => _SimilarArtistEntry(
+                            id: artist.id,
+                            name: artist.name,
+                            coverArt: artist.coverArt,
+                          ),
+                        )
+                        .toList(growable: false),
+                  );
+                },
+                loading: () => const SizedBox.shrink(),
+                error: (_, _) => const SizedBox.shrink(),
+              ),
+              if (ref.watch(audioMuseAvailableProvider))
+                _AudioMuseSimilarArtists(artistId: widget.artistId),
+              const SizedBox(height: 12),
+            ],
+          ),
+        );
+      },
+      loading: () => const ShimmerListPage(count: 8, leadingSize: 56),
+      error: (error, _) => ErrorState(
+        title: l10n.artistDetailLoadErrorTitle,
+        message: error.toString(),
+        onRetry: () => ref.invalidate(artistByIdProvider(widget.artistId)),
+      ),
     );
     return Scaffold(
       appBar: AppBar(title: Text(l10n.artistDetailTitle)),
@@ -344,8 +342,7 @@ class _ArtistImageHeader extends StatelessWidget {
         //   ≤ 1.5  → Alignment(0, −1)  = topCenter
         //   ≥ 2.5  → Alignment(0,  0)  = center
         final displayRatio = availableWidth / headerHeight;
-        final alignY =
-            ((displayRatio - 1.5) / 1.0).clamp(0.0, 1.0) - 1.0;
+        final alignY = ((displayRatio - 1.5) / 1.0).clamp(0.0, 1.0) - 1.0;
         final imageAlignment = Alignment(0.0, alignY);
 
         return SizedBox(
@@ -542,10 +539,9 @@ class _ArtistInfoSection extends StatelessWidget {
               info.biography!,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 height: 1.65,
-                color: Theme.of(context)
-                    .colorScheme
-                    .onSurface
-                    .withValues(alpha: 0.85),
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.85),
               ),
             ),
             const SizedBox(height: 16),

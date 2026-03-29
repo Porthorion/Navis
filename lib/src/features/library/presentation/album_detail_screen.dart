@@ -71,8 +71,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
         : const <String>{};
     final coverShape = ref.watch(coverArtShapeProvider);
     final coverRadius = coverArtShapeToRadius(coverShape);
-    final desktopMode =
-        resolveAdaptiveContextFor(context).useDesktopShell;
+    final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
 
     return Scaffold(
       appBar: AppBar(
@@ -349,12 +348,11 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                       // Album title — large
                                       Text(
                                         details.name,
-                                        style: textTheme.displaySmall
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.w800,
-                                              letterSpacing: -0.5,
-                                              height: 1.1,
-                                            ),
+                                        style: textTheme.displaySmall?.copyWith(
+                                          fontWeight: FontWeight.w800,
+                                          letterSpacing: -0.5,
+                                          height: 1.1,
+                                        ),
                                         maxLines: 3,
                                         overflow: TextOverflow.ellipsis,
                                       ),
@@ -469,8 +467,8 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                               final service = ref.read(
                                                 downloadServiceProvider,
                                               );
-                                              final count =
-                                                  await service.enqueueAlbum(
+                                              final count = await service
+                                                  .enqueueAlbum(
                                                     widget.albumId,
                                                     quality: choice.quality,
                                                     format: choice.format,
@@ -560,8 +558,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                             ),
                                             selected: _showDownloadedOnly,
                                             onSelected: (value) => setState(
-                                              () =>
-                                                  _showDownloadedOnly = value,
+                                              () => _showDownloadedOnly = value,
                                             ),
                                           ),
                                         ],
@@ -1583,8 +1580,7 @@ class _RatingButtonState extends State<_RatingButton> {
                         onEnter: (_) => setState(() => _hovered = i),
                         onExit: (_) => setState(() => _hovered = 0),
                         child: GestureDetector(
-                          onTap:
-                              widget.loading ? null : () => _confirm(i),
+                          onTap: widget.loading ? null : () => _confirm(i),
                           child: SizedBox(
                             width: 32,
                             height: 40,
@@ -1608,7 +1604,8 @@ class _RatingButtonState extends State<_RatingButton> {
                                         : i <= effective,
                                   ),
                                   size: 22,
-                                  color: (_hovered > 0
+                                  color:
+                                      (_hovered > 0
                                           ? i <= _hovered
                                           : i <= effective)
                                       ? cs.secondary
@@ -1632,8 +1629,7 @@ class _RatingButtonState extends State<_RatingButton> {
                         child: Icon(
                           Icons.close,
                           size: 16,
-                          color:
-                              cs.onSurfaceVariant.withValues(alpha: 0.6),
+                          color: cs.onSurfaceVariant.withValues(alpha: 0.6),
                         ),
                       ),
                     ),
@@ -1660,18 +1656,13 @@ class _RatingButtonState extends State<_RatingButton> {
                       ? null
                       : () => setState(() => _expanded = true),
                   icon: Icon(
-                    hasRating
-                        ? Icons.star_rounded
-                        : Icons.star_border_rounded,
+                    hasRating ? Icons.star_rounded : Icons.star_border_rounded,
                     size: 18,
                     color: hasRating ? cs.secondary : null,
                   ),
                   label: Text(
                     hasRating ? '${widget.rating}/5' : 'Rate',
-                    style:
-                        hasRating
-                            ? TextStyle(color: cs.secondary)
-                            : null,
+                    style: hasRating ? TextStyle(color: cs.secondary) : null,
                   ),
                   style: hasRating
                       ? OutlinedButton.styleFrom(

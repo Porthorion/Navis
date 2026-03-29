@@ -163,7 +163,8 @@ class WindowManagerDesktopWindowAdapter implements WindowManagerAdapter {
   Future<void> ensureInitialized() => windowManager.ensureInitialized();
 
   @override
-  void addListener(WindowListener listener) => windowManager.addListener(listener);
+  void addListener(WindowListener listener) =>
+      windowManager.addListener(listener);
 
   @override
   void removeListener(WindowListener listener) =>
@@ -247,7 +248,8 @@ class DesktopWindowController extends ChangeNotifier with WindowListener {
 
   Timer? _persistDebounce;
   DesktopWindowMode _mode = DesktopWindowMode.normal;
-  DesktopWindowStateRecord _stateRecord = const DesktopWindowStateRecord.defaults();
+  DesktopWindowStateRecord _stateRecord =
+      const DesktopWindowStateRecord.defaults();
   bool _isInitialized = false;
   bool _isApplyingMode = false;
 
@@ -308,9 +310,7 @@ class DesktopWindowController extends ChangeNotifier with WindowListener {
       minimumSize: _mode == DesktopWindowMode.focusPlayer
           ? focusMinSize
           : normalMinSize,
-      maximumSize: _mode == DesktopWindowMode.focusPlayer
-          ? focusMaxSize
-          : null,
+      maximumSize: _mode == DesktopWindowMode.focusPlayer ? focusMaxSize : null,
       size: startupBounds?.size,
       center:
           startupBounds == null ||
@@ -357,7 +357,9 @@ class DesktopWindowController extends ChangeNotifier with WindowListener {
       return;
     }
     if (_adapter == null) {
-      _mode = enabled ? DesktopWindowMode.focusPlayer : DesktopWindowMode.normal;
+      _mode = enabled
+          ? DesktopWindowMode.focusPlayer
+          : DesktopWindowMode.normal;
       notifyListeners();
       return;
     }
@@ -374,7 +376,9 @@ class DesktopWindowController extends ChangeNotifier with WindowListener {
         await _exitFocusPlayerMode();
       }
       await _saveFocusSetting(enabled);
-      await _persistCurrentState(reason: enabled ? 'enter_focus' : 'exit_focus');
+      await _persistCurrentState(
+        reason: enabled ? 'enter_focus' : 'exit_focus',
+      );
     } finally {
       _isApplyingMode = false;
       notifyListeners();
@@ -455,7 +459,9 @@ class DesktopWindowController extends ChangeNotifier with WindowListener {
       activeMode: DesktopWindowMode.normal,
     );
     await _applyNormalWindowConstraints();
-    final restoreBounds = _normalizeNormalBounds(_stateRecord.normalBounds?.bounds);
+    final restoreBounds = _normalizeNormalBounds(
+      _stateRecord.normalBounds?.bounds,
+    );
     if (restoreBounds != null) {
       await adapter.setBounds(restoreBounds);
     }
@@ -559,7 +565,8 @@ class DesktopWindowController extends ChangeNotifier with WindowListener {
 
   Rect _resolveStartupFocusBounds(Rect? bounds) {
     return _clampFocusBounds(
-      bounds ?? Rect.fromLTWH(0, 0, focusDefaultSize.width, focusDefaultSize.height),
+      bounds ??
+          Rect.fromLTWH(0, 0, focusDefaultSize.width, focusDefaultSize.height),
     );
   }
 
@@ -574,7 +581,12 @@ class DesktopWindowController extends ChangeNotifier with WindowListener {
       focusMaxSize.height,
     );
     final widthFromHeight = clampedHeight * focusAspectRatio;
-    return Rect.fromLTWH(bounds.left, bounds.top, widthFromHeight, clampedHeight);
+    return Rect.fromLTWH(
+      bounds.left,
+      bounds.top,
+      widthFromHeight,
+      clampedHeight,
+    );
   }
 }
 

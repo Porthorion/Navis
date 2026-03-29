@@ -34,7 +34,9 @@ Future<void> main() async {
     ProviderScope(
       overrides: [
         if (desktopBootstrap != null)
-          navisDatabaseProvider.overrideWith((ref) => desktopBootstrap.database),
+          navisDatabaseProvider.overrideWith(
+            (ref) => desktopBootstrap.database,
+          ),
         if (desktopBootstrap != null)
           settingsRepositoryProvider.overrideWith(
             (ref) => desktopBootstrap.settingsRepository,

@@ -311,7 +311,8 @@ class AppSettingsModel {
           ? null
           : homeSectionsHidden ?? this.homeSectionsHidden,
       desktopNavbarStyle: desktopNavbarStyle ?? this.desktopNavbarStyle,
-      desktopNavbarAutohide: desktopNavbarAutohide ?? this.desktopNavbarAutohide,
+      desktopNavbarAutohide:
+          desktopNavbarAutohide ?? this.desktopNavbarAutohide,
     );
   }
 }

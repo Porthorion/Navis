@@ -35,7 +35,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.text('Desktop window controls are only available in the desktop app.'),
+      find.text(
+        'Desktop window controls are only available in the desktop app.',
+      ),
       findsOneWidget,
     );
   });

@@ -134,11 +134,14 @@ void main() {
   });
 
   test('desktop shortcut bindings decode restores saved overrides', () {
-    final updated = Map<DesktopCommandAction, DesktopShortcutBinding?>.from(
-      defaultDesktopShortcutBindings(),
-    )..[DesktopCommandAction.openQuickSearch] = const DesktopShortcutBinding(
-        key: LogicalKeyboardKey.keyP,
-      );
+    final updated =
+        Map<DesktopCommandAction, DesktopShortcutBinding?>.from(
+            defaultDesktopShortcutBindings(),
+          )
+          ..[DesktopCommandAction.openQuickSearch] =
+              const DesktopShortcutBinding(
+                key: LogicalKeyboardKey.keyP,
+              );
 
     final encoded = encodeDesktopShortcutBindings(updated);
     final decoded = decodeDesktopShortcutBindings(encoded);

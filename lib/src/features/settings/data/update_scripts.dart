@@ -37,7 +37,8 @@ class UpdateScripts {
     // errors. We do not gate the rest of the script on the exit code because
     // robocopy itself signals partial success with non-zero codes. If it truly
     // fails the relaunch will simply not find the binary (visible to the user).
-    final script = '''
+    final script =
+        '''
 @echo off
 timeout /t 2 /nobreak >nul
 if exist $bdEsc rd /s /q $bdEsc
@@ -85,7 +86,8 @@ del "%~f0"
     // The script backs up the current installation before touching anything.
     // If moving the new version into place fails, it rolls back automatically
     // so the app remains functional.
-    final script = '''
+    final script =
+        '''
 #!/usr/bin/env bash
 sleep 2
 # Remove stale backup from a previous aborted update.

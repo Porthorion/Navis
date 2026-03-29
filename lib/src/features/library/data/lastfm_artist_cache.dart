@@ -32,15 +32,17 @@ class LastFmArtistCache {
       }
 
       final tracksRaw = json['tracks'] as List<dynamic>;
-      final tracks = tracksRaw.map((t) {
-        final m = t as Map<String, dynamic>;
-        return LastFmArtistTopTrack(
-          rank: (m['rank'] as num).toInt(),
-          title: m['title'] as String,
-          artist: m['artist'] as String,
-          listeners: (m['listeners'] as num?)?.toInt(),
-        );
-      }).toList(growable: false);
+      final tracks = tracksRaw
+          .map((t) {
+            final m = t as Map<String, dynamic>;
+            return LastFmArtistTopTrack(
+              rank: (m['rank'] as num).toInt(),
+              title: m['title'] as String,
+              artist: m['artist'] as String,
+              listeners: (m['listeners'] as num?)?.toInt(),
+            );
+          })
+          .toList(growable: false);
 
       AppLogger.debug(
         'LastFmArtistCache: hit for "${artist.trim()}" '

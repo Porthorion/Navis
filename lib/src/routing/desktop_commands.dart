@@ -202,7 +202,9 @@ bool _shortcutMapsEqual(
   return true;
 }
 
-Map<String, Object?> _shortcutBindingToJsonObject(DesktopShortcutBinding value) {
+Map<String, Object?> _shortcutBindingToJsonObject(
+  DesktopShortcutBinding value,
+) {
   return <String, Object?>{
     'keyId': value.key.keyId,
     'primaryModifier': value.primaryModifier,
@@ -255,7 +257,8 @@ String? encodeDesktopShortcutBindings(
   return jsonEncode(encoded);
 }
 
-Map<DesktopCommandAction, DesktopShortcutBinding?> decodeDesktopShortcutBindings(
+Map<DesktopCommandAction, DesktopShortcutBinding?>
+decodeDesktopShortcutBindings(
   String? raw,
 ) {
   final resolved =
@@ -335,8 +338,8 @@ class DesktopShortcutBindingsNotifier
     updated[action] = binding;
     final nextState =
         Map<DesktopCommandAction, DesktopShortcutBinding?>.unmodifiable(
-      updated,
-    );
+          updated,
+        );
     state = nextState;
     AppLogger.debug(
       '[ACP_INPUT] desktop shortcuts updated: ${action.name}=${binding?.key.debugName ?? 'disabled'}',
@@ -494,15 +497,14 @@ DesktopCommandAction? matchAnyDesktopCommandForKeyEvent(
 }) {
   final key = event.logicalKey;
   final keyboard = HardwareKeyboard.instance;
-  final noModifiers = !keyboard.isControlPressed &&
+  final noModifiers =
+      !keyboard.isControlPressed &&
       !keyboard.isMetaPressed &&
       !keyboard.isAltPressed &&
       !keyboard.isShiftPressed;
 
   // ESC — always checked when escape overlay priority is enabled.
-  if (enableEscapeOverlay &&
-      key == LogicalKeyboardKey.escape &&
-      noModifiers) {
+  if (enableEscapeOverlay && key == LogicalKeyboardKey.escape && noModifiers) {
     return DesktopCommandAction.toggleNowPlaying;
   }
 

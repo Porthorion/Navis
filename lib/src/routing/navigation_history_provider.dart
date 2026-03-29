@@ -151,5 +151,5 @@ class NavigationHistoryNotifier extends Notifier<NavigationHistoryState> {
 
 final navigationHistoryProvider =
     NotifierProvider<NavigationHistoryNotifier, NavigationHistoryState>(
-  NavigationHistoryNotifier.new,
-);
+      NavigationHistoryNotifier.new,
+    );

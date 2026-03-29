@@ -74,7 +74,8 @@ class UpdateService {
     UpdateInfo info, {
     void Function(double progress)? onProgress,
     CancelToken? cancelToken,
-  }) => downloadArtifact(info, onProgress: onProgress, cancelToken: cancelToken);
+  }) =>
+      downloadArtifact(info, onProgress: onProgress, cancelToken: cancelToken);
 
   // ---------------------------------------------------------------------------
   // Android install
@@ -357,7 +358,9 @@ class UpdateService {
         while (path.isNotEmpty && !path.endsWith('.app')) {
           path = p.dirname(path);
         }
-        return p.dirname(path); // e.g. /Applications, not /Applications/Navis.app
+        return p.dirname(
+          path,
+        ); // e.g. /Applications, not /Applications/Navis.app
 
       case UpdateInstallMode.linuxDeb:
         return p.dirname(Platform.resolvedExecutable);

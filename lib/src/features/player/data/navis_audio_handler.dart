@@ -2577,10 +2577,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
     final preamp = runtime.replayGainPreamp.clamp(-6, 6);
     // dB to linear: 10^((gain + preamp) / 20), scaled by user volume, clamped to [0, 1].
-    final linear = (math
-            .pow(10, (gainDb + preamp) / 20)
-            .toDouble() *
-        base)
+    final linear = (math.pow(10, (gainDb + preamp) / 20).toDouble() * base)
         .clamp(0.0, 1.0);
     unawaited(_player.setVolume(linear));
   }

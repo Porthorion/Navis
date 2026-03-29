@@ -59,48 +59,48 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
 
     final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
     final playlistBody = playlistAsync.when(
-        data: (playlist) {
-          if (playlist == null) {
-            return EmptyState(
-              title: l10n.playlistDetailNotFound,
-              subtitle: l10n.playlistDetailNotFoundSubtitle,
-              icon: Icons.queue_music_outlined,
-            );
-          }
-
-          return songsAsync.when(
-            data: (songs) => _buildContent(
-              context,
-              playlist,
-              songs,
-              downloadedOnly: downloadedOnly,
-              downloadedSongIds: downloadedSongIds,
-            ),
-            loading: () => _buildContent(
-              context,
-              playlist,
-              const [],
-              isLoading: true,
-              downloadedOnly: downloadedOnly,
-              downloadedSongIds: downloadedSongIds,
-            ),
-            error: (error, _) => ErrorState(
-              title: l10n.playlistDetailLoadError,
-              message: error.toString(),
-              onRetry: () => ref.invalidate(
-                playlistDetailSyncProvider(widget.playlistId),
-              ),
-            ),
+      data: (playlist) {
+        if (playlist == null) {
+          return EmptyState(
+            title: l10n.playlistDetailNotFound,
+            subtitle: l10n.playlistDetailNotFoundSubtitle,
+            icon: Icons.queue_music_outlined,
           );
-        },
-        loading: () => const ShimmerListPage(count: 8),
-        error: (error, _) => ErrorState(
-          title: l10n.playlistDetailLoadError,
-          message: error.toString(),
-          onRetry: () => ref.invalidate(
-            playlistDetailSyncProvider(widget.playlistId),
+        }
+
+        return songsAsync.when(
+          data: (songs) => _buildContent(
+            context,
+            playlist,
+            songs,
+            downloadedOnly: downloadedOnly,
+            downloadedSongIds: downloadedSongIds,
           ),
+          loading: () => _buildContent(
+            context,
+            playlist,
+            const [],
+            isLoading: true,
+            downloadedOnly: downloadedOnly,
+            downloadedSongIds: downloadedSongIds,
+          ),
+          error: (error, _) => ErrorState(
+            title: l10n.playlistDetailLoadError,
+            message: error.toString(),
+            onRetry: () => ref.invalidate(
+              playlistDetailSyncProvider(widget.playlistId),
+            ),
+          ),
+        );
+      },
+      loading: () => const ShimmerListPage(count: 8),
+      error: (error, _) => ErrorState(
+        title: l10n.playlistDetailLoadError,
+        message: error.toString(),
+        onRetry: () => ref.invalidate(
+          playlistDetailSyncProvider(widget.playlistId),
         ),
+      ),
     );
     return Scaffold(
       appBar: AppBar(title: Text(l10n.playlistDetailTitle)),
@@ -163,7 +163,9 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                             children: <Widget>[
                               Text(
                                 playlist.name,
-                                style: Theme.of(context).textTheme.headlineMedium,
+                                style: Theme.of(
+                                  context,
+                                ).textTheme.headlineMedium,
                               ),
                               const SizedBox(height: 6),
                               Text(
@@ -176,7 +178,10 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                                 const SizedBox(height: 8),
                                 Chip(
                                   label: Text(l10n.libraryDownloadedOnlyFilter),
-                                  avatar: const Icon(Icons.download_done, size: 18),
+                                  avatar: const Icon(
+                                    Icons.download_done,
+                                    size: 18,
+                                  ),
                                 ),
                               ],
                               const SizedBox(height: 16),
@@ -185,28 +190,43 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                                 runSpacing: 8,
                                 children: <Widget>[
                                   FilledButton.tonalIcon(
-                                    onPressed: visibleSongs.isEmpty || _isQueueActionInFlight
+                                    onPressed:
+                                        visibleSongs.isEmpty ||
+                                            _isQueueActionInFlight
                                         ? null
                                         : () => unawaited(
-                                            _queuePlaylist(visibleSongs, shuffle: false),
+                                            _queuePlaylist(
+                                              visibleSongs,
+                                              shuffle: false,
+                                            ),
                                           ),
                                     icon: const Icon(Icons.play_arrow_outlined),
                                     label: Text(l10n.playlistDetailPlayAction),
                                   ),
                                   FilledButton.tonalIcon(
-                                    onPressed: visibleSongs.isEmpty || _isQueueActionInFlight
+                                    onPressed:
+                                        visibleSongs.isEmpty ||
+                                            _isQueueActionInFlight
                                         ? null
                                         : () => unawaited(
-                                            _queuePlaylist(visibleSongs, shuffle: true),
+                                            _queuePlaylist(
+                                              visibleSongs,
+                                              shuffle: true,
+                                            ),
                                           ),
                                     icon: const Icon(Icons.shuffle_outlined),
-                                    label: Text(l10n.playlistDetailShuffleAction),
+                                    label: Text(
+                                      l10n.playlistDetailShuffleAction,
+                                    ),
                                   ),
                                   FilledButton.tonalIcon(
                                     onPressed: visibleSongs.isEmpty
                                         ? null
                                         : () => unawaited(
-                                            _downloadPlaylist(playlist, visibleSongs),
+                                            _downloadPlaylist(
+                                              playlist,
+                                              visibleSongs,
+                                            ),
                                           ),
                                     icon: const Icon(Icons.download_outlined),
                                     label: Text(l10n.downloadAction),
@@ -272,7 +292,10 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                                   visibleSongs.isEmpty || _isQueueActionInFlight
                                   ? null
                                   : () => unawaited(
-                                      _queuePlaylist(visibleSongs, shuffle: false),
+                                      _queuePlaylist(
+                                        visibleSongs,
+                                        shuffle: false,
+                                      ),
                                     ),
                               icon: const Icon(Icons.play_arrow_outlined),
                               label: Text(l10n.playlistDetailPlayAction),
@@ -282,7 +305,10 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                                   visibleSongs.isEmpty || _isQueueActionInFlight
                                   ? null
                                   : () => unawaited(
-                                      _queuePlaylist(visibleSongs, shuffle: true),
+                                      _queuePlaylist(
+                                        visibleSongs,
+                                        shuffle: true,
+                                      ),
                                     ),
                               icon: const Icon(Icons.shuffle_outlined),
                               label: Text(l10n.playlistDetailShuffleAction),

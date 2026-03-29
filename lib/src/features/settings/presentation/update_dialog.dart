@@ -24,7 +24,14 @@ Future<void> showUpdateDialog(BuildContext context, UpdateInfo info) {
 
 // ---------------------------------------------------------------------------
 
-enum _DownloadPhase { confirm, downloading, done, applying, noWriteAccess, error }
+enum _DownloadPhase {
+  confirm,
+  downloading,
+  done,
+  applying,
+  noWriteAccess,
+  error,
+}
 
 class _UpdateDownloadDialog extends StatefulWidget {
   const _UpdateDownloadDialog({required this.info});
