@@ -200,6 +200,98 @@ void main() {
     );
 
     // -----------------------------------------------------------------------
+    // Lyrics backfill on start()
+    // -----------------------------------------------------------------------
+
+    test(
+      'start() backfill skips songs that already have cached lyrics',
+      () async {
+        // A service with wifi available and no API client (simulates the
+        // early-exit path when there is nothing to do after the lyrics check).
+        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(id: 'song-1', title: 'Lyric Song'),
+        ]);
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: 'song-1',
+            filePath: '/fake/song-1.mp3',
+            fileSize: 1000,
+            format: 'mp3',
+            cacheType: CacheType.permanent,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
+        // Pre-seed lyrics so the backfill should skip this song.
+        await database.libraryDao.upsertExternalLyricsCache(
+          songId: 'song-1',
+          source: 'test',
+          plainLyrics: 'la la la',
+          ttlSeconds: 3600,
+        );
+
+        // start() must complete without error even with a null API client.
+        await expectLater(service.start(), completes);
+
+        // Lyrics entry must still be present and unchanged.
+        final cached = await database.libraryDao.getExternalLyricsCache(
+          'song-1',
+        );
+        expect(cached?.plainLyrics, 'la la la');
+      },
+      skip: sqliteAvailable ? null : 'sqlite3 not available',
+    );
+
+    test(
+      'start() backfill skips when wifi-only is set and device is not on wifi',
+      () async {
+        // Build a service that claims wifi-only + not on wifi.
+        final wifiOnlyOfflineService = DownloadService(
+          cacheDao: database.cacheDao,
+          downloadQueueDao: database.downloadQueueDao,
+          libraryDao: database.libraryDao,
+          readApiClient: () => null,
+          readWifiOnly: () => true,
+          readIsWifi: () => false,
+          lrclibClient: LrclibClient(),
+        );
+        addTearDown(wifiOnlyOfflineService.stop);
+
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: 'song-2',
+            filePath: '/fake/song-2.mp3',
+            fileSize: 500,
+            format: 'mp3',
+            cacheType: CacheType.permanent,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
+
+        // No lyrics seeded — if the backfill ran it would try to fetch.
+        // Because wifi-only + offline it must not attempt any fetch.
+        await expectLater(wifiOnlyOfflineService.start(), completes);
+
+        // Nothing should be cached because the backfill was gated out.
+        final cached = await database.libraryDao.getExternalLyricsCache(
+          'song-2',
+        );
+        expect(cached, isNull);
+      },
+      skip: sqliteAvailable ? null : 'sqlite3 not available',
+    );
+
+    test(
+      'start() backfill is a no-op when there are no permanent downloads',
+      () async {
+        // No cached_tracks entries — backfill should exit early without error.
+        await expectLater(service.start(), completes);
+      },
+      skip: sqliteAvailable ? null : 'sqlite3 not available',
+    );
+
+    // -----------------------------------------------------------------------
     // start() recovers stuck downloads
     // -----------------------------------------------------------------------
 

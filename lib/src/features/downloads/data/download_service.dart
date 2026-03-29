@@ -83,6 +83,9 @@ class DownloadService {
     // Best-effort cleanup of orphaned permanent files on startup.
     unawaited(_cleanupOrphanedFiles());
 
+    // Best-effort lyrics backfill for already-downloaded songs.
+    unawaited(_backfillLyricsForDownloadedSongs());
+
     await _queueSubscription?.cancel();
     _queueSubscription = _downloadQueueDao.watchQueue().listen((_) {
       unawaited(_processNext());
@@ -600,6 +603,62 @@ class DownloadService {
       AppLogger.warning(
         'DownloadService: Orphaned file cleanup error: $e',
       );
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Lyrics backfill
+  // ---------------------------------------------------------------------------
+
+  /// On app boot, scan all permanently-downloaded tracks and fetch lyrics for
+  /// any that do not yet have a cached entry.
+  ///
+  /// Runs fire-and-forget from [start]. Respects the wifi-only setting, skips
+  /// songs that already have lyrics, and throttles requests to avoid hammering
+  /// the server or LrcLib. Never throws.
+  Future<void> _backfillLyricsForDownloadedSongs() async {
+    try {
+      if (_readWifiOnly() && !_readIsWifi()) {
+        AppLogger.debug(
+          'DownloadService: Lyrics backfill skipped — wifi-only and not on wifi.',
+        );
+        return;
+      }
+
+      final api = _readApiClient();
+      if (api == null) {
+        AppLogger.debug(
+          'DownloadService: Lyrics backfill skipped — no active API client.',
+        );
+        return;
+      }
+
+      final permanentIds = await _cacheDao.getPermanentlyCachedSongIds();
+      if (permanentIds.isEmpty) return;
+
+      final songs = await _libraryDao.getSongsByIds(permanentIds);
+      if (songs.isEmpty) return;
+
+      AppLogger.info(
+        'DownloadService: Lyrics backfill — checking ${songs.length} downloaded songs.',
+      );
+
+      for (final song in songs) {
+        final existing = await _libraryDao.getExternalLyricsCache(song.id);
+        if (existing != null &&
+            (existing.syncedLyrics != null || existing.plainLyrics != null)) {
+          continue;
+        }
+
+        await _prefetchLyrics(song.id, song, api);
+
+        // Throttle to avoid hammering the server or LrcLib.
+        await Future<void>.delayed(const Duration(milliseconds: 250));
+      }
+
+      AppLogger.info('DownloadService: Lyrics backfill complete.');
+    } catch (e) {
+      AppLogger.warning('DownloadService: Lyrics backfill error: $e');
     }
   }
 
