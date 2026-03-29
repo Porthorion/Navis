@@ -89,7 +89,11 @@ Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
+; Show a "Launch Navis" checkbox on the Finish wizard page for interactive installs.
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent
+; Automatically relaunch Navis after a silent in-app update (the Finish wizard
+; page is not shown in silent mode so postinstall entries are never executed).
+Filename: "{app}\{#MyAppExeName}"; Flags: nowait skipifnotsilent
 "@
 
 $tempIssPath = Join-Path ([System.IO.Path]::GetTempPath()) ("navis-installer-{0}.iss" -f [Guid]::NewGuid().ToString("N"))

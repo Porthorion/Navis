@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/settings/data/update_install_mode.dart';
@@ -30,6 +31,7 @@ enum _DownloadPhase {
   done,
   applying,
   noWriteAccess,
+  signatureMismatch,
   error,
 }
 
@@ -112,6 +114,23 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
         setState(() {
           _phase = _DownloadPhase.error;
           _error = e.message;
+        });
+      }
+    } on PlatformException catch (e) {
+      // installApk() throws PlatformException for Android install errors such
+      // as a signing-key mismatch (installed and downloaded APKs signed with
+      // different keys — user must uninstall first).
+      AppLogger.error('APK install failed', e);
+      if (mounted) {
+        final isSignatureMismatch = e.code == 'INSTALL_ERROR' &&
+            (e.message ?? '').toLowerCase().contains('signature');
+        setState(() {
+          if (isSignatureMismatch) {
+            _phase = _DownloadPhase.signatureMismatch;
+          } else {
+            _phase = _DownloadPhase.error;
+            _error = e.message ?? e.code;
+          }
         });
       }
     } on Object catch (e) {
@@ -216,6 +235,18 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
             Icon(Icons.lock_outline, color: theme.colorScheme.error),
             const SizedBox(width: 12),
             Expanded(child: Text(l10n.updateNoWriteAccess)),
+          ],
+        );
+
+      case _DownloadPhase.signatureMismatch:
+        return Row(
+          children: [
+            Icon(
+              Icons.security_update_warning,
+              color: theme.colorScheme.error,
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Text(l10n.updateSignatureMismatch)),
           ],
         );
 
@@ -328,6 +359,22 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
         return const [];
 
       case _DownloadPhase.noWriteAccess:
+        return [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(l10n.updateDismiss),
+          ),
+          FilledButton.icon(
+            onPressed: () => launchUrl(
+              Uri.parse(widget.info.htmlUrl),
+              mode: LaunchMode.externalApplication,
+            ),
+            icon: const Icon(Icons.open_in_new),
+            label: Text(l10n.updateDownloadManually),
+          ),
+        ];
+
+      case _DownloadPhase.signatureMismatch:
         return [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),

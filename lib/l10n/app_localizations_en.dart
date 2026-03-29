@@ -1922,6 +1922,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Navis cannot update itself from this location. Please download manually.';
 
   @override
+  String get updateSignatureMismatch =>
+      'This update is signed with a different key than your installed version. Uninstall Navis, then install the new version manually.';
+
+  @override
   String get updateDownloadManually => 'Download Manually';
 
   @override

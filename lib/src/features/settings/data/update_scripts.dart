@@ -81,7 +81,9 @@ del "%~f0"
 
     final relaunchLine = isMacos
         ? 'open $rEsc'
-        : 'nohup $rEsc </dev/null >/dev/null 2>&1 &';
+        // cd to the bundle directory first so the app runs with the correct
+        // working directory, then detach it fully from this script's session.
+        : '(cd -- "\$(dirname $rEsc)" && nohup $rEsc </dev/null >/dev/null 2>&1 &)';
 
     // The script backs up the current installation before touching anything.
     // If moving the new version into place fails, it rolls back automatically

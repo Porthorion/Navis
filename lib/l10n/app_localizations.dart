@@ -3429,6 +3429,12 @@ abstract class AppLocalizations {
   /// **'Navis cannot update itself from this location. Please download manually.'**
   String get updateNoWriteAccess;
 
+  /// No description provided for @updateSignatureMismatch.
+  ///
+  /// In en, this message translates to:
+  /// **'This update is signed with a different key than your installed version. Uninstall Navis, then install the new version manually.'**
+  String get updateSignatureMismatch;
+
   /// No description provided for @updateDownloadManually.
   ///
   /// In en, this message translates to:
