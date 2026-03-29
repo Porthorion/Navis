@@ -204,10 +204,8 @@ void main() {
     // -----------------------------------------------------------------------
 
     test(
-      'start() backfill skips songs that already have cached lyrics',
+      'start() backfill skips songs that already have synced lyrics',
       () async {
-        // A service with wifi available and no API client (simulates the
-        // early-exit path when there is nothing to do after the lyrics check).
         await database.libraryDao.upsertSongs(<SongsTableCompanion>[
           SongsTableCompanion.insert(id: 'song-1', title: 'Lyric Song'),
         ]);
@@ -222,22 +220,60 @@ void main() {
             lastAccessedAt: DateTime.now(),
           ),
         );
-        // Pre-seed lyrics so the backfill should skip this song.
+        // Pre-seed synced lyrics — the backfill must not touch this song.
         await database.libraryDao.upsertExternalLyricsCache(
           songId: 'song-1',
           source: 'test',
-          plainLyrics: 'la la la',
+          syncedLyrics: '[00:01.00] la la la',
           ttlSeconds: 3600,
         );
 
-        // start() must complete without error even with a null API client.
         await expectLater(service.start(), completes);
 
-        // Lyrics entry must still be present and unchanged.
+        // Synced lyrics must be intact.
         final cached = await database.libraryDao.getExternalLyricsCache(
           'song-1',
         );
-        expect(cached?.plainLyrics, 'la la la');
+        expect(cached?.syncedLyrics, '[00:01.00] la la la');
+      },
+      skip: sqliteAvailable ? null : 'sqlite3 not available',
+    );
+
+    test(
+      'start() backfill processes songs with only plain lyrics (upgrade path)',
+      () async {
+        // When a song has only plain lyrics and the API client is null, the
+        // backfill must still attempt the song (pass the lyrics gate) but exit
+        // gracefully at the API check. Plain lyrics must be preserved.
+        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(id: 'song-plain', title: 'Plain Song'),
+        ]);
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: 'song-plain',
+            filePath: '/fake/song-plain.mp3',
+            fileSize: 500,
+            format: 'mp3',
+            cacheType: CacheType.permanent,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
+        await database.libraryDao.upsertExternalLyricsCache(
+          songId: 'song-plain',
+          source: 'serverPlain',
+          plainLyrics: 'verse one',
+          ttlSeconds: 3600,
+        );
+
+        // start() with null API exits before any fetch — plain lyrics survive.
+        await expectLater(service.start(), completes);
+
+        final cached = await database.libraryDao.getExternalLyricsCache(
+          'song-plain',
+        );
+        expect(cached?.plainLyrics, 'verse one');
+        expect(cached?.syncedLyrics, isNull); // No upgrade happened (no API).
       },
       skip: sqliteAvailable ? null : 'sqlite3 not available',
     );

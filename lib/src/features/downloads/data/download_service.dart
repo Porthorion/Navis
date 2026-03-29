@@ -645,10 +645,12 @@ class DownloadService {
 
       for (final song in songs) {
         final existing = await _libraryDao.getExternalLyricsCache(song.id);
-        if (existing != null &&
-            (existing.syncedLyrics != null || existing.plainLyrics != null)) {
+        if (existing != null && existing.syncedLyrics != null) {
+          // Already have synced lyrics — best possible quality, nothing to do.
           continue;
         }
+        // Songs with only plain lyrics are still processed to try to upgrade
+        // to synced lyrics.
 
         await _prefetchLyrics(song.id, song, api);
 
@@ -675,15 +677,16 @@ class DownloadService {
     SubsonicApiClient api,
   ) async {
     try {
-      // Skip if already cached.
+      // Skip only if synced lyrics are already cached — best possible quality.
       final existing = await _libraryDao.getExternalLyricsCache(songId);
-      if (existing != null &&
-          (existing.syncedLyrics != null || existing.plainLyrics != null)) {
+      if (existing != null && existing.syncedLyrics != null) {
         AppLogger.debug(
-          'DownloadService: Lyrics already cached for $songId, skipping.',
+          'DownloadService: Synced lyrics already cached for $songId, skipping.',
         );
         return;
       }
+      // If only plain lyrics exist, continue and try to upgrade to synced.
+      final hasOnlyPlain = existing != null && existing.plainLyrics != null;
 
       // 1. Try server synced lyrics (OpenSubsonic getLyricsBySongId).
       try {
@@ -710,7 +713,8 @@ class DownloadService {
           return;
         }
 
-        if (unsynced != null) {
+        // Only store plain lyrics if we don't already have them.
+        if (unsynced != null && !hasOnlyPlain) {
           final plainText = unsynced.line.map((l) => l.value ?? '').join('\n');
           if (plainText.trim().isNotEmpty) {
             await _libraryDao.upsertExternalLyricsCache(
@@ -736,8 +740,9 @@ class DownloadService {
         // Offline — skip server entirely, try lrclib.
       }
 
-      // 2. Try legacy getLyrics endpoint.
-      if (song.artistName != null && song.title.isNotEmpty) {
+      // 2. Try legacy getLyrics endpoint (plain text only — skip if we already
+      // have plain lyrics and are only looking for an upgrade to synced).
+      if (!hasOnlyPlain && song.artistName != null && song.title.isNotEmpty) {
         try {
           final legacy = await api.getLyrics(
             artist: song.artistName,
@@ -774,6 +779,15 @@ class DownloadService {
         duration: song.duration,
       );
       if (lrclibResult == null) return;
+
+      // Only store a plain LrcLib result if we don't already have plain lyrics;
+      // always store if LrcLib found synced lyrics.
+      if (!lrclibResult.hasSynced && hasOnlyPlain) {
+        AppLogger.debug(
+          'DownloadService: LrcLib plain lyrics for $songId already covered, skipping.',
+        );
+        return;
+      }
 
       await _libraryDao.upsertExternalLyricsCache(
         songId: songId,
