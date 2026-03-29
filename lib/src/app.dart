@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +7,7 @@ import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_router.dart';
 import 'package:navis/src/routing/desktop_commands.dart';
+import 'package:navis/src/routing/navigation_history_provider.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/theme/dynamic_accent_provider.dart';
 import 'package:navis/src/theme/navis_theme.dart';
@@ -108,6 +110,15 @@ class _NavisAppState extends ConsumerState<NavisApp> {
       behavior: HitTestBehavior.translucent,
       onPointerDown: (event) {
         FocusManager.instance.primaryFocus?.unfocus();
+        if (event.buttons & kBackMouseButton != 0) {
+          ref
+              .read(navigationHistoryProvider.notifier)
+              .navigateBack(ref.read(appRouterProvider));
+        } else if (event.buttons & kForwardMouseButton != 0) {
+          ref
+              .read(navigationHistoryProvider.notifier)
+              .navigateForward(ref.read(appRouterProvider));
+        }
       },
       child: Shortcuts.manager(
         manager: _desktopActivationShortcutManager,

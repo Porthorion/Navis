@@ -74,6 +74,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     required String homeDensity,
     String? homeSectionOrder,
     String? homeSectionsHidden,
+    String desktopNavbarStyle = 'comfortable',
+    bool desktopNavbarAutohide = false,
   }) {
     return into(appSettingsTable).insertOnConflictUpdate(
       AppSettingsTableCompanion.insert(
@@ -123,6 +125,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         homeDensity: Value(homeDensity),
         homeSectionOrder: Value(homeSectionOrder),
         homeSectionsHidden: Value(homeSectionsHidden),
+        desktopNavbarStyle: Value(desktopNavbarStyle),
+        desktopNavbarAutohide: Value(desktopNavbarAutohide),
         updatedAt: DateTime.now(),
       ),
     );
@@ -173,6 +177,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       homeDensity: 'comfortable',
       homeSectionOrder: null,
       homeSectionsHidden: null,
+      desktopNavbarStyle: 'comfortable',
+      desktopNavbarAutohide: false,
     );
   }
 
@@ -573,6 +579,30 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     )..where((t) => t.id.equals(primarySettingsId))).write(
       AppSettingsTableCompanion(
         homeSectionsHidden: Value(json),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Targeted update for desktop navigation sidebar style.
+  Future<void> updateDesktopNavbarStyle(String style) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        desktopNavbarStyle: Value(style),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Targeted update for desktop navigation sidebar autohide.
+  Future<void> updateDesktopNavbarAutohide(bool enabled) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        desktopNavbarAutohide: Value(enabled),
         updatedAt: Value(DateTime.now()),
       ),
     );

@@ -67,6 +67,8 @@ class SettingsRepository {
       homeDensity: settings.homeDensity,
       homeSectionOrder: _encodeStringList(settings.homeSectionOrder),
       homeSectionsHidden: _encodeStringList(settings.homeSectionsHidden),
+      desktopNavbarStyle: settings.desktopNavbarStyle,
+      desktopNavbarAutohide: settings.desktopNavbarAutohide,
     );
   }
 
@@ -122,6 +124,8 @@ class SettingsRepository {
       homeDensity: row.homeDensity,
       homeSectionOrder: _decodeStringList(row.homeSectionOrder),
       homeSectionsHidden: _decodeStringList(row.homeSectionsHidden),
+      desktopNavbarStyle: row.desktopNavbarStyle,
+      desktopNavbarAutohide: row.desktopNavbarAutohide,
     );
   }
 

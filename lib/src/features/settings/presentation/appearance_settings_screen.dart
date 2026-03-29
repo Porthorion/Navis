@@ -422,6 +422,26 @@ class AppearanceSettingsScreen extends ConsumerWidget {
               ],
             ),
           ),
+          if (isDesktop) ...[
+            const Divider(height: 24),
+            _SettingsCollapsibleGroup(
+              leading: const Icon(Icons.view_sidebar_outlined),
+              title: l10n.desktopNavbarSectionLabel,
+              initiallyExpanded: false,
+              child: _DesktopNavbarSettings(
+                currentStyle: ref.watch(desktopNavbarStyleProvider),
+                autohideEnabled: ref.watch(desktopNavbarAutohideProvider),
+                onStyleChanged: (style) async {
+                  final db = ref.read(navisDatabaseProvider);
+                  await db.appSettingsDao.updateDesktopNavbarStyle(style);
+                },
+                onAutohideChanged: (enabled) async {
+                  final db = ref.read(navisDatabaseProvider);
+                  await db.appSettingsDao.updateDesktopNavbarAutohide(enabled);
+                },
+              ),
+            ),
+          ],
           const SizedBox(height: 8),
         ],
       ),
@@ -1371,6 +1391,109 @@ class _HomeSectionReorderState extends State<_HomeSectionReorder> {
           ),
         );
       },
+    );
+  }
+}
+
+class _DesktopNavbarSettings extends StatelessWidget {
+  const _DesktopNavbarSettings({
+    required this.currentStyle,
+    required this.autohideEnabled,
+    required this.onStyleChanged,
+    required this.onAutohideChanged,
+  });
+
+  final String currentStyle;
+  final bool autohideEnabled;
+  final ValueChanged<String> onStyleChanged;
+  final ValueChanged<bool> onAutohideChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final selected = (currentStyle == 'compact' || currentStyle == 'icons')
+        ? currentStyle
+        : 'comfortable';
+
+    Widget styleOption({
+      required String value,
+      required String label,
+      required IconData icon,
+    }) {
+      final isSelected = selected == value;
+      return Expanded(
+        child: SizedBox(
+          height: 48,
+          child: FilledButton.icon(
+            onPressed: () => onStyleChanged(value),
+            icon: Icon(icon, size: 18),
+            label: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              backgroundColor: isSelected
+                  ? colorScheme.primaryContainer
+                  : colorScheme.surfaceContainerLow,
+              foregroundColor: isSelected
+                  ? colorScheme.onPrimaryContainer
+                  : colorScheme.onSurfaceVariant,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+          child: Text(
+            l10n.desktopNavbarStyleLabel,
+            style: theme.textTheme.titleSmall?.copyWith(
+              color: colorScheme.primary,
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            children: <Widget>[
+              styleOption(
+                value: 'comfortable',
+                label: l10n.desktopNavbarStyleComfortable,
+                icon: Icons.view_sidebar_outlined,
+              ),
+              const SizedBox(width: 8),
+              styleOption(
+                value: 'compact',
+                label: l10n.desktopNavbarStyleCompact,
+                icon: Icons.view_compact_alt_outlined,
+              ),
+              const SizedBox(width: 8),
+              styleOption(
+                value: 'icons',
+                label: l10n.desktopNavbarStyleIcons,
+                icon: Icons.more_vert_rounded,
+              ),
+            ],
+          ),
+        ),
+        SwitchListTile(
+          title: Text(l10n.desktopNavbarAutohideLabel),
+          subtitle: Text(l10n.desktopNavbarAutohideSub),
+          value: autohideEnabled,
+          onChanged: onAutohideChanged,
+        ),
+      ],
     );
   }
 }

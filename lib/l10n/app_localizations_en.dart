@@ -2050,6 +2050,34 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearanceHomeDensityCompact => 'Compact';
 
   @override
+  String get desktopNavbarSectionLabel => 'Desktop Navigation';
+
+  @override
+  String get desktopNavbarStyleLabel => 'Navigation Style';
+
+  @override
+  String get desktopNavbarStyleComfortable => 'Comfortable';
+
+  @override
+  String get desktopNavbarStyleCompact => 'Compact';
+
+  @override
+  String get desktopNavbarStyleIcons => 'Icons';
+
+  @override
+  String get desktopNavbarAutohideLabel => 'Autohide Sidebar';
+
+  @override
+  String get desktopNavbarAutohideSub =>
+      'Sidebar slides away automatically; hover the left edge to reveal it.';
+
+  @override
+  String get desktopNavbarLockTooltip => 'Lock sidebar';
+
+  @override
+  String get desktopNavbarUnlockTooltip => 'Unlock sidebar';
+
+  @override
   String get homeSectionContinueListening => 'Continue Listening';
 
   @override
