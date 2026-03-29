@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:audio_service/audio_service.dart';
 import 'package:dbus/dbus.dart';
@@ -49,9 +50,15 @@ class LinuxMprisBridge {
 
       await client.registerObject(obj);
       await client.requestName(
-        'org.mpris.MediaPlayer2.navis',
+        'org.mpris.MediaPlayer2.navis.instance${pid}',
         flags: {DBusRequestNameFlag.doNotQueue},
       );
+
+      // Guard against dispose() being called while we were awaiting above.
+      if (_isDisposed) {
+        await client.close();
+        return;
+      }
 
       _wireListeners();
       AppLogger.info('Linux MPRIS bridge initialized.');
@@ -131,7 +138,9 @@ class LinuxMprisBridge {
             return;
           }
           await _handler.seek(target);
-          unawaited(obj.emitSeeked(target));
+          // Use the nullable field, not the local 'obj', so that a concurrent
+          // dispose() that nulls _mprisObject prevents emitting on a closed client.
+          unawaited(_mprisObject?.emitSeeked(target));
         case _SetLoopStatusCommand(loopStatus: final loopStatus):
           final repeatMode = switch (loopStatus) {
             'Track' => AudioServiceRepeatMode.one,
@@ -301,6 +310,18 @@ class _NavisMprisObject extends DBusObject {
   /// Current track D-Bus object path; used to validate `SetPosition` calls.
   String? currentTrackId;
 
+  // ---- Seek-detection state -----------------------------------------------
+  // Tracks the last known position and when it was recorded so that
+  // non-MPRIS-initiated seeks (i.e. user drags the scrubber inside the app)
+  // still emit the Seeked signal to GNOME Shell.
+
+  static const _seekDetectionThreshold = Duration(seconds: 2);
+
+  Duration _lastSyncedPosition = Duration.zero;
+  DateTime _lastSyncedTime = DateTime.fromMillisecondsSinceEpoch(0);
+  bool _wasPlaying = false;
+  String? _lastSyncedTrackId;
+
   // ---- State update API used by LinuxMprisBridge --------------------------
 
   void syncState({
@@ -309,6 +330,34 @@ class _NavisMprisObject extends DBusObject {
     required String loopStatus,
     required bool shuffleEnabled,
   }) {
+    // Detect position jumps that weren't MPRIS-initiated — e.g. the user
+    // seeked via the Navis UI while the media bar was showing. The MPRIS
+    // spec requires a Seeked signal whenever position deviates from the
+    // expected extrapolation (lastPos + elapsed * rate).
+    //
+    // Guard: only check when the same track is still playing so we don't
+    // false-fire on a normal track advance (where updateMetadata() updates
+    // currentTrackId before syncState() is called, making IDs differ).
+    if (_wasPlaying &&
+        currentTrackId != null &&
+        currentTrackId == _lastSyncedTrackId) {
+      final elapsed = DateTime.now().difference(_lastSyncedTime);
+      final expectedUs =
+          _lastSyncedPosition.inMicroseconds +
+          (elapsed.inMicroseconds * _rate).round();
+      final expectedPosition = Duration(
+        microseconds: math.max(0, expectedUs),
+      );
+      if ((position - expectedPosition).abs() > _seekDetectionThreshold) {
+        unawaited(emitSeeked(position));
+      }
+    }
+
+    _lastSyncedPosition = position;
+    _lastSyncedTime = DateTime.now();
+    _wasPlaying = status == 'Playing';
+    _lastSyncedTrackId = currentTrackId;
+
     // Position is not part of PropertiesChanged (clients poll it per spec).
     _position = position;
 
