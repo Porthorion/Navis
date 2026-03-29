@@ -1782,6 +1782,7 @@ final downloadServiceProvider = Provider<DownloadService>((ref) {
     readWifiOnly: () =>
         ref.read(appSettingsProvider).asData?.value.wifiOnlyDownloads ?? false,
     readIsWifi: () => ref.read(networkTypeProvider) == NetworkType.wifi,
+    lrclibClient: ref.read(lrclibClientProvider),
   );
   // Service.start() is async but we fire-and-forget here — the subscription
   // inside start() processes the queue independently.
@@ -2138,25 +2139,33 @@ LyricsResolution? _lyricsResolutionFromExternalCache(
   final source = switch (cache.source) {
     'lrclibSynced' || 'lrclib_synced' => LyricsSource.lrclibSynced,
     'lrclibPlain' || 'lrclib_plain' => LyricsSource.lrclibPlain,
+    'serverSynced' => LyricsSource.serverSynced,
+    'serverPlain' => LyricsSource.serverPlain,
     _ => null,
   };
   if (source == null) {
     return null;
   }
 
-  final synced = _tryParseLrc(cache.syncedLyrics);
-  if (synced != null) {
-    return LyricsResolution(
-      lyrics: synced,
-      source: LyricsSource.lrclibSynced,
-    );
+  // For synced sources (server or lrclib), try the LRC column first.
+  if (source == LyricsSource.serverSynced ||
+      source == LyricsSource.lrclibSynced) {
+    final synced = _tryParseLrc(cache.syncedLyrics);
+    if (synced != null) {
+      return LyricsResolution(lyrics: synced, source: source);
+    }
   }
 
+  // Fall back to plain text for any source.
   final plain = cache.plainLyrics;
   if (plain != null && plain.trim().isNotEmpty) {
     return LyricsResolution(
       lyrics: LyricsList(value: plain),
-      source: LyricsSource.lrclibPlain,
+      source:
+          source == LyricsSource.serverSynced ||
+                  source == LyricsSource.serverPlain
+              ? LyricsSource.serverPlain
+              : LyricsSource.lrclibPlain,
     );
   }
   return null;
