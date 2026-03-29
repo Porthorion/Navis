@@ -110,6 +110,11 @@ class UpdateService {
   /// Should be called before initiating a download so we can fail fast and
   /// direct the user to download manually instead.
   bool canApplyUpdate(UpdateInstallMode mode) {
+    // The Inno Setup installer runs with its own UAC elevation and replaces
+    // itself in the install directory — we don't need write access to
+    // C:\Program Files\... beforehand.
+    if (mode == UpdateInstallMode.windowsInstaller) return true;
+
     try {
       final targetDir = _resolveTargetDir(mode);
       return ArchiveUtils.isDirectoryWritable(targetDir);

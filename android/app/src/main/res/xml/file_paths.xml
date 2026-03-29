@@ -2,6 +2,7 @@
 <paths>
     <!-- Expose the app's internal cache directory so the in-app updater can
          share the downloaded APK with the system package installer via a
-         content:// URI. -->
-    <cache-path name="apk_updates" path="updates/" />
+         content:// URI. Must match the 'navis_updates' subdirectory used by
+         UpdateService.downloadArtifact(). -->
+    <cache-path name="apk_updates" path="navis_updates/" />
 </paths>

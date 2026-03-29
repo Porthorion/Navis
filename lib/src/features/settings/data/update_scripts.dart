@@ -78,7 +78,9 @@ del "%~f0"
     final bEsc = _shEsc(backupPath);
     final rEsc = _shEsc(relaunchCommand);
 
-    final relaunchLine = isMacos ? 'open $rEsc' : '$rEsc &';
+    final relaunchLine = isMacos
+        ? 'open $rEsc'
+        : 'nohup $rEsc </dev/null >/dev/null 2>&1 &';
 
     // The script backs up the current installation before touching anything.
     // If moving the new version into place fails, it rolls back automatically
