@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
-import 'package:audio_service_mpris/audio_service_mpris.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -20,6 +19,7 @@ import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 import 'package:navis/src/features/player/data/radio_metadata_service.dart';
 import 'package:navis/src/features/player/data/scrobble_service.dart';
+import 'package:navis/src/features/player/data/linux_mpris_bridge.dart';
 import 'package:navis/src/features/player/data/windows_smtc_bridge.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/utils/app_logger.dart';
@@ -348,7 +348,6 @@ Map<String, Object?> navisResolvedPlaybackExtras({
 }
 
 Future<NavisPlaybackHandler>? _audioHandlerInitFuture;
-bool _linuxMprisRegistered = false;
 
 typedef NavisRegisterLinuxMpris = void Function();
 
@@ -381,6 +380,10 @@ Future<void> disposeNavisPlaybackHandler(NavisPlaybackHandler handler) async {
     await handler.dispose();
     return;
   }
+  if (handler is LinuxNavisPlaybackHandler) {
+    await handler.dispose();
+    return;
+  }
   if (handler is NavisAudioHandler) {
     await handler.disposeHandler();
   }
@@ -388,6 +391,10 @@ Future<void> disposeNavisPlaybackHandler(NavisPlaybackHandler handler) async {
 
 void beginNavisPlaybackHandlerTeardown(NavisPlaybackHandler handler) {
   if (handler is WindowsNavisPlaybackHandler) {
+    handler.beginTeardown();
+    return;
+  }
+  if (handler is LinuxNavisPlaybackHandler) {
     handler.beginTeardown();
     return;
   }
@@ -430,22 +437,18 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
 
   late final Future<NavisPlaybackHandler> initFuture;
   if (_isWindowsRuntime) {
-    // Windows currently bypasses audio_service runtime integration.
+    // Windows: bypass audio_service, bridge to SMTC directly.
     initFuture = Future<NavisPlaybackHandler>.value(
       WindowsNavisPlaybackHandler(createBaseHandler()),
     );
+  } else if (_isLinuxRuntime) {
+    // Linux: bypass audio_service, bridge to MPRIS D-Bus directly.
+    // This replaces the incomplete audio_service_mpris integration which
+    // did not implement Seek, SetPosition, Shuffle, or LoopStatus.
+    initFuture = Future<NavisPlaybackHandler>.value(
+      LinuxNavisPlaybackHandler(createBaseHandler()),
+    );
   } else {
-    if (!_linuxMprisRegistered) {
-      final registered = navisRegisterLinuxMprisIfSupported(
-        isLinuxRuntime: _isLinuxRuntime,
-        registerMpris: AudioServiceMpris.registerWith,
-        logInfo: AppLogger.info,
-        logWarning: AppLogger.warning,
-      );
-      if (registered) {
-        _linuxMprisRegistered = true;
-      }
-    }
     initFuture = AudioService.init(
       builder: createBaseHandler,
       config: AudioServiceConfig(
@@ -487,6 +490,148 @@ class WindowsNavisPlaybackHandler implements NavisPlaybackHandler {
 
   Future<void> dispose() async {
     await _smtcBridge.dispose();
+    await _delegate.disposeHandler();
+  }
+
+  @override
+  PlaybackSnapshot get snapshot => _delegate.snapshot;
+
+  @override
+  Stream<PlaybackSnapshot> get snapshotStream => _delegate.snapshotStream;
+
+  @override
+  Stream<ManualTrackChangeCue> get manualTrackChangeCueStream =>
+      _delegate.manualTrackChangeCueStream;
+
+  @override
+  Stream<Duration> get positionStream => _delegate.positionStream;
+
+  @override
+  MediaItem? get currentMediaItem => _delegate.currentMediaItem;
+
+  @override
+  Stream<MediaItem?> get mediaItemStream => _delegate.mediaItemStream;
+
+  @override
+  Stream<void> get radioStreamErrorStream => _delegate.radioStreamErrorStream;
+
+  @override
+  Future<void> waitUntilReady() => _delegate.waitUntilReady();
+
+  @override
+  Future<void> replaceQueue(
+    List<String> songIds, {
+    int startIndex = 0,
+    bool autoPlay = true,
+  }) => _delegate.replaceQueue(
+    songIds,
+    startIndex: startIndex,
+    autoPlay: autoPlay,
+  );
+
+  @override
+  Future<void> addToQueue(List<String> songIds) =>
+      _delegate.addToQueue(songIds);
+
+  @override
+  Future<void> playNext(List<String> songIds) => _delegate.playNext(songIds);
+
+  @override
+  Future<void> playFromIndex(int index) => _delegate.playFromIndex(index);
+
+  @override
+  Future<void> removeAt(int index) => _delegate.removeAt(index);
+
+  @override
+  Future<void> reorderQueue(int oldIndex, int newIndex) =>
+      _delegate.reorderQueue(oldIndex, newIndex);
+
+  @override
+  Future<void> clearQueue() => _delegate.clearQueue();
+
+  @override
+  Future<void> play() => _delegate.play();
+
+  @override
+  Future<void> pause() => _delegate.pause();
+
+  @override
+  Future<void> seek(Duration position) => _delegate.seek(position);
+
+  @override
+  Future<void> skipToNext() => _delegate.skipToNext();
+
+  @override
+  Future<void> skipToPrevious() => _delegate.skipToPrevious();
+
+  @override
+  Future<void> setShuffleMode(AudioServiceShuffleMode shuffleMode) =>
+      _delegate.setShuffleMode(shuffleMode);
+
+  @override
+  Future<void> setRepeatMode(AudioServiceRepeatMode repeatMode) =>
+      _delegate.setRepeatMode(repeatMode);
+
+  @override
+  Future<void> setPlaybackSpeed(double speed) =>
+      _delegate.setPlaybackSpeed(speed);
+
+  @override
+  Future<void> setVolume(double volume) => _delegate.setVolume(volume);
+
+  @override
+  Future<void> applyRuntimeSettings() => _delegate.applyRuntimeSettings();
+
+  @override
+  Future<void> toggleLike() => _delegate.toggleLike();
+
+  @override
+  Future<void> syncSongLikedState(String songId, {required bool liked}) =>
+      _delegate.syncSongLikedState(songId, liked: liked);
+
+  @override
+  Future<void> playRadioStream({
+    required String stationId,
+    required String stationName,
+    required String streamUrl,
+    String? homePageUrl,
+  }) => _delegate.playRadioStream(
+    stationId: stationId,
+    stationName: stationName,
+    streamUrl: streamUrl,
+    homePageUrl: homePageUrl,
+  );
+
+  @override
+  Future<void> stopRadio() => _delegate.stopRadio();
+
+  @override
+  void updateRadioMetadata({
+    String? title,
+    String? artist,
+    String? artUrl,
+  }) => _delegate.updateRadioMetadata(
+    title: title,
+    artist: artist,
+    artUrl: artUrl,
+  );
+}
+
+class LinuxNavisPlaybackHandler implements NavisPlaybackHandler {
+  LinuxNavisPlaybackHandler(this._delegate) {
+    _mprisBridge = LinuxMprisBridge(handler: this);
+  }
+
+  final NavisAudioHandler _delegate;
+  late final LinuxMprisBridge _mprisBridge;
+
+  void beginTeardown() {
+    _delegate.beginTeardown();
+    unawaited(_mprisBridge.dispose());
+  }
+
+  Future<void> dispose() async {
+    await _mprisBridge.dispose();
     await _delegate.disposeHandler();
   }
 
@@ -2796,6 +2941,7 @@ class NavisAudioHandler extends BaseAudioHandler
       playing: _player.playing,
       updatePosition: _player.position,
       bufferedPosition: _player.bufferedPosition,
+      speed: _player.speed,
       queueIndex: _player.currentIndex,
       repeatMode: _mapRepeatMode(_player.loopMode),
       shuffleMode: _player.shuffleModeEnabled

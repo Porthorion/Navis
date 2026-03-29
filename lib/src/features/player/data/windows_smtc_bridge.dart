@@ -7,6 +7,8 @@ import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:smtc_windows/smtc_windows.dart';
+import 'package:smtc_windows/src/rust/api/api.dart' as smtc_api;
+import 'package:smtc_windows/src/rust/frb_generated.dart' show RustLib;
 
 /// Bridges Navis playback state with Windows System Media Transport Controls.
 class WindowsSmtcBridge {
@@ -30,6 +32,7 @@ class WindowsSmtcBridge {
   StreamSubscription<PressedButton>? _buttonSubscription;
   StreamSubscription<bool>? _shuffleSubscription;
   StreamSubscription<RepeatMode>? _repeatSubscription;
+  StreamSubscription<Duration>? _positionChangeSubscription;
 
   bool _isDisposed = false;
 
@@ -110,6 +113,15 @@ class WindowsSmtcBridge {
         );
       },
     );
+
+    _positionChangeSubscription = smtc.positionChangeStream.listen(
+      (position) => unawaited(_handlePositionChangeRequest(position)),
+      onError: (Object error, StackTrace stackTrace) {
+        AppLogger.warning(
+          'Windows SMTC position change stream error: $error\n$stackTrace',
+        );
+      },
+    );
   }
 
   Future<void> _handleButtonPress(PressedButton event) async {
@@ -142,6 +154,19 @@ class WindowsSmtcBridge {
       AppLogger.warning(
         'Windows SMTC button handling failed for $event: '
         '$error\n$stackTrace',
+      );
+    }
+  }
+
+  Future<void> _handlePositionChangeRequest(Duration position) async {
+    if (_isDisposed) {
+      return;
+    }
+    try {
+      await _handler.seek(position);
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning(
+        'Windows SMTC position change request failed: $error\n$stackTrace',
       );
     }
   }
@@ -280,6 +305,7 @@ class WindowsSmtcBridge {
     await _buttonSubscription?.cancel();
     await _shuffleSubscription?.cancel();
     await _repeatSubscription?.cancel();
+    await _positionChangeSubscription?.cancel();
 
     final smtc = _smtc;
     _smtc = null;
@@ -301,30 +327,18 @@ typedef WindowsSmtcClientFactory = Future<WindowsSmtcClient> Function();
 
 Future<WindowsSmtcClient> _createDefaultSmtcClient() async {
   await SMTCWindows.initialize();
-  return DefaultWindowsSmtcClient(
-    SMTCWindows(
-      config: const SMTCConfig(
-        playEnabled: true,
-        pauseEnabled: true,
-        stopEnabled: false,
-        nextEnabled: true,
-        prevEnabled: true,
-        fastForwardEnabled: true,
-        rewindEnabled: true,
-      ),
-      timeline: const PlaybackTimeline(
-        startTimeMs: 0,
-        endTimeMs: 0,
-        positionMs: 0,
-      ),
-    ),
-  );
+  return _DirectSmtcClient();
 }
 
 abstract class WindowsSmtcClient {
   Stream<PressedButton> get buttonPressStream;
   Stream<bool> get shuffleChangeStream;
   Stream<RepeatMode> get repeatModeChangeStream;
+
+  /// Emits the absolute position (in milliseconds since track start) when the
+  /// user drags the SMTC timeline slider or otherwise requests a seek via OS
+  /// media controls.
+  Stream<Duration> get positionChangeStream;
 
   Future<void> setPlaybackStatus(PlaybackStatus status);
   Future<void> updateTimeline(PlaybackTimeline timeline);
@@ -335,6 +349,107 @@ abstract class WindowsSmtcClient {
   Future<void> dispose();
 }
 
+/// Low-level SMTC client that talks directly to the Rust FFI layer so that
+/// ALL available event streams — including position-change requests — are
+/// exposed.  The public `SMTCWindows` wrapper in the `smtc_windows` package
+/// does not surface the position-change stream, so we bypass it here.
+class _DirectSmtcClient implements WindowsSmtcClient {
+  _DirectSmtcClient() {
+    final internal = smtc_api.smtcNew(enabled: true);
+    _internal = internal;
+
+    _buttonPressStream = smtc_api
+        .smtcButtonPressEvent(internal: internal)
+        .map(PressedButton.fromString)
+        .asBroadcastStream();
+    _shuffleStream = smtc_api
+        .smtcShuffleRequestEvent(internal: internal)
+        .asBroadcastStream();
+    _repeatStream = smtc_api
+        .smtcRepeatModeRequestEvent(internal: internal)
+        .map(RepeatMode.fromString)
+        .asBroadcastStream();
+    _positionStream = smtc_api
+        .smtcPositionChangeRequestEvent(internal: internal)
+        .map((ms) => Duration(milliseconds: ms.toInt()))
+        .asBroadcastStream();
+
+    smtc_api
+        .smtcUpdateConfig(
+          internal: internal,
+          config: const SMTCConfig(
+            playEnabled: true,
+            pauseEnabled: true,
+            stopEnabled: false,
+            nextEnabled: true,
+            prevEnabled: true,
+            fastForwardEnabled: true,
+            rewindEnabled: true,
+          ),
+        )
+        .ignore();
+  }
+
+  late final smtc_api.SmtcInternal _internal;
+  late final Stream<PressedButton> _buttonPressStream;
+  late final Stream<bool> _shuffleStream;
+  late final Stream<RepeatMode> _repeatStream;
+  late final Stream<Duration> _positionStream;
+
+  @override
+  Stream<PressedButton> get buttonPressStream => _buttonPressStream;
+
+  @override
+  Stream<bool> get shuffleChangeStream => _shuffleStream;
+
+  @override
+  Stream<RepeatMode> get repeatModeChangeStream => _repeatStream;
+
+  @override
+  Stream<Duration> get positionChangeStream => _positionStream;
+
+  @override
+  Future<void> setPlaybackStatus(PlaybackStatus status) =>
+      smtc_api.smtcUpdatePlaybackStatus(
+        internal: _internal,
+        status: status,
+      );
+
+  @override
+  Future<void> updateTimeline(PlaybackTimeline timeline) =>
+      smtc_api.smtcUpdateTimeline(internal: _internal, timeline: timeline);
+
+  @override
+  Future<void> setShuffleEnabled({required bool enabled}) =>
+      smtc_api.smtcUpdateShuffle(internal: _internal, shuffle: enabled);
+
+  @override
+  Future<void> setRepeatMode(RepeatMode mode) => smtc_api.smtcUpdateRepeatMode(
+    internal: _internal,
+    repeatMode: mode.asString,
+  );
+
+  @override
+  Future<void> updateMetadata(MusicMetadata metadata) =>
+      smtc_api.smtcUpdateMetadata(internal: _internal, metadata: metadata);
+
+  @override
+  Future<void> clearMetadata() =>
+      smtc_api.smtcClearMetadata(internal: _internal);
+
+  @override
+  Future<void> dispose() {
+    _internal.dispose();
+    RustLib.dispose();
+    return Future<void>.value();
+  }
+}
+
+/// Compatibility shim — wraps an existing [SMTCWindows] instance.  The
+/// position-change stream always emits nothing because the high-level
+/// [SMTCWindows] class does not expose the underlying Rust event.
+///
+/// Used by tests that inject a mock [SMTCWindows]-based client.
 class DefaultWindowsSmtcClient implements WindowsSmtcClient {
   DefaultWindowsSmtcClient(this._delegate);
 
@@ -349,6 +464,11 @@ class DefaultWindowsSmtcClient implements WindowsSmtcClient {
   @override
   Stream<RepeatMode> get repeatModeChangeStream =>
       _delegate.repeatModeChangeStream;
+
+  /// Position-change events are not available through the high-level
+  /// [SMTCWindows] wrapper; always returns an empty stream.
+  @override
+  Stream<Duration> get positionChangeStream => const Stream.empty();
 
   @override
   Future<void> setPlaybackStatus(PlaybackStatus status) =>
