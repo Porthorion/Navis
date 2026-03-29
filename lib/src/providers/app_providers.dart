@@ -1443,12 +1443,19 @@ final lyricsProvider = FutureProvider.family<LyricsResolution, String>((
     }
   }
 
-  // 2) External cache before network request to respect LRCLIB resources.
+  // 2) External cache.
+  // Return immediately only if synced lyrics are already cached — best quality.
+  // If only plain lyrics are cached, continue to step 3 to try upgrading to
+  // synced via LrcLib.
   final cached = await dao.getExternalLyricsCache(songId);
   final cachedResolution = cached == null
       ? null
       : _lyricsResolutionFromExternalCache(cached);
-  if (cachedResolution != null) {
+  final hasOnlyCachedPlain =
+      cached != null &&
+      cached.syncedLyrics == null &&
+      cached.plainLyrics != null;
+  if (cachedResolution != null && !hasOnlyCachedPlain) {
     return cachedResolution;
   }
 
@@ -1458,6 +1465,7 @@ final lyricsProvider = FutureProvider.family<LyricsResolution, String>((
       song.artistName == null ||
       song.artistName!.isEmpty ||
       song.title.isEmpty) {
+    if (cachedResolution != null) return cachedResolution;
     return const LyricsResolution(
       lyrics: LyricsList(),
       source: LyricsSource.serverPlain,
@@ -1470,6 +1478,7 @@ final lyricsProvider = FutureProvider.family<LyricsResolution, String>((
       now.isBefore(
         cached.lastFailedAt!.add(_externalLyricsBackoff(cached.failureCount)),
       )) {
+    if (cachedResolution != null) return cachedResolution;
     return const LyricsResolution(
       lyrics: LyricsList(),
       source: LyricsSource.lrclibPlain,
@@ -1533,7 +1542,9 @@ final lyricsProvider = FutureProvider.family<LyricsResolution, String>((
     }
 
     if (best == null) {
-      await dao.recordExternalLyricsFailure(songId);
+      if (cachedResolution == null)
+        await dao.recordExternalLyricsFailure(songId);
+      if (cachedResolution != null) return cachedResolution;
       return const LyricsResolution(
         lyrics: LyricsList(),
         source: LyricsSource.lrclibPlain,
@@ -1541,6 +1552,14 @@ final lyricsProvider = FutureProvider.family<LyricsResolution, String>((
     }
 
     final parsedSynced = _tryParseLrc(best.syncedLyrics);
+    // If LrcLib only has plain and we already have plain cached, skip the write
+    // and return the existing cache — no upgrade available.
+    if (parsedSynced == null && cachedResolution != null) {
+      AppLogger.debug(
+        'Lyrics: LrcLib has no synced lyrics for $songId; keeping existing plain cache.',
+      );
+      return cachedResolution;
+    }
     final source = parsedSynced != null
         ? LyricsSource.lrclibSynced
         : LyricsSource.lrclibPlain;
@@ -1558,6 +1577,8 @@ final lyricsProvider = FutureProvider.family<LyricsResolution, String>((
     AppLogger.info('Lyrics source resolved: ${source.name} for song=$songId');
     return LyricsResolution(lyrics: resolvedLyrics, source: source);
   } on Object {
+    // If we already have plain lyrics cached, return them rather than throwing.
+    if (cachedResolution != null) return cachedResolution;
     await dao.recordExternalLyricsFailure(songId);
     throw const LyricsNetworkException();
   }
