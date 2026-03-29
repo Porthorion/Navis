@@ -32,6 +32,7 @@ import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/library/presentation/library_browse_models.dart';
 import 'package:navis/src/features/settings/data/battery_optimization_service.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
+import 'package:navis/src/routing/desktop_layout.dart' show isDesktopRuntime;
 import 'package:navis/src/features/settings/data/update_repository.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
@@ -1781,7 +1782,8 @@ final downloadServiceProvider = Provider<DownloadService>((ref) {
     readApiClient: () => ref.read(subsonicApiProvider),
     readWifiOnly: () =>
         ref.read(appSettingsProvider).asData?.value.wifiOnlyDownloads ?? false,
-    readIsWifi: () => ref.read(networkTypeProvider) == NetworkType.wifi,
+    readIsWifi: () =>
+        isDesktopRuntime || ref.read(networkTypeProvider) == NetworkType.wifi,
     lrclibClient: ref.read(lrclibClientProvider),
   );
   // Service.start() is async but we fire-and-forget here — the subscription
@@ -2163,9 +2165,9 @@ LyricsResolution? _lyricsResolutionFromExternalCache(
       lyrics: LyricsList(value: plain),
       source:
           source == LyricsSource.serverSynced ||
-                  source == LyricsSource.serverPlain
-              ? LyricsSource.serverPlain
-              : LyricsSource.lrclibPlain,
+              source == LyricsSource.serverPlain
+          ? LyricsSource.serverPlain
+          : LyricsSource.lrclibPlain,
     );
   }
   return null;

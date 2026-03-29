@@ -7,6 +7,7 @@ import 'package:navis/src/features/auth/presentation/server_config_provider.dart
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/desktop_layout.dart' show isDesktopRuntime;
 
 final autoDownloadStarredDispatchControllerProvider =
     NotifierProvider.autoDispose<AutoDownloadStarredDispatchController, int>(
@@ -54,7 +55,9 @@ class AutoDownloadStarredDispatchController extends Notifier<int> {
     final downloadsAllowedOnCurrentNetwork =
         reachability.status == ServerReachabilityStatus.online &&
         networkType != NetworkType.offline &&
-        (!wifiOnlyDownloads || networkType == NetworkType.wifi);
+        (isDesktopRuntime ||
+            !wifiOnlyDownloads ||
+            networkType == NetworkType.wifi);
     final eligible =
         hasSession && autoDownloadEnabled && downloadsAllowedOnCurrentNetwork;
 

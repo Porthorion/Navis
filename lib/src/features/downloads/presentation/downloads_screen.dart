@@ -9,6 +9,7 @@ import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/utils/file_utils.dart';
 import 'package:navis/src/utils/format_utils.dart';
 
@@ -519,12 +520,13 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
 
     return ListView(
       children: <Widget>[
-        SwitchListTile(
-          title: Text(l10n.cacheSettingsWifiOnlyDownloads),
-          subtitle: Text(l10n.cacheSettingsWifiOnlyDownloadsSub),
-          value: ref.watch(wifiOnlyDownloadsProvider),
-          onChanged: _updateWifiOnlyDownloads,
-        ),
+        if (!isDesktopRuntime)
+          SwitchListTile(
+            title: Text(l10n.cacheSettingsWifiOnlyDownloads),
+            subtitle: Text(l10n.cacheSettingsWifiOnlyDownloadsSub),
+            value: ref.watch(wifiOnlyDownloadsProvider),
+            onChanged: _updateWifiOnlyDownloads,
+          ),
         SwitchListTile(
           title: Text(l10n.cacheSettingsAutoDownloadStarred),
           subtitle: Text(l10n.cacheSettingsAutoDownloadStarredSub),
