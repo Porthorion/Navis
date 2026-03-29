@@ -122,7 +122,8 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
       // different keys — user must uninstall first).
       AppLogger.error('APK install failed', e);
       if (mounted) {
-        final isSignatureMismatch = e.code == 'INSTALL_ERROR' &&
+        final isSignatureMismatch =
+            e.code == 'INSTALL_ERROR' &&
             (e.message ?? '').toLowerCase().contains('signature');
         setState(() {
           if (isSignatureMismatch) {

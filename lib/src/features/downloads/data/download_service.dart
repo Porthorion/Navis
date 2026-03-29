@@ -632,12 +632,11 @@ class DownloadService {
         final synced = serverLyrics.structuredLyrics
             .where((s) => s.synced == true && s.line.isNotEmpty)
             .firstOrNull;
-        final unsynced =
-            synced == null
-                ? serverLyrics.structuredLyrics
-                    .where((s) => s.synced == false && s.line.isNotEmpty)
-                    .firstOrNull
-                : null;
+        final unsynced = synced == null
+            ? serverLyrics.structuredLyrics
+                  .where((s) => s.synced == false && s.line.isNotEmpty)
+                  .firstOrNull
+            : null;
 
         if (synced != null) {
           await _libraryDao.upsertExternalLyricsCache(
@@ -653,9 +652,7 @@ class DownloadService {
         }
 
         if (unsynced != null) {
-          final plainText = unsynced.line
-              .map((l) => l.value ?? '')
-              .join('\n');
+          final plainText = unsynced.line.map((l) => l.value ?? '').join('\n');
           if (plainText.trim().isNotEmpty) {
             await _libraryDao.upsertExternalLyricsCache(
               songId: songId,
@@ -721,8 +718,7 @@ class DownloadService {
 
       await _libraryDao.upsertExternalLyricsCache(
         songId: songId,
-        source:
-            lrclibResult.hasSynced ? 'lrclibSynced' : 'lrclibPlain',
+        source: lrclibResult.hasSynced ? 'lrclibSynced' : 'lrclibPlain',
         syncedLyrics: lrclibResult.syncedLyrics,
         plainLyrics: lrclibResult.plainLyrics,
         ttlSeconds: 30 * 24 * 3600,
