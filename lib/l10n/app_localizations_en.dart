@@ -2330,7 +2330,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get actionLiked => 'Liked';
 
   @override
-  String get remoteSourceActionUnavailable => 'Not available for remote tracks.';
+  String get remoteSourceActionUnavailable =>
+      'Not available for remote tracks.';
 
   @override
   String get remoteSourceInstantMixUnavailable =>

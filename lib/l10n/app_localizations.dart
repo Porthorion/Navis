@@ -1884,7 +1884,7 @@ abstract class AppLocalizations {
   /// No description provided for @albumDetailDownloadAction.
   ///
   /// In en, this message translates to:
-  /// **'Download'**
+  /// **'Download Album'**
   String get albumDetailDownloadAction;
 
   /// No description provided for @albumDetailDownloadActionQueued.
