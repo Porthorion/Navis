@@ -42,12 +42,15 @@ class _IoHttpFileService implements FileService {
   late final HttpClient _client;
 
   @override
+  int concurrentFetches = _coverArtMaxConnectionsPerHost;
+
+  @override
   Future<FileServiceResponse> get(
     String url, {
-    Map<String, String> headers = const {},
+    Map<String, String>? headers,
   }) async {
     final request = await _client.getUrl(Uri.parse(url));
-    headers.forEach(request.headers.set);
+    headers?.forEach(request.headers.set);
     final response = await request.close();
     return _IoHttpFileServiceResponse(response);
   }
@@ -93,9 +96,9 @@ class _IoHttpFileServiceResponse implements FileServiceResponse {
   }
 
   @override
-  String? get fileExtension {
+  String get fileExtension {
     final ct = _response.headers.contentType;
-    if (ct == null) return null;
+    if (ct == null) return '';
     return '.${ct.subType}'; // '.jpeg', '.png', etc.
   }
 }
