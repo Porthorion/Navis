@@ -1018,7 +1018,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get albumDetailStarAction => 'Like';
 
   @override
-  String get albumDetailDownloadAction => 'Download';
+  String get albumDetailDownloadAction => 'Download Album';
 
   @override
   String get albumDetailDownloadActionQueued => 'Album queued for download.';

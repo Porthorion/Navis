@@ -411,6 +411,12 @@ class _TopTrackTile extends ConsumerWidget {
                 format: choice.format,
               ),
         );
+        if (!context.mounted) return;
+        AppNoticeMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(AppLocalizations.of(context)!.downloadSongQueued),
+          ),
+        );
       }(),
     );
   }

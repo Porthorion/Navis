@@ -478,7 +478,7 @@
   "albumDetailPlayAction": "Play",
   "albumDetailShuffleAction": "Shuffle",
   "albumDetailStarAction": "Like",
-  "albumDetailDownloadAction": "Download",
+  "albumDetailDownloadAction": "Download Album",
   "albumDetailDownloadActionQueued": "Album queued for download.",
   "albumDetailPlayActionQueued": "Album queued for playback.",
   "albumDetailShuffleActionQueued": "Album shuffled into queue.",

@@ -154,6 +154,10 @@ class DownloadService {
     if (existing != null) {
       await _downloadQueueDao.remove(existing.id);
     }
+    AppLogger.info(
+      'DownloadService: Enqueuing song $songId '
+      '(albumId=$albumId, quality=$quality, format=$format).',
+    );
     await _downloadQueueDao.enqueue(
       DownloadQueueTableCompanion.insert(
         songId: Value(songId),
@@ -181,6 +185,10 @@ class DownloadService {
     final songs = await _libraryDao.watchSongsByAlbum(albumId).first;
     if (songs.isEmpty) return 0;
 
+    AppLogger.info(
+      'DownloadService: Enqueuing album $albumId '
+      '(${songs.length} songs, quality=$quality, format=$format).',
+    );
     final songIds = songs.map((s) => s.id).toList();
     return _batchEnqueue(
       songIds: songIds,

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/album_context_menu.dart';
 import 'package:navis/src/common_widgets/album_download_badge.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
@@ -146,6 +147,12 @@ class GenreDetailScreen extends ConsumerWidget {
                                         quality: choice.quality,
                                         format: choice.format,
                                       ),
+                                );
+                                if (!context.mounted) return;
+                                AppNoticeMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(l10n.downloadSongQueued),
+                                  ),
                                 );
                               }()),
                             ),
