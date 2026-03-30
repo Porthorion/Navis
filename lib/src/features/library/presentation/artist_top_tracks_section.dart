@@ -33,9 +33,13 @@ class ArtistTopTracksSection extends ConsumerStatefulWidget {
 }
 
 class _ArtistTopTracksSectionState
-    extends ConsumerState<ArtistTopTracksSection> {
+    extends ConsumerState<ArtistTopTracksSection>
+    with AutomaticKeepAliveClientMixin {
   bool _expanded = false;
   bool _playing = false;
+
+  @override
+  bool get wantKeepAlive => true;
 
   // ---------------------------------------------------------------------------
   // Playback
@@ -138,6 +142,7 @@ class _ArtistTopTracksSectionState
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final l10n = AppLocalizations.of(context)!;
     final asyncTracks = ref.watch(
       artistTopTracksProvider(widget.artistName),

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -83,6 +84,23 @@ class ResolvedArtistTopTrack {
 final artistTopTracksProvider = FutureProvider.autoDispose
     .family<List<ResolvedArtistTopTrack>, String>(
       (ref, artistName) async {
+        // Keep resolved data alive for 5 minutes after the last listener
+        // drops — prevents the section from re-fetching every time it scrolls
+        // in or out of view on the artist detail page (issue #31).
+        Timer? disposeTimer;
+        final keepAliveLink = ref.keepAlive();
+        ref.onCancel(() {
+          disposeTimer = Timer(
+            const Duration(minutes: 5),
+            keepAliveLink.close,
+          );
+        });
+        ref.onResume(() {
+          disposeTimer?.cancel();
+          disposeTimer = null;
+        });
+        ref.onDispose(() => disposeTimer?.cancel());
+
         final hasKey = ref.watch(hasLastFmApiKeyProvider);
         if (!hasKey) return const [];
 
