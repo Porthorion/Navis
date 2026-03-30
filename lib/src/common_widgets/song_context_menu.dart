@@ -17,6 +17,7 @@ import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/utils/file_utils.dart';
+import 'package:navis/src/utils/song_id_utils.dart';
 
 /// Shows a generic bottom sheet context menu for a [SongsTableData] song.
 ///
@@ -57,6 +58,9 @@ Future<void> showSongContextMenu(
               .watch(songRatingProvider(song.id))
               .asData
               ?.value;
+          final isRemote = !isServerAddressableSongId(song.id);
+          final disabledColor =
+              Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.38);
 
           final maxHeight = MediaQuery.of(sheetContext).size.height * 0.85;
           return SafeArea(
@@ -129,6 +133,8 @@ Future<void> showSongContextMenu(
                       },
                     ),
                     ListTile(
+                      iconColor: isRemote ? disabledColor : null,
+                      textColor: isRemote ? disabledColor : null,
                       leading: Icon(
                         isLiked ? Icons.favorite : Icons.favorite_border,
                       ),
@@ -136,6 +142,15 @@ Future<void> showSongContextMenu(
                         isLiked ? l10n.actionLiked : l10n.actionLike,
                       ),
                       onTap: () {
+                        if (isRemote) {
+                          AppNoticeMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content:
+                                  Text(l10n.remoteSourceActionUnavailable),
+                            ),
+                          );
+                          return;
+                        }
                         unawaited(
                           toggleSongStar(song.id, ref).catchError((_) {
                             if (context.mounted) {
@@ -150,26 +165,55 @@ Future<void> showSongContextMenu(
                       },
                     ),
                     ListTile(
+                      iconColor: isRemote ? disabledColor : null,
+                      textColor: isRemote ? disabledColor : null,
                       leading: const Icon(Icons.star_outline),
                       title: Text(l10n.ratingTitle),
                       subtitle: Text(l10n.ratingHint),
-                      trailing: RatingWidget(
-                        rating: rating,
-                        compact: true,
-                        onChanged: (next) {
-                          unawaited(
-                            setSongRating(song.id, next, ref).catchError((_) {
-                              if (context.mounted) {
-                                AppNoticeMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(l10n.ratingUpdateFailed),
-                                  ),
+                      trailing: isRemote
+                          ? IgnorePointer(
+                              child: Opacity(
+                                opacity: 0.38,
+                                child: RatingWidget(
+                                  rating: rating,
+                                  compact: true,
+                                  onChanged: (_) {},
+                                ),
+                              ),
+                            )
+                          : RatingWidget(
+                              rating: rating,
+                              compact: true,
+                              onChanged: (next) {
+                                unawaited(
+                                  setSongRating(
+                                    song.id,
+                                    next,
+                                    ref,
+                                  ).catchError((_) {
+                                    if (context.mounted) {
+                                      AppNoticeMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content:
+                                              Text(l10n.ratingUpdateFailed),
+                                        ),
+                                      );
+                                    }
+                                  }),
                                 );
-                              }
-                            }),
-                          );
-                        },
-                      ),
+                              },
+                            ),
+                      onTap: isRemote
+                          ? () => AppNoticeMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    l10n.remoteSourceActionUnavailable,
+                                  ),
+                                ),
+                              )
+                          : null,
                     ),
                     if (song.artistId != null && song.artistId!.isNotEmpty)
                       ListTile(
@@ -218,9 +262,21 @@ Future<void> showSongContextMenu(
                       )
                     else
                       ListTile(
+                        iconColor: isRemote ? disabledColor : null,
+                        textColor: isRemote ? disabledColor : null,
                         leading: const Icon(Icons.download_outlined),
                         title: Text(l10n.downloadAction),
                         onTap: () {
+                          if (isRemote) {
+                            AppNoticeMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  l10n.remoteSourceActionUnavailable,
+                                ),
+                              ),
+                            );
+                            return;
+                          }
                           Navigator.of(sheetContext).pop();
                           unawaited(
                             _downloadSongFromMenu(context, ref, song.id),
@@ -262,6 +318,7 @@ Future<void> _showDesktopSongContextMenu(
   final isLiked =
       ref.read(songStarredProvider(song.id)).asData?.value ??
       song.starred != null;
+  final isRemote = !isServerAddressableSongId(song.id);
 
   final action = await showDesktopContextMenu<_SongContextAction>(
     context: context,
@@ -281,6 +338,7 @@ Future<void> _showDesktopSongContextMenu(
       ),
       PopupMenuItem<_SongContextAction>(
         value: _SongContextAction.toggleLike,
+        enabled: !isRemote,
         child: Text(isLiked ? l10n.actionLiked : l10n.actionLike),
       ),
       if (song.artistId != null && song.artistId!.isNotEmpty)
@@ -301,6 +359,7 @@ Future<void> _showDesktopSongContextMenu(
         value: isDownloaded
             ? _SongContextAction.deleteDownload
             : _SongContextAction.download,
+        enabled: isDownloaded || !isRemote,
         child: Text(
           isDownloaded ? l10n.deleteDownloadAction : l10n.downloadAction,
         ),
@@ -335,7 +394,15 @@ Future<void> _showDesktopSongContextMenu(
       }
       return;
     case _SongContextAction.toggleLike:
-      await toggleSongStar(song.id, ref);
+      try {
+        await toggleSongStar(song.id, ref);
+      } on Object {
+        if (context.mounted) {
+          AppNoticeMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(l10n.albumDetailStarFailure)),
+          );
+        }
+      }
       return;
     case _SongContextAction.openArtist:
       unawaited(context.push('/library/artists/${song.artistId}'));

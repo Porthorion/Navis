@@ -12,6 +12,7 @@ import 'package:navis/src/features/player/domain/same_vibes_state.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/song_id_utils.dart';
 
 /// Number of remaining tracks (after the current one) that triggers refill.
 const _kRefillThreshold = 3;
@@ -621,16 +622,8 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     return null;
   }
 
-  bool _isServerAddressableSeedId(String id) {
-    final normalized = id.trim().toLowerCase();
-    if (normalized.isEmpty) {
-      return false;
-    }
-    if (normalized.startsWith('ext-') || normalized.startsWith('remote-')) {
-      return false;
-    }
-    return true;
-  }
+  bool _isServerAddressableSeedId(String id) =>
+      isServerAddressableSongId(id);
 
   bool _isEndpointUnsupportedMessage(String message) {
     final normalized = message.toLowerCase();

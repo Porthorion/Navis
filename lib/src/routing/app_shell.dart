@@ -51,6 +51,7 @@ import 'package:navis/src/routing/desktop_window_controller.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/desktop_tokens.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/song_id_utils.dart';
 
 String _formatMiniPlayerDuration(Duration duration) {
   final totalSeconds = duration.inSeconds;
@@ -2603,6 +2604,12 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
     final mixSeedSongId = playback.currentSongId;
     final canToggleMix =
         mixSeedSongId != null && mixSeedSongId.trim().isNotEmpty;
+    final isRemoteSeedId =
+        mixSeedSongId != null && !isServerAddressableSongId(mixSeedSongId);
+    final canToggleLegacyMix =
+        canToggleMix &&
+        !(isRemoteSeedId &&
+            preferredMixMode == PreferredMixMode.legacyInstantMix);
 
     final repeatMode = playback.repeatMode;
     String repeatTooltip;
@@ -3152,7 +3159,7 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                           ),
                                           onPressed:
                                               !playback.isRadioMode &&
-                                                  canToggleMix
+                                                  canToggleLegacyMix
                                               ? () => unawaited(
                                                   togglePreferredMixMode(
                                                     ref,

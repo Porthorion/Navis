@@ -27,6 +27,7 @@ import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/desktop_window_controller.dart';
+import 'package:navis/src/utils/song_id_utils.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
@@ -701,6 +702,10 @@ void _showNowPlayingSettingsSheet(
             ? null
             : sheetRef.watch(songRatingProvider(song.id)).asData?.value;
         final sheetVolume = sheetRef.watch(playbackVolumeProvider);
+        final isRemote =
+            song != null && !isServerAddressableSongId(song.id);
+        final disabledColor =
+            Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.38);
         return SafeArea(
           child: SingleChildScrollView(
             child: Column(
@@ -760,28 +765,54 @@ void _showNowPlayingSettingsSheet(
                 ),
                 if (song != null)
                   ListTile(
+                    iconColor: isRemote ? disabledColor : null,
+                    textColor: isRemote ? disabledColor : null,
                     leading: const Icon(Icons.star_outline),
                     title: Text(l10n.ratingTitle),
                     subtitle: Text(l10n.ratingHint),
-                    trailing: RatingWidget(
-                      rating: currentSongRating,
-                      compact: true,
-                      onChanged: (next) {
-                        unawaited(
-                          setSongRating(song.id, next, sheetRef).catchError((
-                            _,
-                          ) {
-                            if (context.mounted) {
-                              AppNoticeMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(l10n.ratingUpdateFailed),
-                                ),
+                    trailing: isRemote
+                        ? IgnorePointer(
+                            child: Opacity(
+                              opacity: 0.38,
+                              child: RatingWidget(
+                                rating: currentSongRating,
+                                compact: true,
+                                onChanged: (_) {},
+                              ),
+                            ),
+                          )
+                        : RatingWidget(
+                            rating: currentSongRating,
+                            compact: true,
+                            onChanged: (next) {
+                              unawaited(
+                                setSongRating(
+                                  song.id,
+                                  next,
+                                  sheetRef,
+                                ).catchError((_) {
+                                  if (context.mounted) {
+                                    AppNoticeMessenger.of(
+                                      context,
+                                    ).showSnackBar(
+                                      SnackBar(
+                                        content: Text(l10n.ratingUpdateFailed),
+                                      ),
+                                    );
+                                  }
+                                }),
                               );
-                            }
-                          }),
-                        );
-                      },
-                    ),
+                            },
+                          ),
+                    onTap: isRemote
+                        ? () => AppNoticeMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  l10n.remoteSourceActionUnavailable,
+                                ),
+                              ),
+                            )
+                        : null,
                   ),
                 if (fullscreenLyricsSongId != null &&
                     fullscreenLyricsTitle != null)
@@ -826,9 +857,19 @@ void _showNowPlayingSettingsSheet(
                   ),
                 if (song != null)
                   ListTile(
+                    iconColor: isRemote ? disabledColor : null,
+                    textColor: isRemote ? disabledColor : null,
                     leading: const Icon(Icons.download_outlined),
                     title: Text(l10n.downloadAction),
                     onTap: () async {
+                      if (isRemote) {
+                        AppNoticeMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(l10n.remoteSourceActionUnavailable),
+                          ),
+                        );
+                        return;
+                      }
                       Navigator.of(sheetContext).pop();
                       final choice = await showDownloadQualitySheet(context);
                       if (choice == null || !context.mounted) return;
@@ -4767,6 +4808,11 @@ class _ActionRowState extends ConsumerState<_ActionRow>
                 : colorScheme.onSurfaceVariant,
           );
 
+    final isRemote =
+        widget.songId != null && !isServerAddressableSongId(widget.songId!);
+    final legacyMixUnavailable =
+        isRemote && preferredMixMode == PreferredMixMode.legacyInstantMix;
+
     final actionButtons = <Widget>[
       _NowPlayingActionButton(
         icon: Icon(
@@ -4781,8 +4827,15 @@ class _ActionRowState extends ConsumerState<_ActionRow>
       _NowPlayingActionButton(
         icon: mixIcon,
         label: l10n.nowPlayingInstantMixLabel,
+        isDisabled: legacyMixUnavailable,
         onTap: widget.songId == null
             ? null
+            : legacyMixUnavailable
+            ? () => AppNoticeMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(l10n.remoteSourceInstantMixUnavailable),
+                ),
+              )
             : () => unawaited(
                 togglePreferredMixMode(ref, seedSongId: widget.songId!),
               ),
@@ -4798,8 +4851,15 @@ class _ActionRowState extends ConsumerState<_ActionRow>
           ),
         ),
         label: widget.isLiked ? l10n.actionLiked : l10n.actionLike,
+        isDisabled: isRemote,
         onTap: widget.songId == null
             ? null
+            : isRemote
+            ? () => AppNoticeMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(l10n.remoteSourceActionUnavailable),
+                ),
+              )
             : () {
                 HapticFeedback.lightImpact();
                 final handler = ref.read(audioHandlerProvider);
@@ -4848,16 +4908,21 @@ class _NowPlayingActionButton extends StatelessWidget {
     required this.icon,
     required this.label,
     this.onTap,
+    this.isDisabled = false,
   });
 
   final Widget icon;
   final String label;
   final VoidCallback? onTap;
 
+  /// When true the button renders at 42 % opacity (greyed out) but [onTap]
+  /// is still called if set — allowing an error snackbar to fire on tap.
+  final bool isDisabled;
+
   @override
   Widget build(BuildContext context) {
     return Opacity(
-      opacity: onTap == null ? 0.42 : 1,
+      opacity: (onTap == null || isDisabled) ? 0.42 : 1,
       child: IconButton(
         tooltip: label,
         onPressed: onTap,
@@ -5524,6 +5589,10 @@ class _NowPlayingSettingsPanel extends ConsumerWidget {
     final currentSongRating = song == null
         ? null
         : ref.watch(songRatingProvider(song!.id)).asData?.value;
+    final isRemote =
+        song != null && !isServerAddressableSongId(song!.id);
+    final disabledColor =
+        Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.38);
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
@@ -5536,24 +5605,47 @@ class _NowPlayingSettingsPanel extends ConsumerWidget {
         ),
         if (song != null)
           ListTile(
+            iconColor: isRemote ? disabledColor : null,
+            textColor: isRemote ? disabledColor : null,
             leading: const Icon(Icons.star_outline),
             title: Text(l10n.ratingTitle),
             subtitle: Text(l10n.ratingHint),
-            trailing: RatingWidget(
-              rating: currentSongRating,
-              compact: true,
-              onChanged: (next) {
-                unawaited(
-                  setSongRating(song!.id, next, ref).catchError((_) {
-                    if (context.mounted) {
-                      AppNoticeMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(l10n.ratingUpdateFailed)),
+            trailing: isRemote
+                ? IgnorePointer(
+                    child: Opacity(
+                      opacity: 0.38,
+                      child: RatingWidget(
+                        rating: currentSongRating,
+                        compact: true,
+                        onChanged: (_) {},
+                      ),
+                    ),
+                  )
+                : RatingWidget(
+                    rating: currentSongRating,
+                    compact: true,
+                    onChanged: (next) {
+                      unawaited(
+                        setSongRating(song!.id, next, ref).catchError((_) {
+                          if (context.mounted) {
+                            AppNoticeMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(l10n.ratingUpdateFailed),
+                              ),
+                            );
+                          }
+                        }),
                       );
-                    }
-                  }),
-                );
-              },
-            ),
+                    },
+                  ),
+            onTap: isRemote
+                ? () => AppNoticeMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content:
+                            Text(l10n.remoteSourceActionUnavailable),
+                      ),
+                    )
+                : null,
           ),
         if (fullscreenLyricsSongId != null &&
             fullscreenLyricsTitle != null &&
@@ -5589,9 +5681,17 @@ class _NowPlayingSettingsPanel extends ConsumerWidget {
           ),
         if (song != null)
           ListTile(
+            iconColor: isRemote ? disabledColor : null,
+            textColor: isRemote ? disabledColor : null,
             leading: const Icon(Icons.download_outlined),
             title: Text(l10n.downloadAction),
             onTap: () async {
+              if (isRemote) {
+                AppNoticeMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(l10n.remoteSourceActionUnavailable)),
+                );
+                return;
+              }
               final choice = await showDownloadQualitySheet(context);
               if (choice == null || !context.mounted) return;
               final service = ref.read(downloadServiceProvider);
@@ -5634,9 +5734,15 @@ class _EmbeddedMixPanel extends ConsumerWidget {
     final subtitle = useLegacy
         ? l10n.nowPlayingInstantMixDescription
         : l10n.nowPlayingSameVibesDescription;
+    final isRemote = !isServerAddressableSongId(seedSongId);
+    final legacyMixUnavailable = isRemote && useLegacy;
+    final disabledColor =
+        Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.38);
     final cards = <Widget>[
       Card(
         child: ListTile(
+          iconColor: legacyMixUnavailable ? disabledColor : null,
+          textColor: legacyMixUnavailable ? disabledColor : null,
           leading: loading
               ? const SizedBox(
                   width: 22,
@@ -5647,9 +5753,15 @@ class _EmbeddedMixPanel extends ConsumerWidget {
           title: Text(title),
           subtitle: Text(subtitle),
           trailing: active ? const Icon(Icons.check_circle) : null,
-          onTap: () async {
-            await togglePreferredMixMode(ref, seedSongId: seedSongId);
-          },
+          onTap: legacyMixUnavailable
+              ? () => AppNoticeMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(l10n.remoteSourceInstantMixUnavailable),
+                    ),
+                  )
+              : () async {
+                  await togglePreferredMixMode(ref, seedSongId: seedSongId);
+                },
         ),
       ),
     ];

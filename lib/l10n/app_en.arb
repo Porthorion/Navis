@@ -1049,5 +1049,7 @@
   "libraryAlbumPlayQueued": "Album queued to play",
   "libraryAlbumAddedToQueue": "Album added to queue",
   "actionLike": "Like",
-  "actionLiked": "Liked"
+  "actionLiked": "Liked",
+  "remoteSourceActionUnavailable": "Not available for remote tracks.",
+  "remoteSourceInstantMixUnavailable": "Instant Mix requires a locally scanned track."
 }

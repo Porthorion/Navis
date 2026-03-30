@@ -4160,6 +4160,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Liked'**
   String get actionLiked;
+
+  /// No description provided for @remoteSourceActionUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Not available for remote tracks.'**
+  String get remoteSourceActionUnavailable;
+
+  /// No description provided for @remoteSourceInstantMixUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Instant Mix requires a locally scanned track.'**
+  String get remoteSourceInstantMixUnavailable;
 }
 
 class _AppLocalizationsDelegate
