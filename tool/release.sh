@@ -365,7 +365,7 @@ if [[ "${BUILD_ANDROID}" == "true" ]]; then
       -keystore "${STORE_FILE}" \
       -storepass "${STORE_PASSWORD}" \
       -alias "${KEY_ALIAS}" | awk -F': ' '/SHA256:/{gsub(":", "", $2); print tolower($2); exit}')"
-    ACTUAL_CERT_SHA256="$(${APKSIGNER_BIN} verify --print-certs "${APK_ASSET}" | awk -F': ' '/Signer #1 certificate SHA-256 digest:/{print tolower($2); exit}')"
+    ACTUAL_CERT_SHA256="$(${APKSIGNER_BIN} verify --print-certs "${APK_ASSET}" | awk '/SHA-256 digest/{print tolower($NF); exit}')"
 
     if [[ -z "${EXPECTED_CERT_SHA256}" || -z "${ACTUAL_CERT_SHA256}" ]]; then
       echo "Error: Failed to read APK signing certificate fingerprint."
