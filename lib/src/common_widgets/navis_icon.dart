@@ -16,7 +16,7 @@ class NavisIcon extends StatelessWidget {
   final double size;
   final bool tintWithAccent;
 
-  static const String _darkAsset = 'lib/src/icon/Navis_Icon_dark.png';
+  static const String _darkAsset = 'lib/src/icon/Navis_Icon_Dark.png';
   static const String _lightAsset = 'lib/src/icon/Navis_Icon_light.png';
 
   @override

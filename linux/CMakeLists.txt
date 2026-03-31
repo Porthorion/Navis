@@ -129,7 +129,7 @@ endif()
 
 # App icon — installed into the XDG icon theme hierarchy so both GTK and
 # Wayland compositors can find it via icon name "navis".
-install(FILES "${PROJECT_SOURCE_DIR}/../lib/src/icon/Navis_Icon_dark.png"
+install(FILES "${PROJECT_SOURCE_DIR}/../lib/src/icon/Navis_Icon_Dark.png"
   DESTINATION "${INSTALL_BUNDLE_DATA_DIR}/icons/hicolor/256x256/apps"
   RENAME "navis.png"
   COMPONENT Runtime)
