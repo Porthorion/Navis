@@ -2597,7 +2597,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> pause() {
-    return _runSerialized(() async {
+    return _playbackLane.run(() async {
       await _ready;
       _cancelCrossfade();
       await navisRunTransportWithPersistence(
@@ -2737,7 +2737,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> seek(Duration position) {
-    return _runSerialized(() async {
+    return _playbackLane.run(() async {
       await _ready;
       _cancelCrossfade();
       final sanitizedPosition = navisSanitizeSeekPosition(position);
@@ -2748,7 +2748,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> skipToNext() {
-    return _runSerialized(() async {
+    return _playbackLane.run(() async {
       await _ready;
       _cancelCrossfade();
       if (!navisCanSkipQueueItem(
@@ -2773,7 +2773,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> skipToPrevious() {
-    return _runSerialized(() async {
+    return _playbackLane.run(() async {
       await _ready;
       _cancelCrossfade();
       if (!navisCanSkipQueueItem(
@@ -3228,11 +3228,11 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   @override
-  Future<void> toggleLike() => _runSerialized(_toggleCurrentSongLike);
+  Future<void> toggleLike() => _toggleCurrentSongLike();
 
   @override
   Future<void> syncSongLikedState(String songId, {required bool liked}) =>
-      _runSerialized(() => _syncSongLikedState(songId, liked: liked));
+      _syncSongLikedState(songId, liked: liked);
 
   Future<void> _syncSongLikedState(
     String songId, {
