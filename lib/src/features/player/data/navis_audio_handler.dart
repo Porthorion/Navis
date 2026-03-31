@@ -1042,7 +1042,7 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   Future<void> _restoreQueueAfterStartup() async {
-    await _runSerialized(() async {
+    await _queueLane.run(() async {
       try {
         await _restoreQueueFromDisk().timeout(const Duration(seconds: 10));
       } on TimeoutException catch (error, stackTrace) {
@@ -2331,7 +2331,7 @@ class NavisAudioHandler extends BaseAudioHandler
     int startIndex = 0,
     bool autoPlay = true,
   }) {
-    return _runSerialized(() async {
+    return _queueLane.run(() async {
       await _ready;
       _cancelCrossfade();
       // Exit radio mode when the user starts playing songs from the library.
@@ -2347,7 +2347,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> addToQueue(List<String> songIds) {
-    return _runSerialized(() async {
+    return _queueLane.run(() async {
       await _ready;
       if (songIds.isEmpty) {
         return;
@@ -2394,7 +2394,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> playNext(List<String> songIds) {
-    return _runSerialized(() async {
+    return _queueLane.run(() async {
       await _ready;
       final incoming = songIds
           .map((id) => id.trim())
@@ -2452,7 +2452,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> playFromIndex(int index) {
-    return _runSerialized(() async {
+    return _queueLane.run(() async {
       await _ready;
       if (index < 0 || index >= _queueItems.length) {
         return;
@@ -2469,7 +2469,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> removeAt(int index) {
-    return _runSerialized(() async {
+    return _queueLane.run(() async {
       await _ready;
       if (index < 0 || index >= _queueItems.length) {
         return;
@@ -2508,7 +2508,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> reorderQueue(int oldIndex, int newIndex) {
-    return _runSerialized(() async {
+    return _queueLane.run(() async {
       await _ready;
       if (_queueItems.isEmpty) {
         return;
@@ -2556,7 +2556,7 @@ class NavisAudioHandler extends BaseAudioHandler
   @override
   Future<void> clearQueue() {
     _cancelCrossfade();
-    return _runSerialized(() => _clearQueueInternal(persist: true));
+    return _queueLane.run(() => _clearQueueInternal(persist: true));
   }
 
   @override
@@ -3421,7 +3421,7 @@ class NavisAudioHandler extends BaseAudioHandler
     required String streamUrl,
     String? homePageUrl,
   }) {
-    return _runSerialized(() async {
+    return _queueLane.run(() async {
       await _ready;
 
       _radioStation = RadioStationMetadata(
@@ -3488,7 +3488,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> stopRadio() {
-    return _runSerialized(() async {
+    return _queueLane.run(() async {
       await _ready;
 
       if (_radioStation == null) {
