@@ -23,7 +23,7 @@ static gchar* resolve_app_icon_path() {
   g_autofree gchar* executable_dir = g_path_get_dirname(executable_path);
   g_autofree gchar* bundled_icon_path =
       g_build_filename(executable_dir, "data", "flutter_assets", "lib", "src",
-                       "icon", "Navis_Icon_dark.png", nullptr);
+                       "icon", "Navis_Icon_Dark.png", nullptr);
   if (g_file_test(bundled_icon_path, G_FILE_TEST_EXISTS)) {
     return g_strdup(bundled_icon_path);
   }
