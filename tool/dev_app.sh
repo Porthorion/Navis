@@ -69,6 +69,8 @@ case "${MODE}" in
     gtk-update-icon-cache "${HOME}/.local/share/icons/hicolor" \
       --ignore-theme-index --quiet 2>/dev/null || true
 
+    # libmpv (media_kit backend) lives in brew — expose it only for this run.
+    export LD_LIBRARY_PATH="/home/linuxbrew/.linuxbrew/lib:${LD_LIBRARY_PATH:-}"
     flutter run -d linux --debug "${DART_DEFINE_ARGS[@]}" "$@"
     ;;
   apk)
