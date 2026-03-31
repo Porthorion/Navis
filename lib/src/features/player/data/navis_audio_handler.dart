@@ -759,6 +759,33 @@ class LinuxNavisPlaybackHandler implements NavisPlaybackHandler {
   );
 }
 
+/// A single-lane serialization queue that ensures operations execute one at a
+/// time in FIFO order.  Used to prevent concurrent mutations of shared state
+/// (e.g. the playback queue or the transport layer).
+class _SerializationLane {
+  Future<void> _inFlight = Future<void>.value();
+
+  Future<T> run<T>(Future<T> Function() operation) {
+    final completer = Completer<T>();
+
+    _inFlight = _inFlight.then((_) async {
+      if (completer.isCompleted) {
+        return;
+      }
+      try {
+        final value = await operation();
+        completer.complete(value);
+      } on Object catch (error, stackTrace) {
+        completer.completeError(error, stackTrace);
+      }
+    });
+
+    _inFlight = _inFlight.catchError((_) {});
+
+    return completer.future;
+  }
+}
+
 class NavisAudioHandler extends BaseAudioHandler
     with QueueHandler, SeekHandler
     implements NavisPlaybackHandler {
@@ -843,7 +870,8 @@ class NavisAudioHandler extends BaseAudioHandler
   PlaybackSnapshot _snapshot = const PlaybackSnapshot.idle();
   Timer? _positionPersistTimer;
   late final Future<void> _ready;
-  Future<void> _inFlight = Future<void>.value();
+  final _queueLane = _SerializationLane();
+  final _playbackLane = _SerializationLane();
   StreamSubscription<AudioInterruptionEvent>? _interruptionSubscription;
   StreamSubscription<void>? _becomingNoisySubscription;
   StreamSubscription<PlaybackEvent>? _playbackEventSubscription;
@@ -2295,26 +2323,6 @@ class NavisAudioHandler extends BaseAudioHandler
     }
     _crossfadePlayer = _buildBaseAudioPlayer();
     await _syncInactiveDeckQueueFromActive(_crossfadePlayer!, force: true);
-  }
-
-  Future<T> _runSerialized<T>(Future<T> Function() operation) {
-    final completer = Completer<T>();
-
-    _inFlight = _inFlight.then((_) async {
-      if (completer.isCompleted) {
-        return;
-      }
-      try {
-        final value = await operation();
-        completer.complete(value);
-      } on Object catch (error, stackTrace) {
-        completer.completeError(error, stackTrace);
-      }
-    });
-
-    _inFlight = _inFlight.catchError((_) {});
-
-    return completer.future;
   }
 
   @override
