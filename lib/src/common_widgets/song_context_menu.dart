@@ -59,8 +59,9 @@ Future<void> showSongContextMenu(
               .asData
               ?.value;
           final isRemote = !isServerAddressableSongId(song.id);
-          final disabledColor =
-              Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.38);
+          final disabledColor = Theme.of(
+            context,
+          ).colorScheme.onSurface.withValues(alpha: 0.38);
 
           final maxHeight = MediaQuery.of(sheetContext).size.height * 0.85;
           return SafeArea(
@@ -145,8 +146,7 @@ Future<void> showSongContextMenu(
                         if (isRemote) {
                           AppNoticeMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content:
-                                  Text(l10n.remoteSourceActionUnavailable),
+                              content: Text(l10n.remoteSourceActionUnavailable),
                             ),
                           );
                           return;
@@ -196,8 +196,9 @@ Future<void> showSongContextMenu(
                                         context,
                                       ).showSnackBar(
                                         SnackBar(
-                                          content:
-                                              Text(l10n.ratingUpdateFailed),
+                                          content: Text(
+                                            l10n.ratingUpdateFailed,
+                                          ),
                                         ),
                                       );
                                     }
@@ -207,12 +208,12 @@ Future<void> showSongContextMenu(
                             ),
                       onTap: isRemote
                           ? () => AppNoticeMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    l10n.remoteSourceActionUnavailable,
-                                  ),
+                              SnackBar(
+                                content: Text(
+                                  l10n.remoteSourceActionUnavailable,
                                 ),
-                              )
+                              ),
+                            )
                           : null,
                     ),
                     if (song.artistId != null && song.artistId!.isNotEmpty)

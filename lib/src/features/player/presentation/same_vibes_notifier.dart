@@ -622,8 +622,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     return null;
   }
 
-  bool _isServerAddressableSeedId(String id) =>
-      isServerAddressableSongId(id);
+  bool _isServerAddressableSeedId(String id) => isServerAddressableSongId(id);
 
   bool _isEndpointUnsupportedMessage(String message) {
     final normalized = message.toLowerCase();

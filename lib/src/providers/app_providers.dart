@@ -851,31 +851,34 @@ final artistByIdProvider = StreamProvider.family<ArtistsTableData?, String>((
   final controller = StreamController<ArtistsTableData?>();
   var requestedServerFallback = false;
 
-  final sub = dao.watchArtistById(artistId).listen(
-    (artist) {
-      if (artist == null && !requestedServerFallback) {
-        requestedServerFallback = true;
-        // Don't emit null yet — keep the StreamProvider in AsyncLoading
-        // so the UI shows a shimmer placeholder while we fetch from the
-        // server.  If hydration fails, propagate the error so the UI can
-        // show an ErrorState with a retry button.
-        unawaited(
-          _hydrateArtistFromServer(ref, artistId)
-              .timeout(const Duration(seconds: 15))
-              .catchError((
-            Object error,
-            StackTrace stackTrace,
-          ) {
-            controller.addError(error, stackTrace);
-          }),
-        );
-      } else {
-        controller.add(artist);
-      }
-    },
-    onError: controller.addError,
-    onDone: controller.close,
-  );
+  final sub = dao
+      .watchArtistById(artistId)
+      .listen(
+        (artist) {
+          if (artist == null && !requestedServerFallback) {
+            requestedServerFallback = true;
+            // Don't emit null yet — keep the StreamProvider in AsyncLoading
+            // so the UI shows a shimmer placeholder while we fetch from the
+            // server.  If hydration fails, propagate the error so the UI can
+            // show an ErrorState with a retry button.
+            unawaited(
+              _hydrateArtistFromServer(
+                ref,
+                artistId,
+              ).timeout(const Duration(seconds: 15)).catchError((
+                Object error,
+                StackTrace stackTrace,
+              ) {
+                controller.addError(error, stackTrace);
+              }),
+            );
+          } else {
+            controller.add(artist);
+          }
+        },
+        onError: controller.addError,
+        onDone: controller.close,
+      );
 
   ref.onDispose(() {
     sub.cancel();
@@ -953,9 +956,10 @@ final albumProvider = StreamProvider.family<AlbumWithSongs?, String>((
               // server.  If hydration fails, propagate the error so the UI can
               // show an ErrorState with a retry button.
               unawaited(
-                _hydrateAlbumFromServer(ref, albumId)
-                    .timeout(const Duration(seconds: 15))
-                    .catchError((
+                _hydrateAlbumFromServer(
+                  ref,
+                  albumId,
+                ).timeout(const Duration(seconds: 15)).catchError((
                   Object error,
                   StackTrace stackTrace,
                 ) {

@@ -702,10 +702,10 @@ void _showNowPlayingSettingsSheet(
             ? null
             : sheetRef.watch(songRatingProvider(song.id)).asData?.value;
         final sheetVolume = sheetRef.watch(playbackVolumeProvider);
-        final isRemote =
-            song != null && !isServerAddressableSongId(song.id);
-        final disabledColor =
-            Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.38);
+        final isRemote = song != null && !isServerAddressableSongId(song.id);
+        final disabledColor = Theme.of(
+          context,
+        ).colorScheme.onSurface.withValues(alpha: 0.38);
         return SafeArea(
           child: SingleChildScrollView(
             child: Column(
@@ -806,12 +806,12 @@ void _showNowPlayingSettingsSheet(
                           ),
                     onTap: isRemote
                         ? () => AppNoticeMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  l10n.remoteSourceActionUnavailable,
-                                ),
+                            SnackBar(
+                              content: Text(
+                                l10n.remoteSourceActionUnavailable,
                               ),
-                            )
+                            ),
+                          )
                         : null,
                   ),
                 if (fullscreenLyricsSongId != null &&
@@ -5589,10 +5589,10 @@ class _NowPlayingSettingsPanel extends ConsumerWidget {
     final currentSongRating = song == null
         ? null
         : ref.watch(songRatingProvider(song!.id)).asData?.value;
-    final isRemote =
-        song != null && !isServerAddressableSongId(song!.id);
-    final disabledColor =
-        Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.38);
+    final isRemote = song != null && !isServerAddressableSongId(song!.id);
+    final disabledColor = Theme.of(
+      context,
+    ).colorScheme.onSurface.withValues(alpha: 0.38);
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
@@ -5640,11 +5640,10 @@ class _NowPlayingSettingsPanel extends ConsumerWidget {
                   ),
             onTap: isRemote
                 ? () => AppNoticeMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content:
-                            Text(l10n.remoteSourceActionUnavailable),
-                      ),
-                    )
+                    SnackBar(
+                      content: Text(l10n.remoteSourceActionUnavailable),
+                    ),
+                  )
                 : null,
           ),
         if (fullscreenLyricsSongId != null &&
@@ -5736,8 +5735,9 @@ class _EmbeddedMixPanel extends ConsumerWidget {
         : l10n.nowPlayingSameVibesDescription;
     final isRemote = !isServerAddressableSongId(seedSongId);
     final legacyMixUnavailable = isRemote && useLegacy;
-    final disabledColor =
-        Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.38);
+    final disabledColor = Theme.of(
+      context,
+    ).colorScheme.onSurface.withValues(alpha: 0.38);
     final cards = <Widget>[
       Card(
         child: ListTile(
@@ -5755,10 +5755,10 @@ class _EmbeddedMixPanel extends ConsumerWidget {
           trailing: active ? const Icon(Icons.check_circle) : null,
           onTap: legacyMixUnavailable
               ? () => AppNoticeMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(l10n.remoteSourceInstantMixUnavailable),
-                    ),
-                  )
+                  SnackBar(
+                    content: Text(l10n.remoteSourceInstantMixUnavailable),
+                  ),
+                )
               : () async {
                   await togglePreferredMixMode(ref, seedSongId: seedSongId);
                 },

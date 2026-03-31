@@ -32,8 +32,7 @@ class ArtistTopTracksSection extends ConsumerStatefulWidget {
       _ArtistTopTracksSectionState();
 }
 
-class _ArtistTopTracksSectionState
-    extends ConsumerState<ArtistTopTracksSection>
+class _ArtistTopTracksSectionState extends ConsumerState<ArtistTopTracksSection>
     with AutomaticKeepAliveClientMixin {
   bool _expanded = false;
   bool _playing = false;
