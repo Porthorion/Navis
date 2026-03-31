@@ -911,21 +911,27 @@ final albumProvider = StreamProvider.family<AlbumWithSongs?, String>((
         (album) {
           songsSub?.cancel();
           if (album == null) {
-            controller.add(null);
             songsSub = null;
             if (!requestedServerFallback) {
               requestedServerFallback = true;
+              // Don't emit null yet — keep the StreamProvider in AsyncLoading
+              // so the UI shows a shimmer placeholder while we fetch from the
+              // server.  If hydration fails, propagate the error so the UI can
+              // show an ErrorState with a retry button.
               unawaited(
-                _hydrateAlbumFromServer(ref, albumId).catchError((
+                _hydrateAlbumFromServer(ref, albumId)
+                    .timeout(const Duration(seconds: 15))
+                    .catchError((
                   Object error,
                   StackTrace stackTrace,
                 ) {
-                  AppLogger.warning(
-                    'Album fallback hydration failed for album=$albumId: '
-                    '$error\n$stackTrace',
-                  );
+                  controller.addError(error, stackTrace);
                 }),
               );
+            } else {
+              // Hydration was already attempted and the DB still returns null.
+              // The album genuinely does not exist on the server.
+              controller.add(null);
             }
           } else {
             songsSub = dao.watchSongsByAlbum(albumId).listen(
