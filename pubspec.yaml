@@ -26,6 +26,7 @@ dependencies:
   flutter_markdown_plus: ^1.0.7
   flutter_riverpod: ^3.3.1
   flutter_secure_storage: ^10.0.0
+  flutter_svg: ^2.0.16
   freezed_annotation: ^3.1.0
   json_annotation: ^4.11.0
   go_router: ^17.1.0
@@ -65,3 +66,5 @@ flutter:
   assets:
     - lib/src/icon/Navis_Icon_Dark.png
     - lib/src/icon/Navis_Icon_light.png
+    - lib/src/icon/Navis_Icon_Dark.svg
+    - lib/src/icon/Navis_Icon_Light.svg
