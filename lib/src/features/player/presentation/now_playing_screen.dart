@@ -120,10 +120,7 @@ Widget _songSwapArtDirectionalTransitionBuilder(
     );
   }
 
-  final curvedIn = CurvedAnimation(
-    parent: animation,
-    curve: incomingWindow,
-  );
+  final curvedIn = CurvedAnimation(parent: animation, curve: incomingWindow);
   return ScaleTransition(
     scale: Tween<double>(begin: 0.84, end: 1).animate(curvedIn),
     child: SlideTransition(
@@ -155,10 +152,7 @@ Widget _coverArtSwitcherLayoutBuilder(
   );
 }
 
-Widget _identityTransitionBuilder(
-  Widget child,
-  Animation<double> animation,
-) {
+Widget _identityTransitionBuilder(Widget child, Animation<double> animation) {
   return child;
 }
 
@@ -511,10 +505,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     );
     final bottomSafeInset = effectiveWideMode
         ? 0.0
-        : math.max(
-            androidBottomInsetFloor,
-            inheritedBottomInset,
-          );
+        : math.max(androidBottomInsetFloor, inheritedBottomInset);
     final resolvedBottomSafeInset = effectiveWideMode
         ? 0.0
         : math.max(
@@ -697,7 +688,7 @@ void _showNowPlayingSettingsSheet(
     context: context,
     useRootNavigator: true,
     builder: (sheetContext) => Consumer(
-      builder: (context, sheetRef, _) {
+      builder: (_, sheetRef, __) {
         final currentSongRating = song == null
             ? null
             : sheetRef.watch(songRatingProvider(song.id)).asData?.value;
@@ -792,9 +783,7 @@ void _showNowPlayingSettingsSheet(
                                   sheetRef,
                                 ).catchError((_) {
                                   if (context.mounted) {
-                                    AppNoticeMessenger.of(
-                                      context,
-                                    ).showSnackBar(
+                                    AppNoticeMessenger.of(context).showSnackBar(
                                       SnackBar(
                                         content: Text(l10n.ratingUpdateFailed),
                                       ),
@@ -807,9 +796,7 @@ void _showNowPlayingSettingsSheet(
                     onTap: isRemote
                         ? () => AppNoticeMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text(
-                                l10n.remoteSourceActionUnavailable,
-                              ),
+                              content: Text(l10n.remoteSourceActionUnavailable),
                             ),
                           )
                         : null,
@@ -1568,9 +1555,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
   }
 
   void _handleManualNextButton() {
-    unawaited(
-      _triggerManualSkipWithAnimation(ManualTrackChangeDirection.next),
-    );
+    unawaited(_triggerManualSkipWithAnimation(ManualTrackChangeDirection.next));
   }
 
   Widget _buildInteractiveSwipeableArt({
@@ -1756,15 +1741,15 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
     final playbackSpeed =
         ref.watch(appSettingsProvider).asData?.value.playbackSpeed ?? 1;
     final fullscreenLyricsMode = ref.watch(fullscreenModeLyricsProvider);
-    ref.listen<AsyncValue<ManualTrackChangeCue>>(
-      manualTrackChangeCueProvider,
-      (_, next) {
-        final cue = next.asData?.value;
-        if (cue != null) {
-          _armManualSkipCue(cue);
-        }
-      },
-    );
+    ref.listen<AsyncValue<ManualTrackChangeCue>>(manualTrackChangeCueProvider, (
+      _,
+      next,
+    ) {
+      final cue = next.asData?.value;
+      if (cue != null) {
+        _armManualSkipCue(cue);
+      }
+    });
     _updateLatchedArtTransitionDirection(playback);
     final songSwapTransitionBuilder = _songSwapTransitionBuilder;
     const songSwapArtDuration = Duration(milliseconds: 250);
@@ -1909,9 +1894,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
             layoutBuilder: _coverArtSwitcherLayoutBuilder,
             transitionBuilder: effectiveSongSwapArtTransitionBuilder,
             child: _buildInteractiveSwipeableArt(
-              key: ValueKey<String>(
-                'compact-wide-cover-$artVisualKey',
-              ),
+              key: ValueKey<String>('compact-wide-cover-$artVisualKey'),
               swipeEnabled: !isRadio,
               currentArt: hasCoverArtId
                   ? _CoverArt(
@@ -2010,9 +1993,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                                               .read(
                                                 searchFilterProvider.notifier,
                                               )
-                                              .select(
-                                                SearchResultType.songs,
-                                              );
+                                              .select(SearchResultType.songs);
                                           NavService.goToSearch(
                                             context,
                                             ref,
@@ -2121,12 +2102,11 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                                   }),
                             wideEmbeddedMode: true,
                             onOpenQueuePanel: _showQueuePanel,
-                            onOpenSettingsPanel: () => _updateWideOverlayState(
-                              () {
-                                _showWideFullscreenLyrics = false;
-                                _widePanel = _WideNowPlayingPanel.settings;
-                              },
-                            ),
+                            onOpenSettingsPanel: () =>
+                                _updateWideOverlayState(() {
+                                  _showWideFullscreenLyrics = false;
+                                  _widePanel = _WideNowPlayingPanel.settings;
+                                }),
                             onOpenMixPanel: () => _updateWideOverlayState(() {
                               _showWideFullscreenLyrics = false;
                               _widePanel = _WideNowPlayingPanel.mix;
@@ -2396,10 +2376,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                     maxSize: artMaxSize,
                   )
                 : (hasMediaArtUrl
-                      ? _RadioCoverArt(
-                          artUrl: mediaArtUrl,
-                          maxSize: artMaxSize,
-                        )
+                      ? _RadioCoverArt(artUrl: mediaArtUrl, maxSize: artMaxSize)
                       : _CoverArt(
                           coverArtId: null,
                           semanticLabel: title,
@@ -2469,9 +2446,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
             switchOutCurve: Curves.easeIn,
             transitionBuilder: songSwapTransitionBuilder,
             child: _TrackInfo(
-              key: ValueKey<String>(
-                'track-info-$nowPlayingVisualKey',
-              ),
+              key: ValueKey<String>('track-info-$nowPlayingVisualKey'),
               title: title,
               artist: artist,
               album: album,
@@ -2502,11 +2477,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                                     ref
                                         .read(searchFilterProvider.notifier)
                                         .select(SearchResultType.artists);
-                                    NavService.goToSearch(
-                                      context,
-                                      ref,
-                                      name,
-                                    );
+                                    NavService.goToSearch(context, ref, name);
                                   },
                                 ),
                               )
@@ -2532,18 +2503,13 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
               onAlbumTap: isRadio
                   ? null
                   : (song?.albumId != null && song!.albumId!.isNotEmpty
-                        ? () => NavService.goToAlbum(
-                            context,
-                            ref,
-                            song.albumId!,
-                          )
+                        ? () =>
+                              NavService.goToAlbum(context, ref, song.albumId!)
                         : null),
             ),
           ),
           if (!isRadio) ...[
-            SizedBox(
-              height: isSplitNowPlaying ? (compactHeight ? 8 : 10) : 12,
-            ),
+            SizedBox(height: isSplitNowPlaying ? (compactHeight ? 8 : 10) : 12),
             _NowPlayingInfoPanel(
               key: ValueKey<String>('info-panel-$nowPlayingVisualKey'),
               song: song,
@@ -2553,9 +2519,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
               playbackSpeed: playbackSpeed,
             ),
           ],
-          SizedBox(
-            height: isSplitNowPlaying ? (compactHeight ? 6 : 10) : 16,
-          ),
+          SizedBox(height: isSplitNowPlaying ? (compactHeight ? 6 : 10) : 16),
           if (!isRadio) ...[
             _SeekBar(playback: playback),
             SizedBox(height: compactSpacing ? 6 : 8),
@@ -2621,20 +2585,16 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                       },
                 wideEmbeddedMode: supportsSplitPanelOverlay,
                 onOpenQueuePanel: supportsSplitPanelOverlay
-                    ? () => _updateWideOverlayState(
-                        () {
-                          _showWideFullscreenLyrics = false;
-                          _widePanel = _WideNowPlayingPanel.queue;
-                        },
-                      )
+                    ? () => _updateWideOverlayState(() {
+                        _showWideFullscreenLyrics = false;
+                        _widePanel = _WideNowPlayingPanel.queue;
+                      })
                     : null,
                 onOpenSettingsPanel: supportsSplitPanelOverlay
-                    ? () => _updateWideOverlayState(
-                        () {
-                          _showWideFullscreenLyrics = false;
-                          _widePanel = _WideNowPlayingPanel.settings;
-                        },
-                      )
+                    ? () => _updateWideOverlayState(() {
+                        _showWideFullscreenLyrics = false;
+                        _widePanel = _WideNowPlayingPanel.settings;
+                      })
                     : null,
                 onOpenMixPanel: supportsSplitPanelOverlay
                     ? () => _updateWideOverlayState(() {
@@ -2720,10 +2680,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
         final metrics = splitMetrics;
         final rightPaneWidth = metrics.rightPaneWidth;
         final splitCoverArtMaxSize = math
-            .min(
-              rightPaneWidth - 56,
-              constraints.maxHeight * 0.36,
-            )
+            .min(rightPaneWidth - 56, constraints.maxHeight * 0.36)
             .clamp(170.0, 340.0);
         final lyricsPane = DecoratedBox(
           decoration: BoxDecoration(
@@ -2865,11 +2822,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                                       ref
                                           .read(searchFilterProvider.notifier)
                                           .select(SearchResultType.artists);
-                                      NavService.goToSearch(
-                                        context,
-                                        ref,
-                                        name,
-                                      );
+                                      NavService.goToSearch(context, ref, name);
                                     },
                                   ),
                                 )
@@ -2946,20 +2899,16 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                       ),
                 wideEmbeddedMode: supportsSplitPanelOverlay,
                 onOpenQueuePanel: supportsSplitPanelOverlay
-                    ? () => _updateWideOverlayState(
-                        () {
-                          _showWideFullscreenLyrics = false;
-                          _widePanel = _WideNowPlayingPanel.queue;
-                        },
-                      )
+                    ? () => _updateWideOverlayState(() {
+                        _showWideFullscreenLyrics = false;
+                        _widePanel = _WideNowPlayingPanel.queue;
+                      })
                     : null,
                 onOpenSettingsPanel: supportsSplitPanelOverlay
-                    ? () => _updateWideOverlayState(
-                        () {
-                          _showWideFullscreenLyrics = false;
-                          _widePanel = _WideNowPlayingPanel.settings;
-                        },
-                      )
+                    ? () => _updateWideOverlayState(() {
+                        _showWideFullscreenLyrics = false;
+                        _widePanel = _WideNowPlayingPanel.settings;
+                      })
                     : null,
                 onOpenMixPanel: supportsSplitPanelOverlay
                     ? () => _updateWideOverlayState(() {
@@ -3080,10 +3029,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              SizedBox(
-                width: metrics.leftPaneWidth,
-                child: lyricsPane,
-              ),
+              SizedBox(width: metrics.leftPaneWidth, child: lyricsPane),
               SizedBox(width: splitGap),
               SizedBox(
                 width: rightPaneWidth,
@@ -3170,11 +3116,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
 }
 
 class _CoverArt extends ConsumerWidget {
-  const _CoverArt({
-    this.coverArtId,
-    this.semanticLabel,
-    this.maxSize,
-  });
+  const _CoverArt({this.coverArtId, this.semanticLabel, this.maxSize});
 
   final String? coverArtId;
   final String? semanticLabel;
@@ -3535,14 +3477,10 @@ class _NowPlayingInfoPanelState extends ConsumerState<_NowPlayingInfoPanel> {
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   textAlign: TextAlign.center,
-                                  style:
-                                      Theme.of(
-                                        context,
-                                      ).textTheme.bodySmall?.copyWith(
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(
                                         color: colors.onSurfaceVariant
-                                            .withValues(
-                                              alpha: 0.82,
-                                            ),
+                                            .withValues(alpha: 0.82),
                                       ),
                                 ),
                               ),
@@ -3585,10 +3523,7 @@ List<_NowPlayingInfoPage> _buildNowPlayingInfoPages({
     _NowPlayingInfoPage(
       icon: Icons.info_outline,
       semanticLabel: l10n.nowPlayingAudioQuality,
-      value: _formatAudioQuality(
-        song: song,
-        mediaItem: currentMediaItem,
-      ),
+      value: _formatAudioQuality(song: song, mediaItem: currentMediaItem),
     ),
     _NowPlayingInfoPage(
       icon: Icons.queue_music_outlined,
@@ -3701,10 +3636,7 @@ class _NowPlayingInfoGrid extends ConsumerWidget {
                 color: colors.onSurfaceVariant.withValues(alpha: 0.72),
               ),
               const SizedBox(width: 8),
-              Text(
-                ratingPage.semanticLabel,
-                style: labelStyle,
-              ),
+              Text(ratingPage.semanticLabel, style: labelStyle),
             ],
           ),
           const SizedBox(height: 6),
@@ -3918,10 +3850,7 @@ String _formatReleaseDate(SongsTableData? song, AlbumsTableData? album) {
   return '-';
 }
 
-String _formatQueuePosition(
-  AppLocalizations l10n,
-  PlaybackSnapshot playback,
-) {
+String _formatQueuePosition(AppLocalizations l10n, PlaybackSnapshot playback) {
   final total = playback.queueSongIds.length;
   if (total <= 0) {
     return '-';
@@ -4156,9 +4085,7 @@ class _TransportControls extends ConsumerWidget {
       await ref.read(audioHandlerProvider)?.setVolume(resolved);
     }
 
-    Future<void> toggleMute({
-      required String source,
-    }) async {
+    Future<void> toggleMute({required String source}) async {
       final resolved = ref.read(playbackVolumeProvider.notifier).toggleMute();
       AppLogger.debug(
         '[ACP_INPUT] volume source=$source value=${resolved.toStringAsFixed(2)}',
@@ -4322,16 +4249,11 @@ class _TransportControls extends ConsumerWidget {
             if (effectiveShowVolume) ...<Widget>[
               SizedBox(width: compact ? 6 : 10),
               DesktopVolumeSlider(
-                key: const ValueKey<String>(
-                  'nowPlayingDesktopVolumeSlider',
-                ),
+                key: const ValueKey<String>('nowPlayingDesktopVolumeSlider'),
                 volume: volume,
                 compact: compact,
                 onChanged: (value) => unawaited(
-                  setPlaybackVolume(
-                    value,
-                    source: 'desktop_now_playing_live',
-                  ),
+                  setPlaybackVolume(value, source: 'desktop_now_playing_live'),
                 ),
                 onChangeEnd: (value) => unawaited(
                   setPlaybackVolume(
@@ -4353,11 +4275,7 @@ class _TransportControls extends ConsumerWidget {
 }
 
 class _InlineLyrics extends ConsumerWidget {
-  const _InlineLyrics({
-    super.key,
-    required this.songId,
-    this.maxSize,
-  });
+  const _InlineLyrics({super.key, required this.songId, this.maxSize});
 
   final String songId;
   final double? maxSize;
@@ -4393,11 +4311,7 @@ class _InlineLyrics extends ConsumerWidget {
         return child;
       }
       final framedSize = size.clamp(180.0, 680.0);
-      return SizedBox(
-        width: framedSize,
-        height: framedSize,
-        child: child,
-      );
+      return SizedBox(width: framedSize, height: framedSize, child: child);
     }
 
     return lyricsAsync.when(
@@ -4452,10 +4366,7 @@ class _InlineLyrics extends ConsumerWidget {
 }
 
 class _FullscreenLyricsPage extends ConsumerWidget {
-  const _FullscreenLyricsPage({
-    required this.songId,
-    required this.title,
-  });
+  const _FullscreenLyricsPage({required this.songId, required this.title});
 
   final String songId;
   final String title;
@@ -4832,9 +4743,7 @@ class _ActionRowState extends ConsumerState<_ActionRow>
             ? null
             : legacyMixUnavailable
             ? () => AppNoticeMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(l10n.remoteSourceInstantMixUnavailable),
-                ),
+                SnackBar(content: Text(l10n.remoteSourceInstantMixUnavailable)),
               )
             : () => unawaited(
                 togglePreferredMixMode(ref, seedSongId: widget.songId!),
@@ -4856,9 +4765,7 @@ class _ActionRowState extends ConsumerState<_ActionRow>
             ? null
             : isRemote
             ? () => AppNoticeMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(l10n.remoteSourceActionUnavailable),
-                ),
+                SnackBar(content: Text(l10n.remoteSourceActionUnavailable)),
               )
             : () {
                 HapticFeedback.lightImpact();
@@ -4923,11 +4830,7 @@ class _NowPlayingActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Opacity(
       opacity: (onTap == null || isDisabled) ? 0.42 : 1,
-      child: IconButton(
-        tooltip: label,
-        onPressed: onTap,
-        icon: icon,
-      ),
+      child: IconButton(tooltip: label, onPressed: onTap, icon: icon),
     );
   }
 }
@@ -4981,9 +4884,7 @@ class _EmbeddedRightPaneBottomSheet extends StatelessWidget {
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: onClose,
-            child: ColoredBox(
-              color: Colors.black.withValues(alpha: 0.26),
-            ),
+            child: ColoredBox(color: Colors.black.withValues(alpha: 0.26)),
           ),
         ),
         Align(
@@ -5020,9 +4921,7 @@ class _EmbeddedRightPaneBottomSheet extends StatelessWidget {
                                   margin: const EdgeInsets.only(bottom: 8),
                                   decoration: BoxDecoration(
                                     color: colorScheme.onSurfaceVariant
-                                        .withValues(
-                                          alpha: 0.4,
-                                        ),
+                                        .withValues(alpha: 0.4),
                                     borderRadius: BorderRadius.circular(2),
                                   ),
                                 ),
@@ -5124,10 +5023,7 @@ class _EmbeddedNowPlayingPanelScaffoldState
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         unawaited(
-          _transitionController.animateTo(
-            1,
-            curve: Curves.easeOutCubic,
-          ),
+          _transitionController.animateTo(1, curve: Curves.easeOutCubic),
         );
       }
     });
@@ -5629,9 +5525,7 @@ class _NowPlayingSettingsPanel extends ConsumerWidget {
                         setSongRating(song!.id, next, ref).catchError((_) {
                           if (context.mounted) {
                             AppNoticeMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(l10n.ratingUpdateFailed),
-                              ),
+                              SnackBar(content: Text(l10n.ratingUpdateFailed)),
                             );
                           }
                         }),
@@ -5640,9 +5534,7 @@ class _NowPlayingSettingsPanel extends ConsumerWidget {
                   ),
             onTap: isRemote
                 ? () => AppNoticeMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(l10n.remoteSourceActionUnavailable),
-                    ),
+                    SnackBar(content: Text(l10n.remoteSourceActionUnavailable)),
                   )
                 : null,
           ),
