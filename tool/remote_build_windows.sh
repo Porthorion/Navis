@@ -78,9 +78,10 @@ for tool in ssh scp tar; do
 done
 
 SOURCE_ARCHIVE="$(mktemp -t navis_windows_remote_src.XXXXXX.tgz)"
+PUB_CACHE_ARCHIVE="$(mktemp -t navis_windows_pub_cache.XXXXXX.tgz)"
 REMOTE_SCRIPT="$(mktemp -t navis_windows_remote_script.XXXXXX.ps1)"
 cleanup() {
-  rm -f "${SOURCE_ARCHIVE}" "${REMOTE_SCRIPT}"
+  rm -f "${SOURCE_ARCHIVE}" "${PUB_CACHE_ARCHIVE}" "${REMOTE_SCRIPT}"
 }
 trap cleanup EXIT
 
@@ -94,6 +95,37 @@ tar \
   -czf "${SOURCE_ARCHIVE}" \
   -C "${REPO_ROOT}" .
 
+# Bundle the pub packages required by pubspec.lock so the Windows VM can run
+# flutter pub get --offline even without internet access.
+printf '[remote-windows] Bundling pub package cache...\n'
+_pub_cache_host="${HOME}/.pub-cache/hosted/pub.dev"
+_lock_file="${REPO_ROOT}/pubspec.lock"
+_pkg_dirs=()
+if [[ -f "${_lock_file}" ]] && [[ -d "${_pub_cache_host}" ]]; then
+  while IFS= read -r _pkg; do
+    _dir="${_pub_cache_host}/${_pkg}"
+    if [[ -d "${_dir}" ]]; then
+      _pkg_dirs+=("${_pkg}")
+    fi
+  done < <(python3 - "${_lock_file}" <<'PYEOF'
+import sys, re
+with open(sys.argv[1]) as f:
+    content = f.read()
+for m in re.finditer(r'^\s{2}(\S+):\n(?:.*\n)*?.*?version:\s*"([^"]+)"', content, re.MULTILINE):
+    print(f"{m.group(1)}-{m.group(2)}")
+PYEOF
+)
+fi
+
+if [[ ${#_pkg_dirs[@]} -gt 0 ]]; then
+  tar -czf "${PUB_CACHE_ARCHIVE}" -C "${_pub_cache_host}" "${_pkg_dirs[@]}"
+  printf '[remote-windows] Bundled %d pub packages.\n' "${#_pkg_dirs[@]}"
+else
+  # Empty archive fallback
+  tar -czf "${PUB_CACHE_ARCHIVE}" -T /dev/null 2>/dev/null || touch "${PUB_CACHE_ARCHIVE}"
+  printf '[remote-windows] Warning: no pub packages bundled.\n'
+fi
+
 cat > "${REMOTE_SCRIPT}" <<'REMOTE_POWERSHELL'
 param(
   [Parameter(Mandatory = $true)][string]$RemoteDir,
@@ -102,7 +134,8 @@ param(
   [Parameter(Mandatory = $true)][string]$Version,
   [Parameter(Mandatory = $true)][string]$AssetPrefix,
   [Parameter(Mandatory = $true)][ValidateSet('stable', 'dev')][string]$UpdateChannel,
-  [string]$LastFmApiKey = ''
+  [string]$LastFmApiKey = '',
+  [string]$PubCacheArchive = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -134,6 +167,16 @@ New-Item -ItemType Directory -Force -Path $workspaceDir | Out-Null
 
 tar -xzf $archivePath -C $workspaceDir
 Set-Location $workspaceDir
+
+# Set up offline pub cache if a bundled archive was provided.
+if ($PubCacheArchive -ne '' -and (Test-Path $PubCacheArchive)) {
+  $localPubCache = Join-Path $baseDir 'pub_cache'
+  $localPubCacheHosted = Join-Path $localPubCache 'hosted\pub.dev'
+  New-Item -ItemType Directory -Force -Path $localPubCacheHosted | Out-Null
+  tar -xzf $PubCacheArchive -C $localPubCacheHosted
+  $env:PUB_CACHE = $localPubCache
+  Write-Host "[remote-windows] Using bundled pub cache at $localPubCache"
+}
 
 # Try online first; fall back to offline if network is unavailable (e.g. VM with no internet).
 $ErrorActionPreference = 'Continue'
@@ -237,6 +280,7 @@ printf '[remote-windows] Preparing remote workspace on %s...\n' "${SSH_TARGET}"
 ssh "${SSH_TARGET}" \
   "powershell -NoProfile -Command \"New-Item -ItemType Directory -Force -Path (Join-Path \$HOME '${REMOTE_DIR}') | Out-Null\""
 scp "${SOURCE_ARCHIVE}" "${SSH_TARGET}:${REMOTE_DIR}/source.tgz" >/dev/null
+scp "${PUB_CACHE_ARCHIVE}" "${SSH_TARGET}:${REMOTE_DIR}/pub_cache.tgz" >/dev/null
 scp "${REMOTE_SCRIPT}" "${SSH_TARGET}:${REMOTE_DIR}/navis_remote_windows_build.ps1" >/dev/null
 
 printf '[remote-windows] Running remote build...\n'
@@ -248,7 +292,7 @@ if [[ -n "${LASTFM_API_KEY}" ]]; then
   _lastfm_arg="-LastFmApiKey ${LASTFM_API_KEY}"
 fi
 ssh "${SSH_TARGET}" \
-  "powershell -NoProfile -ExecutionPolicy Bypass -File ${_win_script} -RemoteDir ${REMOTE_DIR} -ArchiveName source.tgz -PackageMode ${PACKAGE_MODE} -Version ${VERSION} -AssetPrefix ${ASSET_PREFIX} -UpdateChannel ${UPDATE_CHANNEL} ${_lastfm_arg}"
+  "powershell -NoProfile -ExecutionPolicy Bypass -File ${_win_script} -RemoteDir ${REMOTE_DIR} -ArchiveName source.tgz -PubCacheArchive ${REMOTE_DIR//\//\\}\\pub_cache.tgz -PackageMode ${PACKAGE_MODE} -Version ${VERSION} -AssetPrefix ${ASSET_PREFIX} -UpdateChannel ${UPDATE_CHANNEL} ${_lastfm_arg}"
 
 asset_name="$(ssh "${SSH_TARGET}" "powershell -NoProfile -Command \"Get-Content -Raw -Path (Join-Path (Join-Path \$HOME '${REMOTE_DIR}') 'asset_name.txt')\"")"
 asset_name="${asset_name//$'\r'/}"
