@@ -30,31 +30,6 @@ const List<ChangelogVersion> changelogs = [
     version: '0.9.4',
     entries: [
       ChangelogEntry(
-        'Added What\'s New page in About settings showing what changed in the current version',
-        type: ChangelogEntryType.newFeature,
-      ),
-      ChangelogEntry(
-        'App now shows a What\'s New summary on first launch after an update',
-        type: ChangelogEntryType.newFeature,
-      ),
-      ChangelogEntry(
-        'Update notifications now display actual release notes instead of a generic link',
-        type: ChangelogEntryType.improvement,
-      ),
-      ChangelogEntry(
-        'Fixed What\'s New page crashing with a route not found error',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Fixed app failing to build due to a missing import in the home screen',
-        type: ChangelogEntryType.fix,
-      ),
-    ],
-  ),
-  ChangelogVersion(
-    version: '0.9.3',
-    entries: [
-      ChangelogEntry(
         'Tapping a downloaded track in the Downloads page now plays it directly',
         type: ChangelogEntryType.newFeature,
       ),
@@ -63,11 +38,23 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
+        'Added What\'s New page in About settings showing what changed in the current version',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'App now shows a What\'s New summary on first launch after an update',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
         'Improved radio station switching reliability and reduced lag when stopping radio',
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
         'Swiping to remove a queue item no longer accidentally dismisses the queue, and dismissing no longer triggers item removal',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Update notifications now display actual release notes instead of a generic link',
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(

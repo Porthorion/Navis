@@ -68,28 +68,6 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('0.9.4', [
     _Entry(
-      "Added What's New page in About settings showing what changed in the current version",
-      type: _EntryType.newFeature,
-    ),
-    _Entry(
-      "App now shows a What's New summary on first launch after an update",
-      type: _EntryType.newFeature,
-    ),
-    _Entry(
-      'Update notifications now display actual release notes instead of a generic link',
-      type: _EntryType.improvement,
-    ),
-    _Entry(
-      "Fixed What's New page crashing with a route not found error",
-      type: _EntryType.fix,
-    ),
-    _Entry(
-      'Fixed app failing to build due to a missing import in the home screen',
-      type: _EntryType.fix,
-    ),
-  ]),
-  _Version('0.9.3', [
-    _Entry(
       'Tapping a downloaded track in the Downloads page now plays it directly',
       type: _EntryType.newFeature,
     ),
@@ -98,11 +76,23 @@ const List<_Version> _changelogs = [
       type: _EntryType.newFeature,
     ),
     _Entry(
+      "Added What's New page in About settings showing what changed in the current version",
+      type: _EntryType.newFeature,
+    ),
+    _Entry(
+      "App now shows a What's New summary on first launch after an update",
+      type: _EntryType.newFeature,
+    ),
+    _Entry(
       'Improved radio station switching reliability and reduced lag when stopping radio',
       type: _EntryType.improvement,
     ),
     _Entry(
       'Swiping to remove a queue item no longer accidentally dismisses the queue, and dismissing no longer triggers item removal',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Update notifications now display actual release notes instead of a generic link',
       type: _EntryType.improvement,
     ),
     _Entry(
