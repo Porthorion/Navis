@@ -733,7 +733,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
                                 Colors.white,
                                 gradientBottomColor,
                               ],
-                              stops: const <double>[0.0, 0.65, 1.0],
+                              stops: const <double>[0.0, 0.60, 0.85],
                             ).createShader(bounds),
                             blendMode: BlendMode.dstIn,
                             child: HeroCoverArt(
