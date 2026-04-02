@@ -212,6 +212,32 @@ if ($env:PUB_CACHE -ne $null -and $env:PUB_CACHE -ne '') {
   }
 }
 
+# Pre-seed cmake download cache with pre-built native assets so the build works
+# without internet access. media_kit_libs_windows_audio downloads libmpv from
+# GitHub releases; if a valid copy is already on this machine, reuse it.
+$_cmakeBuildDir = Join-Path $workspaceDir 'build\windows\x64'
+New-Item -ItemType Directory -Force -Path $_cmakeBuildDir | Out-Null
+$_libmpvName = 'mpv-dev-x86_64-20230924-git-652a1dd.7z'
+$_libmpvMd5  = 'cd738e16e2a19626d7cfa48801524f8c'
+$_libmpvDest = Join-Path $_cmakeBuildDir $_libmpvName
+if (-not (Test-Path $_libmpvDest)) {
+  # Search common locations where a prior local build may have cached the file.
+  $_libmpvSources = @(
+    (Join-Path $HOME 'Documents\forgejo_projects\Navis\build\windows\x64\' + $_libmpvName),
+    (Join-Path $HOME 'My Documents\forgejo_projects\Navis\build\windows\x64\' + $_libmpvName)
+  )
+  foreach ($_src in $_libmpvSources) {
+    if (Test-Path $_src) {
+      $_srcMd5 = (Get-FileHash $_src -Algorithm MD5).Hash.ToLower()
+      if ($_srcMd5 -eq $_libmpvMd5) {
+        Copy-Item $_src $_libmpvDest
+        Write-Host "[remote-windows] Pre-seeded libmpv from $_src"
+        break
+      }
+    }
+  }
+}
+
 # Locate VsDevCmd.bat — used later to run flutter build in a VS developer shell
 # so that all subprocesses (cmake, MSBuild, cargokit, cargo) inherit link.exe.
 $_devCmd = $null
