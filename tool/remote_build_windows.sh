@@ -309,6 +309,47 @@ if (Test-Path $_sqlite3SrcBase) {
     $ErrorActionPreference = 'Stop'
 }
 
+# Patch sqlite3-3.2.0's hook/description.dart in the system pub cache.
+# The hook downloads sqlite3.dll from GitHub into a subdirectory whose name
+# is derived from Object.hash(), which is non-deterministic across Dart VM
+# runs.  We cannot pre-seed the exact path.  Instead, we add an offline
+# fallback that scans sibling download-* directories in the shared output
+# dir (where we already pre-seeded the DLL from the original project) and
+# copies the DLL to the expected location before the network is touched.
+$_sqlite3DescPath = Join-Path $_systemPubCache 'hosted\pub.dev\sqlite3-3.2.0\lib\src\hook\description.dart'
+if (Test-Path $_sqlite3DescPath) {
+    $_descContent = [System.IO.File]::ReadAllText($_sqlite3DescPath)
+    # Single-quoted PS1 string: '' = literal single-quote inside single-quoted string
+    $_dlMarker = '    final tmp = File(''${downloadedFile.path}.tmp'');'
+    if ($_descContent.Contains($_dlMarker) -and -not $_descContent.Contains('Offline fallback')) {
+        # @'...'@ PS1 here-string is literal - no variable expansion.
+        # Dart code inside is passed through unchanged.
+        $_fallback = @'
+    // Offline fallback: before attempting a network download, check if the
+    // DLL already exists in any sibling download-* directory (pre-seeded).
+    final sharedBuildDir = dir.parent;
+    if (sharedBuildDir.existsSync()) {
+      for (final entry in sharedBuildDir.listSync().whereType<Directory>()) {
+        final candidate = File(p.join(entry.path, fileName));
+        if (candidate.existsSync() && candidate.path != downloadedFile.path) {
+          candidate.copySync(downloadedFile.path);
+          return downloadedFile;
+        }
+      }
+    }
+    final tmp = File('${downloadedFile.path}.tmp');
+'@
+        $_descContent = $_descContent.Replace($_dlMarker, $_fallback)
+        [System.IO.File]::WriteAllText($_sqlite3DescPath, $_descContent)
+        Write-Host "[remote-windows] Patched sqlite3 description.dart with offline fallback"
+        # Remove cached hook .dill so it is recompiled with the patched source.
+        $ErrorActionPreference = 'Continue'
+        $_dillDir = [System.IO.Path]::Combine($workspaceDir, '.dart_tool', 'hooks_runner', 'sqlite3')
+        if (Test-Path $_dillDir) { Remove-Item -Recurse -Force $_dillDir 2>$null }
+        $ErrorActionPreference = 'Stop'
+    }
+}
+
 # Patch cargokit's run_build_tool.cmd to use --offline for pub get.
 # cargokit creates a temporary pubspec and runs "dart pub get --no-precompile"
 # to resolve the build_tool path dependency. On a VM with no internet access
