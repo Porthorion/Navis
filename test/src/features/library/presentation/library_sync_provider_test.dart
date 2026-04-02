@@ -113,7 +113,6 @@ void main() {
 
       final container = ProviderContainer(
         overrides: [
-
           _manualSyncInterval,
           serverConfigStateProvider.overrideWithValue(
             const AsyncData(
@@ -173,7 +172,6 @@ void main() {
 
       final container = ProviderContainer(
         overrides: [
-
           _manualSyncInterval,
           serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
           serverReachabilityControllerProvider.overrideWith(
@@ -245,7 +243,6 @@ void main() {
 
       final container = ProviderContainer(
         overrides: [
-
           _manualSyncInterval,
           serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
           serverReachabilityControllerProvider.overrideWith(
@@ -294,7 +291,6 @@ void main() {
 
         final container = ProviderContainer(
           overrides: [
-  
             _manualSyncInterval,
             serverConfigStateProvider.overrideWithValue(
               const AsyncData(
@@ -351,7 +347,6 @@ void main() {
       );
       final container = ProviderContainer(
         overrides: [
-
           _manualSyncInterval,
           serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
           serverReachabilityControllerProvider.overrideWith(
@@ -410,7 +405,6 @@ void main() {
 
       final container = ProviderContainer(
         overrides: [
-
           _manualSyncInterval,
           serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
           serverReachabilityControllerProvider.overrideWith(
@@ -469,7 +463,6 @@ void main() {
 
       final container = ProviderContainer(
         overrides: [
-
           _shortSyncInterval,
           syncIntervalMinutesProvider.overrideWithValue(1),
           serverConfigStateProvider.overrideWithValue(const AsyncData(null)),

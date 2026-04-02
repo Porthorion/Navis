@@ -31,7 +31,9 @@ class _ChangelogDialog extends StatelessWidget {
     final highlights = version.entries
         .where((e) => e.type != ChangelogEntryType.fix)
         .toList();
-    final hasFixes = version.entries.any((e) => e.type == ChangelogEntryType.fix);
+    final hasFixes = version.entries.any(
+      (e) => e.type == ChangelogEntryType.fix,
+    );
 
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -74,8 +76,7 @@ class _ChangelogDialog extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               const SizedBox(height: 4),
-              for (final entry in highlights)
-                ChangelogEntryTile(entry: entry),
+              for (final entry in highlights) ChangelogEntryTile(entry: entry),
               if (hasFixes)
                 Padding(
                   padding: const EdgeInsets.only(top: 4),

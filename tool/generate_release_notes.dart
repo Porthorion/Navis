@@ -260,7 +260,9 @@ void main(List<String> args) {
   buf.writeln();
 
   for (final entry in match.entries) {
-    buf.writeln('- ${_emoji(entry.type)} **${_label(entry.type)}:** ${entry.text}');
+    buf.writeln(
+      '- ${_emoji(entry.type)} **${_label(entry.type)}:** ${entry.text}',
+    );
   }
 
   print(buf.toString().trimRight());

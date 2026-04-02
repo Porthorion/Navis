@@ -87,21 +87,25 @@ class _QueueTabState extends ConsumerState<_QueueTab> {
         final resolvedSongs = <int, SongsTableData?>{};
         for (final item in items) {
           if (item.songId != null) {
-            resolvedSongs[item.id] =
-                ref.watch(songByIdProvider(item.songId!)).asData?.value;
+            resolvedSongs[item.id] = ref
+                .watch(songByIdProvider(item.songId!))
+                .asData
+                ?.value;
           }
         }
 
         final filtered = _query.isEmpty
             ? items
-            : items.where((item) {
-                final song = resolvedSongs[item.id];
-                final title =
-                    (song?.title ?? item.songId ?? '').toLowerCase();
-                final artist = (song?.artistName ?? '').toLowerCase();
-                final q = _query.toLowerCase();
-                return title.contains(q) || artist.contains(q);
-              }).toList(growable: false);
+            : items
+                  .where((item) {
+                    final song = resolvedSongs[item.id];
+                    final title = (song?.title ?? item.songId ?? '')
+                        .toLowerCase();
+                    final artist = (song?.artistName ?? '').toLowerCase();
+                    final q = _query.toLowerCase();
+                    return title.contains(q) || artist.contains(q);
+                  })
+                  .toList(growable: false);
 
         final hasFailed = filtered.any(
           (i) => i.status == DownloadStatus.failed,
@@ -311,19 +315,23 @@ class _DownloadedTabState extends ConsumerState<_DownloadedTab> {
         // Resolve song data so we can filter by title/artist.
         final resolvedSongs = <String, SongsTableData?>{};
         for (final track in tracks) {
-          resolvedSongs[track.songId] =
-              ref.watch(songByIdProvider(track.songId)).asData?.value;
+          resolvedSongs[track.songId] = ref
+              .watch(songByIdProvider(track.songId))
+              .asData
+              ?.value;
         }
 
         final filtered = _query.isEmpty
             ? tracks
-            : tracks.where((track) {
-                final song = resolvedSongs[track.songId];
-                final title = (song?.title ?? track.songId).toLowerCase();
-                final artist = (song?.artistName ?? '').toLowerCase();
-                final q = _query.toLowerCase();
-                return title.contains(q) || artist.contains(q);
-              }).toList(growable: false);
+            : tracks
+                  .where((track) {
+                    final song = resolvedSongs[track.songId];
+                    final title = (song?.title ?? track.songId).toLowerCase();
+                    final artist = (song?.artistName ?? '').toLowerCase();
+                    final q = _query.toLowerCase();
+                    return title.contains(q) || artist.contains(q);
+                  })
+                  .toList(growable: false);
 
         return Column(
           children: <Widget>[

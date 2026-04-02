@@ -1134,31 +1134,36 @@ class NavisAudioHandler extends BaseAudioHandler
           _emitSnapshot();
           _radioStreamErrorController.add(null);
           // Schedule player cleanup and queue restore on the lane.
-          unawaited(_queueLane.run(() async {
-            await _player.stop();
-            await _player.setAudioSources(const <AudioSource>[]);
-            queue.add(const <MediaItem>[]);
-            _setCurrentMediaItem(null);
-            _broadcastPlaybackState();
-            _emitSnapshot();
-          }));
-          unawaited(_queueLane.run(() async {
-            if (_queueItems.isNotEmpty || _radioStation != null) return;
-            try {
-              await _restoreQueueFromDisk()
-                  .timeout(const Duration(seconds: 10));
-            } on TimeoutException catch (e, st) {
-              AppLogger.warning(
-                'Queue restore after radio stream error timed out. '
-                'Clearing persisted queue. $e\n$st',
-              );
-              await _clearPersistedQueueBestEffort();
-            } on Object catch (e, st) {
-              AppLogger.warning(
-                'Queue restore after radio stream error failed: $e\n$st',
-              );
-            }
-          }));
+          unawaited(
+            _queueLane.run(() async {
+              await _player.stop();
+              await _player.setAudioSources(const <AudioSource>[]);
+              queue.add(const <MediaItem>[]);
+              _setCurrentMediaItem(null);
+              _broadcastPlaybackState();
+              _emitSnapshot();
+            }),
+          );
+          unawaited(
+            _queueLane.run(() async {
+              if (_queueItems.isNotEmpty || _radioStation != null) return;
+              try {
+                await _restoreQueueFromDisk().timeout(
+                  const Duration(seconds: 10),
+                );
+              } on TimeoutException catch (e, st) {
+                AppLogger.warning(
+                  'Queue restore after radio stream error timed out. '
+                  'Clearing persisted queue. $e\n$st',
+                );
+                await _clearPersistedQueueBestEffort();
+              } on Object catch (e, st) {
+                AppLogger.warning(
+                  'Queue restore after radio stream error failed: $e\n$st',
+                );
+              }
+            }),
+          );
         }
       },
     );
@@ -3566,8 +3571,9 @@ class NavisAudioHandler extends BaseAudioHandler
             (_) => _queueLane.run(() async {
               if (_queueItems.isNotEmpty || _radioStation != null) return;
               try {
-                await _restoreQueueFromDisk()
-                    .timeout(const Duration(seconds: 10));
+                await _restoreQueueFromDisk().timeout(
+                  const Duration(seconds: 10),
+                );
               } on TimeoutException catch (error, stackTrace) {
                 AppLogger.warning(
                   'Queue restore after radio stop timed out. '

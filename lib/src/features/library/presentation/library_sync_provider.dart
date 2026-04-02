@@ -48,7 +48,6 @@ final syncStaleAfterProvider = Provider<Duration>((ref) {
   return Duration(seconds: minutes * 60 - toleranceSeconds);
 });
 
-
 final librarySyncNotifierProvider = Provider<LibrarySyncNotifier>((ref) {
   return const SystemLibrarySyncNotifier();
 });

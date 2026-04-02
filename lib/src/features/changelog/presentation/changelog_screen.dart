@@ -20,7 +20,7 @@ class ChangelogScreen extends ConsumerWidget {
     // Find the entry for the current installed version; fall back to newest.
     final version = currentVersion != null
         ? changelogs.where((c) => c.version == currentVersion).firstOrNull ??
-            (changelogs.isNotEmpty ? changelogs.first : null)
+              (changelogs.isNotEmpty ? changelogs.first : null)
         : (changelogs.isNotEmpty ? changelogs.first : null);
 
     return Scaffold(
