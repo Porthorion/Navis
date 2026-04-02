@@ -1856,6 +1856,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get aboutVersion => 'Version';
 
   @override
+  String get aboutChangelog => 'What\'s New';
+
+  @override
+  String get aboutChangelogSub => 'See what changed in this version.';
+
+  @override
+  String get whatsNewTitle => 'What\'s New';
+
+  @override
+  String get changelogEmpty => 'No changelog entries yet.';
+
+  @override
   String get aboutLicenses => 'Open-source licenses';
 
   @override

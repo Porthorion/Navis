@@ -3309,6 +3309,30 @@ abstract class AppLocalizations {
   /// **'Version'**
   String get aboutVersion;
 
+  /// No description provided for @aboutChangelog.
+  ///
+  /// In en, this message translates to:
+  /// **'What\'s New'**
+  String get aboutChangelog;
+
+  /// No description provided for @aboutChangelogSub.
+  ///
+  /// In en, this message translates to:
+  /// **'See what changed in this version.'**
+  String get aboutChangelogSub;
+
+  /// No description provided for @whatsNewTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'What\'s New'**
+  String get whatsNewTitle;
+
+  /// No description provided for @changelogEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No changelog entries yet.'**
+  String get changelogEmpty;
+
   /// No description provided for @aboutLicenses.
   ///
   /// In en, this message translates to:

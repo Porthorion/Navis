@@ -846,19 +846,10 @@
 
   "aboutTitle": "About",
   "aboutVersion": "Version",
-  "aboutChangelog": "Changelog",
-  "aboutChangelogSub": "See what changed in each version.",
-  "changelogTitle": "Changelog",
+  "aboutChangelog": "What's New",
+  "aboutChangelogSub": "See what changed in this version.",
+  "whatsNewTitle": "What's New",
   "changelogEmpty": "No changelog entries yet.",
-  "changelogVersionLabel": "Version {version}",
-  "@changelogVersionLabel": {
-    "placeholders": {
-      "version": { "type": "String" }
-    }
-  },
-  "changelogEntryTypeNew": "New",
-  "changelogEntryTypeImproved": "Improved",
-  "changelogEntryTypeFix": "Fix",
   "aboutLicenses": "Open-source licenses",
   "aboutLicensesSub": "View third-party software licenses.",
   "aboutSourceCode": "Source code",
