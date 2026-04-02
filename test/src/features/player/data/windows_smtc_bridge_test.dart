@@ -127,6 +127,9 @@ class _FakeWindowsSmtcClient implements WindowsSmtcClient {
   @override
   Stream<RepeatMode> get repeatModeChangeStream => _repeatController.stream;
 
+  @override
+  Stream<Duration> get positionChangeStream => const Stream.empty();
+
   void emitButton(PressedButton button) {
     _buttonController.add(button);
   }
