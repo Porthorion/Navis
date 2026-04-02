@@ -28,6 +28,11 @@ class _ChangelogDialog extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
+    final highlights = version.entries
+        .where((e) => e.type != ChangelogEntryType.fix)
+        .toList();
+    final hasFixes = version.entries.any((e) => e.type == ChangelogEntryType.fix);
+
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
@@ -69,8 +74,28 @@ class _ChangelogDialog extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               const SizedBox(height: 4),
-              for (final entry in version.entries)
+              for (final entry in highlights)
                 ChangelogEntryTile(entry: entry),
+              if (hasFixes)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.build_circle_outlined,
+                        size: 14,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '& Other Bug Fixes',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
             ],
           ),
         ),

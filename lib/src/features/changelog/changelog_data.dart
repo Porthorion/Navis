@@ -30,16 +30,24 @@ const List<ChangelogVersion> changelogs = [
     version: '0.9.5',
     entries: [
       ChangelogEntry(
-        'Added Changelog page in About settings to browse all version history',
+        'Added What\'s New page in About settings showing what changed in the current version',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'App now shows a "What\'s New" summary on first launch after an update',
+        'App now shows a What\'s New summary on first launch after an update',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
         'Update notifications now display actual release notes instead of a generic link',
         type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Fixed What\'s New page crashing with a route not found error',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Fixed app failing to build due to a missing import in the home screen',
+        type: ChangelogEntryType.fix,
       ),
     ],
   ),
