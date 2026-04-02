@@ -161,7 +161,16 @@ $workspaceDir = Join-Path $baseDir 'workspace'
 $assetNameFile = Join-Path $baseDir 'asset_name.txt'
 
 if (Test-Path $workspaceDir) {
-  Remove-Item -Recurse -Force $workspaceDir
+  $ErrorActionPreference = 'Continue'
+  Remove-Item -Recurse -Force $workspaceDir 2>$null
+  if (Test-Path $workspaceDir) {
+    # Fall back to cmd rd which can clear handles held by Defender/Search indexer
+    cmd /c "rd /s /q `"$workspaceDir`"" 2>$null | Out-Null
+  }
+  $ErrorActionPreference = 'Stop'
+  if (Test-Path $workspaceDir) {
+    throw "Could not remove old workspace at $workspaceDir - a process is holding a lock"
+  }
 }
 New-Item -ItemType Directory -Force -Path $workspaceDir | Out-Null
 
