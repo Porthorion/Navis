@@ -38,16 +38,20 @@ class HeroCoverArt extends StatelessWidget {
             fromHeroContext,
             toHeroContext,
           ) {
-            final preferredContext = flightDirection == HeroFlightDirection.push
-                ? fromHeroContext
-                : toHeroContext;
-            final preferredHero = preferredContext.widget;
-            if (preferredHero is Hero) {
-              return preferredHero.child;
+            // Always use the destination hero's child so the image loads at
+            // the destination (high-res) quality from the start of the
+            // animation instead of switching resolutions mid-flight.
+            // Using toHeroContext for both push and pop avoids the flicker
+            // caused by CoverArtImage re-resolving its size (via LayoutBuilder)
+            // as the Hero bounds animate between different constraint values.
+            final destHero = toHeroContext.widget;
+            if (destHero is Hero) {
+              return destHero.child;
             }
-            final fallbackHero = toHeroContext.widget;
-            if (fallbackHero is Hero) {
-              return fallbackHero.child;
+            // Fallback: use from-hero child if to-hero is not a Hero widget.
+            final fromHero = fromHeroContext.widget;
+            if (fromHero is Hero) {
+              return fromHero.child;
             }
             return const SizedBox.shrink();
           },
