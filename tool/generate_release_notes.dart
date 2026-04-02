@@ -76,6 +76,26 @@ const List<_Version> _changelogs = [
       'Removed emojis from release notes for better cross-platform compatibility',
       type: _EntryType.fix,
     ),
+    _Entry(
+      'Artist detail screen now has Play and Shuffle buttons',
+      type: _EntryType.newFeature,
+    ),
+    _Entry(
+      'Album detail screen has a new scroll-driven header — cover art shrinks into the toolbar as you scroll, with a gradient overlay and album name animation',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Rating button now smoothly expands into a star-picker pill and collapses back with an animation',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Fixed cover art flash and hero animation glitches on album detail screen',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Fixed back button closing the app when at the root of a navigation branch',
+      type: _EntryType.fix,
+    ),
   ]),
   _Version('0.9.4', [
     _Entry(
