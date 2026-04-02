@@ -214,13 +214,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                       key: state.pageKey,
                       child: const AboutScreen(),
                     ),
-                  ),
-                  GoRoute(
-                    path: 'changelog',
-                    pageBuilder: (context, state) => _slideFadePage(
-                      key: state.pageKey,
-                      child: const ChangelogScreen(),
-                    ),
+                    routes: [
+                      GoRoute(
+                        path: 'changelog',
+                        pageBuilder: (context, state) => _slideFadePage(
+                          key: state.pageKey,
+                          child: const ChangelogScreen(),
+                        ),
+                      ),
+                    ],
                   ),
                   GoRoute(
                     path: 'desktop-window',
