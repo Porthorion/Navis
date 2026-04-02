@@ -1666,8 +1666,15 @@ class AppLocalizationsEn extends AppLocalizations {
       'Replace with an untranscoded copy from server';
 
   @override
-  String get downloadsRedownloadQueued =>
-      'Queued for re-download in original quality';
+  String get downloadsRedownloadQueued => 'Queued for re-download';
+
+  @override
+  String get downloadsChangeQuality => 'Change Download Quality';
+
+  @override
+  String downloadsChangeQualityCurrent(String quality) {
+    return 'Current: $quality';
+  }
 
   @override
   String get downloadsCancelAction => 'Cancel download';

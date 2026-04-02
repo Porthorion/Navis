@@ -767,7 +767,16 @@
   "downloadsRemoveAction": "Remove download",
   "downloadsRedownloadOriginal": "Re-download in original quality",
   "downloadsRedownloadOriginalSub": "Replace with an untranscoded copy from server",
-  "downloadsRedownloadQueued": "Queued for re-download in original quality",
+  "downloadsRedownloadQueued": "Queued for re-download",
+  "downloadsChangeQuality": "Change Download Quality",
+  "downloadsChangeQualityCurrent": "Current: {quality}",
+  "@downloadsChangeQualityCurrent": {
+    "placeholders": {
+      "quality": {
+        "type": "String"
+      }
+    }
+  },
   "downloadsCancelAction": "Cancel download",
   "downloadsClearCompleted": "Clear completed",
   "downloadsRetryFailed": "Retry failed",

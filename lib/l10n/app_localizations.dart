@@ -2970,8 +2970,20 @@ abstract class AppLocalizations {
   /// No description provided for @downloadsRedownloadQueued.
   ///
   /// In en, this message translates to:
-  /// **'Queued for re-download in original quality'**
+  /// **'Queued for re-download'**
   String get downloadsRedownloadQueued;
+
+  /// No description provided for @downloadsChangeQuality.
+  ///
+  /// In en, this message translates to:
+  /// **'Change Download Quality'**
+  String get downloadsChangeQuality;
+
+  /// No description provided for @downloadsChangeQualityCurrent.
+  ///
+  /// In en, this message translates to:
+  /// **'Current: {quality}'**
+  String downloadsChangeQualityCurrent(String quality);
 
   /// No description provided for @downloadsCancelAction.
   ///

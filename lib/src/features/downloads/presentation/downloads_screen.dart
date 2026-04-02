@@ -13,35 +13,78 @@ import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
 import 'package:navis/src/utils/file_utils.dart';
 import 'package:navis/src/utils/format_utils.dart';
 
-class DownloadsScreen extends ConsumerWidget {
+class DownloadsScreen extends ConsumerStatefulWidget {
   const DownloadsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DownloadsScreen> createState() => _DownloadsScreenState();
+}
+
+class _DownloadsScreenState extends ConsumerState<DownloadsScreen>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
+  final TextEditingController _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this)
+      ..addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    return DefaultTabController(
-      length: 3,
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(l10n.downloadsTitle),
-          bottom: TabBar(
-            tabs: <Widget>[
-              Tab(text: l10n.downloadsTabQueue),
-              Tab(text: l10n.downloadsTabDownloaded),
-              Tab(text: l10n.downloadsTabSettings),
-            ],
-          ),
-        ),
-        body: const TabBarView(
-          children: <Widget>[
-            _QueueTab(),
-            _DownloadedTab(),
-            _DownloadSettingsTab(),
+    final showSearch = _tabController.index != 2;
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(l10n.downloadsTitle),
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: <Widget>[
+            Tab(text: l10n.downloadsTabQueue),
+            Tab(text: l10n.downloadsTabDownloaded),
+            Tab(text: l10n.downloadsTabSettings),
           ],
         ),
+      ),
+      body: Column(
+        children: <Widget>[
+          if (showSearch)
+            _DownloadsSearchBar(
+              controller: _searchController,
+              hint: _tabController.index == 0
+                  ? l10n.downloadsQueueSearchHint
+                  : l10n.downloadsSearchHint,
+              onChanged: (value) => setState(() => _query = value),
+              onClear: () {
+                _searchController.clear();
+                setState(() => _query = '');
+              },
+            ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: <Widget>[
+                _QueueTab(query: _query),
+                _DownloadedTab(query: _query),
+                const _DownloadSettingsTab(),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -51,25 +94,13 @@ class DownloadsScreen extends ConsumerWidget {
 // Queue tab — shows pending / active / failed downloads
 // ---------------------------------------------------------------------------
 
-class _QueueTab extends ConsumerStatefulWidget {
-  const _QueueTab();
+class _QueueTab extends ConsumerWidget {
+  const _QueueTab({required this.query});
+
+  final String query;
 
   @override
-  ConsumerState<_QueueTab> createState() => _QueueTabState();
-}
-
-class _QueueTabState extends ConsumerState<_QueueTab> {
-  final TextEditingController _searchController = TextEditingController();
-  String _query = '';
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final queueAsync = ref.watch(downloadQueueProvider);
 
@@ -94,7 +125,7 @@ class _QueueTabState extends ConsumerState<_QueueTab> {
           }
         }
 
-        final filtered = _query.isEmpty
+        final filtered = query.isEmpty
             ? items
             : items
                   .where((item) {
@@ -102,7 +133,7 @@ class _QueueTabState extends ConsumerState<_QueueTab> {
                     final title = (song?.title ?? item.songId ?? '')
                         .toLowerCase();
                     final artist = (song?.artistName ?? '').toLowerCase();
-                    final q = _query.toLowerCase();
+                    final q = query.toLowerCase();
                     return title.contains(q) || artist.contains(q);
                   })
                   .toList(growable: false);
@@ -136,15 +167,6 @@ class _QueueTabState extends ConsumerState<_QueueTab> {
 
         return Column(
           children: <Widget>[
-            _DownloadsSearchBar(
-              controller: _searchController,
-              hint: l10n.downloadsQueueSearchHint,
-              onChanged: (value) => setState(() => _query = value),
-              onClear: () {
-                _searchController.clear();
-                setState(() => _query = '');
-              },
-            ),
             if (hasFailed || filtered.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
@@ -174,16 +196,18 @@ class _QueueTabState extends ConsumerState<_QueueTab> {
                   ],
                 ),
               ),
-            if (filtered.isEmpty && _query.isNotEmpty)
+            if (filtered.isEmpty && query.isNotEmpty)
               Expanded(
                 child: EmptyState(
-                  title: l10n.downloadsSearchNoResults(_query),
+                  title: l10n.downloadsSearchNoResults(query),
                   icon: Icons.search_off,
                 ),
               )
             else
               Expanded(
                 child: ListView.builder(
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
                   itemCount: filtered.length,
                   itemBuilder: (context, index) {
                     final item = filtered[index];
@@ -280,25 +304,13 @@ class _QueueItemTile extends ConsumerWidget {
 // Downloaded tab — shows permanently cached tracks (uses Riverpod)
 // ---------------------------------------------------------------------------
 
-class _DownloadedTab extends ConsumerStatefulWidget {
-  const _DownloadedTab();
+class _DownloadedTab extends ConsumerWidget {
+  const _DownloadedTab({required this.query});
+
+  final String query;
 
   @override
-  ConsumerState<_DownloadedTab> createState() => _DownloadedTabState();
-}
-
-class _DownloadedTabState extends ConsumerState<_DownloadedTab> {
-  final TextEditingController _searchController = TextEditingController();
-  String _query = '';
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final tracksAsync = ref.watch(permanentCachedTracksProvider);
 
@@ -321,39 +333,32 @@ class _DownloadedTabState extends ConsumerState<_DownloadedTab> {
               ?.value;
         }
 
-        final filtered = _query.isEmpty
+        final filtered = query.isEmpty
             ? tracks
             : tracks
                   .where((track) {
                     final song = resolvedSongs[track.songId];
                     final title = (song?.title ?? track.songId).toLowerCase();
                     final artist = (song?.artistName ?? '').toLowerCase();
-                    final q = _query.toLowerCase();
+                    final q = query.toLowerCase();
                     return title.contains(q) || artist.contains(q);
                   })
                   .toList(growable: false);
 
         return Column(
           children: <Widget>[
-            _DownloadsSearchBar(
-              controller: _searchController,
-              hint: l10n.downloadsSearchHint,
-              onChanged: (value) => setState(() => _query = value),
-              onClear: () {
-                _searchController.clear();
-                setState(() => _query = '');
-              },
-            ),
-            if (filtered.isEmpty && _query.isNotEmpty)
+            if (filtered.isEmpty && query.isNotEmpty)
               Expanded(
                 child: EmptyState(
-                  title: l10n.downloadsSearchNoResults(_query),
+                  title: l10n.downloadsSearchNoResults(query),
                   icon: Icons.search_off,
                 ),
               )
             else
               Expanded(
                 child: ListView.builder(
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
                   itemCount: filtered.length,
                   itemBuilder: (context, index) {
                     final track = filtered[index];
@@ -502,27 +507,73 @@ class _DownloadedTrackTile extends ConsumerWidget {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.high_quality_outlined),
-                title: Text(l10n.downloadsRedownloadOriginal),
-                subtitle: Text(l10n.downloadsRedownloadOriginalSub),
+                leading: const Icon(Icons.swap_vert),
+                title: Text(l10n.downloadsChangeQuality),
+                subtitle: Text(
+                  l10n.downloadsChangeQualityCurrent(
+                    track.bitRate == null
+                        ? l10n.downloadQualityOriginal
+                        : track.bitRate == 320
+                        ? l10n.downloadQuality320
+                        : track.bitRate == 192
+                        ? l10n.downloadQuality192
+                        : track.bitRate == 128
+                        ? l10n.downloadQuality128
+                        : '${track.bitRate} kbps ${track.format.toUpperCase()}',
+                  ),
+                ),
                 onTap: () async {
                   Navigator.of(sheetContext).pop();
-                  // Delete the existing permanent file first (async).
+                  final currentChoice = DownloadQualityChoice(
+                    quality: track.bitRate != null ? '${track.bitRate}' : null,
+                    format: track.bitRate != null ? track.format : null,
+                  );
+                  final choice = await showDownloadQualitySheet(
+                    context,
+                    initialChoice: currentChoice,
+                  );
+                  if (choice == null) return;
                   await deleteFileWithSuffixes(track.filePath);
                   await ref
                       .read(navisDatabaseProvider)
                       .cacheDao
                       .removeCachedTrack(track.songId);
-                  // Re-enqueue in original quality (no transcode).
                   final service = ref.read(downloadServiceProvider);
                   await service.enqueueSong(
                     track.songId,
                     forceRedownload: true,
+                    quality: choice.quality,
+                    format: choice.format,
                   );
                   if (context.mounted) {
                     AppNoticeMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(l10n.downloadsRedownloadQueued),
+                      ),
+                    );
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.queue_music),
+                title: Text(l10n.librarySongMenuAddToQueue),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  final song = ref
+                      .read(songByIdProvider(track.songId))
+                      .asData
+                      ?.value;
+                  unawaited(
+                    ref.read(queueProvider.notifier).add(track.songId),
+                  );
+                  if (context.mounted) {
+                    AppNoticeMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          l10n.librarySongAddedToQueue(
+                            song?.title ?? track.songId,
+                          ),
+                        ),
                       ),
                     );
                   }
@@ -738,6 +789,7 @@ class _DownloadsSearchBar extends StatelessWidget {
       child: TextField(
         controller: controller,
         onChanged: onChanged,
+        onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
         textInputAction: TextInputAction.search,
         decoration: InputDecoration(
           hintText: hint,

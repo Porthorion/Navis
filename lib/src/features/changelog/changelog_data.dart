@@ -27,6 +27,27 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
+    version: '0.9.5',
+    entries: [
+      ChangelogEntry(
+        'Download search is now shared — one search bar filters both Queue and Downloaded tabs',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        '"Re-Download" replaced with "Change Download Quality" — pick Original, 320, 192 or 128 kbps and see your current quality highlighted',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Added "Add to Queue" option in the downloaded track menu',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Fixed search bar keeping keyboard active after pressing back',
+        type: ChangelogEntryType.fix,
+      ),
+    ],
+  ),
+  ChangelogVersion(
     version: '0.9.4',
     entries: [
       ChangelogEntry(

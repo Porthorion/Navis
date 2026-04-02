@@ -66,6 +66,24 @@ String _label(_EntryType t) {
 // Newest version first.
 // ---------------------------------------------------------------------------
 const List<_Version> _changelogs = [
+  _Version('0.9.5', [
+    _Entry(
+      'Download search is now shared — one search bar filters both Queue and Downloaded tabs',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      '"Re-Download" replaced with "Change Download Quality" — pick Original, 320, 192 or 128 kbps and see your current quality highlighted',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Added "Add to Queue" option in the downloaded track menu',
+      type: _EntryType.newFeature,
+    ),
+    _Entry(
+      'Fixed search bar keeping keyboard active after pressing back',
+      type: _EntryType.fix,
+    ),
+  ]),
   _Version('0.9.4', [
     _Entry(
       'Tapping a downloaded track in the Downloads page now plays it directly',
