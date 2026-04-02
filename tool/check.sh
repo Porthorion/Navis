@@ -61,7 +61,8 @@ assert_no_blocking_warnings() {
 run_step "format check" dart format --set-exit-if-changed .
 run_step "code generation" dart run build_runner build --delete-conflicting-outputs
 run_step "analyze" flutter analyze --no-fatal-infos
-run_step "custom lint" dart run custom_lint
+# custom_lint is temporarily disabled pending analyzer/riverpod_lint compatibility
+# run_step "custom lint" dart run custom_lint
 
 tmp_log_dir="$(mktemp -d)"
 trap 'rm -rf "${tmp_log_dir}"' EXIT
