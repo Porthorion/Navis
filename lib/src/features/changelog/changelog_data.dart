@@ -45,6 +45,10 @@ const List<ChangelogVersion> changelogs = [
         'Fixed search bar keeping keyboard active after pressing back',
         type: ChangelogEntryType.fix,
       ),
+      ChangelogEntry(
+        'Removed emojis from release notes for better cross-platform compatibility',
+        type: ChangelogEntryType.fix,
+      ),
     ],
   ),
   ChangelogVersion(

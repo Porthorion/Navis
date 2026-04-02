@@ -36,19 +36,8 @@ class _Version {
 }
 
 // ---------------------------------------------------------------------------
-// Emoji & section labels per entry type.
+// Section labels per entry type.
 // ---------------------------------------------------------------------------
-String _emoji(_EntryType t) {
-  switch (t) {
-    case _EntryType.fix:
-      return '🔧';
-    case _EntryType.improvement:
-      return '✨';
-    case _EntryType.newFeature:
-      return '🆕';
-  }
-}
-
 String _label(_EntryType t) {
   switch (t) {
     case _EntryType.fix:
@@ -81,6 +70,10 @@ const List<_Version> _changelogs = [
     ),
     _Entry(
       'Fixed search bar keeping keyboard active after pressing back',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Removed emojis from release notes for better cross-platform compatibility',
       type: _EntryType.fix,
     ),
   ]),
@@ -279,7 +272,7 @@ void main(List<String> args) {
 
   for (final entry in match.entries) {
     buf.writeln(
-      '- ${_emoji(entry.type)} **${_label(entry.type)}:** ${entry.text}',
+      '- **${_label(entry.type)}:** ${entry.text}',
     );
   }
 
