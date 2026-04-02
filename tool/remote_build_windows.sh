@@ -282,6 +282,22 @@ if ([System.IO.File]::Exists($_resolvePs1)) {
     }
 }
 
+# Patch cargokit's run_build_tool.cmd to use --offline for pub get.
+# cargokit creates a temporary pubspec and runs "dart pub get --no-precompile"
+# to resolve the build_tool path dependency. On a VM with no internet access
+# this silently fails, leaving package_config.json absent and causing
+# "Couldn't resolve the package 'build_tool'" at compile time.
+# Adding --offline makes it resolve from $PUB_CACHE (our bundled cache).
+$_cargokitRoot = [System.IO.Path]::Combine($workspaceDir, 'windows', 'flutter', 'ephemeral', '.plugin_symlinks', 'smtc_windows', 'cargokit')
+$_runBuildToolCmd = [System.IO.Path]::Combine($_cargokitRoot, 'run_build_tool.cmd')
+if ([System.IO.File]::Exists($_runBuildToolCmd)) {
+    $_c = [System.IO.File]::ReadAllText($_runBuildToolCmd)
+    if ($_c -match 'pub get --no-precompile' -and $_c -notmatch 'pub get --no-precompile --offline') {
+        [System.IO.File]::WriteAllText($_runBuildToolCmd, ($_c -replace 'pub get --no-precompile', 'pub get --no-precompile --offline'))
+        Write-Host "[remote-windows] Patched cargokit run_build_tool.cmd to use --offline pub get"
+    }
+}
+
 $buildArgs = @(
   '--release',
   "--dart-define=NAVIS_UPDATE_CHANNEL=$UpdateChannel"
