@@ -74,16 +74,15 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
 
     _gradientEnterController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 500),
+      // Match the default Flutter hero push duration (300 ms) so the gradient
+      // bloom and album name are fully visible by the time the hero lands.
+      duration: const Duration(milliseconds: 300),
     )..addListener(() {
         if (mounted) setState(() {});
       });
-    // Slight delay so the enter animation starts after the hero lands.
-    unawaited(
-      Future<void>.delayed(const Duration(milliseconds: 80), () {
-        if (mounted) _gradientEnterController.forward();
-      }),
-    );
+    // Start immediately — no delay — so the animation runs in parallel with
+    // the hero flight rather than after it.
+    _gradientEnterController.forward();
   }
 
   @override
