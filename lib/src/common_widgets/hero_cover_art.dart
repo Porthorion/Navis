@@ -13,6 +13,8 @@ class HeroCoverArt extends StatelessWidget {
     this.placeholderIcon = Icons.album_outlined,
     this.borderRadius,
     this.circular = false,
+    this.showLoadingPlaceholder = true,
+    this.fadeInDuration,
   });
 
   final String? coverArtId;
@@ -24,6 +26,17 @@ class HeroCoverArt extends StatelessWidget {
   final IconData placeholderIcon;
   final BorderRadius? borderRadius;
   final bool circular;
+
+  /// Whether to show a placeholder icon/color while the image loads.
+  /// Set to `false` for full-bleed hero destinations so that an empty
+  /// transparent background is shown instead of a jarring icon flash
+  /// immediately after the hero flight completes.
+  final bool showLoadingPlaceholder;
+
+  /// Duration for the fade-in once the image is loaded. Defaults to the
+  /// [CoverArtImage] default (150 ms). Use a longer value (e.g., 350 ms)
+  /// for full-bleed art so the image appears smoothly after the hero.
+  final Duration? fadeInDuration;
 
   @override
   Widget build(BuildContext context) {
@@ -83,6 +96,9 @@ class HeroCoverArt extends StatelessWidget {
         placeholderIcon: placeholderIcon,
         borderRadius: borderRadius,
         circular: circular,
+        showLoadingPlaceholder: showLoadingPlaceholder,
+        fadeInDuration:
+            fadeInDuration ?? const Duration(milliseconds: 150),
       ),
     );
   }

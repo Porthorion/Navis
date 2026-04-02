@@ -45,7 +45,8 @@ class AlbumDetailScreen extends ConsumerStatefulWidget {
   ConsumerState<AlbumDetailScreen> createState() => _AlbumDetailScreenState();
 }
 
-class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
+class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
+    with SingleTickerProviderStateMixin {
   bool _isStarred = false;
   bool _isStarring = false;
   bool _isUpdatingRating = false;
@@ -59,6 +60,9 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
   double _headerProgress = 0.0; // 0 = art fully visible, 1 = fully collapsed
   double _screenWidth = 0.0;
 
+  // One-shot enter animation: gradient fades+creeps in on first load.
+  late final AnimationController _gradientEnterController;
+
   @override
   void initState() {
     super.initState();
@@ -66,11 +70,25 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
         .read(librarySyncControllerProvider.notifier)
         .registerAlbumInteraction(widget.albumId);
     _scrollController.addListener(_onScroll);
+
+    _gradientEnterController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    )..addListener(() {
+        if (mounted) setState(() {});
+      });
+    // Slight delay so the enter animation starts after the hero lands.
+    unawaited(
+      Future<void>.delayed(const Duration(milliseconds: 80), () {
+        if (mounted) _gradientEnterController.forward();
+      }),
+    );
   }
 
   @override
   void dispose() {
     _scrollController.dispose();
+    _gradientEnterController.dispose();
     super.dispose();
   }
 
@@ -644,6 +662,19 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
               final mobileTextTheme = Theme.of(context).textTheme;
               // Keep _screenWidth in sync so the scroll listener can compute progress.
               _screenWidth = screenWidth;
+
+              // Gradient name: fades out by 40% scroll so it never overlaps toolbar.
+              final gradientScrollFade =
+                  (1.0 - _headerProgress * 2.5).clamp(0.0, 1.0);
+              // Enter animation: ease-out progress drives opacity + upward creep.
+              final enterProgress =
+                  Curves.easeOut.transform(_gradientEnterController.value);
+              final gradientOpacity = enterProgress * gradientScrollFade;
+              final gradientTranslateY = 20.0 * (1.0 - enterProgress);
+              // Toolbar title only fades in during the last 30% of the collapse.
+              final toolbarTitleOpacity =
+                  ((_headerProgress - 0.7) / 0.3).clamp(0.0, 1.0);
+
               return CustomScrollView(
                 controller: _scrollController,
                 slivers: <Widget>[
@@ -671,7 +702,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                       ),
                     ],
                     title: Opacity(
-                      opacity: _headerProgress,
+                      opacity: toolbarTitleOpacity,
                       child: Text(
                         details.name,
                         maxLines: 1,
@@ -683,6 +714,10 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                       background: Stack(
                         fit: StackFit.expand,
                         children: <Widget>[
+                          // Use showLoadingPlaceholder: false so after the hero
+                          // animation completes there is no icon-placeholder flash —
+                          // the background shows through until the full-res image
+                          // finishes loading and fades in.
                           HeroCoverArt(
                             coverArtId: details.coverArt,
                             heroTag: coverArtHeroTag,
@@ -692,42 +727,53 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                             borderRadius: BorderRadius.zero,
                             fit: BoxFit.cover,
                             placeholderIcon: Icons.album_outlined,
+                            showLoadingPlaceholder: false,
+                            fadeInDuration:
+                                const Duration(milliseconds: 350),
                           ),
-                          // Gradient fade + album name — fades out as header
-                          // collapses and the toolbar title fades in.
+                          // Deep gradient + album name. Fades/creeps in on enter,
+                          // then fades out as the header collapses so it never
+                          // simultaneously shows with the toolbar title.
                           Positioned(
                             bottom: 0,
                             left: 0,
                             right: 0,
-                            child: Opacity(
-                              opacity: (1.0 - _headerProgress).clamp(0.0, 1.0),
-                              child: Container(
-                                padding: const EdgeInsets.fromLTRB(
-                                  16,
-                                  56,
-                                  16,
-                                  12,
-                                ),
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topCenter,
-                                    end: Alignment.bottomCenter,
-                                    colors: <Color>[
-                                      Colors.transparent,
-                                      mobileColors.surface,
-                                    ],
-                                    stops: const <double>[0.2, 1],
+                            child: Transform.translate(
+                              offset: Offset(0, gradientTranslateY),
+                              child: Opacity(
+                                opacity: gradientOpacity,
+                                child: Container(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    16,
+                                    160,
+                                    16,
+                                    16,
                                   ),
-                                ),
-                                child: Text(
-                                  details.name,
-                                  style: mobileTextTheme.headlineMedium
-                                      ?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                  textAlign: TextAlign.center,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: <Color>[
+                                        Colors.transparent,
+                                        mobileColors.surface.withValues(
+                                          alpha: 0.7,
+                                        ),
+                                        mobileColors.surface,
+                                      ],
+                                      stops: const <double>[0.0, 0.5, 1.0],
+                                    ),
+                                  ),
+                                  child: Text(
+                                    details.name,
+                                    style: mobileTextTheme.headlineLarge
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                        ),
+                                    textAlign: TextAlign.center,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
                               ),
                             ),
