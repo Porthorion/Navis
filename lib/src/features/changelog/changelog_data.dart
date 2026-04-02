@@ -52,6 +52,51 @@ const List<ChangelogVersion> changelogs = [
     ],
   ),
   ChangelogVersion(
+    version: '0.9.4',
+    entries: [
+      ChangelogEntry(
+        'Tapping a downloaded track in the Downloads page now plays it directly',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Download buttons now show "Remove Download" when a song is already saved offline',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Improved radio station switching reliability and reduced lag when stopping radio',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Swiping to remove a queue item no longer accidentally dismisses the queue, and dismissing no longer triggers item removal',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Fixed download button in the Now Playing settings panel not working',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Fixed download action remaining visible while a song is already queued or downloading',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Fixed songs being re-downloaded automatically after library sync without user request',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Fixed album art flickering during navigation transitions',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Fixed playback controls freezing when Instant Mix is active',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Fixed tooltip labels appearing on mobile after tapping icons',
+        type: ChangelogEntryType.fix,
+      ),
+    ],
+  ),
+  ChangelogVersion(
     version: '0.3.0',
     entries: [
       ChangelogEntry(

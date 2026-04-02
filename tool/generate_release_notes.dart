@@ -88,6 +88,48 @@ const List<_Version> _changelogs = [
       type: _EntryType.fix,
     ),
   ]),
+  _Version('0.9.4', [
+    _Entry(
+      'Tapping a downloaded track in the Downloads page now plays it directly',
+      type: _EntryType.newFeature,
+    ),
+    _Entry(
+      'Download buttons now show "Remove Download" when a song is already saved offline',
+      type: _EntryType.newFeature,
+    ),
+    _Entry(
+      'Improved radio station switching reliability and reduced lag when stopping radio',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Swiping to remove a queue item no longer accidentally dismisses the queue, and dismissing no longer triggers item removal',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Fixed download button in the Now Playing settings panel not working',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Fixed download action remaining visible while a song is already queued or downloading',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Fixed songs being re-downloaded automatically after library sync without user request',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Fixed album art flickering during navigation transitions',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Fixed playback controls freezing when Instant Mix is active',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Fixed tooltip labels appearing on mobile after tapping icons',
+      type: _EntryType.fix,
+    ),
+  ]),
   _Version('0.3.0', [
     _Entry(
       'Added playback speed control in Now Playing and Playback Settings, with saved speed restored across sessions',
