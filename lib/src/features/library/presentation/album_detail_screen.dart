@@ -695,27 +695,115 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                       background: Stack(
                         fit: StackFit.expand,
                         children: <Widget>[
-                          // Hero art — no ShaderMask wrapper so the hero widget
-                          // is fully independent. The gradient is a separate
-                          // Stack sibling (below) so it stays visible during the
-                          // hero flight, not just after it lands.
-                          HeroCoverArt(
-                            coverArtId: details.coverArt,
-                            heroTag: coverArtHeroTag,
-                            size: kCoverArtStandardSize,
-                            width: double.infinity,
-                            height: double.infinity,
-                            borderRadius: BorderRadius.zero,
-                            fit: BoxFit.cover,
-                            placeholderIcon: Icons.album_outlined,
-                            showLoadingPlaceholder: false,
-                            fadeInDuration: Duration.zero,
+                          // Hero with a custom shuttle that includes the
+                          // gradient + album name so they're visible inside
+                          // the Navigator overlay during the hero flight.
+                          // The child (CoverArtImage) is what renders when
+                          // the page is at rest (no animation in progress).
+                          Hero(
+                            tag: coverArtHeroTag,
+                            transitionOnUserGestures: true,
+                            flightShuttleBuilder: (
+                              flightContext,
+                              animation,
+                              flightDirection,
+                              fromHeroContext,
+                              toHeroContext,
+                            ) {
+                              final bgColor = Theme.of(
+                                context,
+                              ).scaffoldBackgroundColor;
+                              // Push: gradient+name fade IN  (0→1)
+                              // Pop:  gradient+name fade OUT (1→0)
+                              final overlayOpacity =
+                                  flightDirection == HeroFlightDirection.push
+                                  ? animation
+                                  : Tween<double>(
+                                      begin: 1.0,
+                                      end: 0.0,
+                                    ).animate(animation);
+                              return AnimatedBuilder(
+                                animation: overlayOpacity,
+                                builder: (ctx, _) => Stack(
+                                  fit: StackFit.expand,
+                                  children: <Widget>[
+                                    CoverArtImage(
+                                      coverArtId: details.coverArt,
+                                      size: kCoverArtStandardSize,
+                                      lockedSize: kCoverArtStandardSize,
+                                      width: double.infinity,
+                                      height: double.infinity,
+                                      fit: BoxFit.cover,
+                                      fadeInDuration: Duration.zero,
+                                      showLoadingPlaceholder: false,
+                                    ),
+                                    Positioned.fill(
+                                      child: Opacity(
+                                        opacity: overlayOpacity.value,
+                                        child: DecoratedBox(
+                                          decoration: BoxDecoration(
+                                            gradient: LinearGradient(
+                                              begin: Alignment.topCenter,
+                                              end: Alignment.bottomCenter,
+                                              colors: <Color>[
+                                                Colors.transparent,
+                                                Colors.transparent,
+                                                bgColor,
+                                              ],
+                                              stops: const <double>[
+                                                0.0,
+                                                0.60,
+                                                0.85,
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    Positioned(
+                                      bottom: 16,
+                                      left: 16,
+                                      right: 16,
+                                      child: Opacity(
+                                        opacity: overlayOpacity.value,
+                                        child: Text(
+                                          details.name,
+                                          style: mobileTextTheme.displayMedium
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.white,
+                                                shadows: <Shadow>[
+                                                  Shadow(
+                                                    color: Colors.black
+                                                        .withValues(alpha: 0.55),
+                                                    blurRadius: 12,
+                                                    offset: const Offset(0, 2),
+                                                  ),
+                                                ],
+                                              ),
+                                          textAlign: TextAlign.center,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                            child: CoverArtImage(
+                              coverArtId: details.coverArt,
+                              size: kCoverArtStandardSize,
+                              width: double.infinity,
+                              height: double.infinity,
+                              fit: BoxFit.cover,
+                              fadeInDuration: Duration.zero,
+                              showLoadingPlaceholder: false,
+                            ),
                           ),
-                          // Gradient overlay — independent of the hero, so it
-                          // renders from the very first frame of navigation.
-                          // Uses scaffoldBackgroundColor to match the app
-                          // background exactly (same effect as ShaderMask
-                          // transparency but without wrapping the hero).
+                          // Gradient and name below are for when the hero is
+                          // at rest (no flight active). They seamlessly match
+                          // the shuttle so there is no visible transition.
                           Positioned.fill(
                             child: DecoratedBox(
                               decoration: BoxDecoration(
