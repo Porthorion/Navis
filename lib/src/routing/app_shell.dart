@@ -1094,16 +1094,16 @@ class _AppShellState extends ConsumerState<AppShell> {
         policy: adaptiveInputPolicy,
         child: BackButtonListener(
           onBackButtonPressed: () async {
-            // Intercept Android back-button presses before nested branch
-            // navigators pop their detail routes. This is what gives the shell's
-            // overlay stack priority over pages like album detail.
-            if (!hasPlayerOverlay ||
-                !(ModalRoute.of(context)?.isCurrent ?? true)) {
+            // Let modal routes above the shell (dialogs, sheets) handle back
+            // themselves — only intercept when the shell route is topmost.
+            if (!(ModalRoute.of(context)?.isCurrent ?? true)) {
               return false;
             }
             if (isExpanded && (_nowPlayingBackInterceptor?.call() ?? false)) {
               return true;
             }
+            // Primary handler: always delegate to the smart back chain
+            // (dismiss overlay → pop sub-route → go home → double-tap exit).
             NavService.handleSystemBack(
               ref: ref,
               context: context,
@@ -1359,36 +1359,31 @@ class _AppShellState extends ConsumerState<AppShell> {
                                               ),
                                             ),
                                           Expanded(
-                                            child: NavigatorPopHandler<Object?>(
+                                            child: NotificationListener<NavigationNotification>(
+                                              // Absorb branch-level NavigationNotification so
+                                              // canHandlePop:false from the branch navigator
+                                              // never reaches the Router and sets
+                                              // setFrameworkHandlesBack(false) on Android 14+.
+                                              onNotification: (_) => true,
+                                              child: NavigatorPopHandler<Object?>(
                                               enabled: true,
                                               onPopWithResult: (result) {
-                                                if (hasPlayerOverlay) {
-                                                  if (isExpanded &&
-                                                      (_nowPlayingBackInterceptor
-                                                              ?.call() ??
-                                                          false)) {
-                                                    return;
-                                                  }
-                                                  NavService.handleSystemBack(
-                                                    ref: ref,
-                                                    context: context,
-                                                    navigationShell:
-                                                        navigationShell,
-                                                    homeBranchIndex:
-                                                        _homeBranchIndex,
-                                                    noticeController:
-                                                        _appNoticeController,
-                                                  );
+                                                if (isExpanded &&
+                                                    (_nowPlayingBackInterceptor
+                                                            ?.call() ??
+                                                        false)) {
                                                   return;
                                                 }
-                                                final router = GoRouter.of(
-                                                  context,
+                                                NavService.handleSystemBack(
+                                                  ref: ref,
+                                                  context: context,
+                                                  navigationShell:
+                                                      navigationShell,
+                                                  homeBranchIndex:
+                                                      _homeBranchIndex,
+                                                  noticeController:
+                                                      _appNoticeController,
                                                 );
-                                                if (!router.canPop()) {
-                                                  return;
-                                                }
-                                                NavService.clearExitPrompt();
-                                                router.pop(result);
                                               },
                                               child:
                                                   useCompactWideLandscape &&
@@ -1574,6 +1569,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                     )
                                                   : navigationShell,
                                             ),
+                                            ),
                                           ),
                                         ],
                                       ),
@@ -1619,36 +1615,30 @@ class _AppShellState extends ConsumerState<AppShell> {
                               ),
                             ),
                           Expanded(
-                            child: NavigatorPopHandler<Object?>(
-                              // Always enabled so the branch navigator keeps its
-                              // PopEntry registered, preventing Android from
-                              // handling back at the system level when a player
-                              // overlay is visible.
+                            child: NotificationListener<NavigationNotification>(
+                              // Absorb branch-level NavigationNotification so
+                              // canHandlePop:false from the branch navigator
+                              // never reaches the Router and sets
+                              // setFrameworkHandlesBack(false) on Android 14+.
+                              onNotification: (_) => true,
+                              child: NavigatorPopHandler<Object?>(
                               enabled: true,
                               onPopWithResult: (result) {
-                                if (hasPlayerOverlay) {
-                                  if (isExpanded &&
-                                      (_nowPlayingBackInterceptor?.call() ??
-                                          false)) {
-                                    return;
-                                  }
-                                  NavService.handleSystemBack(
-                                    ref: ref,
-                                    context: context,
-                                    navigationShell: navigationShell,
-                                    homeBranchIndex: _homeBranchIndex,
-                                    noticeController: _appNoticeController,
-                                  );
+                                if (isExpanded &&
+                                    (_nowPlayingBackInterceptor?.call() ??
+                                        false)) {
                                   return;
                                 }
-                                final router = GoRouter.of(context);
-                                if (!router.canPop()) {
-                                  return;
-                                }
-                                NavService.clearExitPrompt();
-                                router.pop(result);
+                                NavService.handleSystemBack(
+                                  ref: ref,
+                                  context: context,
+                                  navigationShell: navigationShell,
+                                  homeBranchIndex: _homeBranchIndex,
+                                  noticeController: _appNoticeController,
+                                );
                               },
                               child: navigationShell,
+                            ),
                             ),
                           ),
                           AnimatedContainer(
