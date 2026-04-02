@@ -66,7 +66,7 @@ String _label(_EntryType t) {
 // Newest version first.
 // ---------------------------------------------------------------------------
 const List<_Version> _changelogs = [
-  _Version('0.9.5', [
+  _Version('0.9.4', [
     _Entry(
       "Added What's New page in About settings showing what changed in the current version",
       type: _EntryType.newFeature,
@@ -88,7 +88,7 @@ const List<_Version> _changelogs = [
       type: _EntryType.fix,
     ),
   ]),
-  _Version('0.9.4', [
+  _Version('0.9.3', [
     _Entry(
       'Tapping a downloaded track in the Downloads page now plays it directly',
       type: _EntryType.newFeature,

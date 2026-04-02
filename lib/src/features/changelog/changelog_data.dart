@@ -27,7 +27,7 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
-    version: '0.9.5',
+    version: '0.9.4',
     entries: [
       ChangelogEntry(
         'Added What\'s New page in About settings showing what changed in the current version',
@@ -52,7 +52,7 @@ const List<ChangelogVersion> changelogs = [
     ],
   ),
   ChangelogVersion(
-    version: '0.9.4',
+    version: '0.9.3',
     entries: [
       ChangelogEntry(
         'Tapping a downloaded track in the Downloads page now plays it directly',
