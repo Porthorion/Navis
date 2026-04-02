@@ -38,22 +38,41 @@ class HeroCoverArt extends StatelessWidget {
             fromHeroContext,
             toHeroContext,
           ) {
-            // Always use the destination hero's child so the image loads at
-            // the destination (high-res) quality from the start of the
-            // animation instead of switching resolutions mid-flight.
-            // Using toHeroContext for both push and pop avoids the flicker
-            // caused by CoverArtImage re-resolving its size (via LayoutBuilder)
-            // as the Hero bounds animate between different constraint values.
-            final destHero = toHeroContext.widget;
-            if (destHero is Hero) {
-              return destHero.child;
+            // Use the source element's image — it's already loaded and cached,
+            // so the flight is smooth with no placeholder flashes.
+            // On push:  source = fromHeroContext (the list item)
+            // On pop:   source = toHeroContext   (the screen we're returning to)
+            final sourceContext = flightDirection == HeroFlightDirection.push
+                ? fromHeroContext
+                : toHeroContext;
+
+            // Capture the rendered pixel size at flight start so the image URL
+            // stays constant as Hero bounds animate between screens.
+            final renderBox = sourceContext.findRenderObject();
+            final pixelRatio =
+                MediaQuery.maybeDevicePixelRatioOf(flightContext) ?? 1.0;
+            int? lockedSize;
+            if (renderBox is RenderBox && renderBox.hasSize) {
+              final longestSide = renderBox.size.longestSide;
+              final pixels = (longestSide * pixelRatio).ceil();
+              lockedSize = pixels.clamp(96, 2048);
             }
-            // Fallback: use from-hero child if to-hero is not a Hero widget.
-            final fromHero = fromHeroContext.widget;
-            if (fromHero is Hero) {
-              return fromHero.child;
-            }
-            return const SizedBox.shrink();
+
+            // Reconstruct CoverArtImage with the frozen size.
+            // fadeInDuration: zero because the image is already in cache — no fade
+            // needed and a fade would look odd during an animation.
+            return CoverArtImage(
+              coverArtId: coverArtId,
+              size: size,
+              width: width,
+              height: height,
+              fit: fit,
+              placeholderIcon: placeholderIcon,
+              borderRadius: borderRadius,
+              circular: circular,
+              fadeInDuration: Duration.zero,
+              lockedSize: lockedSize,
+            );
           },
       child: CoverArtImage(
         coverArtId: coverArtId,

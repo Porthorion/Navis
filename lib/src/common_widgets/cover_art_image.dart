@@ -159,6 +159,7 @@ class CoverArtImage extends ConsumerWidget {
     this.fadeInDuration = const Duration(milliseconds: 150),
     this.showLoadingPlaceholder = true,
     this.showErrorPlaceholder = true,
+    this.lockedSize,
   });
 
   final String? coverArtId;
@@ -176,6 +177,10 @@ class CoverArtImage extends ConsumerWidget {
   final Duration fadeInDuration;
   final bool showLoadingPlaceholder;
   final bool showErrorPlaceholder;
+
+  /// When non-null, overrides all constraint-based size resolution.
+  /// Used during hero flight animations to prevent mid-flight URL changes.
+  final int? lockedSize;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -287,6 +292,9 @@ class CoverArtImage extends ConsumerWidget {
   }
 
   int? _resolveRequestedSize(BuildContext context, BoxConstraints constraints) {
+    // Flight mode: skip constraint resolution entirely to keep the URL stable.
+    if (lockedSize != null) return lockedSize;
+
     final explicitSize = size != null && size! > 0 ? size! : null;
     final targetLogical = _targetLogicalExtent(constraints);
     if (targetLogical == null) {
