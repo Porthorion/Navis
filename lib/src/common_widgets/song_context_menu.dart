@@ -16,7 +16,6 @@ import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
-import 'package:navis/src/utils/file_utils.dart';
 import 'package:navis/src/utils/song_id_utils.dart';
 
 /// Shows a generic bottom sheet context menu for a [SongsTableData] song.
@@ -257,7 +256,7 @@ Future<void> showSongContextMenu(
                         onTap: () {
                           Navigator.of(sheetContext).pop();
                           unawaited(
-                            _confirmAndDeleteDownload(context, ref, song.id),
+                            confirmAndDeleteDownload(context, ref, song.id),
                           );
                         },
                       )
@@ -418,7 +417,7 @@ Future<void> _showDesktopSongContextMenu(
       await _downloadSongFromMenu(context, ref, song.id);
       return;
     case _SongContextAction.deleteDownload:
-      await _confirmAndDeleteDownload(context, ref, song.id);
+      await confirmAndDeleteDownload(context, ref, song.id);
       return;
   }
 }
@@ -452,44 +451,4 @@ Future<void> _downloadSongFromMenu(
   AppNoticeMessenger.of(context).showSnackBar(
     SnackBar(content: Text(l10n.downloadSongQueued)),
   );
-}
-
-/// Asks for confirmation then deletes the permanently-downloaded file for
-/// [songId].
-Future<void> _confirmAndDeleteDownload(
-  BuildContext context,
-  WidgetRef ref,
-  String songId,
-) async {
-  if (!context.mounted) return;
-  final l10n = AppLocalizations.of(context)!;
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: Text(l10n.downloadsRemoveConfirmTitle),
-      content: Text(l10n.downloadsRemoveConfirmContent),
-      actions: <Widget>[
-        TextButton(
-          onPressed: () => Navigator.of(ctx).pop(false),
-          child: Text(l10n.cancelAction),
-        ),
-        FilledButton(
-          style: FilledButton.styleFrom(
-            backgroundColor: Theme.of(ctx).colorScheme.error,
-            foregroundColor: Theme.of(ctx).colorScheme.onError,
-          ),
-          onPressed: () => Navigator.of(ctx).pop(true),
-          child: Text(l10n.downloadsRemoveAction),
-        ),
-      ],
-    ),
-  );
-  if (confirmed != true || !context.mounted) return;
-
-  final cacheDao = ref.read(navisDatabaseProvider).cacheDao;
-  final track = await cacheDao.getCachedTrack(songId);
-  if (track != null) {
-    await deleteFileWithSuffixes(track.filePath);
-  }
-  await cacheDao.removeCachedTrack(songId);
 }

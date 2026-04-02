@@ -7,12 +7,14 @@ import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
+import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/utils/file_utils.dart';
 
 /// Shows a bottom sheet context menu for an album identified by [albumId].
 ///
@@ -43,6 +45,13 @@ Future<void> showAlbumContextMenu(
           final album = albumAsync.asData?.value;
           final songs = album?.songs ?? const <SongsTableData>[];
           final isStarred = album?.album.starred != null;
+          final isFullyDownloaded =
+              songs.isNotEmpty &&
+              songs.every(
+                (s) =>
+                    menuRef.watch(songDownloadStateProvider(s.id)).status ==
+                    SongDownloadStatus.downloaded,
+              );
 
           return SafeArea(
             child: Column(
@@ -119,14 +128,32 @@ Future<void> showAlbumContextMenu(
                     unawaited(_toggleAlbumStar(ref, albumId, isStarred));
                   },
                 ),
-                ListTile(
-                  leading: const Icon(Icons.download_outlined),
-                  title: Text(l10n.libraryAlbumMenuDownload),
-                  onTap: () {
-                    Navigator.of(sheetContext).pop();
-                    unawaited(_downloadAlbumFromMenu(context, ref, albumId));
-                  },
-                ),
+                if (isFullyDownloaded)
+                  ListTile(
+                    leading: Icon(
+                      Icons.delete_outlined,
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                    title: Text(
+                      l10n.deleteDownloadAction,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                    onTap: () {
+                      Navigator.of(sheetContext).pop();
+                      unawaited(_deleteAlbumDownloads(context, menuRef, songs));
+                    },
+                  )
+                else
+                  ListTile(
+                    leading: const Icon(Icons.download_outlined),
+                    title: Text(l10n.libraryAlbumMenuDownload),
+                    onTap: () {
+                      Navigator.of(sheetContext).pop();
+                      unawaited(_downloadAlbumFromMenu(context, ref, albumId));
+                    },
+                  ),
               ],
             ),
           );
@@ -142,6 +169,7 @@ enum _AlbumContextAction {
   addToQueue,
   toggleLike,
   download,
+  deleteDownload,
 }
 
 Future<void> _showDesktopAlbumContextMenu(
@@ -155,6 +183,13 @@ Future<void> _showDesktopAlbumContextMenu(
   final album = albumAsync.asData?.value;
   final songs = album?.songs ?? const <SongsTableData>[];
   final isStarred = album?.album.starred != null;
+  final isFullyDownloaded =
+      songs.isNotEmpty &&
+      songs.every(
+        (s) =>
+            ref.read(songDownloadStateProvider(s.id)).status ==
+            SongDownloadStatus.downloaded,
+      );
 
   final action = await showDesktopContextMenu<_AlbumContextAction>(
     context: context,
@@ -179,8 +214,14 @@ Future<void> _showDesktopAlbumContextMenu(
         child: Text(isStarred ? l10n.actionLiked : l10n.actionLike),
       ),
       PopupMenuItem<_AlbumContextAction>(
-        value: _AlbumContextAction.download,
-        child: Text(l10n.libraryAlbumMenuDownload),
+        value: isFullyDownloaded
+            ? _AlbumContextAction.deleteDownload
+            : _AlbumContextAction.download,
+        child: Text(
+          isFullyDownloaded
+              ? l10n.deleteDownloadAction
+              : l10n.libraryAlbumMenuDownload,
+        ),
       ),
     ],
   );
@@ -225,6 +266,9 @@ Future<void> _showDesktopAlbumContextMenu(
     case _AlbumContextAction.download:
       await _downloadAlbumFromMenu(context, ref, albumId);
       return;
+    case _AlbumContextAction.deleteDownload:
+      await _deleteAlbumDownloads(context, ref, songs);
+      return;
   }
 }
 
@@ -254,6 +298,52 @@ Future<void> _downloadAlbumFromMenu(
   AppNoticeMessenger.of(context).showSnackBar(
     SnackBar(content: Text(l10n.downloadAlbumQueued(count))),
   );
+}
+
+/// Deletes all permanently-downloaded songs in [songs] one by one,
+/// delegating each to [confirmAndDeleteDownload] — which shows a confirmation
+/// dialog before the first song, then proceeds.
+///
+/// To avoid multiple dialogs the function confirms once and then removes all
+/// songs directly.
+Future<void> _deleteAlbumDownloads(
+  BuildContext context,
+  WidgetRef ref,
+  List<SongsTableData> songs,
+) async {
+  if (!context.mounted) return;
+  final l10n = AppLocalizations.of(context)!;
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(l10n.downloadsRemoveConfirmTitle),
+      content: Text(l10n.downloadsRemoveConfirmContent),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: Text(l10n.cancelAction),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: Theme.of(ctx).colorScheme.error,
+            foregroundColor: Theme.of(ctx).colorScheme.onError,
+          ),
+          onPressed: () => Navigator.of(ctx).pop(true),
+          child: Text(l10n.downloadsRemoveAction),
+        ),
+      ],
+    ),
+  );
+  if (confirmed != true || !context.mounted) return;
+
+  final cacheDao = ref.read(navisDatabaseProvider).cacheDao;
+  for (final song in songs) {
+    final track = await cacheDao.getCachedTrack(song.id);
+    if (track != null) {
+      await deleteFileWithSuffixes(track.filePath);
+    }
+    await cacheDao.removeCachedTrack(song.id);
+  }
 }
 
 Future<void> _toggleAlbumStar(

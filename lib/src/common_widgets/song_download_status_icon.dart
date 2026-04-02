@@ -167,7 +167,7 @@ class SongDownloadStatusIcon extends ConsumerWidget {
             color: Colors.green,
           ),
           tooltip: l10n.deleteDownloadAction,
-          onPressed: () => _confirmAndDeleteDownload(context, ref, songId),
+          onPressed: () => confirmAndDeleteDownload(context, ref, songId),
           constraints: const BoxConstraints(),
           padding: const EdgeInsets.all(8),
         ),
@@ -190,7 +190,12 @@ class SongDownloadStatusIcon extends ConsumerWidget {
   }
 }
 
-Future<void> _confirmAndDeleteDownload(
+/// Shows a confirmation dialog and, if confirmed, deletes the permanently
+/// downloaded file for [songId].
+///
+/// This is public so it can be reused by other menus (Now Playing settings,
+/// song / album context menus) without duplicating the logic.
+Future<void> confirmAndDeleteDownload(
   BuildContext context,
   WidgetRef ref,
   String songId,

@@ -10,6 +10,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/features/player/presentation/desktop_volume_slider.dart';
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
 import 'package:navis/src/features/player/presentation/queue_sheet.dart';
@@ -694,6 +695,9 @@ void _showNowPlayingSettingsSheet(
             : sheetRef.watch(songRatingProvider(song.id)).asData?.value;
         final sheetVolume = sheetRef.watch(playbackVolumeProvider);
         final isRemote = song != null && !isServerAddressableSongId(song.id);
+        final songDownloadState = song == null
+            ? SongDownloadState.none
+            : sheetRef.watch(songDownloadStateProvider(song.id));
         final disabledColor = Theme.of(
           context,
         ).colorScheme.onSurface.withValues(alpha: 0.38);
@@ -842,7 +846,33 @@ void _showNowPlayingSettingsSheet(
                       showAddToPlaylistSheet(context, ref, [song.id]);
                     },
                   ),
-                if (song != null)
+                if (song != null &&
+                    songDownloadState.status == SongDownloadStatus.downloaded)
+                  ListTile(
+                    leading: Icon(
+                      Icons.delete_outlined,
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                    title: Text(
+                      l10n.deleteDownloadAction,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                    onTap: () {
+                      Navigator.of(sheetContext).pop();
+                      unawaited(
+                        confirmAndDeleteDownload(
+                          context,
+                          sheetRef,
+                          song.id,
+                        ),
+                      );
+                    },
+                  )
+                else if (song != null &&
+                    songDownloadState.status != SongDownloadStatus.queued &&
+                    songDownloadState.status != SongDownloadStatus.downloading)
                   ListTile(
                     iconColor: isRemote ? disabledColor : null,
                     textColor: isRemote ? disabledColor : null,
@@ -5486,6 +5516,9 @@ class _NowPlayingSettingsPanel extends ConsumerWidget {
         ? null
         : ref.watch(songRatingProvider(song!.id)).asData?.value;
     final isRemote = song != null && !isServerAddressableSongId(song!.id);
+    final songDownloadState = song == null
+        ? SongDownloadState.none
+        : ref.watch(songDownloadStateProvider(song!.id));
     final disabledColor = Theme.of(
       context,
     ).colorScheme.onSurface.withValues(alpha: 0.38);
@@ -5570,7 +5603,26 @@ class _NowPlayingSettingsPanel extends ConsumerWidget {
             title: Text(l10n.librarySongMenuAddToPlaylist),
             onTap: () => showAddToPlaylistSheet(context, ref, [song!.id]),
           ),
-        if (song != null)
+        if (song != null &&
+            songDownloadState.status == SongDownloadStatus.downloaded)
+          ListTile(
+            leading: Icon(
+              Icons.delete_outlined,
+              color: Theme.of(context).colorScheme.error,
+            ),
+            title: Text(
+              l10n.deleteDownloadAction,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.error,
+              ),
+            ),
+            onTap: () => unawaited(
+              confirmAndDeleteDownload(context, ref, song!.id),
+            ),
+          )
+        else if (song != null &&
+            songDownloadState.status != SongDownloadStatus.queued &&
+            songDownloadState.status != SongDownloadStatus.downloading)
           ListTile(
             iconColor: isRemote ? disabledColor : null,
             textColor: isRemote ? disabledColor : null,
