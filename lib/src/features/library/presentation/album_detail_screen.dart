@@ -46,8 +46,7 @@ class AlbumDetailScreen extends ConsumerStatefulWidget {
   ConsumerState<AlbumDetailScreen> createState() => _AlbumDetailScreenState();
 }
 
-class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
-    with SingleTickerProviderStateMixin {
+class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
   bool _isStarred = false;
   bool _isStarring = false;
   bool _isUpdatingRating = false;
@@ -61,8 +60,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
   double _headerProgress = 0.0; // 0 = art fully visible, 1 = fully collapsed
   double _screenWidth = 0.0;
 
-  // One-shot enter animation: gradient fades+creeps in on first load.
-  late final AnimationController _gradientEnterController;
+  // One-shot enter animation removed — gradient and album name show immediately.
 
   @override
   void initState() {
@@ -72,24 +70,11 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
         .registerAlbumInteraction(widget.albumId);
     _scrollController.addListener(_onScroll);
 
-    _gradientEnterController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 450),
-    )..addListener(() {
-        if (mounted) setState(() {});
-      });
-    // Slight delay so the enter animation starts after the hero lands.
-    unawaited(
-      Future<void>.delayed(const Duration(milliseconds: 80), () {
-        if (mounted) _gradientEnterController.forward();
-      }),
-    );
   }
 
   @override
   void dispose() {
     _scrollController.dispose();
-    _gradientEnterController.dispose();
     super.dispose();
   }
 
@@ -664,27 +649,9 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
               // Keep _screenWidth in sync so the scroll listener can compute progress.
               _screenWidth = screenWidth;
 
-              // Gradient name: fully visible until 60% scroll, gone by 90%.
+              // Album name opacity fades out as the header collapses (gone by 90% scroll).
               final gradientScrollFade =
                   ((0.9 - _headerProgress) / 0.3).clamp(0.0, 1.0);
-              // Enter animation: staggered — gradient leads, name follows.
-              // Gradient blooms over the first 65% of the timeline.
-              // Album name fades/slides in over the last 60% (starts at 40%).
-              final gradientEnterProgress = const Interval(
-                0.0,
-                0.65,
-                curve: Curves.easeOut,
-              ).transform(_gradientEnterController.value);
-              final nameEnterProgress = const Interval(
-                0.4,
-                1.0,
-                curve: Curves.easeOut,
-              ).transform(_gradientEnterController.value);
-              final gradientOpacity = nameEnterProgress * gradientScrollFade;
-              final gradientTranslateY = 20.0 * (1.0 - nameEnterProgress);
-              // Gradient bloom: starts fully opaque, blooms to transparent.
-              final gradientBottomColor =
-                  Colors.white.withValues(alpha: 1.0 - gradientEnterProgress);
               // Toolbar title fades in during the last 20% of the collapse.
               final toolbarTitleOpacity =
                   ((_headerProgress - 0.8) / 0.2).clamp(0.0, 1.0);
@@ -739,7 +706,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
                               colors: <Color>[
                                 Colors.white,
                                 Colors.white,
-                                gradientBottomColor,
+                                Colors.transparent,
                               ],
                               stops: const <double>[0.0, 0.60, 0.85],
                             ).createShader(bounds),
@@ -757,18 +724,14 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
                               fadeInDuration: Duration.zero,
                             ),
                           ),
-                          // Album name over a soft black scrim. Positioned in
-                          // the middle of the fade zone. Fades/creeps in on
-                          // enter, fades out before toolbar title appears.
+                          // Album name — fades out as header collapses.
                           Positioned(
                             bottom: 0,
                             left: 0,
                             right: 0,
-                            child: Transform.translate(
-                              offset: Offset(0, gradientTranslateY),
-                              child: Opacity(
-                                opacity: gradientOpacity,
-                                child: Padding(
+                            child: Opacity(
+                              opacity: gradientScrollFade,
+                              child: Padding(
                                   padding: const EdgeInsets.fromLTRB(
                                     16,
                                     0,
@@ -798,11 +761,10 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
                                 ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                  ),
                       SliverToBoxAdapter(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
