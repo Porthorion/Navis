@@ -161,7 +161,13 @@ $workspaceDir = Join-Path $baseDir 'workspace'
 $assetNameFile = Join-Path $baseDir 'asset_name.txt'
 
 if (Test-Path $workspaceDir) {
+  # Kill any leftover build processes from a prior interrupted run that may
+  # be holding file locks in the workspace directory.
   $ErrorActionPreference = 'Continue'
+  @('dart','flutter','cmake','ninja','cargo','rustc','cl','link','MSBuild') | ForEach-Object {
+    Stop-Process -Name $_ -Force -ErrorAction SilentlyContinue
+  }
+  Start-Sleep -Milliseconds 500
   Remove-Item -Recurse -Force $workspaceDir 2>$null
   if (Test-Path $workspaceDir) {
     # Fall back to cmd rd which can clear handles held by Defender/Search indexer
