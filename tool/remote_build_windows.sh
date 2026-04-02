@@ -96,18 +96,29 @@ tar \
   -C "${REPO_ROOT}" .
 
 # Bundle the pub packages required by pubspec.lock so the Windows VM can run
-# flutter pub get --offline even without internet access.
+# flutter pub get --offline even without internet access. Also include the
+# cargokit (smtc_windows) build_tool dependencies which are at different pinned
+# versions than the main app.
 printf '[remote-windows] Bundling pub package cache...\n'
 _pub_cache_host="${HOME}/.pub-cache/hosted/pub.dev"
 _lock_file="${REPO_ROOT}/pubspec.lock"
+# smtc_windows ships cargokit which has its own pinned pubspec.lock
+_cargokit_lock="${_pub_cache_host}/smtc_windows-1.1.0/cargokit/build_tool/pubspec.lock"
 _pkg_dirs=()
-if [[ -f "${_lock_file}" ]] && [[ -d "${_pub_cache_host}" ]]; then
-  while IFS= read -r _pkg; do
-    _dir="${_pub_cache_host}/${_pkg}"
-    if [[ -d "${_dir}" ]]; then
-      _pkg_dirs+=("${_pkg}")
-    fi
-  done < <(python3 - "${_lock_file}" <<'PYEOF'
+_seen=()
+_collect_lock_pkgs() {
+  local _lf="$1"
+  if [[ -f "${_lf}" ]]; then
+    while IFS= read -r _pkg; do
+      if [[ -d "${_pub_cache_host}/${_pkg}" ]]; then
+        local _already=0
+        for _s in "${_seen[@]}"; do [[ "$_s" == "$_pkg" ]] && _already=1 && break; done
+        if [[ $_already -eq 0 ]]; then
+          _pkg_dirs+=("${_pkg}")
+          _seen+=("${_pkg}")
+        fi
+      fi
+    done < <(python3 - "${_lf}" <<'PYEOF'
 import sys, re
 with open(sys.argv[1]) as f:
     content = f.read()
@@ -115,6 +126,11 @@ for m in re.finditer(r'^\s{2}(\S+):\n(?:.*\n)*?.*?version:\s*"([^"]+)"', content
     print(f"{m.group(1)}-{m.group(2)}")
 PYEOF
 )
+  fi
+}
+if [[ -d "${_pub_cache_host}" ]]; then
+  _collect_lock_pkgs "${_lock_file}"
+  _collect_lock_pkgs "${_cargokit_lock}"
 fi
 
 if [[ ${#_pkg_dirs[@]} -gt 0 ]]; then
