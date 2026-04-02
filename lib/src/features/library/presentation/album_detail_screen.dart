@@ -74,7 +74,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
 
     _gradientEnterController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 450),
     )..addListener(() {
         if (mounted) setState(() {});
       });
@@ -667,16 +667,24 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
               // Gradient name: fully visible until 60% scroll, gone by 90%.
               final gradientScrollFade =
                   ((0.9 - _headerProgress) / 0.3).clamp(0.0, 1.0);
-              // Enter animation: ease-out progress drives opacity + upward creep.
-              final enterProgress =
-                  Curves.easeOut.transform(_gradientEnterController.value);
-              final gradientOpacity = enterProgress * gradientScrollFade;
-              final gradientTranslateY = 20.0 * (1.0 - enterProgress);
-              // Gradient bloom: the ShaderMask bottom color fades from fully
-              // opaque (t=0, no fade visible) to transparent (t=1, full fade)
-              // in sync with the enter animation.
+              // Enter animation: staggered — gradient leads, name follows.
+              // Gradient blooms over the first 65% of the timeline.
+              // Album name fades/slides in over the last 60% (starts at 40%).
+              final gradientEnterProgress = const Interval(
+                0.0,
+                0.65,
+                curve: Curves.easeOut,
+              ).transform(_gradientEnterController.value);
+              final nameEnterProgress = const Interval(
+                0.4,
+                1.0,
+                curve: Curves.easeOut,
+              ).transform(_gradientEnterController.value);
+              final gradientOpacity = nameEnterProgress * gradientScrollFade;
+              final gradientTranslateY = 20.0 * (1.0 - nameEnterProgress);
+              // Gradient bloom: starts fully opaque, blooms to transparent.
               final gradientBottomColor =
-                  Colors.white.withValues(alpha: 1.0 - enterProgress);
+                  Colors.white.withValues(alpha: 1.0 - gradientEnterProgress);
               // Toolbar title fades in during the last 20% of the collapse.
               final toolbarTitleOpacity =
                   ((_headerProgress - 0.8) / 0.2).clamp(0.0, 1.0);
