@@ -221,6 +221,28 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return query.watch();
   }
 
+  Stream<List<SongsTableData>> watchSongsByArtist(String artistId) {
+    return customSelect(
+      '''
+      SELECT s.*
+      FROM songs s
+      LEFT JOIN albums al ON al.id = s.album_id
+      WHERE s.artist_id = ?1
+      ORDER BY
+        al.year IS NULL ASC,
+        al.year ASC,
+        s.album_name IS NULL ASC,
+        s.album_name ASC,
+        s.track IS NULL ASC,
+        s.track ASC
+      ''',
+      variables: <Variable<Object>>[Variable<String>(artistId)],
+      readsFrom: {songsTable, albumsTable},
+    ).watch().map(
+      (rows) => rows.map((row) => songsTable.map(row.data)).toList(),
+    );
+  }
+
   Stream<SongsTableData?> watchSongById(String songId) {
     final query = select(songsTable)
       ..where((table) => table.id.equals(songId))

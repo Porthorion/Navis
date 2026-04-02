@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
@@ -6,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_error.dart';
+import 'package:navis/src/database/navis_database.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:navis/src/common_widgets/album_download_badge.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
@@ -15,6 +19,7 @@ import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_section.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 
@@ -30,6 +35,29 @@ class ArtistDetailScreen extends ConsumerStatefulWidget {
 class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
   bool _isStarred = false;
   bool _isStarring = false;
+  bool _isQueueActionInFlight = false;
+
+  Future<void> _queueArtist(
+    List<SongsTableData> songs, {
+    required bool shuffle,
+  }) async {
+    if (songs.isEmpty || _isQueueActionInFlight) return;
+    setState(() => _isQueueActionInFlight = true);
+    try {
+      final queue = songs.map((s) => s.id).toList();
+      if (shuffle) queue.shuffle(Random());
+      await ref.read(queueProvider.notifier).replace(queue, autoPlay: true);
+    } on Object {
+      if (!mounted) return;
+      AppNoticeMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.of(context)!.playbackActionFailed),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isQueueActionInFlight = false);
+    }
+  }
 
   Future<void> _toggleStar({required bool isStarred}) async {
     final api = ref.read(subsonicApiProvider);
@@ -86,6 +114,7 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
     final l10n = AppLocalizations.of(context)!;
     final artist = ref.watch(artistByIdProvider(widget.artistId));
     final albums = ref.watch(albumsByArtistProvider(widget.artistId));
+    final songs = ref.watch(songsByArtistProvider(widget.artistId));
     final artistInfo = ref.watch(artistInfoProvider(widget.artistId));
 
     final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
@@ -173,6 +202,41 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
               // ── Top Tracks (Last.fm, gated by build-time API key) ────────
               if (ref.watch(hasLastFmApiKeyProvider))
                 ArtistTopTracksSection(artistName: artistData.name),
+              // ── Play / Shuffle buttons ────────────────────────────────
+              if ((songs.asData?.value ?? const []).isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  child: Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      FilledButton.icon(
+                        onPressed: _isQueueActionInFlight
+                            ? null
+                            : () => unawaited(
+                                _queueArtist(
+                                  songs.asData!.value,
+                                  shuffle: false,
+                                ),
+                              ),
+                        icon: const Icon(Icons.play_arrow_rounded),
+                        label: Text(l10n.albumDetailPlayAction),
+                      ),
+                      FilledButton.tonalIcon(
+                        onPressed: _isQueueActionInFlight
+                            ? null
+                            : () => unawaited(
+                                _queueArtist(
+                                  songs.asData!.value,
+                                  shuffle: true,
+                                ),
+                              ),
+                        icon: const Icon(Icons.shuffle, size: 18),
+                        label: Text(l10n.albumDetailShuffleAction),
+                      ),
+                    ],
+                  ),
+                ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
                 child: Text(
