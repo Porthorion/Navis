@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
@@ -100,6 +101,13 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
                 await launchUrl(uri, mode: LaunchMode.externalApplication);
               }
             },
+          ),
+          ListTile(
+            leading: const Icon(Icons.history_outlined),
+            title: Text(l10n.aboutChangelog),
+            subtitle: Text(l10n.aboutChangelogSub),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/settings/about/changelog'),
           ),
           const Divider(),
           Padding(

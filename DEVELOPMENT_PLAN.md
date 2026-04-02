@@ -2380,6 +2380,23 @@ These rules govern how the AI agent writes code in this project. The human revie
 
 23. **Secrets and sensitive logging hygiene.** Never commit credentials, tokens, or server-specific secrets. Never log passwords/auth tokens, even in debug mode.
 
+24. **Maintain the changelog.** Every user-visible change — fix, improvement, or new feature — requires a matching entry in `lib/src/features/changelog/changelog_data.dart` **and** `tool/generate_release_notes.dart`. Both files must stay in sync (same versions, same content).
+
+    **Entry format:**
+    - Use `ChangelogEntryType.fix` for bug fixes
+    - Use `ChangelogEntryType.improvement` for enhancements to existing features
+    - Use `ChangelogEntryType.newFeature` for brand-new capabilities
+
+    **Writing style:**
+    - Write from the user's perspective: what changed for them, not how you implemented it
+    - Be concise but specific: "Fixed Downloads failing due to network timeout" not "Fixed networking issue" and not a paragraph of implementation details
+    - Start with the area affected: "Fixed [area] [problem]" / "Improved [area] [how]" / "Added [feature] [where/how]"
+
+    **Workflow:**
+    1. When making a user-visible change, add an entry to the current version's `ChangelogVersion` at the top of both `changelog_data.dart` and `generate_release_notes.dart`
+    2. If a `ChangelogVersion` for the current development version does not exist yet, create one at the top
+    3. Before releasing, ensure a `ChangelogVersion` entry exists for the version being released — the release script will fail gracefully with a warning if it is missing
+
 ---
 
 ## Verification Strategy

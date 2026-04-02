@@ -776,6 +776,14 @@
   "downloadsErrorLoadingQueue": "Could not load download queue.",
   "downloadsClearQueue": "Clear queue",
   "downloadsClearQueueConfirm": "Remove all queued downloads? Active downloads will be cancelled.",
+  "downloadsQueueSearchHint": "Search queue...",
+  "downloadsSearchHint": "Search downloads...",
+  "downloadsSearchNoResults": "No results for \"{query}\"",
+  "@downloadsSearchNoResults": {
+    "placeholders": {
+      "query": { "type": "String" }
+    }
+  },
 
   "libraryDownloadedOnlyFilter": "Downloaded",
   "libraryDownloadedOnlyEmpty": "No downloaded content",
@@ -838,6 +846,19 @@
 
   "aboutTitle": "About",
   "aboutVersion": "Version",
+  "aboutChangelog": "Changelog",
+  "aboutChangelogSub": "See what changed in each version.",
+  "changelogTitle": "Changelog",
+  "changelogEmpty": "No changelog entries yet.",
+  "changelogVersionLabel": "Version {version}",
+  "@changelogVersionLabel": {
+    "placeholders": {
+      "version": { "type": "String" }
+    }
+  },
+  "changelogEntryTypeNew": "New",
+  "changelogEntryTypeImproved": "Improved",
+  "changelogEntryTypeFix": "Fix",
   "aboutLicenses": "Open-source licenses",
   "aboutLicensesSub": "View third-party software licenses.",
   "aboutSourceCode": "Source code",

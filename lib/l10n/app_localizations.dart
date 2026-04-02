@@ -3021,6 +3021,24 @@ abstract class AppLocalizations {
   /// **'Remove all queued downloads? Active downloads will be cancelled.'**
   String get downloadsClearQueueConfirm;
 
+  /// No description provided for @downloadsQueueSearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search queue...'**
+  String get downloadsQueueSearchHint;
+
+  /// No description provided for @downloadsSearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search downloads...'**
+  String get downloadsSearchHint;
+
+  /// No description provided for @downloadsSearchNoResults.
+  ///
+  /// In en, this message translates to:
+  /// **'No results for \"{query}\"'**
+  String downloadsSearchNoResults(String query);
+
   /// No description provided for @libraryDownloadedOnlyFilter.
   ///
   /// In en, this message translates to:

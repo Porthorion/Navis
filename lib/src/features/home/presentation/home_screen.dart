@@ -21,6 +21,8 @@ import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/changelog/changelog_dialog.dart';
+import 'package:navis/src/features/changelog/changelog_provider.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/home/presentation/home_scroll_provider.dart';
 import 'package:navis/src/features/library/domain/toggle_song_star.dart';
@@ -260,6 +262,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         );
       }
     });
+
+    // Show the "What's New" dialog once per version, after the first frame.
+    ref.listen<AsyncValue<ChangelogVersion?>>(
+      changelogToShowProvider,
+      (_, next) {
+        final version = next.asData?.value;
+        if (version == null || !mounted) return;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) showChangelogDialog(context, version);
+        });
+      },
+    );
 
     final downloadedOnly = ref.watch(downloadedOnlyFilterProvider);
     final likedOnly = ref.watch(homeLikedOnlyFilterProvider);

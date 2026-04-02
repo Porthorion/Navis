@@ -1695,6 +1695,17 @@ class AppLocalizationsEn extends AppLocalizations {
       'Remove all queued downloads? Active downloads will be cancelled.';
 
   @override
+  String get downloadsQueueSearchHint => 'Search queue...';
+
+  @override
+  String get downloadsSearchHint => 'Search downloads...';
+
+  @override
+  String downloadsSearchNoResults(String query) {
+    return 'No results for \"$query\"';
+  }
+
+  @override
   String get libraryDownloadedOnlyFilter => 'Downloaded';
 
   @override

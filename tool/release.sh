@@ -677,20 +677,30 @@ git push origin "${VERSION}"
 
 git checkout "${CURRENT_BRANCH}"
 
+# ─── Generate release notes from changelog_data ─────────────────────────────
+echo "==> Generating release notes for ${VERSION}..."
+RELEASE_BODY="$(dart tool/generate_release_notes.dart "${VERSION}" 2>/dev/null)" || true
+if [[ -z "${RELEASE_BODY}" ]]; then
+  PREV_TAG="$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo main)"
+  RELEASE_BODY="## Navis ${VERSION} (${UPDATE_CHANNEL})"$'\n\n'"See the [full changelog](${FORGEJO_URL}/${FORGEJO_REPO}/compare/${PREV_TAG}...${VERSION}) for details."
+  echo "    No changelog entry found — using generic release body."
+else
+  echo "    Release notes generated successfully."
+fi
+
 # ─── Create Forgejo release ─────────────────────────────────────────────────
 echo "==> Creating Forgejo release ${VERSION} (channel=${UPDATE_CHANNEL}, prerelease=${RELEASE_PRERELEASE})..."
 RELEASE_RESPONSE=$(curl -sf -X POST \
   "${FORGEJO_URL}/api/v1/repos/${FORGEJO_REPO}/releases" \
   -H "Authorization: token ${FORGEJO_TOKEN}" \
   -H "Content-Type: application/json" \
-  -d "{
-    \"tag_name\": \"${VERSION}\",
-    \"target_commitish\": \"main\",
-    \"name\": \"Navis ${VERSION}\",
-    \"body\": \"## Navis ${VERSION} (${UPDATE_CHANNEL})\\n\\nSee the [full changelog](${FORGEJO_URL}/${FORGEJO_REPO}/compare/$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo main)...${VERSION}) for details.\",
-    \"prerelease\": ${RELEASE_PRERELEASE},
-    \"draft\": false
-  }")
+  -d "$(jq -n \
+    --arg tag "${VERSION}" \
+    --arg name "Navis ${VERSION}" \
+    --arg body "${RELEASE_BODY}" \
+    --argjson prerelease "${RELEASE_PRERELEASE}" \
+    '{tag_name: $tag, target_commitish: "main", name: $name, body: $body, prerelease: $prerelease, draft: false}'
+  )")
 
 RELEASE_ID="$(echo "${RELEASE_RESPONSE}" | jq -r '.id')"
 if [[ -z "${RELEASE_ID}" || "${RELEASE_ID}" == "null" ]]; then

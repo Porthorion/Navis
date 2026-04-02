@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:navis/src/features/changelog/changelog_data.dart';
 import 'package:navis/src/features/changelog/changelog_provider.dart';
+import 'package:navis/src/features/changelog/presentation/changelog_entry_tile.dart';
 
 /// Shows a dismissable changelog dialog for the given [version].
 ///
@@ -21,39 +22,6 @@ class _ChangelogDialog extends StatelessWidget {
   const _ChangelogDialog({required this.version});
 
   final ChangelogVersion version;
-
-  IconData _iconFor(ChangelogEntryType type) {
-    switch (type) {
-      case ChangelogEntryType.fix:
-        return Icons.bug_report_outlined;
-      case ChangelogEntryType.improvement:
-        return Icons.auto_awesome_outlined;
-      case ChangelogEntryType.newFeature:
-        return Icons.new_releases_outlined;
-    }
-  }
-
-  Color _colorFor(ChangelogEntryType type, ColorScheme scheme) {
-    switch (type) {
-      case ChangelogEntryType.fix:
-        return scheme.error;
-      case ChangelogEntryType.improvement:
-        return scheme.primary;
-      case ChangelogEntryType.newFeature:
-        return scheme.tertiary;
-    }
-  }
-
-  String _labelFor(ChangelogEntryType type) {
-    switch (type) {
-      case ChangelogEntryType.fix:
-        return 'Fix';
-      case ChangelogEntryType.improvement:
-        return 'Improved';
-      case ChangelogEntryType.newFeature:
-        return 'New';
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -102,50 +70,7 @@ class _ChangelogDialog extends StatelessWidget {
             children: [
               const SizedBox(height: 4),
               for (final entry in version.entries)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        margin: const EdgeInsets.only(top: 2),
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: _colorFor(
-                            entry.type,
-                            colorScheme,
-                          ).withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Icon(
-                          _iconFor(entry.type),
-                          size: 16,
-                          color: _colorFor(entry.type, colorScheme),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _labelFor(entry.type),
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: _colorFor(entry.type, colorScheme),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 1),
-                            Text(
-                              entry.text,
-                              style: theme.textTheme.bodyMedium,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                ChangelogEntryTile(entry: entry),
             ],
           ),
         ),

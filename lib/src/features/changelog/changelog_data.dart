@@ -27,6 +27,23 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
+    version: '0.9.5',
+    entries: [
+      ChangelogEntry(
+        'Added Changelog page in About settings to browse all version history',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'App now shows a "What\'s New" summary on first launch after an update',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Update notifications now display actual release notes instead of a generic link',
+        type: ChangelogEntryType.improvement,
+      ),
+    ],
+  ),
+  ChangelogVersion(
     version: '0.3.0',
     entries: [
       ChangelogEntry(
