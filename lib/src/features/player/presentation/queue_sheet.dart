@@ -23,6 +23,7 @@ class QueueSheet extends ConsumerWidget {
     required this.scrollController,
     this.sheetDragActive = false,
     this.onReorderDragChanged,
+    this.onItemSwipeActiveChanged,
     this.onClose,
     this.embeddedMode = false,
     super.key,
@@ -31,6 +32,7 @@ class QueueSheet extends ConsumerWidget {
   final ScrollController scrollController;
   final bool sheetDragActive;
   final ValueChanged<bool>? onReorderDragChanged;
+  final ValueChanged<bool>? onItemSwipeActiveChanged;
   final VoidCallback? onClose;
   final bool embeddedMode;
 
@@ -82,6 +84,8 @@ class QueueSheet extends ConsumerWidget {
                       songId: songId,
                       index: index,
                       isCurrentSong: isCurrentSong,
+                      sheetDragActive: sheetDragActive,
+                      onSwipeActiveChanged: onItemSwipeActiveChanged,
                       onRemove: () async {
                         await ref.read(queueProvider.notifier).removeAt(index);
                       },
@@ -300,7 +304,7 @@ class _QueueSheetHeader extends ConsumerWidget {
 // Queue item
 // ---------------------------------------------------------------------------
 
-class _QueueItem extends ConsumerWidget {
+class _QueueItem extends ConsumerStatefulWidget {
   const _QueueItem({
     required super.key,
     required this.songId,
@@ -308,6 +312,8 @@ class _QueueItem extends ConsumerWidget {
     required this.isCurrentSong,
     required this.onRemove,
     required this.onTap,
+    this.sheetDragActive = false,
+    this.onSwipeActiveChanged,
   });
 
   final String songId;
@@ -315,26 +321,56 @@ class _QueueItem extends ConsumerWidget {
   final bool isCurrentSong;
   final VoidCallback onRemove;
   final VoidCallback onTap;
+  final bool sheetDragActive;
+  final ValueChanged<bool>? onSwipeActiveChanged;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_QueueItem> createState() => _QueueItemState();
+}
+
+class _QueueItemState extends ConsumerState<_QueueItem> {
+  bool _isSwiping = false;
+
+  void _onDismissUpdate(DismissUpdateDetails details) {
+    final swiping = details.progress > 0.0;
+    if (swiping == _isSwiping) return;
+    _isSwiping = swiping;
+    widget.onSwipeActiveChanged?.call(swiping);
+  }
+
+  @override
+  void deactivate() {
+    // Release lock when item is removed from the tree mid-swipe.
+    if (_isSwiping) {
+      _isSwiping = false;
+      widget.onSwipeActiveChanged?.call(false);
+    }
+    super.deactivate();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final songAsync = ref.watch(songByIdProvider(songId));
+    final songAsync = ref.watch(songByIdProvider(widget.songId));
 
     return songAsync.when(
       data: (song) {
         if (song == null) {
           return ListTile(
-            key: key,
+            key: widget.key,
             title: Text(l10n.queueUnknownTrack),
-            subtitle: Text('ID: $songId'),
+            subtitle: Text('ID: ${widget.songId}'),
           );
         }
 
         return Dismissible(
-          key: key!,
-          direction: DismissDirection.endToStart,
-          dismissThresholds: const {DismissDirection.endToStart: 0.6},
+          key: widget.key!,
+          // Lock dismiss when the sheet is being dragged vertically.
+          direction: widget.sheetDragActive
+              ? DismissDirection.none
+              : DismissDirection.endToStart,
+          // No blunt threshold — intent is detected via onUpdate.
+          onUpdate: _onDismissUpdate,
           background: Container(
             color: Theme.of(context).colorScheme.errorContainer,
             alignment: Alignment.centerRight,
@@ -345,7 +381,7 @@ class _QueueItem extends ConsumerWidget {
             ),
           ),
           confirmDismiss: (_) async {
-            onRemove();
+            widget.onRemove();
             return false;
           },
           child: ListTile(
@@ -358,7 +394,7 @@ class _QueueItem extends ConsumerWidget {
             ),
             title: Text(
               song.title,
-              style: isCurrentSong
+              style: widget.isCurrentSong
                   ? TextStyle(
                       color: Theme.of(context).colorScheme.primary,
                       fontWeight: FontWeight.bold,
@@ -367,7 +403,7 @@ class _QueueItem extends ConsumerWidget {
             ),
             subtitle: Text(song.artistName ?? l10n.queueUnknownArtist),
             trailing: ReorderableDragStartListener(
-              index: index,
+              index: widget.index,
               child: SizedBox(
                 width: 28,
                 child: Center(
@@ -379,12 +415,12 @@ class _QueueItem extends ConsumerWidget {
                 ),
               ),
             ),
-            onTap: onTap,
+            onTap: widget.onTap,
           ),
         );
       },
       loading: () => ListTile(
-        key: key,
+        key: widget.key,
         leading: const SizedBox(
           width: 48,
           height: 48,
@@ -393,7 +429,7 @@ class _QueueItem extends ConsumerWidget {
         title: Text(l10n.commonLoading),
       ),
       error: (error, _) => ListTile(
-        key: key,
+        key: widget.key,
         title: Text(l10n.queueTrackLoadError),
         subtitle: Text(error.toString()),
       ),

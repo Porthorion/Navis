@@ -3431,6 +3431,7 @@ class _QueueOverlayState extends State<_QueueOverlay>
   bool _draggingSheet = false;
   bool _dismissing = false;
   bool _queueReorderActive = false;
+  bool _queueItemSwiping = false;
   double _scrollPullDistance = 0;
   Timer? _scrollPullSettleTimer;
 
@@ -3494,6 +3495,17 @@ class _QueueOverlayState extends State<_QueueOverlay>
       _resetScrollPull(animateBack: true);
       _setDraggingSheet(false);
     }
+  }
+
+  void _setQueueItemSwiping(bool value) {
+    if (_queueItemSwiping == value) return;
+    // If an item swipe starts while the sheet was tracking a drag, reset it.
+    if (value) {
+      _activePointer = null;
+      _velocityTracker = null;
+      _setDraggingSheet(false);
+    }
+    setState(() => _queueItemSwiping = value);
   }
 
   void _resetScrollPull({bool animateBack = false}) {
@@ -3567,6 +3579,7 @@ class _QueueOverlayState extends State<_QueueOverlay>
     if (_dismissing || _queueReorderActive || event.pointer != _activePointer) {
       return;
     }
+    if (_queueItemSwiping) return; // item swipe has claimed this gesture
     _velocityTracker?.addPosition(event.timeStamp, event.position);
 
     final dx = event.delta.dx;
@@ -3653,6 +3666,7 @@ class _QueueOverlayState extends State<_QueueOverlay>
                     scrollController: _scrollController,
                     sheetDragActive: _draggingSheet,
                     onReorderDragChanged: _setQueueReorderActive,
+                    onItemSwipeActiveChanged: _setQueueItemSwiping,
                     onClose: _dismiss,
                   ),
                 ),
@@ -3661,6 +3675,7 @@ class _QueueOverlayState extends State<_QueueOverlay>
                 scrollController: _scrollController,
                 sheetDragActive: _draggingSheet,
                 onReorderDragChanged: _setQueueReorderActive,
+                onItemSwipeActiveChanged: _setQueueItemSwiping,
                 onClose: _dismiss,
                 embeddedMode: useFloatingWindow,
               );
