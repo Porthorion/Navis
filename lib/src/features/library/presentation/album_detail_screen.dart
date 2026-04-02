@@ -2009,18 +2009,48 @@ class _RatingButton extends StatefulWidget {
   State<_RatingButton> createState() => _RatingButtonState();
 }
 
-class _RatingButtonState extends State<_RatingButton> {
-  bool _expanded = false;
+class _RatingButtonState extends State<_RatingButton>
+    with SingleTickerProviderStateMixin {
   int _hovered = 0;
+  late AnimationController _ctrl;
+  late Animation<double> _anim;
+
+  // Approximate pill widths (px). Collapsed fits star icon + "Rate"/"3/5".
+  static const double _kCollapsedWidth = 92.0;
+  // 5 stars × 30px + close (28px) + horizontal padding (2×12) = 202px.
+  static const double _kExpandedWidth = 202.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 240),
+    );
+    _anim = CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _expand() {
+    _ctrl.forward();
+  }
+
+  void _collapse() {
+    _ctrl.reverse().then((_) {
+      if (mounted) setState(() { _hovered = 0; });
+    });
+  }
 
   void _confirm(int value) {
     // Tapping the current rating deselects it (sets to 0).
     final next = value == (widget.rating ?? 0) ? 0 : value;
     widget.onChanged(next);
-    setState(() {
-      _expanded = false;
-      _hovered = 0;
-    });
+    _collapse();
   }
 
   @override
@@ -2029,136 +2059,146 @@ class _RatingButtonState extends State<_RatingButton> {
     final hasRating = (widget.rating ?? 0) > 0;
     final effective = widget.rating ?? 0;
 
-    // Fixed height matches the OutlinedButton so expanding/collapsing never
-    // shifts sibling widgets in the parent Column layout.
-    return SizedBox(
-      height: 40,
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 160),
-        transitionBuilder: (child, anim) =>
-            FadeTransition(opacity: anim, child: child),
-        child: _expanded
-            ? Align(
-                key: const ValueKey('expanded'),
-                alignment: Alignment.centerLeft,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: <Widget>[
-                    for (var i = 1; i <= 5; i++)
-                      MouseRegion(
-                        cursor: SystemMouseCursors.click,
-                        onEnter: (_) => setState(() => _hovered = i),
-                        onExit: (_) => setState(() => _hovered = 0),
-                        child: GestureDetector(
-                          onTap: widget.loading ? null : () => _confirm(i),
-                          child: SizedBox(
-                            width: 32,
-                            height: 40,
-                            child: Center(
-                              child: AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 120),
-                                transitionBuilder: (child, anim) =>
-                                    ScaleTransition(
-                                      scale: anim,
-                                      child: child,
-                                    ),
-                                child: Icon(
-                                  (_hovered > 0
-                                          ? i <= _hovered
-                                          : i <= effective)
-                                      ? Icons.star_rounded
-                                      : Icons.star_border_rounded,
-                                  key: ValueKey(
-                                    _hovered > 0
-                                        ? i <= _hovered
-                                        : i <= effective,
-                                  ),
-                                  size: 22,
-                                  color:
-                                      (_hovered > 0
-                                          ? i <= _hovered
-                                          : i <= effective)
-                                      ? cs.secondary
-                                      : cs.onSurfaceVariant.withValues(
-                                          alpha: 0.4,
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (context, _) {
+        final t = _anim.value;
+        final w = _kCollapsedWidth + (_kExpandedWidth - _kCollapsedWidth) * t;
+
+        // Collapsed label fades out in the first 40% of the expansion.
+        final labelOpacity = (1.0 - t / 0.4).clamp(0.0, 1.0);
+        // Stars fade in starting at 30% of the expansion.
+        final starsOpacity = ((t - 0.3) / 0.7).clamp(0.0, 1.0);
+
+        final borderColor = hasRating
+            ? cs.secondary.withValues(alpha: 0.45)
+            : cs.outline.withValues(alpha: 0.5);
+
+        return SizedBox(
+          width: w,
+          height: 36,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: borderColor),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(17),
+              child: Material(
+                color: Colors.transparent,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    // ── Expanded: stars + close ───────────────────────────
+                    if (t > 0)
+                      Opacity(
+                        opacity: starsOpacity,
+                        child: OverflowBox(
+                          maxWidth: _kExpandedWidth,
+                          alignment: Alignment.center,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
+                          children: [
+                            for (var i = 1; i <= 5; i++)
+                              MouseRegion(
+                                cursor: SystemMouseCursors.click,
+                                onEnter: (_) => setState(() => _hovered = i),
+                                onExit: (_) => setState(() => _hovered = 0),
+                                child: GestureDetector(
+                                  onTap: widget.loading ? null : () => _confirm(i),
+                                  child: SizedBox(
+                                    width: 30,
+                                    height: 36,
+                                    child: Center(
+                                      child: AnimatedSwitcher(
+                                        duration: const Duration(milliseconds: 120),
+                                        transitionBuilder: (child, anim) =>
+                                            ScaleTransition(scale: anim, child: child),
+                                        child: Icon(
+                                          (_hovered > 0 ? i <= _hovered : i <= effective)
+                                              ? Icons.star_rounded
+                                              : Icons.star_border_rounded,
+                                          key: ValueKey(
+                                            _hovered > 0
+                                                ? i <= _hovered
+                                                : i <= effective,
+                                          ),
+                                          size: 20,
+                                          color: (_hovered > 0 ? i <= _hovered : i <= effective)
+                                              ? cs.secondary
+                                              : cs.onSurfaceVariant.withValues(alpha: 0.4),
                                         ),
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ),
+                            const SizedBox(width: 2),
+                            if (widget.loading)
+                              SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: cs.secondary,
+                                ),
+                              )
+                            else
+                              InkResponse(
+                                onTap: _collapse,
+                                radius: 14,
+                                child: Icon(
+                                  Icons.close,
+                                  size: 14,
+                                  color: cs.onSurfaceVariant.withValues(alpha: 0.6),
+                                ),
+                              ),
+                          ],
+                        ),
+                        ),  // OverflowBox
+                      ),
+                    // ── Collapsed: label ─────────────────────────────────
+                    if (t < 1.0)
+                      Opacity(
+                        opacity: labelOpacity,
+                        child: InkWell(
+                          onTap: widget.loading ? null : _expand,
+                          borderRadius: BorderRadius.circular(17),
+                          child: SizedBox(
+                            width: _kCollapsedWidth,
+                            height: 36,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  hasRating
+                                      ? Icons.star_rounded
+                                      : Icons.star_border_rounded,
+                                  size: 16,
+                                  color: hasRating ? cs.secondary : cs.onSurfaceVariant,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  hasRating ? '${widget.rating}/5' : 'Rate',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: hasRating ? cs.secondary : cs.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                        ),
-                      ),
-                    if (isDesktopRuntime)
-                      Tooltip(
-                        message: 'Cancel',
-                        child: InkResponse(
-                          onTap: () => setState(() {
-                            _expanded = false;
-                            _hovered = 0;
-                          }),
-                          radius: 16,
-                          child: Icon(
-                            Icons.close,
-                            size: 16,
-                            color: cs.onSurfaceVariant.withValues(alpha: 0.6),
-                          ),
-                        ),
-                      )
-                    else
-                      InkResponse(
-                        onTap: () => setState(() {
-                          _expanded = false;
-                          _hovered = 0;
-                        }),
-                        radius: 16,
-                        child: Icon(
-                          Icons.close,
-                          size: 16,
-                          color: cs.onSurfaceVariant.withValues(alpha: 0.6),
-                        ),
-                      ),
-                    if (widget.loading)
-                      Padding(
-                        padding: const EdgeInsets.only(left: 8),
-                        child: SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: cs.secondary,
                           ),
                         ),
                       ),
                   ],
                 ),
-              )
-            : Align(
-                key: const ValueKey('collapsed'),
-                alignment: Alignment.centerLeft,
-                child: OutlinedButton.icon(
-                  onPressed: widget.loading
-                      ? null
-                      : () => setState(() => _expanded = true),
-                  icon: Icon(
-                    hasRating ? Icons.star_rounded : Icons.star_border_rounded,
-                    size: 18,
-                    color: hasRating ? cs.secondary : null,
-                  ),
-                  label: Text(
-                    hasRating ? '${widget.rating}/5' : 'Rate',
-                    style: hasRating ? TextStyle(color: cs.secondary) : null,
-                  ),
-                  style: hasRating
-                      ? OutlinedButton.styleFrom(
-                          side: BorderSide(
-                            color: cs.secondary.withValues(alpha: 0.45),
-                          ),
-                        )
-                      : null,
-                ),
               ),
-      ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
