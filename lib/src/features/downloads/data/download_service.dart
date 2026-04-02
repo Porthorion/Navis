@@ -519,10 +519,21 @@ class DownloadService {
         );
       } else {
         await tryDeleteFile(destFile);
-        await _handleFailure(
-          item,
-          'HTTP ${response.statusCode}',
-        );
+        // 404 Not Found / 410 Gone — resource is permanently unavailable, no point retrying.
+        if (response.statusCode == 404 || response.statusCode == 410) {
+          AppLogger.warning(
+            'DownloadService: Source not found (${response.statusCode}) for $songId — marking as permanently failed',
+          );
+          await _downloadQueueDao.updateStatus(item.id, DownloadStatus.failed);
+          await DownloadNotifier.showFailed(
+            title: 'Download failed: $songId',
+          ).catchError((_) {});
+        } else {
+          await _handleFailure(
+            item,
+            'HTTP ${response.statusCode}',
+          );
+        }
       }
     } on DioException catch (e) {
       await DownloadNotifier.dismissProgress().catchError((_) {});
