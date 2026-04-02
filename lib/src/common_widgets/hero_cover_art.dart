@@ -59,16 +59,20 @@ class HeroCoverArt extends StatelessWidget {
                 ? fromHeroContext
                 : toHeroContext;
 
-            // Capture the rendered pixel size at flight start so the image URL
-            // stays constant as Hero bounds animate between screens.
-            final renderBox = sourceContext.findRenderObject();
-            final pixelRatio =
-                MediaQuery.maybeDevicePixelRatioOf(flightContext) ?? 1.0;
-            int? lockedSize;
-            if (renderBox is RenderBox && renderBox.hasSize) {
-              final longestSide = renderBox.size.longestSide;
-              final pixels = (longestSide * pixelRatio).ceil();
-              lockedSize = pixels.clamp(96, 2048);
+            // When an explicit size is provided, use it as the locked URL
+            // during flight — it's guaranteed to be in cache already (the
+            // source widget used the same size parameter). Only fall back to
+            // rendered pixel size when no explicit size is known.
+            var lockedSize = size;
+            if (lockedSize == null) {
+              final renderBox = sourceContext.findRenderObject();
+              final pixelRatio =
+                  MediaQuery.maybeDevicePixelRatioOf(flightContext) ?? 1.0;
+              if (renderBox is RenderBox && renderBox.hasSize) {
+                final longestSide = renderBox.size.longestSide;
+                final pixels = (longestSide * pixelRatio).ceil();
+                lockedSize = pixels.clamp(96, 2048);
+              }
             }
 
             // Reconstruct CoverArtImage with the frozen size.

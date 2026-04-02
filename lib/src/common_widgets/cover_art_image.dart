@@ -301,9 +301,10 @@ class CoverArtImage extends ConsumerWidget {
   Widget _emptyPlaceholder() => SizedBox(width: width, height: height);
 
   /// Scale the placeholder icon relative to the container but keep a sane min.
+  /// Guards against double.infinity when the widget fills its parent.
   double get _placeholderIconSize {
-    final w = width ?? 48;
-    final h = height ?? 48;
+    final w = (width != null && width!.isFinite) ? width! : 48.0;
+    final h = (height != null && height!.isFinite) ? height! : 48.0;
     final dim = w < h ? w : h;
     final scaled = dim * 0.4;
     return scaled < 20 ? 20 : scaled;
