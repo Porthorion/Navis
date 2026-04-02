@@ -1191,6 +1191,19 @@ class _AppShellState extends ConsumerState<AppShell> {
                         queueOverlayKey: _queueOverlayKey,
                         showLyricsOverlay: _showDesktopLyricsOverlay,
                         onToggleLyrics: _toggleDesktopLyricsOverlay,
+                        onSystemBack: () {
+                          if (isExpanded &&
+                              (_nowPlayingBackInterceptor?.call() ?? false)) {
+                            return;
+                          }
+                          NavService.handleSystemBack(
+                            ref: ref,
+                            context: context,
+                            navigationShell: navigationShell,
+                            homeBranchIndex: _homeBranchIndex,
+                            noticeController: _appNoticeController,
+                          );
+                        },
                         onToggleAutohide: () async {
                           final db = ref.read(navisDatabaseProvider);
                           await db.appSettingsDao.updateDesktopNavbarAutohide(
@@ -1347,8 +1360,27 @@ class _AppShellState extends ConsumerState<AppShell> {
                                             ),
                                           Expanded(
                                             child: NavigatorPopHandler<Object?>(
-                                              enabled: !hasPlayerOverlay,
+                                              enabled: true,
                                               onPopWithResult: (result) {
+                                                if (hasPlayerOverlay) {
+                                                  if (isExpanded &&
+                                                      (_nowPlayingBackInterceptor
+                                                              ?.call() ??
+                                                          false)) {
+                                                    return;
+                                                  }
+                                                  NavService.handleSystemBack(
+                                                    ref: ref,
+                                                    context: context,
+                                                    navigationShell:
+                                                        navigationShell,
+                                                    homeBranchIndex:
+                                                        _homeBranchIndex,
+                                                    noticeController:
+                                                        _appNoticeController,
+                                                  );
+                                                  return;
+                                                }
                                                 final router = GoRouter.of(
                                                   context,
                                                 );
@@ -1588,11 +1620,27 @@ class _AppShellState extends ConsumerState<AppShell> {
                             ),
                           Expanded(
                             child: NavigatorPopHandler<Object?>(
-                              // When a shell-managed player overlay is visible, the
-                              // nested branch navigator must not consume system back
-                              // before the shell dismisses that overlay.
-                              enabled: !hasPlayerOverlay,
+                              // Always enabled so the branch navigator keeps its
+                              // PopEntry registered, preventing Android from
+                              // handling back at the system level when a player
+                              // overlay is visible.
+                              enabled: true,
                               onPopWithResult: (result) {
+                                if (hasPlayerOverlay) {
+                                  if (isExpanded &&
+                                      (_nowPlayingBackInterceptor?.call() ??
+                                          false)) {
+                                    return;
+                                  }
+                                  NavService.handleSystemBack(
+                                    ref: ref,
+                                    context: context,
+                                    navigationShell: navigationShell,
+                                    homeBranchIndex: _homeBranchIndex,
+                                    noticeController: _appNoticeController,
+                                  );
+                                  return;
+                                }
                                 final router = GoRouter.of(context);
                                 if (!router.canPop()) {
                                   return;
@@ -2156,6 +2204,7 @@ class _DesktopWorkspace extends StatefulWidget {
     required this.showLyricsOverlay,
     required this.onToggleLyrics,
     this.onToggleAutohide,
+    this.onSystemBack,
   });
 
   final DesktopLayoutClass desktopLayoutClass;
@@ -2195,6 +2244,7 @@ class _DesktopWorkspace extends StatefulWidget {
   final bool showLyricsOverlay;
   final VoidCallback onToggleLyrics;
   final VoidCallback? onToggleAutohide;
+  final VoidCallback? onSystemBack;
 
   @override
   State<_DesktopWorkspace> createState() => _DesktopWorkspaceState();
@@ -2413,8 +2463,12 @@ class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
                                     const verticalInset = 20.0;
 
                                     return NavigatorPopHandler<Object?>(
-                                      enabled: !widget.hasPlayerOverlay,
+                                      enabled: true,
                                       onPopWithResult: (result) {
+                                        if (widget.hasPlayerOverlay) {
+                                          widget.onSystemBack?.call();
+                                          return;
+                                        }
                                         final router = GoRouter.of(context);
                                         if (!router.canPop()) {
                                           return;
