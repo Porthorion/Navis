@@ -69,7 +69,6 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
         .read(librarySyncControllerProvider.notifier)
         .registerAlbumInteraction(widget.albumId);
     _scrollController.addListener(_onScroll);
-
   }
 
   @override
@@ -80,8 +79,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
 
   void _onScroll() {
     final maxScroll = max(1.0, _screenWidth - kToolbarHeight);
-    final newProgress =
-        (_scrollController.offset / maxScroll).clamp(0.0, 1.0);
+    final newProgress = (_scrollController.offset / maxScroll).clamp(0.0, 1.0);
     if ((newProgress - _headerProgress).abs() > 0.001) {
       setState(() => _headerProgress = newProgress);
     }
@@ -650,11 +648,15 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
               _screenWidth = screenWidth;
 
               // Album name opacity fades out as the header collapses (gone by 90% scroll).
-              final gradientScrollFade =
-                  ((0.9 - _headerProgress) / 0.3).clamp(0.0, 1.0);
+              final gradientScrollFade = ((0.9 - _headerProgress) / 0.3).clamp(
+                0.0,
+                1.0,
+              );
               // Toolbar title fades in during the last 20% of the collapse.
-              final toolbarTitleOpacity =
-                  ((_headerProgress - 0.8) / 0.2).clamp(0.0, 1.0);
+              final toolbarTitleOpacity = ((_headerProgress - 0.8) / 0.2).clamp(
+                0.0,
+                1.0,
+              );
 
               return CustomScrollView(
                 controller: _scrollController,
@@ -703,94 +705,102 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                           Hero(
                             tag: coverArtHeroTag,
                             transitionOnUserGestures: true,
-                            flightShuttleBuilder: (
-                              flightContext,
-                              animation,
-                              flightDirection,
-                              fromHeroContext,
-                              toHeroContext,
-                            ) {
-                              final bgColor = Theme.of(
-                                context,
-                              ).scaffoldBackgroundColor;
-                              // Push: gradient+name fade IN  (0→1)
-                              // Pop:  gradient+name fade OUT (1→0)
-                              final overlayOpacity =
-                                  flightDirection == HeroFlightDirection.push
-                                  ? animation
-                                  : Tween<double>(
-                                      begin: 1.0,
-                                      end: 0.0,
-                                    ).animate(animation);
-                              return AnimatedBuilder(
-                                animation: overlayOpacity,
-                                builder: (ctx, _) => Stack(
-                                  fit: StackFit.expand,
-                                  children: <Widget>[
-                                    CoverArtImage(
-                                      coverArtId: details.coverArt,
-                                      size: kCoverArtStandardSize,
-                                      lockedSize: kCoverArtStandardSize,
-                                      width: double.infinity,
-                                      height: double.infinity,
-                                      fit: BoxFit.cover,
-                                      fadeInDuration: Duration.zero,
-                                      showLoadingPlaceholder: false,
-                                    ),
-                                    Positioned.fill(
-                                      child: Opacity(
-                                        opacity: overlayOpacity.value,
-                                        child: DecoratedBox(
-                                          decoration: BoxDecoration(
-                                            gradient: LinearGradient(
-                                              begin: Alignment.topCenter,
-                                              end: Alignment.bottomCenter,
-                                              colors: <Color>[
-                                                Colors.transparent,
-                                                Colors.transparent,
-                                                bgColor,
-                                              ],
-                                              stops: const <double>[
-                                                0.0,
-                                                0.60,
-                                                0.85,
-                                              ],
+                            flightShuttleBuilder:
+                                (
+                                  flightContext,
+                                  animation,
+                                  flightDirection,
+                                  fromHeroContext,
+                                  toHeroContext,
+                                ) {
+                                  final bgColor = Theme.of(
+                                    context,
+                                  ).scaffoldBackgroundColor;
+                                  // Push: gradient+name fade IN  (0→1)
+                                  // Pop:  gradient+name fade OUT (1→0)
+                                  final overlayOpacity =
+                                      flightDirection ==
+                                          HeroFlightDirection.push
+                                      ? animation
+                                      : Tween<double>(
+                                          begin: 1.0,
+                                          end: 0.0,
+                                        ).animate(animation);
+                                  return AnimatedBuilder(
+                                    animation: overlayOpacity,
+                                    builder: (ctx, _) => Stack(
+                                      fit: StackFit.expand,
+                                      children: <Widget>[
+                                        CoverArtImage(
+                                          coverArtId: details.coverArt,
+                                          size: kCoverArtStandardSize,
+                                          lockedSize: kCoverArtStandardSize,
+                                          width: double.infinity,
+                                          height: double.infinity,
+                                          fit: BoxFit.cover,
+                                          fadeInDuration: Duration.zero,
+                                          showLoadingPlaceholder: false,
+                                        ),
+                                        Positioned.fill(
+                                          child: Opacity(
+                                            opacity: overlayOpacity.value,
+                                            child: DecoratedBox(
+                                              decoration: BoxDecoration(
+                                                gradient: LinearGradient(
+                                                  begin: Alignment.topCenter,
+                                                  end: Alignment.bottomCenter,
+                                                  colors: <Color>[
+                                                    Colors.transparent,
+                                                    Colors.transparent,
+                                                    bgColor,
+                                                  ],
+                                                  stops: const <double>[
+                                                    0.0,
+                                                    0.60,
+                                                    0.85,
+                                                  ],
+                                                ),
+                                              ),
                                             ),
                                           ),
                                         ),
-                                      ),
-                                    ),
-                                    Positioned(
-                                      bottom: 16,
-                                      left: 16,
-                                      right: 16,
-                                      child: Opacity(
-                                        opacity: overlayOpacity.value,
-                                        child: Text(
-                                          details.name,
-                                          style: mobileTextTheme.displayMedium
-                                              ?.copyWith(
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.white,
-                                                shadows: <Shadow>[
-                                                  Shadow(
-                                                    color: Colors.black
-                                                        .withValues(alpha: 0.55),
-                                                    blurRadius: 12,
-                                                    offset: const Offset(0, 2),
+                                        Positioned(
+                                          bottom: 16,
+                                          left: 16,
+                                          right: 16,
+                                          child: Opacity(
+                                            opacity: overlayOpacity.value,
+                                            child: Text(
+                                              details.name,
+                                              style: mobileTextTheme
+                                                  .displayMedium
+                                                  ?.copyWith(
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Colors.white,
+                                                    shadows: <Shadow>[
+                                                      Shadow(
+                                                        color: Colors.black
+                                                            .withValues(
+                                                              alpha: 0.55,
+                                                            ),
+                                                        blurRadius: 12,
+                                                        offset: const Offset(
+                                                          0,
+                                                          2,
+                                                        ),
+                                                      ),
+                                                    ],
                                                   ),
-                                                ],
-                                              ),
-                                          textAlign: TextAlign.center,
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
+                                              textAlign: TextAlign.center,
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
                                         ),
-                                      ),
+                                      ],
                                     ),
-                                  ],
-                                ),
-                              );
-                            },
+                                  );
+                                },
                             child: CoverArtImage(
                               coverArtId: details.coverArt,
                               size: kCoverArtStandardSize,
@@ -828,312 +838,309 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                             child: Opacity(
                               opacity: gradientScrollFade,
                               child: Padding(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    16,
-                                    0,
-                                    16,
-                                    16,
-                                  ),
-                                  child: Text(
-                                    details.name,
-                                    style: mobileTextTheme.displayMedium
-                                        ?.copyWith(
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white,
-                                          shadows: <Shadow>[
-                                            Shadow(
-                                              color: Colors.black.withValues(
-                                                alpha: 0.55,
-                                              ),
-                                              blurRadius: 12,
-                                              offset: const Offset(0, 2),
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  0,
+                                  16,
+                                  16,
+                                ),
+                                child: Text(
+                                  details.name,
+                                  style: mobileTextTheme.displayMedium
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                        shadows: <Shadow>[
+                                          Shadow(
+                                            color: Colors.black.withValues(
+                                              alpha: 0.55,
                                             ),
-                                          ],
-                                        ),
-                                    textAlign: TextAlign.center,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
+                                            blurRadius: 12,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
+                                      ),
+                                  textAlign: TextAlign.center,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
-                      SliverToBoxAdapter(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            // Artist name (clickable) + year
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                              child: Row(
-                                children: <Widget>[
-                                  if (details.artistId != null &&
-                                      details.artistId!.isNotEmpty)
-                                    InkWell(
-                                      onTap: () => context.go(
-                                        '/library/artists/${details.artistId}',
-                                      ),
-                                      child: Text(
-                                        details.artistName ??
-                                            l10n.albumDetailUnknownArtist,
-                                        style: mobileTextTheme.bodyLarge
-                                            ?.copyWith(
-                                              color: mobileColors.primary,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                      ),
-                                    )
-                                  else
-                                    Text(
-                                      details.artistName ??
-                                          l10n.albumDetailUnknownArtist,
-                                      style: mobileTextTheme.bodyLarge,
-                                    ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    '• ${details.year?.toString() ?? '-'}',
-                                    style: mobileTextTheme.bodyMedium?.copyWith(
-                                      color: mobileColors.onSurfaceVariant,
+                  ),
+                  SliverToBoxAdapter(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        // Artist name (clickable) + year
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                          child: Row(
+                            children: <Widget>[
+                              if (details.artistId != null &&
+                                  details.artistId!.isNotEmpty)
+                                InkWell(
+                                  onTap: () => context.go(
+                                    '/library/artists/${details.artistId}',
+                                  ),
+                                  child: Text(
+                                    details.artistName ??
+                                        l10n.albumDetailUnknownArtist,
+                                    style: mobileTextTheme.bodyLarge?.copyWith(
+                                      color: mobileColors.primary,
+                                      fontWeight: FontWeight.w500,
                                     ),
                                   ),
-                                ],
+                                )
+                              else
+                                Text(
+                                  details.artistName ??
+                                      l10n.albumDetailUnknownArtist,
+                                  style: mobileTextTheme.bodyLarge,
+                                ),
+                              const SizedBox(width: 6),
+                              Text(
+                                '• ${details.year?.toString() ?? '-'}',
+                                style: mobileTextTheme.bodyMedium?.copyWith(
+                                  color: mobileColors.onSurfaceVariant,
+                                ),
                               ),
-                            ),
-                            // Action buttons:
-                            //   Left  — play (icon), shuffle (icon), Rate (text)
-                            //   Right — like (icon), 3-dot context menu
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: <Widget>[
-                                  IconButton(
-                                    icon: const Icon(Icons.play_arrow),
-                                    onPressed: filteredSongs.isEmpty ||
-                                            _isQueueActionInFlight
-                                        ? null
-                                        : () => unawaited(
-                                            _queueAlbum(
-                                              filteredSongs,
-                                              shuffle: false,
-                                            ),
-                                          ),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.shuffle),
-                                    onPressed: filteredSongs.isEmpty ||
-                                            _isQueueActionInFlight
-                                        ? null
-                                        : () => unawaited(
-                                            _queueAlbum(
-                                              filteredSongs,
-                                              shuffle: true,
-                                            ),
-                                          ),
-                                  ),
-                                  _RatingButton(
-                                    rating: albumRating,
-                                    loading: _isUpdatingRating,
-                                    onChanged: (next) =>
-                                        unawaited(_updateAlbumRating(next)),
-                                  ),
-                                  const Spacer(),
-                                  IconButton(
-                                    icon: Icon(
-                                      isStarred
-                                          ? Icons.favorite
-                                          : Icons.favorite_border,
-                                    ),
-                                    color: isStarred ? mobileColors.error : null,
-                                    onPressed: _isStarring
-                                        ? null
-                                        : () => _toggleStar(isStarred: isStarred),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.more_vert),
-                                    onPressed: () => unawaited(
-                                      _showMobileAlbumContextMenu(
-                                        details,
-                                        filteredSongs,
-                                        albumRating,
-                                        coverArtHeroTag,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            // Filter label
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
-                              child: Row(
-                                children: <Widget>[
-                                  Icon(
-                                    Icons.filter_list,
-                                    size: 16,
-                                    color: mobileColors.onSurfaceVariant,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    l10n.albumDetailFilterLabel,
-                                    style: mobileTextTheme.labelSmall?.copyWith(
-                                      color: mobileColors.onSurfaceVariant,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            // Filter chips (compact)
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                              child: Wrap(
-                                spacing: 6,
-                                children: <Widget>[
-                                  FilterChip(
-                                    visualDensity: VisualDensity.compact,
-                                    label: Text(l10n.libraryLikedOnlyFilter),
-                                    avatar: Icon(
-                                      _showLikedOnly
-                                          ? Icons.favorite
-                                          : Icons.favorite_border,
-                                      size: 16,
-                                    ),
-                                    selected: _showLikedOnly,
-                                    onSelected: (value) =>
-                                        setState(() => _showLikedOnly = value),
-                                  ),
-                                  FilterChip(
-                                    visualDensity: VisualDensity.compact,
-                                    label: Text(
-                                      l10n.libraryDownloadedOnlyFilter,
-                                    ),
-                                    avatar: Icon(
-                                      _showDownloadedOnly
-                                          ? Icons.download_done
-                                          : Icons.download_outlined,
-                                      size: 16,
-                                    ),
-                                    selected: _showDownloadedOnly,
-                                    onSelected: (value) => setState(
-                                      () => _showDownloadedOnly = value,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            albumInfoAsync.when(
-                              data: (info) {
-                                if (info == null) {
-                                  return const SizedBox.shrink();
-                                }
-                                final notes = _stripHtml(info.notes ?? '');
-                                final hasNotes = notes.trim().isNotEmpty;
-                                final hasLinks =
-                                    (info.lastFmUrl ?? '').trim().isNotEmpty ||
-                                    (info.musicBrainzId ?? '').trim().isNotEmpty;
-                                if (!hasNotes && !hasLinks) {
-                                  return const SizedBox.shrink();
-                                }
-
-                                return Padding(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    12,
-                                    0,
-                                    12,
-                                    12,
-                                  ),
-                                  child: Card(
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(12),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: <Widget>[
-                                          Text(
-                                            l10n.albumDetailAboutSection,
-                                            style:
-                                                mobileTextTheme.titleSmall,
-                                          ),
-                                          if (hasNotes) ...<Widget>[
-                                            const SizedBox(height: 8),
-                                            Text(
-                                              notes,
-                                              style:
-                                                  mobileTextTheme.bodyMedium,
-                                            ),
-                                          ],
-                                          if (hasLinks) ...<Widget>[
-                                            const SizedBox(height: 10),
-                                            Wrap(
-                                              spacing: 8,
-                                              runSpacing: 8,
-                                              children: <Widget>[
-                                                if ((info.lastFmUrl ?? '')
-                                                    .trim()
-                                                    .isNotEmpty)
-                                                  ActionChip(
-                                                    avatar: const Icon(
-                                                      Icons.open_in_new,
-                                                      size: 16,
-                                                    ),
-                                                    label: Text(
-                                                      l10n.albumDetailLastFm,
-                                                    ),
-                                                    onPressed: () =>
-                                                        unawaited(
-                                                          _openExternalLink(
-                                                            info.lastFmUrl!,
-                                                          ),
-                                                        ),
-                                                  ),
-                                                if ((info.musicBrainzId ?? '')
-                                                    .trim()
-                                                    .isNotEmpty)
-                                                  ActionChip(
-                                                    avatar: const Icon(
-                                                      Icons.album_outlined,
-                                                      size: 16,
-                                                    ),
-                                                    label: Text(
-                                                      l10n.albumDetailMusicBrainz,
-                                                    ),
-                                                    onPressed: () =>
-                                                        unawaited(
-                                                          _openExternalLink(
-                                                            'https://musicbrainz.org/release-group/${info.musicBrainzId}',
-                                                          ),
-                                                        ),
-                                                  ),
-                                              ],
-                                            ),
-                                          ],
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
-                              loading: () => const SizedBox.shrink(),
-                              error: (_, _) => const SizedBox.shrink(),
-                            ),
-                          ],
-                        ),
-                      ),
-                      tracksSliver,
-                      if (ref.watch(audioMuseAvailableProvider))
-                        SliverToBoxAdapter(
-                          child: _AudioMuseSimilarAlbums(
-                            albumId: widget.albumId,
+                            ],
                           ),
                         ),
-                      const SliverToBoxAdapter(
-                        child: SizedBox(height: 16),
+                        // Action buttons:
+                        //   Left  — play (icon), shuffle (icon), Rate (text)
+                        //   Right — like (icon), 3-dot context menu
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: <Widget>[
+                              IconButton(
+                                icon: const Icon(Icons.play_arrow),
+                                onPressed:
+                                    filteredSongs.isEmpty ||
+                                        _isQueueActionInFlight
+                                    ? null
+                                    : () => unawaited(
+                                        _queueAlbum(
+                                          filteredSongs,
+                                          shuffle: false,
+                                        ),
+                                      ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.shuffle),
+                                onPressed:
+                                    filteredSongs.isEmpty ||
+                                        _isQueueActionInFlight
+                                    ? null
+                                    : () => unawaited(
+                                        _queueAlbum(
+                                          filteredSongs,
+                                          shuffle: true,
+                                        ),
+                                      ),
+                              ),
+                              _RatingButton(
+                                rating: albumRating,
+                                loading: _isUpdatingRating,
+                                onChanged: (next) =>
+                                    unawaited(_updateAlbumRating(next)),
+                              ),
+                              const Spacer(),
+                              IconButton(
+                                icon: Icon(
+                                  isStarred
+                                      ? Icons.favorite
+                                      : Icons.favorite_border,
+                                ),
+                                color: isStarred ? mobileColors.error : null,
+                                onPressed: _isStarring
+                                    ? null
+                                    : () => _toggleStar(isStarred: isStarred),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.more_vert),
+                                onPressed: () => unawaited(
+                                  _showMobileAlbumContextMenu(
+                                    details,
+                                    filteredSongs,
+                                    albumRating,
+                                    coverArtHeroTag,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Filter label
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+                          child: Row(
+                            children: <Widget>[
+                              Icon(
+                                Icons.filter_list,
+                                size: 16,
+                                color: mobileColors.onSurfaceVariant,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                l10n.albumDetailFilterLabel,
+                                style: mobileTextTheme.labelSmall?.copyWith(
+                                  color: mobileColors.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Filter chips (compact)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                          child: Wrap(
+                            spacing: 6,
+                            children: <Widget>[
+                              FilterChip(
+                                visualDensity: VisualDensity.compact,
+                                label: Text(l10n.libraryLikedOnlyFilter),
+                                avatar: Icon(
+                                  _showLikedOnly
+                                      ? Icons.favorite
+                                      : Icons.favorite_border,
+                                  size: 16,
+                                ),
+                                selected: _showLikedOnly,
+                                onSelected: (value) =>
+                                    setState(() => _showLikedOnly = value),
+                              ),
+                              FilterChip(
+                                visualDensity: VisualDensity.compact,
+                                label: Text(
+                                  l10n.libraryDownloadedOnlyFilter,
+                                ),
+                                avatar: Icon(
+                                  _showDownloadedOnly
+                                      ? Icons.download_done
+                                      : Icons.download_outlined,
+                                  size: 16,
+                                ),
+                                selected: _showDownloadedOnly,
+                                onSelected: (value) => setState(
+                                  () => _showDownloadedOnly = value,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        albumInfoAsync.when(
+                          data: (info) {
+                            if (info == null) {
+                              return const SizedBox.shrink();
+                            }
+                            final notes = _stripHtml(info.notes ?? '');
+                            final hasNotes = notes.trim().isNotEmpty;
+                            final hasLinks =
+                                (info.lastFmUrl ?? '').trim().isNotEmpty ||
+                                (info.musicBrainzId ?? '').trim().isNotEmpty;
+                            if (!hasNotes && !hasLinks) {
+                              return const SizedBox.shrink();
+                            }
+
+                            return Padding(
+                              padding: const EdgeInsets.fromLTRB(
+                                12,
+                                0,
+                                12,
+                                12,
+                              ),
+                              child: Card(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(12),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: <Widget>[
+                                      Text(
+                                        l10n.albumDetailAboutSection,
+                                        style: mobileTextTheme.titleSmall,
+                                      ),
+                                      if (hasNotes) ...<Widget>[
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          notes,
+                                          style: mobileTextTheme.bodyMedium,
+                                        ),
+                                      ],
+                                      if (hasLinks) ...<Widget>[
+                                        const SizedBox(height: 10),
+                                        Wrap(
+                                          spacing: 8,
+                                          runSpacing: 8,
+                                          children: <Widget>[
+                                            if ((info.lastFmUrl ?? '')
+                                                .trim()
+                                                .isNotEmpty)
+                                              ActionChip(
+                                                avatar: const Icon(
+                                                  Icons.open_in_new,
+                                                  size: 16,
+                                                ),
+                                                label: Text(
+                                                  l10n.albumDetailLastFm,
+                                                ),
+                                                onPressed: () => unawaited(
+                                                  _openExternalLink(
+                                                    info.lastFmUrl!,
+                                                  ),
+                                                ),
+                                              ),
+                                            if ((info.musicBrainzId ?? '')
+                                                .trim()
+                                                .isNotEmpty)
+                                              ActionChip(
+                                                avatar: const Icon(
+                                                  Icons.album_outlined,
+                                                  size: 16,
+                                                ),
+                                                label: Text(
+                                                  l10n.albumDetailMusicBrainz,
+                                                ),
+                                                onPressed: () => unawaited(
+                                                  _openExternalLink(
+                                                    'https://musicbrainz.org/release-group/${info.musicBrainzId}',
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                          loading: () => const SizedBox.shrink(),
+                          error: (_, _) => const SizedBox.shrink(),
+                        ),
+                      ],
+                    ),
+                  ),
+                  tracksSliver,
+                  if (ref.watch(audioMuseAvailableProvider))
+                    SliverToBoxAdapter(
+                      child: _AudioMuseSimilarAlbums(
+                        albumId: widget.albumId,
                       ),
-                    ],
-                  );
+                    ),
+                  const SliverToBoxAdapter(
+                    child: SizedBox(height: 16),
+                  ),
+                ],
+              );
             },
             loading: () => const ShimmerListPage(count: 8, leadingSize: 56),
             error: (error, _) => ErrorState(
@@ -2042,7 +2049,10 @@ class _RatingButtonState extends State<_RatingButton>
 
   void _collapse() {
     _ctrl.reverse().then((_) {
-      if (mounted) setState(() { _hovered = 0; });
+      if (mounted)
+        setState(() {
+          _hovered = 0;
+        });
     });
   }
 
@@ -2099,64 +2109,79 @@ class _RatingButtonState extends State<_RatingButton>
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             mainAxisSize: MainAxisSize.min,
-                          children: [
-                            for (var i = 1; i <= 5; i++)
-                              MouseRegion(
-                                cursor: SystemMouseCursors.click,
-                                onEnter: (_) => setState(() => _hovered = i),
-                                onExit: (_) => setState(() => _hovered = 0),
-                                child: GestureDetector(
-                                  onTap: widget.loading ? null : () => _confirm(i),
-                                  child: SizedBox(
-                                    width: 30,
-                                    height: 36,
-                                    child: Center(
-                                      child: AnimatedSwitcher(
-                                        duration: const Duration(milliseconds: 120),
-                                        transitionBuilder: (child, anim) =>
-                                            ScaleTransition(scale: anim, child: child),
-                                        child: Icon(
-                                          (_hovered > 0 ? i <= _hovered : i <= effective)
-                                              ? Icons.star_rounded
-                                              : Icons.star_border_rounded,
-                                          key: ValueKey(
-                                            _hovered > 0
-                                                ? i <= _hovered
-                                                : i <= effective,
+                            children: [
+                              for (var i = 1; i <= 5; i++)
+                                MouseRegion(
+                                  cursor: SystemMouseCursors.click,
+                                  onEnter: (_) => setState(() => _hovered = i),
+                                  onExit: (_) => setState(() => _hovered = 0),
+                                  child: GestureDetector(
+                                    onTap: widget.loading
+                                        ? null
+                                        : () => _confirm(i),
+                                    child: SizedBox(
+                                      width: 30,
+                                      height: 36,
+                                      child: Center(
+                                        child: AnimatedSwitcher(
+                                          duration: const Duration(
+                                            milliseconds: 120,
                                           ),
-                                          size: 20,
-                                          color: (_hovered > 0 ? i <= _hovered : i <= effective)
-                                              ? cs.secondary
-                                              : cs.onSurfaceVariant.withValues(alpha: 0.4),
+                                          transitionBuilder: (child, anim) =>
+                                              ScaleTransition(
+                                                scale: anim,
+                                                child: child,
+                                              ),
+                                          child: Icon(
+                                            (_hovered > 0
+                                                    ? i <= _hovered
+                                                    : i <= effective)
+                                                ? Icons.star_rounded
+                                                : Icons.star_border_rounded,
+                                            key: ValueKey(
+                                              _hovered > 0
+                                                  ? i <= _hovered
+                                                  : i <= effective,
+                                            ),
+                                            size: 20,
+                                            color:
+                                                (_hovered > 0
+                                                    ? i <= _hovered
+                                                    : i <= effective)
+                                                ? cs.secondary
+                                                : cs.onSurfaceVariant
+                                                      .withValues(alpha: 0.4),
+                                          ),
                                         ),
                                       ),
                                     ),
                                   ),
                                 ),
-                              ),
-                            const SizedBox(width: 2),
-                            if (widget.loading)
-                              SizedBox(
-                                width: 14,
-                                height: 14,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: cs.secondary,
+                              const SizedBox(width: 2),
+                              if (widget.loading)
+                                SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: cs.secondary,
+                                  ),
+                                )
+                              else
+                                InkResponse(
+                                  onTap: _collapse,
+                                  radius: 14,
+                                  child: Icon(
+                                    Icons.close,
+                                    size: 14,
+                                    color: cs.onSurfaceVariant.withValues(
+                                      alpha: 0.6,
+                                    ),
+                                  ),
                                 ),
-                              )
-                            else
-                              InkResponse(
-                                onTap: _collapse,
-                                radius: 14,
-                                child: Icon(
-                                  Icons.close,
-                                  size: 14,
-                                  color: cs.onSurfaceVariant.withValues(alpha: 0.6),
-                                ),
-                              ),
-                          ],
-                        ),
-                        ),  // OverflowBox
+                            ],
+                          ),
+                        ), // OverflowBox
                       ),
                     // ── Collapsed: label ─────────────────────────────────
                     if (t < 1.0)
@@ -2177,14 +2202,18 @@ class _RatingButtonState extends State<_RatingButton>
                                       ? Icons.star_rounded
                                       : Icons.star_border_rounded,
                                   size: 16,
-                                  color: hasRating ? cs.secondary : cs.onSurfaceVariant,
+                                  color: hasRating
+                                      ? cs.secondary
+                                      : cs.onSurfaceVariant,
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
                                   hasRating ? '${widget.rating}/5' : 'Rate',
                                   style: TextStyle(
                                     fontSize: 13,
-                                    color: hasRating ? cs.secondary : cs.onSurfaceVariant,
+                                    color: hasRating
+                                        ? cs.secondary
+                                        : cs.onSurfaceVariant,
                                   ),
                                 ),
                               ],

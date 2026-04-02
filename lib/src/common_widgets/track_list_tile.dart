@@ -20,6 +20,7 @@ class TrackListTile extends StatelessWidget {
   final VoidCallback? onLongPress;
   final Widget? trailing;
   final Widget? badge;
+
   /// Override the gap between the leading widget and the title.
   /// Defaults to 12 when null.
   final double? horizontalTitleGap;

@@ -1156,9 +1156,9 @@ final songsByGenreProvider =
 
 final songsByArtistProvider =
     StreamProvider.family<List<SongsTableData>, String>((ref, artistId) {
-  final dao = ref.watch(navisDatabaseProvider).libraryDao;
-  return dao.watchSongsByArtist(artistId);
-});
+      final dao = ref.watch(navisDatabaseProvider).libraryDao;
+      return dao.watchSongsByArtist(artistId);
+    });
 
 final albumYearSectionsProvider =
     StreamProvider.family<List<AlbumYearSection>, AlbumYearSectionsRequest>((

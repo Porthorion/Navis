@@ -211,8 +211,7 @@ class CoverArtImage extends ConsumerWidget {
     // look-up one layout pass earlier, so the decoded image is ready before
     // the hero animation finishes landing. It also guarantees that the URL
     // matches exactly what was cached at the source (same size = same key).
-    final preResolved =
-        lockedSize ?? (size != null && size! > 0 ? size : null);
+    final preResolved = lockedSize ?? (size != null && size! > 0 ? size : null);
     if (preResolved != null) {
       return _withSemantics(
         _buildImageChild(context, preResolved, api, cacheManager),
@@ -239,7 +238,9 @@ class CoverArtImage extends ConsumerWidget {
     CacheManager cacheManager,
   ) {
     final image = CachedNetworkImage(
-      imageUrl: api.getCoverArtUrl(id: coverArtId!.trim(), size: resolvedSize).toString(),
+      imageUrl: api
+          .getCoverArtUrl(id: coverArtId!.trim(), size: resolvedSize)
+          .toString(),
       cacheKey: '${coverArtId!.trim()}:${resolvedSize ?? 0}',
       fit: fit,
       width: width,
@@ -327,7 +328,10 @@ class CoverArtImage extends ConsumerWidget {
 
   /// Resolves a pixel size from layout [constraints] only (no explicit size).
   /// Called only when no [size] or [lockedSize] was provided to the widget.
-  int? _resolveFromConstraints(BuildContext context, BoxConstraints constraints) {
+  int? _resolveFromConstraints(
+    BuildContext context,
+    BoxConstraints constraints,
+  ) {
     final targetLogical = _targetLogicalExtent(constraints);
     if (targetLogical == null) return null;
     final pixelRatio = MediaQuery.maybeDevicePixelRatioOf(context) ?? 1.0;

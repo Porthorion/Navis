@@ -101,8 +101,7 @@ class HeroCoverArt extends StatelessWidget {
         borderRadius: borderRadius,
         circular: circular,
         showLoadingPlaceholder: showLoadingPlaceholder,
-        fadeInDuration:
-            fadeInDuration ?? const Duration(milliseconds: 150),
+        fadeInDuration: fadeInDuration ?? const Duration(milliseconds: 150),
       ),
     );
   }
