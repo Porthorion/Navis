@@ -282,6 +282,27 @@ if ([System.IO.File]::Exists($_resolvePs1)) {
     }
 }
 
+# Pre-seed sqlite3 native asset DLL so the hooks_runner doesn't try to
+# download it from GitHub. sqlite3-3.2.0 uses native assets (hook/build.dart)
+# to download sqlite3.dll at build time. On this VM github.com downloads fail.
+# The DLL is already cached on this machine from a prior local build; copy it
+# into the workspace's .dart_tool/hooks_runner/shared/ before flutter build.
+$_sqlite3SrcBase = [System.IO.Path]::Combine($HOME, 'Documents', 'forgejo_projects', 'Navis', '.dart_tool', 'hooks_runner', 'shared', 'sqlite3', 'build')
+if (Test-Path $_sqlite3SrcBase) {
+    $ErrorActionPreference = 'Continue'
+    Get-ChildItem $_sqlite3SrcBase -Directory | ForEach-Object {
+        $_subDir = $_.Name
+        $_srcFile = Join-Path $_.FullName 'sqlite3.dll'
+        if (Test-Path $_srcFile) {
+            $_dstDir = [System.IO.Path]::Combine($workspaceDir, '.dart_tool', 'hooks_runner', 'shared', 'sqlite3', 'build', $_subDir)
+            New-Item -ItemType Directory -Force -Path $_dstDir | Out-Null
+            Copy-Item $_srcFile (Join-Path $_dstDir 'sqlite3.dll') -Force
+            Write-Host "[remote-windows] Pre-seeded sqlite3 native asset from $_srcFile"
+        }
+    }
+    $ErrorActionPreference = 'Stop'
+}
+
 # Patch cargokit's run_build_tool.cmd to use --offline for pub get.
 # cargokit creates a temporary pubspec and runs "dart pub get --no-precompile"
 # to resolve the build_tool path dependency. On a VM with no internet access
