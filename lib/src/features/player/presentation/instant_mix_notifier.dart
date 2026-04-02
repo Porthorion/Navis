@@ -9,6 +9,10 @@ import 'package:navis/src/utils/app_logger.dart';
 /// an automatic refill fetch.
 const _kRefillThreshold = 3;
 
+/// Maximum duration a single refill fetch is allowed to run before it is
+/// cancelled and the refilling flag is reset.
+const _kRefillTimeout = Duration(seconds: 30);
+
 /// Global notifier that manages the Instant Mix auto-refill mode.
 ///
 /// When `active`, this notifier watches the playback queue and automatically
@@ -20,6 +24,11 @@ const _kRefillThreshold = 3;
 /// session should persist across navigation until explicitly deactivated or
 /// the queue is cleared by the user.
 class InstantMixNotifier extends Notifier<InstantMixState> {
+  /// Local boolean guard that prevents overlapping refills even if the
+  /// Riverpod state update has not yet been observed by a concurrent listener
+  /// invocation.
+  bool _isRefilling = false;
+
   @override
   InstantMixState build() {
     // Whenever the playback snapshot changes, check if a refill is needed.
@@ -116,10 +125,32 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
   /// [isInitial] distinguishes the first activation fill (which may show
   /// a snackbar) from background auto-refills (which are silent).
   Future<void> _refill(String seedSongId, {bool isInitial = false}) async {
-    if (state.refilling) return;
+    // Guard 1: local boolean prevents overlapping refills even if the state
+    // update has not yet been observed by a concurrent listener invocation.
+    if (_isRefilling || state.refilling) return;
+    _isRefilling = true;
     // Record the seed we are refilling from.
     state = state.copyWith(refilling: true, seedSongId: seedSongId);
 
+    try {
+      // Guard 2: wrap the actual fetch work in a timeout so a slow or hung API
+      // call cannot leave the notifier stuck in `refilling: true` indefinitely.
+      await _doRefill(seedSongId, isInitial: isInitial).timeout(
+        _kRefillTimeout,
+        onTimeout: () {
+          AppLogger.debug(
+            'InstantMix: refill timed out after ${_kRefillTimeout.inSeconds}s — resetting',
+          );
+          state = state.copyWith(refilling: false);
+        },
+      );
+    } finally {
+      _isRefilling = false;
+    }
+  }
+
+  /// Internal implementation of the refill fetch, called inside [_refill].
+  Future<void> _doRefill(String seedSongId, {bool isInitial = false}) async {
     try {
       // ── 1. Try AudioMuse AI recommendations first ──
       final audioMuseRepo = ref.read(audioMuseRepositoryProvider);
@@ -128,6 +159,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
           final recs = await audioMuseRepo.getRecommendations(
             seedSongId: seedSongId,
           );
+          // Guard 3: user may have deactivated Instant Mix while the fetch ran.
           if (recs.isNotEmpty && state.active) {
             final ids = recs.map((r) => r.id).toList(growable: false);
             final handler = ref.read(audioHandlerProvider);
@@ -146,6 +178,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
         }
       }
 
+      // Guard 3: check again after AudioMuse path (covers fallback too).
       if (!state.active) {
         state = state.copyWith(refilling: false);
         return;
@@ -159,8 +192,8 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
       }
 
       final songs = await api.getSimilarSongs(seedSongId);
+      // Guard 3: deactivated while fetching — discard results.
       if (!state.active) {
-        // Deactivated while fetching — discard results.
         state = state.copyWith(refilling: false);
         return;
       }
