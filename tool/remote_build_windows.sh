@@ -135,7 +135,7 @@ param(
   [Parameter(Mandatory = $true)][string]$AssetPrefix,
   [Parameter(Mandatory = $true)][ValidateSet('stable', 'dev')][string]$UpdateChannel,
   [string]$LastFmApiKey = '',
-  [string]$PubCacheArchive = ''
+  [string]$PubCacheArchiveName = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -169,13 +169,16 @@ tar -xzf $archivePath -C $workspaceDir
 Set-Location $workspaceDir
 
 # Set up offline pub cache if a bundled archive was provided.
-if ($PubCacheArchive -ne '' -and (Test-Path $PubCacheArchive)) {
-  $localPubCache = Join-Path $baseDir 'pub_cache'
-  $localPubCacheHosted = Join-Path $localPubCache 'hosted\pub.dev'
-  New-Item -ItemType Directory -Force -Path $localPubCacheHosted | Out-Null
-  tar -xzf $PubCacheArchive -C $localPubCacheHosted
-  $env:PUB_CACHE = $localPubCache
-  Write-Host "[remote-windows] Using bundled pub cache at $localPubCache"
+if ($PubCacheArchiveName -ne '') {
+  $pubCacheArchivePath = Join-Path $baseDir $PubCacheArchiveName
+  if (Test-Path $pubCacheArchivePath) {
+    $localPubCache = Join-Path $baseDir 'pub_cache'
+    $localPubCacheHosted = Join-Path $localPubCache 'hosted\pub.dev'
+    New-Item -ItemType Directory -Force -Path $localPubCacheHosted | Out-Null
+    tar -xzf $pubCacheArchivePath -C $localPubCacheHosted
+    $env:PUB_CACHE = $localPubCache
+    Write-Host "[remote-windows] Using bundled pub cache at $localPubCache"
+  }
 }
 
 # Try online first; fall back to offline if network is unavailable (e.g. VM with no internet).
@@ -292,7 +295,7 @@ if [[ -n "${LASTFM_API_KEY}" ]]; then
   _lastfm_arg="-LastFmApiKey ${LASTFM_API_KEY}"
 fi
 ssh "${SSH_TARGET}" \
-  "powershell -NoProfile -ExecutionPolicy Bypass -File ${_win_script} -RemoteDir ${REMOTE_DIR} -ArchiveName source.tgz -PubCacheArchive ${REMOTE_DIR//\//\\}\\pub_cache.tgz -PackageMode ${PACKAGE_MODE} -Version ${VERSION} -AssetPrefix ${ASSET_PREFIX} -UpdateChannel ${UPDATE_CHANNEL} ${_lastfm_arg}"
+  "powershell -NoProfile -ExecutionPolicy Bypass -File ${_win_script} -RemoteDir ${REMOTE_DIR} -ArchiveName source.tgz -PubCacheArchiveName pub_cache.tgz -PackageMode ${PACKAGE_MODE} -Version ${VERSION} -AssetPrefix ${ASSET_PREFIX} -UpdateChannel ${UPDATE_CHANNEL} ${_lastfm_arg}"
 
 asset_name="$(ssh "${SSH_TARGET}" "powershell -NoProfile -Command \"Get-Content -Raw -Path (Join-Path (Join-Path \$HOME '${REMOTE_DIR}') 'asset_name.txt')\"")"
 asset_name="${asset_name//$'\r'/}"
