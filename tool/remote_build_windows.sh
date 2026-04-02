@@ -212,19 +212,27 @@ if ($PubCacheArchiveName -ne '') {
   if (Test-Path $pubCacheArchivePath) {
     $localPubCacheHosted = Join-Path $_systemPubCache 'hosted\pub.dev'
     New-Item -ItemType Directory -Force -Path $localPubCacheHosted | Out-Null
-    # --skip-old-files: only extract packages not already on this machine.
-    # This avoids replacing Windows-native copies (correct content hashes)
-    # with Linux-built copies that trigger content-hash mismatch warnings.
+    # Extract all bundled packages into the system pub cache. Content-hash
+    # mismatch warnings may appear for packages already present (Linux vs
+    # Windows line endings) but these are non-fatal. bsdtar (Windows tar.exe)
+    # does not support GNU tar's --skip-old-files so we always overwrite.
     $ErrorActionPreference = 'Continue'
-    tar -xzf $pubCacheArchivePath -C $localPubCacheHosted --skip-old-files 2>$null
+    tar -xzf $pubCacheArchivePath -C $localPubCacheHosted
+    if ($LASTEXITCODE -ne 0) {
+      Write-Host "[remote-windows] WARNING: tar extraction returned $LASTEXITCODE"
+    } else {
+      Write-Host "[remote-windows] Supplemented system pub cache with bundled packages"
+    }
     $ErrorActionPreference = 'Stop'
-    Write-Host "[remote-windows] Supplemented system pub cache with bundled packages"
   }
 }
 Write-Host "[remote-windows] Using system pub cache at $_systemPubCache"
 
 # Always run offline to avoid a multi-minute TCP timeout on VMs with no internet.
+$ErrorActionPreference = 'Continue'
 flutter pub get --offline
+if ($LASTEXITCODE -ne 0) { throw "flutter pub get --offline failed with exit code $LASTEXITCODE" }
+$ErrorActionPreference = 'Stop'
 
 # Pre-seed cmake download cache with pre-built native assets so the build works
 # without internet access. media_kit_libs_windows_audio downloads libmpv from
