@@ -334,6 +334,7 @@ class _QueueItem extends ConsumerWidget {
         return Dismissible(
           key: key!,
           direction: DismissDirection.endToStart,
+          dismissThresholds: const {DismissDirection.endToStart: 0.6},
           background: Container(
             color: Theme.of(context).colorScheme.errorContainer,
             alignment: Alignment.centerRight,
