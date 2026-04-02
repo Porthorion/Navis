@@ -136,8 +136,11 @@ tar -xzf $archivePath -C $workspaceDir
 Set-Location $workspaceDir
 
 # Try online first; fall back to offline if network is unavailable (e.g. VM with no internet).
+$ErrorActionPreference = 'Continue'
 flutter pub get 2>&1
-if ($LASTEXITCODE -ne 0) {
+$_pubExit = $LASTEXITCODE
+$ErrorActionPreference = 'Stop'
+if ($_pubExit -ne 0) {
   Write-Warning "flutter pub get failed (network?); retrying with --offline"
   flutter pub get --offline
 }
