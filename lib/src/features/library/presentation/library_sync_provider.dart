@@ -48,11 +48,6 @@ final syncStaleAfterProvider = Provider<Duration>((ref) {
   return Duration(seconds: minutes * 60 - toleranceSeconds);
 });
 
-/// Whether auto-enqueue of new tracks for pinned albums runs after sync.
-/// Override to `false` in unit tests that do not provide
-/// [navisDatabaseProvider] / [downloadServiceProvider].
-@visibleForTesting
-final autoEnqueuePinnedTracksEnabledProvider = Provider<bool>((ref) => true);
 
 final librarySyncNotifierProvider = Provider<LibrarySyncNotifier>((ref) {
   return const SystemLibrarySyncNotifier();
@@ -298,14 +293,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         break;
     }
 
-    // After a successful sync, auto-enqueue new tracks for pinned albums.
-    if (result.status == LibrarySyncStatus.succeeded &&
-        ref.read(autoEnqueuePinnedTracksEnabledProvider)) {
-      unawaited(
-        _autoEnqueueNewPinnedTracks().catchError((_) {}),
-      );
-    }
-
     state = result;
     return result;
   }
@@ -355,79 +342,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
 
   void _onAppBackgrounded() {
     _isForeground = false;
-  }
-
-  /// After sync, check if any album that was fully pinned (all songs had a
-  /// permanent cache entry) now has new tracks, and auto-enqueue them.
-  Future<void> _autoEnqueueNewPinnedTracks() async {
-    try {
-      final db = ref.read(navisDatabaseProvider);
-      final cacheDao = db.cacheDao;
-      final libraryDao = db.libraryDao;
-
-      // 1. Get all permanently cached song IDs.
-      final permanentIds = await cacheDao.getPermanentlyCachedSongIds();
-      if (permanentIds.isEmpty) return;
-
-      // 2. Get the album IDs for those songs.
-      final permanentSongs = await libraryDao.getSongsByIds(permanentIds);
-      final albumIdToPermanentSongs = <String, Set<String>>{};
-      for (final song in permanentSongs) {
-        final albumId = song.albumId;
-        if (albumId == null) continue;
-        (albumIdToPermanentSongs[albumId] ??= <String>{}).add(song.id);
-      }
-
-      // 3. For each album with cached tracks, load the full song list.
-      final albumSongMap = await libraryDao.getSongIdsByAlbumIds(
-        albumIdToPermanentSongs.keys,
-      );
-
-      // 4. Find albums that were fully pinned but now have new tracks.
-      //
-      // An album is considered "fully pinned" when nearly every song in it
-      // is already permanently cached. We allow at most 3 uncached songs
-      // (presumably newly added by the sync). This prevents a single
-      // manually-downloaded track from triggering a full album download.
-      final service = ref.read(downloadServiceProvider);
-      var newTracksQueued = 0;
-      for (final entry in albumSongMap.entries) {
-        final albumId = entry.key;
-        final allSongIds = entry.value;
-        final pinnedSongIds = albumIdToPermanentSongs[albumId] ?? {};
-
-        final knownCached = allSongIds.intersection(pinnedSongIds);
-        final newSongIds = allSongIds.difference(pinnedSongIds);
-
-        // Skip unless:
-        //  • at least 2 songs are cached (single downloads → manual intent)
-        //  • at most 3 songs are uncached (truly new from sync, not omitted)
-        //  • no pinned songs were removed from the album
-        if (knownCached.length < 2 ||
-            newSongIds.isEmpty ||
-            newSongIds.length > 3 ||
-            knownCached.length < pinnedSongIds.length) {
-          continue;
-        }
-
-        for (final songId in newSongIds) {
-          await service.enqueueSong(songId);
-          newTracksQueued++;
-        }
-      }
-
-      if (newTracksQueued > 0) {
-        AppLogger.info(
-          'Auto-enqueued $newTracksQueued new tracks from pinned albums.',
-        );
-      }
-    } on Object catch (error, stackTrace) {
-      AppLogger.error(
-        'Auto-enqueue new pinned tracks failed',
-        error,
-        stackTrace,
-      );
-    }
   }
 
   void _onAppResumed() {

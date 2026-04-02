@@ -12,8 +12,6 @@ import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 
 // Test overrides for @visibleForTesting providers.
-final _disableAutoEnqueue = autoEnqueuePinnedTracksEnabledProvider
-    .overrideWithValue(false);
 final _manualSyncInterval = syncIntervalMinutesProvider.overrideWithValue(0);
 final _shortSyncInterval = syncIntervalDurationProvider.overrideWithValue(
   const Duration(milliseconds: 10),
@@ -115,7 +113,7 @@ void main() {
 
       final container = ProviderContainer(
         overrides: [
-          _disableAutoEnqueue,
+
           _manualSyncInterval,
           serverConfigStateProvider.overrideWithValue(
             const AsyncData(
@@ -175,7 +173,7 @@ void main() {
 
       final container = ProviderContainer(
         overrides: [
-          _disableAutoEnqueue,
+
           _manualSyncInterval,
           serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
           serverReachabilityControllerProvider.overrideWith(
@@ -247,7 +245,7 @@ void main() {
 
       final container = ProviderContainer(
         overrides: [
-          _disableAutoEnqueue,
+
           _manualSyncInterval,
           serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
           serverReachabilityControllerProvider.overrideWith(
@@ -296,7 +294,7 @@ void main() {
 
         final container = ProviderContainer(
           overrides: [
-            _disableAutoEnqueue,
+  
             _manualSyncInterval,
             serverConfigStateProvider.overrideWithValue(
               const AsyncData(
@@ -353,7 +351,7 @@ void main() {
       );
       final container = ProviderContainer(
         overrides: [
-          _disableAutoEnqueue,
+
           _manualSyncInterval,
           serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
           serverReachabilityControllerProvider.overrideWith(
@@ -412,7 +410,7 @@ void main() {
 
       final container = ProviderContainer(
         overrides: [
-          _disableAutoEnqueue,
+
           _manualSyncInterval,
           serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
           serverReachabilityControllerProvider.overrideWith(
@@ -471,7 +469,7 @@ void main() {
 
       final container = ProviderContainer(
         overrides: [
-          _disableAutoEnqueue,
+
           _shortSyncInterval,
           syncIntervalMinutesProvider.overrideWithValue(1),
           serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
