@@ -10,6 +10,7 @@ import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/cover_art_viewer.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
+import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/rating_widget.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
@@ -714,9 +715,9 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
                       background: Stack(
                         fit: StackFit.expand,
                         children: <Widget>[
-                          // ShaderMask makes the bottom of the image fade to
-                          // transparent, so the app background shows through
-                          // naturally regardless of theme.
+                          // ShaderMask fades the bottom 80% of the image to
+                          // transparent so the app background shows through
+                          // seamlessly regardless of theme.
                           ShaderMask(
                             shaderCallback: (bounds) =>
                                 const LinearGradient(
@@ -727,26 +728,48 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
                                     Colors.white,
                                     Colors.transparent,
                                   ],
-                                  stops: <double>[0.0, 0.45, 1.0],
+                                  stops: <double>[0.0, 0.2, 1.0],
                                 ).createShader(bounds),
                             blendMode: BlendMode.dstIn,
-                            child: HeroCoverArt(
-                              coverArtId: details.coverArt,
-                              heroTag: coverArtHeroTag,
-                              size: screenWidth.toInt(),
-                              width: double.infinity,
-                              height: double.infinity,
-                              borderRadius: BorderRadius.zero,
-                              fit: BoxFit.cover,
-                              placeholderIcon: Icons.album_outlined,
-                              showLoadingPlaceholder: false,
-                              fadeInDuration:
-                                  const Duration(milliseconds: 350),
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: <Widget>[
+                                // Low-res cached layer: renders instantly from
+                                // cache keeping art visible during the full-res
+                                // network load after the hero animation lands.
+                                CoverArtImage(
+                                  coverArtId: details.coverArt,
+                                  size: 300,
+                                  width: double.infinity,
+                                  height: double.infinity,
+                                  borderRadius: BorderRadius.zero,
+                                  fit: BoxFit.cover,
+                                  showLoadingPlaceholder: false,
+                                  showErrorPlaceholder: false,
+                                  fadeInDuration: Duration.zero,
+                                ),
+                                // Full-res hero layer: fades in on top of the
+                                // low-res once loaded; the hero handles the
+                                // animated navigation transition.
+                                HeroCoverArt(
+                                  coverArtId: details.coverArt,
+                                  heroTag: coverArtHeroTag,
+                                  size: screenWidth.toInt(),
+                                  width: double.infinity,
+                                  height: double.infinity,
+                                  borderRadius: BorderRadius.zero,
+                                  fit: BoxFit.cover,
+                                  placeholderIcon: Icons.album_outlined,
+                                  showLoadingPlaceholder: false,
+                                  fadeInDuration:
+                                      const Duration(milliseconds: 350),
+                                ),
+                              ],
                             ),
                           ),
-                          // Album name over a soft black scrim. Fades/creeps in
-                          // on enter, then fades out before the toolbar title
-                          // appears — no overlap.
+                          // Album name over a soft black scrim. Positioned in
+                          // the middle of the fade zone. Fades/creeps in on
+                          // enter, fades out before toolbar title appears.
                           Positioned(
                             bottom: 0,
                             left: 0,
@@ -756,11 +779,11 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
                               child: Opacity(
                                 opacity: gradientOpacity,
                                 child: Padding(
-                                  padding: const EdgeInsets.fromLTRB(
+                                  padding: EdgeInsets.fromLTRB(
                                     16,
                                     0,
                                     16,
-                                    16,
+                                    screenWidth * 0.25,
                                   ),
                                   child: Text(
                                     details.name,
@@ -771,9 +794,10 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
                                           shadows: <Shadow>[
                                             Shadow(
                                               color: Colors.black.withValues(
-                                                alpha: 0.5,
+                                                alpha: 0.55,
                                               ),
-                                              blurRadius: 8,
+                                              blurRadius: 12,
+                                              offset: const Offset(0, 2),
                                             ),
                                           ],
                                         ),
