@@ -309,6 +309,11 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
 
     expect(find.text('Cache & Storage'), findsWidgets);
+
+    // Flush any pending Riverpod retry timers (e.g. from the artist provider
+    // failing its HTTP call in the test environment) to avoid a pending-timer
+    // assertion after widget disposal.
+    await tester.pump(const Duration(milliseconds: 500));
   });
 
   testWidgets('contains all expected route paths', (tester) async {

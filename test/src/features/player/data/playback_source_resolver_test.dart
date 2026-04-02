@@ -14,6 +14,11 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:path/path.dart' as p;
 import '../../../../helpers/test_database.dart';
 
+/// LockCachingAudioSource is not supported on Linux or Windows at runtime,
+/// so tests that assert lockCachedStream behaviour are skipped on those platforms.
+bool get lockCachingAvailable =>
+    sqliteAvailable && !Platform.isLinux && !Platform.isWindows;
+
 void main() {
   group('PlaybackSourceResolver', () {
     late NavisDatabase database;
@@ -139,7 +144,7 @@ void main() {
         expect(lockSource.uri.queryParameters['id'], 'song-2');
         expect(lockSource.uri.queryParameters['maxBitRate'], '128');
       },
-      skip: !sqliteAvailable,
+      skip: !lockCachingAvailable,
     );
 
     test(
@@ -164,7 +169,7 @@ void main() {
         expect(first.cachedFilePath, isNotNull);
         expect(second.cachedFilePath, first.cachedFilePath);
       },
-      skip: !sqliteAvailable,
+      skip: !lockCachingAvailable,
     );
 
     test(
@@ -253,7 +258,7 @@ void main() {
           expect(direct.uri?.queryParameters['id'], testCase.id);
         }
       },
-      skip: !sqliteAvailable,
+      skip: !lockCachingAvailable,
     );
 
     test(
