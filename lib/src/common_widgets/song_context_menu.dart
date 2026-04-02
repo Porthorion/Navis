@@ -50,6 +50,9 @@ Future<void> showSongContextMenu(
           );
           final isDownloaded =
               downloadState.status == SongDownloadStatus.downloaded;
+          final canDownload =
+              downloadState.status == SongDownloadStatus.none ||
+              downloadState.status == SongDownloadStatus.cached;
           final isLiked =
               menuRef.watch(songStarredProvider(song.id)).asData?.value ??
               song.starred != null;
@@ -260,7 +263,7 @@ Future<void> showSongContextMenu(
                           );
                         },
                       )
-                    else
+                    else if (canDownload)
                       ListTile(
                         iconColor: isRemote ? disabledColor : null,
                         textColor: isRemote ? disabledColor : null,
@@ -315,6 +318,9 @@ Future<void> _showDesktopSongContextMenu(
   final l10n = AppLocalizations.of(context)!;
   final downloadState = ref.read(songDownloadStateProvider(song.id));
   final isDownloaded = downloadState.status == SongDownloadStatus.downloaded;
+  final canDownload =
+      downloadState.status == SongDownloadStatus.none ||
+      downloadState.status == SongDownloadStatus.cached;
   final isLiked =
       ref.read(songStarredProvider(song.id)).asData?.value ??
       song.starred != null;
@@ -359,7 +365,7 @@ Future<void> _showDesktopSongContextMenu(
         value: isDownloaded
             ? _SongContextAction.deleteDownload
             : _SongContextAction.download,
-        enabled: isDownloaded || !isRemote,
+        enabled: isDownloaded || (canDownload && !isRemote),
         child: Text(
           isDownloaded ? l10n.deleteDownloadAction : l10n.downloadAction,
         ),
