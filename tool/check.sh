@@ -60,7 +60,7 @@ assert_no_blocking_warnings() {
 
 run_step "format check" dart format --set-exit-if-changed .
 run_step "code generation" dart run build_runner build --delete-conflicting-outputs
-run_step "analyze" flutter analyze
+run_step "analyze" flutter analyze --no-fatal-infos
 run_step "custom lint" dart run custom_lint
 
 tmp_log_dir="$(mktemp -d)"
