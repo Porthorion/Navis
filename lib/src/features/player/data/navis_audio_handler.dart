@@ -1124,8 +1124,41 @@ class NavisAudioHandler extends BaseAudioHandler
         AppLogger.error('Playback event stream error.', error, stackTrace);
         // If a radio stream is active, stop it and notify the UI.
         if (_radioStation != null) {
+          // Tear down radio state synchronously so that no further metadata
+          // callbacks (Azuracast polling / ICY subscription) fire while the
+          // lane is busy cleaning up the player. This also lets the UI reflect
+          // the stopped state immediately rather than waiting for lane turn.
+          _radioStation = null;
+          _radioMetadataService.stop();
+          _broadcastPlaybackState();
+          _emitSnapshot();
           _radioStreamErrorController.add(null);
-          unawaited(stopRadio());
+          // Schedule player cleanup and queue restore on the lane.
+          unawaited(_queueLane.run(() async {
+            await _player.stop();
+            await _player.setAudioSources(const <AudioSource>[]);
+            queue.add(const <MediaItem>[]);
+            _setCurrentMediaItem(null);
+            _broadcastPlaybackState();
+            _emitSnapshot();
+          }));
+          unawaited(_queueLane.run(() async {
+            if (_queueItems.isNotEmpty || _radioStation != null) return;
+            try {
+              await _restoreQueueFromDisk()
+                  .timeout(const Duration(seconds: 10));
+            } on TimeoutException catch (e, st) {
+              AppLogger.warning(
+                'Queue restore after radio stream error timed out. '
+                'Clearing persisted queue. $e\n$st',
+              );
+              await _clearPersistedQueueBestEffort();
+            } on Object catch (e, st) {
+              AppLogger.warning(
+                'Queue restore after radio stream error failed: $e\n$st',
+              );
+            }
+          }));
         }
       },
     );
@@ -2335,6 +2368,9 @@ class NavisAudioHandler extends BaseAudioHandler
       await _ready;
       _cancelCrossfade();
       // Exit radio mode when the user starts playing songs from the library.
+      // Stop the metadata service before clearing the station so that no
+      // further Azuracast / ICY callbacks fire after we leave radio mode.
+      _radioMetadataService.stop();
       _radioStation = null;
       await _replaceQueueFromIds(
         songIds,
@@ -3424,6 +3460,16 @@ class NavisAudioHandler extends BaseAudioHandler
     return _queueLane.run(() async {
       await _ready;
 
+      // If a stream is already active, stop the current player cleanly before
+      // loading the new source. Without this, just_audio tries to tear down
+      // the old HTTP connection while simultaneously opening a new one, which
+      // can cause visible lag or stalls when switching between stations.
+      // startListening() already calls stop() internally so the metadata
+      // service is always fresh; we only need to stop the audio player.
+      if (_radioStation != null) {
+        await _player.stop();
+      }
+
       _radioStation = RadioStationMetadata(
         stationId: stationId,
         stationName: stationName,
@@ -3488,7 +3534,10 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> stopRadio() {
-    return _queueLane.run(() async {
+    // Phase 1: Stop radio and update the UI immediately. stopRadio() returns
+    // when this phase completes so the caller (and the player bar) are
+    // responsive without waiting for disk I/O.
+    final stopPhase = _queueLane.run(() async {
       await _ready;
 
       if (_radioStation == null) {
@@ -3503,19 +3552,40 @@ class NavisAudioHandler extends BaseAudioHandler
       queue.add(const <MediaItem>[]);
       _setCurrentMediaItem(null);
 
-      // Attempt to restore the previous song queue so the user can resume
-      // library playback without manual intervention.
-      try {
-        await _restoreQueueFromDisk();
-      } on Object catch (error, stackTrace) {
-        AppLogger.warning(
-          'Queue restore after radio stop failed: $error\n$stackTrace',
-        );
-      }
-
       _broadcastPlaybackState();
       _emitSnapshot();
     });
+
+    // Phase 2: Restore the previous song queue asynchronously so stopRadio()
+    // returns as soon as the player is stopped. The guard condition at the
+    // start prevents the restore from clobbering a queue that the user has
+    // already started (e.g. tapping a song immediately after stopping radio).
+    unawaited(
+      stopPhase
+          .then(
+            (_) => _queueLane.run(() async {
+              if (_queueItems.isNotEmpty || _radioStation != null) return;
+              try {
+                await _restoreQueueFromDisk()
+                    .timeout(const Duration(seconds: 10));
+              } on TimeoutException catch (error, stackTrace) {
+                AppLogger.warning(
+                  'Queue restore after radio stop timed out. '
+                  'Clearing persisted queue to unblock playback. '
+                  '$error\n$stackTrace',
+                );
+                await _clearPersistedQueueBestEffort();
+              } on Object catch (error, stackTrace) {
+                AppLogger.warning(
+                  'Queue restore after radio stop failed: $error\n$stackTrace',
+                );
+              }
+            }),
+          )
+          .catchError((_) {}),
+    );
+
+    return stopPhase;
   }
 
   @override
@@ -3526,6 +3596,20 @@ class NavisAudioHandler extends BaseAudioHandler
   }) {
     final current = _radioStation;
     if (current == null) {
+      return;
+    }
+
+    // Compute what the new RadioStationMetadata fields would be.
+    final nextTitle = title ?? current.nowPlayingTitle;
+    final nextArtist = artist ?? current.nowPlayingArtist;
+    final nextArtUrl = artUrl ?? current.nowPlayingArtUrl;
+
+    // Skip the broadcast when nothing actually changed — this prevents
+    // unnecessary UI rebuilds during the Azuracast polling cycle when the
+    // track hasn't changed between polls.
+    if (nextTitle == current.nowPlayingTitle &&
+        nextArtist == current.nowPlayingArtist &&
+        nextArtUrl == current.nowPlayingArtUrl) {
       return;
     }
 
