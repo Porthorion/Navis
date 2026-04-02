@@ -672,6 +672,11 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
                   Curves.easeOut.transform(_gradientEnterController.value);
               final gradientOpacity = enterProgress * gradientScrollFade;
               final gradientTranslateY = 20.0 * (1.0 - enterProgress);
+              // Gradient bloom: the ShaderMask bottom color fades from fully
+              // opaque (t=0, no fade visible) to transparent (t=1, full fade)
+              // in sync with the enter animation.
+              final gradientBottomColor =
+                  Colors.white.withValues(alpha: 1.0 - enterProgress);
               // Toolbar title fades in during the last 20% of the collapse.
               final toolbarTitleOpacity =
                   ((_headerProgress - 0.8) / 0.2).clamp(0.0, 1.0);
@@ -715,21 +720,21 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
                       background: Stack(
                         fit: StackFit.expand,
                         children: <Widget>[
-                          // ShaderMask fades the bottom 80% of the image to
-                          // transparent so the app background shows through
-                          // seamlessly regardless of theme.
+                          // ShaderMask fades the bottom of the image to
+                          // transparent — shorter fade zone (bottom 35%) so
+                          // the art stays clean, but blooms in with the enter
+                          // animation so it feels alive on first load.
                           ShaderMask(
-                            shaderCallback: (bounds) =>
-                                const LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: <Color>[
-                                    Colors.white,
-                                    Colors.white,
-                                    Colors.transparent,
-                                  ],
-                                  stops: <double>[0.0, 0.2, 1.0],
-                                ).createShader(bounds),
+                            shaderCallback: (bounds) => LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: <Color>[
+                                Colors.white,
+                                Colors.white,
+                                gradientBottomColor,
+                              ],
+                              stops: const <double>[0.0, 0.65, 1.0],
+                            ).createShader(bounds),
                             blendMode: BlendMode.dstIn,
                             child: HeroCoverArt(
                               coverArtId: details.coverArt,
