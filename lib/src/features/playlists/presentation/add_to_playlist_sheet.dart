@@ -97,7 +97,7 @@ class _AddToPlaylistSheet extends ConsumerWidget {
                   return ListTile(
                     leading: CoverArtImage(
                       coverArtId: playlist.coverArt,
-                      size: 200,
+                      size: kCoverArtStandardSize,
                       width: 40,
                       height: 40,
                       borderRadius: BorderRadius.circular(4),

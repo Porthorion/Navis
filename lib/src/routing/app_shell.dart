@@ -95,7 +95,7 @@ class AppShell extends ConsumerStatefulWidget {
 class _AppShellState extends ConsumerState<AppShell> {
   static const double _sideRailWidth = 270;
   static const int _kQueueCoverArtPrefetchAheadCount = 6;
-  static const int _kQueueCoverArtPrefetchSizePx = 512;
+  static const int _kQueueCoverArtPrefetchSizePx = kCoverArtStandardSize;
   static const int _kQueueCoverArtPrefetchDedupeCap = 320;
   final ValueNotifier<double> _playerSheetProgress = ValueNotifier<double>(0);
   final AppNoticeController _appNoticeController = AppNoticeController();
@@ -2827,7 +2827,7 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                 } else {
                   coverArtWidget = CoverArtImage(
                     coverArtId: widget.coverArtId,
-                    size: 200,
+                    size: kCoverArtStandardSize,
                     width: compactLayout ? 42 : 48,
                     height: compactLayout ? 42 : 48,
                     borderRadius: BorderRadius.circular(8),
@@ -4375,7 +4375,7 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                                 else
                                   CoverArtImage(
                                     coverArtId: widget.coverArtId,
-                                    size: 300,
+                                    size: kCoverArtStandardSize,
                                     width: 44,
                                     height: 44,
                                     borderRadius: BorderRadius.circular(9),
@@ -4862,7 +4862,7 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                         else
                           CoverArtImage(
                             coverArtId: coverArtId,
-                            size: 240,
+                            size: kCoverArtStandardSize,
                             width: 48,
                             height: 48,
                             borderRadius: BorderRadius.circular(8),
@@ -5022,7 +5022,7 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                             else
                               CoverArtImage(
                                 coverArtId: coverArtId,
-                                size: 200,
+                                size: kCoverArtStandardSize,
                                 width: 48,
                                 height: 48,
                                 borderRadius: BorderRadius.circular(8),

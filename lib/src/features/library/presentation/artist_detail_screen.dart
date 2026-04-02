@@ -658,7 +658,7 @@ class _SimilarArtistCard extends StatelessWidget {
               height: 110,
               child: CoverArtImage(
                 coverArtId: artist.coverArt,
-                size: 220,
+                size: kCoverArtStandardSize,
                 width: 110,
                 height: 110,
                 circular: true,

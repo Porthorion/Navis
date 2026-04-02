@@ -387,7 +387,7 @@ class _QueueItemState extends ConsumerState<_QueueItem> {
           child: ListTile(
             leading: CoverArtImage(
               coverArtId: song.coverArt,
-              size: 200,
+              size: kCoverArtStandardSize,
               width: 48,
               height: 48,
               borderRadius: BorderRadius.circular(4),

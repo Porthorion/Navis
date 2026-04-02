@@ -150,8 +150,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                       children: <Widget>[
                         CoverArtImage(
                           coverArtId: playlist.coverArt,
-                          size: 640,
-                          width: 220,
+                          size: kCoverArtStandardSize,
                           height: 220,
                           borderRadius: BorderRadius.circular(16),
                           placeholderIcon: Icons.queue_music,
@@ -247,8 +246,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                           padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
                           child: CoverArtImage(
                             coverArtId: playlist.coverArt,
-                            size: 640,
-                            width: 180,
+                            size: kCoverArtStandardSize,
                             height: 180,
                             borderRadius: BorderRadius.circular(12),
                             placeholderIcon: Icons.queue_music,

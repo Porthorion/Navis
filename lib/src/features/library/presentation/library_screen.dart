@@ -1872,7 +1872,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                               borderRadius: BorderRadius.circular(8),
                               child: CoverArtImage(
                                 coverArtId: song.coverArt,
-                                size: 128,
+                                size: kCoverArtStandardSize,
                                 width: 40,
                                 height: 40,
                                 placeholderIcon: Icons.music_note_outlined,
@@ -3083,7 +3083,7 @@ class _LikedArtistStripTile extends ConsumerWidget {
           children: <Widget>[
             CoverArtImage(
               coverArtId: artist.coverArt,
-              size: 160,
+              size: kCoverArtStandardSize,
               width: 64,
               height: 64,
               borderRadius: borderRadius,

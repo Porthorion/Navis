@@ -3161,12 +3161,7 @@ class _CoverArt extends ConsumerWidget {
       final artSize = explicitMaxSize.clamp(180.0, 680.0);
       return CoverArtImage(
         coverArtId: coverArtId,
-        size: 640,
-        width: artSize,
-        height: artSize,
-        borderRadius: npRadius,
-        placeholderIcon: Icons.music_note_outlined,
-        semanticLabel: semanticLabel,
+        size: kCoverArtStandardSize,
       );
     }
 
@@ -3178,11 +3173,7 @@ class _CoverArt extends ConsumerWidget {
 
     return CoverArtImage(
       coverArtId: coverArtId,
-      size: 640,
-      width: artSize,
-      height: artSize,
-      borderRadius: npRadius,
-      placeholderIcon: Icons.music_note_outlined,
+      size: kCoverArtStandardSize,
       semanticLabel: semanticLabel,
     );
   }

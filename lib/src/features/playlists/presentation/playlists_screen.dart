@@ -326,7 +326,7 @@ class _PlaylistTile extends StatelessWidget {
     return ListTile(
       leading: CoverArtImage(
         coverArtId: playlist.coverArt,
-        size: 200,
+        size: kCoverArtStandardSize,
         width: 48,
         height: 48,
         borderRadius: BorderRadius.circular(4),
