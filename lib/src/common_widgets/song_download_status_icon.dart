@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/utils/file_utils.dart';
 
 /// The resolved download/cache state of a single song.
@@ -109,6 +110,13 @@ class SongDownloadStatusIcon extends ConsumerWidget {
 
   final double size;
 
+  /// Wraps a child in a [Tooltip] only on desktop platforms.
+  /// On mobile/touch platforms, returns the child unchanged.
+  static Widget _maybeTooltip(Widget child, String message) {
+    if (!isDesktopRuntime) return child;
+    return Tooltip(message: message, child: child);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(songDownloadStateProvider(songId));
@@ -123,9 +131,8 @@ class SongDownloadStatusIcon extends ConsumerWidget {
         constraints: const BoxConstraints(),
         padding: const EdgeInsets.all(8),
       ),
-      SongDownloadStatus.queued => Tooltip(
-        message: l10n.songStatusQueued,
-        child: SizedBox(
+      SongDownloadStatus.queued => _maybeTooltip(
+        SizedBox(
           width: size + 16,
           height: size + 16,
           child: Center(
@@ -139,10 +146,10 @@ class SongDownloadStatusIcon extends ConsumerWidget {
             ),
           ),
         ),
+        l10n.songStatusQueued,
       ),
-      SongDownloadStatus.downloading => Tooltip(
-        message: l10n.songStatusDownloading,
-        child: SizedBox(
+      SongDownloadStatus.downloading => _maybeTooltip(
+        SizedBox(
           width: size + 16,
           height: size + 16,
           child: Center(
@@ -157,24 +164,21 @@ class SongDownloadStatusIcon extends ConsumerWidget {
             ),
           ),
         ),
+        l10n.songStatusDownloading,
       ),
-      SongDownloadStatus.downloaded => Tooltip(
-        message: l10n.deleteDownloadAction,
-        child: IconButton(
-          icon: Icon(
-            Icons.check_circle,
-            size: size,
-            color: Colors.green,
-          ),
-          tooltip: l10n.deleteDownloadAction,
-          onPressed: () => confirmAndDeleteDownload(context, ref, songId),
-          constraints: const BoxConstraints(),
-          padding: const EdgeInsets.all(8),
+      SongDownloadStatus.downloaded => IconButton(
+        icon: Icon(
+          Icons.check_circle,
+          size: size,
+          color: Colors.green,
         ),
+        tooltip: l10n.deleteDownloadAction,
+        onPressed: () => confirmAndDeleteDownload(context, ref, songId),
+        constraints: const BoxConstraints(),
+        padding: const EdgeInsets.all(8),
       ),
-      SongDownloadStatus.cached => Tooltip(
-        message: l10n.songStatusCachedTooltip,
-        child: SizedBox(
+      SongDownloadStatus.cached => _maybeTooltip(
+        SizedBox(
           width: size + 16,
           height: size + 16,
           child: Center(
@@ -185,6 +189,7 @@ class SongDownloadStatusIcon extends ConsumerWidget {
             ),
           ),
         ),
+        l10n.songStatusCachedTooltip,
       ),
     };
   }

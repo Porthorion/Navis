@@ -1618,9 +1618,24 @@ class _RatingButtonState extends State<_RatingButton> {
                           ),
                         ),
                       ),
-                    Tooltip(
-                      message: 'Cancel',
-                      child: InkResponse(
+                    if (isDesktopRuntime)
+                      Tooltip(
+                        message: 'Cancel',
+                        child: InkResponse(
+                          onTap: () => setState(() {
+                            _expanded = false;
+                            _hovered = 0;
+                          }),
+                          radius: 16,
+                          child: Icon(
+                            Icons.close,
+                            size: 16,
+                            color: cs.onSurfaceVariant.withValues(alpha: 0.6),
+                          ),
+                        ),
+                      )
+                    else
+                      InkResponse(
                         onTap: () => setState(() {
                           _expanded = false;
                           _hovered = 0;
@@ -1632,7 +1647,6 @@ class _RatingButtonState extends State<_RatingButton> {
                           color: cs.onSurfaceVariant.withValues(alpha: 0.6),
                         ),
                       ),
-                    ),
                     if (widget.loading)
                       Padding(
                         padding: const EdgeInsets.only(left: 8),

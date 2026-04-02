@@ -865,49 +865,53 @@ class _ColorChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const size = 52.0;
+    final child = GestureDetector(
+      onTap: onTap,
+      onLongPress: onLongPress,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+          border: isSelected
+              ? Border.all(
+                  color: theme.colorScheme.onSurface,
+                  width: 3,
+                )
+              : null,
+          boxShadow: isSelected
+              ? <BoxShadow>[
+                  BoxShadow(
+                    color: color.withAlpha(100),
+                    blurRadius: 8,
+                    spreadRadius: 2,
+                  ),
+                ]
+              : null,
+        ),
+        child: isSelected
+            ? Icon(
+                Icons.check,
+                color:
+                    ThemeData.estimateBrightnessForColor(color) ==
+                        Brightness.dark
+                    ? Colors.white
+                    : Colors.black,
+                size: 24,
+              )
+            : null,
+      ),
+    );
+
+    if (!isDesktopRuntime) return child;
+
     return Tooltip(
       message: showDeleteHint
           ? AppLocalizations.of(context)!.appearanceLongPressHint(label)
           : label,
-      child: GestureDetector(
-        onTap: onTap,
-        onLongPress: onLongPress,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          width: size,
-          height: size,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-            border: isSelected
-                ? Border.all(
-                    color: theme.colorScheme.onSurface,
-                    width: 3,
-                  )
-                : null,
-            boxShadow: isSelected
-                ? <BoxShadow>[
-                    BoxShadow(
-                      color: color.withAlpha(100),
-                      blurRadius: 8,
-                      spreadRadius: 2,
-                    ),
-                  ]
-                : null,
-          ),
-          child: isSelected
-              ? Icon(
-                  Icons.check,
-                  color:
-                      ThemeData.estimateBrightnessForColor(color) ==
-                          Brightness.dark
-                      ? Colors.white
-                      : Colors.black,
-                  size: 24,
-                )
-              : null,
-        ),
-      ),
+      child: child,
     );
   }
 }
@@ -926,31 +930,35 @@ class _RainbowChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const size = 52.0;
+    final child = GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: const BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: SweepGradient(
+            colors: <Color>[
+              Colors.red,
+              Colors.orange,
+              Colors.yellow,
+              Colors.green,
+              Colors.cyan,
+              Colors.blue,
+              Colors.purple,
+              Colors.red,
+            ],
+          ),
+        ),
+        child: const Icon(Icons.add, color: Colors.white, size: 24),
+      ),
+    );
+
+    if (!isDesktopRuntime) return child;
+
     return Tooltip(
       message: label,
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: size,
-          height: size,
-          decoration: const BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: SweepGradient(
-              colors: <Color>[
-                Colors.red,
-                Colors.orange,
-                Colors.yellow,
-                Colors.green,
-                Colors.cyan,
-                Colors.blue,
-                Colors.purple,
-                Colors.red,
-              ],
-            ),
-          ),
-          child: const Icon(Icons.add, color: Colors.white, size: 24),
-        ),
-      ),
+      child: child,
     );
   }
 }
