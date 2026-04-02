@@ -361,10 +361,12 @@ if [[ "${BUILD_ANDROID}" == "true" ]]; then
       exit 1
     fi
 
+    # key.properties storeFile is relative to android/app/
+    STORE_FILE_ABS="${SCRIPT_DIR}/../android/app/${STORE_FILE}"
     EXPECTED_CERT_SHA256="$(keytool -list -v \
-      -keystore "${STORE_FILE}" \
+      -keystore "${STORE_FILE_ABS}" \
       -storepass "${STORE_PASSWORD}" \
-      -alias "${KEY_ALIAS}" | awk -F': ' '/SHA256:/{gsub(":", "", $2); print tolower($2); exit}')"
+      -alias "${KEY_ALIAS}" 2>/dev/null | awk -F': ' '/SHA256:/{gsub(":", "", $2); print tolower($2); exit}')"
     ACTUAL_CERT_SHA256="$(${APKSIGNER_BIN} verify --print-certs "${APK_ASSET}" | awk '/SHA-256 digest/{print tolower($NF); exit}')"
 
     if [[ -z "${EXPECTED_CERT_SHA256}" || -z "${ACTUAL_CERT_SHA256}" ]]; then
