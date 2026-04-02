@@ -731,39 +731,17 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
                                   stops: <double>[0.0, 0.2, 1.0],
                                 ).createShader(bounds),
                             blendMode: BlendMode.dstIn,
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: <Widget>[
-                                // Low-res cached layer: renders instantly from
-                                // cache keeping art visible during the full-res
-                                // network load after the hero animation lands.
-                                CoverArtImage(
-                                  coverArtId: details.coverArt,
-                                  size: 300,
-                                  width: double.infinity,
-                                  height: double.infinity,
-                                  borderRadius: BorderRadius.zero,
-                                  fit: BoxFit.cover,
-                                  showLoadingPlaceholder: false,
-                                  showErrorPlaceholder: false,
-                                  fadeInDuration: Duration.zero,
-                                ),
-                                // Full-res hero layer: snaps in instantly on top
-                                // of the low-res once loaded — no fade means no
-                                // transparent phase where art disappears.
-                                HeroCoverArt(
-                                  coverArtId: details.coverArt,
-                                  heroTag: coverArtHeroTag,
-                                  size: screenWidth.toInt(),
-                                  width: double.infinity,
-                                  height: double.infinity,
-                                  borderRadius: BorderRadius.zero,
-                                  fit: BoxFit.cover,
-                                  placeholderIcon: Icons.album_outlined,
-                                  showLoadingPlaceholder: false,
-                                  fadeInDuration: Duration.zero,
-                                ),
-                              ],
+                            child: HeroCoverArt(
+                              coverArtId: details.coverArt,
+                              heroTag: coverArtHeroTag,
+                              size: kCoverArtStandardSize,
+                              width: double.infinity,
+                              height: double.infinity,
+                              borderRadius: BorderRadius.zero,
+                              fit: BoxFit.cover,
+                              placeholderIcon: Icons.album_outlined,
+                              showLoadingPlaceholder: false,
+                              fadeInDuration: Duration.zero,
                             ),
                           ),
                           // Album name over a soft black scrim. Positioned in

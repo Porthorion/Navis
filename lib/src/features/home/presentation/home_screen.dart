@@ -1742,7 +1742,7 @@ class _DesktopRandomAlbumVisual extends ConsumerWidget {
                       context: '${heroContext}_${album.id}_desktop_page',
                       entityId: album.id,
                     ),
-                    size: 720,
+                    size: kCoverArtStandardSize,
                     fit: BoxFit.cover,
                     placeholderIcon: Icons.album_outlined,
                   ),
@@ -2671,7 +2671,7 @@ class _RandomAlbumsHeroCard extends ConsumerWidget {
                 context: '${heroContext}_hero',
                 entityId: album.id,
               ),
-              size: 840,
+              size: kCoverArtStandardSize,
               fit: BoxFit.cover,
               placeholderIcon: Icons.album_outlined,
             ),
@@ -2794,14 +2794,14 @@ class _ServerAlbumCard extends StatelessWidget {
                   HeroCoverArt(
                     coverArtId: coverArtId,
                     heroTag: heroTag!,
-                    size: 480,
+                    size: kCoverArtStandardSize,
                     fit: BoxFit.cover,
                     placeholderIcon: Icons.album_outlined,
                   )
                 else
                   CoverArtImage(
                     coverArtId: coverArtId,
-                    size: 480,
+                    size: kCoverArtStandardSize,
                     fit: BoxFit.cover,
                     placeholderIcon: Icons.album_outlined,
                   ),

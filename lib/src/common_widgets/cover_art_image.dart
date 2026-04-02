@@ -9,6 +9,12 @@ import 'package:navis/src/providers/app_providers.dart';
 /// Shared cover art cache key used by both the cache manager and clear logic.
 const String coverArtCacheKey = 'navis_cover_art_cache';
 
+/// Standard cover art size used for all album/artist cover displays outside of
+/// the full-screen viewer. Using a single size ensures that navigating from any
+/// list or grid to a detail screen (or back) always hits the same cache entry —
+/// preventing the blank flash caused by different-size cache misses.
+const int kCoverArtStandardSize = 600;
+
 /// Sentinel value meaning «no object-count cap» — enough covers even for a
 /// 100 k-track library where every album has a unique thumbnail at three sizes.
 const int _coverArtCacheUnlimited = 999999;
