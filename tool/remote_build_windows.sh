@@ -199,34 +199,32 @@ New-Item -ItemType Directory -Force -Path $workspaceDir | Out-Null
 tar -xzf $archivePath -C $workspaceDir
 Set-Location $workspaceDir
 
-# Set up offline pub cache if a bundled archive was provided.
+# Set up offline pub cache. We always use the system-default PUB_CACHE
+# (C:\Users\...\AppData\Local\Pub\Cache) so that:
+#  - The hooks_runner shared cache (sqlite3.dll, etc.) is preserved across runs
+#  - Content hashes match what Windows originally fetched
+# If a bundled archive is provided, we supplement the system cache with any
+# packages that might be missing (extracted with --skip-old-files so we never
+# overwrite existing Windows-native copies with Linux-packed ones).
+$_systemPubCache = if ($env:PUB_CACHE) { $env:PUB_CACHE } else { Join-Path $env:LOCALAPPDATA 'Pub\Cache' }
 if ($PubCacheArchiveName -ne '') {
   $pubCacheArchivePath = Join-Path $baseDir $PubCacheArchiveName
   if (Test-Path $pubCacheArchivePath) {
-    $localPubCache = Join-Path $baseDir 'pub_cache'
-    $localPubCacheHosted = Join-Path $localPubCache 'hosted\pub.dev'
+    $localPubCacheHosted = Join-Path $_systemPubCache 'hosted\pub.dev'
     New-Item -ItemType Directory -Force -Path $localPubCacheHosted | Out-Null
-    tar -xzf $pubCacheArchivePath -C $localPubCacheHosted
-    $env:PUB_CACHE = $localPubCache
-    Write-Host "[remote-windows] Using bundled pub cache at $localPubCache"
+    # --skip-old-files: only extract packages not already on this machine.
+    # This avoids replacing Windows-native copies (correct content hashes)
+    # with Linux-built copies that trigger content-hash mismatch warnings.
+    $ErrorActionPreference = 'Continue'
+    tar -xzf $pubCacheArchivePath -C $localPubCacheHosted --skip-old-files 2>$null
+    $ErrorActionPreference = 'Stop'
+    Write-Host "[remote-windows] Supplemented system pub cache with bundled packages"
   }
 }
+Write-Host "[remote-windows] Using system pub cache at $_systemPubCache"
 
-# Try online first; fall back to offline if network is unavailable (e.g. VM with no internet).
-# If a bundled pub cache was provided, skip the online attempt and go straight to offline
-# to avoid a multi-minute TCP timeout on VMs with no internet.
-if ($env:PUB_CACHE -ne $null -and $env:PUB_CACHE -ne '') {
-  flutter pub get --offline
-} else {
-  $ErrorActionPreference = 'Continue'
-  flutter pub get 2>&1
-  $_pubExit = $LASTEXITCODE
-  $ErrorActionPreference = 'Stop'
-  if ($_pubExit -ne 0) {
-    Write-Warning "flutter pub get failed (network?); retrying with --offline"
-    flutter pub get --offline
-  }
-}
+# Always run offline to avoid a multi-minute TCP timeout on VMs with no internet.
+flutter pub get --offline
 
 # Pre-seed cmake download cache with pre-built native assets so the build works
 # without internet access. media_kit_libs_windows_audio downloads libmpv from
