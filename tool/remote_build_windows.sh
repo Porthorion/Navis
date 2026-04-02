@@ -222,11 +222,12 @@ $_libmpvMd5  = 'cd738e16e2a19626d7cfa48801524f8c'
 $_libmpvDest = Join-Path $_cmakeBuildDir $_libmpvName
 if (-not (Test-Path $_libmpvDest)) {
   # Search common locations where a prior local build may have cached the file.
-  $_libmpvSources = @(
-    (Join-Path $HOME 'Documents\forgejo_projects\Navis\build\windows\x64\' + $_libmpvName),
-    (Join-Path $HOME 'My Documents\forgejo_projects\Navis\build\windows\x64\' + $_libmpvName)
+  $_libmpvSourceDirs = @(
+    (Join-Path $HOME 'Documents\forgejo_projects\Navis\build\windows\x64'),
+    (Join-Path $HOME 'My Documents\forgejo_projects\Navis\build\windows\x64')
   )
-  foreach ($_src in $_libmpvSources) {
+  foreach ($_srcDir in $_libmpvSourceDirs) {
+    $_src = Join-Path $_srcDir $_libmpvName
     if (Test-Path $_src) {
       $_srcMd5 = (Get-FileHash $_src -Algorithm MD5).Hash.ToLower()
       if ($_srcMd5 -eq $_libmpvMd5) {
