@@ -695,33 +695,41 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                       background: Stack(
                         fit: StackFit.expand,
                         children: <Widget>[
-                          // ShaderMask fades the bottom of the image to
-                          // transparent — shorter fade zone (bottom 35%) so
-                          // the art stays clean, but blooms in with the enter
-                          // animation so it feels alive on first load.
-                          ShaderMask(
-                            shaderCallback: (bounds) => LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: <Color>[
-                                Colors.white,
-                                Colors.white,
-                                Colors.transparent,
-                              ],
-                              stops: const <double>[0.0, 0.60, 0.85],
-                            ).createShader(bounds),
-                            blendMode: BlendMode.dstIn,
-                            child: HeroCoverArt(
-                              coverArtId: details.coverArt,
-                              heroTag: coverArtHeroTag,
-                              size: kCoverArtStandardSize,
-                              width: double.infinity,
-                              height: double.infinity,
-                              borderRadius: BorderRadius.zero,
-                              fit: BoxFit.cover,
-                              placeholderIcon: Icons.album_outlined,
-                              showLoadingPlaceholder: false,
-                              fadeInDuration: Duration.zero,
+                          // Hero art — no ShaderMask wrapper so the hero widget
+                          // is fully independent. The gradient is a separate
+                          // Stack sibling (below) so it stays visible during the
+                          // hero flight, not just after it lands.
+                          HeroCoverArt(
+                            coverArtId: details.coverArt,
+                            heroTag: coverArtHeroTag,
+                            size: kCoverArtStandardSize,
+                            width: double.infinity,
+                            height: double.infinity,
+                            borderRadius: BorderRadius.zero,
+                            fit: BoxFit.cover,
+                            placeholderIcon: Icons.album_outlined,
+                            showLoadingPlaceholder: false,
+                            fadeInDuration: Duration.zero,
+                          ),
+                          // Gradient overlay — independent of the hero, so it
+                          // renders from the very first frame of navigation.
+                          // Uses scaffoldBackgroundColor to match the app
+                          // background exactly (same effect as ShaderMask
+                          // transparency but without wrapping the hero).
+                          Positioned.fill(
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: <Color>[
+                                    Colors.transparent,
+                                    Colors.transparent,
+                                    Theme.of(context).scaffoldBackgroundColor,
+                                  ],
+                                  stops: const <double>[0.0, 0.60, 0.85],
+                                ),
+                              ),
                             ),
                           ),
                           // Album name — fades out as header collapses.
