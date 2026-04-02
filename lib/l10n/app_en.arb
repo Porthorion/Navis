@@ -484,6 +484,7 @@
   "albumDetailShuffleActionQueued": "Album shuffled into queue.",
   "albumDetailStarFailure": "Could not update like status.",
   "albumDetailAboutSection": "About this album",
+  "albumDetailMenuShowAlbumArt": "Show album art",
   "albumDetailLastFm": "Last.fm",
   "albumDetailMusicBrainz": "MusicBrainz",
   "albumDetailDiscHeader": "Disc {number}",

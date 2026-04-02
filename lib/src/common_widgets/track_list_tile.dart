@@ -12,6 +12,7 @@ class TrackListTile extends StatelessWidget {
     this.trailing,
     this.badge,
     this.showAlbumArt = false,
+    this.horizontalTitleGap,
   });
 
   final SongsTableData song;
@@ -19,6 +20,9 @@ class TrackListTile extends StatelessWidget {
   final VoidCallback? onLongPress;
   final Widget? trailing;
   final Widget? badge;
+  /// Override the gap between the leading widget and the title.
+  /// Defaults to 12 when null.
+  final double? horizontalTitleGap;
 
   /// When true, show the album art as the leading widget instead of a track
   /// number. Useful in contexts where the track number is meaningless (e.g.,
@@ -112,7 +116,7 @@ class TrackListTile extends StatelessWidget {
     return ListTile(
       dense: true,
       minLeadingWidth: showAlbumArt ? 48 : 32,
-      horizontalTitleGap: 12,
+      horizontalTitleGap: horizontalTitleGap ?? 12,
       leading: leading,
       title: Text(
         song.title,

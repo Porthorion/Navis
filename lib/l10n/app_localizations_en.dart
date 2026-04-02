@@ -1036,6 +1036,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get albumDetailAboutSection => 'About this album';
 
   @override
+  String get albumDetailMenuShowAlbumArt => 'Show album art';
+
+  @override
   String get albumDetailLastFm => 'Last.fm';
 
   @override

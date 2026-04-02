@@ -1917,6 +1917,12 @@ abstract class AppLocalizations {
   /// **'About this album'**
   String get albumDetailAboutSection;
 
+  /// No description provided for @albumDetailMenuShowAlbumArt.
+  ///
+  /// In en, this message translates to:
+  /// **'Show album art'**
+  String get albumDetailMenuShowAlbumArt;
+
   /// No description provided for @albumDetailLastFm.
   ///
   /// In en, this message translates to:

@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
 /// Shared cover art cache key used by both the cache manager and clear logic.
@@ -203,41 +204,67 @@ class CoverArtImage extends ConsumerWidget {
     final cacheManager =
         ref.watch(coverArtCacheManagerProvider).asData?.value ??
         defaultCoverArtCacheManager;
+
+    // When the size is fully determined without needing layout constraints
+    // (explicit size param or locked hero size), build the image widget
+    // immediately — skipping LayoutBuilder entirely. This starts the cache
+    // look-up one layout pass earlier, so the decoded image is ready before
+    // the hero animation finishes landing. It also guarantees that the URL
+    // matches exactly what was cached at the source (same size = same key).
+    final preResolved =
+        lockedSize ?? (size != null && size! > 0 ? size : null);
+    if (preResolved != null) {
+      return _withSemantics(
+        _buildImageChild(context, preResolved, api, cacheManager),
+      );
+    }
+
+    // No explicit size: derive from layout constraints (used only for widgets
+    // that intentionally omit a size and rely on their container dimensions,
+    // e.g. the now-playing full-screen art).
     return LayoutBuilder(
       builder: (context, constraints) {
-        final resolvedSize = _resolveRequestedSize(context, constraints);
-        final image = CachedNetworkImage(
-          imageUrl: api.getCoverArtUrl(id: id, size: resolvedSize).toString(),
-          cacheKey: '$id:${resolvedSize ?? 0}',
-          fit: fit,
-          width: width,
-          height: height,
-          cacheManager: cacheManager,
-          fadeInDuration: fadeInDuration,
-          fadeOutDuration: Duration.zero,
-          memCacheWidth: _memCacheSize(width, resolvedSize),
-          memCacheHeight: _memCacheSize(height, resolvedSize),
-          placeholder: (_, _) =>
-              showLoadingPlaceholder ? _fallback(context) : _emptyPlaceholder(),
-          errorWidget: (_, _, _) =>
-              showErrorPlaceholder ? _fallback(context) : _emptyPlaceholder(),
+        final resolvedSize = _resolveFromConstraints(context, constraints);
+        return _withSemantics(
+          _buildImageChild(context, resolvedSize, api, cacheManager),
         );
-
-        Widget child;
-        if (circular) {
-          child = ClipOval(child: image);
-        } else {
-          final radius = borderRadius ?? BorderRadius.zero;
-          child = radius == BorderRadius.zero
-              ? image
-              : ClipRRect(borderRadius: radius, child: image);
-        }
-
-        // Wrap with Semantics when a label is provided; otherwise exclude from
-        // the accessibility tree (image is purely decorative).
-        return _withSemantics(child);
       },
     );
+  }
+
+  Widget _buildImageChild(
+    BuildContext context,
+    int? resolvedSize,
+    SubsonicApiClient api,
+    CacheManager cacheManager,
+  ) {
+    final image = CachedNetworkImage(
+      imageUrl: api.getCoverArtUrl(id: coverArtId!.trim(), size: resolvedSize).toString(),
+      cacheKey: '${coverArtId!.trim()}:${resolvedSize ?? 0}',
+      fit: fit,
+      width: width,
+      height: height,
+      cacheManager: cacheManager,
+      fadeInDuration: fadeInDuration,
+      fadeOutDuration: Duration.zero,
+      memCacheWidth: _memCacheSize(width, resolvedSize),
+      memCacheHeight: _memCacheSize(height, resolvedSize),
+      placeholder: (_, _) =>
+          showLoadingPlaceholder ? _fallback(context) : _emptyPlaceholder(),
+      errorWidget: (_, _, _) =>
+          showErrorPlaceholder ? _fallback(context) : _emptyPlaceholder(),
+    );
+
+    Widget child;
+    if (circular) {
+      child = ClipOval(child: image);
+    } else {
+      final radius = borderRadius ?? BorderRadius.zero;
+      child = radius == BorderRadius.zero
+          ? image
+          : ClipRRect(borderRadius: radius, child: image);
+    }
+    return child;
   }
 
   Widget _withSemantics(Widget child) {
@@ -297,28 +324,16 @@ class CoverArtImage extends ConsumerWidget {
     return null;
   }
 
-  int? _resolveRequestedSize(BuildContext context, BoxConstraints constraints) {
-    // Flight mode: skip constraint resolution entirely to keep the URL stable.
-    if (lockedSize != null) return lockedSize;
-
-    final explicitSize = size != null && size! > 0 ? size! : null;
+  /// Resolves a pixel size from layout [constraints] only (no explicit size).
+  /// Called only when no [size] or [lockedSize] was provided to the widget.
+  int? _resolveFromConstraints(BuildContext context, BoxConstraints constraints) {
     final targetLogical = _targetLogicalExtent(constraints);
-    if (targetLogical == null) {
-      return explicitSize;
-    }
-
+    if (targetLogical == null) return null;
     final pixelRatio = MediaQuery.maybeDevicePixelRatioOf(context) ?? 1.0;
     final targetPixels = (targetLogical * pixelRatio).ceil();
-    final resolved = (explicitSize != null && explicitSize > targetPixels)
-        ? explicitSize
-        : targetPixels;
-    if (resolved < 96) {
-      return 96;
-    }
-    if (resolved > 2048) {
-      return 2048;
-    }
-    return resolved;
+    if (targetPixels < 96) return 96;
+    if (targetPixels > 2048) return 2048;
+    return targetPixels;
   }
 
   double? _targetLogicalExtent(BoxConstraints constraints) {
