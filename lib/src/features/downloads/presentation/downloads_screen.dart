@@ -51,11 +51,25 @@ class DownloadsScreen extends ConsumerWidget {
 // Queue tab — shows pending / active / failed downloads
 // ---------------------------------------------------------------------------
 
-class _QueueTab extends ConsumerWidget {
+class _QueueTab extends ConsumerStatefulWidget {
   const _QueueTab();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_QueueTab> createState() => _QueueTabState();
+}
+
+class _QueueTabState extends ConsumerState<_QueueTab> {
+  final TextEditingController _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final queueAsync = ref.watch(downloadQueueProvider);
 
@@ -69,7 +83,27 @@ class _QueueTab extends ConsumerWidget {
           );
         }
 
-        final hasFailed = items.any(
+        // Resolve song data for all items so we can filter by title/artist.
+        final resolvedSongs = <int, SongsTableData?>{};
+        for (final item in items) {
+          if (item.songId != null) {
+            resolvedSongs[item.id] =
+                ref.watch(songByIdProvider(item.songId!)).asData?.value;
+          }
+        }
+
+        final filtered = _query.isEmpty
+            ? items
+            : items.where((item) {
+                final song = resolvedSongs[item.id];
+                final title =
+                    (song?.title ?? item.songId ?? '').toLowerCase();
+                final artist = (song?.artistName ?? '').toLowerCase();
+                final q = _query.toLowerCase();
+                return title.contains(q) || artist.contains(q);
+              }).toList(growable: false);
+
+        final hasFailed = filtered.any(
           (i) => i.status == DownloadStatus.failed,
         );
 
@@ -98,7 +132,16 @@ class _QueueTab extends ConsumerWidget {
 
         return Column(
           children: <Widget>[
-            if (hasFailed || items.isNotEmpty)
+            _DownloadsSearchBar(
+              controller: _searchController,
+              hint: l10n.downloadsQueueSearchHint,
+              onChanged: (value) => setState(() => _query = value),
+              onClear: () {
+                _searchController.clear();
+                setState(() => _query = '');
+              },
+            ),
+            if (hasFailed || filtered.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                 child: Row(
@@ -127,15 +170,23 @@ class _QueueTab extends ConsumerWidget {
                   ],
                 ),
               ),
-            Expanded(
-              child: ListView.builder(
-                itemCount: items.length,
-                itemBuilder: (context, index) {
-                  final item = items[index];
-                  return _QueueItemTile(item: item);
-                },
+            if (filtered.isEmpty && _query.isNotEmpty)
+              Expanded(
+                child: EmptyState(
+                  title: l10n.downloadsSearchNoResults(_query),
+                  icon: Icons.search_off,
+                ),
+              )
+            else
+              Expanded(
+                child: ListView.builder(
+                  itemCount: filtered.length,
+                  itemBuilder: (context, index) {
+                    final item = filtered[index];
+                    return _QueueItemTile(item: item);
+                  },
+                ),
               ),
-            ),
           ],
         );
       },
@@ -225,11 +276,25 @@ class _QueueItemTile extends ConsumerWidget {
 // Downloaded tab — shows permanently cached tracks (uses Riverpod)
 // ---------------------------------------------------------------------------
 
-class _DownloadedTab extends ConsumerWidget {
+class _DownloadedTab extends ConsumerStatefulWidget {
   const _DownloadedTab();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_DownloadedTab> createState() => _DownloadedTabState();
+}
+
+class _DownloadedTabState extends ConsumerState<_DownloadedTab> {
+  final TextEditingController _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final tracksAsync = ref.watch(permanentCachedTracksProvider);
 
@@ -243,16 +308,56 @@ class _DownloadedTab extends ConsumerWidget {
           );
         }
 
-        return ListView.builder(
-          itemCount: tracks.length,
-          itemBuilder: (context, index) {
-            final track = tracks[index];
-            return _DownloadedTrackTile(
-              track: track,
-              allTracks: tracks,
-              trackIndex: index,
-            );
-          },
+        // Resolve song data so we can filter by title/artist.
+        final resolvedSongs = <String, SongsTableData?>{};
+        for (final track in tracks) {
+          resolvedSongs[track.songId] =
+              ref.watch(songByIdProvider(track.songId)).asData?.value;
+        }
+
+        final filtered = _query.isEmpty
+            ? tracks
+            : tracks.where((track) {
+                final song = resolvedSongs[track.songId];
+                final title = (song?.title ?? track.songId).toLowerCase();
+                final artist = (song?.artistName ?? '').toLowerCase();
+                final q = _query.toLowerCase();
+                return title.contains(q) || artist.contains(q);
+              }).toList(growable: false);
+
+        return Column(
+          children: <Widget>[
+            _DownloadsSearchBar(
+              controller: _searchController,
+              hint: l10n.downloadsSearchHint,
+              onChanged: (value) => setState(() => _query = value),
+              onClear: () {
+                _searchController.clear();
+                setState(() => _query = '');
+              },
+            ),
+            if (filtered.isEmpty && _query.isNotEmpty)
+              Expanded(
+                child: EmptyState(
+                  title: l10n.downloadsSearchNoResults(_query),
+                  icon: Icons.search_off,
+                ),
+              )
+            else
+              Expanded(
+                child: ListView.builder(
+                  itemCount: filtered.length,
+                  itemBuilder: (context, index) {
+                    final track = filtered[index];
+                    return _DownloadedTrackTile(
+                      track: track,
+                      allTracks: filtered,
+                      trackIndex: index,
+                    );
+                  },
+                ),
+              ),
+          ],
         );
       },
       loading: () => const ShimmerListPage(count: 8),
@@ -597,6 +702,65 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
           onTap: _clearDownloads,
         ),
       ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Shared search bar widget used by Queue and Downloaded tabs
+// ---------------------------------------------------------------------------
+
+class _DownloadsSearchBar extends StatelessWidget {
+  const _DownloadsSearchBar({
+    required this.controller,
+    required this.hint,
+    required this.onChanged,
+    required this.onClear,
+  });
+
+  final TextEditingController controller;
+  final String hint;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+      child: TextField(
+        controller: controller,
+        onChanged: onChanged,
+        textInputAction: TextInputAction.search,
+        decoration: InputDecoration(
+          hintText: hint,
+          prefixIcon: const Icon(Icons.search),
+          suffixIcon: controller.text.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.close),
+                  tooltip: MaterialLocalizations.of(context).clearButtonTooltip,
+                  onPressed: onClear,
+                )
+              : null,
+          filled: true,
+          fillColor: Theme.of(context).colorScheme.surfaceContainerHigh,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 14,
+          ),
+        ),
+      ),
     );
   }
 }

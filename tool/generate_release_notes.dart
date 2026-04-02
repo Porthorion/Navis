@@ -76,6 +76,10 @@ const List<_Version> _changelogs = [
       type: _EntryType.newFeature,
     ),
     _Entry(
+      'Added search to the Downloads page — filter your queue and downloaded songs by title or artist',
+      type: _EntryType.newFeature,
+    ),
+    _Entry(
       "Added What's New page in About settings showing what changed in the current version",
       type: _EntryType.newFeature,
     ),
