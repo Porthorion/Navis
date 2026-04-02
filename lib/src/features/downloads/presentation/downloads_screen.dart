@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +10,7 @@ import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
+import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/utils/file_utils.dart';
@@ -244,7 +247,11 @@ class _DownloadedTab extends ConsumerWidget {
           itemCount: tracks.length,
           itemBuilder: (context, index) {
             final track = tracks[index];
-            return _DownloadedTrackTile(track: track);
+            return _DownloadedTrackTile(
+              track: track,
+              allTracks: tracks,
+              trackIndex: index,
+            );
           },
         );
       },
@@ -258,9 +265,15 @@ class _DownloadedTab extends ConsumerWidget {
 }
 
 class _DownloadedTrackTile extends ConsumerWidget {
-  const _DownloadedTrackTile({required this.track});
+  const _DownloadedTrackTile({
+    required this.track,
+    required this.allTracks,
+    required this.trackIndex,
+  });
 
   final CachedTracksTableData track;
+  final List<CachedTracksTableData> allTracks;
+  final int trackIndex;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -300,6 +313,14 @@ class _DownloadedTrackTile extends ConsumerWidget {
         tooltip: l10n.downloadsRemoveAction,
         onPressed: () => _confirmAndDelete(context, ref, track, l10n),
       ),
+      onTap: () {
+        final queue = allTracks.map((t) => t.songId).toList(growable: false);
+        unawaited(
+          ref
+              .read(queueProvider.notifier)
+              .replace(queue, startIndex: trackIndex, autoPlay: true),
+        );
+      },
       onLongPress: () => _showTrackMenu(context, ref, track, l10n),
     );
   }
@@ -352,6 +373,21 @@ class _DownloadedTrackTile extends ConsumerWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
+              ListTile(
+                leading: const Icon(Icons.play_arrow_outlined),
+                title: Text(l10n.librarySongMenuPlayNow),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  final queue = allTracks
+                      .map((t) => t.songId)
+                      .toList(growable: false);
+                  unawaited(
+                    ref
+                        .read(queueProvider.notifier)
+                        .replace(queue, startIndex: trackIndex, autoPlay: true),
+                  );
+                },
+              ),
               ListTile(
                 leading: const Icon(Icons.high_quality_outlined),
                 title: Text(l10n.downloadsRedownloadOriginal),
