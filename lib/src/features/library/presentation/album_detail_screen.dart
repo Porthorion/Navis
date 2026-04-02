@@ -663,17 +663,17 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
               // Keep _screenWidth in sync so the scroll listener can compute progress.
               _screenWidth = screenWidth;
 
-              // Gradient name: fades out by 40% scroll so it never overlaps toolbar.
+              // Gradient name: fully visible until 60% scroll, gone by 90%.
               final gradientScrollFade =
-                  (1.0 - _headerProgress * 2.5).clamp(0.0, 1.0);
+                  ((0.9 - _headerProgress) / 0.3).clamp(0.0, 1.0);
               // Enter animation: ease-out progress drives opacity + upward creep.
               final enterProgress =
                   Curves.easeOut.transform(_gradientEnterController.value);
               final gradientOpacity = enterProgress * gradientScrollFade;
               final gradientTranslateY = 20.0 * (1.0 - enterProgress);
-              // Toolbar title only fades in during the last 30% of the collapse.
+              // Toolbar title fades in during the last 20% of the collapse.
               final toolbarTitleOpacity =
-                  ((_headerProgress - 0.7) / 0.3).clamp(0.0, 1.0);
+                  ((_headerProgress - 0.8) / 0.2).clamp(0.0, 1.0);
 
               return CustomScrollView(
                 controller: _scrollController,
@@ -714,26 +714,39 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
                       background: Stack(
                         fit: StackFit.expand,
                         children: <Widget>[
-                          // Use showLoadingPlaceholder: false so after the hero
-                          // animation completes there is no icon-placeholder flash —
-                          // the background shows through until the full-res image
-                          // finishes loading and fades in.
-                          HeroCoverArt(
-                            coverArtId: details.coverArt,
-                            heroTag: coverArtHeroTag,
-                            size: screenWidth.toInt(),
-                            width: double.infinity,
-                            height: double.infinity,
-                            borderRadius: BorderRadius.zero,
-                            fit: BoxFit.cover,
-                            placeholderIcon: Icons.album_outlined,
-                            showLoadingPlaceholder: false,
-                            fadeInDuration:
-                                const Duration(milliseconds: 350),
+                          // ShaderMask makes the bottom of the image fade to
+                          // transparent, so the app background shows through
+                          // naturally regardless of theme.
+                          ShaderMask(
+                            shaderCallback: (bounds) =>
+                                const LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: <Color>[
+                                    Colors.white,
+                                    Colors.white,
+                                    Colors.transparent,
+                                  ],
+                                  stops: <double>[0.0, 0.45, 1.0],
+                                ).createShader(bounds),
+                            blendMode: BlendMode.dstIn,
+                            child: HeroCoverArt(
+                              coverArtId: details.coverArt,
+                              heroTag: coverArtHeroTag,
+                              size: screenWidth.toInt(),
+                              width: double.infinity,
+                              height: double.infinity,
+                              borderRadius: BorderRadius.zero,
+                              fit: BoxFit.cover,
+                              placeholderIcon: Icons.album_outlined,
+                              showLoadingPlaceholder: false,
+                              fadeInDuration:
+                                  const Duration(milliseconds: 350),
+                            ),
                           ),
-                          // Deep gradient + album name. Fades/creeps in on enter,
-                          // then fades out as the header collapses so it never
-                          // simultaneously shows with the toolbar title.
+                          // Album name over a soft black scrim. Fades/creeps in
+                          // on enter, then fades out before the toolbar title
+                          // appears — no overlap.
                           Positioned(
                             bottom: 0,
                             left: 0,
@@ -742,33 +755,27 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
                               offset: Offset(0, gradientTranslateY),
                               child: Opacity(
                                 opacity: gradientOpacity,
-                                child: Container(
+                                child: Padding(
                                   padding: const EdgeInsets.fromLTRB(
                                     16,
-                                    160,
+                                    0,
                                     16,
                                     16,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                      colors: <Color>[
-                                        Colors.transparent,
-                                        mobileColors.surface.withValues(
-                                          alpha: 0.7,
-                                        ),
-                                        mobileColors.surface,
-                                      ],
-                                      stops: const <double>[0.0, 0.5, 1.0],
-                                    ),
                                   ),
                                   child: Text(
                                     details.name,
-                                    style: mobileTextTheme.headlineLarge
+                                    style: mobileTextTheme.displaySmall
                                         ?.copyWith(
                                           fontWeight: FontWeight.bold,
                                           color: Colors.white,
+                                          shadows: <Shadow>[
+                                            Shadow(
+                                              color: Colors.black.withValues(
+                                                alpha: 0.5,
+                                              ),
+                                              blurRadius: 8,
+                                            ),
+                                          ],
                                         ),
                                     textAlign: TextAlign.center,
                                     maxLines: 2,
@@ -788,7 +795,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
                           children: <Widget>[
                             // Artist name (clickable) + year
                             Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
+                              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                               child: Row(
                                 children: <Widget>[
                                   if (details.artistId != null &&
