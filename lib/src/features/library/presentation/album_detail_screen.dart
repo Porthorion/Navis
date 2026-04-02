@@ -748,9 +748,9 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
                                   showErrorPlaceholder: false,
                                   fadeInDuration: Duration.zero,
                                 ),
-                                // Full-res hero layer: fades in on top of the
-                                // low-res once loaded; the hero handles the
-                                // animated navigation transition.
+                                // Full-res hero layer: snaps in instantly on top
+                                // of the low-res once loaded — no fade means no
+                                // transparent phase where art disappears.
                                 HeroCoverArt(
                                   coverArtId: details.coverArt,
                                   heroTag: coverArtHeroTag,
@@ -761,8 +761,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
                                   fit: BoxFit.cover,
                                   placeholderIcon: Icons.album_outlined,
                                   showLoadingPlaceholder: false,
-                                  fadeInDuration:
-                                      const Duration(milliseconds: 350),
+                                  fadeInDuration: Duration.zero,
                                 ),
                               ],
                             ),
@@ -779,15 +778,15 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen>
                               child: Opacity(
                                 opacity: gradientOpacity,
                                 child: Padding(
-                                  padding: EdgeInsets.fromLTRB(
+                                  padding: const EdgeInsets.fromLTRB(
                                     16,
                                     0,
                                     16,
-                                    screenWidth * 0.25,
+                                    16,
                                   ),
                                   child: Text(
                                     details.name,
-                                    style: mobileTextTheme.displaySmall
+                                    style: mobileTextTheme.displayMedium
                                         ?.copyWith(
                                           fontWeight: FontWeight.bold,
                                           color: Colors.white,
