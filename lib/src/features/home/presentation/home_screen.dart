@@ -21,6 +21,7 @@ import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/changelog/changelog_data.dart';
 import 'package:navis/src/features/changelog/changelog_dialog.dart';
 import 'package:navis/src/features/changelog/changelog_provider.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
