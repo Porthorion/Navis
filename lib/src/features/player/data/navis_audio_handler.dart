@@ -2461,9 +2461,11 @@ class NavisAudioHandler extends BaseAudioHandler
       final batchEnd = math.min(i + batchSize, beforeStart.length);
       final batch = beforeStart.sublist(i, batchEnd);
       final prepared = await Future.wait(
-        batch.map((s) => _prepareSingleItem(s, preferLockCaching: true)
-            .catchError((Object error) =>
-                _prepareSingleItem(s, preferLockCaching: false))),
+        batch.map(
+          (s) => _prepareSingleItem(s, preferLockCaching: true).catchError(
+            (Object error) => _prepareSingleItem(s, preferLockCaching: false),
+          ),
+        ),
       );
 
       token.checkCancelled();
@@ -2479,9 +2481,11 @@ class NavisAudioHandler extends BaseAudioHandler
       final batchEnd = math.min(i + batchSize, afterStart.length);
       final batch = afterStart.sublist(i, batchEnd);
       final prepared = await Future.wait(
-        batch.map((s) => _prepareSingleItem(s, preferLockCaching: true)
-            .catchError((Object error) =>
-                _prepareSingleItem(s, preferLockCaching: false))),
+        batch.map(
+          (s) => _prepareSingleItem(s, preferLockCaching: true).catchError(
+            (Object error) => _prepareSingleItem(s, preferLockCaching: false),
+          ),
+        ),
       );
 
       token.checkCancelled();
@@ -2802,7 +2806,21 @@ class NavisAudioHandler extends BaseAudioHandler
 
   /// Like [replaceQueue] but accepts pre-fetched [SongsTableData] rows,
   /// bypassing the library DAO read.  Used by UI screens that already hold the
-  /// song data in memory so playback is not delayed by a sync write transaction.
+  /// song data in memory (album detail, liked songs) so the song list does not
+  /// need to be re-fetched from the database.
+  ///
+  /// Unlike the two-phase approach used by [replaceQueue], this method resolves
+  /// all audio sources in a single pass and then calls [_setAudioSourcesWithFallback]
+  /// atomically via [_setQueueFromSongs].  This avoids the incremental
+  /// `insertAudioSource` / `playlist-move` path that `just_audio_media_kit`
+  /// uses when inserting items before the currently-playing position — a path
+  /// that fails on Linux because the underlying MPV `playlist-move` command
+  /// receives an out-of-bounds source index (off-by-one in
+  /// `just_audio_media_kit`'s `concatenatingInsertAll` implementation).
+  ///
+  /// Source resolution is purely local (URL construction + cache lookup) and
+  /// completes in < 10 ms even for large song lists, so the latency cost over
+  /// the two-phase approach is imperceptible.
   @override
   Future<void> replaceQueueWithData(
     List<SongsTableData> songs, {
@@ -2822,39 +2840,12 @@ class NavisAudioHandler extends BaseAudioHandler
       _radioMetadataService.stop();
       _radioStation = null;
 
-      // ── Phase 1 ──
-      // Songs are already in memory — skip the DB read and start playing
-      // the target song immediately.
-      final startItem = await _replaceQueuePhase1(
-        songs: songs,
+      await _setQueueFromSongs(
+        songs,
         startIndex: startIndex,
         autoPlay: autoPlay,
-        persist: false,
+        persist: true,
       );
-
-      if (startItem == null || songs.length <= 1) {
-        await _persistSafely(
-          () => _persistQueueState(includeQueueItems: true),
-          context: 'queue replacement with data (single song)',
-        );
-        return;
-      }
-
-      // ── Phase 2 ──
-      try {
-        token.checkCancelled();
-        await _replaceQueuePhase2(
-          songs: songs,
-          startIndex: startIndex,
-          startItem: startItem,
-          persist: true,
-          token: token,
-        );
-      } on OperationCancelledException {
-        AppLogger.debug(
-          'replaceQueueWithData Phase 2 cancelled — superseded by newer command.',
-        );
-      }
     });
   }
 
