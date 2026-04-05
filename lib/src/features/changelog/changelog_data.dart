@@ -27,6 +27,31 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
+    version: '0.9.6',
+    entries: [
+      ChangelogEntry(
+        'Tapping a song now starts playback almost instantly — the app no longer waits for the full queue to load before you hear audio',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Tapping a different song while one is still loading now cancels the previous load and plays the new song immediately',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Album, artist, and playlist screens stay fully interactive while a queue action is in progress',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Cached and offline songs now play immediately even while a library sync is running in the background',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Library sync no longer blocks playback — large song batches are broken into smaller database writes so reads can interleave',
+        type: ChangelogEntryType.improvement,
+      ),
+    ],
+  ),
+  ChangelogVersion(
     version: '0.9.5',
     entries: [
       ChangelogEntry(
