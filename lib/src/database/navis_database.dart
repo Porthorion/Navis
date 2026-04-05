@@ -730,10 +730,16 @@ class NavisDatabase extends _$NavisDatabase {
   }
 
   Future<void> from36To37(Migrator migrator) async {
-    if (!await _columnExists('app_settings', 'play_album_on_track_tap')) {
+    if (!await _columnExists('app_settings', 'album_queue_enabled')) {
       await migrator.addColumn(
         appSettingsTable,
-        appSettingsTable.playAlbumOnTrackTap,
+        appSettingsTable.albumQueueEnabled,
+      );
+    }
+    if (!await _columnExists('app_settings', 'liked_queue_enabled')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.likedQueueEnabled,
       );
     }
   }

@@ -126,11 +126,18 @@ final useLrclibProvider = Provider<bool>((ref) {
   return settings.useLrclib;
 });
 
-final playAlbumOnTrackTapProvider = Provider<bool>((ref) {
+final albumQueueEnabledProvider = Provider<bool>((ref) {
   final settings =
       ref.watch(appSettingsProvider).asData?.value ??
       const AppSettingsModel.defaults();
-  return settings.playAlbumOnTrackTap;
+  return settings.albumQueueEnabled;
+});
+
+final likedQueueEnabledProvider = Provider<bool>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.likedQueueEnabled;
 });
 
 final activeStreamingQualityProvider = Provider<StreamingQuality>((ref) {

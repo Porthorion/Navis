@@ -376,12 +376,18 @@ class AppLocalizationsEn extends AppLocalizations {
       'Adjust playback tempo (0.5× – 2.0×). Default: 1.0×.';
 
   @override
-  String get playbackSettingsQueueFullAlbumTitle =>
-      'Queue full album on track tap';
+  String get playbackSettingsAlbumQueueTitle => 'Album Queue';
 
   @override
-  String get playbackSettingsQueueFullAlbumSubtitle =>
+  String get playbackSettingsAlbumQueueSubtitle =>
       'Tapping a track in an album queues the entire album and starts playback at that track.';
+
+  @override
+  String get playbackSettingsLikedQueueTitle => 'Liked Queue';
+
+  @override
+  String get playbackSettingsLikedQueueSubtitle =>
+      'Tapping a track on the Liked page queues all your liked songs and starts at that track.';
 
   @override
   String get homeTitle => 'Home';

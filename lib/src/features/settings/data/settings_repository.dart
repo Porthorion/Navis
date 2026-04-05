@@ -69,7 +69,8 @@ class SettingsRepository {
       homeSectionsHidden: _encodeStringList(settings.homeSectionsHidden),
       desktopNavbarStyle: settings.desktopNavbarStyle,
       desktopNavbarAutohide: settings.desktopNavbarAutohide,
-      playAlbumOnTrackTap: settings.playAlbumOnTrackTap,
+      albumQueueEnabled: settings.albumQueueEnabled,
+      likedQueueEnabled: settings.likedQueueEnabled,
     );
   }
 
@@ -127,7 +128,8 @@ class SettingsRepository {
       homeSectionsHidden: _decodeStringList(row.homeSectionsHidden),
       desktopNavbarStyle: row.desktopNavbarStyle,
       desktopNavbarAutohide: row.desktopNavbarAutohide,
-      playAlbumOnTrackTap: row.playAlbumOnTrackTap,
+      albumQueueEnabled: row.albumQueueEnabled,
+      likedQueueEnabled: row.likedQueueEnabled,
     );
   }
 

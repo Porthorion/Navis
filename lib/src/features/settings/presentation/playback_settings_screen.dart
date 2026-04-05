@@ -49,7 +49,8 @@ class _PlaybackSettingsScreenState
   bool _legacyInstantMixEnabled = false;
   bool _gaplessEnabled = true;
   bool _fullscreenModeLyrics = false;
-  bool _playAlbumOnTrackTap = false;
+  bool _albumQueueEnabled = false;
+  bool _likedQueueEnabled = false;
   bool _equalizerEnabled = false;
   List<double> _equalizerBandGains = List<double>.filled(5, 0);
   bool _loudnessEnabled = false;
@@ -210,18 +211,32 @@ class _PlaybackSettingsScreenState
               ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                value: _playAlbumOnTrackTap,
+                value: _albumQueueEnabled,
                 onChanged: _isSaving
                     ? null
                     : (value) =>
-                        setState(() => _playAlbumOnTrackTap = value),
+                        setState(() => _albumQueueEnabled = value),
                 title: Text(
-                  l10n.playbackSettingsQueueFullAlbumTitle,
+                  l10n.playbackSettingsAlbumQueueTitle,
                 ),
                 subtitle: Text(
-                  l10n.playbackSettingsQueueFullAlbumSubtitle,
+                  l10n.playbackSettingsAlbumQueueSubtitle,
                 ),
               ),
+              if (_albumQueueEnabled)
+                Padding(
+                  padding: const EdgeInsets.only(left: 16),
+                  child: SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _likedQueueEnabled,
+                    onChanged: _isSaving
+                        ? null
+                        : (value) =>
+                            setState(() => _likedQueueEnabled = value),
+                    title: Text(l10n.playbackSettingsLikedQueueTitle),
+                    subtitle: Text(l10n.playbackSettingsLikedQueueSubtitle),
+                  ),
+                ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 value: _useLrclib,
@@ -653,7 +668,8 @@ class _PlaybackSettingsScreenState
     _legacyInstantMixEnabled = settings.legacyInstantMixEnabled;
     _gaplessEnabled = settings.gaplessEnabled || settings.crossfadeEnabled;
     _fullscreenModeLyrics = settings.skipSilenceEnabled;
-    _playAlbumOnTrackTap = settings.playAlbumOnTrackTap;
+    _albumQueueEnabled = settings.albumQueueEnabled;
+    _likedQueueEnabled = settings.likedQueueEnabled;
     _equalizerEnabled = settings.equalizerEnabled;
     _equalizerBandGains = _normalizeBandGains(settings.equalizerBandGains);
     _loudnessEnabled = settings.loudnessEnabled;
@@ -703,7 +719,8 @@ class _PlaybackSettingsScreenState
       _replayGainMode,
       _replayGainPreamp,
       _playbackSpeed,
-      _playAlbumOnTrackTap,
+      _albumQueueEnabled,
+      _likedQueueEnabled,
     ].join('|');
   }
 
@@ -769,7 +786,8 @@ class _PlaybackSettingsScreenState
         artistViewMode: currentSettings.artistViewMode,
         homeSectionOrder: currentSettings.homeSectionOrder,
         homeSectionsHidden: currentSettings.homeSectionsHidden,
-        playAlbumOnTrackTap: _playAlbumOnTrackTap,
+        albumQueueEnabled: _albumQueueEnabled,
+        likedQueueEnabled: _likedQueueEnabled,
       );
       await ref.read(settingsRepositoryProvider).saveSettings(settings);
       final handler = ref.read(audioHandlerProvider);

@@ -736,17 +736,29 @@ abstract class AppLocalizations {
   /// **'Adjust playback tempo (0.5× – 2.0×). Default: 1.0×.'**
   String get playbackSettingsPlaybackSpeedSubtitle;
 
-  /// No description provided for @playbackSettingsQueueFullAlbumTitle.
+  /// No description provided for @playbackSettingsAlbumQueueTitle.
   ///
   /// In en, this message translates to:
-  /// **'Queue full album on track tap'**
-  String get playbackSettingsQueueFullAlbumTitle;
+  /// **'Album Queue'**
+  String get playbackSettingsAlbumQueueTitle;
 
-  /// No description provided for @playbackSettingsQueueFullAlbumSubtitle.
+  /// No description provided for @playbackSettingsAlbumQueueSubtitle.
   ///
   /// In en, this message translates to:
   /// **'Tapping a track in an album queues the entire album and starts playback at that track.'**
-  String get playbackSettingsQueueFullAlbumSubtitle;
+  String get playbackSettingsAlbumQueueSubtitle;
+
+  /// No description provided for @playbackSettingsLikedQueueTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Liked Queue'**
+  String get playbackSettingsLikedQueueTitle;
+
+  /// No description provided for @playbackSettingsLikedQueueSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Tapping a track on the Liked page queues all your liked songs and starts at that track.'**
+  String get playbackSettingsLikedQueueSubtitle;
 
   /// No description provided for @homeTitle.
   ///

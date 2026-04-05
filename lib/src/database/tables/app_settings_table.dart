@@ -183,7 +183,13 @@ class AppSettingsTable extends Table {
 
   /// When true, tapping a track in an album queues the full album and starts
   /// at the selected track instead of queuing only that track. Default false.
-  BoolColumn get playAlbumOnTrackTap =>
+  BoolColumn get albumQueueEnabled =>
+      boolean().withDefault(const Constant(false))();
+
+  /// When true (and albumQueueEnabled is also true), tapping a track on the
+  /// Liked page queues all liked songs and starts at the selected track.
+  /// Default false.
+  BoolColumn get likedQueueEnabled =>
       boolean().withDefault(const Constant(false))();
 
   DateTimeColumn get updatedAt => dateTime()();

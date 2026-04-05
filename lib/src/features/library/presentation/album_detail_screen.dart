@@ -1193,7 +1193,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
   }
 
   void _playNow(SongsTableData song) {
-    final queueFullAlbum = ref.read(playAlbumOnTrackTapProvider);
+    final queueFullAlbum = ref.read(albumQueueEnabledProvider);
     if (queueFullAlbum && _currentFilteredSongs.length > 1) {
       final startIndex = _currentFilteredSongs.indexWhere(
         (s) => s.id == song.id,

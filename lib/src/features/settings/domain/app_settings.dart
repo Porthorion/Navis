@@ -51,7 +51,8 @@ class AppSettingsModel {
     required this.homeSectionsHidden,
     this.desktopNavbarStyle = 'comfortable',
     this.desktopNavbarAutohide = false,
-    this.playAlbumOnTrackTap = false,
+    this.albumQueueEnabled = false,
+    this.likedQueueEnabled = false,
   });
 
   const AppSettingsModel.defaults()
@@ -102,7 +103,8 @@ class AppSettingsModel {
       homeSectionsHidden = null,
       desktopNavbarStyle = 'comfortable',
       desktopNavbarAutohide = false,
-      playAlbumOnTrackTap = false;
+      albumQueueEnabled = false,
+      likedQueueEnabled = false;
 
   final int? wifiMaxBitRate;
   final String? wifiFormat;
@@ -184,7 +186,11 @@ class AppSettingsModel {
 
   /// When true, tapping a track in an album queues the full album and starts
   /// at the selected track instead of queuing only that track.
-  final bool playAlbumOnTrackTap;
+  final bool albumQueueEnabled;
+
+  /// When true (and [albumQueueEnabled] is also true), tapping a track on the
+  /// Liked page queues all liked songs and starts at the selected track.
+  final bool likedQueueEnabled;
 
   AppSettingsModel copyWith({
     int? wifiMaxBitRate,
@@ -234,7 +240,8 @@ class AppSettingsModel {
     List<String>? homeSectionsHidden,
     String? desktopNavbarStyle,
     bool? desktopNavbarAutohide,
-    bool? playAlbumOnTrackTap,
+    bool? albumQueueEnabled,
+    bool? likedQueueEnabled,
     bool clearWifiBitRate = false,
     bool clearWifiFormat = false,
     bool clearCellularBitRate = false,
@@ -320,7 +327,8 @@ class AppSettingsModel {
       desktopNavbarStyle: desktopNavbarStyle ?? this.desktopNavbarStyle,
       desktopNavbarAutohide:
           desktopNavbarAutohide ?? this.desktopNavbarAutohide,
-      playAlbumOnTrackTap: playAlbumOnTrackTap ?? this.playAlbumOnTrackTap,
+      albumQueueEnabled: albumQueueEnabled ?? this.albumQueueEnabled,
+      likedQueueEnabled: likedQueueEnabled ?? this.likedQueueEnabled,
     );
   }
 }

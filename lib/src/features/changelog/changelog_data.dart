@@ -30,6 +30,14 @@ const List<ChangelogVersion> changelogs = [
     version: '0.9.6',
     entries: [
       ChangelogEntry(
+        'Added Album Queue setting in Playback Settings — when enabled, tapping a track in an album queues the full album and starts at that track',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Added Liked Queue sub-setting — when enabled alongside Album Queue, tapping a track on the Liked page queues all liked songs and starts at that track',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
         'Tapping a song now starts playback almost instantly — the app no longer waits for the full queue to load before you hear audio',
         type: ChangelogEntryType.improvement,
       ),

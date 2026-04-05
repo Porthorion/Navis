@@ -1921,13 +1921,31 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                               ],
                             ),
                             onTap: () {
-                              ref
-                                  .read(queueProvider.notifier)
-                                  .replaceWithTableData(
-                                    <SongsTableData>[song],
-                                    autoPlay: true,
-                                  )
-                                  .ignore();
+                              final queueLiked =
+                                  ref.read(albumQueueEnabledProvider) &&
+                                  ref.read(likedQueueEnabledProvider);
+                              if (queueLiked && filteredSongs.length > 1) {
+                                final startIndex = filteredSongs.indexWhere(
+                                  (s) => s.id == song.id,
+                                );
+                                ref
+                                    .read(queueProvider.notifier)
+                                    .replaceWithTableData(
+                                      filteredSongs,
+                                      startIndex:
+                                          startIndex < 0 ? 0 : startIndex,
+                                      autoPlay: true,
+                                    )
+                                    .ignore();
+                              } else {
+                                ref
+                                    .read(queueProvider.notifier)
+                                    .replaceWithTableData(
+                                      <SongsTableData>[song],
+                                      autoPlay: true,
+                                    )
+                                    .ignore();
+                              }
                             },
                             onSecondaryTapDown: (details) =>
                                 showSongContextMenu(
@@ -1958,13 +1976,31 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                           ],
                         ),
                         onTap: () {
-                          ref
-                              .read(queueProvider.notifier)
-                              .replaceWithTableData(
-                                <SongsTableData>[song],
-                                autoPlay: true,
-                              )
-                              .ignore();
+                          final queueLiked =
+                              ref.read(albumQueueEnabledProvider) &&
+                              ref.read(likedQueueEnabledProvider);
+                          if (queueLiked && filteredSongs.length > 1) {
+                            final startIndex = filteredSongs.indexWhere(
+                              (s) => s.id == song.id,
+                            );
+                            ref
+                                .read(queueProvider.notifier)
+                                .replaceWithTableData(
+                                  filteredSongs,
+                                  startIndex:
+                                      startIndex < 0 ? 0 : startIndex,
+                                  autoPlay: true,
+                                )
+                                .ignore();
+                          } else {
+                            ref
+                                .read(queueProvider.notifier)
+                                .replaceWithTableData(
+                                  <SongsTableData>[song],
+                                  autoPlay: true,
+                                )
+                                .ignore();
+                          }
                         },
                         onLongPress: () =>
                             showSongContextMenu(this.context, ref, song),

@@ -1201,17 +1201,33 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
         defaultValue: const Constant(false),
       );
-  static const VerificationMeta _playAlbumOnTrackTapMeta =
-      const VerificationMeta('playAlbumOnTrackTap');
+  static const VerificationMeta _albumQueueEnabledMeta = const VerificationMeta(
+    'albumQueueEnabled',
+  );
   @override
-  late final GeneratedColumn<bool> playAlbumOnTrackTap = GeneratedColumn<bool>(
-    'play_album_on_track_tap',
+  late final GeneratedColumn<bool> albumQueueEnabled = GeneratedColumn<bool>(
+    'album_queue_enabled',
     aliasedName,
     false,
     type: DriftSqlType.bool,
     requiredDuringInsert: false,
     defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'CHECK ("play_album_on_track_tap" IN (0, 1))',
+      'CHECK ("album_queue_enabled" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _likedQueueEnabledMeta = const VerificationMeta(
+    'likedQueueEnabled',
+  );
+  @override
+  late final GeneratedColumn<bool> likedQueueEnabled = GeneratedColumn<bool>(
+    'liked_queue_enabled',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("liked_queue_enabled" IN (0, 1))',
     ),
     defaultValue: const Constant(false),
   );
@@ -1281,7 +1297,8 @@ class $AppSettingsTableTable extends AppSettingsTable
     homeSectionsHidden,
     desktopNavbarStyle,
     desktopNavbarAutohide,
-    playAlbumOnTrackTap,
+    albumQueueEnabled,
+    likedQueueEnabled,
     updatedAt,
   ];
   @override
@@ -1755,12 +1772,21 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
       );
     }
-    if (data.containsKey('play_album_on_track_tap')) {
+    if (data.containsKey('album_queue_enabled')) {
       context.handle(
-        _playAlbumOnTrackTapMeta,
-        playAlbumOnTrackTap.isAcceptableOrUnknown(
-          data['play_album_on_track_tap']!,
-          _playAlbumOnTrackTapMeta,
+        _albumQueueEnabledMeta,
+        albumQueueEnabled.isAcceptableOrUnknown(
+          data['album_queue_enabled']!,
+          _albumQueueEnabledMeta,
+        ),
+      );
+    }
+    if (data.containsKey('liked_queue_enabled')) {
+      context.handle(
+        _likedQueueEnabledMeta,
+        likedQueueEnabled.isAcceptableOrUnknown(
+          data['liked_queue_enabled']!,
+          _likedQueueEnabledMeta,
         ),
       );
     }
@@ -1993,9 +2019,13 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.bool,
         data['${effectivePrefix}desktop_navbar_autohide'],
       )!,
-      playAlbumOnTrackTap: attachedDatabase.typeMapping.read(
+      albumQueueEnabled: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
-        data['${effectivePrefix}play_album_on_track_tap'],
+        data['${effectivePrefix}album_queue_enabled'],
+      )!,
+      likedQueueEnabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}liked_queue_enabled'],
       )!,
       updatedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
@@ -2146,7 +2176,12 @@ class AppSettingsTableData extends DataClass
 
   /// When true, tapping a track in an album queues the full album and starts
   /// at the selected track instead of queuing only that track. Default false.
-  final bool playAlbumOnTrackTap;
+  final bool albumQueueEnabled;
+
+  /// When true (and albumQueueEnabled is also true), tapping a track on the
+  /// Liked page queues all liked songs and starts at the selected track.
+  /// Default false.
+  final bool likedQueueEnabled;
   final DateTime updatedAt;
   const AppSettingsTableData({
     required this.id,
@@ -2202,7 +2237,8 @@ class AppSettingsTableData extends DataClass
     this.homeSectionsHidden,
     required this.desktopNavbarStyle,
     required this.desktopNavbarAutohide,
-    required this.playAlbumOnTrackTap,
+    required this.albumQueueEnabled,
+    required this.likedQueueEnabled,
     required this.updatedAt,
   });
   @override
@@ -2297,7 +2333,8 @@ class AppSettingsTableData extends DataClass
     }
     map['desktop_navbar_style'] = Variable<String>(desktopNavbarStyle);
     map['desktop_navbar_autohide'] = Variable<bool>(desktopNavbarAutohide);
-    map['play_album_on_track_tap'] = Variable<bool>(playAlbumOnTrackTap);
+    map['album_queue_enabled'] = Variable<bool>(albumQueueEnabled);
+    map['liked_queue_enabled'] = Variable<bool>(likedQueueEnabled);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
   }
@@ -2385,7 +2422,8 @@ class AppSettingsTableData extends DataClass
           : Value(homeSectionsHidden),
       desktopNavbarStyle: Value(desktopNavbarStyle),
       desktopNavbarAutohide: Value(desktopNavbarAutohide),
-      playAlbumOnTrackTap: Value(playAlbumOnTrackTap),
+      albumQueueEnabled: Value(albumQueueEnabled),
+      likedQueueEnabled: Value(likedQueueEnabled),
       updatedAt: Value(updatedAt),
     );
   }
@@ -2487,9 +2525,8 @@ class AppSettingsTableData extends DataClass
       desktopNavbarAutohide: serializer.fromJson<bool>(
         json['desktopNavbarAutohide'],
       ),
-      playAlbumOnTrackTap: serializer.fromJson<bool>(
-        json['playAlbumOnTrackTap'],
-      ),
+      albumQueueEnabled: serializer.fromJson<bool>(json['albumQueueEnabled']),
+      likedQueueEnabled: serializer.fromJson<bool>(json['likedQueueEnabled']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
   }
@@ -2564,7 +2601,8 @@ class AppSettingsTableData extends DataClass
       'homeSectionsHidden': serializer.toJson<String?>(homeSectionsHidden),
       'desktopNavbarStyle': serializer.toJson<String>(desktopNavbarStyle),
       'desktopNavbarAutohide': serializer.toJson<bool>(desktopNavbarAutohide),
-      'playAlbumOnTrackTap': serializer.toJson<bool>(playAlbumOnTrackTap),
+      'albumQueueEnabled': serializer.toJson<bool>(albumQueueEnabled),
+      'likedQueueEnabled': serializer.toJson<bool>(likedQueueEnabled),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
   }
@@ -2623,7 +2661,8 @@ class AppSettingsTableData extends DataClass
     Value<String?> homeSectionsHidden = const Value.absent(),
     String? desktopNavbarStyle,
     bool? desktopNavbarAutohide,
-    bool? playAlbumOnTrackTap,
+    bool? albumQueueEnabled,
+    bool? likedQueueEnabled,
     DateTime? updatedAt,
   }) => AppSettingsTableData(
     id: id ?? this.id,
@@ -2710,7 +2749,8 @@ class AppSettingsTableData extends DataClass
         : this.homeSectionsHidden,
     desktopNavbarStyle: desktopNavbarStyle ?? this.desktopNavbarStyle,
     desktopNavbarAutohide: desktopNavbarAutohide ?? this.desktopNavbarAutohide,
-    playAlbumOnTrackTap: playAlbumOnTrackTap ?? this.playAlbumOnTrackTap,
+    albumQueueEnabled: albumQueueEnabled ?? this.albumQueueEnabled,
+    likedQueueEnabled: likedQueueEnabled ?? this.likedQueueEnabled,
     updatedAt: updatedAt ?? this.updatedAt,
   );
   AppSettingsTableData copyWithCompanion(AppSettingsTableCompanion data) {
@@ -2866,9 +2906,12 @@ class AppSettingsTableData extends DataClass
       desktopNavbarAutohide: data.desktopNavbarAutohide.present
           ? data.desktopNavbarAutohide.value
           : this.desktopNavbarAutohide,
-      playAlbumOnTrackTap: data.playAlbumOnTrackTap.present
-          ? data.playAlbumOnTrackTap.value
-          : this.playAlbumOnTrackTap,
+      albumQueueEnabled: data.albumQueueEnabled.present
+          ? data.albumQueueEnabled.value
+          : this.albumQueueEnabled,
+      likedQueueEnabled: data.likedQueueEnabled.present
+          ? data.likedQueueEnabled.value
+          : this.likedQueueEnabled,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
   }
@@ -2931,7 +2974,8 @@ class AppSettingsTableData extends DataClass
           ..write('homeSectionsHidden: $homeSectionsHidden, ')
           ..write('desktopNavbarStyle: $desktopNavbarStyle, ')
           ..write('desktopNavbarAutohide: $desktopNavbarAutohide, ')
-          ..write('playAlbumOnTrackTap: $playAlbumOnTrackTap, ')
+          ..write('albumQueueEnabled: $albumQueueEnabled, ')
+          ..write('likedQueueEnabled: $likedQueueEnabled, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
@@ -2992,7 +3036,8 @@ class AppSettingsTableData extends DataClass
     homeSectionsHidden,
     desktopNavbarStyle,
     desktopNavbarAutohide,
-    playAlbumOnTrackTap,
+    albumQueueEnabled,
+    likedQueueEnabled,
     updatedAt,
   ]);
   @override
@@ -3053,7 +3098,8 @@ class AppSettingsTableData extends DataClass
           other.homeSectionsHidden == this.homeSectionsHidden &&
           other.desktopNavbarStyle == this.desktopNavbarStyle &&
           other.desktopNavbarAutohide == this.desktopNavbarAutohide &&
-          other.playAlbumOnTrackTap == this.playAlbumOnTrackTap &&
+          other.albumQueueEnabled == this.albumQueueEnabled &&
+          other.likedQueueEnabled == this.likedQueueEnabled &&
           other.updatedAt == this.updatedAt);
 }
 
@@ -3111,7 +3157,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<String?> homeSectionsHidden;
   final Value<String> desktopNavbarStyle;
   final Value<bool> desktopNavbarAutohide;
-  final Value<bool> playAlbumOnTrackTap;
+  final Value<bool> albumQueueEnabled;
+  final Value<bool> likedQueueEnabled;
   final Value<DateTime> updatedAt;
   const AppSettingsTableCompanion({
     this.id = const Value.absent(),
@@ -3167,7 +3214,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.homeSectionsHidden = const Value.absent(),
     this.desktopNavbarStyle = const Value.absent(),
     this.desktopNavbarAutohide = const Value.absent(),
-    this.playAlbumOnTrackTap = const Value.absent(),
+    this.albumQueueEnabled = const Value.absent(),
+    this.likedQueueEnabled = const Value.absent(),
     this.updatedAt = const Value.absent(),
   });
   AppSettingsTableCompanion.insert({
@@ -3224,7 +3272,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.homeSectionsHidden = const Value.absent(),
     this.desktopNavbarStyle = const Value.absent(),
     this.desktopNavbarAutohide = const Value.absent(),
-    this.playAlbumOnTrackTap = const Value.absent(),
+    this.albumQueueEnabled = const Value.absent(),
+    this.likedQueueEnabled = const Value.absent(),
     required DateTime updatedAt,
   }) : updatedAt = Value(updatedAt);
   static Insertable<AppSettingsTableData> custom({
@@ -3281,7 +3330,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<String>? homeSectionsHidden,
     Expression<String>? desktopNavbarStyle,
     Expression<bool>? desktopNavbarAutohide,
-    Expression<bool>? playAlbumOnTrackTap,
+    Expression<bool>? albumQueueEnabled,
+    Expression<bool>? likedQueueEnabled,
     Expression<DateTime>? updatedAt,
   }) {
     return RawValuesInsertable({
@@ -3360,8 +3410,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         'desktop_navbar_style': desktopNavbarStyle,
       if (desktopNavbarAutohide != null)
         'desktop_navbar_autohide': desktopNavbarAutohide,
-      if (playAlbumOnTrackTap != null)
-        'play_album_on_track_tap': playAlbumOnTrackTap,
+      if (albumQueueEnabled != null) 'album_queue_enabled': albumQueueEnabled,
+      if (likedQueueEnabled != null) 'liked_queue_enabled': likedQueueEnabled,
       if (updatedAt != null) 'updated_at': updatedAt,
     });
   }
@@ -3420,7 +3470,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<String?>? homeSectionsHidden,
     Value<String>? desktopNavbarStyle,
     Value<bool>? desktopNavbarAutohide,
-    Value<bool>? playAlbumOnTrackTap,
+    Value<bool>? albumQueueEnabled,
+    Value<bool>? likedQueueEnabled,
     Value<DateTime>? updatedAt,
   }) {
     return AppSettingsTableCompanion(
@@ -3485,7 +3536,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       desktopNavbarStyle: desktopNavbarStyle ?? this.desktopNavbarStyle,
       desktopNavbarAutohide:
           desktopNavbarAutohide ?? this.desktopNavbarAutohide,
-      playAlbumOnTrackTap: playAlbumOnTrackTap ?? this.playAlbumOnTrackTap,
+      albumQueueEnabled: albumQueueEnabled ?? this.albumQueueEnabled,
+      likedQueueEnabled: likedQueueEnabled ?? this.likedQueueEnabled,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
@@ -3674,10 +3726,11 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         desktopNavbarAutohide.value,
       );
     }
-    if (playAlbumOnTrackTap.present) {
-      map['play_album_on_track_tap'] = Variable<bool>(
-        playAlbumOnTrackTap.value,
-      );
+    if (albumQueueEnabled.present) {
+      map['album_queue_enabled'] = Variable<bool>(albumQueueEnabled.value);
+    }
+    if (likedQueueEnabled.present) {
+      map['liked_queue_enabled'] = Variable<bool>(likedQueueEnabled.value);
     }
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
@@ -3743,7 +3796,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('homeSectionsHidden: $homeSectionsHidden, ')
           ..write('desktopNavbarStyle: $desktopNavbarStyle, ')
           ..write('desktopNavbarAutohide: $desktopNavbarAutohide, ')
-          ..write('playAlbumOnTrackTap: $playAlbumOnTrackTap, ')
+          ..write('albumQueueEnabled: $albumQueueEnabled, ')
+          ..write('likedQueueEnabled: $likedQueueEnabled, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
@@ -12223,7 +12277,8 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<String?> homeSectionsHidden,
       Value<String> desktopNavbarStyle,
       Value<bool> desktopNavbarAutohide,
-      Value<bool> playAlbumOnTrackTap,
+      Value<bool> albumQueueEnabled,
+      Value<bool> likedQueueEnabled,
       required DateTime updatedAt,
     });
 typedef $$AppSettingsTableTableUpdateCompanionBuilder =
@@ -12281,7 +12336,8 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<String?> homeSectionsHidden,
       Value<String> desktopNavbarStyle,
       Value<bool> desktopNavbarAutohide,
-      Value<bool> playAlbumOnTrackTap,
+      Value<bool> albumQueueEnabled,
+      Value<bool> likedQueueEnabled,
       Value<DateTime> updatedAt,
     });
 
@@ -12559,8 +12615,13 @@ class $$AppSettingsTableTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<bool> get playAlbumOnTrackTap => $composableBuilder(
-    column: $table.playAlbumOnTrackTap,
+  ColumnFilters<bool> get albumQueueEnabled => $composableBuilder(
+    column: $table.albumQueueEnabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get likedQueueEnabled => $composableBuilder(
+    column: $table.likedQueueEnabled,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -12844,8 +12905,13 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<bool> get playAlbumOnTrackTap => $composableBuilder(
-    column: $table.playAlbumOnTrackTap,
+  ColumnOrderings<bool> get albumQueueEnabled => $composableBuilder(
+    column: $table.albumQueueEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get likedQueueEnabled => $composableBuilder(
+    column: $table.likedQueueEnabled,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -13121,8 +13187,13 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
-  GeneratedColumn<bool> get playAlbumOnTrackTap => $composableBuilder(
-    column: $table.playAlbumOnTrackTap,
+  GeneratedColumn<bool> get albumQueueEnabled => $composableBuilder(
+    column: $table.albumQueueEnabled,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get likedQueueEnabled => $composableBuilder(
+    column: $table.likedQueueEnabled,
     builder: (column) => column,
   );
 
@@ -13221,7 +13292,8 @@ class $$AppSettingsTableTableTableManager
                 Value<String?> homeSectionsHidden = const Value.absent(),
                 Value<String> desktopNavbarStyle = const Value.absent(),
                 Value<bool> desktopNavbarAutohide = const Value.absent(),
-                Value<bool> playAlbumOnTrackTap = const Value.absent(),
+                Value<bool> albumQueueEnabled = const Value.absent(),
+                Value<bool> likedQueueEnabled = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
               }) => AppSettingsTableCompanion(
                 id: id,
@@ -13277,7 +13349,8 @@ class $$AppSettingsTableTableTableManager
                 homeSectionsHidden: homeSectionsHidden,
                 desktopNavbarStyle: desktopNavbarStyle,
                 desktopNavbarAutohide: desktopNavbarAutohide,
-                playAlbumOnTrackTap: playAlbumOnTrackTap,
+                albumQueueEnabled: albumQueueEnabled,
+                likedQueueEnabled: likedQueueEnabled,
                 updatedAt: updatedAt,
               ),
           createCompanionCallback:
@@ -13336,7 +13409,8 @@ class $$AppSettingsTableTableTableManager
                 Value<String?> homeSectionsHidden = const Value.absent(),
                 Value<String> desktopNavbarStyle = const Value.absent(),
                 Value<bool> desktopNavbarAutohide = const Value.absent(),
-                Value<bool> playAlbumOnTrackTap = const Value.absent(),
+                Value<bool> albumQueueEnabled = const Value.absent(),
+                Value<bool> likedQueueEnabled = const Value.absent(),
                 required DateTime updatedAt,
               }) => AppSettingsTableCompanion.insert(
                 id: id,
@@ -13392,7 +13466,8 @@ class $$AppSettingsTableTableTableManager
                 homeSectionsHidden: homeSectionsHidden,
                 desktopNavbarStyle: desktopNavbarStyle,
                 desktopNavbarAutohide: desktopNavbarAutohide,
-                playAlbumOnTrackTap: playAlbumOnTrackTap,
+                albumQueueEnabled: albumQueueEnabled,
+                likedQueueEnabled: likedQueueEnabled,
                 updatedAt: updatedAt,
               ),
           withReferenceMapper: (p0) => p0
