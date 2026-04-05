@@ -1921,9 +1921,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                               ],
                             ),
                             onTap: () {
-                              ref.read(queueProvider.notifier).replace(<String>[
-                                song.id,
-                              ], autoPlay: true).ignore();
+                              ref
+                                  .read(queueProvider.notifier)
+                                  .replaceWithTableData(
+                                    <SongsTableData>[song],
+                                    autoPlay: true,
+                                  )
+                                  .ignore();
                             },
                             onSecondaryTapDown: (details) =>
                                 showSongContextMenu(
@@ -1954,9 +1958,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                           ],
                         ),
                         onTap: () {
-                          ref.read(queueProvider.notifier).replace(<String>[
-                            song.id,
-                          ], autoPlay: true).ignore();
+                          ref
+                              .read(queueProvider.notifier)
+                              .replaceWithTableData(
+                                <SongsTableData>[song],
+                                autoPlay: true,
+                              )
+                              .ignore();
                         },
                         onLongPress: () =>
                             showSongContextMenu(this.context, ref, song),
@@ -2026,12 +2034,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     if (songs.isEmpty) {
       return;
     }
-    final queue = songs.map((song) => song.id).toList(growable: false);
+    final songsToQueue = List<SongsTableData>.of(songs);
     if (shuffle) {
-      queue.shuffle();
+      songsToQueue.shuffle();
     }
     try {
-      await ref.read(queueProvider.notifier).replace(queue, autoPlay: true);
+      await ref
+          .read(queueProvider.notifier)
+          .replaceWithTableData(songsToQueue, autoPlay: true);
     } on Object {
       if (!mounted) {
         return;

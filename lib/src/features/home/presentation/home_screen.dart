@@ -496,9 +496,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               desktopMode: desktopRuntime,
               adaptiveLayoutClass: adaptiveLayoutClass,
               onTap: (song) {
-                ref.read(queueProvider.notifier).replace(<String>[
-                  song.id,
-                ], autoPlay: true).ignore();
+                ref
+                    .read(queueProvider.notifier)
+                    .replaceWithTableData(<SongsTableData>[song], autoPlay: true)
+                    .ignore();
               },
             ),
             emptyTitle: l10n.homeStarredEmptyTitle,
@@ -695,9 +696,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               desktopMode: desktopRuntime,
               adaptiveLayoutClass: adaptiveLayoutClass,
               onTap: (song) {
-                ref.read(queueProvider.notifier).replace(<String>[
-                  song.id,
-                ], autoPlay: true).ignore();
+                ref
+                    .read(queueProvider.notifier)
+                    .replaceWithTableData(<SongsTableData>[song], autoPlay: true)
+                    .ignore();
               },
             ),
             emptyTitle: l10n.homeMostPlayedTracksEmptyTitle,
@@ -741,9 +743,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               desktopMode: desktopRuntime,
               adaptiveLayoutClass: adaptiveLayoutClass,
               onTap: (song) {
-                ref.read(queueProvider.notifier).replace(<String>[
-                  song.id,
-                ], autoPlay: true).ignore();
+                ref
+                    .read(queueProvider.notifier)
+                    .replaceWithTableData(<SongsTableData>[song], autoPlay: true)
+                    .ignore();
               },
             ),
             emptyTitle: l10n.homeRecentlyPlayedTracksEmptyTitle,
@@ -1875,10 +1878,6 @@ class _DesktopRandomAlbumSongList extends ConsumerWidget {
       );
     }
 
-    final albumTrackIds = allSongs
-        .map((song) => song.id.trim())
-        .where((id) => id.isNotEmpty)
-        .toList(growable: false);
     const separatorHeight = 4.0;
     const preferredRowHeight = 52.0;
     const minRowHeight = 46.0;
@@ -1928,7 +1927,7 @@ class _DesktopRandomAlbumSongList extends ConsumerWidget {
             );
             return _DesktopRandomAlbumSongRow(
               song: song,
-              albumTrackIds: albumTrackIds,
+              albumTracks: allSongs,
               queueStartIndex: queueIndex < 0 ? index : queueIndex,
               displayIndex: index + 1,
               rowHeight: rowHeight,
@@ -1943,14 +1942,14 @@ class _DesktopRandomAlbumSongList extends ConsumerWidget {
 class _DesktopRandomAlbumSongRow extends ConsumerWidget {
   const _DesktopRandomAlbumSongRow({
     required this.song,
-    required this.albumTrackIds,
+    required this.albumTracks,
     required this.queueStartIndex,
     required this.displayIndex,
     required this.rowHeight,
   });
 
   final SongsTableData song;
-  final List<String> albumTrackIds;
+  final List<SongsTableData> albumTracks;
   final int queueStartIndex;
   final int displayIndex;
   final double rowHeight;
@@ -1990,8 +1989,8 @@ class _DesktopRandomAlbumSongRow extends ConsumerWidget {
             unawaited(
               ref
                   .read(queueProvider.notifier)
-                  .replace(
-                    albumTrackIds,
+                  .replaceWithTableData(
+                    albumTracks,
                     startIndex: queueStartIndex,
                     autoPlay: true,
                   ),

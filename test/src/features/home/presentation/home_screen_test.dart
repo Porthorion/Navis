@@ -106,6 +106,19 @@ class _QueueSpyController extends QueueController {
     lastAutoPlay = autoPlay;
     state = List<String>.unmodifiable(ids);
   }
+
+  @override
+  Future<void> replaceWithTableData(
+    List<SongsTableData> songs, {
+    int startIndex = 0,
+    bool autoPlay = true,
+  }) async {
+    final ids = songs.map((s) => s.id).toList(growable: false);
+    lastReplaceIds = List<String>.unmodifiable(ids);
+    lastStartIndex = startIndex;
+    lastAutoPlay = autoPlay;
+    state = List<String>.unmodifiable(ids);
+  }
 }
 
 SongsTableData _songRow({

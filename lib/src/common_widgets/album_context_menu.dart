@@ -240,12 +240,7 @@ Future<void> _showDesktopAlbumContextMenu(
       if (songs.isEmpty) {
         return;
       }
-      final songIds = songs
-          .map((song) => song.id)
-          .toList(
-            growable: false,
-          );
-      await ref.read(queueProvider.notifier).replace(songIds);
+      await ref.read(queueProvider.notifier).replaceWithTableData(songs);
       return;
     case _AlbumContextAction.addToQueue:
       final localizations = AppLocalizations.of(context)!;

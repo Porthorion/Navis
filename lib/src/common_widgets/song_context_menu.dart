@@ -79,9 +79,9 @@ Future<void> showSongContextMenu(
                       onTap: () {
                         Navigator.of(sheetContext).pop();
                         unawaited(
-                          ref.read(queueProvider.notifier).replace(<String>[
-                            song.id,
-                          ]),
+                          ref
+                              .read(queueProvider.notifier)
+                              .replaceWithTableData(<SongsTableData>[song]),
                         );
                       },
                     ),
@@ -379,7 +379,9 @@ Future<void> _showDesktopSongContextMenu(
 
   switch (action) {
     case _SongContextAction.playNow:
-      await ref.read(queueProvider.notifier).replace(<String>[song.id]);
+      await ref
+          .read(queueProvider.notifier)
+          .replaceWithTableData(<SongsTableData>[song]);
       return;
     case _SongContextAction.addQueue:
       await ref.read(queueProvider.notifier).add(song.id);

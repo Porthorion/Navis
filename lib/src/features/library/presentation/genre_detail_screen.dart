@@ -18,6 +18,7 @@ import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
+import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
 class GenreDetailScreen extends ConsumerWidget {
@@ -122,10 +123,13 @@ class GenreDetailScreen extends ConsumerWidget {
                       return TrackListTile(
                         song: song,
                         onTap: () {
-                          ref.read(queueProvider.notifier).replace(
-                            <String>[song.id],
-                            autoPlay: true,
-                          ).ignore();
+                          ref
+                              .read(queueProvider.notifier)
+                              .replaceWithTableData(
+                                <SongsTableData>[song],
+                                autoPlay: true,
+                              )
+                              .ignore();
                         },
                         onLongPress: () =>
                             showSongContextMenu(context, ref, song),
