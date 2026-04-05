@@ -2379,16 +2379,13 @@ class NavisAudioHandler extends BaseAudioHandler
       );
     }
 
-    // Build placeholder MediaItems for the full queue (metadata only, no
-    // source resolution needed).
+    // Phase 1 loads only the start song's audio source into the player at
+    // index 0.  _queueItems must contain only that one item so that the
+    // currentIndexStream listener (which fires at index 0 immediately after
+    // setAudioSource) maps index 0 → startItem.mediaItem, not the first
+    // album track.  Phase 2 will insert/append the remaining items.
     _queueItems.clear();
-    for (var i = 0; i < songs.length; i++) {
-      if (i == clampedIndex) {
-        _queueItems.add(startItem.mediaItem);
-      } else {
-        _queueItems.add(_buildMediaItemForSong(songs[i]));
-      }
-    }
+    _queueItems.add(startItem.mediaItem);
 
     // Set a single audio source on the player and start playback.
     await _player.stop();
@@ -2464,7 +2461,10 @@ class NavisAudioHandler extends BaseAudioHandler
       token.checkCancelled();
       for (var j = 0; j < prepared.length; j++) {
         final insertIdx = i + j;
-        _queueItems[insertIdx] = prepared[j].mediaItem;
+        // Use insert so _queueItems grows to match the expanding player
+        // playlist.  This keeps _queueItems[player.currentIndex] pointing
+        // at the correct (start) song as earlier items are prepended.
+        _queueItems.insert(insertIdx, prepared[j].mediaItem);
         await _player.insertAudioSource(insertIdx, prepared[j].audioSource);
       }
       _observeLockCacheForPrepared(prepared);
@@ -2484,9 +2484,8 @@ class NavisAudioHandler extends BaseAudioHandler
 
       token.checkCancelled();
       for (var j = 0; j < prepared.length; j++) {
-        final queueIdx = clampedIndex + 1 + i + j;
-        _queueItems[queueIdx] = prepared[j].mediaItem;
-        // Append after the existing sources in the player.
+        // Append to both the player and _queueItems so they stay in sync.
+        _queueItems.add(prepared[j].mediaItem);
         await _player.addAudioSource(prepared[j].audioSource);
       }
       _observeLockCacheForPrepared(prepared);
