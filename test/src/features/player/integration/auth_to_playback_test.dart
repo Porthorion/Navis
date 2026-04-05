@@ -2,6 +2,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/models/models.dart';
+import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
@@ -50,6 +51,16 @@ class _RecordingPlaybackHandler implements NavisPlaybackHandler {
   }) async {
     replaceQueueCalls += 1;
     lastQueue = List<String>.from(songIds);
+  }
+
+  @override
+  Future<void> replaceQueueWithData(
+    List<SongsTableData> songs, {
+    int startIndex = 0,
+    bool autoPlay = true,
+  }) async {
+    replaceQueueCalls += 1;
+    lastQueue = songs.map((s) => s.id).toList();
   }
 
   @override

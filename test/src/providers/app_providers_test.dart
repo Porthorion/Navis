@@ -162,6 +162,16 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
   }
 
   @override
+  Future<void> replaceQueueWithData(
+    List<SongsTableData> songs, {
+    int startIndex = 0,
+    bool autoPlay = true,
+  }) async {
+    final ids = songs.map((s) => s.id).toList(growable: false);
+    await replaceQueue(ids, startIndex: startIndex, autoPlay: autoPlay);
+  }
+
+  @override
   Future<void> seek(Duration position) async {
     _snapshot = _snapshot.copyWith(position: position);
     _controller.add(_snapshot);

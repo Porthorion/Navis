@@ -44,6 +44,16 @@ abstract class NavisPlaybackHandler {
     bool autoPlay,
   });
 
+  /// Like [replaceQueue] but accepts pre-fetched [SongsTableData] rows,
+  /// skipping the DB read entirely.  Use this when the caller already has the
+  /// song data in memory (e.g. album-detail, artist-detail, playlist screens)
+  /// to avoid a potentially-blocked read during an ongoing library sync.
+  Future<void> replaceQueueWithData(
+    List<SongsTableData> songs, {
+    int startIndex,
+    bool autoPlay,
+  });
+
   Future<void> addToQueue(List<String> songIds);
   Future<void> playNext(List<String> songIds);
   Future<void> playFromIndex(int index);
@@ -530,6 +540,17 @@ class WindowsNavisPlaybackHandler implements NavisPlaybackHandler {
   );
 
   @override
+  Future<void> replaceQueueWithData(
+    List<SongsTableData> songs, {
+    int startIndex = 0,
+    bool autoPlay = true,
+  }) => _delegate.replaceQueueWithData(
+    songs,
+    startIndex: startIndex,
+    autoPlay: autoPlay,
+  );
+
+  @override
   Future<void> addToQueue(List<String> songIds) =>
       _delegate.addToQueue(songIds);
 
@@ -667,6 +688,17 @@ class LinuxNavisPlaybackHandler implements NavisPlaybackHandler {
     bool autoPlay = true,
   }) => _delegate.replaceQueue(
     songIds,
+    startIndex: startIndex,
+    autoPlay: autoPlay,
+  );
+
+  @override
+  Future<void> replaceQueueWithData(
+    List<SongsTableData> songs, {
+    int startIndex = 0,
+    bool autoPlay = true,
+  }) => _delegate.replaceQueueWithData(
+    songs,
     startIndex: startIndex,
     autoPlay: autoPlay,
   );
@@ -2759,6 +2791,64 @@ class NavisAudioHandler extends BaseAudioHandler
         // is playing and placeholder items are visible in the queue.
         AppLogger.debug(
           'replaceQueue Phase 2 cancelled — superseded by newer command.',
+        );
+      }
+    });
+  }
+
+  /// Like [replaceQueue] but accepts pre-fetched [SongsTableData] rows,
+  /// bypassing the library DAO read.  Used by UI screens that already hold the
+  /// song data in memory so playback is not delayed by a sync write transaction.
+  @override
+  Future<void> replaceQueueWithData(
+    List<SongsTableData> songs, {
+    int startIndex = 0,
+    bool autoPlay = true,
+  }) {
+    if (songs.isEmpty) {
+      return _queueLane.run((_) async {
+        await _ready;
+        await _clearQueueInternal(persist: true);
+      });
+    }
+    return _queueLane.run((token) async {
+      await _ready;
+      token.checkCancelled();
+      _cancelCrossfade();
+      _radioMetadataService.stop();
+      _radioStation = null;
+
+      // ── Phase 1 ──
+      // Songs are already in memory — skip the DB read and start playing
+      // the target song immediately.
+      final startItem = await _replaceQueuePhase1(
+        songs: songs,
+        startIndex: startIndex,
+        autoPlay: autoPlay,
+        persist: false,
+      );
+
+      if (startItem == null || songs.length <= 1) {
+        await _persistSafely(
+          () => _persistQueueState(includeQueueItems: true),
+          context: 'queue replacement with data (single song)',
+        );
+        return;
+      }
+
+      // ── Phase 2 ──
+      try {
+        token.checkCancelled();
+        await _replaceQueuePhase2(
+          songs: songs,
+          startIndex: startIndex,
+          startItem: startItem,
+          persist: true,
+          token: token,
+        );
+      } on OperationCancelledException {
+        AppLogger.debug(
+          'replaceQueueWithData Phase 2 cancelled — superseded by newer command.',
         );
       }
     });

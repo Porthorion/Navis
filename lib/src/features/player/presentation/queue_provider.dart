@@ -63,6 +63,27 @@ class QueueController extends Notifier<List<String>> {
     );
   }
 
+  /// Like [replace] but accepts pre-fetched [SongsTableData] rows so the
+  /// audio handler can skip the library DAO read.  Use this from screens that
+  /// already have the song data in memory to avoid a DB read during sync.
+  Future<void> replaceWithTableData(
+    List<SongsTableData> songs, {
+    int startIndex = 0,
+    bool autoPlay = true,
+  }) async {
+    final handler = _requireHandler();
+    if (songs.isEmpty) {
+      await handler.clearQueue();
+      return;
+    }
+    final normalizedStartIndex = startIndex.clamp(0, songs.length - 1);
+    await handler.replaceQueueWithData(
+      songs,
+      startIndex: normalizedStartIndex,
+      autoPlay: autoPlay,
+    );
+  }
+
   Future<void> add(String id) async {
     final normalizedId = id.trim();
     if (normalizedId.isEmpty) {

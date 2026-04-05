@@ -1644,8 +1644,20 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
             ifAbsent: () => companions.length,
           );
         }
-        await _database.libraryDao.upsertSongs(chunkSongs);
-        metrics.addDbWriteBatch();
+        // Break upserts into 200-song sub-batches so the DB connection is
+        // released between batches and playback reads can interleave.
+        const _kSongSubBatchSize = 200;
+        for (var i = 0; i < chunkSongs.length; i += _kSongSubBatchSize) {
+          final subBatch = chunkSongs.sublist(
+            i,
+            (i + _kSongSubBatchSize).clamp(0, chunkSongs.length),
+          );
+          await _database.libraryDao.upsertSongs(subBatch);
+          metrics.addDbWriteBatch();
+          if (i + _kSongSubBatchSize < chunkSongs.length) {
+            await Future<void>.delayed(Duration.zero);
+          }
+        }
         await markHydrated(
           _collectHydratedAlbumIds(
             candidateAlbumIds: rawSongsByAlbum.keys,

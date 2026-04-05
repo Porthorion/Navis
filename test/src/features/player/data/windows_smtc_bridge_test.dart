@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/data/windows_smtc_bridge.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
@@ -272,6 +273,13 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
   @override
   Future<void> replaceQueue(
     List<String> songIds, {
+    int startIndex = 0,
+    bool autoPlay = true,
+  }) async {}
+
+  @override
+  Future<void> replaceQueueWithData(
+    List<SongsTableData> songs, {
     int startIndex = 0,
     bool autoPlay = true,
   }) async {}

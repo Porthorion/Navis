@@ -41,10 +41,12 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
     required bool shuffle,
   }) {
     if (songs.isEmpty) return;
-    final queue = songs.map((s) => s.id).toList();
-    if (shuffle) queue.shuffle(Random());
+    final songsToQueue = List<SongsTableData>.of(songs);
+    if (shuffle) songsToQueue.shuffle(Random());
     ref.read(queueProvider.notifier).fireAndForget(
-      () => ref.read(queueProvider.notifier).replace(queue, autoPlay: true),
+      () => ref
+          .read(queueProvider.notifier)
+          .replaceWithTableData(songsToQueue, autoPlay: true),
       label: 'replace',
     );
   }

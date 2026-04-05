@@ -57,6 +57,16 @@ class _DelayedReplaceHandler implements NavisPlaybackHandler {
   }
 
   @override
+  Future<void> replaceQueueWithData(
+    List<SongsTableData> songs, {
+    int startIndex = 0,
+    bool autoPlay = true,
+  }) async {
+    replaceCalls += 1;
+    await _gate.future;
+  }
+
+  @override
   Future<void> addToQueue(List<String> songIds) async {}
 
   @override

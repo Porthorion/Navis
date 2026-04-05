@@ -76,11 +76,10 @@ Future<void> showAlbumContextMenu(
                       ? null
                       : () {
                           Navigator.of(sheetContext).pop();
-                          final songIds = songs
-                              .map((s) => s.id)
-                              .toList(growable: false);
                           unawaited(
-                            ref.read(queueProvider.notifier).replace(songIds),
+                            ref
+                                .read(queueProvider.notifier)
+                                .replaceWithTableData(songs),
                           );
                         },
                 ),

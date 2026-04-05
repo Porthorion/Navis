@@ -410,20 +410,21 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
   }) {
     if (songs.isEmpty) return;
 
-    final queue = songs.map((s) => s.id).toList(growable: false);
-    if (shuffle) queue.shuffle(Random());
+    final songsToQueue = List<SongsTableData>.of(songs);
+    if (shuffle) songsToQueue.shuffle(Random());
     ref.read(queueProvider.notifier).fireAndForget(
-      () => ref.read(queueProvider.notifier).replace(queue),
+      () => ref
+          .read(queueProvider.notifier)
+          .replaceWithTableData(songsToQueue),
       label: 'replace',
     );
   }
 
   void _playNow(List<SongsTableData> songs, int index) {
-    final queue = songs.map((s) => s.id).toList(growable: false);
     ref.read(queueProvider.notifier).fireAndForget(
       () => ref
           .read(queueProvider.notifier)
-          .replace(queue, startIndex: index, autoPlay: true),
+          .replaceWithTableData(songs, startIndex: index, autoPlay: true),
       label: 'playNow',
     );
   }

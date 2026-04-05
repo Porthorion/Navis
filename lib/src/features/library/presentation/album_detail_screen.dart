@@ -1175,21 +1175,23 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
       return;
     }
 
-    final queue = songs.map((song) => song.id).toList(growable: false);
+    final songsToQueue = List<SongsTableData>.of(songs);
     if (shuffle) {
-      queue.shuffle(Random());
+      songsToQueue.shuffle(Random());
     }
     ref.read(queueProvider.notifier).fireAndForget(
-      () => ref.read(queueProvider.notifier).replace(queue),
+      () => ref
+          .read(queueProvider.notifier)
+          .replaceWithTableData(songsToQueue),
       label: 'replace',
     );
   }
 
   void _playNow(SongsTableData song) {
     ref.read(queueProvider.notifier).fireAndForget(
-      () => ref.read(queueProvider.notifier).replace(<String>[
-        song.id,
-      ], autoPlay: true),
+      () => ref
+          .read(queueProvider.notifier)
+          .replaceWithTableData(<SongsTableData>[song], autoPlay: true),
       label: 'playNow',
     );
   }
