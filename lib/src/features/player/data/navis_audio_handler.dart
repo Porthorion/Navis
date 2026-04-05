@@ -2447,7 +2447,15 @@ class NavisAudioHandler extends BaseAudioHandler
     // in the correct order.  First, resolve sources for the remaining songs.
     const batchSize = 5;
 
-    // Resolve songs before the start index and insert them before index 0.
+    // Resolve songs before the start index and insert them before the current
+    // position.  _queueItems is intentionally NOT updated during these inserts:
+    // the playbackEventStream fires position ticks on every event loop turn,
+    // and any _emitSnapshot() call between _queueItems.insert() and the player
+    // acknowledging the new currentIndex would produce a stale snapshot.
+    // Keeping _queueItems=[startSong] throughout Phase 2 means
+    // _mediaItemForIndex returns null for out-of-bounds indices, which falls
+    // back to _currentMediaItem (= startSong, set in Phase 1) — always correct.
+    // _queueItems is rebuilt atomically from allPrepared at the very end.
     for (var i = 0; i < beforeStart.length; i += batchSize) {
       token.checkCancelled();
       final batchEnd = math.min(i + batchSize, beforeStart.length);
@@ -2460,18 +2468,12 @@ class NavisAudioHandler extends BaseAudioHandler
 
       token.checkCancelled();
       for (var j = 0; j < prepared.length; j++) {
-        final insertIdx = i + j;
-        // Use insert so _queueItems grows to match the expanding player
-        // playlist.  This keeps _queueItems[player.currentIndex] pointing
-        // at the correct (start) song as earlier items are prepended.
-        _queueItems.insert(insertIdx, prepared[j].mediaItem);
-        await _player.insertAudioSource(insertIdx, prepared[j].audioSource);
+        await _player.insertAudioSource(i + j, prepared[j].audioSource);
       }
       _observeLockCacheForPrepared(prepared);
     }
 
-    // Resolve songs after the start index and append them after the
-    // (now shifted) start position.
+    // Resolve songs after the start index and append them.
     for (var i = 0; i < afterStart.length; i += batchSize) {
       token.checkCancelled();
       final batchEnd = math.min(i + batchSize, afterStart.length);
@@ -2484,26 +2486,20 @@ class NavisAudioHandler extends BaseAudioHandler
 
       token.checkCancelled();
       for (var j = 0; j < prepared.length; j++) {
-        // Append to both the player and _queueItems so they stay in sync.
-        _queueItems.add(prepared[j].mediaItem);
         await _player.addAudioSource(prepared[j].audioSource);
       }
       _observeLockCacheForPrepared(prepared);
     }
 
-    // Sync the crossfade deck now that all sources are in place.
+    // Build the full prepared list in album order for two purposes:
+    // (a) syncing the crossfade inactive deck, and
+    // (b) atomically rebuilding _queueItems now that all inserts are done.
+    // Resolving again is cheap — cache hit for all sources already inserted.
     final allPrepared = <_PreparedQueueItem>[];
-    // Rebuild the full prepared list in queue order for the inactive deck.
     for (var i = 0; i < songs.length; i++) {
       if (i == clampedIndex) {
         allPrepared.add(startItem);
       } else {
-        // The item at this index was resolved during Phase 2 — build a
-        // _PreparedQueueItem from the final MediaItem already in _queueItems.
-        // We need the resolved source to clone for the inactive deck; resolve
-        // it from the player's sequence (the AudioSource is already set).
-        // Since we can't easily extract the resolved source after insertion,
-        // we resolve again (cache hit is fast).
         try {
           token.checkCancelled();
           allPrepared.add(
@@ -2525,6 +2521,15 @@ class NavisAudioHandler extends BaseAudioHandler
       initialIndex: clampedIndex,
       initialPosition: _player.position,
     );
+
+    // Atomically update _queueItems from the fully resolved list.  This is
+    // the first point at which _queueItems reflects the complete queue, so
+    // _mediaItemForIndex(currentIndex) now returns the correct start song
+    // rather than null (which was causing the fallback to _currentMediaItem
+    // throughout Phase 2 — intentionally, to keep the display stable).
+    _queueItems
+      ..clear()
+      ..addAll(allPrepared.map((p) => p.mediaItem));
 
     queue.add(List<MediaItem>.unmodifiable(_queueItems));
     _broadcastPlaybackState();
