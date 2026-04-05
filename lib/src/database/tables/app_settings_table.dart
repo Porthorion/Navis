@@ -181,6 +181,11 @@ class AppSettingsTable extends Table {
   BoolColumn get desktopNavbarAutohide =>
       boolean().withDefault(const Constant(false))();
 
+  /// When true, tapping a track in an album queues the full album and starts
+  /// at the selected track instead of queuing only that track. Default false.
+  BoolColumn get playAlbumOnTrackTap =>
+      boolean().withDefault(const Constant(false))();
+
   DateTimeColumn get updatedAt => dateTime()();
 
   @override

@@ -51,6 +51,7 @@ class AppSettingsModel {
     required this.homeSectionsHidden,
     this.desktopNavbarStyle = 'comfortable',
     this.desktopNavbarAutohide = false,
+    this.playAlbumOnTrackTap = false,
   });
 
   const AppSettingsModel.defaults()
@@ -100,7 +101,8 @@ class AppSettingsModel {
       homeSectionOrder = null,
       homeSectionsHidden = null,
       desktopNavbarStyle = 'comfortable',
-      desktopNavbarAutohide = false;
+      desktopNavbarAutohide = false,
+      playAlbumOnTrackTap = false;
 
   final int? wifiMaxBitRate;
   final String? wifiFormat;
@@ -180,6 +182,10 @@ class AppSettingsModel {
   /// When true on desktop, the navigation sidebar autohides.
   final bool desktopNavbarAutohide;
 
+  /// When true, tapping a track in an album queues the full album and starts
+  /// at the selected track instead of queuing only that track.
+  final bool playAlbumOnTrackTap;
+
   AppSettingsModel copyWith({
     int? wifiMaxBitRate,
     String? wifiFormat,
@@ -228,6 +234,7 @@ class AppSettingsModel {
     List<String>? homeSectionsHidden,
     String? desktopNavbarStyle,
     bool? desktopNavbarAutohide,
+    bool? playAlbumOnTrackTap,
     bool clearWifiBitRate = false,
     bool clearWifiFormat = false,
     bool clearCellularBitRate = false,
@@ -313,6 +320,7 @@ class AppSettingsModel {
       desktopNavbarStyle: desktopNavbarStyle ?? this.desktopNavbarStyle,
       desktopNavbarAutohide:
           desktopNavbarAutohide ?? this.desktopNavbarAutohide,
+      playAlbumOnTrackTap: playAlbumOnTrackTap ?? this.playAlbumOnTrackTap,
     );
   }
 }

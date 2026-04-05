@@ -49,6 +49,7 @@ class _PlaybackSettingsScreenState
   bool _legacyInstantMixEnabled = false;
   bool _gaplessEnabled = true;
   bool _fullscreenModeLyrics = false;
+  bool _playAlbumOnTrackTap = false;
   bool _equalizerEnabled = false;
   List<double> _equalizerBandGains = List<double>.filled(5, 0);
   bool _loudnessEnabled = false;
@@ -206,6 +207,20 @@ class _PlaybackSettingsScreenState
                     : (value) => setState(() => _scrobbleEnabled = value),
                 title: Text(l10n.playbackSettingsScrobbleTitle),
                 subtitle: Text(l10n.playbackSettingsScrobbleSubtitle),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: _playAlbumOnTrackTap,
+                onChanged: _isSaving
+                    ? null
+                    : (value) =>
+                        setState(() => _playAlbumOnTrackTap = value),
+                title: Text(
+                  l10n.playbackSettingsQueueFullAlbumTitle,
+                ),
+                subtitle: Text(
+                  l10n.playbackSettingsQueueFullAlbumSubtitle,
+                ),
               ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
@@ -638,6 +653,7 @@ class _PlaybackSettingsScreenState
     _legacyInstantMixEnabled = settings.legacyInstantMixEnabled;
     _gaplessEnabled = settings.gaplessEnabled || settings.crossfadeEnabled;
     _fullscreenModeLyrics = settings.skipSilenceEnabled;
+    _playAlbumOnTrackTap = settings.playAlbumOnTrackTap;
     _equalizerEnabled = settings.equalizerEnabled;
     _equalizerBandGains = _normalizeBandGains(settings.equalizerBandGains);
     _loudnessEnabled = settings.loudnessEnabled;
@@ -687,6 +703,7 @@ class _PlaybackSettingsScreenState
       _replayGainMode,
       _replayGainPreamp,
       _playbackSpeed,
+      _playAlbumOnTrackTap,
     ].join('|');
   }
 
@@ -752,6 +769,7 @@ class _PlaybackSettingsScreenState
         artistViewMode: currentSettings.artistViewMode,
         homeSectionOrder: currentSettings.homeSectionOrder,
         homeSectionsHidden: currentSettings.homeSectionsHidden,
+        playAlbumOnTrackTap: _playAlbumOnTrackTap,
       );
       await ref.read(settingsRepositoryProvider).saveSettings(settings);
       final handler = ref.read(audioHandlerProvider);

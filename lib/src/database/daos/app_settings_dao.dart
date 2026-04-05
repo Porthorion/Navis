@@ -76,6 +76,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     String? homeSectionsHidden,
     String desktopNavbarStyle = 'comfortable',
     bool desktopNavbarAutohide = false,
+    bool playAlbumOnTrackTap = false,
   }) {
     return into(appSettingsTable).insertOnConflictUpdate(
       AppSettingsTableCompanion.insert(
@@ -127,6 +128,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         homeSectionsHidden: Value(homeSectionsHidden),
         desktopNavbarStyle: Value(desktopNavbarStyle),
         desktopNavbarAutohide: Value(desktopNavbarAutohide),
+        playAlbumOnTrackTap: Value(playAlbumOnTrackTap),
         updatedAt: DateTime.now(),
       ),
     );
@@ -179,6 +181,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       homeSectionsHidden: null,
       desktopNavbarStyle: 'comfortable',
       desktopNavbarAutohide: false,
+      playAlbumOnTrackTap: false,
     );
   }
 

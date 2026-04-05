@@ -1201,6 +1201,20 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
         defaultValue: const Constant(false),
       );
+  static const VerificationMeta _playAlbumOnTrackTapMeta =
+      const VerificationMeta('playAlbumOnTrackTap');
+  @override
+  late final GeneratedColumn<bool> playAlbumOnTrackTap = GeneratedColumn<bool>(
+    'play_album_on_track_tap',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("play_album_on_track_tap" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _updatedAtMeta = const VerificationMeta(
     'updatedAt',
   );
@@ -1267,6 +1281,7 @@ class $AppSettingsTableTable extends AppSettingsTable
     homeSectionsHidden,
     desktopNavbarStyle,
     desktopNavbarAutohide,
+    playAlbumOnTrackTap,
     updatedAt,
   ];
   @override
@@ -1740,6 +1755,15 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
       );
     }
+    if (data.containsKey('play_album_on_track_tap')) {
+      context.handle(
+        _playAlbumOnTrackTapMeta,
+        playAlbumOnTrackTap.isAcceptableOrUnknown(
+          data['play_album_on_track_tap']!,
+          _playAlbumOnTrackTapMeta,
+        ),
+      );
+    }
     if (data.containsKey('updated_at')) {
       context.handle(
         _updatedAtMeta,
@@ -1969,6 +1993,10 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.bool,
         data['${effectivePrefix}desktop_navbar_autohide'],
       )!,
+      playAlbumOnTrackTap: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}play_album_on_track_tap'],
+      )!,
       updatedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
@@ -2115,6 +2143,10 @@ class AppSettingsTableData extends DataClass
 
   /// When true on desktop, the navigation sidebar hides automatically. Default false.
   final bool desktopNavbarAutohide;
+
+  /// When true, tapping a track in an album queues the full album and starts
+  /// at the selected track instead of queuing only that track. Default false.
+  final bool playAlbumOnTrackTap;
   final DateTime updatedAt;
   const AppSettingsTableData({
     required this.id,
@@ -2170,6 +2202,7 @@ class AppSettingsTableData extends DataClass
     this.homeSectionsHidden,
     required this.desktopNavbarStyle,
     required this.desktopNavbarAutohide,
+    required this.playAlbumOnTrackTap,
     required this.updatedAt,
   });
   @override
@@ -2264,6 +2297,7 @@ class AppSettingsTableData extends DataClass
     }
     map['desktop_navbar_style'] = Variable<String>(desktopNavbarStyle);
     map['desktop_navbar_autohide'] = Variable<bool>(desktopNavbarAutohide);
+    map['play_album_on_track_tap'] = Variable<bool>(playAlbumOnTrackTap);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
   }
@@ -2351,6 +2385,7 @@ class AppSettingsTableData extends DataClass
           : Value(homeSectionsHidden),
       desktopNavbarStyle: Value(desktopNavbarStyle),
       desktopNavbarAutohide: Value(desktopNavbarAutohide),
+      playAlbumOnTrackTap: Value(playAlbumOnTrackTap),
       updatedAt: Value(updatedAt),
     );
   }
@@ -2452,6 +2487,9 @@ class AppSettingsTableData extends DataClass
       desktopNavbarAutohide: serializer.fromJson<bool>(
         json['desktopNavbarAutohide'],
       ),
+      playAlbumOnTrackTap: serializer.fromJson<bool>(
+        json['playAlbumOnTrackTap'],
+      ),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
   }
@@ -2526,6 +2564,7 @@ class AppSettingsTableData extends DataClass
       'homeSectionsHidden': serializer.toJson<String?>(homeSectionsHidden),
       'desktopNavbarStyle': serializer.toJson<String>(desktopNavbarStyle),
       'desktopNavbarAutohide': serializer.toJson<bool>(desktopNavbarAutohide),
+      'playAlbumOnTrackTap': serializer.toJson<bool>(playAlbumOnTrackTap),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
   }
@@ -2584,6 +2623,7 @@ class AppSettingsTableData extends DataClass
     Value<String?> homeSectionsHidden = const Value.absent(),
     String? desktopNavbarStyle,
     bool? desktopNavbarAutohide,
+    bool? playAlbumOnTrackTap,
     DateTime? updatedAt,
   }) => AppSettingsTableData(
     id: id ?? this.id,
@@ -2670,6 +2710,7 @@ class AppSettingsTableData extends DataClass
         : this.homeSectionsHidden,
     desktopNavbarStyle: desktopNavbarStyle ?? this.desktopNavbarStyle,
     desktopNavbarAutohide: desktopNavbarAutohide ?? this.desktopNavbarAutohide,
+    playAlbumOnTrackTap: playAlbumOnTrackTap ?? this.playAlbumOnTrackTap,
     updatedAt: updatedAt ?? this.updatedAt,
   );
   AppSettingsTableData copyWithCompanion(AppSettingsTableCompanion data) {
@@ -2825,6 +2866,9 @@ class AppSettingsTableData extends DataClass
       desktopNavbarAutohide: data.desktopNavbarAutohide.present
           ? data.desktopNavbarAutohide.value
           : this.desktopNavbarAutohide,
+      playAlbumOnTrackTap: data.playAlbumOnTrackTap.present
+          ? data.playAlbumOnTrackTap.value
+          : this.playAlbumOnTrackTap,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
   }
@@ -2887,6 +2931,7 @@ class AppSettingsTableData extends DataClass
           ..write('homeSectionsHidden: $homeSectionsHidden, ')
           ..write('desktopNavbarStyle: $desktopNavbarStyle, ')
           ..write('desktopNavbarAutohide: $desktopNavbarAutohide, ')
+          ..write('playAlbumOnTrackTap: $playAlbumOnTrackTap, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
@@ -2947,6 +2992,7 @@ class AppSettingsTableData extends DataClass
     homeSectionsHidden,
     desktopNavbarStyle,
     desktopNavbarAutohide,
+    playAlbumOnTrackTap,
     updatedAt,
   ]);
   @override
@@ -3007,6 +3053,7 @@ class AppSettingsTableData extends DataClass
           other.homeSectionsHidden == this.homeSectionsHidden &&
           other.desktopNavbarStyle == this.desktopNavbarStyle &&
           other.desktopNavbarAutohide == this.desktopNavbarAutohide &&
+          other.playAlbumOnTrackTap == this.playAlbumOnTrackTap &&
           other.updatedAt == this.updatedAt);
 }
 
@@ -3064,6 +3111,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<String?> homeSectionsHidden;
   final Value<String> desktopNavbarStyle;
   final Value<bool> desktopNavbarAutohide;
+  final Value<bool> playAlbumOnTrackTap;
   final Value<DateTime> updatedAt;
   const AppSettingsTableCompanion({
     this.id = const Value.absent(),
@@ -3119,6 +3167,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.homeSectionsHidden = const Value.absent(),
     this.desktopNavbarStyle = const Value.absent(),
     this.desktopNavbarAutohide = const Value.absent(),
+    this.playAlbumOnTrackTap = const Value.absent(),
     this.updatedAt = const Value.absent(),
   });
   AppSettingsTableCompanion.insert({
@@ -3175,6 +3224,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.homeSectionsHidden = const Value.absent(),
     this.desktopNavbarStyle = const Value.absent(),
     this.desktopNavbarAutohide = const Value.absent(),
+    this.playAlbumOnTrackTap = const Value.absent(),
     required DateTime updatedAt,
   }) : updatedAt = Value(updatedAt);
   static Insertable<AppSettingsTableData> custom({
@@ -3231,6 +3281,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<String>? homeSectionsHidden,
     Expression<String>? desktopNavbarStyle,
     Expression<bool>? desktopNavbarAutohide,
+    Expression<bool>? playAlbumOnTrackTap,
     Expression<DateTime>? updatedAt,
   }) {
     return RawValuesInsertable({
@@ -3309,6 +3360,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         'desktop_navbar_style': desktopNavbarStyle,
       if (desktopNavbarAutohide != null)
         'desktop_navbar_autohide': desktopNavbarAutohide,
+      if (playAlbumOnTrackTap != null)
+        'play_album_on_track_tap': playAlbumOnTrackTap,
       if (updatedAt != null) 'updated_at': updatedAt,
     });
   }
@@ -3367,6 +3420,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<String?>? homeSectionsHidden,
     Value<String>? desktopNavbarStyle,
     Value<bool>? desktopNavbarAutohide,
+    Value<bool>? playAlbumOnTrackTap,
     Value<DateTime>? updatedAt,
   }) {
     return AppSettingsTableCompanion(
@@ -3431,6 +3485,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       desktopNavbarStyle: desktopNavbarStyle ?? this.desktopNavbarStyle,
       desktopNavbarAutohide:
           desktopNavbarAutohide ?? this.desktopNavbarAutohide,
+      playAlbumOnTrackTap: playAlbumOnTrackTap ?? this.playAlbumOnTrackTap,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
@@ -3619,6 +3674,11 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         desktopNavbarAutohide.value,
       );
     }
+    if (playAlbumOnTrackTap.present) {
+      map['play_album_on_track_tap'] = Variable<bool>(
+        playAlbumOnTrackTap.value,
+      );
+    }
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
@@ -3683,6 +3743,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('homeSectionsHidden: $homeSectionsHidden, ')
           ..write('desktopNavbarStyle: $desktopNavbarStyle, ')
           ..write('desktopNavbarAutohide: $desktopNavbarAutohide, ')
+          ..write('playAlbumOnTrackTap: $playAlbumOnTrackTap, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
@@ -12162,6 +12223,7 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<String?> homeSectionsHidden,
       Value<String> desktopNavbarStyle,
       Value<bool> desktopNavbarAutohide,
+      Value<bool> playAlbumOnTrackTap,
       required DateTime updatedAt,
     });
 typedef $$AppSettingsTableTableUpdateCompanionBuilder =
@@ -12219,6 +12281,7 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<String?> homeSectionsHidden,
       Value<String> desktopNavbarStyle,
       Value<bool> desktopNavbarAutohide,
+      Value<bool> playAlbumOnTrackTap,
       Value<DateTime> updatedAt,
     });
 
@@ -12493,6 +12556,11 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<bool> get desktopNavbarAutohide => $composableBuilder(
     column: $table.desktopNavbarAutohide,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get playAlbumOnTrackTap => $composableBuilder(
+    column: $table.playAlbumOnTrackTap,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -12776,6 +12844,11 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get playAlbumOnTrackTap => $composableBuilder(
+    column: $table.playAlbumOnTrackTap,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
@@ -13048,6 +13121,11 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get playAlbumOnTrackTap => $composableBuilder(
+    column: $table.playAlbumOnTrackTap,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 }
@@ -13143,6 +13221,7 @@ class $$AppSettingsTableTableTableManager
                 Value<String?> homeSectionsHidden = const Value.absent(),
                 Value<String> desktopNavbarStyle = const Value.absent(),
                 Value<bool> desktopNavbarAutohide = const Value.absent(),
+                Value<bool> playAlbumOnTrackTap = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
               }) => AppSettingsTableCompanion(
                 id: id,
@@ -13198,6 +13277,7 @@ class $$AppSettingsTableTableTableManager
                 homeSectionsHidden: homeSectionsHidden,
                 desktopNavbarStyle: desktopNavbarStyle,
                 desktopNavbarAutohide: desktopNavbarAutohide,
+                playAlbumOnTrackTap: playAlbumOnTrackTap,
                 updatedAt: updatedAt,
               ),
           createCompanionCallback:
@@ -13256,6 +13336,7 @@ class $$AppSettingsTableTableTableManager
                 Value<String?> homeSectionsHidden = const Value.absent(),
                 Value<String> desktopNavbarStyle = const Value.absent(),
                 Value<bool> desktopNavbarAutohide = const Value.absent(),
+                Value<bool> playAlbumOnTrackTap = const Value.absent(),
                 required DateTime updatedAt,
               }) => AppSettingsTableCompanion.insert(
                 id: id,
@@ -13311,6 +13392,7 @@ class $$AppSettingsTableTableTableManager
                 homeSectionsHidden: homeSectionsHidden,
                 desktopNavbarStyle: desktopNavbarStyle,
                 desktopNavbarAutohide: desktopNavbarAutohide,
+                playAlbumOnTrackTap: playAlbumOnTrackTap,
                 updatedAt: updatedAt,
               ),
           withReferenceMapper: (p0) => p0

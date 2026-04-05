@@ -126,6 +126,13 @@ final useLrclibProvider = Provider<bool>((ref) {
   return settings.useLrclib;
 });
 
+final playAlbumOnTrackTapProvider = Provider<bool>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.playAlbumOnTrackTap;
+});
+
 final activeStreamingQualityProvider = Provider<StreamingQuality>((ref) {
   final networkType = ref.watch(networkTypeProvider);
   final settings =

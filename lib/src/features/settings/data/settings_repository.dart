@@ -69,6 +69,7 @@ class SettingsRepository {
       homeSectionsHidden: _encodeStringList(settings.homeSectionsHidden),
       desktopNavbarStyle: settings.desktopNavbarStyle,
       desktopNavbarAutohide: settings.desktopNavbarAutohide,
+      playAlbumOnTrackTap: settings.playAlbumOnTrackTap,
     );
   }
 
@@ -126,6 +127,7 @@ class SettingsRepository {
       homeSectionsHidden: _decodeStringList(row.homeSectionsHidden),
       desktopNavbarStyle: row.desktopNavbarStyle,
       desktopNavbarAutohide: row.desktopNavbarAutohide,
+      playAlbumOnTrackTap: row.playAlbumOnTrackTap,
     );
   }
 

@@ -736,6 +736,18 @@ abstract class AppLocalizations {
   /// **'Adjust playback tempo (0.5× – 2.0×). Default: 1.0×.'**
   String get playbackSettingsPlaybackSpeedSubtitle;
 
+  /// No description provided for @playbackSettingsQueueFullAlbumTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Queue full album on track tap'**
+  String get playbackSettingsQueueFullAlbumTitle;
+
+  /// No description provided for @playbackSettingsQueueFullAlbumSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Tapping a track in an album queues the entire album and starts playback at that track.'**
+  String get playbackSettingsQueueFullAlbumSubtitle;
+
   /// No description provided for @homeTitle.
   ///
   /// In en, this message translates to:

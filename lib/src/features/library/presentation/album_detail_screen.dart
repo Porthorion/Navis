@@ -53,6 +53,10 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
   late bool _showLikedOnly = widget.likedOnly;
   bool _showDownloadedOnly = false;
 
+  // Tracks the current visible (filtered) song list so _playNow can queue
+  // the full album when the "queue full album on track tap" setting is on.
+  List<SongsTableData> _currentFilteredSongs = const [];
+
   // Scroll-driven animation for the mobile header.
   final ScrollController _scrollController = ScrollController();
   double _headerProgress = 0.0; // 0 = art fully visible, 1 = fully collapsed
@@ -150,6 +154,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                     return true;
                   })
                   .toList(growable: false);
+              _currentFilteredSongs = filteredSongs;
               final isStarred = _isStarred || details.starred != null;
               final albumInfoAsync = ref.watch(
                 albumInfoProvider(widget.albumId),
@@ -1188,12 +1193,28 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
   }
 
   void _playNow(SongsTableData song) {
-    ref.read(queueProvider.notifier).fireAndForget(
-      () => ref
-          .read(queueProvider.notifier)
-          .replaceWithTableData(<SongsTableData>[song], autoPlay: true),
-      label: 'playNow',
-    );
+    final queueFullAlbum = ref.read(playAlbumOnTrackTapProvider);
+    if (queueFullAlbum && _currentFilteredSongs.length > 1) {
+      final startIndex = _currentFilteredSongs.indexWhere(
+        (s) => s.id == song.id,
+      );
+      final effectiveIndex = startIndex < 0 ? 0 : startIndex;
+      ref.read(queueProvider.notifier).fireAndForget(
+        () => ref.read(queueProvider.notifier).replaceWithTableData(
+          _currentFilteredSongs,
+          startIndex: effectiveIndex,
+          autoPlay: true,
+        ),
+        label: 'playNow',
+      );
+    } else {
+      ref.read(queueProvider.notifier).fireAndForget(
+        () => ref
+            .read(queueProvider.notifier)
+            .replaceWithTableData(<SongsTableData>[song], autoPlay: true),
+        label: 'playNow',
+      );
+    }
   }
 
   void _playNext(SongsTableData song) {
