@@ -14,7 +14,6 @@ import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
-import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
@@ -34,7 +33,6 @@ class PlaylistDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
-  bool _isQueueActionInFlight = false;
 
   @override
   void initState() {
@@ -190,28 +188,22 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                                 children: <Widget>[
                                   FilledButton.tonalIcon(
                                     onPressed:
-                                        visibleSongs.isEmpty ||
-                                            _isQueueActionInFlight
+                                        visibleSongs.isEmpty
                                         ? null
-                                        : () => unawaited(
-                                            _queuePlaylist(
-                                              visibleSongs,
-                                              shuffle: false,
-                                            ),
+                                        : () => _queuePlaylist(
+                                            visibleSongs,
+                                            shuffle: false,
                                           ),
                                     icon: const Icon(Icons.play_arrow_outlined),
                                     label: Text(l10n.playlistDetailPlayAction),
                                   ),
                                   FilledButton.tonalIcon(
                                     onPressed:
-                                        visibleSongs.isEmpty ||
-                                            _isQueueActionInFlight
+                                        visibleSongs.isEmpty
                                         ? null
-                                        : () => unawaited(
-                                            _queuePlaylist(
-                                              visibleSongs,
-                                              shuffle: true,
-                                            ),
+                                        : () => _queuePlaylist(
+                                            visibleSongs,
+                                            shuffle: true,
                                           ),
                                     icon: const Icon(Icons.shuffle_outlined),
                                     label: Text(
@@ -287,26 +279,22 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                           children: [
                             FilledButton.tonalIcon(
                               onPressed:
-                                  visibleSongs.isEmpty || _isQueueActionInFlight
+                                  visibleSongs.isEmpty
                                   ? null
-                                  : () => unawaited(
-                                      _queuePlaylist(
-                                        visibleSongs,
-                                        shuffle: false,
-                                      ),
+                                  : () => _queuePlaylist(
+                                      visibleSongs,
+                                      shuffle: false,
                                     ),
                               icon: const Icon(Icons.play_arrow_outlined),
                               label: Text(l10n.playlistDetailPlayAction),
                             ),
                             FilledButton.tonalIcon(
                               onPressed:
-                                  visibleSongs.isEmpty || _isQueueActionInFlight
+                                  visibleSongs.isEmpty
                                   ? null
-                                  : () => unawaited(
-                                      _queuePlaylist(
-                                        visibleSongs,
-                                        shuffle: true,
-                                      ),
+                                  : () => _queuePlaylist(
+                                      visibleSongs,
+                                      shuffle: true,
                                     ),
                               icon: const Icon(Icons.shuffle_outlined),
                               label: Text(l10n.playlistDetailShuffleAction),
@@ -353,29 +341,21 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                   type: MaterialType.transparency,
                   child: TrackListTile(
                     song: song,
-                    onTap: _isQueueActionInFlight
-                        ? null
-                        : () => unawaited(_playNow(visibleSongs, index)),
-                    onLongPress: _isQueueActionInFlight
-                        ? null
-                        : () => _showSongActions(song, entry.playlistIndex),
+                    onTap: () => _playNow(visibleSongs, index),
+                    onLongPress: () => _showSongActions(song, entry.playlistIndex),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: <Widget>[
                         SongDownloadStatusIcon(
                           songId: song.id,
-                          onDownload: _isQueueActionInFlight
-                              ? null
-                              : () => unawaited(_downloadSong(song)),
+                          onDownload: () => unawaited(_downloadSong(song)),
                         ),
                         IconButton(
                           icon: const Icon(Icons.more_vert),
-                          onPressed: _isQueueActionInFlight
-                              ? null
-                              : () => _showSongActions(
-                                  song,
-                                  entry.playlistIndex,
-                                ),
+                          onPressed: () => _showSongActions(
+                              song,
+                              entry.playlistIndex,
+                            ),
                         ),
                       ],
                     ),
@@ -395,26 +375,18 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                   type: MaterialType.transparency,
                   child: TrackListTile(
                     song: song,
-                    onTap: _isQueueActionInFlight
-                        ? null
-                        : () => unawaited(_playNow(songs, index)),
-                    onLongPress: _isQueueActionInFlight
-                        ? null
-                        : () => _showSongActions(song, index),
+                    onTap: () => _playNow(songs, index),
+                    onLongPress: () => _showSongActions(song, index),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: <Widget>[
                         SongDownloadStatusIcon(
                           songId: song.id,
-                          onDownload: _isQueueActionInFlight
-                              ? null
-                              : () => unawaited(_downloadSong(song)),
+                          onDownload: () => unawaited(_downloadSong(song)),
                         ),
                         IconButton(
                           icon: const Icon(Icons.more_vert),
-                          onPressed: _isQueueActionInFlight
-                              ? null
-                              : () => _showSongActions(song, index),
+                          onPressed: () => _showSongActions(song, index),
                         ),
                         ReorderableDragStartListener(
                           index: index,
@@ -432,28 +404,28 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     );
   }
 
-  Future<void> _queuePlaylist(
+  void _queuePlaylist(
     List<SongsTableData> songs, {
     required bool shuffle,
-  }) async {
-    if (songs.isEmpty || _isQueueActionInFlight) return;
+  }) {
+    if (songs.isEmpty) return;
 
     final queue = songs.map((s) => s.id).toList(growable: false);
     if (shuffle) queue.shuffle(Random());
-    await _runQueueAction(() async {
-      await ref.read(queueProvider.notifier).replace(queue);
-    });
+    ref.read(queueProvider.notifier).fireAndForget(
+      () => ref.read(queueProvider.notifier).replace(queue),
+      label: 'replace',
+    );
   }
 
-  Future<void> _playNow(List<SongsTableData> songs, int index) async {
-    if (_isQueueActionInFlight) return;
-
+  void _playNow(List<SongsTableData> songs, int index) {
     final queue = songs.map((s) => s.id).toList(growable: false);
-    await _runQueueAction(() async {
-      await ref
+    ref.read(queueProvider.notifier).fireAndForget(
+      () => ref
           .read(queueProvider.notifier)
-          .replace(queue, startIndex: index, autoPlay: true);
-    });
+          .replace(queue, startIndex: index, autoPlay: true),
+      label: 'playNow',
+    );
   }
 
   Future<void> _removeTrack(int songIndex) async {
@@ -559,9 +531,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                 if (visibleIndex < 0) {
                   return;
                 }
-                unawaited(
-                  _playNow(playableSongs, visibleIndex),
-                );
+                _playNow(playableSongs, visibleIndex);
               },
             ),
             ListTile(
@@ -569,10 +539,15 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
               title: Text(l10n.librarySongMenuAddToQueue),
               onTap: () {
                 Navigator.of(sheetContext).pop();
-                unawaited(
-                  _runQueueAction(() async {
-                    await ref.read(queueProvider.notifier).add(song.id);
-                  }, successMessage: l10n.librarySongAddedToQueue(song.title)),
+                ref.read(queueProvider.notifier).fireAndForget(
+                  () => ref.read(queueProvider.notifier).add(song.id),
+                  label: 'addToQueue',
+                );
+                // Optimistic success feedback.
+                AppNoticeMessenger.of(this.context).showSnackBar(
+                  SnackBar(
+                    content: Text(l10n.librarySongAddedToQueue(song.title)),
+                  ),
                 );
               },
             ),
@@ -581,12 +556,14 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
               title: Text(l10n.librarySongMenuPlayNext),
               onTap: () {
                 Navigator.of(sheetContext).pop();
-                unawaited(
-                  _runQueueAction(
-                    () async {
-                      await ref.read(queueProvider.notifier).playNext(song.id);
-                    },
-                    successMessage: l10n.librarySongPlayNextQueued(song.title),
+                ref.read(queueProvider.notifier).fireAndForget(
+                  () => ref.read(queueProvider.notifier).playNext(song.id),
+                  label: 'playNext',
+                );
+                // Optimistic success feedback.
+                AppNoticeMessenger.of(this.context).showSnackBar(
+                  SnackBar(
+                    content: Text(l10n.librarySongPlayNextQueued(song.title)),
                   ),
                 );
               },
@@ -741,50 +718,5 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     AppNoticeMessenger.of(context).showSnackBar(
       SnackBar(content: Text(l10n.downloadSongQueued)),
     );
-  }
-
-  String _playbackErrorMessage(AppLocalizations l10n, Object error) {
-    if (error is PlaybackUnavailableException) {
-      return switch (error.reason) {
-        PlaybackUnavailableReason.initializing =>
-          l10n.playbackUnavailableInitializing,
-        PlaybackUnavailableReason.startupFailed =>
-          l10n.playbackUnavailableStartupFailed,
-        PlaybackUnavailableReason.unavailable =>
-          l10n.playbackUnavailableGeneric,
-      };
-    }
-    if (error is PlaybackSourceUnavailableException) {
-      return l10n.playbackUnavailableSource;
-    }
-    return l10n.playbackActionFailed;
-  }
-
-  Future<void> _runQueueAction(
-    Future<void> Function() action, {
-    String? successMessage,
-  }) async {
-    if (_isQueueActionInFlight) return;
-
-    setState(() => _isQueueActionInFlight = true);
-    try {
-      await action();
-      if (mounted && successMessage != null && successMessage.isNotEmpty) {
-        final messenger = AppNoticeMessenger.of(context);
-        messenger
-          ..clearSnackBars()
-          ..showSnackBar(SnackBar(content: Text(successMessage)));
-      }
-    } on Object catch (error) {
-      if (!mounted) return;
-      final l10n = AppLocalizations.of(context)!;
-      AppNoticeMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_playbackErrorMessage(l10n, error))),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isQueueActionInFlight = false);
-      }
-    }
   }
 }

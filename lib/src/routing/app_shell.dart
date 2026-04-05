@@ -21,10 +21,12 @@ import 'package:navis/src/features/auth/presentation/server_reachability_provide
 import 'package:navis/src/features/downloads/presentation/auto_download_starred_dispatch_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 import 'package:navis/src/features/player/domain/instant_mix_state.dart';
 import 'package:navis/src/features/player/domain/same_vibes_state.dart';
 import 'package:navis/src/features/player/domain/smart_queue_state.dart';
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
+import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/player/presentation/same_vibes_notifier.dart';
 import 'package:navis/src/features/player/presentation/smart_queue_notifier.dart';
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
@@ -477,6 +479,27 @@ class _AppShellState extends ConsumerState<AppShell> {
     });
   }
 
+  String _playbackErrorMessage(
+    AppLocalizations l10n,
+    PlaybackActionError error,
+  ) {
+    final e = error.error;
+    if (e is PlaybackUnavailableException) {
+      return switch (e.reason) {
+        PlaybackUnavailableReason.initializing =>
+          l10n.playbackUnavailableInitializing,
+        PlaybackUnavailableReason.startupFailed =>
+          l10n.playbackUnavailableStartupFailed,
+        PlaybackUnavailableReason.unavailable =>
+          l10n.playbackUnavailableGeneric,
+      };
+    }
+    if (e is PlaybackSourceUnavailableException) {
+      return l10n.playbackUnavailableSource;
+    }
+    return l10n.playbackActionFailed;
+  }
+
   Future<void> _maybePromptForBatteryOptimization() async {
     final serverConfig = ref.read(serverConfigStateProvider).asData?.value;
     if (serverConfig == null || ref.read(syncIntervalMinutesProvider) <= 0) {
@@ -608,6 +631,19 @@ class _AppShellState extends ConsumerState<AppShell> {
         );
       }
     });
+    // Global playback-action error snackbar (fire-and-forget queue actions).
+    ref.listen<AsyncValue<PlaybackActionError>>(
+      playbackActionErrorProvider,
+      (prev, next) {
+        if (!mounted) return;
+        final error = next.asData?.value;
+        if (error == null) return;
+        _appNoticeController.show(
+          message: _playbackErrorMessage(l10n, error),
+          level: AppNoticeLevel.error,
+        );
+      },
+    );
     ref.listen<bool>(
       playerStateProvider.select((snapshot) => snapshot.hasActivePlayback),
       (previous, next) {

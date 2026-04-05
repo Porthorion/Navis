@@ -7,6 +7,30 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/utils/app_logger.dart';
+
+/// Global broadcast stream for playback action errors.
+///
+/// UI screens fire queue actions with `.ignore()` (fire-and-forget) and errors
+/// are routed here instead of being awaited per-screen.  The app shell
+/// subscribes to display snackbars.
+final playbackActionErrorProvider =
+    StreamProvider<PlaybackActionError>((ref) {
+  return ref.watch(_playbackActionErrorControllerProvider).stream;
+});
+
+final _playbackActionErrorControllerProvider =
+    Provider<StreamController<PlaybackActionError>>((ref) {
+  final controller = StreamController<PlaybackActionError>.broadcast();
+  ref.onDispose(controller.close);
+  return controller;
+});
+
+class PlaybackActionError {
+  const PlaybackActionError({required this.error, this.action});
+  final Object error;
+  final String? action;
+}
 
 final currentQueueSongIdProvider = Provider<String?>((ref) {
   return ref.watch(currentSongProvider);
@@ -276,6 +300,31 @@ class QueueController extends Notifier<List<String>> {
       reason: reason,
       message: bootstrap.errorMessage,
     );
+  }
+
+  void _emitError(Object error, {String? action}) {
+    if (error is OperationCancelledException) return;
+    AppLogger.warning('Playback action error (action=$action): $error');
+    ref
+        .read(_playbackActionErrorControllerProvider)
+        .add(PlaybackActionError(error: error, action: action));
+  }
+
+  /// Fire-and-forget wrapper: runs [action] and routes errors to
+  /// [playbackActionErrorProvider] instead of throwing.
+  void fireAndForget(
+    Future<void> Function() action, {
+    String? label,
+  }) {
+    unawaited(Future<void>(() async {
+      try {
+        await action();
+      } on OperationCancelledException {
+        // Superseded — not an error.
+      } on Object catch (error) {
+        _emitError(error, action: label);
+      }
+    }));
   }
 }
 

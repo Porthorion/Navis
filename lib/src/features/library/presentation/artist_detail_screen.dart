@@ -35,28 +35,18 @@ class ArtistDetailScreen extends ConsumerStatefulWidget {
 class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
   bool _isStarred = false;
   bool _isStarring = false;
-  bool _isQueueActionInFlight = false;
 
-  Future<void> _queueArtist(
+  void _queueArtist(
     List<SongsTableData> songs, {
     required bool shuffle,
-  }) async {
-    if (songs.isEmpty || _isQueueActionInFlight) return;
-    setState(() => _isQueueActionInFlight = true);
-    try {
-      final queue = songs.map((s) => s.id).toList();
-      if (shuffle) queue.shuffle(Random());
-      await ref.read(queueProvider.notifier).replace(queue, autoPlay: true);
-    } on Object {
-      if (!mounted) return;
-      AppNoticeMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(AppLocalizations.of(context)!.playbackActionFailed),
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _isQueueActionInFlight = false);
-    }
+  }) {
+    if (songs.isEmpty) return;
+    final queue = songs.map((s) => s.id).toList();
+    if (shuffle) queue.shuffle(Random());
+    ref.read(queueProvider.notifier).fireAndForget(
+      () => ref.read(queueProvider.notifier).replace(queue, autoPlay: true),
+      label: 'replace',
+    );
   }
 
   Future<void> _toggleStar({required bool isStarred}) async {
@@ -211,25 +201,17 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                     runSpacing: 10,
                     children: [
                       FilledButton.icon(
-                        onPressed: _isQueueActionInFlight
-                            ? null
-                            : () => unawaited(
-                                _queueArtist(
-                                  songs.asData!.value,
-                                  shuffle: false,
-                                ),
+                        onPressed: () => _queueArtist(
+                                songs.asData!.value,
+                                shuffle: false,
                               ),
                         icon: const Icon(Icons.play_arrow_rounded),
                         label: Text(l10n.albumDetailPlayAction),
                       ),
                       FilledButton.tonalIcon(
-                        onPressed: _isQueueActionInFlight
-                            ? null
-                            : () => unawaited(
-                                _queueArtist(
-                                  songs.asData!.value,
-                                  shuffle: true,
-                                ),
+                        onPressed: () => _queueArtist(
+                                songs.asData!.value,
+                                shuffle: true,
                               ),
                         icon: const Icon(Icons.shuffle, size: 18),
                         label: Text(l10n.albumDetailShuffleAction),

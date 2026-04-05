@@ -933,20 +933,34 @@ class _SongResultsSection extends ConsumerWidget {
         result.then((value) {
           switch (value) {
             case 'play-next':
-              return _runQueueAction(
-                context,
+              ref.read(queueProvider.notifier).fireAndForget(
                 () => ref.read(queueProvider.notifier).playNextWithSong(song),
-                successMessage: l10n.librarySongPlayNextQueued(song.title),
+                label: 'playNext',
               );
+              if (context.mounted) {
+                AppNoticeMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(l10n.librarySongPlayNextQueued(song.title)),
+                  ),
+                );
+              }
+              return;
             case 'add-queue':
-              return _runQueueAction(
-                context,
+              ref.read(queueProvider.notifier).fireAndForget(
                 () => ref.read(queueProvider.notifier).addWithSong(song),
-                successMessage: l10n.librarySongAddedToQueue(song.title),
+                label: 'addToQueue',
               );
+              if (context.mounted) {
+                AppNoticeMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(l10n.librarySongAddedToQueue(song.title)),
+                  ),
+                );
+              }
+              return;
             case 'add-playlist':
               showAddToPlaylistSheet(context, ref, [song.id]);
-              return Future<void>.value();
+              return;
             case 'instant-mix':
               unawaited(
                 activatePreferredMixMode(
@@ -954,9 +968,9 @@ class _SongResultsSection extends ConsumerWidget {
                   seedSongId: song.id,
                 ),
               );
-              return Future<void>.value();
+              return;
             default:
-              return Future<void>.value();
+              return;
           }
         }),
       );
@@ -973,14 +987,20 @@ class _SongResultsSection extends ConsumerWidget {
               title: Text(l10n.searchPlayNext),
               onTap: () {
                 Navigator.of(sheetContext).pop();
-                unawaited(
-                  _runQueueAction(
-                    context,
-                    () =>
-                        ref.read(queueProvider.notifier).playNextWithSong(song),
-                    successMessage: l10n.librarySongPlayNextQueued(song.title),
-                  ),
+                ref.read(queueProvider.notifier).fireAndForget(
+                  () =>
+                      ref.read(queueProvider.notifier).playNextWithSong(song),
+                  label: 'playNext',
                 );
+                if (context.mounted) {
+                  AppNoticeMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        l10n.librarySongPlayNextQueued(song.title),
+                      ),
+                    ),
+                  );
+                }
               },
             ),
             ListTile(
@@ -988,13 +1008,19 @@ class _SongResultsSection extends ConsumerWidget {
               title: Text(l10n.searchAddToQueue),
               onTap: () {
                 Navigator.of(sheetContext).pop();
-                unawaited(
-                  _runQueueAction(
-                    context,
-                    () => ref.read(queueProvider.notifier).addWithSong(song),
-                    successMessage: l10n.librarySongAddedToQueue(song.title),
-                  ),
+                ref.read(queueProvider.notifier).fireAndForget(
+                  () => ref.read(queueProvider.notifier).addWithSong(song),
+                  label: 'addToQueue',
                 );
+                if (context.mounted) {
+                  AppNoticeMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        l10n.librarySongAddedToQueue(song.title),
+                      ),
+                    ),
+                  );
+                }
               },
             ),
             if (song.albumId != null)
@@ -1046,32 +1072,6 @@ class _SongResultsSection extends ConsumerWidget {
     );
   }
 
-  Future<void> _runQueueAction(
-    BuildContext context,
-    Future<void> Function() action, {
-    required String successMessage,
-  }) async {
-    try {
-      await action();
-    } on Object {
-      if (!context.mounted) {
-        return;
-      }
-      final l10n = AppLocalizations.of(context)!;
-      final messenger = AppNoticeMessenger.of(context);
-      messenger
-        ..clearSnackBars()
-        ..showSnackBar(SnackBar(content: Text(l10n.playbackActionFailed)));
-      return;
-    }
-    if (!context.mounted) {
-      return;
-    }
-    final messenger = AppNoticeMessenger.of(context);
-    messenger
-      ..clearSnackBars()
-      ..showSnackBar(SnackBar(content: Text(successMessage)));
-  }
 }
 
 String _formatDuration(int? seconds) {
