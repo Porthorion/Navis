@@ -30,6 +30,18 @@ const List<ChangelogVersion> changelogs = [
     version: '0.9.6',
     entries: [
       ChangelogEntry(
+        'Redesigned login screen — new Material 3 card layout with app icon, password visibility toggle, and an insecure HTTP warning',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Login screen adapts to any screen size — portrait, landscape phone, wide tablet, and desktop each get a purpose-built layout',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Login fields scroll up above the keyboard when tapped so the text you are typing is always visible',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Android Auto support — browse artists, albums, playlists, favourites, and podcasts directly from your car\'s head unit',
         type: ChangelogEntryType.newFeature,
       ),
