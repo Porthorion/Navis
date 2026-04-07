@@ -1888,10 +1888,12 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
           // in compact-wide mode so the overlay panels can be truly
           // full-screen, making this the only place the insets are applied.
           final mediaPadding = MediaQuery.paddingOf(context);
+          // Left padding is deliberately larger to give the album art some
+          // breathing room from the navigation rail.
           final compactPadding = EdgeInsets.fromLTRB(
-            6 + mediaPadding.left,
+            20 + mediaPadding.left,
             (constraints.maxHeight < 520 ? 8 : 12) + mediaPadding.top,
-            6 + mediaPadding.right,
+            12 + mediaPadding.right,
             10 + mediaPadding.bottom,
           );
           final gap = 10.0;
@@ -1988,17 +1990,18 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                         ),
                 );
 
-          // Car layout: track info pinned to top, playback controls pinned
-          // to bottom, with a Spacer between them. This makes better use of
-          // the wide AAOS screen compared to the previous vertically-centered
-          // approach which left ~175dp of dead space above and below the
-          // content. Full-size (non-compact) buttons give larger touch targets
-          // which are important for in-car interaction.
+          // Car layout: all content (track info + controls) is centered
+          // vertically as a single unit so it aligns with the album art
+          // center. Using mainAxisSize.min + Center avoids the large dead
+          // spaces that a Spacer approach creates on the 628dp usable height.
+          // Spacing between the two groups (info and playback) is proportional
+          // to the available height so the layout breathes on larger screens.
+          final vSpacing = (constraints.maxHeight * 0.06).clamp(10.0, 28.0);
           final infoColumn = Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 680),
               child: Column(
-                mainAxisSize: MainAxisSize.max,
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
                   AnimatedSwitcher(
@@ -2085,7 +2088,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                     ),
                   ),
                   if (!isRadio) ...<Widget>[
-                    const SizedBox(height: 6),
+                    SizedBox(height: vSpacing * 0.4),
                     _NowPlayingInfoPanel(
                       key: ValueKey<String>(
                         'compact-wide-info-$nowPlayingVisualKey',
@@ -2096,12 +2099,11 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                       currentMediaItem: currentMediaItem,
                       playbackSpeed: playbackSpeed,
                     ),
-                  ],
-                  // Spacer pushes controls to the bottom of the pane.
-                  const Spacer(),
-                  if (!isRadio) ...<Widget>[
+                    SizedBox(height: vSpacing),
                     _SeekBar(playback: playback),
-                    const SizedBox(height: 14),
+                    SizedBox(height: vSpacing * 0.6),
+                  ] else ...<Widget>[
+                    SizedBox(height: vSpacing),
                   ],
                   _TransportControls(
                     playback: playback,
@@ -2111,7 +2113,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                     onSkipNext: _handleManualNextButton,
                   ),
                   if (!isRadio) ...<Widget>[
-                    const SizedBox(height: 14),
+                    SizedBox(height: vSpacing * 0.6),
                     _ActionRow(
                       song: song,
                       songId: playback.currentSongId,
@@ -2135,7 +2137,6 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                       }),
                     ),
                   ],
-                  const SizedBox(height: 8),
                 ],
               ),
             ),
