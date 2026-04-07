@@ -505,6 +505,16 @@ class _AppShellState extends ConsumerState<AppShell> {
     if (serverConfig == null || ref.read(syncIntervalMinutesProvider) <= 0) {
       return;
     }
+    // AAOS car displays use a different system model — battery optimization
+    // settings don't apply and the sheet can't render correctly at car-screen
+    // aspect ratios, so skip entirely.
+    if (resolveAdaptiveContext(
+      desktopRuntime: isDesktopRuntime,
+      viewportSize: MediaQuery.sizeOf(context),
+      safePadding: MediaQuery.paddingOf(context),
+    ).useCompactWideLandscape) {
+      return;
+    }
     final service = ref.read(batteryOptimizationServiceProvider);
     final shouldPrompt = await service.shouldPromptDisableBatteryOptimization();
     if (!mounted || !shouldPrompt) {
@@ -1353,6 +1363,14 @@ class _AppShellState extends ConsumerState<AppShell> {
                                       left: false,
                                       top: false,
                                       right: false,
+                                      // viewPadding (not padding) covers AAOS
+                                      // car bars that report as gesture-nav
+                                      // insets (padding.bottom = 0).
+                                      minimum: EdgeInsets.only(
+                                        bottom: MediaQuery.viewPaddingOf(
+                                          context,
+                                        ).bottom,
+                                      ),
                                       child: Column(
                                         children: <Widget>[
                                           if (showOfflineBanner)
