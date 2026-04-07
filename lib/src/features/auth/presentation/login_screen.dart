@@ -55,12 +55,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
 
-    final formContents = Column(
+    final heroSection = _LoginHeroSection(subtitle: l10n.loginSubtitle);
+
+    final formFields = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        _LoginHeroSection(subtitle: l10n.loginSubtitle),
-        const SizedBox(height: 32),
         TextFormField(
           controller: _urlController,
           decoration: InputDecoration(
@@ -165,7 +165,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       autovalidateMode: _showValidationErrors
           ? AutovalidateMode.onUserInteraction
           : AutovalidateMode.disabled,
-      child: formContents,
+      child: formFields,
     );
 
     return Scaffold(
@@ -175,32 +175,98 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             SafeArea(
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  final useWideLayout = constraints.maxWidth >= 600;
+                  final isWide = constraints.maxWidth >= 600;
+                  final isShort = constraints.maxHeight < 600;
 
-                  if (!useWideLayout) {
-                    return SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
-                      child: form,
-                    );
-                  }
-
-                  return Center(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 40,
-                        horizontal: 24,
-                      ),
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 480),
-                        child: Card(
-                          margin: EdgeInsets.zero,
-                          clipBehavior: Clip.antiAlias,
-                          child: Padding(
-                            padding: const EdgeInsets.all(32),
-                            child: form,
+                  // Wide + short: side-by-side hero/form layout (landscape phones,
+                  // short desktop windows)
+                  if (isWide && isShort) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: 800,
+                            maxHeight: constraints.maxHeight - 48,
+                          ),
+                          child: Card(
+                            margin: EdgeInsets.zero,
+                            clipBehavior: Clip.antiAlias,
+                            child: IntrinsicHeight(
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: <Widget>[
+                                  Expanded(
+                                    child: Center(
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(32),
+                                        child: heroSection,
+                                      ),
+                                    ),
+                                  ),
+                                  VerticalDivider(
+                                    width: 1,
+                                    thickness: 1,
+                                    indent: 16,
+                                    endIndent: 16,
+                                    color: theme.colorScheme.outlineVariant,
+                                  ),
+                                  Expanded(
+                                    child: SingleChildScrollView(
+                                      padding: const EdgeInsets.all(32),
+                                      child: form,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
                       ),
+                    );
+                  }
+
+                  // Wide + tall: centered Card with full vertical layout
+                  if (isWide) {
+                    return Center(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 40,
+                          horizontal: 24,
+                        ),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 480),
+                          child: Card(
+                            margin: EdgeInsets.zero,
+                            clipBehavior: Clip.antiAlias,
+                            child: Padding(
+                              padding: const EdgeInsets.all(32),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                mainAxisSize: MainAxisSize.min,
+                                children: <Widget>[
+                                  heroSection,
+                                  const SizedBox(height: 32),
+                                  form,
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+
+                  // Narrow (mobile portrait): full-page scrollable
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        heroSection,
+                        const SizedBox(height: 32),
+                        form,
+                      ],
                     ),
                   );
                 },
