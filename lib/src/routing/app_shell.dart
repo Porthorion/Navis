@@ -745,6 +745,14 @@ class _AppShellState extends ConsumerState<AppShell> {
     final selectedIndex = selectedVisibleIndex >= 0 ? selectedVisibleIndex : 0;
     final mediaSize = MediaQuery.sizeOf(context);
     final mediaPadding = MediaQuery.paddingOf(context);
+    final mediaViewPadding = MediaQuery.viewPaddingOf(context);
+    // On AAOS, the car controls bar is reported via viewPadding.bottom.
+    // On Android Auto (phone projection), the car controls bar is NOT reported
+    // as any window inset, but the status bar IS reported via viewPadding.top.
+    // Both bars are typically the same height on car displays, so use top as a
+    // proxy when bottom is unavailable.
+    final effectiveCarBottomInset =
+        mediaViewPadding.bottom > 0 ? mediaViewPadding.bottom : mediaViewPadding.top;
     final adaptiveContext = resolveAdaptiveContext(
       desktopRuntime: isDesktopRuntime,
       viewportSize: mediaSize,
@@ -1288,6 +1296,9 @@ class _AppShellState extends ConsumerState<AppShell> {
                                     child: SafeArea(
                                       left: !useCompactWideLandscape,
                                       right: !useCompactWideLandscape,
+                                      minimum: EdgeInsets.only(
+                                        bottom: effectiveCarBottomInset,
+                                      ),
                                       child: SizedBox(
                                         width: sideRailWidth,
                                         child: Padding(
@@ -1368,11 +1379,13 @@ class _AppShellState extends ConsumerState<AppShell> {
                                       right: false,
                                       // viewPadding (not padding) covers AAOS
                                       // car bars that report as gesture-nav
-                                      // insets (padding.bottom = 0).
+                                      // insets (padding.bottom = 0). On Android
+                                      // Auto (phone projection), the bottom bar
+                                      // is not reported at all; effectiveCarBottomInset
+                                      // falls back to viewPadding.top as a proxy
+                                      // since both car bars are typically equal height.
                                       minimum: EdgeInsets.only(
-                                        bottom: MediaQuery.viewPaddingOf(
-                                          context,
-                                        ).bottom,
+                                        bottom: effectiveCarBottomInset,
                                       ),
                                       child: Column(
                                         children: <Widget>[
