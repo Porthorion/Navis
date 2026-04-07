@@ -816,12 +816,12 @@ class _AppShellState extends ConsumerState<AppShell> {
         !isPhoneFormFactor;
     final allowScrollableRail = !isPhoneFormFactor && !useCompactWideLandscape;
     final useWideMiniPlayerStyle = screenWidth >= 960;
-    // On AAOS (compactWideLandscape) the available height is only ~650dp;
-    // a phone-style 18 % strip (~117dp) eats too much of the screen.
-    // Use a single-row height instead (64–80dp) to keep as much content
-    // area as possible for browsing.
+    // On AAOS (compactWideLandscape) increase to ~15% of height for a
+    // car-friendly strip that is easy to read and tap while driving.
+    // The strip renders inside a SizedBox of this height so all internal
+    // components must fit comfortably within it.
     final compactBottomMiniPlayerHeight = useCompactWideLandscape
-        ? (screenHeight * 0.11).clamp(64.0, 80.0)
+        ? (screenHeight * 0.15).clamp(90.0, 112.0)
         : (screenHeight * 0.18).clamp(80.0, 140.0);
     if (!adaptiveInputPolicy.enableDesktopCommandShortcuts &&
         _showQuickSearchOverlay) {
@@ -4905,7 +4905,7 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
             onTap: onTap,
             child: compactWideLandscapeMode
                 ? Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 6, 8, 6),
+                    padding: const EdgeInsets.fromLTRB(16, 10, 10, 10),
                     child: Row(
                       children: <Widget>[
                         if (isRadio)
@@ -4917,11 +4917,11 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                           CoverArtImage(
                             coverArtId: coverArtId,
                             size: kCoverArtStandardSize,
-                            width: 48,
-                            height: 48,
-                            borderRadius: BorderRadius.circular(8),
+                            width: 64,
+                            height: 64,
+                            borderRadius: BorderRadius.circular(10),
                           ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 14),
                         Expanded(
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
@@ -4933,10 +4933,10 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                                     : songTitle,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodyMedium
+                                style: Theme.of(context).textTheme.bodyLarge
                                     ?.copyWith(fontWeight: FontWeight.w600),
                               ),
-                              const SizedBox(height: 2),
+                              const SizedBox(height: 3),
                               Text(
                                 (songArtist == null ||
                                         songArtist.trim().isEmpty)
@@ -4944,7 +4944,7 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                                     : songArtist,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodySmall
+                                style: Theme.of(context).textTheme.bodyMedium
                                     ?.copyWith(
                                       color: cs.onSurface.withValues(
                                         alpha: 0.58,
@@ -4957,7 +4957,6 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                         if (!isRadio)
                           IconButton(
                             tooltip: l10n.nowPlayingPrevious,
-                            visualDensity: VisualDensity.compact,
                             onPressed: () {
                               final handler = ref.read(audioHandlerProvider);
                               if (handler == null) {
@@ -4968,7 +4967,7 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                             },
                             icon: const Icon(
                               Icons.skip_previous_rounded,
-                              size: 20,
+                              size: 28,
                             ),
                           ),
                         IconButton(
@@ -4978,9 +4977,8 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                           style: IconButton.styleFrom(
                             backgroundColor: cs.primaryContainer,
                             foregroundColor: cs.onPrimaryContainer,
-                            minimumSize: const Size(40, 40),
-                            padding: const EdgeInsets.all(5),
-                            visualDensity: VisualDensity.compact,
+                            minimumSize: const Size(52, 52),
+                            padding: const EdgeInsets.all(8),
                           ),
                           onPressed: () async {
                             final handler = ref.read(audioHandlerProvider);
@@ -4997,13 +4995,12 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                             isPlaying
                                 ? Icons.pause_rounded
                                 : Icons.play_arrow_rounded,
-                            size: 21,
+                            size: 28,
                           ),
                         ),
                         if (!isRadio)
                           IconButton(
                             tooltip: l10n.miniPlayerSkipNext,
-                            visualDensity: VisualDensity.compact,
                             onPressed: () {
                               final handler = ref.read(audioHandlerProvider);
                               if (handler == null) {
@@ -5012,12 +5009,11 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                               HapticFeedback.lightImpact();
                               handler.skipToNext();
                             },
-                            icon: const Icon(Icons.skip_next_rounded, size: 20),
+                            icon: const Icon(Icons.skip_next_rounded, size: 28),
                           )
                         else
                           IconButton(
                             tooltip: l10n.radioStopStation,
-                            visualDensity: VisualDensity.compact,
                             onPressed: () async {
                               final handler = ref.read(audioHandlerProvider);
                               if (handler == null) {
@@ -5025,14 +5021,13 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                               }
                               await handler.stopRadio();
                             },
-                            icon: const Icon(Icons.stop_rounded, size: 20),
+                            icon: const Icon(Icons.stop_rounded, size: 28),
                           ),
                         if (!isRadio)
                           IconButton(
                             tooltip: playback.isCurrentSongLiked
                                 ? l10n.actionLiked
                                 : l10n.actionLike,
-                            visualDensity: VisualDensity.compact,
                             onPressed: () {
                               HapticFeedback.lightImpact();
                               ref.read(audioHandlerProvider)?.toggleLike();
@@ -5041,7 +5036,7 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                               playback.isCurrentSongLiked
                                   ? Icons.favorite
                                   : Icons.favorite_border,
-                              size: 20,
+                              size: 26,
                               color: playback.isCurrentSongLiked
                                   ? cs.primary
                                   : cs.onSurfaceVariant,
