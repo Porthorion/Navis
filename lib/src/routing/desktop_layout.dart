@@ -162,6 +162,14 @@ AdaptiveShellMode resolveAdaptiveShellMode({
 
   if (!isPhoneFormFactor) {
     if (adaptiveClass == AdaptiveLayoutClass.tabletExpanded) {
+      // Widescreen landscape displays (aspect ratio > 1.65, e.g. 16:9 car
+      // screens like Android Automotive OS) suit the compact icon rail better
+      // than the wide standard rail.  Regular tablets in landscape are at most
+      // ~1.6:1, so this only triggers for car-like ultra-wide displays.
+      final aspectRatio = height > 0 ? width / height : 1.0;
+      if (isLandscape && aspectRatio > 1.65) {
+        return AdaptiveShellMode.compactWideLandscape;
+      }
       return AdaptiveShellMode.standardRail;
     }
     return AdaptiveShellMode.phoneBottomNav;

@@ -67,6 +67,36 @@ void main() {
     );
   });
 
+  test(
+    'resolveAdaptiveShellMode returns compact-wide for AAOS car screen (16:9 landscape)',
+    () {
+      // Android Automotive OS emulator: 1408×792dp, aspect ratio ≈ 1.78.
+      expect(
+        resolveAdaptiveShellMode(
+          desktopRuntime: false,
+          viewportSize: const Size(1408, 792),
+          safePadding: EdgeInsets.zero,
+        ),
+        AdaptiveShellMode.compactWideLandscape,
+      );
+    },
+  );
+
+  test(
+    'resolveAdaptiveShellMode keeps standardRail for tablet-like aspect ratios (≤1.65)',
+    () {
+      // 4:3-ish tablet landscape: aspect ratio ≈ 1.43, should stay on rail.
+      expect(
+        resolveAdaptiveShellMode(
+          desktopRuntime: false,
+          viewportSize: const Size(1366, 955),
+          safePadding: EdgeInsets.zero,
+        ),
+        AdaptiveShellMode.standardRail,
+      );
+    },
+  );
+
   test('resolveAdaptiveShellMode keeps medium tablet on bottom nav', () {
     expect(
       resolveAdaptiveShellMode(

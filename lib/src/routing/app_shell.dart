@@ -515,6 +515,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       useRootNavigator: true,
       useSafeArea: true,
       showDragHandle: true,
+      isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
       builder: (sheetContext) {
         return _BatteryOptimizationSheet(
@@ -2071,7 +2072,7 @@ class _BatteryOptimizationSheet extends StatelessWidget {
     final colors = theme.colorScheme;
     final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
 
-    return Padding(
+    return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(20, 8, 20, bottomInset + 20),
       child: Column(
         mainAxisSize: MainAxisSize.min,
