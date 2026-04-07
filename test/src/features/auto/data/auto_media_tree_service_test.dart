@@ -273,6 +273,7 @@ void main() {
         expect(song.artist, 'The Artist');
         expect(song.album, 'Album One');
         expect(song.duration, const Duration(seconds: 180));
+        expect(song.playable, isTrue, reason: 'song items must be playable');
       },
       skip: !sqliteAvailable,
     );
@@ -358,6 +359,7 @@ void main() {
         final items = await service.getChildren(AutoMediaRoot.likedSongs);
         expect(items, hasLength(1));
         expect(items.single.title, 'Liked Song');
+        expect(items.single.playable, isTrue);
       },
       skip: !sqliteAvailable,
     );
@@ -399,6 +401,7 @@ void main() {
         final items = await service.getChildren(AutoMediaRoot.recent);
         expect(items, hasLength(1));
         expect(items.single.title, 'Song 1');
+        expect(items.single.playable, isTrue);
       },
       skip: !sqliteAvailable,
     );

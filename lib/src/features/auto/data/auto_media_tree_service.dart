@@ -410,6 +410,7 @@ class AutoMediaTreeService {
               ? Duration(seconds: math.max(0, s.duration!))
               : null,
           artUri: _coverArtUri(s.coverArt),
+          playable: true,
         ),
       );
     }
@@ -429,6 +430,7 @@ class AutoMediaTreeService {
           ? Duration(seconds: math.max(0, song.duration!))
           : null,
       artUri: _coverArtUri(song.coverArt),
+      playable: true,
     );
   }
 
@@ -484,7 +486,7 @@ class AutoMediaTreeService {
   List<MediaItem> _errorItems(String message) {
     return [
       MediaItem(
-        id: 'error',
+        id: 'error/${DateTime.now().millisecondsSinceEpoch}',
         title: message,
         playable: false,
       ),

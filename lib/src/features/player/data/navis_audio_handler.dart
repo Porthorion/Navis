@@ -1156,10 +1156,19 @@ class NavisAudioHandler extends BaseAudioHandler
       try {
         final songs = await apiClient.getRandomSongs(size: 50);
         final songIds = songs.map((s) => s.id).toList(growable: false);
-        if (songIds.isNotEmpty) await replaceQueue(songIds);
+        if (songIds.isNotEmpty) {
+          await replaceQueue(songIds);
+          return;
+        }
       } on Object catch (e, st) {
-        AppLogger.warning('playFromMediaId random mix failed: $e\n$st');
+        AppLogger.warning('playFromMediaId random mix API failed: $e\n$st');
       }
+    }
+    // Offline fallback: shuffle songs from local DB.
+    final all = await _libraryDao.watchAllSongs().first;
+    if (all.isNotEmpty) {
+      final shuffled = List.of(all)..shuffle();
+      await replaceQueueWithData(shuffled.take(50).toList(growable: false));
     }
   }
 
