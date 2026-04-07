@@ -180,6 +180,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           children: <Widget>[
             Positioned.fill(
               child: SafeArea(
+                bottom: false,
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   final isWide = constraints.maxWidth >= 600;
