@@ -57,7 +57,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     final heroSection = _LoginHeroSection(subtitle: l10n.loginSubtitle);
 
-    final formFields = Column(
+    final urlField = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
@@ -94,7 +94,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ],
           ),
         ],
-        const SizedBox(height: 16),
+      ],
+    );
+
+    final credentialsFields = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
         TextFormField(
           controller: _usernameController,
           decoration: InputDecoration(
@@ -160,13 +166,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       ],
     );
 
-    final form = Form(
-      key: _formKey,
-      autovalidateMode: _showValidationErrors
-          ? AutovalidateMode.onUserInteraction
-          : AutovalidateMode.disabled,
-      child: formFields,
-    );
+    Form buildForm(Widget child) => Form(
+          key: _formKey,
+          autovalidateMode: _showValidationErrors
+              ? AutovalidateMode.onUserInteraction
+              : AutovalidateMode.disabled,
+          child: child,
+        );
 
     return Scaffold(
       appBar: AppBar(forceMaterialTransparency: true),
@@ -178,8 +184,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   final isWide = constraints.maxWidth >= 600;
                   final isShort = constraints.maxHeight < 600;
 
-                  // Wide + short: side-by-side hero/form layout (landscape phones,
-                  // short desktop windows)
+                  // Wide + short: side-by-side layout (landscape phones,
+                  // short desktop windows). URL field moves to left column
+                  // under the hero so only username/password/button are on
+                  // the right — they fit without scrolling.
                   if (isWide && isShort) {
                     return Center(
                       child: Padding(
@@ -192,32 +200,46 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           child: Card(
                             margin: EdgeInsets.zero,
                             clipBehavior: Clip.antiAlias,
-                            child: IntrinsicHeight(
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: <Widget>[
-                                  Expanded(
-                                    child: Center(
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(32),
-                                        child: heroSection,
+                            child: buildForm(
+                              IntrinsicHeight(
+                                child: Row(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: <Widget>[
+                                    Expanded(
+                                      child: Center(
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(32),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.stretch,
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: <Widget>[
+                                              heroSection,
+                                              const SizedBox(height: 20),
+                                              urlField,
+                                            ],
+                                          ),
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                  VerticalDivider(
-                                    width: 1,
-                                    thickness: 1,
-                                    indent: 16,
-                                    endIndent: 16,
-                                    color: theme.colorScheme.outlineVariant,
-                                  ),
-                                  Expanded(
-                                    child: SingleChildScrollView(
-                                      padding: const EdgeInsets.all(32),
-                                      child: form,
+                                    VerticalDivider(
+                                      width: 1,
+                                      thickness: 1,
+                                      indent: 16,
+                                      endIndent: 16,
+                                      color: theme.colorScheme.outlineVariant,
                                     ),
-                                  ),
-                                ],
+                                    Expanded(
+                                      child: Center(
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(32),
+                                          child: credentialsFields,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
@@ -241,14 +263,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             clipBehavior: Clip.antiAlias,
                             child: Padding(
                               padding: const EdgeInsets.all(32),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                mainAxisSize: MainAxisSize.min,
-                                children: <Widget>[
-                                  heroSection,
-                                  const SizedBox(height: 32),
-                                  form,
-                                ],
+                              child: buildForm(
+                                Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: <Widget>[
+                                    heroSection,
+                                    const SizedBox(height: 32),
+                                    urlField,
+                                    const SizedBox(height: 16),
+                                    credentialsFields,
+                                  ],
+                                ),
                               ),
                             ),
                           ),
@@ -260,13 +287,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   // Narrow (mobile portrait): full-page scrollable
                   return SingleChildScrollView(
                     padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: <Widget>[
-                        heroSection,
-                        const SizedBox(height: 32),
-                        form,
-                      ],
+                    child: buildForm(
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: <Widget>[
+                          heroSection,
+                          const SizedBox(height: 32),
+                          urlField,
+                          const SizedBox(height: 16),
+                          credentialsFields,
+                        ],
+                      ),
                     ),
                   );
                 },
