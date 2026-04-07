@@ -10,10 +10,14 @@
 #   ./tool/dev_app.sh run [flutter-run-args...]
 #   ./tool/dev_app.sh linux [flutter-run-args...]
 #   ./tool/dev_app.sh apk [flutter-build-args...]
+#   ./tool/dev_app.sh auto [flutter-run-args...]
+#   ./tool/dev_app.sh dhu [flutter-run-args...]
 #
 # Examples:
 #   ./tool/dev_app.sh run -d R5CX14TVQEE
 #   ./tool/dev_app.sh apk
+#   ./tool/dev_app.sh auto                  # AAOS emulator (no DHU needed)
+#   ./tool/dev_app.sh dhu -d R5CX14TVQEE   # phone + Desktop Head Unit
 #   NAVIS_APP_ID_SUFFIX=.sidecar NAVIS_APP_NAME="Navis Sidecar" ./tool/dev_app.sh run
 
 set -euo pipefail
@@ -76,9 +80,76 @@ case "${MODE}" in
   apk)
     flutter build apk --release "${DART_DEFINE_ARGS[@]}" "$@"
     ;;
+  auto)
+    # Run on an Android Automotive OS (AAOS) emulator — no DHU or phone needed.
+    # The emulator already embeds the car UI; Navis will appear in its media app drawer.
+    #
+    # Auto-detects any running AAOS emulator by matching "car" in `flutter devices`
+    # output.  Pass -d <id> to override.
+    if [[ "$*" != *"-d "* && "$*" != *"--device-id "* ]]; then
+      AUTO_DEVICE=$(flutter devices 2>/dev/null \
+        | grep -i "car" \
+        | grep -oP '• \K\S+' \
+        | head -1)
+      if [[ -z "${AUTO_DEVICE}" ]]; then
+        echo "ERROR: No Android Automotive emulator found."
+        echo "  Start one in Android Studio → Device Manager → choose a Car target."
+        echo "  Or pass -d <device-id> explicitly."
+        exit 1
+      fi
+      DEVICE_ARGS=("-d" "${AUTO_DEVICE}")
+      echo "==> Detected AAOS emulator: ${AUTO_DEVICE}"
+    else
+      DEVICE_ARGS=()
+      echo "==> Using device from arguments"
+    fi
+    echo ""
+    echo "  After launch, open the media app drawer in the emulator to find 'Navis Dev'."
+    echo "  The browse tree (Playlists / Artists / Albums / Liked / Recent / Random Mix)"
+    echo "  is served directly via MediaBrowserService — no Desktop Head Unit needed."
+    echo ""
+    flutter run --debug "${DEVICE_ARGS[@]}" "${DART_DEFINE_ARGS[@]}" "$@"
+    ;;
+  dhu)
+    # Run on a phone AND launch the Desktop Head Unit (DHU) so you can test
+    # Android Auto projection in parallel.
+    #
+    # Usage: ./tool/dev_app.sh dhu -d <phone-device-id>
+    #
+    # The DHU binary is resolved from $ANDROID_SDK_ROOT, $ANDROID_HOME, or
+    # ~/Android/Sdk in that order.
+    ANDROID_SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-${HOME}/Android/Sdk}}"
+    DHU_BIN="${ANDROID_SDK}/extras/google/auto/desktop-head-unit"
+
+    if [[ ! -x "${DHU_BIN}" ]]; then
+      echo "ERROR: DHU not found at ${DHU_BIN}"
+      echo "  Install it: Android Studio → SDK Manager → SDK Tools tab →"
+      echo "  'Android Auto Desktop Head Unit Emulator'"
+      exit 1
+    fi
+
+    echo "==> Forwarding Android Auto port (tcp:5277)…"
+    adb forward tcp:5277 tcp:5277
+
+    echo ""
+    echo "  On your phone: Android Auto → Settings → tap Version 10× to unlock"
+    echo "  Developer settings → tap ⋮ → Developer settings → Start head unit server"
+    echo ""
+
+    # Run the Flutter app on the phone in the background, then launch the DHU.
+    echo "==> Starting Navis Dev on phone…"
+    flutter run --debug "${DART_DEFINE_ARGS[@]}" "$@" &
+    FLUTTER_PID=$!
+
+    echo "==> Launching Desktop Head Unit…"
+    "${DHU_BIN}" || true
+
+    # When DHU exits, also stop the flutter run session.
+    kill "${FLUTTER_PID}" 2>/dev/null || true
+    ;;
   *)
     echo "Unknown mode: ${MODE}"
-    echo "Usage: ./tool/dev_app.sh <run|linux|apk> [flutter args...]"
+    echo "Usage: ./tool/dev_app.sh <run|linux|apk|auto|dhu> [flutter args...]"
     exit 1
     ;;
 esac
