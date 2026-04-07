@@ -261,37 +261,46 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     );
                   }
 
-                  // Wide + tall: centered Card with full vertical layout
+                  // Wide + tall: centered Card with full vertical layout.
+                  // Use ScrollView → ConstrainedBox(minHeight) → Center, NOT
+                  // Center → ScrollView. The minHeight ensures Center always has
+                  // a bounded space at least as tall as the viewport so the card
+                  // lands at the true visual midpoint. Symmetric vertical padding
+                  // (40dp each side) guarantees no asymmetric offset.
                   if (isWide) {
-                    return Center(
-                      child: SingleChildScrollView(
-                        // Top padding clears the transparent AppBar since
-                        // extendBodyBehindAppBar=true extends the body under it.
-                        padding: const EdgeInsets.fromLTRB(
-                          24,
-                          kToolbarHeight + 16,
-                          24,
-                          40,
+                    return SingleChildScrollView(
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minHeight: constraints.maxHeight,
                         ),
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 480),
-                          child: Card(
-                            margin: EdgeInsets.zero,
-                            clipBehavior: Clip.antiAlias,
-                            child: Padding(
-                              padding: const EdgeInsets.all(32),
-                              child: buildForm(
-                                Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: <Widget>[
-                                    heroSection,
-                                    const SizedBox(height: 32),
-                                    urlField,
-                                    const SizedBox(height: 16),
-                                    credentialsFields,
-                                  ],
+                        child: Center(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 40,
+                            ),
+                            child: ConstrainedBox(
+                              constraints:
+                                  const BoxConstraints(maxWidth: 480),
+                              child: Card(
+                                margin: EdgeInsets.zero,
+                                clipBehavior: Clip.antiAlias,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(32),
+                                  child: buildForm(
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: <Widget>[
+                                        heroSection,
+                                        const SizedBox(height: 32),
+                                        urlField,
+                                        const SizedBox(height: 16),
+                                        credentialsFields,
+                                      ],
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
