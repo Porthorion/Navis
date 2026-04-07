@@ -178,7 +178,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       appBar: AppBar(forceMaterialTransparency: true),
       body: Stack(
           children: <Widget>[
-            SafeArea(
+            Positioned.fill(
+              child: SafeArea(
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   final isWide = constraints.maxWidth >= 600;
@@ -311,6 +312,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                   );
                 },
+              ),
               ),
             ),
             AppNoticeHost(controller: _noticeController),
