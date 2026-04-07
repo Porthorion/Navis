@@ -816,10 +816,13 @@ class _AppShellState extends ConsumerState<AppShell> {
         !isPhoneFormFactor;
     final allowScrollableRail = !isPhoneFormFactor && !useCompactWideLandscape;
     final useWideMiniPlayerStyle = screenWidth >= 960;
-    final compactBottomMiniPlayerHeight = (screenHeight * 0.18).clamp(
-      80.0,
-      140.0,
-    );
+    // On AAOS (compactWideLandscape) the available height is only ~650dp;
+    // a phone-style 18 % strip (~117dp) eats too much of the screen.
+    // Use a single-row height instead (64–80dp) to keep as much content
+    // area as possible for browsing.
+    final compactBottomMiniPlayerHeight = useCompactWideLandscape
+        ? (screenHeight * 0.11).clamp(64.0, 80.0)
+        : (screenHeight * 0.18).clamp(80.0, 140.0);
     if (!adaptiveInputPolicy.enableDesktopCommandShortcuts &&
         _showQuickSearchOverlay) {
       WidgetsBinding.instance.addPostFrameCallback((_) {

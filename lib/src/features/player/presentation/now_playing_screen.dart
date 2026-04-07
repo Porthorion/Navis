@@ -1900,8 +1900,8 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
             440.0,
           );
           final artMaxSize = math
-              .min(artPaneWidth - 12, constraints.maxHeight * 0.74)
-              .clamp(180.0, 420.0);
+              .min(artPaneWidth - 12, constraints.maxHeight * 0.68)
+              .clamp(180.0, 380.0);
           final showInlineLyrics =
               _showLyrics &&
               !_showWideFullscreenLyrics &&
@@ -1988,164 +1988,155 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                         ),
                 );
 
-          final infoColumn = LayoutBuilder(
-            builder: (context, infoConstraints) => SingleChildScrollView(
-              padding: EdgeInsets.zero,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight: infoConstraints.maxHeight,
-                ),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 680),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: <Widget>[
-                        AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 280),
-                          switchInCurve: Curves.easeOut,
-                          switchOutCurve: Curves.easeIn,
-                          transitionBuilder: songSwapTransitionBuilder,
-                          child: _TrackInfo(
-                            key: ValueKey<String>(
-                              'compact-wide-track-$nowPlayingVisualKey',
-                            ),
-                            title: title,
-                            artist: artist,
-                            album: album,
-                            compact: true,
-                            onTitleTap: isRadio
-                                ? (radioMeta?.nowPlayingTitle != null &&
-                                          radioMeta!.nowPlayingTitle!.isNotEmpty
-                                      ? () {
-                                          ref
-                                              .read(
-                                                searchFilterProvider.notifier,
-                                              )
-                                              .select(SearchResultType.songs);
-                                          NavService.goToSearch(
-                                            context,
-                                            ref,
-                                            radioMeta.nowPlayingTitle!,
-                                          );
-                                        }
-                                      : null)
-                                : null,
-                            artistLinks: isRadio
-                                ? (radioMeta?.nowPlayingArtist != null &&
-                                          radioMeta!
-                                              .nowPlayingArtist!
-                                              .isNotEmpty
-                                      ? _splitArtists(
-                                              radioMeta.nowPlayingArtist!,
-                                            )
-                                            .map(
-                                              (name) => (
-                                                name: name,
-                                                onTap: () {
-                                                  ref
-                                                      .read(
-                                                        searchFilterProvider
-                                                            .notifier,
-                                                      )
-                                                      .select(
-                                                        SearchResultType
-                                                            .artists,
-                                                      );
-                                                  NavService.goToSearch(
-                                                    context,
-                                                    ref,
-                                                    name,
-                                                  );
-                                                },
-                                              ),
-                                            )
-                                            .toList()
-                                      : null)
-                                : null,
-                            onArtistTap: isRadio
-                                ? null
-                                : (resolvedArtistId != null
-                                      ? () => NavService.goToArtist(
+          // Car layout: track info pinned to top, playback controls pinned
+          // to bottom, with a Spacer between them. This makes better use of
+          // the wide AAOS screen compared to the previous vertically-centered
+          // approach which left ~175dp of dead space above and below the
+          // content. Full-size (non-compact) buttons give larger touch targets
+          // which are important for in-car interaction.
+          final infoColumn = Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 680),
+              child: Column(
+                mainAxisSize: MainAxisSize.max,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 280),
+                    switchInCurve: Curves.easeOut,
+                    switchOutCurve: Curves.easeIn,
+                    transitionBuilder: songSwapTransitionBuilder,
+                    child: _TrackInfo(
+                      key: ValueKey<String>(
+                        'compact-wide-track-$nowPlayingVisualKey',
+                      ),
+                      title: title,
+                      artist: artist,
+                      album: album,
+                      compact: true,
+                      onTitleTap: isRadio
+                          ? (radioMeta?.nowPlayingTitle != null &&
+                                    radioMeta!.nowPlayingTitle!.isNotEmpty
+                                ? () {
+                                    ref
+                                        .read(
+                                          searchFilterProvider.notifier,
+                                        )
+                                        .select(SearchResultType.songs);
+                                    NavService.goToSearch(
+                                      context,
+                                      ref,
+                                      radioMeta.nowPlayingTitle!,
+                                    );
+                                  }
+                                : null)
+                          : null,
+                      artistLinks: isRadio
+                          ? (radioMeta?.nowPlayingArtist != null &&
+                                    radioMeta!.nowPlayingArtist!.isNotEmpty
+                                ? _splitArtists(radioMeta.nowPlayingArtist!)
+                                      .map(
+                                        (name) => (
+                                          name: name,
+                                          onTap: () {
+                                            ref
+                                                .read(
+                                                  searchFilterProvider.notifier,
+                                                )
+                                                .select(
+                                                  SearchResultType.artists,
+                                                );
+                                            NavService.goToSearch(
+                                              context,
+                                              ref,
+                                              name,
+                                            );
+                                          },
+                                        ),
+                                      )
+                                      .toList()
+                                : null)
+                          : null,
+                      onArtistTap: isRadio
+                          ? null
+                          : (resolvedArtistId != null
+                                ? () => NavService.goToArtist(
+                                    context,
+                                    ref,
+                                    resolvedArtistId,
+                                  )
+                                : (song?.artistName != null &&
+                                          song!.artistName!.isNotEmpty
+                                      ? () => NavService.goToSearch(
                                           context,
                                           ref,
-                                          resolvedArtistId,
+                                          song.artistName!,
                                         )
-                                      : (song?.artistName != null &&
-                                                song!.artistName!.isNotEmpty
-                                            ? () => NavService.goToSearch(
-                                                context,
-                                                ref,
-                                                song.artistName!,
-                                              )
-                                            : null)),
-                            onAlbumTap: isRadio
-                                ? null
-                                : (song?.albumId != null &&
-                                          song!.albumId!.isNotEmpty
-                                      ? () => NavService.goToAlbum(
-                                          context,
-                                          ref,
-                                          song.albumId!,
-                                        )
-                                      : null),
-                          ),
-                        ),
-                        if (!isRadio) ...<Widget>[
-                          const SizedBox(height: 8),
-                          _NowPlayingInfoPanel(
-                            key: ValueKey<String>(
-                              'compact-wide-info-$nowPlayingVisualKey',
-                            ),
-                            song: song,
-                            album: albumDetails,
-                            playback: playback,
-                            currentMediaItem: currentMediaItem,
-                            playbackSpeed: playbackSpeed,
-                          ),
-                          const SizedBox(height: 8),
-                          _SeekBar(playback: playback),
-                        ],
-                        const SizedBox(height: 8),
-                        _TransportControls(
-                          playback: playback,
-                          isRadio: isRadio,
-                          compact: true,
-                          showVolumeControl: false,
-                          onSkipPrevious: _handleManualPreviousButton,
-                          onSkipNext: _handleManualNextButton,
-                        ),
-                        const SizedBox(height: 8),
-                        if (!isRadio)
-                          _ActionRow(
-                            song: song,
-                            songId: playback.currentSongId,
-                            isLiked: playback.isCurrentSongLiked,
-                            showLyrics:
-                                _showLyrics || _showWideFullscreenLyrics,
-                            onLyricsToggle: playback.currentSongId == null
-                                ? null
-                                : () => _updateWideOverlayState(() {
-                                    _showWideFullscreenLyrics = false;
-                                    _showLyrics = !_showLyrics;
-                                  }),
-                            wideEmbeddedMode: true,
-                            onOpenQueuePanel: _showQueuePanel,
-                            onOpenSettingsPanel: () =>
-                                _updateWideOverlayState(() {
-                                  _showWideFullscreenLyrics = false;
-                                  _widePanel = _WideNowPlayingPanel.settings;
-                                }),
-                            onOpenMixPanel: () => _updateWideOverlayState(() {
-                              _showWideFullscreenLyrics = false;
-                              _widePanel = _WideNowPlayingPanel.mix;
-                            }),
-                          ),
-                      ],
+                                      : null)),
+                      onAlbumTap: isRadio
+                          ? null
+                          : (song?.albumId != null && song!.albumId!.isNotEmpty
+                                ? () => NavService.goToAlbum(
+                                    context,
+                                    ref,
+                                    song.albumId!,
+                                  )
+                                : null),
                     ),
                   ),
-                ),
+                  if (!isRadio) ...<Widget>[
+                    const SizedBox(height: 6),
+                    _NowPlayingInfoPanel(
+                      key: ValueKey<String>(
+                        'compact-wide-info-$nowPlayingVisualKey',
+                      ),
+                      song: song,
+                      album: albumDetails,
+                      playback: playback,
+                      currentMediaItem: currentMediaItem,
+                      playbackSpeed: playbackSpeed,
+                    ),
+                  ],
+                  // Spacer pushes controls to the bottom of the pane.
+                  const Spacer(),
+                  if (!isRadio) ...<Widget>[
+                    _SeekBar(playback: playback),
+                    const SizedBox(height: 14),
+                  ],
+                  _TransportControls(
+                    playback: playback,
+                    isRadio: isRadio,
+                    showVolumeControl: false,
+                    onSkipPrevious: _handleManualPreviousButton,
+                    onSkipNext: _handleManualNextButton,
+                  ),
+                  if (!isRadio) ...<Widget>[
+                    const SizedBox(height: 14),
+                    _ActionRow(
+                      song: song,
+                      songId: playback.currentSongId,
+                      isLiked: playback.isCurrentSongLiked,
+                      showLyrics: _showLyrics || _showWideFullscreenLyrics,
+                      onLyricsToggle: playback.currentSongId == null
+                          ? null
+                          : () => _updateWideOverlayState(() {
+                              _showWideFullscreenLyrics = false;
+                              _showLyrics = !_showLyrics;
+                            }),
+                      wideEmbeddedMode: true,
+                      onOpenQueuePanel: _showQueuePanel,
+                      onOpenSettingsPanel: () => _updateWideOverlayState(() {
+                        _showWideFullscreenLyrics = false;
+                        _widePanel = _WideNowPlayingPanel.settings;
+                      }),
+                      onOpenMixPanel: () => _updateWideOverlayState(() {
+                        _showWideFullscreenLyrics = false;
+                        _widePanel = _WideNowPlayingPanel.mix;
+                      }),
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                ],
               ),
             ),
           );
