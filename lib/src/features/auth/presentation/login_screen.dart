@@ -175,6 +175,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         );
 
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(forceMaterialTransparency: true),
       body: Stack(
           children: <Widget>[
@@ -264,9 +265,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   if (isWide) {
                     return Center(
                       child: SingleChildScrollView(
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 40,
-                          horizontal: 24,
+                        // Top padding clears the transparent AppBar since
+                        // extendBodyBehindAppBar=true extends the body under it.
+                        padding: const EdgeInsets.fromLTRB(
+                          24,
+                          kToolbarHeight + 16,
+                          24,
+                          40,
                         ),
                         child: ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 480),
@@ -298,7 +303,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                   // Narrow (mobile portrait): full-page scrollable
                   return SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
+                    // Top padding clears the transparent AppBar.
+                    padding: const EdgeInsets.fromLTRB(
+                      24,
+                      kToolbarHeight + 8,
+                      24,
+                      40,
+                    ),
                     child: buildForm(
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
