@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/subsonic_error.dart';
+import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_connection_provider.dart';
@@ -23,9 +24,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   late final TextEditingController _urlController;
   late final TextEditingController _usernameController;
   late final TextEditingController _passwordController;
+  final AppNoticeController _noticeController = AppNoticeController();
 
   bool _isConnecting = false;
   bool _showValidationErrors = false;
+  bool _passwordVisible = false;
 
   bool get _isBusy => _isConnecting;
 
@@ -43,6 +46,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _urlController.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
+    _noticeController.dispose();
     super.dispose();
   }
 
@@ -51,108 +55,161 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
 
-    return Scaffold(
-      appBar: AppBar(title: Text(l10n.loginTitle)),
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final useWideLayout = constraints.maxWidth >= 900;
-            final form = Form(
-              key: _formKey,
-              autovalidateMode: _showValidationErrors
-                  ? AutovalidateMode.onUserInteraction
-                  : AutovalidateMode.disabled,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  Text(
-                    l10n.loginSubtitle,
-                    style: theme.textTheme.bodyLarge,
-                  ),
-                  const SizedBox(height: 20),
-                  TextFormField(
-                    controller: _urlController,
-                    decoration: InputDecoration(
-                      labelText: l10n.loginServerUrlLabel,
-                    ),
-                    keyboardType: TextInputType.url,
-                    textInputAction: TextInputAction.next,
-                    enabled: !_isBusy,
-                    validator: (value) => validateServerUrl(value, l10n),
-                  ),
-                  if (isInsecureHttpUrl(
-                    _urlController.text.trim(),
-                  )) ...<Widget>[
-                    const SizedBox(height: 8),
-                    Text(
-                      l10n.loginInsecureHttpWarning,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.error,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _usernameController,
-                    decoration: InputDecoration(
-                      labelText: l10n.loginUsernameLabel,
-                    ),
-                    textInputAction: TextInputAction.next,
-                    enabled: !_isBusy,
-                    validator: (value) => _validateRequired(
-                      value,
-                      l10n.loginValidationUsernameRequired,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _passwordController,
-                    decoration: InputDecoration(
-                      labelText: l10n.loginPasswordLabel,
-                    ),
-                    obscureText: true,
-                    textInputAction: TextInputAction.done,
-                    onFieldSubmitted: (_) => _connect(),
-                    enabled: !_isBusy,
-                    validator: (value) => _validateRequired(
-                      value,
-                      l10n.loginValidationPasswordRequired,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  FilledButton(
-                    onPressed: _isBusy ? null : _connect,
-                    child: Text(
-                      _isConnecting ? l10n.loginConnecting : l10n.loginConnect,
-                    ),
-                  ),
-                ],
+    final formContents = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        _LoginHeroSection(subtitle: l10n.loginSubtitle),
+        const SizedBox(height: 32),
+        TextFormField(
+          controller: _urlController,
+          decoration: InputDecoration(
+            labelText: l10n.loginServerUrlLabel,
+            prefixIcon: const Icon(Icons.dns_outlined),
+          ),
+          keyboardType: TextInputType.url,
+          textInputAction: TextInputAction.next,
+          enabled: !_isBusy,
+          validator: (value) => validateServerUrl(value, l10n),
+        ),
+        if (isInsecureHttpUrl(_urlController.text.trim())) ...<Widget>[
+          const SizedBox(height: 8),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Icon(
+                Icons.warning_amber_rounded,
+                size: 16,
+                color: theme.colorScheme.error,
               ),
-            );
-
-            final scrollBody = SingleChildScrollView(
-              padding: EdgeInsets.all(useWideLayout ? 24 : 16),
-              child: form,
-            );
-
-            if (!useWideLayout) {
-              return scrollBody;
-            }
-
-            return Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 560),
-                child: Card(
-                  margin: EdgeInsets.zero,
-                  clipBehavior: Clip.antiAlias,
-                  child: scrollBody,
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  l10n.loginInsecureHttpWarning,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.error,
+                  ),
                 ),
               ),
-            );
-          },
+            ],
+          ),
+        ],
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: _usernameController,
+          decoration: InputDecoration(
+            labelText: l10n.loginUsernameLabel,
+            prefixIcon: const Icon(Icons.person_outline),
+          ),
+          textInputAction: TextInputAction.next,
+          enabled: !_isBusy,
+          validator: (value) => _validateRequired(
+            value,
+            l10n.loginValidationUsernameRequired,
+          ),
         ),
-      ),
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: _passwordController,
+          decoration: InputDecoration(
+            labelText: l10n.loginPasswordLabel,
+            prefixIcon: const Icon(Icons.lock_outline),
+            suffixIcon: IconButton(
+              icon: Icon(
+                _passwordVisible
+                    ? Icons.visibility_off_outlined
+                    : Icons.visibility_outlined,
+              ),
+              onPressed: _isBusy
+                  ? null
+                  : () =>
+                        setState(() => _passwordVisible = !_passwordVisible),
+            ),
+          ),
+          obscureText: !_passwordVisible,
+          textInputAction: TextInputAction.done,
+          onFieldSubmitted: (_) => _connect(),
+          enabled: !_isBusy,
+          validator: (value) => _validateRequired(
+            value,
+            l10n.loginValidationPasswordRequired,
+          ),
+        ),
+        const SizedBox(height: 24),
+        FilledButton(
+          onPressed: _isBusy ? null : _connect,
+          child: _isConnecting
+              ? Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: theme.colorScheme.onPrimary,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(l10n.loginConnecting),
+                  ],
+                )
+              : Text(l10n.loginConnect),
+        ),
+      ],
     );
+
+    final form = Form(
+      key: _formKey,
+      autovalidateMode: _showValidationErrors
+          ? AutovalidateMode.onUserInteraction
+          : AutovalidateMode.disabled,
+      child: formContents,
+    );
+
+    return Scaffold(
+      appBar: AppBar(forceMaterialTransparency: true),
+      body: Stack(
+          children: <Widget>[
+            SafeArea(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final useWideLayout = constraints.maxWidth >= 600;
+
+                  if (!useWideLayout) {
+                    return SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
+                      child: form,
+                    );
+                  }
+
+                  return Center(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 40,
+                        horizontal: 24,
+                      ),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 480),
+                        child: Card(
+                          margin: EdgeInsets.zero,
+                          clipBehavior: Clip.antiAlias,
+                          child: Padding(
+                            padding: const EdgeInsets.all(32),
+                            child: form,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            AppNoticeHost(controller: _noticeController),
+          ],
+        ),
+      );
   }
 
   String? _validateRequired(String? value, String message) {
@@ -202,16 +259,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (!mounted) {
         return;
       }
-      AppNoticeMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.loginConnectSuccess)),
+      _noticeController.show(
+        message: l10n.loginConnectSuccess,
+        level: AppNoticeLevel.success,
       );
       context.go('/');
     } on Object catch (error) {
       if (!mounted) {
         return;
       }
-      AppNoticeMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_toUserMessage(error, l10n))),
+      _noticeController.show(
+        message: _toUserMessage(error, l10n),
+        level: AppNoticeLevel.error,
       );
     } finally {
       if (mounted) {
@@ -246,5 +305,37 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       SubsonicApiException(:final message) => message,
       _ => l10n.loginErrorUnknown,
     };
+  }
+}
+
+class _LoginHeroSection extends StatelessWidget {
+  const _LoginHeroSection({required this.subtitle});
+
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      children: <Widget>[
+        const NavisIcon(size: 80, tintWithAccent: true),
+        const SizedBox(height: 12),
+        Text(
+          'Navis',
+          style: theme.textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 6),
+        Text(
+          subtitle,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
   }
 }

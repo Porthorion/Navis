@@ -160,7 +160,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Sign in'), findsOneWidget);
+    expect(find.text('Navis'), findsOneWidget);
     expect(find.text('Server URL'), findsOneWidget);
     expect(find.text('Username'), findsOneWidget);
     expect(find.text('Password'), findsOneWidget);
@@ -374,6 +374,7 @@ void main() {
     await tester.enterText(find.byType(TextFormField).at(0), 'https://x.test');
     await tester.enterText(find.byType(TextFormField).at(1), 'alice');
     await tester.enterText(find.byType(TextFormField).at(2), 'secret');
+    await tester.ensureVisible(find.text('Connect'));
     await tester.tap(find.text('Connect'));
     await tester.pumpAndSettle();
 
@@ -430,6 +431,7 @@ void main() {
     await tester.enterText(find.byType(TextFormField).at(1), 'alice');
     await tester.enterText(find.byType(TextFormField).at(2), 'secret');
     expect(find.textContaining('HTTP does not encrypt'), findsOneWidget);
+    await tester.ensureVisible(find.text('Connect'));
     await tester.tap(find.text('Connect'));
     await tester.pumpAndSettle();
 
