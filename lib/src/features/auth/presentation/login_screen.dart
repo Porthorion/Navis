@@ -74,6 +74,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ),
           keyboardType: TextInputType.url,
           textInputAction: TextInputAction.next,
+          // Keep the field above the keyboard when resizeToAvoidBottomInset is
+          // false — tells EditableText.showOnScreen to scroll the field up by at
+          // least bottomInset dp from the viewport bottom.
+          scrollPadding: EdgeInsets.only(bottom: bottomInset + 20),
           enabled: !_isBusy,
           validator: (value) => validateServerUrl(value, l10n),
         ),
@@ -113,6 +117,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             prefixIcon: const Icon(Icons.person_outline),
           ),
           textInputAction: TextInputAction.next,
+          scrollPadding: EdgeInsets.only(bottom: bottomInset + 20),
           enabled: !_isBusy,
           validator: (value) => _validateRequired(
             value,
@@ -139,6 +144,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ),
           obscureText: !_passwordVisible,
           textInputAction: TextInputAction.done,
+          scrollPadding: EdgeInsets.only(bottom: bottomInset + 20),
           onFieldSubmitted: (_) => _connect(),
           enabled: !_isBusy,
           validator: (value) => _validateRequired(
