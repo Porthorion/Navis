@@ -191,12 +191,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   if (isWide && isShort) {
                     return Center(
                       child: Padding(
-                        padding: const EdgeInsets.all(24),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 16,
+                        ),
                         child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                            maxWidth: 800,
-                            maxHeight: constraints.maxHeight - 48,
-                          ),
+                          // No maxHeight — let the card be its natural size so
+                          // Center can truly center it vertically.
+                          constraints: const BoxConstraints(maxWidth: 800),
                           child: Card(
                             margin: EdgeInsets.zero,
                             clipBehavior: Clip.antiAlias,
@@ -207,34 +209,42 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                       CrossAxisAlignment.stretch,
                                   children: <Widget>[
                                     Expanded(
-                                      child: Center(
-                                        child: Padding(
-                                          padding: const EdgeInsets.all(32),
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.stretch,
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: <Widget>[
-                                              heroSection,
-                                              const SizedBox(height: 20),
-                                              urlField,
-                                            ],
-                                          ),
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(20),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: <Widget>[
+                                            // Compact hero: smaller icon,
+                                            // no subtitle — saves ~70dp vs
+                                            // the full hero section.
+                                            const _LoginHeroSection(compact: true),
+                                            const SizedBox(height: 16),
+                                            urlField,
+                                          ],
                                         ),
                                       ),
                                     ),
                                     VerticalDivider(
                                       width: 1,
                                       thickness: 1,
-                                      indent: 16,
-                                      endIndent: 16,
+                                      indent: 12,
+                                      endIndent: 12,
                                       color: theme.colorScheme.outlineVariant,
                                     ),
                                     Expanded(
-                                      child: Center(
-                                        child: Padding(
-                                          padding: const EdgeInsets.all(32),
-                                          child: credentialsFields,
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(20),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: <Widget>[
+                                            credentialsFields,
+                                          ],
                                         ),
                                       ),
                                     ),
@@ -406,17 +416,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 }
 
 class _LoginHeroSection extends StatelessWidget {
-  const _LoginHeroSection({required this.subtitle});
+  const _LoginHeroSection({this.subtitle, this.compact = false});
 
-  final String subtitle;
+  /// Full subtitle text shown in portrait/wide layouts.
+  /// Omitted when [compact] is true.
+  final String? subtitle;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        const NavisIcon(size: 80, tintWithAccent: true),
-        const SizedBox(height: 12),
+        NavisIcon(size: compact ? 56 : 80, tintWithAccent: true),
+        SizedBox(height: compact ? 8 : 12),
         Text(
           'Navis',
           style: theme.textTheme.headlineMedium?.copyWith(
@@ -424,14 +438,16 @@ class _LoginHeroSection extends StatelessWidget {
           ),
           textAlign: TextAlign.center,
         ),
-        const SizedBox(height: 6),
-        Text(
-          subtitle,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+        if (!compact && subtitle != null) ...<Widget>[
+          const SizedBox(height: 6),
+          Text(
+            subtitle!,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            textAlign: TextAlign.center,
           ),
-          textAlign: TextAlign.center,
-        ),
+        ],
       ],
     );
   }
