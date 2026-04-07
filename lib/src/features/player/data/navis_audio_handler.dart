@@ -11,10 +11,13 @@ import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/database/daos/history_dao.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
+import 'package:navis/src/database/daos/playlist_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/daos/play_queue_dao.dart';
 import 'package:navis/src/database/daos/star_sync_dao.dart';
 import 'package:navis/src/database/tables/schema_enums.dart' as schema;
+import 'package:navis/src/features/auto/data/auto_media_id.dart';
+import 'package:navis/src/features/auto/data/auto_media_tree_service.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 import 'package:navis/src/features/player/data/radio_metadata_service.dart';
@@ -415,6 +418,7 @@ void beginNavisPlaybackHandlerTeardown(NavisPlaybackHandler handler) {
 
 Future<NavisPlaybackHandler> initNavisAudioHandler({
   required LibraryDao libraryDao,
+  required PlaylistDao playlistDao,
   required PlayQueueDao playQueueDao,
   required HistoryDao historyDao,
   required PlaybackSourceResolver sourceResolver,
@@ -433,6 +437,7 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
   NavisAudioHandler createBaseHandler() {
     return NavisAudioHandler(
       libraryDao: libraryDao,
+      playlistDao: playlistDao,
       playQueueDao: playQueueDao,
       historyDao: historyDao,
       sourceResolver: sourceResolver,
@@ -889,6 +894,7 @@ class NavisAudioHandler extends BaseAudioHandler
     implements NavisPlaybackHandler {
   NavisAudioHandler({
     required LibraryDao libraryDao,
+    required PlaylistDao playlistDao,
     required PlayQueueDao playQueueDao,
     required HistoryDao historyDao,
     required PlaybackSourceResolver sourceResolver,
@@ -900,6 +906,7 @@ class NavisAudioHandler extends BaseAudioHandler
     required StarSyncDao starSyncDao,
     AudioPlayer? player,
   }) : _libraryDao = libraryDao,
+       _playlistDao = playlistDao,
        _playQueueDao = playQueueDao,
        _historyDao = historyDao,
        _sourceResolver = sourceResolver,
@@ -934,9 +941,16 @@ class NavisAudioHandler extends BaseAudioHandler
       ),
     );
     _ready = _initialize();
+    _autoMediaTreeService = AutoMediaTreeService(
+      libraryDao: _libraryDao,
+      playlistDao: _playlistDao,
+      historyDao: _historyDao,
+      readApiClient: _readApiClient,
+    );
   }
 
   final LibraryDao _libraryDao;
+  final PlaylistDao _playlistDao;
   final PlayQueueDao _playQueueDao;
   final HistoryDao _historyDao;
   final PlaybackSourceResolver _sourceResolver;
@@ -946,6 +960,7 @@ class NavisAudioHandler extends BaseAudioHandler
   final ScrobbleService _scrobbleService;
   final PlaybackRuntimeSettings Function() _readRuntimeSettings;
   final StarSyncDao _starSyncDao;
+  late final AutoMediaTreeService _autoMediaTreeService;
   late AudioPlayer _player;
   AndroidEqualizer? _androidEqualizer;
   AndroidLoudnessEnhancer? _androidLoudnessEnhancer;
@@ -1049,6 +1064,122 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> waitUntilReady() => _ready;
+
+  // ── Android Auto browse tree ────────────────────────────────────────────
+
+  @override
+  Future<List<MediaItem>> getChildren(
+    String parentMediaId, [
+    Map<String, dynamic>? options,
+  ]) => _autoMediaTreeService.getChildren(parentMediaId, options);
+
+  @override
+  Future<MediaItem?> getMediaItem(String mediaId) =>
+      _autoMediaTreeService.getMediaItem(mediaId);
+
+  @override
+  Future<List<MediaItem>> search(
+    String query, [
+    Map<String, dynamic>? extras,
+  ]) => _autoMediaTreeService.search(query, extras);
+
+  @override
+  Future<void> playFromMediaId(
+    String mediaId, [
+    Map<String, dynamic>? extras,
+  ]) async {
+    // Handle special root-level playable/browsable nodes by raw ID.
+    switch (mediaId) {
+      case AutoMediaRoot.randomMix:
+        await _playRandomMix();
+        return;
+      case AutoMediaRoot.likedSongs:
+        final songs = await _libraryDao.watchAllStarredSongs().first;
+        if (songs.isNotEmpty) await replaceQueueWithData(songs);
+        return;
+      case AutoMediaRoot.likedAlbums:
+        final albums = await _libraryDao.watchLikedAlbums().first;
+        final allSongs = <SongsTableData>[];
+        for (final album in albums) {
+          allSongs.addAll(
+            await _libraryDao.watchSongsByAlbum(album.id).first,
+          );
+        }
+        if (allSongs.isNotEmpty) await replaceQueueWithData(allSongs);
+        return;
+      case AutoMediaRoot.recent:
+        final songs = await _historyDao
+            .watchRecentlyPlayedSongs(limit: 50)
+            .first;
+        if (songs.isNotEmpty) await replaceQueueWithData(songs);
+        return;
+    }
+
+    // Handle entity media IDs (artist/album/playlist/song).
+    final parsed = AutoMediaId.parse(mediaId);
+    if (parsed == null || parsed.entityId == null) return;
+
+    switch (parsed.type) {
+      case AutoMediaIdType.song:
+        await replaceQueue([parsed.entityId!]);
+      case AutoMediaIdType.album:
+        final songs = await _libraryDao
+            .watchSongsByAlbum(parsed.entityId!)
+            .first;
+        if (songs.isNotEmpty) await replaceQueueWithData(songs);
+      case AutoMediaIdType.playlist:
+        final songs = await _playlistDao
+            .watchPlaylistSongs(parsed.entityId!)
+            .first;
+        if (songs.isNotEmpty) await replaceQueueWithData(songs);
+      case AutoMediaIdType.artist:
+        final albums = await _libraryDao
+            .watchAlbumsByArtist(parsed.entityId!)
+            .first;
+        final allSongs = <SongsTableData>[];
+        for (final album in albums) {
+          allSongs.addAll(
+            await _libraryDao.watchSongsByAlbum(album.id).first,
+          );
+        }
+        if (allSongs.isNotEmpty) await replaceQueueWithData(allSongs);
+      case AutoMediaIdType.root:
+      case AutoMediaIdType.rootCategory:
+      case AutoMediaIdType.likedSubcategory:
+        break;
+    }
+  }
+
+  Future<void> _playRandomMix() async {
+    final apiClient = _readApiClient();
+    if (apiClient != null) {
+      try {
+        final songs = await apiClient.getRandomSongs(size: 50);
+        final songIds = songs.map((s) => s.id).toList(growable: false);
+        if (songIds.isNotEmpty) await replaceQueue(songIds);
+      } on Object catch (e, st) {
+        AppLogger.warning('playFromMediaId random mix failed: $e\n$st');
+      }
+    }
+  }
+
+  @override
+  Future<void> playFromSearch(
+    String query, [
+    Map<String, dynamic>? extras,
+  ]) async {
+    if (query.isEmpty) {
+      await _playRandomMix();
+      return;
+    }
+    final results = await search(query, extras);
+    if (results.isEmpty) return;
+
+    // Find the first playable item.
+    final playable = results.where((item) => item.playable == true);
+    final target = playable.isNotEmpty ? playable.first : results.first;
+    await playFromMediaId(target.id);
+  }
 
   void _setCurrentMediaItem(MediaItem? item) {
     _currentMediaItem = item;
