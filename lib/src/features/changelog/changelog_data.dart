@@ -30,6 +30,14 @@ const List<ChangelogVersion> changelogs = [
     version: '0.9.6',
     entries: [
       ChangelogEntry(
+        'Android Auto support — browse artists, albums, playlists, favourites, and podcasts directly from your car\'s head unit',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Android Auto now playing screen adapts to car displays — large album art, oversized transport controls, and a seek bar sized for in-car interaction',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
         'Added Album Queue setting in Playback Settings — when enabled, tapping a track in an album queues the full album and starts at that track',
         type: ChangelogEntryType.newFeature,
       ),

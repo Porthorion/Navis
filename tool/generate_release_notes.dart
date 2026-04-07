@@ -55,6 +55,44 @@ String _label(_EntryType t) {
 // Newest version first.
 // ---------------------------------------------------------------------------
 const List<_Version> _changelogs = [
+  _Version('0.9.6', [
+    _Entry(
+      'Android Auto support — browse artists, albums, playlists, favourites, and podcasts directly from your car\'s head unit',
+      type: _EntryType.newFeature,
+    ),
+    _Entry(
+      'Android Auto now playing screen adapts to car displays — large album art, oversized transport controls, and a seek bar sized for in-car interaction',
+      type: _EntryType.newFeature,
+    ),
+    _Entry(
+      'Added Album Queue setting in Playback Settings — when enabled, tapping a track in an album queues the full album and starts at that track',
+      type: _EntryType.newFeature,
+    ),
+    _Entry(
+      'Added Liked Queue sub-setting — when enabled alongside Album Queue, tapping a track on the Liked page queues all liked songs and starts at that track',
+      type: _EntryType.newFeature,
+    ),
+    _Entry(
+      'Tapping a song now starts playback almost instantly — the app no longer waits for the full queue to load before you hear audio',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Tapping a different song while one is still loading now cancels the previous load and plays the new song immediately',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Album, artist, and playlist screens stay fully interactive while a queue action is in progress',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Cached and offline songs now play immediately even while a library sync is running in the background',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Library sync no longer blocks playback — large song batches are broken into smaller database writes so reads can interleave',
+      type: _EntryType.improvement,
+    ),
+  ]),
   _Version('0.9.5', [
     _Entry(
       'Download search is now shared — one search bar filters both Queue and Downloaded tabs',
