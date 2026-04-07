@@ -54,6 +54,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
+    // Track keyboard height so scroll views can add bottom padding when the
+    // keyboard is open. Must be read in build() (not inside LayoutBuilder) so
+    // that the widget rebuilds when viewInsets change — LayoutBuilder alone
+    // won't rebuild when resizeToAvoidBottomInset: false.
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
 
     final heroSection = _LoginHeroSection(subtitle: l10n.loginSubtitle);
 
@@ -175,6 +180,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         );
 
     return Scaffold(
+      // Prevent Scaffold from shrinking the body when the keyboard appears.
+      // Without this, LayoutBuilder sees smaller constraints when the keyboard
+      // opens — which can flip the isShort/isWide branch and dispose the
+      // focused TextFormField, causing a show→focus→dismiss→show keyboard loop
+      // (observed on Android Auto). Instead we manually add viewInsets.bottom
+      // as bottom padding on each scroll view so fields still scroll into view.
+      resizeToAvoidBottomInset: false,
       body: Stack(
           children: <Widget>[
             Positioned.fill(
@@ -273,9 +285,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         ),
                         child: Center(
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 40,
+                            padding: EdgeInsets.fromLTRB(
+                              24,
+                              40,
+                              24,
+                              // Grow bottom padding when keyboard is open so
+                              // the focused field can scroll above the keyboard.
+                              40 + bottomInset,
                             ),
                             child: ConstrainedBox(
                               constraints:
@@ -308,19 +324,36 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     );
                   }
 
-                  // Narrow (mobile portrait): full-page scrollable
+                  // Narrow (mobile portrait): scrollable with vertical centering.
+                  // ScrollView → ConstrainedBox(minHeight) → Center ensures the
+                  // form is centred when it fits and scrolls when it doesn't.
                   return SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
-                    child: buildForm(
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: <Widget>[
-                          heroSection,
-                          const SizedBox(height: 32),
-                          urlField,
-                          const SizedBox(height: 16),
-                          credentialsFields,
-                        ],
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight,
+                      ),
+                      child: Center(
+                        child: Padding(
+                          padding: EdgeInsets.fromLTRB(
+                            24,
+                            24,
+                            24,
+                            40 + bottomInset,
+                          ),
+                          child: buildForm(
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                heroSection,
+                                const SizedBox(height: 32),
+                                urlField,
+                                const SizedBox(height: 16),
+                                credentialsFields,
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   );
