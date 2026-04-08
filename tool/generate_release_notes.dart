@@ -56,6 +56,7 @@ String _label(_EntryType t) {
 // ---------------------------------------------------------------------------
 const List<_Version> _changelogs = [
   _Version('0.9.6', [
+    // New
     _Entry(
       'Android Auto support — browse artists, albums, playlists, favourites, and podcasts directly from your car\'s head unit',
       type: _EntryType.newFeature,
@@ -72,6 +73,15 @@ const List<_Version> _changelogs = [
       'Added Liked Queue sub-setting — when enabled alongside Album Queue, tapping a track on the Liked page queues all liked songs and starts at that track',
       type: _EntryType.newFeature,
     ),
+    // Improved
+    _Entry(
+      'Redesigned login screen — new Material 3 card layout with app icon, password visibility toggle, and an insecure HTTP warning',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Login screen adapts to any screen size — portrait, landscape phone, wide tablet, and desktop each get a purpose-built layout',
+      type: _EntryType.improvement,
+    ),
     _Entry(
       'Tapping a song now starts playback almost instantly — the app no longer waits for the full queue to load before you hear audio',
       type: _EntryType.improvement,
@@ -81,6 +91,15 @@ const List<_Version> _changelogs = [
       type: _EntryType.improvement,
     ),
     _Entry(
+      'Library sync no longer blocks playback — large song batches are broken into smaller database writes so reads can interleave',
+      type: _EntryType.improvement,
+    ),
+    // Fixed
+    _Entry(
+      'Login fields scroll up above the keyboard when tapped so the text you are typing is always visible',
+      type: _EntryType.fix,
+    ),
+    _Entry(
       'Album, artist, and playlist screens stay fully interactive while a queue action is in progress',
       type: _EntryType.fix,
     ),
@@ -88,12 +107,18 @@ const List<_Version> _changelogs = [
       'Cached and offline songs now play immediately even while a library sync is running in the background',
       type: _EntryType.fix,
     ),
-    _Entry(
-      'Library sync no longer blocks playback — large song batches are broken into smaller database writes so reads can interleave',
-      type: _EntryType.improvement,
-    ),
   ]),
   _Version('0.9.5', [
+    // New
+    _Entry(
+      'Added "Add to Queue" option in the downloaded track menu',
+      type: _EntryType.newFeature,
+    ),
+    _Entry(
+      'Artist detail screen now has Play and Shuffle buttons',
+      type: _EntryType.newFeature,
+    ),
+    // Improved
     _Entry(
       'Download search is now shared — one search bar filters both Queue and Downloaded tabs',
       type: _EntryType.improvement,
@@ -103,9 +128,14 @@ const List<_Version> _changelogs = [
       type: _EntryType.improvement,
     ),
     _Entry(
-      'Added "Add to Queue" option in the downloaded track menu',
-      type: _EntryType.newFeature,
+      'Album detail screen has a new scroll-driven header — cover art shrinks into the toolbar as you scroll, with a gradient overlay and album name animation',
+      type: _EntryType.improvement,
     ),
+    _Entry(
+      'Rating button now smoothly expands into a star-picker pill and collapses back with an animation',
+      type: _EntryType.improvement,
+    ),
+    // Fixed
     _Entry(
       'Fixed search bar keeping keyboard active after pressing back',
       type: _EntryType.fix,
@@ -113,18 +143,6 @@ const List<_Version> _changelogs = [
     _Entry(
       'Removed emojis from release notes for better cross-platform compatibility',
       type: _EntryType.fix,
-    ),
-    _Entry(
-      'Artist detail screen now has Play and Shuffle buttons',
-      type: _EntryType.newFeature,
-    ),
-    _Entry(
-      'Album detail screen has a new scroll-driven header — cover art shrinks into the toolbar as you scroll, with a gradient overlay and album name animation',
-      type: _EntryType.improvement,
-    ),
-    _Entry(
-      'Rating button now smoothly expands into a star-picker pill and collapses back with an animation',
-      type: _EntryType.improvement,
     ),
     _Entry(
       'Fixed cover art flash and hero animation glitches on album detail screen',
@@ -136,6 +154,7 @@ const List<_Version> _changelogs = [
     ),
   ]),
   _Version('0.9.4', [
+    // New
     _Entry(
       'Tapping a downloaded track in the Downloads page now plays it directly',
       type: _EntryType.newFeature,
@@ -156,6 +175,7 @@ const List<_Version> _changelogs = [
       "App now shows a What's New summary on first launch after an update",
       type: _EntryType.newFeature,
     ),
+    // Improved
     _Entry(
       'Improved radio station switching reliability and reduced lag when stopping radio',
       type: _EntryType.improvement,
@@ -168,6 +188,7 @@ const List<_Version> _changelogs = [
       'Update notifications now display actual release notes instead of a generic link',
       type: _EntryType.improvement,
     ),
+    // Fixed
     _Entry(
       'Fixed download button in the Now Playing settings panel not working',
       type: _EntryType.fix,
@@ -194,6 +215,7 @@ const List<_Version> _changelogs = [
     ),
   ]),
   _Version('0.3.0', [
+    // New
     _Entry(
       'Added playback speed control in Now Playing and Playback Settings, with saved speed restored across sessions',
       type: _EntryType.newFeature,
@@ -202,6 +224,7 @@ const List<_Version> _changelogs = [
       'Added ReplayGain playback settings with track/album modes and pre-amp control for supported libraries',
       type: _EntryType.newFeature,
     ),
+    // Improved
     _Entry(
       'Improved synced lyrics with full-screen live tracking, faster auto-scroll recovery, and tap-to-seek',
       type: _EntryType.improvement,
@@ -212,6 +235,12 @@ const List<_Version> _changelogs = [
     ),
   ]),
   _Version('0.2.12', [
+    // Improved
+    _Entry(
+      'Hardened release pipeline with APK package/version/signature checks before publishing new assets',
+      type: _EntryType.improvement,
+    ),
+    // Fixed
     _Entry(
       'Improved in-app update reliability by selecting only strictly newer release versions and deterministically preferring the matching APK asset for each tag',
       type: _EntryType.fix,
@@ -220,16 +249,9 @@ const List<_Version> _changelogs = [
       'Added APK pre-install validation for package/signature compatibility to prevent conflicting-package install attempts',
       type: _EntryType.fix,
     ),
-    _Entry(
-      'Hardened release pipeline with APK package/version/signature checks before publishing new assets',
-      type: _EntryType.improvement,
-    ),
   ]),
   _Version('0.2.11', [
-    _Entry(
-      'Fixed search/Now Playing navigation edge cases: closing queue no longer retriggers search, and expanding Now Playing no longer keeps the search keyboard active',
-      type: _EntryType.fix,
-    ),
+    // New
     _Entry(
       'Added full-screen album art viewer from album detail with smoother open/close transitions and pinch-to-zoom',
       type: _EntryType.newFeature,
@@ -238,12 +260,19 @@ const List<_Version> _changelogs = [
       'Added Appearance toggle for Dynamic Album Color to theme app accent colors from currently playing album art (off by default)',
       type: _EntryType.newFeature,
     ),
+    // Fixed
+    _Entry(
+      'Fixed search/Now Playing navigation edge cases: closing queue no longer retriggers search, and expanding Now Playing no longer keeps the search keyboard active',
+      type: _EntryType.fix,
+    ),
   ]),
   _Version('0.2.10', [
+    // New
     _Entry(
       'Added configurable auto-sync interval (15m, 30m, 1h, 2h, 6h, 12h, or manual only) in Sync Settings',
       type: _EntryType.newFeature,
     ),
+    // Improved
     _Entry(
       'Library now syncs automatically in the background on a periodic timer based on the chosen interval',
       type: _EntryType.improvement,
@@ -254,13 +283,15 @@ const List<_Version> _changelogs = [
     ),
   ]),
   _Version('0.2.9', [
-    _Entry(
-      'Fixed version not being upgraded, causing an infinite update loop',
-      type: _EntryType.fix,
-    ),
+    // Improved
     _Entry(
       'Refreshing the home screen now rescans for app updates and APK availability',
       type: _EntryType.improvement,
+    ),
+    // Fixed
+    _Entry(
+      'Fixed version not being upgraded, causing an infinite update loop',
+      type: _EntryType.fix,
     ),
     _Entry(
       'Release notes in the update dialog now render markdown formatting correctly (bold, headings, lists, etc.)',
@@ -268,14 +299,12 @@ const List<_Version> _changelogs = [
     ),
   ]),
   _Version('0.2.8', [
+    // New
     _Entry(
-      'Fixed back button sometimes exiting the app instead of minimizing the Now Playing overlay',
-      type: _EntryType.fix,
+      'Added version changelog dialog on first launch after update',
+      type: _EntryType.newFeature,
     ),
-    _Entry(
-      'Back button now consistently closes overlays before navigating',
-      type: _EntryType.fix,
-    ),
+    // Improved
     _Entry(
       'Added double-press-to-exit confirmation when on the Home screen',
       type: _EntryType.improvement,
@@ -292,9 +321,14 @@ const List<_Version> _changelogs = [
       'Refined player expand/collapse animations for a more natural feel',
       type: _EntryType.improvement,
     ),
+    // Fixed
     _Entry(
-      'Added version changelog dialog on first launch after update',
-      type: _EntryType.newFeature,
+      'Fixed back button sometimes exiting the app instead of minimizing the Now Playing overlay',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Back button now consistently closes overlays before navigating',
+      type: _EntryType.fix,
     ),
   ]),
 ];
