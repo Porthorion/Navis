@@ -29,7 +29,16 @@ const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
     version: '0.9.7',
     entries: [
+      // New
+      ChangelogEntry(
+        'New startup screen — the Navis logo appears centred with an animated ring that fills as the playback engine loads, then the logo flies up to its place on the home screen in a seamless transition',
+        type: ChangelogEntryType.newFeature,
+      ),
       // Fixed
+      ChangelogEntry(
+        "Album art on the home page's Recently Liked and Liked Tracks sections, and on the Liked page, now loads correctly — fixed a startup race condition that caused the cover art cache to crash before its database had finished opening",
+        type: ChangelogEntryType.fix,
+      ),
       ChangelogEntry(
         'Cover art images no longer stop loading after a large amount of music is cached — fixed a background conflict that caused images to get permanently stuck until the app was restarted',
         type: ChangelogEntryType.fix,
