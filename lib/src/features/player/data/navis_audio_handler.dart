@@ -3238,6 +3238,20 @@ class NavisAudioHandler extends BaseAudioHandler
   @override
   Future<void> play() async {
     await _ready;
+
+    // Edge case: when the queue has played to completion (processingState ==
+    // completed) and the user presses play, just_audio stays stuck at the end
+    // rather than restarting.  Seek back to the beginning of the queue first
+    // so playback actually resumes from the start.
+    if (_player.processingState == ProcessingState.completed &&
+        _queueItems.isNotEmpty) {
+      await _player.seek(Duration.zero, index: 0);
+      final inactiveDeck = _crossfadePlayer;
+      if (inactiveDeck != null) {
+        await inactiveDeck.seek(Duration.zero, index: 0);
+      }
+    }
+
     // play() must NOT go through _runSerialized — _player.play() returns a
     // Future that blocks until playback finishes/pauses.  Serializing it would
     // deadlock all subsequent operations (pause, seek, skip, queue changes).
