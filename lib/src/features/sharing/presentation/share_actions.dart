@@ -107,19 +107,19 @@ Future<void> _executeShare(
   required bool copyOnly,
 }) async {
   final l10n = AppLocalizations.of(context)!;
+  // Capture before any async gap — the triggering widget (e.g. context menu)
+  // may be unmounted by the time the await returns.
+  final noticeController = AppNoticeScope.maybeOf(context);
+
   try {
     final service = ref.read(shareServiceProvider);
     if (copyOnly) {
       await service.copyLink(content, entityId: entityId);
-      if (context.mounted) {
-        showAppNotice(context, message: l10n.linkCopied);
-      }
+      noticeController?.show(message: l10n.linkCopied);
     } else {
       await service.share(content, entityId: entityId, context: context);
     }
   } catch (e) {
-    if (context.mounted) {
-      showAppNotice(context, message: l10n.shareError);
-    }
+    noticeController?.show(message: l10n.shareError);
   }
 }

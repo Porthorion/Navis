@@ -76,11 +76,14 @@ class ShareService {
     } catch (_) {}
   }
 
-  /// Copy the navis:// link text to clipboard.
+  /// Copy just the link to clipboard.
+  ///
+  /// If the server provides a public share URL that is used; otherwise
+  /// the local navis:// deep-link URI is copied.
   Future<void> copyLink(ShareContent content, {String? entityId}) async {
     final publicUrl = await _tryCreateShare(entityId);
-    final text = content.toShareText(publicUrl: publicUrl);
-    await Clipboard.setData(ClipboardData(text: text));
+    final link = publicUrl ?? content.toUri().toString();
+    await Clipboard.setData(ClipboardData(text: link));
   }
 
   Future<Uint8List> _generateCard(ShareContent content) async {
