@@ -569,9 +569,11 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      // Quick Actions are now always-visible chips below the logo, not a section.
+      // Quick Actions are now always-visible icon toggles + Instant Radio button
+      // below the logo, not a section.
       expect(find.text('Quick actions'), findsNothing);
-      expect(find.byType(FilterChip), findsAtLeast(2));
+      expect(find.byType(FilterChip), findsNothing);
+      expect(find.byType(FilledButton), findsOneWidget); // Instant Radio
       await tester.scrollUntilVisible(
         find.text('Recently liked albums'),
         220,

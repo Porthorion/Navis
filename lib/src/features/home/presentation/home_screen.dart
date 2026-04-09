@@ -2951,6 +2951,7 @@ class _HomeFilterChipRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
+    final colorScheme = Theme.of(context).colorScheme;
     final likedOnly = ref.watch(homeLikedOnlyFilterProvider);
     final downloadedOnly = ref.watch(downloadedOnlyFilterProvider);
     final downloadedSongIds = downloadedOnly
@@ -2966,62 +2967,79 @@ class _HomeFilterChipRow extends ConsumerWidget {
             .map((s) => s.id)
             .toList(growable: false);
 
+    // Icon button constraints: pin to 40×40 so the extra 48×48 tap-target
+    // padding doesn't consume layout space inside the Row.
+    const iconConstraints = BoxConstraints.tightFor(width: 40, height: 40);
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 6,
-        alignment: WrapAlignment.center,
+      child: Row(
         children: <Widget>[
-          FilterChip(
-            label: Text(l10n.libraryLikedOnlyFilter),
-            selected: likedOnly,
-            showCheckmark: false,
-            avatar: Icon(
-              likedOnly ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-              size: 18,
-            ),
-            onSelected: (_) {
+          IconButton.filledTonal(
+            isSelected: likedOnly,
+            constraints: iconConstraints,
+            icon: const Icon(Icons.favorite_border_rounded),
+            selectedIcon: const Icon(Icons.favorite_rounded),
+            tooltip: l10n.libraryLikedOnlyFilter,
+            onPressed: () {
               ref.read(homeLikedOnlyFilterProvider.notifier).enabled = !likedOnly;
             },
           ),
-          FilterChip(
-            label: Text(l10n.libraryDownloadedOnlyFilter),
-            selected: downloadedOnly,
-            showCheckmark: false,
-            avatar: Icon(
-              downloadedOnly
-                  ? Icons.download_done_rounded
-                  : Icons.download_rounded,
-              size: 18,
-            ),
-            onSelected: (_) {
+          const SizedBox(width: 4),
+          IconButton.filledTonal(
+            isSelected: downloadedOnly,
+            constraints: iconConstraints,
+            icon: const Icon(Icons.download_rounded),
+            selectedIcon: const Icon(Icons.download_done_rounded),
+            tooltip: l10n.libraryDownloadedOnlyFilter,
+            onPressed: () {
               ref.read(downloadedOnlyFilterProvider.notifier).enabled =
                   !downloadedOnly;
             },
           ),
-          ActionChip(
-            label: const Text('Instant Radio'),
-            avatar: const Icon(Icons.radio_rounded, size: 18),
-            onPressed: likedIds.isEmpty
-                ? null
-                : () {
-                    final seedSongId =
-                        likedIds[math.Random().nextInt(likedIds.length)];
-                    ref
-                        .read(queueProvider.notifier)
-                        .replace(<String>[seedSongId], autoPlay: true)
-                        .then((_) async {
-                          await activatePreferredMixMode(
-                            ref,
-                            seedSongId: seedSongId,
-                          );
-                          ref
-                              .read(playerOverlayStackProvider.notifier)
-                              .expand();
-                        })
-                        .ignore();
-                  },
+          // Expanded + Align keeps the button right-aligned while bounding its
+          // max width to the remaining space, preventing RenderFlex overflow at
+          // large text scales.
+          Expanded(
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: colorScheme.secondaryContainer,
+                  foregroundColor: colorScheme.onSecondaryContainer,
+                  iconColor: colorScheme.onSecondaryContainer,
+                  disabledBackgroundColor:
+                      colorScheme.onSurface.withValues(alpha: 0.12),
+                  disabledForegroundColor:
+                      colorScheme.onSurface.withValues(alpha: 0.38),
+                  iconSize: 18,
+                ),
+                onPressed: likedIds.isEmpty
+                    ? null
+                    : () {
+                        final seedSongId =
+                            likedIds[math.Random().nextInt(likedIds.length)];
+                        ref
+                            .read(queueProvider.notifier)
+                            .replace(<String>[seedSongId], autoPlay: true)
+                            .then((_) async {
+                              await activatePreferredMixMode(
+                                ref,
+                                seedSongId: seedSongId,
+                              );
+                              ref
+                                  .read(playerOverlayStackProvider.notifier)
+                                  .expand();
+                            })
+                            .ignore();
+                      },
+                icon: const Icon(Icons.radio_rounded),
+                label: const Text(
+                  'Instant Radio',
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
           ),
         ],
       ),
