@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'package:navis/src/api/subsonic_api_client.dart';
+import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/features/sharing/data/share_card_renderer.dart';
 import 'package:navis/src/features/sharing/domain/share_content.dart';
@@ -21,6 +22,10 @@ class ShareService {
 
   final SubsonicApiClient? apiClient;
   final BaseCacheManager cacheManager;
+
+  /// Cached result of the first createShare attempt.
+  /// null = unknown, true = server supports sharing, false = 501 received.
+  bool? _serverSharingSupported;
 
   /// Share content via the system share sheet (image + text).
   ///
@@ -43,8 +48,11 @@ class ShareService {
       navigator = Navigator.of(context, rootNavigator: true);
     }
 
-    final cardBytes = await _generateCard(content);
-    final publicUrl = await _tryCreateShare(entityId);
+    // Run card generation and the (optional) server URL fetch in parallel.
+    final (cardBytes, publicUrl) = await (
+      _generateCard(content),
+      _tryCreateShare(entityId),
+    ).wait;
     final text = content.toShareText(publicUrl: publicUrl);
 
     if (isDesktop) {
@@ -136,12 +144,19 @@ class ShareService {
   }
 
   Future<String?> _tryCreateShare(String? entityId) async {
+    // Fast path: we already know the server doesn't support sharing.
+    if (_serverSharingSupported == false) return null;
     if (entityId == null) return null;
     final client = apiClient;
     if (client == null) return null;
     try {
       final shareInfo = await client.createShare(entityId);
+      if (shareInfo?.url != null) _serverSharingSupported = true;
       return shareInfo?.url;
+    } on SubsonicSharingUnsupportedException {
+      // Cache permanently — no point hitting the server again.
+      _serverSharingSupported = false;
+      return null;
     } catch (_) {
       return null;
     }

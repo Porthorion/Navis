@@ -41,6 +41,12 @@ class SubsonicConnectionException extends SubsonicException {
   const SubsonicConnectionException(super.message);
 }
 
+/// Server does not implement the sharing API (HTTP 501 Not Implemented).
+class SubsonicSharingUnsupportedException extends SubsonicException {
+  const SubsonicSharingUnsupportedException()
+      : super('Server does not support sharing');
+}
+
 /// Lyrics endpoint is not supported by the connected server.
 class LyricsUnsupportedException implements Exception {
   const LyricsUnsupportedException([this.message = 'Lyrics not supported']);

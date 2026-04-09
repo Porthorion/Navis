@@ -586,8 +586,12 @@ class SubsonicApiClient {
     } on SubsonicException {
       // Server returned a Subsonic-level error for sharing — not supported.
       return null;
-    } on DioException {
-      // HTTP-level error (e.g. 501 Not Implemented) — server doesn't support sharing.
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 501) {
+        // HTTP 501 means the server does not implement sharing.
+        throw const SubsonicSharingUnsupportedException();
+      }
+      // Other HTTP errors — transient, return null silently.
       return null;
     }
   }
