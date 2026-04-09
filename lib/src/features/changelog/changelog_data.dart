@@ -27,6 +27,20 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
+    version: '0.9.7',
+    entries: [
+      // Fixed
+      ChangelogEntry(
+        'Cover art images no longer stop loading after a large amount of music is cached — fixed a background conflict that caused images to get permanently stuck until the app was restarted',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Pressing play after the queue finishes now restarts playback from the beginning of the queue',
+        type: ChangelogEntryType.fix,
+      ),
+    ],
+  ),
+  ChangelogVersion(
     version: '0.9.6',
     entries: [
       // New

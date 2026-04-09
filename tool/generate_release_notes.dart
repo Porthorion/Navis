@@ -55,6 +55,17 @@ String _label(_EntryType t) {
 // Newest version first.
 // ---------------------------------------------------------------------------
 const List<_Version> _changelogs = [
+  _Version('0.9.7', [
+    // Fixed
+    _Entry(
+      'Cover art images no longer stop loading after a large amount of music is cached — fixed a background conflict that caused images to get permanently stuck until the app was restarted',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Pressing play after the queue finishes now restarts playback from the beginning of the queue',
+      type: _EntryType.fix,
+    ),
+  ]),
   _Version('0.9.6', [
     // New
     _Entry(
