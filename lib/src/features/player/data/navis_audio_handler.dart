@@ -1219,9 +1219,16 @@ class NavisAudioHandler extends BaseAudioHandler
   Future<void> _updateArtCacheFile(MediaItem trigger) async {
     final coverArtId = trigger.extras?['coverArtId'] as String?;
     final artUri = trigger.artUri;
-    if (coverArtId == null || artUri == null) return;
+    // Skip if artUri is already a local file URI — nothing to download.
+    if (coverArtId == null || artUri == null || artUri.scheme == 'file') return;
 
+    AppLogger.debug(
+      '_updateArtCacheFile: fetching art for coverArtId=$coverArtId uri=$artUri',
+    );
     final localPath = await _artCache!.getOrFetch(coverArtId, artUri);
+    AppLogger.debug(
+      '_updateArtCacheFile: result for $coverArtId → $localPath',
+    );
     if (localPath == null) return;
 
     // Guard: only update if we are still on the same track.
