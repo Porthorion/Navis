@@ -19,6 +19,7 @@ import 'package:navis/src/database/tables/schema_enums.dart' as schema;
 import 'package:navis/src/features/auto/data/auto_media_id.dart';
 import 'package:navis/src/features/auto/data/auto_media_tree_service.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
+import 'package:navis/src/features/player/data/playback_art_cache.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 import 'package:navis/src/features/player/data/radio_metadata_service.dart';
 import 'package:navis/src/features/player/data/scrobble_service.dart';
@@ -345,6 +346,9 @@ Map<String, Object?> navisResolvedPlaybackExtras({
   return <String, Object?>{
     'albumId': song.albumId,
     'artistId': song.artistId,
+    // Used by PlaybackArtCache on Android to key the local cover-art file so
+    // audio_service can set METADATA_KEY_ALBUM_ART on the MediaSession.
+    'coverArtId': song.coverArt,
     'sourceKind': source.kind.name,
     'localSource': source.isLocal,
     'cachedFilePath': source.cachedFilePath,
@@ -961,6 +965,11 @@ class NavisAudioHandler extends BaseAudioHandler
   final PlaybackRuntimeSettings Function() _readRuntimeSettings;
   final StarSyncDao _starSyncDao;
   late final AutoMediaTreeService _autoMediaTreeService;
+  // Only instantiated on Android: downloads cover art to local files so that
+  // audio_service can populate METADATA_KEY_ALBUM_ART on the MediaSession,
+  // which AAOS uses for the background art behind playback controls.
+  final PlaybackArtCache? _artCache =
+      _isAndroidRuntime ? PlaybackArtCache() : null;
   late AudioPlayer _player;
   AndroidEqualizer? _androidEqualizer;
   AndroidLoudnessEnhancer? _androidLoudnessEnhancer;
@@ -1193,6 +1202,33 @@ class NavisAudioHandler extends BaseAudioHandler
   void _setCurrentMediaItem(MediaItem? item) {
     _currentMediaItem = item;
     mediaItem.add(item);
+    if (item != null && _artCache != null) {
+      unawaited(_updateArtCacheFile(item));
+    }
+  }
+
+  /// Downloads the cover art for [trigger] to a local file and re-emits the
+  /// current [MediaItem] with an `artCacheFile` extra pointing at it.
+  ///
+  /// `audio_service` reads `artCacheFile` from the extras and loads the bitmap
+  /// into `METADATA_KEY_ALBUM_ART` / `METADATA_KEY_DISPLAY_ICON` so that
+  /// Android Automotive OS can render it behind the playback controls.
+  Future<void> _updateArtCacheFile(MediaItem trigger) async {
+    final coverArtId = trigger.extras?['coverArtId'] as String?;
+    final artUri = trigger.artUri;
+    if (coverArtId == null || artUri == null) return;
+
+    final localPath = await _artCache!.getOrFetch(coverArtId, artUri);
+    if (localPath == null) return;
+
+    // Guard: only update if we are still on the same track.
+    final current = _currentMediaItem;
+    if (current == null || current.id != trigger.id) return;
+
+    final extras = <String, Object?>{...?current.extras, 'artCacheFile': localPath};
+    final updated = current.copyWith(extras: extras);
+    _currentMediaItem = updated;
+    mediaItem.add(updated);
   }
 
   AudioPlayer _buildAudioPlayer({required bool enableAndroidDsp}) {
@@ -3965,6 +4001,7 @@ class NavisAudioHandler extends BaseAudioHandler
       return;
     }
     _disposeHandlerStarted = true;
+    _artCache?.dispose();
     _cancelCrossfade();
     await _disposeInactiveCrossfadeDeck();
     _positionPersistTimer?.cancel();
