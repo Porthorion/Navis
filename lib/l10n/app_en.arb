@@ -1085,5 +1085,7 @@
   "linkCopied": "Link copied to clipboard",
   "@linkCopied": {"description": "Snackbar message after copying a share link"},
   "shareError": "Could not share. Please try again.",
-  "@shareError": {"description": "Snackbar message when sharing fails"}
+  "@shareError": {"description": "Snackbar message when sharing fails"},
+  "closeAction": "Close",
+  "@closeAction": {"description": "Generic close button label"}
 }

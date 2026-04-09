@@ -4280,6 +4280,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could not share. Please try again.'**
   String get shareError;
+
+  /// Generic close button label
+  ///
+  /// In en, this message translates to:
+  /// **'Close'**
+  String get closeAction;
 }
 
 class _AppLocalizationsDelegate

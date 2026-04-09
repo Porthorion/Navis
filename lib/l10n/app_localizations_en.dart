@@ -2395,4 +2395,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get shareError => 'Could not share. Please try again.';
+
+  @override
+  String get closeAction => 'Close';
 }

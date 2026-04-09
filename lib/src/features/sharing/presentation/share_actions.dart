@@ -115,7 +115,7 @@ Future<void> _executeShare(
         showAppNotice(context, message: l10n.linkCopied);
       }
     } else {
-      await service.share(content, entityId: entityId);
+      await service.share(content, entityId: entityId, context: context);
     }
   } catch (e) {
     if (context.mounted) {
