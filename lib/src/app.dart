@@ -291,12 +291,12 @@ class _BootstrapSplashScreen extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
-                    SizedBox.square(
-                      dimension: logoSize,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: <Widget>[
-                          Padding(
+                    Stack(
+                      alignment: Alignment.center,
+                      children: <Widget>[
+                        SizedBox.square(
+                          dimension: logoSize,
+                          child: Padding(
                             padding: EdgeInsets.all(strokeWidth / 2),
                             child: CircularProgressIndicator(
                               value:
@@ -308,15 +308,15 @@ class _BootstrapSplashScreen extends StatelessWidget {
                               backgroundColor: ringTrackColor,
                             ),
                           ),
-                          Transform.translate(
-                            offset: iconOffset,
-                            child: NavisIcon(
-                              size: logoSize,
-                              tintWithAccent: true,
-                            ),
+                        ),
+                        Transform.translate(
+                          offset: iconOffset,
+                          child: NavisIcon(
+                            size: logoSize,
+                            tintWithAccent: true,
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                     if (isFailed) ...<Widget>[
                       const SizedBox(height: 24),
