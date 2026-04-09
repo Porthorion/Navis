@@ -11,6 +11,11 @@ _Album _$AlbumFromJson(Map<String, dynamic> json) => _Album(
   name: json['name'] as String,
   artist: json['artist'] as String?,
   artistId: json['artistId'] as String?,
+  artists:
+      (json['artists'] as List<dynamic>?)
+          ?.map((e) => ArtistRef.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      const <ArtistRef>[],
   songCount: (json['songCount'] as num?)?.toInt(),
   duration: (json['duration'] as num?)?.toInt(),
   year: (json['year'] as num?)?.toInt(),
@@ -36,6 +41,7 @@ Map<String, dynamic> _$AlbumToJson(_Album instance) => <String, dynamic>{
   'name': instance.name,
   'artist': instance.artist,
   'artistId': instance.artistId,
+  'artists': instance.artists.map((e) => e.toJson()).toList(),
   'songCount': instance.songCount,
   'duration': instance.duration,
   'year': instance.year,
@@ -45,5 +51,5 @@ Map<String, dynamic> _$AlbumToJson(_Album instance) => <String, dynamic>{
   'userRating': instance.userRating,
   'playCount': instance.playCount,
   'created': instance.created?.toIso8601String(),
-  'songs': instance.songs,
+  'songs': instance.songs.map((e) => e.toJson()).toList(),
 };

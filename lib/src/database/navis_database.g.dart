@@ -4219,6 +4219,16 @@ class $AlbumsTableTable extends AlbumsTable
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  @override
+  late final GeneratedColumnWithTypeConverter<List<ArtistRef>, String> artists =
+      GeneratedColumn<String>(
+        'artists',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant('[]'),
+      ).withConverter<List<ArtistRef>>($AlbumsTableTable.$converterartists);
   static const VerificationMeta _songCountMeta = const VerificationMeta(
     'songCount',
   );
@@ -4347,6 +4357,7 @@ class $AlbumsTableTable extends AlbumsTable
     name,
     artistId,
     artistName,
+    artists,
     songCount,
     duration,
     year,
@@ -4493,6 +4504,12 @@ class $AlbumsTableTable extends AlbumsTable
         DriftSqlType.string,
         data['${effectivePrefix}artist_name'],
       ),
+      artists: $AlbumsTableTable.$converterartists.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}artists'],
+        )!,
+      ),
       songCount: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}song_count'],
@@ -4544,6 +4561,9 @@ class $AlbumsTableTable extends AlbumsTable
   $AlbumsTableTable createAlias(String alias) {
     return $AlbumsTableTable(attachedDatabase, alias);
   }
+
+  static TypeConverter<List<ArtistRef>, String> $converterartists =
+      const ArtistRefListConverter();
 }
 
 class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
@@ -4551,6 +4571,13 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
   final String name;
   final String? artistId;
   final String? artistName;
+
+  /// OpenSubsonic multi-artist list, JSON-encoded.
+  ///
+  /// Populated from the `artists` field in OpenSubsonic `AlbumID3` responses.
+  /// Empty list (`'[]'`) on standard Subsonic servers; fall back to the legacy
+  /// [artistId]/[artistName] pair in that case.
+  final List<ArtistRef> artists;
   final int? songCount;
   final int? duration;
   final int? year;
@@ -4574,6 +4601,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     required this.name,
     this.artistId,
     this.artistName,
+    required this.artists,
     this.songCount,
     this.duration,
     this.year,
@@ -4596,6 +4624,11 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     }
     if (!nullToAbsent || artistName != null) {
       map['artist_name'] = Variable<String>(artistName);
+    }
+    {
+      map['artists'] = Variable<String>(
+        $AlbumsTableTable.$converterartists.toSql(artists),
+      );
     }
     if (!nullToAbsent || songCount != null) {
       map['song_count'] = Variable<int>(songCount);
@@ -4641,6 +4674,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       artistName: artistName == null && nullToAbsent
           ? const Value.absent()
           : Value(artistName),
+      artists: Value(artists),
       songCount: songCount == null && nullToAbsent
           ? const Value.absent()
           : Value(songCount),
@@ -4683,6 +4717,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       name: serializer.fromJson<String>(json['name']),
       artistId: serializer.fromJson<String?>(json['artistId']),
       artistName: serializer.fromJson<String?>(json['artistName']),
+      artists: serializer.fromJson<List<ArtistRef>>(json['artists']),
       songCount: serializer.fromJson<int?>(json['songCount']),
       duration: serializer.fromJson<int?>(json['duration']),
       year: serializer.fromJson<int?>(json['year']),
@@ -4704,6 +4739,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       'name': serializer.toJson<String>(name),
       'artistId': serializer.toJson<String?>(artistId),
       'artistName': serializer.toJson<String?>(artistName),
+      'artists': serializer.toJson<List<ArtistRef>>(artists),
       'songCount': serializer.toJson<int?>(songCount),
       'duration': serializer.toJson<int?>(duration),
       'year': serializer.toJson<int?>(year),
@@ -4723,6 +4759,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     String? name,
     Value<String?> artistId = const Value.absent(),
     Value<String?> artistName = const Value.absent(),
+    List<ArtistRef>? artists,
     Value<int?> songCount = const Value.absent(),
     Value<int?> duration = const Value.absent(),
     Value<int?> year = const Value.absent(),
@@ -4739,6 +4776,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     name: name ?? this.name,
     artistId: artistId.present ? artistId.value : this.artistId,
     artistName: artistName.present ? artistName.value : this.artistName,
+    artists: artists ?? this.artists,
     songCount: songCount.present ? songCount.value : this.songCount,
     duration: duration.present ? duration.value : this.duration,
     year: year.present ? year.value : this.year,
@@ -4761,6 +4799,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
       artistName: data.artistName.present
           ? data.artistName.value
           : this.artistName,
+      artists: data.artists.present ? data.artists.value : this.artists,
       songCount: data.songCount.present ? data.songCount.value : this.songCount,
       duration: data.duration.present ? data.duration.value : this.duration,
       year: data.year.present ? data.year.value : this.year,
@@ -4788,6 +4827,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
           ..write('name: $name, ')
           ..write('artistId: $artistId, ')
           ..write('artistName: $artistName, ')
+          ..write('artists: $artists, ')
           ..write('songCount: $songCount, ')
           ..write('duration: $duration, ')
           ..write('year: $year, ')
@@ -4809,6 +4849,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
     name,
     artistId,
     artistName,
+    artists,
     songCount,
     duration,
     year,
@@ -4829,6 +4870,7 @@ class AlbumsTableData extends DataClass implements Insertable<AlbumsTableData> {
           other.name == this.name &&
           other.artistId == this.artistId &&
           other.artistName == this.artistName &&
+          other.artists == this.artists &&
           other.songCount == this.songCount &&
           other.duration == this.duration &&
           other.year == this.year &&
@@ -4847,6 +4889,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
   final Value<String> name;
   final Value<String?> artistId;
   final Value<String?> artistName;
+  final Value<List<ArtistRef>> artists;
   final Value<int?> songCount;
   final Value<int?> duration;
   final Value<int?> year;
@@ -4864,6 +4907,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     this.name = const Value.absent(),
     this.artistId = const Value.absent(),
     this.artistName = const Value.absent(),
+    this.artists = const Value.absent(),
     this.songCount = const Value.absent(),
     this.duration = const Value.absent(),
     this.year = const Value.absent(),
@@ -4882,6 +4926,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     required String name,
     this.artistId = const Value.absent(),
     this.artistName = const Value.absent(),
+    this.artists = const Value.absent(),
     this.songCount = const Value.absent(),
     this.duration = const Value.absent(),
     this.year = const Value.absent(),
@@ -4901,6 +4946,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     Expression<String>? name,
     Expression<String>? artistId,
     Expression<String>? artistName,
+    Expression<String>? artists,
     Expression<int>? songCount,
     Expression<int>? duration,
     Expression<int>? year,
@@ -4919,6 +4965,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
       if (name != null) 'name': name,
       if (artistId != null) 'artist_id': artistId,
       if (artistName != null) 'artist_name': artistName,
+      if (artists != null) 'artists': artists,
       if (songCount != null) 'song_count': songCount,
       if (duration != null) 'duration': duration,
       if (year != null) 'year': year,
@@ -4939,6 +4986,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     Value<String>? name,
     Value<String?>? artistId,
     Value<String?>? artistName,
+    Value<List<ArtistRef>>? artists,
     Value<int?>? songCount,
     Value<int?>? duration,
     Value<int?>? year,
@@ -4957,6 +5005,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
       name: name ?? this.name,
       artistId: artistId ?? this.artistId,
       artistName: artistName ?? this.artistName,
+      artists: artists ?? this.artists,
       songCount: songCount ?? this.songCount,
       duration: duration ?? this.duration,
       year: year ?? this.year,
@@ -4986,6 +5035,11 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
     }
     if (artistName.present) {
       map['artist_name'] = Variable<String>(artistName.value);
+    }
+    if (artists.present) {
+      map['artists'] = Variable<String>(
+        $AlbumsTableTable.$converterartists.toSql(artists.value),
+      );
     }
     if (songCount.present) {
       map['song_count'] = Variable<int>(songCount.value);
@@ -5033,6 +5087,7 @@ class AlbumsTableCompanion extends UpdateCompanion<AlbumsTableData> {
           ..write('name: $name, ')
           ..write('artistId: $artistId, ')
           ..write('artistName: $artistName, ')
+          ..write('artists: $artists, ')
           ..write('songCount: $songCount, ')
           ..write('duration: $duration, ')
           ..write('year: $year, ')
@@ -13907,6 +13962,7 @@ typedef $$AlbumsTableTableCreateCompanionBuilder =
       required String name,
       Value<String?> artistId,
       Value<String?> artistName,
+      Value<List<ArtistRef>> artists,
       Value<int?> songCount,
       Value<int?> duration,
       Value<int?> year,
@@ -13926,6 +13982,7 @@ typedef $$AlbumsTableTableUpdateCompanionBuilder =
       Value<String> name,
       Value<String?> artistId,
       Value<String?> artistName,
+      Value<List<ArtistRef>> artists,
       Value<int?> songCount,
       Value<int?> duration,
       Value<int?> year,
@@ -14005,6 +14062,12 @@ class $$AlbumsTableTableFilterComposer
   ColumnFilters<String> get artistName => $composableBuilder(
     column: $table.artistName,
     builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<List<ArtistRef>, List<ArtistRef>, String>
+  get artists => $composableBuilder(
+    column: $table.artists,
+    builder: (column) => ColumnWithTypeConverterFilters(column),
   );
 
   ColumnFilters<int> get songCount => $composableBuilder(
@@ -14135,6 +14198,11 @@ class $$AlbumsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get artists => $composableBuilder(
+    column: $table.artists,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get songCount => $composableBuilder(
     column: $table.songCount,
     builder: (column) => ColumnOrderings(column),
@@ -14233,6 +14301,9 @@ class $$AlbumsTableTableAnnotationComposer
     column: $table.artistName,
     builder: (column) => column,
   );
+
+  GeneratedColumnWithTypeConverter<List<ArtistRef>, String> get artists =>
+      $composableBuilder(column: $table.artists, builder: (column) => column);
 
   GeneratedColumn<int> get songCount =>
       $composableBuilder(column: $table.songCount, builder: (column) => column);
@@ -14354,6 +14425,7 @@ class $$AlbumsTableTableTableManager
                 Value<String> name = const Value.absent(),
                 Value<String?> artistId = const Value.absent(),
                 Value<String?> artistName = const Value.absent(),
+                Value<List<ArtistRef>> artists = const Value.absent(),
                 Value<int?> songCount = const Value.absent(),
                 Value<int?> duration = const Value.absent(),
                 Value<int?> year = const Value.absent(),
@@ -14371,6 +14443,7 @@ class $$AlbumsTableTableTableManager
                 name: name,
                 artistId: artistId,
                 artistName: artistName,
+                artists: artists,
                 songCount: songCount,
                 duration: duration,
                 year: year,
@@ -14390,6 +14463,7 @@ class $$AlbumsTableTableTableManager
                 required String name,
                 Value<String?> artistId = const Value.absent(),
                 Value<String?> artistName = const Value.absent(),
+                Value<List<ArtistRef>> artists = const Value.absent(),
                 Value<int?> songCount = const Value.absent(),
                 Value<int?> duration = const Value.absent(),
                 Value<int?> year = const Value.absent(),
@@ -14407,6 +14481,7 @@ class $$AlbumsTableTableTableManager
                 name: name,
                 artistId: artistId,
                 artistName: artistName,
+                artists: artists,
                 songCount: songCount,
                 duration: duration,
                 year: year,

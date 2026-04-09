@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/api/models/artist_ref.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
@@ -206,6 +207,7 @@ void main() {
                   name: 'Album 1',
                   artistId: 'artist-1',
                   songsHydrated: true,
+                  artists: const <ArtistRef>[],
                 ),
               ]),
             ),
@@ -238,6 +240,7 @@ void main() {
                     artistName: 'Artist 1',
                     year: 2025,
                     songsHydrated: true,
+                    artists: const <ArtistRef>[],
                   ),
                   songs: <SongsTableData>[
                     SongsTableData(id: 'song-1', title: 'Song 1', track: 1),
@@ -288,6 +291,7 @@ void main() {
                       artistName: 'Artist Rapid',
                       year: 2025,
                       songsHydrated: true,
+                      artists: const <ArtistRef>[],
                     ),
                     songs: <SongsTableData>[
                       SongsTableData(

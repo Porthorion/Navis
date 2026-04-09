@@ -117,6 +117,7 @@ void main() {
                     name: 'Album 1',
                     artistName: 'Artist 1',
                     songsHydrated: true,
+                    artists: const <ArtistRef>[],
                   ),
                 ],
               ),

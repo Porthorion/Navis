@@ -2,6 +2,7 @@ export 'album.dart';
 export 'album_info.dart';
 export 'artist.dart';
 export 'artist_info.dart';
+export 'artist_ref.dart';
 export 'genre.dart';
 export 'indexes.dart';
 export 'internet_radio_station.dart';

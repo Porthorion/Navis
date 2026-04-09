@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:navis/src/database/tables/artist_ref_converter.dart';
 import 'package:navis/src/database/tables/artists_table.dart';
 
 class AlbumsTable extends Table {
@@ -16,6 +17,14 @@ class AlbumsTable extends Table {
   )();
 
   TextColumn get artistName => text().nullable()();
+
+  /// OpenSubsonic multi-artist list, JSON-encoded.
+  ///
+  /// Populated from the `artists` field in OpenSubsonic `AlbumID3` responses.
+  /// Empty list (`'[]'`) on standard Subsonic servers; fall back to the legacy
+  /// [artistId]/[artistName] pair in that case.
+  TextColumn get artists =>
+      text().withDefault(const Constant('[]')).map(const ArtistRefListConverter())();
 
   IntColumn get songCount => integer().nullable()();
 

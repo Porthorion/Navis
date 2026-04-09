@@ -2000,6 +2000,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
             name: row.name,
             artistId: Value(row.artistId),
             artistName: Value(row.artistName),
+            artists: Value(row.artists),
             songCount: Value(row.songCount),
             duration: Value(row.duration),
             year: Value(row.year),
@@ -2263,6 +2264,7 @@ class _AlbumRow {
     required this.name,
     this.artistId,
     this.artistName,
+    this.artists = const <ArtistRef>[],
     this.songCount,
     this.duration,
     this.year,
@@ -2278,6 +2280,10 @@ class _AlbumRow {
   final String name;
   final String? artistId;
   final String? artistName;
+
+  /// OpenSubsonic multi-artist list. Empty on standard Subsonic servers.
+  final List<ArtistRef> artists;
+
   final int? songCount;
   final int? duration;
   final int? year;
@@ -2358,21 +2364,32 @@ Future<List<_SongRow>> _parseSongRowsInIsolate(
 List<_AlbumRow> _albumRowsFromJson(List<Map<String, dynamic>> payload) {
   return payload
       .map(
-        (json) => _AlbumRow(
-          id: json['id'] as String,
-          name: json['name'] as String,
-          artistId: json['artistId'] as String?,
-          artistName: json['artist'] as String?,
-          songCount: json['songCount'] as int?,
-          duration: json['duration'] as int?,
-          year: json['year'] as int?,
-          genre: json['genre'] as String?,
-          coverArt: json['coverArt'] as String?,
-          starred: _parseIsoDate(json['starred'] as String?),
-          userRating: json['userRating'] as int?,
-          playCount: json['playCount'] as int?,
-          created: _parseIsoDate(json['created'] as String?),
-        ),
+        (json) {
+          final rawArtists = json['artists'] as List<dynamic>?;
+          final artists = rawArtists != null
+              ? rawArtists
+                    .map(
+                      (e) => ArtistRef.fromJson(e as Map<String, dynamic>),
+                    )
+                    .toList(growable: false)
+              : const <ArtistRef>[];
+          return _AlbumRow(
+            id: json['id'] as String,
+            name: json['name'] as String,
+            artistId: json['artistId'] as String?,
+            artistName: json['artist'] as String?,
+            artists: artists,
+            songCount: json['songCount'] as int?,
+            duration: json['duration'] as int?,
+            year: json['year'] as int?,
+            genre: json['genre'] as String?,
+            coverArt: json['coverArt'] as String?,
+            starred: _parseIsoDate(json['starred'] as String?),
+            userRating: json['userRating'] as int?,
+            playCount: json['playCount'] as int?,
+            created: _parseIsoDate(json['created'] as String?),
+          );
+        },
       )
       .toList(growable: false);
 }

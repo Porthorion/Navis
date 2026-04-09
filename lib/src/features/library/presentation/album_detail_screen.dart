@@ -29,6 +29,7 @@ import 'package:navis/src/utils/file_utils.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/api/models/artist_ref.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class AlbumDetailScreen extends ConsumerStatefulWidget {
@@ -394,45 +395,20 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                             WrapCrossAlignment.center,
                                         runSpacing: 4,
                                         children: <Widget>[
-                                          for (final (text, isSep)
-                                              in _parseArtistSegments(
-                                            details.artistName ??
-                                                l10n.albumDetailUnknownArtist,
-                                          ))
-                                            if (isSep)
-                                              Text(
-                                                text,
-                                                style: textTheme.titleMedium
-                                                    ?.copyWith(
-                                                  color:
-                                                      colors.onSurfaceVariant,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              )
-                                            else if (details.artistId !=
-                                                    null &&
-                                                details.artistId!.isNotEmpty)
-                                              InkWell(
-                                                onTap: () => context.go(
-                                                  '/library/artists/${details.artistId}',
-                                                ),
-                                                child: Text(
-                                                  text,
-                                                  style: textTheme.titleMedium
-                                                      ?.copyWith(
-                                                    color: colors.primary,
-                                                    fontWeight: FontWeight.w600,
-                                                  ),
-                                                ),
-                                              )
-                                            else
-                                              Text(
-                                                text,
-                                                style: textTheme.titleMedium
-                                                    ?.copyWith(
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
+                                          ..._buildArtistChips(
+                                            context: context,
+                                            artists: _resolveArtists(details),
+                                            textStyle: textTheme.titleMedium
+                                                ?.copyWith(
+                                              color: colors.primary,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                            dimStyle: textTheme.titleMedium
+                                                ?.copyWith(
+                                              color: colors.onSurfaceVariant,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
                                           Text(
                                             ' • ${details.year?.toString() ?? '-'} • ${filteredSongs.length}',
                                             style: textTheme.bodyMedium
@@ -884,38 +860,17 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                             crossAxisAlignment: WrapCrossAlignment.center,
                             runSpacing: 2,
                             children: <Widget>[
-                              for (final (text, isSep)
-                                  in _parseArtistSegments(
-                                details.artistName ??
-                                    l10n.albumDetailUnknownArtist,
-                              ))
-                                if (isSep)
-                                  Text(
-                                    text,
-                                    style: mobileTextTheme.bodyLarge?.copyWith(
-                                      color: mobileColors.onSurfaceVariant,
-                                    ),
-                                  )
-                                else if (details.artistId != null &&
-                                    details.artistId!.isNotEmpty)
-                                  InkWell(
-                                    onTap: () => context.go(
-                                      '/library/artists/${details.artistId}',
-                                    ),
-                                    child: Text(
-                                      text,
-                                      style:
-                                          mobileTextTheme.bodyLarge?.copyWith(
-                                        color: mobileColors.primary,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  )
-                                else
-                                  Text(
-                                    text,
-                                    style: mobileTextTheme.bodyLarge,
-                                  ),
+                              ..._buildArtistChips(
+                                context: context,
+                                artists: _resolveArtists(details),
+                                textStyle: mobileTextTheme.bodyLarge?.copyWith(
+                                  color: mobileColors.primary,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                dimStyle: mobileTextTheme.bodyLarge?.copyWith(
+                                  color: mobileColors.onSurfaceVariant,
+                                ),
+                              ),
                               if (details.year != null)
                                 Text(
                                   ' • ${details.year}',
@@ -1600,32 +1555,50 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
         .trim();
   }
 
-  /// Splits [name] into alternating (text, isDelimiter) pairs so each artist
-  /// name segment can be rendered as its own tappable widget.
+  /// Returns the authoritative artist list for [details].
   ///
-  /// Recognised separators: `,`, ` & `, ` feat.`, ` ft.`, ` with `.
-  static List<(String text, bool isDelimiter)> _parseArtistSegments(
-    String name,
-  ) {
-    final result = <(String, bool)>[];
-    final sep = RegExp(
-      r'\s*(?:,\s*|&|feat\.?|ft\.?|with)\s*',
-      caseSensitive: false,
-    );
-    var last = 0;
-    for (final match in sep.allMatches(name)) {
-      if (match.start > last) {
-        final seg = name.substring(last, match.start).trim();
-        if (seg.isNotEmpty) result.add((seg, false));
+  /// Prefers the OpenSubsonic `artists` list (populated after a full sync on
+  /// servers that support the extension). Falls back to a single-entry list
+  /// constructed from the legacy [artistId]/[artistName] pair for standard
+  /// Subsonic servers.
+  List<ArtistRef> _resolveArtists(AlbumsTableData details) {
+    if (details.artists.isNotEmpty) return details.artists;
+    final id = details.artistId;
+    final name = details.artistName;
+    if (id != null && id.isNotEmpty && name != null && name.isNotEmpty) {
+      return [ArtistRef(id: id, name: name)];
+    }
+    return const [];
+  }
+
+  /// Builds [Widget]s for a [Wrap] where each artist is individually tappable.
+  ///
+  /// Separators (`' & '`) are rendered in [dimStyle] between artists.
+  /// When [artists] is empty a plain "Unknown artist" label is returned.
+  List<Widget> _buildArtistChips({
+    required BuildContext context,
+    required List<ArtistRef> artists,
+    required TextStyle? textStyle,
+    required TextStyle? dimStyle,
+  }) {
+    if (artists.isEmpty) {
+      final fallbackLabel = AppLocalizations.of(context)!.albumDetailUnknownArtist;
+      return [Text(fallbackLabel, style: dimStyle)];
+    }
+    final widgets = <Widget>[];
+    for (var i = 0; i < artists.length; i++) {
+      if (i > 0) {
+        widgets.add(Text(' & ', style: dimStyle));
       }
-      result.add((match.group(0)!, true));
-      last = match.end;
+      final artist = artists[i];
+      widgets.add(
+        InkWell(
+          onTap: () => context.go('/library/artists/${artist.id}'),
+          child: Text(artist.name, style: textStyle),
+        ),
+      );
     }
-    if (last < name.length) {
-      final seg = name.substring(last).trim();
-      if (seg.isNotEmpty) result.add((seg, false));
-    }
-    return result;
+    return widgets;
   }
 
   /// Pre-processes [songs] into a flat list of render items.

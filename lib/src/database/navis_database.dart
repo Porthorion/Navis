@@ -1,6 +1,8 @@
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
+import 'package:navis/src/api/models/artist_ref.dart';
 import 'package:navis/src/database/daos/app_settings_dao.dart';
+import 'package:navis/src/database/tables/artist_ref_converter.dart';
 import 'package:navis/src/database/daos/cache_dao.dart';
 import 'package:navis/src/database/daos/download_queue_dao.dart';
 import 'package:navis/src/database/daos/history_dao.dart';
@@ -73,7 +75,7 @@ class NavisDatabase extends _$NavisDatabase {
   static QueryExecutor _openConnection() => driftDatabase(name: 'navis.sqlite');
 
   @override
-  int get schemaVersion => 37;
+  int get schemaVersion => 38;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -203,6 +205,9 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 37 && to >= 37) {
       await from36To37(migrator);
+    }
+    if (from < 38 && to >= 38) {
+      await from37To38(migrator);
     }
   }
 
@@ -741,6 +746,12 @@ class NavisDatabase extends _$NavisDatabase {
         appSettingsTable,
         appSettingsTable.likedQueueEnabled,
       );
+    }
+  }
+
+  Future<void> from37To38(Migrator migrator) async {
+    if (!await _columnExists('albums', 'artists')) {
+      await migrator.addColumn(albumsTable, albumsTable.artists);
     }
   }
 

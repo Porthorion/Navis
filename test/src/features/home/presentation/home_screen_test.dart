@@ -154,6 +154,7 @@ AlbumWithSongs _albumWithSongs(
       artistName: 'Album Artist',
       coverArt: 'cover-$albumId',
       songsHydrated: true,
+      artists: const <ArtistRef>[],
     ),
     songs: songs,
   );
@@ -376,6 +377,7 @@ void main() {
                 artistName: 'Overflow Tester',
                 coverArt: 'cover-album-2',
                 songsHydrated: false,
+                artists: const <ArtistRef>[],
               ),
             ]),
           ),
@@ -418,6 +420,7 @@ void main() {
                 artistName: 'Favorite Artist',
                 coverArt: 'cover-album-4',
                 songsHydrated: false,
+                artists: const <ArtistRef>[],
               ),
             ]),
           ),
