@@ -169,7 +169,27 @@ class DriftRollingCacheManager implements RollingCacheManager {
           continue;
         }
         final path = entity.path;
-        if (path.endsWith('.part') || path.endsWith('.mime')) {
+
+        // Stale .part files (interrupted downloads from previous sessions).
+        // Skip anything touched recently — active downloads update mtime
+        // continuously, so a 2-hour threshold safely excludes them.
+        if (path.endsWith('.part')) {
+          final age = _now().difference(entity.statSync().modified);
+          if (age < const Duration(hours: 2)) {
+            continue;
+          }
+          try {
+            entity.deleteSync();
+            removed += 1;
+          } on FileSystemException catch (error, stackTrace) {
+            AppLogger.warning(
+              'Failed to delete stale .part file "$path": $error\n$stackTrace',
+            );
+          }
+          continue;
+        }
+
+        if (path.endsWith('.mime')) {
           continue;
         }
         if (knownPaths.contains(path)) {
@@ -190,11 +210,12 @@ class DriftRollingCacheManager implements RollingCacheManager {
   }
 
   Future<void> _deleteCacheFileSet(String filePath) async {
-    final paths = <String>[
-      filePath,
-      '$filePath.part',
-      '$filePath.mime',
-    ];
+    // Never delete '.part' files: they belong to just_audio's
+    // LockCachingAudioSource while a download is in flight. Deleting one
+    // causes a PathNotFoundException when just_audio tries to rename it to the
+    // final path after the download completes. Stale '.part' files are handled
+    // separately by cleanupOrphanedRollingFiles with an age gate.
+    final paths = <String>[filePath, '$filePath.mime'];
 
     for (final path in paths) {
       final file = File(path);
