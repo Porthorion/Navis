@@ -872,24 +872,31 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                             children: <Widget>[
                               if (details.artistId != null &&
                                   details.artistId!.isNotEmpty)
-                                InkWell(
-                                  onTap: () => context.go(
-                                    '/library/artists/${details.artistId}',
-                                  ),
-                                  child: Text(
-                                    details.artistName ??
-                                        l10n.albumDetailUnknownArtist,
-                                    style: mobileTextTheme.bodyLarge?.copyWith(
-                                      color: mobileColors.primary,
-                                      fontWeight: FontWeight.w500,
+                                Flexible(
+                                  child: InkWell(
+                                    onTap: () => context.go(
+                                      '/library/artists/${details.artistId}',
+                                    ),
+                                    child: Text(
+                                      details.artistName ??
+                                          l10n.albumDetailUnknownArtist,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: mobileTextTheme.bodyLarge
+                                          ?.copyWith(
+                                        color: mobileColors.primary,
+                                        fontWeight: FontWeight.w500,
+                                      ),
                                     ),
                                   ),
                                 )
                               else
-                                Text(
-                                  details.artistName ??
-                                      l10n.albumDetailUnknownArtist,
-                                  style: mobileTextTheme.bodyLarge,
+                                Flexible(
+                                  child: Text(
+                                    details.artistName ??
+                                        l10n.albumDetailUnknownArtist,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: mobileTextTheme.bodyLarge,
+                                  ),
                                 ),
                               const SizedBox(width: 6),
                               Text(
