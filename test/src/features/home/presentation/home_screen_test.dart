@@ -200,6 +200,10 @@ Future<void> _pumpHomeWithSyncState(
       child: MaterialApp(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
+        builder: (ctx, child) => MediaQuery(
+          data: MediaQuery.of(ctx).copyWith(disableAnimations: true),
+          child: child!,
+        ),
         home: const HomeScreen(),
       ),
     ),
@@ -247,6 +251,10 @@ Future<void> _pumpHomeWithControllerOverride(
       child: MaterialApp(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
+        builder: (ctx, child) => MediaQuery(
+          data: MediaQuery.of(ctx).copyWith(disableAnimations: true),
+          child: child!,
+        ),
         home: const HomeScreen(),
       ),
     ),
@@ -302,6 +310,10 @@ Future<void> _pumpRandomSectionHome(
       child: MaterialApp(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
+        builder: (ctx, child) => MediaQuery(
+          data: MediaQuery.of(ctx).copyWith(disableAnimations: true),
+          child: child!,
+        ),
         home: const HomeScreen(),
       ),
     ),
@@ -417,7 +429,10 @@ void main() {
             return MediaQuery(
               data: MediaQuery.of(
                 context,
-              ).copyWith(textScaler: const TextScaler.linear(1.3)),
+              ).copyWith(
+                textScaler: const TextScaler.linear(1.3),
+                disableAnimations: true,
+              ),
               child: child!,
             );
           },
@@ -481,6 +496,10 @@ void main() {
         child: MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
+          builder: (ctx, child) => MediaQuery(
+            data: MediaQuery.of(ctx).copyWith(disableAnimations: true),
+            child: child!,
+          ),
           home: const HomeScreen(),
         ),
       ),
@@ -562,6 +581,10 @@ void main() {
           child: MaterialApp(
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
+            builder: (ctx, child) => MediaQuery(
+              data: MediaQuery.of(ctx).copyWith(disableAnimations: true),
+              child: child!,
+            ),
             home: const HomeScreen(),
           ),
         ),
@@ -639,6 +662,10 @@ void main() {
         child: MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
+          builder: (ctx, child) => MediaQuery(
+            data: MediaQuery.of(ctx).copyWith(disableAnimations: true),
+            child: child!,
+          ),
           home: const HomeScreen(),
         ),
       ),
@@ -728,6 +755,10 @@ void main() {
           child: MaterialApp(
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
+            builder: (ctx, child) => MediaQuery(
+              data: MediaQuery.of(ctx).copyWith(disableAnimations: true),
+              child: child!,
+            ),
             home: const HomeScreen(),
           ),
         ),
