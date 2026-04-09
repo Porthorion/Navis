@@ -584,7 +584,10 @@ class SubsonicApiClient {
       if (shares.isEmpty) return null;
       return ShareInfo.fromJson(shares.first);
     } on SubsonicException {
-      // Server does not support sharing — return null silently.
+      // Server returned a Subsonic-level error for sharing — not supported.
+      return null;
+    } on DioException {
+      // HTTP-level error (e.g. 501 Not Implemented) — server doesn't support sharing.
       return null;
     }
   }

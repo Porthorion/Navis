@@ -32,15 +32,25 @@ class ShareService {
     String? entityId,
     BuildContext? context,
   }) async {
+    final isDesktop = Platform.isLinux || Platform.isWindows;
+
+    // Capture a stable NavigatorState *before* any async gap.
+    // The widget that triggered the share (e.g. a context menu bottom-sheet)
+    // may be unmounted by the time the card is rendered and the share URL
+    // is fetched, so we hold a reference to the root navigator instead.
+    NavigatorState? navigator;
+    if (isDesktop && context != null && context.mounted) {
+      navigator = Navigator.of(context, rootNavigator: true);
+    }
+
     final cardBytes = await _generateCard(content);
     final publicUrl = await _tryCreateShare(entityId);
     final text = content.toShareText(publicUrl: publicUrl);
 
-    if (Platform.isLinux || Platform.isWindows) {
-      // Desktop platforms don't support native file share sheets.
-      if (context != null && context.mounted) {
+    if (isDesktop) {
+      if (navigator != null && navigator.mounted) {
         await ShareDesktopDialog.show(
-          context,
+          navigator.context,
           cardBytes: cardBytes,
           shareText: text,
         );
