@@ -869,6 +869,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                         Padding(
                           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                           child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: <Widget>[
                               if (details.artistId != null &&
                                   details.artistId!.isNotEmpty)
@@ -880,7 +881,6 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                     child: Text(
                                       details.artistName ??
                                           l10n.albumDetailUnknownArtist,
-                                      overflow: TextOverflow.ellipsis,
                                       style: mobileTextTheme.bodyLarge
                                           ?.copyWith(
                                         color: mobileColors.primary,
@@ -894,7 +894,6 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                   child: Text(
                                     details.artistName ??
                                         l10n.albumDetailUnknownArtist,
-                                    overflow: TextOverflow.ellipsis,
                                     style: mobileTextTheme.bodyLarge,
                                   ),
                                 ),
