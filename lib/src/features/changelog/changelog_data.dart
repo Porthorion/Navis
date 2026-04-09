@@ -34,6 +34,22 @@ const List<ChangelogVersion> changelogs = [
         'New startup screen — the Navis logo appears centred with an animated ring that fills as the playback engine loads, then the logo flies up to its place on the home screen in a seamless transition',
         type: ChangelogEntryType.newFeature,
       ),
+      ChangelogEntry(
+        'Home screen quick controls redesigned — filter toggles (shuffle, favourites) sit on the left and action buttons (Instant Mix, Radio) sit on the right in a compact chip row below the Navis logo',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Album detail screen now lists all artists individually — each name is a tappable link that opens the corresponding artist page',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Full OpenSubsonic multi-artist support — albums tagged with multiple separate artists each get their own clickable chip; compound names like "Artist A & Artist B" are split into individual links even on standard Subsonic servers',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Library automatically performs a full resync on first launch after an app update so your library stays consistent with any data changes introduced by the new version',
+        type: ChangelogEntryType.newFeature,
+      ),
       // Fixed
       ChangelogEntry(
         "Album art on the home page's Recently Liked and Liked Tracks sections, and on the Liked page, now loads correctly — fixed a startup race condition that caused the cover art cache to crash before its database had finished opening",
@@ -41,6 +57,22 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Cover art images no longer stop loading after a large amount of music is cached — fixed a background conflict that caused images to get permanently stuck until the app was restarted',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Android Auto home screen now shows album art behind the media controls',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Fixed Android Auto home widget showing no controls or track info after playback started',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Fixed audio downloads occasionally failing with a file-not-found error when the rolling cache was evicting files at the same time',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Artist names on the album detail screen no longer overflow — long or compound names wrap naturally across multiple lines',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
