@@ -112,6 +112,10 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
   Future<void> _saveCoverArtMax(int maxObjects) async {
     final dao = ref.read(navisDatabaseProvider).appSettingsDao;
     await dao.updateCoverArtCacheMaxObjects(maxObjects);
+    // Invalidate so the next access creates a fresh CacheManager with the new
+    // limit. Safe here because the manager has been running since startup and
+    // its SQLite DB is fully initialized.
+    ref.invalidate(coverArtCacheManagerProvider);
     if (mounted) {
       final l10n = AppLocalizations.of(context)!;
       AppNoticeMessenger.of(context)

@@ -63,16 +63,21 @@ final _coverArtMaxObjectsProvider = StreamProvider<int>((ref) {
 
 /// The single active [CacheManager] for all cover art images.
 ///
-/// Using a [Provider] (not [StreamProvider]) ensures there is exactly **one**
-/// [CacheManager] instance alive at any time.  When the user changes the cache
-/// limit in Settings, Riverpod disposes the old manager (closing its SQLite
-/// connection and [HttpClient]) before creating a new one.  This prevents the
-/// concurrent-write race that caused the internal `_futureCache` map to
-/// accumulate permanently-hung entries, which made cached images stop loading
-/// until the app was restarted.
+/// Uses [ref.read] (not [ref.watch]) so the provider **never** rebuilds
+/// reactively. This is critical: [flutter_cache_manager] opens its SQLite
+/// database asynchronously inside the constructor. If `dispose()` is called
+/// before `openDatabase()` returns, the internal `db!` is still null and the
+/// null-check throws. By reading the setting once at creation time, we
+/// guarantee no reactive rebuilds, so the manager's lifecycle is:
+///   1. Created (DB open starts asynchronously).
+///   2. Runs for the lifetime of the app.
+///   3. Explicitly invalidated via [ref.invalidate] from the settings screen
+///      — by which point the DB has been open for seconds and disposal is safe.
 final coverArtCacheManagerProvider = Provider<CacheManager>((ref) {
-  final maxObjects =
-      ref.watch(_coverArtMaxObjectsProvider).value ?? 0;
+  // ref.read, not ref.watch — prevents reactive rebuilds caused by the
+  // settings stream emitting at startup (AsyncLoading → AsyncData), which
+  // would dispose the manager before its internal SQLite DB finishes opening.
+  final maxObjects = ref.read(_coverArtMaxObjectsProvider).value ?? 0;
   final service = CoverArtHttpFileService();
   final manager = createCoverArtCacheManager(
     maxNrOfCacheObjects: maxObjects,
