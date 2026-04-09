@@ -569,7 +569,9 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      expect(find.text('Quick actions'), findsOneWidget);
+      // Quick Actions are now always-visible chips below the logo, not a section.
+      expect(find.text('Quick actions'), findsNothing);
+      expect(find.byType(FilterChip), findsAtLeast(2));
       await tester.scrollUntilVisible(
         find.text('Recently liked albums'),
         220,
@@ -1235,7 +1237,6 @@ void main() {
       expect(
         HomeSectionIds.defaultOrder,
         containsAll(<String>[
-          HomeSectionIds.quickActions,
           HomeSectionIds.recentlyLikedAlbums,
           HomeSectionIds.likedTracks,
           HomeSectionIds.recentlyAdded,
@@ -1245,6 +1246,12 @@ void main() {
           HomeSectionIds.recentlyPlayedTracks,
           HomeSectionIds.frequentAlbums,
         ]),
+      );
+      // quickActions is no longer a section — it's always-visible chips below
+      // the home logo.
+      expect(
+        HomeSectionIds.defaultOrder,
+        isNot(contains(HomeSectionIds.quickActions)),
       );
     });
 

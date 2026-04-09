@@ -41,12 +41,11 @@ class AppearanceSettingsScreen extends ConsumerWidget {
         .where(allowedHomeSectionIds.contains)
         .toList(growable: false);
     final isDesktop = resolveAdaptiveContextFor(context).useDesktopShell;
-    // Quick Actions move to the desktop brand row; hide from the setting.
-    final displayOrder = isDesktop
-        ? sanitizedOrder
-              .where((id) => id != HomeSectionIds.quickActions)
-              .toList(growable: false)
-        : sanitizedOrder;
+    // Quick Actions are now always-visible below the home logo; remove from
+    // the section reorder list on all platforms.
+    final displayOrder = sanitizedOrder
+        .where((id) => id != HomeSectionIds.quickActions)
+        .toList(growable: false);
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.appearanceTitle)),

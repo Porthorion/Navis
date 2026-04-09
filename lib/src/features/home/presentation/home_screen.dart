@@ -52,7 +52,6 @@ class HomeSectionIds {
 
   static const List<String> defaultOrder = <String>[
     randomAlbums,
-    quickActions,
     recentlyLikedAlbums,
     likedTracks,
     recentlyAdded,
@@ -329,9 +328,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               ],
             ),
           )
-        else
+        else ...<Widget>[
           Padding(
-            padding: EdgeInsets.fromLTRB(0, 48, 0, 20),
+            padding: const EdgeInsets.fromLTRB(0, 48, 0, 14),
             child: Center(
               child: _HomeSyncLogo(
                 size: 96,
@@ -344,6 +343,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               ),
             ),
           ),
+          const _HomeFilterChipRow(),
+          const SizedBox(height: 10),
+        ],
         const _UpdateBanner(),
         for (final sectionId in order)
           if (!hidden.contains(sectionId))
@@ -800,27 +802,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             emptyTitle: l10n.homeFrequentEmptyTitle,
             emptySubtitle: l10n.homeFrequentEmptySubtitle,
             onRetry: () => ref.invalidate(homeFrequentAlbumsProvider),
-          ),
-        ];
-
-      case HomeSectionIds.quickActions:
-        return <Widget>[
-          _HomeSection<bool>(
-            title: l10n.homeQuickActionsTitle,
-            desktopMode: desktopRuntime,
-            adaptiveLayoutClass: adaptiveLayoutClass,
-            compactWideLandscapeMode: compactWideLandscapeMode,
-            template: _HomeSectionTemplate.compactList,
-            density: sectionDensity,
-            data: const AsyncValue<bool>.data(true),
-            isEmpty: (_) => false,
-            builder: (context, _) => _QuickActionsSection(
-              density: sectionDensity,
-              downloadedOnly: downloadedOnly,
-              likedOnly: likedOnly,
-            ),
-            emptyTitle: '',
-            emptySubtitle: '',
           ),
         ];
 
@@ -2960,23 +2941,18 @@ class _SongListSection extends ConsumerWidget {
   }
 }
 
-class _QuickActionsSection extends ConsumerWidget {
-  const _QuickActionsSection({
-    required this.density,
-    required this.downloadedOnly,
-    required this.likedOnly,
-  });
+// ─────────────────────────────────────────────────────────────────────────────
+// Mobile filter chip row (below logo)
+// ─────────────────────────────────────────────────────────────────────────────
 
-  final _HomeSectionDensity density;
-  final bool downloadedOnly;
-  final bool likedOnly;
+class _HomeFilterChipRow extends ConsumerWidget {
+  const _HomeFilterChipRow();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
-    final compactDensity = density == _HomeSectionDensity.compact;
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final likedOnly = ref.watch(homeLikedOnlyFilterProvider);
+    final downloadedOnly = ref.watch(downloadedOnlyFilterProvider);
     final downloadedSongIds = downloadedOnly
         ? (ref.watch(downloadedSongIdsProvider).asData?.value ??
               const <String>{})
@@ -2985,107 +2961,56 @@ class _QuickActionsSection extends ConsumerWidget {
         ref.watch(likedSongsProvider).asData?.value ?? const <SongsTableData>[];
     final likedIds =
         (downloadedOnly
-                ? likedSongs.where(
-                    (song) => downloadedSongIds.contains(song.id),
-                  )
+                ? likedSongs.where((s) => downloadedSongIds.contains(s.id))
                 : likedSongs)
-            .map((song) => song.id)
+            .map((s) => s.id)
             .toList(growable: false);
 
-    Widget actionTile({
-      required bool selected,
-      required IconData icon,
-      required String label,
-      required VoidCallback? onTap,
-    }) {
-      final enabled = onTap != null;
-      final baseFg = selected
-          ? colorScheme.onSecondaryContainer
-          : colorScheme.onSurface;
-      final fg = enabled ? baseFg : baseFg.withValues(alpha: 0.5);
-      return Expanded(
-        child: SizedBox(
-          height: compactDensity ? 96 : 108,
-          child: Material(
-            color: selected
-                ? colorScheme.secondaryContainer
-                : colorScheme.surfaceContainerLow,
-            borderRadius: BorderRadius.circular(12),
-            child: InkWell(
-              onTap: onTap,
-              borderRadius: BorderRadius.circular(12),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 10,
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: <Widget>[
-                    Icon(icon, size: compactDensity ? 20 : 22, color: fg),
-                    const SizedBox(height: 8),
-                    Text(
-                      label,
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: fg,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Row(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 6,
+        alignment: WrapAlignment.center,
         children: <Widget>[
-          actionTile(
+          FilterChip(
+            label: Text(l10n.libraryLikedOnlyFilter),
             selected: likedOnly,
-            onTap: () {
-              final controller = ref.read(homeLikedOnlyFilterProvider.notifier);
-              controller.enabled = !likedOnly;
+            showCheckmark: false,
+            avatar: Icon(
+              likedOnly ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+              size: 18,
+            ),
+            onSelected: (_) {
+              ref.read(homeLikedOnlyFilterProvider.notifier).enabled = !likedOnly;
             },
-            icon: likedOnly
-                ? Icons.favorite_rounded
-                : Icons.favorite_border_rounded,
-            label: l10n.libraryLikedOnlyFilter,
           ),
-          const SizedBox(width: 8),
-          actionTile(
+          FilterChip(
+            label: Text(l10n.libraryDownloadedOnlyFilter),
             selected: downloadedOnly,
-            onTap: () {
-              final controller = ref.read(
-                downloadedOnlyFilterProvider.notifier,
-              );
-              controller.enabled = !downloadedOnly;
+            showCheckmark: false,
+            avatar: Icon(
+              downloadedOnly
+                  ? Icons.download_done_rounded
+                  : Icons.download_rounded,
+              size: 18,
+            ),
+            onSelected: (_) {
+              ref.read(downloadedOnlyFilterProvider.notifier).enabled =
+                  !downloadedOnly;
             },
-            icon: downloadedOnly
-                ? Icons.download_done_rounded
-                : Icons.download_rounded,
-            label: l10n.libraryDownloadedOnlyFilter,
           ),
-          const SizedBox(width: 8),
-          actionTile(
-            selected: false,
-            onTap: likedIds.isEmpty
+          ActionChip(
+            label: const Text('Instant Radio'),
+            avatar: const Icon(Icons.radio_rounded, size: 18),
+            onPressed: likedIds.isEmpty
                 ? null
                 : () {
                     final seedSongId =
                         likedIds[math.Random().nextInt(likedIds.length)];
                     ref
                         .read(queueProvider.notifier)
-                        .replace(
-                          <String>[seedSongId],
-                          autoPlay: true,
-                        )
+                        .replace(<String>[seedSongId], autoPlay: true)
                         .then((_) async {
                           await activatePreferredMixMode(
                             ref,
@@ -3097,8 +3022,6 @@ class _QuickActionsSection extends ConsumerWidget {
                         })
                         .ignore();
                   },
-            icon: Icons.radio_rounded,
-            label: 'Instant Radio',
           ),
         ],
       ),
