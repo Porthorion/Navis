@@ -1931,7 +1931,16 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
         current.coverArt != next.coverArt ||
         current.starred != next.starred ||
         current.userRating != next.userRating ||
-        current.playCount != next.playCount;
+        current.playCount != next.playCount ||
+        !_artistListsEqual(current.artists, next.artists);
+  }
+
+  bool _artistListsEqual(List<ArtistRef> a, List<ArtistRef> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i].id != b[i].id || a[i].name != b[i].name) return false;
+    }
+    return true;
   }
 
   bool _albumRequiresSongHydration(AlbumsTableData current, Album next) {

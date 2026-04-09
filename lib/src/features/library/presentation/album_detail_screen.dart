@@ -1558,17 +1558,51 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
   /// Returns the authoritative artist list for [details].
   ///
   /// Prefers the OpenSubsonic `artists` list (populated after a full sync on
-  /// servers that support the extension). Falls back to a single-entry list
-  /// constructed from the legacy [artistId]/[artistName] pair for standard
-  /// Subsonic servers.
+  /// servers that support the extension). Falls back to splitting the legacy
+  /// `artistName` string (e.g. "Artist A & Artist B, Artist C") into individual
+  /// entries, all linked to `artistId`. As a last resort returns a single entry.
   List<ArtistRef> _resolveArtists(AlbumsTableData details) {
     if (details.artists.isNotEmpty) return details.artists;
     final id = details.artistId;
     final name = details.artistName;
-    if (id != null && id.isNotEmpty && name != null && name.isNotEmpty) {
-      return [ArtistRef(id: id, name: name)];
+    if (id == null || id.isEmpty || name == null || name.isEmpty) {
+      return const [];
     }
-    return const [];
+    // Try to split compound names ("Artist A & Artist B", "Artist A feat. B").
+    final segments = _parseArtistSegments(name);
+    final nameSegments = segments
+        .where((s) => !s.$2)
+        .map((s) => ArtistRef(id: id, name: s.$1))
+        .toList(growable: false);
+    return nameSegments.isNotEmpty ? nameSegments : [ArtistRef(id: id, name: name)];
+  }
+
+  /// Splits [name] into alternating (text, isDelimiter) pairs so each artist
+  /// name segment can be rendered as its own tappable widget.
+  ///
+  /// Recognised separators: `,`, ` & `, ` feat.`, ` ft.`, ` with `.
+  static List<(String text, bool isDelimiter)> _parseArtistSegments(
+    String name,
+  ) {
+    final result = <(String, bool)>[];
+    final sep = RegExp(
+      r'\s*(?:,\s*|&|feat\.?|ft\.?|with)\s*',
+      caseSensitive: false,
+    );
+    var last = 0;
+    for (final match in sep.allMatches(name)) {
+      if (match.start > last) {
+        final seg = name.substring(last, match.start).trim();
+        if (seg.isNotEmpty) result.add((seg, false));
+      }
+      result.add((match.group(0)!, true));
+      last = match.end;
+    }
+    if (last < name.length) {
+      final seg = name.substring(last).trim();
+      if (seg.isNotEmpty) result.add((seg, false));
+    }
+    return result;
   }
 
   /// Builds [Widget]s for a [Wrap] where each artist is individually tappable.
