@@ -21,7 +21,6 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/utils/file_utils.dart';
-import 'package:navis/src/features/sharing/presentation/share_actions.dart';
 
 class PlaylistDetailScreen extends ConsumerStatefulWidget {
   const PlaylistDetailScreen({required this.playlistId, super.key});
@@ -104,11 +103,6 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
       appBar: AppBar(
         title: Text(l10n.playlistDetailTitle),
         actions: <Widget>[
-          IconButton(
-            icon: const Icon(Icons.share_outlined),
-            tooltip: l10n.shareAction,
-            onPressed: () => sharePlaylist(context, ref, widget.playlistId),
-          ),
         ],
       ),
       body: desktopMode

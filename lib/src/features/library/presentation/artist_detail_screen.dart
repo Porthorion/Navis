@@ -22,7 +22,6 @@ import 'package:navis/src/features/library/presentation/library_sync_provider.da
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
-import 'package:navis/src/features/sharing/presentation/share_actions.dart';
 
 class ArtistDetailScreen extends ConsumerStatefulWidget {
   const ArtistDetailScreen({required this.artistId, super.key});
@@ -347,11 +346,6 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
       appBar: AppBar(
         title: Text(l10n.artistDetailTitle),
         actions: <Widget>[
-          IconButton(
-            icon: const Icon(Icons.share_outlined),
-            tooltip: l10n.shareAction,
-            onPressed: () => shareArtist(context, ref, widget.artistId),
-          ),
         ],
       ),
       body: desktopMode

@@ -34,7 +34,6 @@ import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/format_utils.dart';
-import 'package:navis/src/features/sharing/presentation/share_actions.dart';
 
 /// Splits a combined artist string into individual artist names.
 /// Mirrors the same function in app_shell.dart.
@@ -4847,16 +4846,6 @@ class _ActionRowState extends ConsumerState<_ActionRow>
           }
           _showNowPlayingSettingsSheet(context, ref, widget.song);
         },
-      ),
-      _NowPlayingActionButton(
-        icon: Icon(
-          Icons.share_outlined,
-          color: colorScheme.onSurfaceVariant,
-        ),
-        label: l10n.shareAction,
-        onTap: widget.song == null
-            ? null
-            : () => unawaited(shareSong(context, ref, widget.song!)),
       ),
     ];
 

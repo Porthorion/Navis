@@ -2383,19 +2383,4 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get remoteSourceInstantMixUnavailable =>
       'Instant Mix requires a locally scanned track.';
-
-  @override
-  String get shareAction => 'Share';
-
-  @override
-  String get copyLinkAction => 'Copy Link';
-
-  @override
-  String get linkCopied => 'Link copied to clipboard';
-
-  @override
-  String get shareError => 'Could not share. Please try again.';
-
-  @override
-  String get closeAction => 'Close';
 }

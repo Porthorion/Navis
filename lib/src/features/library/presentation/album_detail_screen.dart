@@ -29,7 +29,6 @@ import 'package:navis/src/utils/file_utils.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
 import 'package:navis/src/providers/app_providers.dart';
-import 'package:navis/src/features/sharing/presentation/share_actions.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class AlbumDetailScreen extends ConsumerStatefulWidget {
@@ -109,11 +108,6 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                   ? Theme.of(context).colorScheme.surfaceContainerHigh
                   : null,
               actions: <Widget>[
-                IconButton(
-                  tooltip: l10n.shareAction,
-                  icon: const Icon(Icons.share_outlined),
-                  onPressed: () => shareAlbum(context, ref, widget.albumId),
-                ),
                 IconButton(
                   tooltip: l10n.commonRetry,
                   onPressed: _isRefreshingAlbum ? null : _refreshAlbum,
@@ -674,11 +668,6 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                       onPressed: () => context.pop(),
                     ),
                     actions: <Widget>[
-                      _buildAnimatedNavButton(
-                        icon: Icons.share_outlined,
-                        onPressed: () =>
-                            shareAlbum(context, ref, widget.albumId),
-                      ),
                       _buildAnimatedNavButton(
                         icon: Icons.refresh,
                         isLoading: _isRefreshingAlbum,

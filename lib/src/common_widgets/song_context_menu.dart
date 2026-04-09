@@ -18,8 +18,6 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/utils/song_id_utils.dart';
 
-import 'package:navis/src/features/sharing/presentation/share_actions.dart';
-
 /// Shows a generic bottom sheet context menu for a [SongsTableData] song.
 ///
 /// Includes: Play Now, Add to Queue, Play Next, Open Artist, Open Album,
@@ -246,24 +244,6 @@ Future<void> showSongContextMenu(
                         showAddToPlaylistSheet(context, ref, <String>[song.id]);
                       },
                     ),
-                    ListTile(
-                      leading: const Icon(Icons.share_outlined),
-                      title: Text(l10n.shareAction),
-                      onTap: () {
-                        Navigator.of(sheetContext).pop();
-                        unawaited(shareSong(context, ref, song));
-                      },
-                    ),
-                    ListTile(
-                      leading: const Icon(Icons.link_outlined),
-                      title: Text(l10n.copyLinkAction),
-                      onTap: () {
-                        Navigator.of(sheetContext).pop();
-                        unawaited(
-                          shareSong(context, ref, song, copyOnly: true),
-                        );
-                      },
-                    ),
                     if (isDownloaded)
                       ListTile(
                         leading: Icon(
@@ -325,8 +305,6 @@ enum _SongContextAction {
   openArtist,
   openAlbum,
   addPlaylist,
-  share,
-  copyLink,
   download,
   deleteDownload,
 }
@@ -382,14 +360,6 @@ Future<void> _showDesktopSongContextMenu(
       PopupMenuItem<_SongContextAction>(
         value: _SongContextAction.addPlaylist,
         child: Text(l10n.librarySongMenuAddToPlaylist),
-      ),
-      PopupMenuItem<_SongContextAction>(
-        value: _SongContextAction.share,
-        child: Text(l10n.shareAction),
-      ),
-      PopupMenuItem<_SongContextAction>(
-        value: _SongContextAction.copyLink,
-        child: Text(l10n.copyLinkAction),
       ),
       PopupMenuItem<_SongContextAction>(
         value: isDownloaded
@@ -450,12 +420,6 @@ Future<void> _showDesktopSongContextMenu(
       return;
     case _SongContextAction.addPlaylist:
       await showAddToPlaylistSheet(context, ref, <String>[song.id]);
-      return;
-    case _SongContextAction.share:
-      await shareSong(context, ref, song);
-      return;
-    case _SongContextAction.copyLink:
-      await shareSong(context, ref, song, copyOnly: true);
       return;
     case _SongContextAction.download:
       await _downloadSongFromMenu(context, ref, song.id);
