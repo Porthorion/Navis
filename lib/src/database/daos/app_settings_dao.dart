@@ -613,4 +613,24 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       ),
     );
   }
+
+  /// Returns the app version+build string recorded at the time of the last
+  /// version-triggered forced full sync. Null if no such sync has run yet.
+  Future<String?> getLastFullSyncAppBuild() async {
+    final row = await getSettings();
+    return row?.lastFullSyncAppBuild;
+  }
+
+  /// Persists [versionBuild] as the app version active during the last forced
+  /// full sync, so subsequent startups can skip the forced resync.
+  Future<void> setLastFullSyncAppBuild(String versionBuild) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        lastFullSyncAppBuild: Value(versionBuild),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
 }

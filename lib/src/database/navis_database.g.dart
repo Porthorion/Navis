@@ -1231,6 +1231,17 @@ class $AppSettingsTableTable extends AppSettingsTable
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _lastFullSyncAppBuildMeta =
+      const VerificationMeta('lastFullSyncAppBuild');
+  @override
+  late final GeneratedColumn<String> lastFullSyncAppBuild =
+      GeneratedColumn<String>(
+        'last_full_sync_app_build',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _updatedAtMeta = const VerificationMeta(
     'updatedAt',
   );
@@ -1299,6 +1310,7 @@ class $AppSettingsTableTable extends AppSettingsTable
     desktopNavbarAutohide,
     albumQueueEnabled,
     likedQueueEnabled,
+    lastFullSyncAppBuild,
     updatedAt,
   ];
   @override
@@ -1790,6 +1802,15 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
       );
     }
+    if (data.containsKey('last_full_sync_app_build')) {
+      context.handle(
+        _lastFullSyncAppBuildMeta,
+        lastFullSyncAppBuild.isAcceptableOrUnknown(
+          data['last_full_sync_app_build']!,
+          _lastFullSyncAppBuildMeta,
+        ),
+      );
+    }
     if (data.containsKey('updated_at')) {
       context.handle(
         _updatedAtMeta,
@@ -2027,6 +2048,10 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.bool,
         data['${effectivePrefix}liked_queue_enabled'],
       )!,
+      lastFullSyncAppBuild: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_full_sync_app_build'],
+      ),
       updatedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
@@ -2182,6 +2207,11 @@ class AppSettingsTableData extends DataClass
   /// Liked page queues all liked songs and starts at the selected track.
   /// Default false.
   final bool likedQueueEnabled;
+
+  /// The app version+build string (e.g. "1.2.3+100") that was current when
+  /// the last forced full sync was triggered. Null means no version-triggered
+  /// full sync has run yet. Used to auto-force a full resync on app updates.
+  final String? lastFullSyncAppBuild;
   final DateTime updatedAt;
   const AppSettingsTableData({
     required this.id,
@@ -2239,6 +2269,7 @@ class AppSettingsTableData extends DataClass
     required this.desktopNavbarAutohide,
     required this.albumQueueEnabled,
     required this.likedQueueEnabled,
+    this.lastFullSyncAppBuild,
     required this.updatedAt,
   });
   @override
@@ -2335,6 +2366,9 @@ class AppSettingsTableData extends DataClass
     map['desktop_navbar_autohide'] = Variable<bool>(desktopNavbarAutohide);
     map['album_queue_enabled'] = Variable<bool>(albumQueueEnabled);
     map['liked_queue_enabled'] = Variable<bool>(likedQueueEnabled);
+    if (!nullToAbsent || lastFullSyncAppBuild != null) {
+      map['last_full_sync_app_build'] = Variable<String>(lastFullSyncAppBuild);
+    }
     map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
   }
@@ -2424,6 +2458,9 @@ class AppSettingsTableData extends DataClass
       desktopNavbarAutohide: Value(desktopNavbarAutohide),
       albumQueueEnabled: Value(albumQueueEnabled),
       likedQueueEnabled: Value(likedQueueEnabled),
+      lastFullSyncAppBuild: lastFullSyncAppBuild == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastFullSyncAppBuild),
       updatedAt: Value(updatedAt),
     );
   }
@@ -2527,6 +2564,9 @@ class AppSettingsTableData extends DataClass
       ),
       albumQueueEnabled: serializer.fromJson<bool>(json['albumQueueEnabled']),
       likedQueueEnabled: serializer.fromJson<bool>(json['likedQueueEnabled']),
+      lastFullSyncAppBuild: serializer.fromJson<String?>(
+        json['lastFullSyncAppBuild'],
+      ),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
   }
@@ -2603,6 +2643,7 @@ class AppSettingsTableData extends DataClass
       'desktopNavbarAutohide': serializer.toJson<bool>(desktopNavbarAutohide),
       'albumQueueEnabled': serializer.toJson<bool>(albumQueueEnabled),
       'likedQueueEnabled': serializer.toJson<bool>(likedQueueEnabled),
+      'lastFullSyncAppBuild': serializer.toJson<String?>(lastFullSyncAppBuild),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
   }
@@ -2663,6 +2704,7 @@ class AppSettingsTableData extends DataClass
     bool? desktopNavbarAutohide,
     bool? albumQueueEnabled,
     bool? likedQueueEnabled,
+    Value<String?> lastFullSyncAppBuild = const Value.absent(),
     DateTime? updatedAt,
   }) => AppSettingsTableData(
     id: id ?? this.id,
@@ -2751,6 +2793,9 @@ class AppSettingsTableData extends DataClass
     desktopNavbarAutohide: desktopNavbarAutohide ?? this.desktopNavbarAutohide,
     albumQueueEnabled: albumQueueEnabled ?? this.albumQueueEnabled,
     likedQueueEnabled: likedQueueEnabled ?? this.likedQueueEnabled,
+    lastFullSyncAppBuild: lastFullSyncAppBuild.present
+        ? lastFullSyncAppBuild.value
+        : this.lastFullSyncAppBuild,
     updatedAt: updatedAt ?? this.updatedAt,
   );
   AppSettingsTableData copyWithCompanion(AppSettingsTableCompanion data) {
@@ -2912,6 +2957,9 @@ class AppSettingsTableData extends DataClass
       likedQueueEnabled: data.likedQueueEnabled.present
           ? data.likedQueueEnabled.value
           : this.likedQueueEnabled,
+      lastFullSyncAppBuild: data.lastFullSyncAppBuild.present
+          ? data.lastFullSyncAppBuild.value
+          : this.lastFullSyncAppBuild,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
   }
@@ -2976,6 +3024,7 @@ class AppSettingsTableData extends DataClass
           ..write('desktopNavbarAutohide: $desktopNavbarAutohide, ')
           ..write('albumQueueEnabled: $albumQueueEnabled, ')
           ..write('likedQueueEnabled: $likedQueueEnabled, ')
+          ..write('lastFullSyncAppBuild: $lastFullSyncAppBuild, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
@@ -3038,6 +3087,7 @@ class AppSettingsTableData extends DataClass
     desktopNavbarAutohide,
     albumQueueEnabled,
     likedQueueEnabled,
+    lastFullSyncAppBuild,
     updatedAt,
   ]);
   @override
@@ -3100,6 +3150,7 @@ class AppSettingsTableData extends DataClass
           other.desktopNavbarAutohide == this.desktopNavbarAutohide &&
           other.albumQueueEnabled == this.albumQueueEnabled &&
           other.likedQueueEnabled == this.likedQueueEnabled &&
+          other.lastFullSyncAppBuild == this.lastFullSyncAppBuild &&
           other.updatedAt == this.updatedAt);
 }
 
@@ -3159,6 +3210,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<bool> desktopNavbarAutohide;
   final Value<bool> albumQueueEnabled;
   final Value<bool> likedQueueEnabled;
+  final Value<String?> lastFullSyncAppBuild;
   final Value<DateTime> updatedAt;
   const AppSettingsTableCompanion({
     this.id = const Value.absent(),
@@ -3216,6 +3268,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.desktopNavbarAutohide = const Value.absent(),
     this.albumQueueEnabled = const Value.absent(),
     this.likedQueueEnabled = const Value.absent(),
+    this.lastFullSyncAppBuild = const Value.absent(),
     this.updatedAt = const Value.absent(),
   });
   AppSettingsTableCompanion.insert({
@@ -3274,6 +3327,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.desktopNavbarAutohide = const Value.absent(),
     this.albumQueueEnabled = const Value.absent(),
     this.likedQueueEnabled = const Value.absent(),
+    this.lastFullSyncAppBuild = const Value.absent(),
     required DateTime updatedAt,
   }) : updatedAt = Value(updatedAt);
   static Insertable<AppSettingsTableData> custom({
@@ -3332,6 +3386,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<bool>? desktopNavbarAutohide,
     Expression<bool>? albumQueueEnabled,
     Expression<bool>? likedQueueEnabled,
+    Expression<String>? lastFullSyncAppBuild,
     Expression<DateTime>? updatedAt,
   }) {
     return RawValuesInsertable({
@@ -3412,6 +3467,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         'desktop_navbar_autohide': desktopNavbarAutohide,
       if (albumQueueEnabled != null) 'album_queue_enabled': albumQueueEnabled,
       if (likedQueueEnabled != null) 'liked_queue_enabled': likedQueueEnabled,
+      if (lastFullSyncAppBuild != null)
+        'last_full_sync_app_build': lastFullSyncAppBuild,
       if (updatedAt != null) 'updated_at': updatedAt,
     });
   }
@@ -3472,6 +3529,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<bool>? desktopNavbarAutohide,
     Value<bool>? albumQueueEnabled,
     Value<bool>? likedQueueEnabled,
+    Value<String?>? lastFullSyncAppBuild,
     Value<DateTime>? updatedAt,
   }) {
     return AppSettingsTableCompanion(
@@ -3538,6 +3596,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           desktopNavbarAutohide ?? this.desktopNavbarAutohide,
       albumQueueEnabled: albumQueueEnabled ?? this.albumQueueEnabled,
       likedQueueEnabled: likedQueueEnabled ?? this.likedQueueEnabled,
+      lastFullSyncAppBuild: lastFullSyncAppBuild ?? this.lastFullSyncAppBuild,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
@@ -3732,6 +3791,11 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     if (likedQueueEnabled.present) {
       map['liked_queue_enabled'] = Variable<bool>(likedQueueEnabled.value);
     }
+    if (lastFullSyncAppBuild.present) {
+      map['last_full_sync_app_build'] = Variable<String>(
+        lastFullSyncAppBuild.value,
+      );
+    }
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
@@ -3798,6 +3862,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('desktopNavbarAutohide: $desktopNavbarAutohide, ')
           ..write('albumQueueEnabled: $albumQueueEnabled, ')
           ..write('likedQueueEnabled: $likedQueueEnabled, ')
+          ..write('lastFullSyncAppBuild: $lastFullSyncAppBuild, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
@@ -12334,6 +12399,7 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<bool> desktopNavbarAutohide,
       Value<bool> albumQueueEnabled,
       Value<bool> likedQueueEnabled,
+      Value<String?> lastFullSyncAppBuild,
       required DateTime updatedAt,
     });
 typedef $$AppSettingsTableTableUpdateCompanionBuilder =
@@ -12393,6 +12459,7 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<bool> desktopNavbarAutohide,
       Value<bool> albumQueueEnabled,
       Value<bool> likedQueueEnabled,
+      Value<String?> lastFullSyncAppBuild,
       Value<DateTime> updatedAt,
     });
 
@@ -12677,6 +12744,11 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<bool> get likedQueueEnabled => $composableBuilder(
     column: $table.likedQueueEnabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastFullSyncAppBuild => $composableBuilder(
+    column: $table.lastFullSyncAppBuild,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -12970,6 +13042,11 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get lastFullSyncAppBuild => $composableBuilder(
+    column: $table.lastFullSyncAppBuild,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
@@ -13252,6 +13329,11 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get lastFullSyncAppBuild => $composableBuilder(
+    column: $table.lastFullSyncAppBuild,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 }
@@ -13349,6 +13431,7 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> desktopNavbarAutohide = const Value.absent(),
                 Value<bool> albumQueueEnabled = const Value.absent(),
                 Value<bool> likedQueueEnabled = const Value.absent(),
+                Value<String?> lastFullSyncAppBuild = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
               }) => AppSettingsTableCompanion(
                 id: id,
@@ -13406,6 +13489,7 @@ class $$AppSettingsTableTableTableManager
                 desktopNavbarAutohide: desktopNavbarAutohide,
                 albumQueueEnabled: albumQueueEnabled,
                 likedQueueEnabled: likedQueueEnabled,
+                lastFullSyncAppBuild: lastFullSyncAppBuild,
                 updatedAt: updatedAt,
               ),
           createCompanionCallback:
@@ -13466,6 +13550,7 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> desktopNavbarAutohide = const Value.absent(),
                 Value<bool> albumQueueEnabled = const Value.absent(),
                 Value<bool> likedQueueEnabled = const Value.absent(),
+                Value<String?> lastFullSyncAppBuild = const Value.absent(),
                 required DateTime updatedAt,
               }) => AppSettingsTableCompanion.insert(
                 id: id,
@@ -13523,6 +13608,7 @@ class $$AppSettingsTableTableTableManager
                 desktopNavbarAutohide: desktopNavbarAutohide,
                 albumQueueEnabled: albumQueueEnabled,
                 likedQueueEnabled: likedQueueEnabled,
+                lastFullSyncAppBuild: lastFullSyncAppBuild,
                 updatedAt: updatedAt,
               ),
           withReferenceMapper: (p0) => p0

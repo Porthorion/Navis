@@ -192,6 +192,11 @@ class AppSettingsTable extends Table {
   BoolColumn get likedQueueEnabled =>
       boolean().withDefault(const Constant(false))();
 
+  /// The app version+build string (e.g. "1.2.3+100") that was current when
+  /// the last forced full sync was triggered. Null means no version-triggered
+  /// full sync has run yet. Used to auto-force a full resync on app updates.
+  TextColumn get lastFullSyncAppBuild => text().nullable()();
+
   DateTimeColumn get updatedAt => dateTime()();
 
   @override
