@@ -138,8 +138,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ),
               onPressed: _isBusy
                   ? null
-                  : () =>
-                        setState(() => _passwordVisible = !_passwordVisible),
+                  : () => setState(() => _passwordVisible = !_passwordVisible),
             ),
           ),
           obscureText: !_passwordVisible,
@@ -178,12 +177,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
 
     Form buildForm(Widget child) => Form(
-          key: _formKey,
-          autovalidateMode: _showValidationErrors
-              ? AutovalidateMode.onUserInteraction
-              : AutovalidateMode.disabled,
-          child: child,
-        );
+      key: _formKey,
+      autovalidateMode: _showValidationErrors
+          ? AutovalidateMode.onUserInteraction
+          : AutovalidateMode.disabled,
+      child: child,
+    );
 
     return Scaffold(
       // Prevent Scaffold from shrinking the body when the keyboard appears.
@@ -194,9 +193,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       // as bottom padding on each scroll view so fields still scroll into view.
       resizeToAvoidBottomInset: false,
       body: Stack(
-          children: <Widget>[
-            Positioned.fill(
-              child: SafeArea(
+        children: <Widget>[
+          Positioned.fill(
+            child: SafeArea(
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   final isWide = constraints.maxWidth >= 600;
@@ -238,7 +237,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                             // Compact hero: smaller icon,
                                             // no subtitle — saves ~70dp vs
                                             // the full hero section.
-                                            const _LoginHeroSection(compact: true),
+                                            const _LoginHeroSection(
+                                              compact: true,
+                                            ),
                                             const SizedBox(height: 16),
                                             urlField,
                                           ],
@@ -299,8 +300,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               40 + bottomInset,
                             ),
                             child: ConstrainedBox(
-                              constraints:
-                                  const BoxConstraints(maxWidth: 480),
+                              constraints: const BoxConstraints(maxWidth: 480),
                               child: Card(
                                 margin: EdgeInsets.zero,
                                 clipBehavior: Clip.antiAlias,
@@ -364,12 +364,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   );
                 },
               ),
-              ),
             ),
-            AppNoticeHost(controller: _noticeController),
-          ],
-        ),
-      );
+          ),
+          AppNoticeHost(controller: _noticeController),
+        ],
+      ),
+    );
   }
 
   String? _validateRequired(String? value, String message) {

@@ -4256,6 +4256,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Instant Mix requires a locally scanned track.'**
   String get remoteSourceInstantMixUnavailable;
+
+  /// Context menu action to share content via system share sheet
+  ///
+  /// In en, this message translates to:
+  /// **'Share'**
+  String get shareAction;
+
+  /// Context menu action to copy a navis:// deep link to clipboard
+  ///
+  /// In en, this message translates to:
+  /// **'Copy Link'**
+  String get copyLinkAction;
+
+  /// Snackbar message after copying a share link
+  ///
+  /// In en, this message translates to:
+  /// **'Link copied to clipboard'**
+  String get linkCopied;
+
+  /// Snackbar message when sharing fails
+  ///
+  /// In en, this message translates to:
+  /// **'Could not share. Please try again.'**
+  String get shareError;
 }
 
 class _AppLocalizationsDelegate

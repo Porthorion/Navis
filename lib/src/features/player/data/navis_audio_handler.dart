@@ -2412,31 +2412,6 @@ class NavisAudioHandler extends BaseAudioHandler
     }
   }
 
-  /// Build a [MediaItem] from a [SongsTableData] row without resolving
-  /// a playback source.  Used for placeholder queue items whose audio
-  /// sources are resolved later in Phase 2.
-  MediaItem _buildMediaItemForSong(SongsTableData song) {
-    return MediaItem(
-      id: song.id,
-      title: song.title,
-      artist: song.artistName,
-      album: song.albumName,
-      duration: song.duration == null
-          ? null
-          : Duration(seconds: math.max(0, song.duration!)),
-      artUri: _sourceResolver.resolveArtUri(song),
-      extras: <String, Object?>{
-        'albumId': song.albumId,
-        'artistId': song.artistId,
-        'liked': song.starred != null,
-        'replayGainTrackGain': song.replayGainTrackGain,
-        'replayGainAlbumGain': song.replayGainAlbumGain,
-        'replayGainTrackPeak': song.replayGainTrackPeak,
-        'replayGainAlbumPeak': song.replayGainAlbumPeak,
-      },
-    );
-  }
-
   /// Resolve a single song's playback source with the standard fallback chain
   /// (lock-caching → direct stream).
   Future<_PreparedQueueItem> _prepareSingleItem(

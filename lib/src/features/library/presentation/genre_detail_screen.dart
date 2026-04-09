@@ -123,13 +123,10 @@ class GenreDetailScreen extends ConsumerWidget {
                       return TrackListTile(
                         song: song,
                         onTap: () {
-                          ref
-                              .read(queueProvider.notifier)
-                              .replaceWithTableData(
-                                <SongsTableData>[song],
-                                autoPlay: true,
-                              )
-                              .ignore();
+                          ref.read(queueProvider.notifier).replaceWithTableData(
+                            <SongsTableData>[song],
+                            autoPlay: true,
+                          ).ignore();
                         },
                         onLongPress: () =>
                             showSongContextMenu(context, ref, song),

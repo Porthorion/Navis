@@ -1932,8 +1932,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                                     .read(queueProvider.notifier)
                                     .replaceWithTableData(
                                       filteredSongs,
-                                      startIndex:
-                                          startIndex < 0 ? 0 : startIndex,
+                                      startIndex: startIndex < 0
+                                          ? 0
+                                          : startIndex,
                                       autoPlay: true,
                                     )
                                     .ignore();
@@ -1987,8 +1988,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                                 .read(queueProvider.notifier)
                                 .replaceWithTableData(
                                   filteredSongs,
-                                  startIndex:
-                                      startIndex < 0 ? 0 : startIndex,
+                                  startIndex: startIndex < 0 ? 0 : startIndex,
                                   autoPlay: true,
                                 )
                                 .ignore();

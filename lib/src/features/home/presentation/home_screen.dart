@@ -496,10 +496,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               desktopMode: desktopRuntime,
               adaptiveLayoutClass: adaptiveLayoutClass,
               onTap: (song) {
-                ref
-                    .read(queueProvider.notifier)
-                    .replaceWithTableData(<SongsTableData>[song], autoPlay: true)
-                    .ignore();
+                ref.read(queueProvider.notifier).replaceWithTableData(
+                  <SongsTableData>[song],
+                  autoPlay: true,
+                ).ignore();
               },
             ),
             emptyTitle: l10n.homeStarredEmptyTitle,
@@ -696,10 +696,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               desktopMode: desktopRuntime,
               adaptiveLayoutClass: adaptiveLayoutClass,
               onTap: (song) {
-                ref
-                    .read(queueProvider.notifier)
-                    .replaceWithTableData(<SongsTableData>[song], autoPlay: true)
-                    .ignore();
+                ref.read(queueProvider.notifier).replaceWithTableData(
+                  <SongsTableData>[song],
+                  autoPlay: true,
+                ).ignore();
               },
             ),
             emptyTitle: l10n.homeMostPlayedTracksEmptyTitle,
@@ -743,10 +743,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               desktopMode: desktopRuntime,
               adaptiveLayoutClass: adaptiveLayoutClass,
               onTap: (song) {
-                ref
-                    .read(queueProvider.notifier)
-                    .replaceWithTableData(<SongsTableData>[song], autoPlay: true)
-                    .ignore();
+                ref.read(queueProvider.notifier).replaceWithTableData(
+                  <SongsTableData>[song],
+                  autoPlay: true,
+                ).ignore();
               },
             ),
             emptyTitle: l10n.homeRecentlyPlayedTracksEmptyTitle,

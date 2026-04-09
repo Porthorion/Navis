@@ -933,10 +933,13 @@ class _SongResultsSection extends ConsumerWidget {
         result.then((value) {
           switch (value) {
             case 'play-next':
-              ref.read(queueProvider.notifier).fireAndForget(
-                () => ref.read(queueProvider.notifier).playNextWithSong(song),
-                label: 'playNext',
-              );
+              ref
+                  .read(queueProvider.notifier)
+                  .fireAndForget(
+                    () =>
+                        ref.read(queueProvider.notifier).playNextWithSong(song),
+                    label: 'playNext',
+                  );
               if (context.mounted) {
                 AppNoticeMessenger.of(context).showSnackBar(
                   SnackBar(
@@ -946,10 +949,12 @@ class _SongResultsSection extends ConsumerWidget {
               }
               return;
             case 'add-queue':
-              ref.read(queueProvider.notifier).fireAndForget(
-                () => ref.read(queueProvider.notifier).addWithSong(song),
-                label: 'addToQueue',
-              );
+              ref
+                  .read(queueProvider.notifier)
+                  .fireAndForget(
+                    () => ref.read(queueProvider.notifier).addWithSong(song),
+                    label: 'addToQueue',
+                  );
               if (context.mounted) {
                 AppNoticeMessenger.of(context).showSnackBar(
                   SnackBar(
@@ -987,11 +992,14 @@ class _SongResultsSection extends ConsumerWidget {
               title: Text(l10n.searchPlayNext),
               onTap: () {
                 Navigator.of(sheetContext).pop();
-                ref.read(queueProvider.notifier).fireAndForget(
-                  () =>
-                      ref.read(queueProvider.notifier).playNextWithSong(song),
-                  label: 'playNext',
-                );
+                ref
+                    .read(queueProvider.notifier)
+                    .fireAndForget(
+                      () => ref
+                          .read(queueProvider.notifier)
+                          .playNextWithSong(song),
+                      label: 'playNext',
+                    );
                 if (context.mounted) {
                   AppNoticeMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -1008,10 +1016,12 @@ class _SongResultsSection extends ConsumerWidget {
               title: Text(l10n.searchAddToQueue),
               onTap: () {
                 Navigator.of(sheetContext).pop();
-                ref.read(queueProvider.notifier).fireAndForget(
-                  () => ref.read(queueProvider.notifier).addWithSong(song),
-                  label: 'addToQueue',
-                );
+                ref
+                    .read(queueProvider.notifier)
+                    .fireAndForget(
+                      () => ref.read(queueProvider.notifier).addWithSong(song),
+                      label: 'addToQueue',
+                    );
                 if (context.mounted) {
                   AppNoticeMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -1071,7 +1081,6 @@ class _SongResultsSection extends ConsumerWidget {
       ),
     );
   }
-
 }
 
 String _formatDuration(int? seconds) {

@@ -9,4 +9,4 @@ Type=Application
 Categories=AudioVideo;Audio;Player;
 StartupNotify=true
 StartupWMClass=navis
-MimeType=audio/mpeg;audio/ogg;audio/flac;audio/x-flac;audio/wav;audio/aac;audio/x-m4a;
+MimeType=audio/mpeg;audio/ogg;audio/flac;audio/x-flac;audio/wav;audio/aac;audio/x-m4a;x-scheme-handler/navis;

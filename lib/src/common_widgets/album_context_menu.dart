@@ -16,6 +16,8 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/utils/file_utils.dart';
 
+import 'package:navis/src/features/sharing/presentation/share_actions.dart';
+
 /// Shows a bottom sheet context menu for an album identified by [albumId].
 ///
 /// Actions: Open, Play, Add to Queue, Like/Unlike, Download.
@@ -127,6 +129,24 @@ Future<void> showAlbumContextMenu(
                     unawaited(_toggleAlbumStar(ref, albumId, isStarred));
                   },
                 ),
+                ListTile(
+                  leading: const Icon(Icons.share_outlined),
+                  title: Text(l10n.shareAction),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    unawaited(shareAlbum(context, ref, albumId));
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.link_outlined),
+                  title: Text(l10n.copyLinkAction),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    unawaited(
+                      shareAlbum(context, ref, albumId, copyOnly: true),
+                    );
+                  },
+                ),
                 if (isFullyDownloaded)
                   ListTile(
                     leading: Icon(
@@ -167,6 +187,8 @@ enum _AlbumContextAction {
   play,
   addToQueue,
   toggleLike,
+  share,
+  copyLink,
   download,
   deleteDownload,
 }
@@ -213,6 +235,14 @@ Future<void> _showDesktopAlbumContextMenu(
         child: Text(isStarred ? l10n.actionLiked : l10n.actionLike),
       ),
       PopupMenuItem<_AlbumContextAction>(
+        value: _AlbumContextAction.share,
+        child: Text(l10n.shareAction),
+      ),
+      PopupMenuItem<_AlbumContextAction>(
+        value: _AlbumContextAction.copyLink,
+        child: Text(l10n.copyLinkAction),
+      ),
+      PopupMenuItem<_AlbumContextAction>(
         value: isFullyDownloaded
             ? _AlbumContextAction.deleteDownload
             : _AlbumContextAction.download,
@@ -256,6 +286,12 @@ Future<void> _showDesktopAlbumContextMenu(
       return;
     case _AlbumContextAction.toggleLike:
       await _toggleAlbumStar(ref, albumId, isStarred);
+      return;
+    case _AlbumContextAction.share:
+      await shareAlbum(context, ref, albumId);
+      return;
+    case _AlbumContextAction.copyLink:
+      await shareAlbum(context, ref, albumId, copyOnly: true);
       return;
     case _AlbumContextAction.download:
       await _downloadAlbumFromMenu(context, ref, albumId);

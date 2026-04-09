@@ -560,6 +560,35 @@ class SubsonicApiClient {
     );
   }
 
+  /// Creates a public URL for sharing a media item.
+  ///
+  /// Returns the share info including the public URL, or `null` if the
+  /// server does not support sharing.
+  ///
+  /// See: https://opensubsonic.netlify.app/docs/endpoints/createshare/
+  Future<ShareInfo?> createShare(
+    String id, {
+    String? description,
+    CancelToken? cancelToken,
+  }) async {
+    try {
+      final root = await _readRoot(
+        '/rest/createShare.view',
+        query: <String, dynamic>{
+          'id': id,
+          if (description != null) 'description': description,
+        },
+        cancelToken: cancelToken,
+      );
+      final shares = _asMapList(_asMap(root['shares'])['share']);
+      if (shares.isEmpty) return null;
+      return ShareInfo.fromJson(shares.first);
+    } on SubsonicException {
+      // Server does not support sharing — return null silently.
+      return null;
+    }
+  }
+
   Future<void> setRating(
     String id,
     int rating, {

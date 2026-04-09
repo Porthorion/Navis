@@ -1077,5 +1077,13 @@
   "actionLike": "Like",
   "actionLiked": "Liked",
   "remoteSourceActionUnavailable": "Not available for remote tracks.",
-  "remoteSourceInstantMixUnavailable": "Instant Mix requires a locally scanned track."
+  "remoteSourceInstantMixUnavailable": "Instant Mix requires a locally scanned track.",
+  "shareAction": "Share",
+  "@shareAction": {"description": "Context menu action to share content via system share sheet"},
+  "copyLinkAction": "Copy Link",
+  "@copyLinkAction": {"description": "Context menu action to copy a navis:// deep link to clipboard"},
+  "linkCopied": "Link copied to clipboard",
+  "@linkCopied": {"description": "Snackbar message after copying a share link"},
+  "shareError": "Could not share. Please try again.",
+  "@shareError": {"description": "Snackbar message when sharing fails"}
 }

@@ -21,6 +21,7 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/utils/file_utils.dart';
+import 'package:navis/src/features/sharing/presentation/share_actions.dart';
 
 class PlaylistDetailScreen extends ConsumerStatefulWidget {
   const PlaylistDetailScreen({required this.playlistId, super.key});
@@ -33,7 +34,6 @@ class PlaylistDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
-
   @override
   void initState() {
     super.initState();
@@ -101,7 +101,16 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
       ),
     );
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.playlistDetailTitle)),
+      appBar: AppBar(
+        title: Text(l10n.playlistDetailTitle),
+        actions: <Widget>[
+          IconButton(
+            icon: const Icon(Icons.share_outlined),
+            tooltip: l10n.shareAction,
+            onPressed: () => sharePlaylist(context, ref, widget.playlistId),
+          ),
+        ],
+      ),
       body: desktopMode
           ? DesktopFrame(
               layoutClass: resolveDesktopLayoutClass(
@@ -187,8 +196,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                                 runSpacing: 8,
                                 children: <Widget>[
                                   FilledButton.tonalIcon(
-                                    onPressed:
-                                        visibleSongs.isEmpty
+                                    onPressed: visibleSongs.isEmpty
                                         ? null
                                         : () => _queuePlaylist(
                                             visibleSongs,
@@ -198,8 +206,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                                     label: Text(l10n.playlistDetailPlayAction),
                                   ),
                                   FilledButton.tonalIcon(
-                                    onPressed:
-                                        visibleSongs.isEmpty
+                                    onPressed: visibleSongs.isEmpty
                                         ? null
                                         : () => _queuePlaylist(
                                             visibleSongs,
@@ -278,8 +285,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                           spacing: 8,
                           children: [
                             FilledButton.tonalIcon(
-                              onPressed:
-                                  visibleSongs.isEmpty
+                              onPressed: visibleSongs.isEmpty
                                   ? null
                                   : () => _queuePlaylist(
                                       visibleSongs,
@@ -289,8 +295,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                               label: Text(l10n.playlistDetailPlayAction),
                             ),
                             FilledButton.tonalIcon(
-                              onPressed:
-                                  visibleSongs.isEmpty
+                              onPressed: visibleSongs.isEmpty
                                   ? null
                                   : () => _queuePlaylist(
                                       visibleSongs,
@@ -342,7 +347,8 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                   child: TrackListTile(
                     song: song,
                     onTap: () => _playNow(visibleSongs, index),
-                    onLongPress: () => _showSongActions(song, entry.playlistIndex),
+                    onLongPress: () =>
+                        _showSongActions(song, entry.playlistIndex),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: <Widget>[
@@ -353,9 +359,9 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                         IconButton(
                           icon: const Icon(Icons.more_vert),
                           onPressed: () => _showSongActions(
-                              song,
-                              entry.playlistIndex,
-                            ),
+                            song,
+                            entry.playlistIndex,
+                          ),
                         ),
                       ],
                     ),
@@ -412,21 +418,25 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
 
     final songsToQueue = List<SongsTableData>.of(songs);
     if (shuffle) songsToQueue.shuffle(Random());
-    ref.read(queueProvider.notifier).fireAndForget(
-      () => ref
-          .read(queueProvider.notifier)
-          .replaceWithTableData(songsToQueue),
-      label: 'replace',
-    );
+    ref
+        .read(queueProvider.notifier)
+        .fireAndForget(
+          () => ref
+              .read(queueProvider.notifier)
+              .replaceWithTableData(songsToQueue),
+          label: 'replace',
+        );
   }
 
   void _playNow(List<SongsTableData> songs, int index) {
-    ref.read(queueProvider.notifier).fireAndForget(
-      () => ref
-          .read(queueProvider.notifier)
-          .replaceWithTableData(songs, startIndex: index, autoPlay: true),
-      label: 'playNow',
-    );
+    ref
+        .read(queueProvider.notifier)
+        .fireAndForget(
+          () => ref
+              .read(queueProvider.notifier)
+              .replaceWithTableData(songs, startIndex: index, autoPlay: true),
+          label: 'playNow',
+        );
   }
 
   Future<void> _removeTrack(int songIndex) async {
@@ -540,10 +550,12 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
               title: Text(l10n.librarySongMenuAddToQueue),
               onTap: () {
                 Navigator.of(sheetContext).pop();
-                ref.read(queueProvider.notifier).fireAndForget(
-                  () => ref.read(queueProvider.notifier).add(song.id),
-                  label: 'addToQueue',
-                );
+                ref
+                    .read(queueProvider.notifier)
+                    .fireAndForget(
+                      () => ref.read(queueProvider.notifier).add(song.id),
+                      label: 'addToQueue',
+                    );
                 // Optimistic success feedback.
                 AppNoticeMessenger.of(this.context).showSnackBar(
                   SnackBar(
@@ -557,10 +569,12 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
               title: Text(l10n.librarySongMenuPlayNext),
               onTap: () {
                 Navigator.of(sheetContext).pop();
-                ref.read(queueProvider.notifier).fireAndForget(
-                  () => ref.read(queueProvider.notifier).playNext(song.id),
-                  label: 'playNext',
-                );
+                ref
+                    .read(queueProvider.notifier)
+                    .fireAndForget(
+                      () => ref.read(queueProvider.notifier).playNext(song.id),
+                      label: 'playNext',
+                    );
                 // Optimistic success feedback.
                 AppNoticeMessenger.of(this.context).showSnackBar(
                   SnackBar(

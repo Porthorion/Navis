@@ -34,6 +34,7 @@ import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/format_utils.dart';
+import 'package:navis/src/features/sharing/presentation/share_actions.dart';
 
 /// Splits a combined artist string into individual artist names.
 /// Mirrors the same function in app_shell.dart.
@@ -3146,22 +3147,15 @@ class _CoverArt extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final npShape = ref.watch(nowPlayingArtShapeProvider);
-    final npRadius = coverArtShapeToRadius(npShape);
+    // Watch for rebuilds when the art shape setting changes.
+    ref.watch(nowPlayingArtShapeProvider);
     final explicitMaxSize = maxSize;
     if (explicitMaxSize != null) {
-      final artSize = explicitMaxSize.clamp(180.0, 680.0);
       return CoverArtImage(
         coverArtId: coverArtId,
         size: kCoverArtStandardSize,
       );
     }
-
-    final mq = MediaQuery.of(context).size;
-    final widthBased = mq.width - 48;
-    final heightBased = mq.height * 0.52;
-    final baseSize = (widthBased < heightBased ? widthBased : heightBased);
-    final artSize = baseSize.clamp(180.0, 600.0);
 
     return CoverArtImage(
       coverArtId: coverArtId,
@@ -4853,6 +4847,16 @@ class _ActionRowState extends ConsumerState<_ActionRow>
           }
           _showNowPlayingSettingsSheet(context, ref, widget.song);
         },
+      ),
+      _NowPlayingActionButton(
+        icon: Icon(
+          Icons.share_outlined,
+          color: colorScheme.onSurfaceVariant,
+        ),
+        label: l10n.shareAction,
+        onTap: widget.song == null
+            ? null
+            : () => unawaited(shareSong(context, ref, widget.song!)),
       ),
     ];
 

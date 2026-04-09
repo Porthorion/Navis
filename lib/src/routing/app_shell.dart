@@ -54,6 +54,8 @@ import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/desktop_tokens.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/song_id_utils.dart';
+import 'package:app_links/app_links.dart';
+import 'package:navis/src/features/sharing/presentation/deep_link_handler.dart';
 
 String _formatMiniPlayerDuration(Duration duration) {
   final totalSeconds = duration.inSeconds;
@@ -128,6 +130,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   bool _globalKeyHandlerInstalled = false;
   Future<void> Function(DesktopCommandAction)? _executeDesktopCommand;
   final ValueNotifier<int> _navExpandRequestNotifier = ValueNotifier<int>(0);
+  StreamSubscription<Uri>? _deepLinkSub;
   // Cached so the global HardwareKeyboard handler can read it outside build().
   // `AdaptiveInputPolicyScope` is a *descendant* of this widget, so
   // `context.dependOnInheritedWidgetOfExactType` cannot see it — caching is
@@ -142,7 +145,35 @@ class _AppShellState extends ConsumerState<AppShell> {
   // shell back behavior when this shell route is actually current.
 
   @override
+  void initState() {
+    super.initState();
+    _initDeepLinks();
+  }
+
+  void _initDeepLinks() {
+    final appLinks = AppLinks();
+    // Handle links that arrive while the app is already running.
+    _deepLinkSub = appLinks.uriLinkStream.listen((uri) {
+      if (!mounted) return;
+      DeepLinkHandler.handleUri(context, ref, uri);
+    });
+    // Handle the link that launched the app from a cold start — deferred so
+    // the widget tree is fully built before any navigation fires.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        final uri = await appLinks.getInitialLink();
+        if (uri != null && mounted) {
+          DeepLinkHandler.handleUri(context, ref, uri);
+        }
+      } catch (_) {
+        // No initial link or unsupported platform — ignore.
+      }
+    });
+  }
+
+  @override
   void dispose() {
+    _deepLinkSub?.cancel();
     _removeGlobalKeyHandler();
     _queueCoverArtPrefetchDebounce?.cancel();
     _quickSearchController.dispose();
@@ -751,8 +782,9 @@ class _AppShellState extends ConsumerState<AppShell> {
     // as any window inset, but the status bar IS reported via viewPadding.top.
     // Both bars are typically the same height on car displays, so use top as a
     // proxy when bottom is unavailable.
-    final effectiveCarBottomInset =
-        mediaViewPadding.bottom > 0 ? mediaViewPadding.bottom : mediaViewPadding.top;
+    final effectiveCarBottomInset = mediaViewPadding.bottom > 0
+        ? mediaViewPadding.bottom
+        : mediaViewPadding.top;
     final adaptiveContext = resolveAdaptiveContext(
       desktopRuntime: isDesktopRuntime,
       viewportSize: mediaSize,

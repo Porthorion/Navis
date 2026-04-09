@@ -214,8 +214,7 @@ class _PlaybackSettingsScreenState
                 value: _albumQueueEnabled,
                 onChanged: _isSaving
                     ? null
-                    : (value) =>
-                        setState(() => _albumQueueEnabled = value),
+                    : (value) => setState(() => _albumQueueEnabled = value),
                 title: Text(
                   l10n.playbackSettingsAlbumQueueTitle,
                 ),
@@ -231,8 +230,7 @@ class _PlaybackSettingsScreenState
                     value: _likedQueueEnabled,
                     onChanged: _isSaving
                         ? null
-                        : (value) =>
-                            setState(() => _likedQueueEnabled = value),
+                        : (value) => setState(() => _likedQueueEnabled = value),
                     title: Text(l10n.playbackSettingsLikedQueueTitle),
                     subtitle: Text(l10n.playbackSettingsLikedQueueSubtitle),
                   ),

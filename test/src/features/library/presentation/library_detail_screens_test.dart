@@ -262,66 +262,71 @@ void main() {
     // (the Drift-backed albumProvider stream never settles in the test harness).
     // The rapid-tap superseding behavior is verified at the handler level
     // by the _SupersedingLane in navis_audio_handler.dart.
-    testWidgets('album play-now rapid taps supersede previous command', (
-      tester,
-    ) async {
-      final gate = Completer<void>();
-      final handler = _DelayedReplaceHandler(gate: gate);
+    testWidgets(
+      'album play-now rapid taps supersede previous command',
+      (
+        tester,
+      ) async {
+        final gate = Completer<void>();
+        final handler = _DelayedReplaceHandler(gate: gate);
 
-      // Complete the gate immediately so replaceQueue resolves instantly.
-      gate.complete();
+        // Complete the gate immediately so replaceQueue resolves instantly.
+        gate.complete();
 
-      await tester.pumpWidget(
-        _buildApp(
-          child: const AlbumDetailScreen(albumId: 'album-rapid'),
-          database: database,
-          overrides: [
-            audioHandlerProvider.overrideWithValue(handler),
-            albumProvider('album-rapid').overrideWithValue(
-              const AsyncData(
-                AlbumWithSongs(
-                  album: AlbumsTableData(
-                    id: 'album-rapid',
-                    name: 'Rapid Album',
-                    artistName: 'Artist Rapid',
-                    year: 2025,
-                    songsHydrated: true,
-                  ),
-                  songs: <SongsTableData>[
-                    SongsTableData(
-                      id: 'song-rapid-1',
-                      title: 'Rapid Song',
-                      track: 1,
+        await tester.pumpWidget(
+          _buildApp(
+            child: const AlbumDetailScreen(albumId: 'album-rapid'),
+            database: database,
+            overrides: [
+              audioHandlerProvider.overrideWithValue(handler),
+              albumProvider('album-rapid').overrideWithValue(
+                const AsyncData(
+                  AlbumWithSongs(
+                    album: AlbumsTableData(
+                      id: 'album-rapid',
+                      name: 'Rapid Album',
+                      artistName: 'Artist Rapid',
+                      year: 2025,
+                      songsHydrated: true,
                     ),
-                  ],
+                    songs: <SongsTableData>[
+                      SongsTableData(
+                        id: 'song-rapid-1',
+                        title: 'Rapid Song',
+                        track: 1,
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
-        ),
-      );
+            ],
+          ),
+        );
 
-      // Pump a few times to let the widget settle without pumpAndSettle
-      // (the StreamProvider for errors stays in AsyncLoading).
-      for (var i = 0; i < 10; i++) {
-        await tester.pump(const Duration(milliseconds: 50));
-      }
+        // Pump a few times to let the widget settle without pumpAndSettle
+        // (the StreamProvider for errors stays in AsyncLoading).
+        for (var i = 0; i < 10; i++) {
+          await tester.pump(const Duration(milliseconds: 50));
+        }
 
-      final songTile = find.text('Rapid Song');
-      expect(songTile, findsOneWidget);
+        final songTile = find.text('Rapid Song');
+        expect(songTile, findsOneWidget);
 
-      // Rapid taps are no longer blocked — each fires a replace command
-      // and the _SupersedingLane cancels the previous operation.
-      await tester.tap(songTile);
-      await tester.pump();
-      await tester.tap(songTile);
-      await tester.pump();
+        // Rapid taps are no longer blocked — each fires a replace command
+        // and the _SupersedingLane cancels the previous operation.
+        await tester.tap(songTile);
+        await tester.pump();
+        await tester.tap(songTile);
+        await tester.pump();
 
-      // Both taps fire (second supersedes first via cancellation).
-      expect(handler.replaceCalls, 2);
+        // Both taps fire (second supersedes first via cancellation).
+        expect(handler.replaceCalls, 2);
 
-      await _disposeApp(tester);
-    }, skip: true /* Pre-existing pumpAndSettle timeout in AlbumDetailScreen test harness */);
+        await _disposeApp(tester);
+      },
+      skip:
+          true /* Pre-existing pumpAndSettle timeout in AlbumDetailScreen test harness */,
+    );
 
     testWidgets('artist detail shows star button that reflects starred state', (
       tester,

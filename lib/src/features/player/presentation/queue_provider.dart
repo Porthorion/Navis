@@ -14,17 +14,16 @@ import 'package:navis/src/utils/app_logger.dart';
 /// UI screens fire queue actions with `.ignore()` (fire-and-forget) and errors
 /// are routed here instead of being awaited per-screen.  The app shell
 /// subscribes to display snackbars.
-final playbackActionErrorProvider =
-    StreamProvider<PlaybackActionError>((ref) {
+final playbackActionErrorProvider = StreamProvider<PlaybackActionError>((ref) {
   return ref.watch(_playbackActionErrorControllerProvider).stream;
 });
 
 final _playbackActionErrorControllerProvider =
     Provider<StreamController<PlaybackActionError>>((ref) {
-  final controller = StreamController<PlaybackActionError>.broadcast();
-  ref.onDispose(controller.close);
-  return controller;
-});
+      final controller = StreamController<PlaybackActionError>.broadcast();
+      ref.onDispose(controller.close);
+      return controller;
+    });
 
 class PlaybackActionError {
   const PlaybackActionError({required this.error, this.action});
@@ -337,15 +336,17 @@ class QueueController extends Notifier<List<String>> {
     Future<void> Function() action, {
     String? label,
   }) {
-    unawaited(Future<void>(() async {
-      try {
-        await action();
-      } on OperationCancelledException {
-        // Superseded — not an error.
-      } on Object catch (error) {
-        _emitError(error, action: label);
-      }
-    }));
+    unawaited(
+      Future<void>(() async {
+        try {
+          await action();
+        } on OperationCancelledException {
+          // Superseded — not an error.
+        } on Object catch (error) {
+          _emitError(error, action: label);
+        }
+      }),
+    );
   }
 }
 
