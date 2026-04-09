@@ -1208,11 +1208,14 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   /// Downloads the cover art for [trigger] to a local file and re-emits the
-  /// current [MediaItem] with an `artCacheFile` extra pointing at it.
+  /// current [MediaItem] with [MediaItem.artUri] replaced by a `file://` URI.
   ///
-  /// `audio_service` reads `artCacheFile` from the extras and loads the bitmap
-  /// into `METADATA_KEY_ALBUM_ART` / `METADATA_KEY_DISPLAY_ICON` so that
-  /// Android Automotive OS can render it behind the playback controls.
+  /// When `audio_service` receives a MediaItem whose `artUri` uses the `file`
+  /// scheme it synchronously calls `sendToPlatform(artUri.toFilePath())`
+  /// without going through the async `artFetchOperationId` cancellation path.
+  /// This avoids a race where the second `mediaItem.add` call cancels the
+  /// first listener before it has delivered the MediaItem to the platform,
+  /// which caused the AAOS widget to show nothing.
   Future<void> _updateArtCacheFile(MediaItem trigger) async {
     final coverArtId = trigger.extras?['coverArtId'] as String?;
     final artUri = trigger.artUri;
@@ -1225,8 +1228,11 @@ class NavisAudioHandler extends BaseAudioHandler
     final current = _currentMediaItem;
     if (current == null || current.id != trigger.id) return;
 
-    final extras = <String, Object?>{...?current.extras, 'artCacheFile': localPath};
-    final updated = current.copyWith(extras: extras);
+    // Replace the HTTP artUri with a local file URI. audio_service's listener
+    // detects `scheme == 'file'` and calls sendToPlatform synchronously,
+    // injecting artCacheFile into the platform MediaItem extras so that the
+    // AAOS Java layer can decode the bitmap directly from disk.
+    final updated = current.copyWith(artUri: Uri.file(localPath));
     _currentMediaItem = updated;
     mediaItem.add(updated);
   }

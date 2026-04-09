@@ -84,7 +84,10 @@ class AutoMediaTreeService {
       AutoMediaRoot.artists => _getArtists(),
       AutoMediaRoot.albums => _getAlbums(),
       AutoMediaRoot.liked => _getLikedCategories(),
-      AutoMediaRoot.recent => _getRecentlyPlayed(),
+      // AudioService.recentRootId == 'recent' — the system-level RECENT_ROOT_ID
+      // that AAOS uses for the home screen widget when no session is active.
+      // AutoMediaRoot.recent == 'root/recent' is our own browseable node.
+      AutoMediaRoot.recent || AudioService.recentRootId => _getRecentlyPlayed(),
       AutoMediaRoot.likedSongs => _getLikedSongs(),
       AutoMediaRoot.likedAlbums => _getLikedAlbums(),
       _ => _getEntityChildren(parentMediaId),
