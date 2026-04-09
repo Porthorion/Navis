@@ -392,37 +392,49 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                       Wrap(
                                         crossAxisAlignment:
                                             WrapCrossAlignment.center,
-                                        spacing: 6,
                                         runSpacing: 4,
                                         children: <Widget>[
-                                          if (details.artistId != null &&
-                                              details.artistId!.isNotEmpty)
-                                            InkWell(
-                                              onTap: () => context.go(
-                                                '/library/artists/${details.artistId}',
-                                              ),
-                                              child: Text(
-                                                details.artistName ??
-                                                    l10n.albumDetailUnknownArtist,
+                                          for (final (text, isSep)
+                                              in _parseArtistSegments(
+                                            details.artistName ??
+                                                l10n.albumDetailUnknownArtist,
+                                          ))
+                                            if (isSep)
+                                              Text(
+                                                text,
                                                 style: textTheme.titleMedium
                                                     ?.copyWith(
-                                                      color: colors.primary,
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                    ),
-                                              ),
-                                            )
-                                          else
-                                            Text(
-                                              details.artistName ??
-                                                  l10n.albumDetailUnknownArtist,
-                                              style: textTheme.titleMedium
-                                                  ?.copyWith(
+                                                  color:
+                                                      colors.onSurfaceVariant,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              )
+                                            else if (details.artistId !=
+                                                    null &&
+                                                details.artistId!.isNotEmpty)
+                                              InkWell(
+                                                onTap: () => context.go(
+                                                  '/library/artists/${details.artistId}',
+                                                ),
+                                                child: Text(
+                                                  text,
+                                                  style: textTheme.titleMedium
+                                                      ?.copyWith(
+                                                    color: colors.primary,
                                                     fontWeight: FontWeight.w600,
                                                   ),
-                                            ),
+                                                ),
+                                              )
+                                            else
+                                              Text(
+                                                text,
+                                                style: textTheme.titleMedium
+                                                    ?.copyWith(
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
                                           Text(
-                                            '• ${details.year?.toString() ?? '-'} • ${filteredSongs.length}',
+                                            ' • ${details.year?.toString() ?? '-'} • ${filteredSongs.length}',
                                             style: textTheme.bodyMedium
                                                 ?.copyWith(
                                                   color:
@@ -865,45 +877,52 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        // Artist name (clickable) + year
+                        // Artist names (each individually clickable) + year inline
                         Padding(
                           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          child: Wrap(
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            runSpacing: 2,
                             children: <Widget>[
-                              if (details.artistId != null &&
-                                  details.artistId!.isNotEmpty)
-                                Flexible(
-                                  child: InkWell(
+                              for (final (text, isSep)
+                                  in _parseArtistSegments(
+                                details.artistName ??
+                                    l10n.albumDetailUnknownArtist,
+                              ))
+                                if (isSep)
+                                  Text(
+                                    text,
+                                    style: mobileTextTheme.bodyLarge?.copyWith(
+                                      color: mobileColors.onSurfaceVariant,
+                                    ),
+                                  )
+                                else if (details.artistId != null &&
+                                    details.artistId!.isNotEmpty)
+                                  InkWell(
                                     onTap: () => context.go(
                                       '/library/artists/${details.artistId}',
                                     ),
                                     child: Text(
-                                      details.artistName ??
-                                          l10n.albumDetailUnknownArtist,
-                                      style: mobileTextTheme.bodyLarge
-                                          ?.copyWith(
+                                      text,
+                                      style:
+                                          mobileTextTheme.bodyLarge?.copyWith(
                                         color: mobileColors.primary,
                                         fontWeight: FontWeight.w500,
                                       ),
                                     ),
-                                  ),
-                                )
-                              else
-                                Flexible(
-                                  child: Text(
-                                    details.artistName ??
-                                        l10n.albumDetailUnknownArtist,
+                                  )
+                                else
+                                  Text(
+                                    text,
                                     style: mobileTextTheme.bodyLarge,
                                   ),
+                              if (details.year != null)
+                                Text(
+                                  ' • ${details.year}',
+                                  style: mobileTextTheme.bodyMedium?.copyWith(
+                                    color: mobileColors.onSurfaceVariant,
+                                  ),
                                 ),
-                              const SizedBox(width: 6),
-                              Text(
-                                '• ${details.year?.toString() ?? '-'}',
-                                style: mobileTextTheme.bodyMedium?.copyWith(
-                                  color: mobileColors.onSurfaceVariant,
-                                ),
-                              ),
                             ],
                           ),
                         ),
@@ -1579,6 +1598,34 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
         .replaceAll('&gt;', '>')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
+  }
+
+  /// Splits [name] into alternating (text, isDelimiter) pairs so each artist
+  /// name segment can be rendered as its own tappable widget.
+  ///
+  /// Recognised separators: `,`, ` & `, ` feat.`, ` ft.`, ` with `.
+  static List<(String text, bool isDelimiter)> _parseArtistSegments(
+    String name,
+  ) {
+    final result = <(String, bool)>[];
+    final sep = RegExp(
+      r'\s*(?:,\s*|&|feat\.?|ft\.?|with)\s*',
+      caseSensitive: false,
+    );
+    var last = 0;
+    for (final match in sep.allMatches(name)) {
+      if (match.start > last) {
+        final seg = name.substring(last, match.start).trim();
+        if (seg.isNotEmpty) result.add((seg, false));
+      }
+      result.add((match.group(0)!, true));
+      last = match.end;
+    }
+    if (last < name.length) {
+      final seg = name.substring(last).trim();
+      if (seg.isNotEmpty) result.add((seg, false));
+    }
+    return result;
   }
 
   /// Pre-processes [songs] into a flat list of render items.
