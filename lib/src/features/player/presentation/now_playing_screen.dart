@@ -198,7 +198,7 @@ ImageProvider<Object>? _resolveNowPlayingImageProvider({
   String? coverArtId,
   String? artUrl,
 }) {
-  final cacheManager = ref.read(coverArtCacheManagerProvider).asData?.value;
+  final cacheManager = ref.read(coverArtCacheManagerProvider);
   final trimmedCoverArtId = coverArtId?.trim() ?? '';
   if (trimmedCoverArtId.isNotEmpty) {
     final api = ref.read(subsonicApiProvider);
@@ -206,21 +206,17 @@ ImageProvider<Object>? _resolveNowPlayingImageProvider({
       return null;
     }
     final coverUrl = api.getCoverArtUrl(id: trimmedCoverArtId, size: 768);
-    return cacheManager == null
-        ? NetworkImage(coverUrl.toString())
-        : CachedNetworkImageProvider(
-            coverUrl.toString(),
-            cacheManager: cacheManager,
-          );
+    return CachedNetworkImageProvider(
+      coverUrl.toString(),
+      cacheManager: cacheManager,
+    );
   }
 
   final trimmedArtUrl = artUrl?.trim() ?? '';
   if (trimmedArtUrl.isEmpty) {
     return null;
   }
-  return cacheManager == null
-      ? NetworkImage(trimmedArtUrl)
-      : CachedNetworkImageProvider(trimmedArtUrl, cacheManager: cacheManager);
+  return CachedNetworkImageProvider(trimmedArtUrl, cacheManager: cacheManager);
 }
 
 Future<void> prewarmNowPlayingVisuals({
@@ -1379,10 +1375,9 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
       if (!mounted || _lastPrefetchedNextSongId != nextSongId) {
         return;
       }
-      final cacheManager = ref.read(coverArtCacheManagerProvider).asData?.value;
-      final ImageProvider<Object> imageProvider = cacheManager == null
-          ? NetworkImage(artUrl)
-          : CachedNetworkImageProvider(artUrl, cacheManager: cacheManager);
+      final cacheManager = ref.read(coverArtCacheManagerProvider);
+      final ImageProvider<Object> imageProvider =
+          CachedNetworkImageProvider(artUrl, cacheManager: cacheManager);
       unawaited(precacheImage(imageProvider, context));
     });
   }

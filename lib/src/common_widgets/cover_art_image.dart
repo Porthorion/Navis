@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
@@ -7,149 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
-/// Shared cover art cache key used by both the cache manager and clear logic.
-const String coverArtCacheKey = 'navis_cover_art_cache';
-
-/// Standard cover art size used for all album/artist cover displays outside of
-/// the full-screen viewer. Using a single size ensures that navigating from any
-/// list or grid to a detail screen (or back) always hits the same cache entry —
-/// preventing the blank flash caused by different-size cache misses.
-const int kCoverArtStandardSize = 600;
-
-/// Sentinel value meaning «no object-count cap» — enough covers even for a
-/// 100 k-track library where every album has a unique thumbnail at three sizes.
-const int _coverArtCacheUnlimited = 999999;
-
-/// Maximum concurrent HTTP connections per host for cover art image loading.
-///
-/// Limiting this prevents rapid library-grid scrolling from saturating the
-/// HTTP connection pool and blocking detail-page images from starting promptly.
-/// Four concurrent connections is enough to fill a 2 × 2 album grid quickly
-/// while keeping slots available for higher-priority detail-page requests.
-const int _coverArtMaxConnectionsPerHost = 4;
-
-// ---------------------------------------------------------------------------
-// Connection-limited FileService (dart:io only, no package:http dependency)
-// ---------------------------------------------------------------------------
-
-/// [FileService] backed by a connection-limited [HttpClient].
-///
-/// Injected into every [CacheManager] created by [createCoverArtCacheManager]
-/// so that at most [_coverArtMaxConnectionsPerHost] cover-art downloads run
-/// concurrently per host.  Excess requests are queued by [HttpClient] and
-/// start as soon as a connection slot becomes free, ensuring that a detail
-/// page opened after rapid grid scrolling does not have to wait behind 20+
-/// in-progress thumbnail downloads (issue #32).
-class _IoHttpFileService implements FileService {
-  _IoHttpFileService() {
-    _client = HttpClient()
-      ..maxConnectionsPerHost = _coverArtMaxConnectionsPerHost;
-  }
-
-  late final HttpClient _client;
-
-  @override
-  int concurrentFetches = _coverArtMaxConnectionsPerHost;
-
-  @override
-  Future<FileServiceResponse> get(
-    String url, {
-    Map<String, String>? headers,
-  }) async {
-    final request = await _client.getUrl(Uri.parse(url));
-    headers?.forEach(request.headers.set);
-    final response = await request.close();
-    return _IoHttpFileServiceResponse(response);
-  }
-}
-
-class _IoHttpFileServiceResponse implements FileServiceResponse {
-  const _IoHttpFileServiceResponse(this._response);
-
-  final HttpClientResponse _response;
-
-  @override
-  int get statusCode => _response.statusCode;
-
-  @override
-  Stream<List<int>> get content => _response;
-
-  @override
-  int? get contentLength {
-    final cl = _response.contentLength;
-    return cl < 0 ? null : cl;
-  }
-
-  @override
-  String? get eTag => _response.headers.value(HttpHeaders.etagHeader);
-
-  @override
-  DateTime get validTill {
-    // Honour Cache-Control: max-age when present.
-    final cc = _response.headers.value(HttpHeaders.cacheControlHeader);
-    if (cc != null) {
-      final match = RegExp(r'max-age=(\d+)').firstMatch(cc);
-      if (match != null) {
-        final maxAge = int.tryParse(match.group(1)!);
-        if (maxAge != null) {
-          return DateTime.now().add(Duration(seconds: maxAge));
-        }
-      }
-    }
-    final expires = _response.headers.expires;
-    if (expires != null) return expires;
-    // Fall back to the same 30-day stale period used by the cache config.
-    return DateTime.now().add(const Duration(days: 30));
-  }
-
-  @override
-  String get fileExtension {
-    final ct = _response.headers.contentType;
-    if (ct == null) return '';
-    return '.${ct.subType}'; // '.jpeg', '.png', etc.
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Cache manager factory
-// ---------------------------------------------------------------------------
-
-/// Creates a [CacheManager] for cover art images.
-///
-/// [maxNrOfCacheObjects] controls how many image files are stored on disk.
-/// Pass `0` (the default) for an effectively unlimited cache.
-///
-/// Every instance uses [_IoHttpFileService] to cap concurrent downloads to
-/// [_coverArtMaxConnectionsPerHost] per host (issue #32).
-CacheManager createCoverArtCacheManager({int maxNrOfCacheObjects = 0}) {
-  final cap = maxNrOfCacheObjects <= 0
-      ? _coverArtCacheUnlimited
-      : maxNrOfCacheObjects;
-  return CacheManager(
-    Config(
-      coverArtCacheKey,
-      stalePeriod: const Duration(days: 30),
-      maxNrOfCacheObjects: cap,
-      fileService: _IoHttpFileService(),
-    ),
-  );
-}
-
-/// Module-level fallback instance — used before the provider resolves.
-final CacheManager defaultCoverArtCacheManager = createCoverArtCacheManager();
-
-/// Reactive cover art [CacheManager] provider.
-///
-/// Watches the user's cover art cache limit setting and rebuilds on changes,
-/// so the active [CacheManager] always reflects the configured cap.
-final coverArtCacheManagerProvider = StreamProvider<CacheManager>((ref) {
-  final dao = ref.watch(navisDatabaseProvider).appSettingsDao;
-  return dao.watchCoverArtCacheMaxObjects().map(
-    (maxObjects) => createCoverArtCacheManager(
-      maxNrOfCacheObjects: maxObjects,
-    ),
-  );
-});
+// Re-export constants so that files which import cover_art_image.dart continue
+// to access coverArtCacheKey and kCoverArtStandardSize without extra imports.
+export 'package:navis/src/common_widgets/cover_art_cache_manager.dart'
+    show coverArtCacheKey, kCoverArtStandardSize;
 
 class CoverArtImage extends ConsumerWidget {
   const CoverArtImage({
@@ -201,9 +60,7 @@ class CoverArtImage extends ConsumerWidget {
       return _withSemantics(_fallback(context));
     }
 
-    final cacheManager =
-        ref.watch(coverArtCacheManagerProvider).asData?.value ??
-        defaultCoverArtCacheManager;
+    final cacheManager = ref.watch(coverArtCacheManagerProvider);
 
     // When the size is fully determined without needing layout constraints
     // (explicit size param or locked hero size), build the image widget

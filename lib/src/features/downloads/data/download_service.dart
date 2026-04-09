@@ -9,13 +9,13 @@ import 'package:navis/src/api/lrclib_client.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_error.dart';
-import 'package:navis/src/common_widgets/cover_art_image.dart'
-    show defaultCoverArtCacheManager;
 import 'package:navis/src/database/daos/cache_dao.dart';
 import 'package:navis/src/database/daos/download_queue_dao.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart'
+    show BaseCacheManager;
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/file_utils.dart';
 import 'package:navis/src/utils/notifications/download_notifier.dart';
@@ -50,6 +50,7 @@ class DownloadService {
     required bool Function() readWifiOnly,
     required bool Function() readIsWifi,
     required LrclibClient lrclibClient,
+    required BaseCacheManager Function() readCoverArtCacheManager,
     Dio? dio,
   }) : _cacheDao = cacheDao,
        _downloadQueueDao = downloadQueueDao,
@@ -58,6 +59,7 @@ class DownloadService {
        _readWifiOnly = readWifiOnly,
        _readIsWifi = readIsWifi,
        _lrclibClient = lrclibClient,
+       _readCoverArtCacheManager = readCoverArtCacheManager,
        _dio = dio ?? Dio();
 
   final CacheDao _cacheDao;
@@ -67,6 +69,7 @@ class DownloadService {
   final bool Function() _readWifiOnly;
   final bool Function() _readIsWifi;
   final LrclibClient _lrclibClient;
+  final BaseCacheManager Function() _readCoverArtCacheManager;
   final Dio _dio;
 
   StreamSubscription<List<DownloadQueueTableData>>? _queueSubscription;
@@ -496,7 +499,7 @@ class DownloadService {
               .getCoverArtUrl(id: coverArtId, size: 300)
               .toString();
           unawaited(
-            defaultCoverArtCacheManager
+            _readCoverArtCacheManager()
                 .downloadFile(artUrl, key: '$coverArtId:300')
                 .then((_) {})
                 .catchError((_) {}),

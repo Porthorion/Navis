@@ -1,11 +1,15 @@
 import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/api/lrclib_client.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/downloads/data/download_service.dart';
 import '../../../helpers/test_database.dart';
+
+class _MockCacheManager extends Mock implements BaseCacheManager {}
 
 void main() {
   group('DownloadService', () {
@@ -22,6 +26,7 @@ void main() {
         readWifiOnly: () => false,
         readIsWifi: () => true,
         lrclibClient: LrclibClient(),
+        readCoverArtCacheManager: _MockCacheManager.new,
       );
     });
 
@@ -290,6 +295,7 @@ void main() {
           readWifiOnly: () => true,
           readIsWifi: () => false,
           lrclibClient: LrclibClient(),
+          readCoverArtCacheManager: _MockCacheManager.new,
         );
         addTearDown(wifiOnlyOfflineService.stop);
 

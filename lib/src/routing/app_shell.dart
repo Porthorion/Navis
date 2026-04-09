@@ -280,9 +280,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       return;
     }
 
-    final cacheManager =
-        ref.read(coverArtCacheManagerProvider).asData?.value ??
-        defaultCoverArtCacheManager;
+    final cacheManager = ref.read(coverArtCacheManagerProvider);
 
     for (final song in songs) {
       if (!mounted || token != _queueCoverArtPrefetchToken) {

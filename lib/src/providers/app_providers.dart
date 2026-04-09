@@ -35,7 +35,9 @@ import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/routing/desktop_layout.dart' show isDesktopRuntime;
 import 'package:navis/src/features/settings/data/update_repository.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
+import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/constants.dart';
@@ -45,6 +47,43 @@ final navisDatabaseProvider = Provider<NavisDatabase>((ref) {
   final database = NavisDatabase();
   ref.onDispose(database.close);
   return database;
+});
+
+// ---------------------------------------------------------------------------
+// Cover art cache manager
+// ---------------------------------------------------------------------------
+
+/// Watches the user's cover-art cache-object limit setting.
+final _coverArtMaxObjectsProvider = StreamProvider<int>((ref) {
+  return ref
+      .watch(navisDatabaseProvider)
+      .appSettingsDao
+      .watchCoverArtCacheMaxObjects();
+});
+
+/// The single active [CacheManager] for all cover art images.
+///
+/// Using a [Provider] (not [StreamProvider]) ensures there is exactly **one**
+/// [CacheManager] instance alive at any time.  When the user changes the cache
+/// limit in Settings, Riverpod disposes the old manager (closing its SQLite
+/// connection and [HttpClient]) before creating a new one.  This prevents the
+/// concurrent-write race that caused the internal `_futureCache` map to
+/// accumulate permanently-hung entries, which made cached images stop loading
+/// until the app was restarted.
+final coverArtCacheManagerProvider = Provider<CacheManager>((ref) {
+  final maxObjects =
+      ref.watch(_coverArtMaxObjectsProvider).value ?? 0;
+  final service = CoverArtHttpFileService();
+  final manager = createCoverArtCacheManager(
+    maxNrOfCacheObjects: maxObjects,
+    fileService: service,
+  );
+  ref.onDispose(() {
+    service.close();
+    // ignore: discarded_futures
+    manager.dispose();
+  });
+  return manager;
 });
 
 final connectivityProvider = StreamProvider<List<ConnectivityResult>>((ref) {
@@ -1871,6 +1910,7 @@ final downloadServiceProvider = Provider<DownloadService>((ref) {
     readIsWifi: () =>
         isDesktopRuntime || ref.read(networkTypeProvider) == NetworkType.wifi,
     lrclibClient: ref.read(lrclibClientProvider),
+    readCoverArtCacheManager: () => ref.read(coverArtCacheManagerProvider),
   );
   // Service.start() is async but we fire-and-forget here — the subscription
   // inside start() processes the queue independently.

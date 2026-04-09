@@ -183,7 +183,7 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
 
     setState(() => _clearing = true);
     try {
-      await defaultCoverArtCacheManager.emptyCache();
+      await ref.read(coverArtCacheManagerProvider).emptyCache();
       if (mounted) {
         setState(() => _coverArtStorageBytes = 0);
         _showClearedSnackBar();
@@ -229,7 +229,7 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
       await _clearCacheByType(CacheType.rolling);
       await _clearCacheByType(CacheType.permanent);
 
-      await defaultCoverArtCacheManager.emptyCache();
+      await ref.read(coverArtCacheManagerProvider).emptyCache();
       await db.libraryDao.clearLibraryData();
 
       final syncState = await ref
@@ -332,7 +332,7 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
       if (!mounted) break;
       try {
         final url = api.getCoverArtUrl(id: id, size: 300).toString();
-        await defaultCoverArtCacheManager.downloadFile(url, key: '$id:300');
+        await ref.read(coverArtCacheManagerProvider).downloadFile(url, key: '$id:300');
       } on Exception {
         // best-effort: skip failures
       }
