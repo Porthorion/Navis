@@ -81,7 +81,7 @@ SOURCE_ARCHIVE="$(mktemp -t navis_windows_remote_src.XXXXXX.tgz)"
 PUB_CACHE_ARCHIVE="$(mktemp -t navis_windows_pub_cache.XXXXXX.tgz)"
 REMOTE_SCRIPT="$(mktemp -t navis_windows_remote_script.XXXXXX.ps1)"
 cleanup() {
-  rm -f "${SOURCE_ARCHIVE}" "${PUB_CACHE_ARCHIVE}" "${REMOTE_SCRIPT}"
+  rm -f "${SOURCE_ARCHIVE}" "${PUB_CACHE_ARCHIVE}" "${REMOTE_SCRIPT}" "${_sqlite3_dll_tmp:-}"
 }
 trap cleanup EXIT
 
@@ -445,12 +445,12 @@ scp "${REMOTE_SCRIPT}" "${SSH_TARGET}:${REMOTE_DIR}/navis_remote_windows_build.p
 # Download sqlite3 Windows DLL from GitHub on the local machine (which has
 # internet access) and transfer it to the Windows VM so it can be pre-seeded
 # into the hooks_runner shared directory, bypassing the network-dependent hook.
-_sqlite3_version="$(grep -A2 '^ *sqlite3:' "${REPO_ROOT}/pubspec.lock" | grep 'version:' | head -1 | sed 's/.*version: *"\([^"]*\)".*/\1/')"
+_sqlite3_version="$(grep -A8 '^  sqlite3:$' "${REPO_ROOT}/pubspec.lock" | grep 'version:' | head -1 | sed 's/.*version: *"\([^"]*\)".*/\1/')"
 _sqlite3_dll_name=""
+_sqlite3_dll_tmp=""
 if [[ -n "${_sqlite3_version}" ]]; then
   _sqlite3_dll_url="https://github.com/simolus3/sqlite3.dart/releases/download/sqlite3-${_sqlite3_version}/sqlite3.x64.windows.dll"
   _sqlite3_dll_tmp="$(mktemp -t sqlite3_windows.XXXXXX.dll)"
-  trap 'rm -f "${_sqlite3_dll_tmp}"' EXIT
   printf '[remote-windows] Downloading sqlite3 v%s Windows DLL from GitHub...\n' "${_sqlite3_version}"
   if curl -fsSL "${_sqlite3_dll_url}" -o "${_sqlite3_dll_tmp}" 2>/dev/null; then
     _sqlite3_dll_name="sqlite3-${_sqlite3_version}-x64.dll"
