@@ -476,6 +476,11 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
         androidNotificationIcon: 'drawable/ic_stat_navis_light',
         androidNotificationOngoing: false,
         androidStopForegroundOnPause: false,
+        androidBrowsableRootExtras: const <String, dynamic>{
+          'android.media.browse.CONTENT_STYLE_SUPPORTED': true,
+          'android.media.browse.CONTENT_STYLE_BROWSABLE_HINT': 2,
+          'android.media.browse.CONTENT_STYLE_PLAYABLE_HINT': 1,
+        },
       ),
     ).then<NavisPlaybackHandler>((handler) => handler);
   }
@@ -3634,6 +3639,12 @@ class NavisAudioHandler extends BaseAudioHandler
         MediaAction.seek,
         MediaAction.seekForward,
         MediaAction.seekBackward,
+        MediaAction.play,
+        MediaAction.pause,
+        MediaAction.skipToNext,
+        MediaAction.skipToPrevious,
+        MediaAction.playFromMediaId,
+        MediaAction.playFromSearch,
       },
       androidCompactActionIndices: navisNotificationCompactActionIndices,
       processingState: _mapProcessingState(_player.processingState),
