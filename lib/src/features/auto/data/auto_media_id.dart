@@ -13,7 +13,8 @@ abstract final class AutoMediaRoot {
   static const String albums = 'root/albums';
   static const String liked = 'root/liked';
   static const String recent = 'root/recent';
-  static const String randomMix = 'root/random';
+  static const String instantRadio = 'root/instant_radio';
+  static const String instantMix = 'root/instant_mix';
 
   /// Secondary "More" node that groups less-frequently accessed categories.
   static const String more = 'root/more';
@@ -112,7 +113,8 @@ abstract final class AutoMediaId {
     AutoMediaRoot.albums,
     AutoMediaRoot.liked,
     AutoMediaRoot.recent,
-    AutoMediaRoot.randomMix,
+    AutoMediaRoot.instantRadio,
+    AutoMediaRoot.instantMix,
     AutoMediaRoot.more,
   };
 }

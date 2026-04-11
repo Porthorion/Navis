@@ -138,7 +138,7 @@ class _RecordingPlaybackHandler implements NavisPlaybackHandler {
   }) {}
 
   @override
-  void registerMixActivator(Future<void> Function(String seedSongId) activator) {}
+  void registerPreferredMixCallback(Future<void> Function(String seedSongId) callback) {}
 }
 
 void main() {

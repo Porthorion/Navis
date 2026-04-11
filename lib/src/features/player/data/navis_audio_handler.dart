@@ -103,14 +103,13 @@ abstract class NavisPlaybackHandler {
     String? artUrl,
   });
 
-  /// Register the preferred-mix-mode activator for Android Auto's Instant Mix
-  /// button.  [activator] is called with the seed song ID whenever the user
-  /// taps the button and should dispatch to [InstantMixNotifier] or
-  /// [SameVibesNotifier] according to the user's current preference.
+  /// Register a callback that implements the user's preferred mix mode
+  /// (SameVibes / Last.fm or legacy Subsonic Instant Mix) for Android Auto's
+  /// More-tab actions (Instant Mix and Instant Radio).
   ///
   /// Called from the app shell (which has access to both the handler and the
   /// mix-mode providers) to avoid circular-import issues.
-  void registerMixActivator(Future<void> Function(String seedSongId) activator);
+  void registerPreferredMixCallback(Future<void> Function(String seedSongId) callback);
 }
 
 class PlaybackRuntimeSettings {
@@ -214,26 +213,12 @@ bool navisShouldRetryQueueApplyWithDirectSources({
 @visibleForTesting
 const List<int> navisNotificationCompactActionIndices = <int>[0, 1, 2];
 
-/// Custom action name sent via [AudioHandler.customAction] when the user taps
-/// the Instant Mix button in the Android Auto player.
-const String kInstantMixAction = 'instantMix';
-
 @visibleForTesting
-List<MediaControl> navisNotificationControls({
-  required bool isPlaying,
-  bool showInstantMix = false,
-}) {
+List<MediaControl> navisNotificationControls({required bool isPlaying}) {
   return <MediaControl>[
     MediaControl.skipToPrevious,
     if (isPlaying) MediaControl.pause else MediaControl.play,
     MediaControl.skipToNext,
-    if (showInstantMix)
-      const MediaControl(
-        androidIcon: 'drawable/ic_instant_mix',
-        label: 'Instant Mix',
-        action: MediaAction.custom,
-        customAction: CustomMediaAction(name: kInstantMixAction),
-      ),
   ];
 }
 
@@ -676,9 +661,9 @@ class WindowsNavisPlaybackHandler implements NavisPlaybackHandler {
   );
 
   @override
-  void registerMixActivator(
-    Future<void> Function(String seedSongId) activator,
-  ) => _delegate.registerMixActivator(activator);
+  void registerPreferredMixCallback(
+    Future<void> Function(String seedSongId) callback,
+  ) => _delegate.registerPreferredMixCallback(callback);
 }
 
 class LinuxNavisPlaybackHandler implements NavisPlaybackHandler {
@@ -834,9 +819,9 @@ class LinuxNavisPlaybackHandler implements NavisPlaybackHandler {
   );
 
   @override
-  void registerMixActivator(
-    Future<void> Function(String seedSongId) activator,
-  ) => _delegate.registerMixActivator(activator);
+  void registerPreferredMixCallback(
+    Future<void> Function(String seedSongId) callback,
+  ) => _delegate.registerPreferredMixCallback(callback);
 }
 
 /// Lightweight cancellation flag threaded through long-running queue
@@ -1138,8 +1123,11 @@ class NavisAudioHandler extends BaseAudioHandler
   ]) async {
     // Handle special root-level playable/browsable nodes by raw ID.
     switch (mediaId) {
-      case AutoMediaRoot.randomMix:
-        await _playRandomMix();
+      case AutoMediaRoot.instantMix:
+        await _playInstantMixFromCurrentSong();
+        return;
+      case AutoMediaRoot.instantRadio:
+        await _playInstantRadio();
         return;
       case AutoMediaRoot.likedSongs:
         final songs = await _libraryDao.watchAllStarredSongs().first;
@@ -1217,21 +1205,7 @@ class NavisAudioHandler extends BaseAudioHandler
     }
   }
 
-  Future<void> _playRandomMix() async {
-    final apiClient = _readApiClient();
-    if (apiClient != null) {
-      try {
-        final songs = await apiClient.getRandomSongs(size: 50);
-        final songIds = songs.map((s) => s.id).toList(growable: false);
-        if (songIds.isNotEmpty) {
-          await replaceQueue(songIds);
-          return;
-        }
-      } on Object catch (e, st) {
-        AppLogger.warning('playFromMediaId random mix API failed: $e\n$st');
-      }
-    }
-    // Offline fallback: shuffle songs from local DB.
+  Future<void> _playInstantRadioFallback() async {
     final all = await _libraryDao.watchAllSongs().first;
     if (all.isNotEmpty) {
       final shuffled = List.of(all)..shuffle();
@@ -1245,7 +1219,7 @@ class NavisAudioHandler extends BaseAudioHandler
     Map<String, dynamic>? extras,
   ]) async {
     if (query.isEmpty) {
-      await _playRandomMix();
+      await _playInstantRadio();
       return;
     }
     final results = await search(query, extras);
@@ -3738,16 +3712,8 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   void _broadcastPlaybackState() {
-    // Show the Instant Mix button whenever there is a current song and the API
-    // client is reachable (online).  Android Auto shows all controls; the
-    // notification compact view only shows indices 0-2 (prev/play/next).
-    final hasCurrentSong = _currentMediaItem != null;
-    final isOnline = _readApiClient() != null;
     final state = playbackState.value.copyWith(
-      controls: navisNotificationControls(
-        isPlaying: _player.playing,
-        showInstantMix: hasCurrentSong && isOnline,
-      ),
+      controls: navisNotificationControls(isPlaying: _player.playing),
       systemActions: const <MediaAction>{
         MediaAction.seek,
         MediaAction.seekForward,
@@ -4039,19 +4005,16 @@ class NavisAudioHandler extends BaseAudioHandler
     if (name == 'toggleLike') {
       return toggleLike();
     }
-    if (name == kInstantMixAction) {
-      return _playInstantMix();
-    }
     return super.customAction(name, extras);
   }
 
   /// Starts an Instant Mix seeded from the currently playing song.
   ///
-  /// Delegates to [_mixActivator] if one has been registered via
-  /// [registerMixActivator], which honours the user's preferred mix mode
-  /// (SameVibes / Last.fm or legacy Subsonic Instant Mix).  Falls back to a
-  /// direct `getSimilarSongs` call while the app shell is still starting up.
-  Future<void> _playInstantMix() async {
+  /// Delegates to [_preferredMixCallback] if registered (which honours the
+  /// user's preferred mix mode: SameVibes/Last.fm or legacy Subsonic Instant
+  /// Mix).  Falls back to a direct `getSimilarSongs` call if no callback has
+  /// been registered yet.
+  Future<void> _playInstantMixFromCurrentSong() async {
     final current = _currentMediaItem;
     if (current == null) return;
 
@@ -4059,35 +4022,74 @@ class NavisAudioHandler extends BaseAudioHandler
     if (parsed == null || parsed.entityId == null) return;
     final seedId = parsed.entityId!;
 
-    if (_mixActivator != null) {
+    if (_preferredMixCallback != null) {
       try {
-        await _mixActivator!(seedId);
+        await _preferredMixCallback!(seedId);
       } on Object catch (e, st) {
         AppLogger.warning('Instant Mix (preferred mode) failed for $seedId: $e\n$st');
       }
       return;
     }
 
-    // Fallback: direct API call before the app shell registers the activator.
+    // Fallback: direct API call if the app shell hasn't registered the callback yet.
     final api = _readApiClient();
     if (api == null) return;
 
     try {
       final songs = await api.getSimilarSongs(seedId, count: 50);
       final songIds = songs.map((s) => s.id).toList(growable: false);
-      if (songIds.isNotEmpty) {
-        await replaceQueue(songIds);
-      }
+      if (songIds.isNotEmpty) await replaceQueue(songIds);
     } on Object catch (e, st) {
       AppLogger.warning('Instant Mix (fallback) failed for song $seedId: $e\n$st');
     }
   }
 
-  Future<void> Function(String)? _mixActivator;
+  /// Starts an Instant Radio seeded from a random liked song.
+  ///
+  /// Matches the behaviour of the home screen Instant Radio button: picks a
+  /// random liked (starred) song as the seed and delegates to
+  /// [_preferredMixCallback].  Falls back to `getRandomSongs()` when no liked
+  /// songs exist or no API client is available.
+  Future<void> _playInstantRadio() async {
+    final liked = await _libraryDao.watchAllStarredSongs().first;
+    if (liked.isNotEmpty) {
+      final seed = (List.of(liked)..shuffle()).first;
+      if (_preferredMixCallback != null) {
+        try {
+          await _preferredMixCallback!(seed.id);
+        } on Object catch (e, st) {
+          AppLogger.warning('Instant Radio (preferred mode) failed for ${seed.id}: $e\n$st');
+        }
+        return;
+      }
+    }
+
+    // Fallback: random songs from the API or local library.
+    final api = _readApiClient();
+    if (api != null) {
+      try {
+        final songs = await api.getRandomSongs(size: 50);
+        final songIds = songs.map((s) => s.id).toList(growable: false);
+        if (songIds.isNotEmpty) {
+          await replaceQueue(songIds);
+          return;
+        }
+      } on Object catch (e, st) {
+        AppLogger.warning('Instant Radio API fallback failed: $e\n$st');
+      }
+    }
+    final all = await _libraryDao.watchAllSongs().first;
+    if (all.isNotEmpty) {
+      final shuffled = List.of(all)..shuffle();
+      await replaceQueueWithData(shuffled.take(50).toList(growable: false));
+    }
+  }
+
+  Future<void> Function(String)? _preferredMixCallback;
 
   @override
-  void registerMixActivator(Future<void> Function(String seedSongId) activator) {
-    _mixActivator = activator;
+  void registerPreferredMixCallback(Future<void> Function(String seedSongId) callback) {
+    _preferredMixCallback = callback;
   }
 
   @override

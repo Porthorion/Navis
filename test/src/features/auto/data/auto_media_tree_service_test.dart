@@ -81,10 +81,10 @@ void main() {
 
   group('getChildren - more', () {
     test(
-      'returns 2 secondary categories',
+      'returns 3 secondary categories',
       () async {
         final items = await service.getChildren(AutoMediaRoot.more);
-        expect(items, hasLength(2));
+        expect(items, hasLength(3));
       },
       skip: !sqliteAvailable,
     );
@@ -95,19 +95,32 @@ void main() {
         final items = await service.getChildren(AutoMediaRoot.more);
         final ids = items.map((e) => e.id).toList();
         expect(ids, contains(AutoMediaRoot.liked));
-        expect(ids, contains(AutoMediaRoot.randomMix));
+        expect(ids, contains(AutoMediaRoot.instantMix));
+        expect(ids, contains(AutoMediaRoot.instantRadio));
       },
       skip: !sqliteAvailable,
     );
 
     test(
-      'Random Mix is playable',
+      'Instant Radio is playable',
       () async {
         final items = await service.getChildren(AutoMediaRoot.more);
-        final randomMix = items.firstWhere(
-          (i) => i.id == AutoMediaRoot.randomMix,
+        final instantRadio = items.firstWhere(
+          (i) => i.id == AutoMediaRoot.instantRadio,
         );
-        expect(randomMix.playable, isTrue);
+        expect(instantRadio.playable, isTrue);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'Instant Mix is playable',
+      () async {
+        final items = await service.getChildren(AutoMediaRoot.more);
+        final instantMix = items.firstWhere(
+          (i) => i.id == AutoMediaRoot.instantMix,
+        );
+        expect(instantMix.playable, isTrue);
       },
       skip: !sqliteAvailable,
     );

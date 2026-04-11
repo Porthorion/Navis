@@ -179,8 +179,12 @@ class AutoMediaTreeService {
         extras: AutoContentStyle.listBrowsableListPlayable,
       ),
       _playableItem(
-        id: AutoMediaRoot.randomMix,
-        title: 'Random Mix',
+        id: AutoMediaRoot.instantMix,
+        title: 'Instant Mix',
+      ),
+      _playableItem(
+        id: AutoMediaRoot.instantRadio,
+        title: 'Instant Radio',
       ),
     ];
   }

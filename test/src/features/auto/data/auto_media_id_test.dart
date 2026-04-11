@@ -10,7 +10,8 @@ void main() {
       expect(AutoMediaRoot.albums, 'root/albums');
       expect(AutoMediaRoot.liked, 'root/liked');
       expect(AutoMediaRoot.recent, 'root/recent');
-      expect(AutoMediaRoot.randomMix, 'root/random');
+      expect(AutoMediaRoot.instantRadio, 'root/instant_radio');
+      expect(AutoMediaRoot.instantMix, 'root/instant_mix');
       expect(AutoMediaRoot.likedSongs, 'liked/songs');
       expect(AutoMediaRoot.likedAlbums, 'liked/albums');
     });
@@ -50,7 +51,8 @@ void main() {
         AutoMediaRoot.albums,
         AutoMediaRoot.liked,
         AutoMediaRoot.recent,
-        AutoMediaRoot.randomMix,
+        AutoMediaRoot.instantRadio,
+        AutoMediaRoot.instantMix,
       ]) {
         final parsed = AutoMediaId.parse(id);
         expect(parsed, isNotNull, reason: 'Failed to parse: $id');

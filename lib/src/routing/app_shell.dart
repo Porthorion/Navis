@@ -550,11 +550,12 @@ class _AppShellState extends ConsumerState<AppShell> {
     ref.watch(starSyncDispatchControllerProvider);
     ref.watch(autoDownloadStarredDispatchControllerProvider);
 
-    // Wire preferred-mix-mode activator for the Android Auto Instant Mix button.
-    // Registered here because app_shell has access to both the handler and the
-    // mix-mode providers, avoiding a circular import in app_providers.dart.
-    void _registerMixActivator(NavisPlaybackHandler? handler) {
-      handler?.registerMixActivator(
+    // Wire the preferred-mix-mode callback for Android Auto More-tab actions
+    // (Instant Mix / Instant Radio). Registered here because app_shell has
+    // access to both the handler and the mix-mode providers, avoiding a
+    // circular import in app_providers.dart.
+    void _registerPreferredMixCallback(NavisPlaybackHandler? handler) {
+      handler?.registerPreferredMixCallback(
         (seedSongId) => activatePreferredMixModeFromContainer(
           ref.container,
           seedSongId: seedSongId,
@@ -562,10 +563,10 @@ class _AppShellState extends ConsumerState<AppShell> {
       );
     }
 
-    _registerMixActivator(ref.read(audioHandlerProvider));
+    _registerPreferredMixCallback(ref.read(audioHandlerProvider));
     ref.listen<NavisPlaybackHandler?>(
       audioHandlerProvider,
-      (prev, next) => _registerMixActivator(next),
+      (prev, next) => _registerPreferredMixCallback(next),
     );
 
     // Global Instant Mix snackbar / error notifications (shown on any screen).
