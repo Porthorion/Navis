@@ -41,15 +41,18 @@ class AutoMediaTreeService {
     required PlaylistDao playlistDao,
     required HistoryDao historyDao,
     required SubsonicApiClient? Function() readApiClient,
+    bool Function()? readMixActive,
   }) : _libraryDao = libraryDao,
        _playlistDao = playlistDao,
        _historyDao = historyDao,
-       _readApiClient = readApiClient;
+       _readApiClient = readApiClient,
+       _readMixActive = readMixActive;
 
   final LibraryDao _libraryDao;
   final PlaylistDao _playlistDao;
   final HistoryDao _historyDao;
   final SubsonicApiClient? Function() _readApiClient;
+  final bool Function()? _readMixActive;
 
   // ── Root cache ────────────────────────────────────────────────────────────
 
@@ -172,6 +175,7 @@ class AutoMediaTreeService {
   }
 
   Future<List<MediaItem>> _getMoreChildren() async {
+    final mixActive = _readMixActive?.call() ?? false;
     return [
       _browsableItem(
         id: AutoMediaRoot.liked,
@@ -180,7 +184,7 @@ class AutoMediaTreeService {
       ),
       _playableItem(
         id: AutoMediaRoot.instantMix,
-        title: 'Instant Mix',
+        title: mixActive ? 'Instant Mix (ON)' : 'Instant Mix (OFF)',
       ),
       _playableItem(
         id: AutoMediaRoot.instantRadio,

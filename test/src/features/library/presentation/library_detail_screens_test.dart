@@ -144,6 +144,10 @@ class _DelayedReplaceHandler implements NavisPlaybackHandler {
 
   @override
   void registerPreferredMixCallback(Future<void> Function(String seedSongId) callback) {}
+  @override
+  void registerPreferredMixToggleCallback(Future<void> Function(String seedSongId) callback) {}
+  @override
+  void registerMixActiveReader(bool Function() reader) {}
 }
 
 Widget _buildApp({

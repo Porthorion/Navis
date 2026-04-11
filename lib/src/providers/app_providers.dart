@@ -362,6 +362,7 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
           replayGainMode: settings.replayGainMode,
           replayGainPreamp: settings.replayGainPreamp,
           playbackSpeed: settings.playbackSpeed,
+          albumQueueEnabled: settings.albumQueueEnabled,
         );
       },
     );

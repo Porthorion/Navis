@@ -110,6 +110,16 @@ abstract class NavisPlaybackHandler {
   /// Called from the app shell (which has access to both the handler and the
   /// mix-mode providers) to avoid circular-import issues.
   void registerPreferredMixCallback(Future<void> Function(String seedSongId) callback);
+
+  /// Register a toggle callback for the Android Auto More-tab Instant Mix
+  /// action.  Behaves like the in-app player button: deactivates if already
+  /// running with the same seed; activates otherwise.
+  void registerPreferredMixToggleCallback(Future<void> Function(String seedSongId) callback);
+
+  /// Register a reader that returns whether any preferred mix mode is currently
+  /// active.  Used by the tree service to label the More-tab item with
+  /// "(ON)" or "(OFF)".
+  void registerMixActiveReader(bool Function() reader);
 }
 
 class PlaybackRuntimeSettings {
@@ -125,6 +135,7 @@ class PlaybackRuntimeSettings {
     required this.replayGainMode,
     required this.replayGainPreamp,
     required this.playbackSpeed,
+    required this.albumQueueEnabled,
   });
 
   const PlaybackRuntimeSettings.defaults()
@@ -138,7 +149,8 @@ class PlaybackRuntimeSettings {
       crossfadeType = 'normal',
       replayGainMode = 'off',
       replayGainPreamp = 0.0,
-      playbackSpeed = 1.0;
+      playbackSpeed = 1.0,
+      albumQueueEnabled = false;
 
   final bool gaplessEnabled;
   final bool equalizerEnabled;
@@ -157,6 +169,10 @@ class PlaybackRuntimeSettings {
 
   /// Playback speed multiplier (0.5–2.0).
   final double playbackSpeed;
+
+  /// When true, tapping a song in Android Auto queues the full album and
+  /// starts at the selected track (mirrors the mobile albumQueueEnabled setting).
+  final bool albumQueueEnabled;
 }
 
 @visibleForTesting
@@ -664,6 +680,15 @@ class WindowsNavisPlaybackHandler implements NavisPlaybackHandler {
   void registerPreferredMixCallback(
     Future<void> Function(String seedSongId) callback,
   ) => _delegate.registerPreferredMixCallback(callback);
+
+  @override
+  void registerPreferredMixToggleCallback(
+    Future<void> Function(String seedSongId) callback,
+  ) => _delegate.registerPreferredMixToggleCallback(callback);
+
+  @override
+  void registerMixActiveReader(bool Function() reader) =>
+      _delegate.registerMixActiveReader(reader);
 }
 
 class LinuxNavisPlaybackHandler implements NavisPlaybackHandler {
@@ -822,6 +847,15 @@ class LinuxNavisPlaybackHandler implements NavisPlaybackHandler {
   void registerPreferredMixCallback(
     Future<void> Function(String seedSongId) callback,
   ) => _delegate.registerPreferredMixCallback(callback);
+
+  @override
+  void registerPreferredMixToggleCallback(
+    Future<void> Function(String seedSongId) callback,
+  ) => _delegate.registerPreferredMixToggleCallback(callback);
+
+  @override
+  void registerMixActiveReader(bool Function() reader) =>
+      _delegate.registerMixActiveReader(reader);
 }
 
 /// Lightweight cancellation flag threaded through long-running queue
@@ -974,6 +1008,7 @@ class NavisAudioHandler extends BaseAudioHandler
       playlistDao: _playlistDao,
       historyDao: _historyDao,
       readApiClient: _readApiClient,
+      readMixActive: () => _readMixActive?.call() ?? false,
     );
   }
 
@@ -1157,13 +1192,12 @@ class NavisAudioHandler extends BaseAudioHandler
 
     switch (parsed.type) {
       case AutoMediaIdType.song:
-        // Load the song's album context so the queue continues after the
-        // tapped track. Fall back to a single-song queue if no album is known.
+        // Load the song's album context only when the user has opted in.
         final songs = await _libraryDao.getSongsByIds([parsed.entityId!]);
         if (songs.isEmpty) break;
         final song = songs.first;
         final albumId = song.albumId;
-        if (albumId != null) {
+        if (albumId != null && _readRuntimeSettings().albumQueueEnabled) {
           final albumSongs = await _libraryDao.watchSongsByAlbum(albumId).first;
           if (albumSongs.isNotEmpty) {
             final startIndex = albumSongs.indexWhere(
@@ -4010,18 +4044,31 @@ class NavisAudioHandler extends BaseAudioHandler
 
   /// Starts an Instant Mix seeded from the currently playing song.
   ///
-  /// Delegates to [_preferredMixCallback] if registered (which honours the
-  /// user's preferred mix mode: SameVibes/Last.fm or legacy Subsonic Instant
-  /// Mix).  Falls back to a direct `getSimilarSongs` call if no callback has
-  /// been registered yet.
+  /// Uses [_preferredMixToggleCallback] (toggles on/off) when registered,
+  /// falling back to [_preferredMixCallback] (activate-only), and finally
+  /// to a direct `getSimilarSongs` API call.
+  ///
+  /// Note: [_currentMediaItem.id] is a raw Subsonic song ID, not the
+  /// `song/{id}` format used in the browse tree.
   Future<void> _playInstantMixFromCurrentSong() async {
     final current = _currentMediaItem;
     if (current == null) return;
 
-    final parsed = AutoMediaId.parse(current.id);
-    if (parsed == null || parsed.entityId == null) return;
-    final seedId = parsed.entityId!;
+    // The mediaItem id is the raw Subsonic song ID (e.g. "abc123"),
+    // NOT the browse-tree "song/abc123" format.
+    final seedId = current.id;
 
+    final toggleCb = _preferredMixToggleCallback;
+    if (toggleCb != null) {
+      try {
+        await toggleCb(seedId);
+      } on Object catch (e, st) {
+        AppLogger.warning('Instant Mix (toggle) failed for $seedId: $e\n$st');
+      }
+      return;
+    }
+
+    // Fallback to activate-only callback if toggle not yet wired.
     if (_preferredMixCallback != null) {
       try {
         await _preferredMixCallback!(seedId);
@@ -4031,7 +4078,7 @@ class NavisAudioHandler extends BaseAudioHandler
       return;
     }
 
-    // Fallback: direct API call if the app shell hasn't registered the callback yet.
+    // Last resort: direct API call.
     final api = _readApiClient();
     if (api == null) return;
 
@@ -4086,10 +4133,22 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   Future<void> Function(String)? _preferredMixCallback;
+  Future<void> Function(String)? _preferredMixToggleCallback;
+  bool Function()? _readMixActive;
 
   @override
   void registerPreferredMixCallback(Future<void> Function(String seedSongId) callback) {
     _preferredMixCallback = callback;
+  }
+
+  @override
+  void registerPreferredMixToggleCallback(Future<void> Function(String seedSongId) callback) {
+    _preferredMixToggleCallback = callback;
+  }
+
+  @override
+  void registerMixActiveReader(bool Function() reader) {
+    _readMixActive = reader;
   }
 
   @override

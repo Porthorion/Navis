@@ -550,17 +550,34 @@ class _AppShellState extends ConsumerState<AppShell> {
     ref.watch(starSyncDispatchControllerProvider);
     ref.watch(autoDownloadStarredDispatchControllerProvider);
 
-    // Wire the preferred-mix-mode callback for Android Auto More-tab actions
+    // Wire the preferred-mix-mode callbacks for Android Auto More-tab actions
     // (Instant Mix / Instant Radio). Registered here because app_shell has
     // access to both the handler and the mix-mode providers, avoiding a
     // circular import in app_providers.dart.
     void _registerPreferredMixCallback(NavisPlaybackHandler? handler) {
-      handler?.registerPreferredMixCallback(
+      if (handler == null) return;
+
+      // Instant Radio: always activate (never toggle).
+      handler.registerPreferredMixCallback(
         (seedSongId) => activatePreferredMixModeFromContainer(
           ref.container,
           seedSongId: seedSongId,
         ),
       );
+
+      // Instant Mix: toggle like the in-app player button.
+      handler.registerPreferredMixToggleCallback(
+        (seedSongId) => togglePreferredMixModeFromContainer(
+          ref.container,
+          seedSongId: seedSongId,
+        ),
+      );
+
+      // Mix active reader: lets the tree service show "(ON)"/"(OFF)".
+      handler.registerMixActiveReader(() {
+        return ref.container.read(instantMixProvider).active ||
+            ref.container.read(sameVibesProvider).active;
+      });
     }
 
     _registerPreferredMixCallback(ref.read(audioHandlerProvider));
