@@ -120,6 +120,12 @@ abstract class NavisPlaybackHandler {
   /// active.  Used by the tree service to label the More-tab item with
   /// "(ON)" or "(OFF)".
   void registerMixActiveReader(bool Function() reader);
+
+  /// Signal Android Auto to re-fetch the More tab's children.
+  ///
+  /// Call this whenever the mix active state changes so the "(ON)"/"(OFF)"
+  /// label refreshes without the user needing to navigate away and back.
+  void notifyMoreTabChanged();
 }
 
 class PlaybackRuntimeSettings {
@@ -689,6 +695,9 @@ class WindowsNavisPlaybackHandler implements NavisPlaybackHandler {
   @override
   void registerMixActiveReader(bool Function() reader) =>
       _delegate.registerMixActiveReader(reader);
+
+  @override
+  void notifyMoreTabChanged() => _delegate.notifyMoreTabChanged();
 }
 
 class LinuxNavisPlaybackHandler implements NavisPlaybackHandler {
@@ -856,6 +865,9 @@ class LinuxNavisPlaybackHandler implements NavisPlaybackHandler {
   @override
   void registerMixActiveReader(bool Function() reader) =>
       _delegate.registerMixActiveReader(reader);
+
+  @override
+  void notifyMoreTabChanged() => _delegate.notifyMoreTabChanged();
 }
 
 /// Lightweight cancellation flag threaded through long-running queue
@@ -4149,6 +4161,12 @@ class NavisAudioHandler extends BaseAudioHandler
   @override
   void registerMixActiveReader(bool Function() reader) {
     _readMixActive = reader;
+  }
+
+  @override
+  void notifyMoreTabChanged() {
+    // ignore: deprecated_member_use
+    AudioServiceBackground.notifyChildrenChanged(AutoMediaRoot.more);
   }
 
   @override
