@@ -159,7 +159,15 @@ case "${MODE}" in
 
     EXTRA_LD="${DHU_DIR}"
     [[ -d "${ANDROID_SDK}/emulator/lib64" ]] && EXTRA_LD="${EXTRA_LD}:${ANDROID_SDK}/emulator/lib64"
-    LD_LIBRARY_PATH="${EXTRA_LD}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" "${DHU_BIN}" || true
+
+    # Use a named pipe for DHU stdin opened in read+write mode (<>).
+    # This prevents stdin from ever sending EOF, keeping the DHU alive even
+    # after this shell exits or after `flutter run` is backgrounded.
+    DHU_PIPE=$(mktemp -u /tmp/dhu_stdin_XXXXXX)
+    mkfifo "${DHU_PIPE}"
+    LD_LIBRARY_PATH="${EXTRA_LD}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+      "${DHU_BIN}" <> "${DHU_PIPE}" || true
+    rm -f "${DHU_PIPE}"
 
     # When DHU exits, also stop the flutter run session.
     kill "${FLUTTER_PID}" 2>/dev/null || true
