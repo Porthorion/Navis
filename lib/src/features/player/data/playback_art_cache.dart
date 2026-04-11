@@ -60,15 +60,21 @@ class PlaybackArtCache {
       final safeName = coverArtId.replaceAll(RegExp(r'[^a-zA-Z0-9_\-]'), '_');
       final file = File('${cacheDir.path}/navis_art_$safeName.jpg');
 
-      // Reuse a previously downloaded file if it exists (persists across
-      // app sessions so art is immediately available without a network round
-      // trip on subsequent plays).
+      // Reuse a previously downloaded file if it is non-empty and already
+      // on disk (persists across app sessions so art is immediately available
+      // without a network round-trip on subsequent plays).
+      // A zero-byte file indicates a prior failed/partial download — delete
+      // and re-download it.
       if (await file.exists()) {
-        _mem[coverArtId] = file.path;
-        AppLogger.debug(
-          'PlaybackArtCache: art for $coverArtId → ${file.path} (cached on disk)',
-        );
-        return file.path;
+        final length = await file.length();
+        if (length > 0) {
+          _mem[coverArtId] = file.path;
+          AppLogger.debug(
+            'PlaybackArtCache: art for $coverArtId → ${file.path} (disk cache)',
+          );
+          return file.path;
+        }
+        await file.delete();
       }
 
       // Download using dart:io HttpClient so we use the same platform HTTP
@@ -85,11 +91,34 @@ class PlaybackArtCache {
           return null;
         }
 
+        // Reject non-image responses (e.g. HTML/XML Subsonic error pages that
+        // arrive with a 200 status but are not decodable by BitmapFactory).
+        final contentType = response.headers.contentType?.mimeType ?? '';
+        if (!contentType.startsWith('image/')) {
+          AppLogger.warning(
+            'PlaybackArtCache: unexpected Content-Type "$contentType" '
+            'for $coverArtId – skipping',
+          );
+          return null;
+        }
+
         final sink = file.openWrite();
         await response.pipe(sink);
 
+        // Sanity-check: ensure we actually wrote something.
+        final written = await file.length();
+        if (written == 0) {
+          await file.delete();
+          AppLogger.warning(
+            'PlaybackArtCache: zero bytes written for $coverArtId',
+          );
+          return null;
+        }
+
         _mem[coverArtId] = file.path;
-        AppLogger.debug('PlaybackArtCache: art for $coverArtId → ${file.path}');
+        AppLogger.debug(
+          'PlaybackArtCache: art for $coverArtId → ${file.path} ($written bytes)',
+        );
         return file.path;
       } finally {
         client.close();

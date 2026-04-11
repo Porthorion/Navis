@@ -1241,6 +1241,12 @@ class NavisAudioHandler extends BaseAudioHandler
   /// This avoids a race where the second `mediaItem.add` call cancels the
   /// first listener before it has delivered the MediaItem to the platform,
   /// which caused the AAOS widget to show nothing.
+  ///
+  /// Critically, this method also updates [_queueItems] with the `file://`
+  /// artUri so that if `currentIndexStream` re-emits the same index after the
+  /// download (e.g., during buffering), `_setCurrentMediaItem` will receive
+  /// the already-cached file:// version rather than the original HTTP artUri,
+  /// which would override the cached art and reset the display to blank.
   Future<void> _updateArtCacheFile(MediaItem trigger) async {
     final coverArtId = trigger.extras?['coverArtId'] as String?;
     final artUri = trigger.artUri;
@@ -1256,7 +1262,19 @@ class NavisAudioHandler extends BaseAudioHandler
     );
     if (localPath == null) return;
 
-    // Guard: only update if we are still on the same track.
+    final fileUri = Uri.file(localPath);
+
+    // Update every occurrence of this song in the queue so that future
+    // currentIndexStream events return the file:// version and do not reset
+    // the art back to the HTTP artUri.
+    for (var i = 0; i < _queueItems.length; i++) {
+      if (_queueItems[i].id == trigger.id &&
+          _queueItems[i].artUri?.scheme != 'file') {
+        _queueItems[i] = _queueItems[i].copyWith(artUri: fileUri);
+      }
+    }
+
+    // Guard: only re-emit if we are still on the same track.
     final current = _currentMediaItem;
     if (current == null || current.id != trigger.id) return;
 
@@ -1264,7 +1282,7 @@ class NavisAudioHandler extends BaseAudioHandler
     // detects `scheme == 'file'` and calls sendToPlatform synchronously,
     // injecting artCacheFile into the platform MediaItem extras so that the
     // AAOS Java layer can decode the bitmap directly from disk.
-    final updated = current.copyWith(artUri: Uri.file(localPath));
+    final updated = current.copyWith(artUri: fileUri);
     _currentMediaItem = updated;
     mediaItem.add(updated);
   }
