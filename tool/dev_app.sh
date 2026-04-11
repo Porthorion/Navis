@@ -143,20 +143,23 @@ case "${MODE}" in
 
     echo "==> Launching Desktop Head Unit…"
     # On modern Linux, libc++.so.1 / libc++abi.so.1 are not in the system path.
-    # Resolve them from the NDK (which ships them) and Android Studio's LLDB plugin,
-    # then fall back to the plain DHU binary for macOS / CI.
-    NDK_LIB=$(ls -d "${ANDROID_SDK}"/ndk/*/toolchains/llvm/prebuilt/linux-x86_64/lib 2>/dev/null | sort -V | tail -1)
-    LLDB_LIB="${HOME}/android-studio/plugins/android-ndk/resources/lldb/lib64"
-    EMULATOR_LIB="${ANDROID_SDK}/emulator/lib64"
-    EXTRA_LD=""
-    [[ -d "${NDK_LIB}" ]] && EXTRA_LD="${NDK_LIB}"
-    [[ -d "${LLDB_LIB}" ]] && EXTRA_LD="${EXTRA_LD}:${LLDB_LIB}"
-    [[ -d "${EMULATOR_LIB}" ]] && EXTRA_LD="${EXTRA_LD}:${EMULATOR_LIB}"
-    if [[ -n "${EXTRA_LD}" ]]; then
-      LD_LIBRARY_PATH="${EXTRA_LD}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" "${DHU_BIN}" || true
-    else
-      "${DHU_BIN}" || true
+    # We copy them from the NDK into the DHU directory on first run (see below),
+    # so always prepend the DHU dir itself.  Also search the NDK arch-specific
+    # lib dir and Android Studio's LLDB plugin as fallbacks.
+    DHU_DIR="$(dirname "${DHU_BIN}")"
+
+    # Ensure libc++.so.1 / libc++abi.so.1 exist in the DHU dir (one-time copy).
+    if [[ "$(uname)" == "Linux" ]]; then
+      NDK_X86_LIB=$(ls -d "${ANDROID_SDK}"/ndk/*/toolchains/llvm/prebuilt/linux-x86_64/lib/x86_64-unknown-linux-gnu 2>/dev/null | sort -V | tail -1)
+      if [[ -n "${NDK_X86_LIB}" ]]; then
+        [[ -f "${DHU_DIR}/libc++.so.1"    ]] || cp "${NDK_X86_LIB}/libc++.so.1"    "${DHU_DIR}/" 2>/dev/null || true
+        [[ -f "${DHU_DIR}/libc++abi.so.1" ]] || cp "${NDK_X86_LIB}/libc++abi.so.1" "${DHU_DIR}/" 2>/dev/null || true
+      fi
     fi
+
+    EXTRA_LD="${DHU_DIR}"
+    [[ -d "${ANDROID_SDK}/emulator/lib64" ]] && EXTRA_LD="${EXTRA_LD}:${ANDROID_SDK}/emulator/lib64"
+    LD_LIBRARY_PATH="${EXTRA_LD}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" "${DHU_BIN}" || true
 
     # When DHU exits, also stop the flutter run session.
     kill "${FLUTTER_PID}" 2>/dev/null || true
