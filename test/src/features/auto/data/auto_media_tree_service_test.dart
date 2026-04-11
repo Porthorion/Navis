@@ -42,9 +42,9 @@ void main() {
         final items = await service.getChildren(AutoMediaRoot.root);
         final ids = items.map((e) => e.id).toList();
         expect(ids, [
-          AutoMediaRoot.albums,
-          AutoMediaRoot.artists,
-          AutoMediaRoot.search,
+          AutoMediaRoot.home,
+          AutoMediaRoot.recent,
+          AutoMediaRoot.playlists,
           AutoMediaRoot.more,
         ]);
       },
@@ -81,10 +81,10 @@ void main() {
 
   group('getChildren - more', () {
     test(
-      'returns 4 secondary categories',
+      'returns 2 secondary categories',
       () async {
         final items = await service.getChildren(AutoMediaRoot.more);
-        expect(items, hasLength(4));
+        expect(items, hasLength(2));
       },
       skip: !sqliteAvailable,
     );
@@ -94,9 +94,7 @@ void main() {
       () async {
         final items = await service.getChildren(AutoMediaRoot.more);
         final ids = items.map((e) => e.id).toList();
-        expect(ids, contains(AutoMediaRoot.playlists));
         expect(ids, contains(AutoMediaRoot.liked));
-        expect(ids, contains(AutoMediaRoot.recent));
         expect(ids, contains(AutoMediaRoot.randomMix));
       },
       skip: !sqliteAvailable,
@@ -115,71 +113,40 @@ void main() {
     );
   });
 
-  // ── Search node ───────────────────────────────────────────────────────────
+  // ── Home node ─────────────────────────────────────────────────────────────
 
-  group('getChildren - search', () {
+  group('getChildren - home', () {
     test(
-      'returns empty list when library is empty',
+      'returns 2 library categories',
       () async {
-        final items = await service.getChildren(AutoMediaRoot.search);
-        expect(items, isEmpty);
-      },
-      skip: !sqliteAvailable,
-    );
-
-    test(
-      'returns all songs sorted alphabetically',
-      () async {
-        await database.libraryDao.upsertArtists([
-          ArtistsTableCompanion.insert(id: 'a1', name: 'Artist'),
-        ]);
-        await database.libraryDao.upsertAlbums([
-          AlbumsTableCompanion.insert(id: 'al1', name: 'Album'),
-        ]);
-        await database.libraryDao.upsertSongs([
-          SongsTableCompanion.insert(
-            id: 's2',
-            title: 'Banana',
-            albumId: const Value('al1'),
-            artistId: const Value('a1'),
-          ),
-          SongsTableCompanion.insert(
-            id: 's1',
-            title: 'Apple',
-            albumId: const Value('al1'),
-            artistId: const Value('a1'),
-          ),
-        ]);
-
-        final items = await service.getChildren(AutoMediaRoot.search);
+        final items = await service.getChildren(AutoMediaRoot.home);
         expect(items, hasLength(2));
-        expect(items[0].title, 'Apple');
-        expect(items[1].title, 'Banana');
       },
       skip: !sqliteAvailable,
     );
 
     test(
-      'search songs are playable leaf items',
+      'home items are Albums and Artists',
       () async {
-        await database.libraryDao.upsertArtists([
-          ArtistsTableCompanion.insert(id: 'a1', name: 'Artist'),
-        ]);
-        await database.libraryDao.upsertAlbums([
-          AlbumsTableCompanion.insert(id: 'al1', name: 'Album'),
-        ]);
-        await database.libraryDao.upsertSongs([
-          SongsTableCompanion.insert(
-            id: 's1',
-            title: 'Song',
-            albumId: const Value('al1'),
-            artistId: const Value('a1'),
-          ),
-        ]);
+        final items = await service.getChildren(AutoMediaRoot.home);
+        final ids = items.map((e) => e.id).toList();
+        expect(ids, [AutoMediaRoot.albums, AutoMediaRoot.artists]);
+      },
+      skip: !sqliteAvailable,
+    );
 
-        final items = await service.getChildren(AutoMediaRoot.search);
-        expect(items.single.playable, isTrue);
-        expect(items.single.extras?['browsable'], isNot(isTrue));
+    test(
+      'home items are browsable',
+      () async {
+        final items = await service.getChildren(AutoMediaRoot.home);
+        for (final item in items) {
+          expect(
+            item.playable,
+            isFalse,
+            reason: '${item.id} should not be playable',
+          );
+          expect(item.extras?['browsable'], isTrue);
+        }
       },
       skip: !sqliteAvailable,
     );

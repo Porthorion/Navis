@@ -11,14 +11,13 @@
 #   ./tool/dev_app.sh linux [flutter-run-args...]
 #   ./tool/dev_app.sh apk [flutter-build-args...]
 #   ./tool/dev_app.sh auto [flutter-run-args...]
-#   ./tool/dev_app.sh dhu [flutter-run-args...]
+#   ./tool/dev_app.sh dhu
 #
 # Examples:
 #   ./tool/dev_app.sh run -d R5CX14TVQEE
 #   ./tool/dev_app.sh apk
 #   ./tool/dev_app.sh auto                  # AAOS emulator (no DHU needed)
-#   ./tool/dev_app.sh dhu -d R5CX14TVQEE   # phone + Desktop Head Unit
-#   NAVIS_APP_ID_SUFFIX=.sidecar NAVIS_APP_NAME="Navis Sidecar" ./tool/dev_app.sh run
+#   ./tool/dev_app.sh dhu                   # builds APK, installs on phone, launches DHU
 
 set -euo pipefail
 
@@ -111,15 +110,17 @@ case "${MODE}" in
     flutter run --debug "${DEVICE_ARGS[@]}" "${DART_DEFINE_ARGS[@]}" "$@"
     ;;
   dhu)
-    # Run on a phone AND launch the Desktop Head Unit (DHU) so you can test
-    # Android Auto projection in parallel.
+    # Build a release APK, install it on the connected phone, verify the app
+    # launches, then open the Desktop Head Unit (DHU) for Android Auto testing.
     #
-    # Usage: ./tool/dev_app.sh dhu -d <phone-device-id>
+    # Usage:  ./tool/dev_app.sh dhu
+    # Requires: one Android device connected via adb, DHU installed in SDK.
     #
     # The DHU binary is resolved from $ANDROID_SDK_ROOT, $ANDROID_HOME, or
     # ~/Android/Sdk in that order.
     ANDROID_SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-${HOME}/Android/Sdk}}"
     DHU_BIN="${ANDROID_SDK}/extras/google/auto/desktop-head-unit"
+    APP_PKG="com.navis.app.navis${NAVIS_APP_ID_SUFFIX}"
 
     if [[ ! -x "${DHU_BIN}" ]]; then
       echo "ERROR: DHU not found at ${DHU_BIN}"
@@ -128,7 +129,40 @@ case "${MODE}" in
       exit 1
     fi
 
+    # ── 1. Build release APK ────────────────────────────────────────────────
+    echo "==> Building release APK…"
+    flutter build apk --release "${DART_DEFINE_ARGS[@]}"
+
+    APK_PATH="build/app/outputs/flutter-apk/app-release.apk"
+    if [[ ! -f "${APK_PATH}" ]]; then
+      echo "ERROR: APK not found at ${APK_PATH}"
+      exit 1
+    fi
+
+    # ── 2. Install on phone ─────────────────────────────────────────────────
+    echo "==> Installing ${APP_PKG} on device…"
+    adb install -r "${APK_PATH}"
+
+    # ── 3. Launch app + verify it is running ────────────────────────────────
+    echo "==> Launching ${APP_PKG}…"
+    adb shell am start -n "${APP_PKG}/com.navis.app.navis.MainActivity" > /dev/null
+
+    echo "==> Waiting for app to start…"
+    for _i in {1..10}; do
+      if adb shell pidof "${APP_PKG}" > /dev/null 2>&1; then
+        echo "    App is running (PID $(adb shell pidof "${APP_PKG}" | tr -d '\r'))"
+        break
+      fi
+      if [[ ${_i} -eq 10 ]]; then
+        echo "ERROR: App did not start within 10 seconds."
+        exit 1
+      fi
+      sleep 1
+    done
+
+    # ── 4. Forward Android Auto port ────────────────────────────────────────
     echo "==> Forwarding Android Auto port (tcp:5277)…"
+    adb forward --remove-all
     adb forward tcp:5277 tcp:5277
 
     echo ""
@@ -136,19 +170,12 @@ case "${MODE}" in
     echo "  Developer settings → tap ⋮ → Developer settings → Start head unit server"
     echo ""
 
-    # Run the Flutter app on the phone in the background, then launch the DHU.
-    echo "==> Starting Navis Dev on phone…"
-    flutter run --debug "${DART_DEFINE_ARGS[@]}" "$@" &
-    FLUTTER_PID=$!
-
+    # ── 5. Launch Desktop Head Unit ─────────────────────────────────────────
     echo "==> Launching Desktop Head Unit…"
     # On modern Linux, libc++.so.1 / libc++abi.so.1 are not in the system path.
-    # We copy them from the NDK into the DHU directory on first run (see below),
-    # so always prepend the DHU dir itself.  Also search the NDK arch-specific
-    # lib dir and Android Studio's LLDB plugin as fallbacks.
+    # We copy them from the NDK into the DHU directory on first run (idempotent).
     DHU_DIR="$(dirname "${DHU_BIN}")"
 
-    # Ensure libc++.so.1 / libc++abi.so.1 exist in the DHU dir (one-time copy).
     if [[ "$(uname)" == "Linux" ]]; then
       NDK_X86_LIB=$(ls -d "${ANDROID_SDK}"/ndk/*/toolchains/llvm/prebuilt/linux-x86_64/lib/x86_64-unknown-linux-gnu 2>/dev/null | sort -V | tail -1)
       if [[ -n "${NDK_X86_LIB}" ]]; then
@@ -162,15 +189,12 @@ case "${MODE}" in
 
     # Use a named pipe for DHU stdin opened in read+write mode (<>).
     # This prevents stdin from ever sending EOF, keeping the DHU alive even
-    # after this shell exits or after `flutter run` is backgrounded.
+    # after this shell's stdin is closed.
     DHU_PIPE=$(mktemp -u /tmp/dhu_stdin_XXXXXX)
     mkfifo "${DHU_PIPE}"
     LD_LIBRARY_PATH="${EXTRA_LD}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
       "${DHU_BIN}" <> "${DHU_PIPE}" || true
     rm -f "${DHU_PIPE}"
-
-    # When DHU exits, also stop the flutter run session.
-    kill "${FLUTTER_PID}" 2>/dev/null || true
     ;;
   *)
     echo "Unknown mode: ${MODE}"

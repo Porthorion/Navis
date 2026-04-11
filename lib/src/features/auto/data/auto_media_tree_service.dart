@@ -80,10 +80,10 @@ class AutoMediaTreeService {
   Future<List<MediaItem>> _getChildrenImpl(String parentMediaId) async {
     return switch (parentMediaId) {
       AutoMediaRoot.root => _getRootChildren(),
+      AutoMediaRoot.home => _getHomeChildren(),
       AutoMediaRoot.playlists => _getPlaylists(),
       AutoMediaRoot.artists => _getArtists(),
       AutoMediaRoot.albums => _getAlbums(),
-      AutoMediaRoot.search => _getSearchChildren(),
       AutoMediaRoot.more => _getMoreChildren(),
       AutoMediaRoot.liked => _getLikedCategories(),
       // AudioService.recentRootId == 'recent' — the system-level RECENT_ROOT_ID
@@ -106,18 +106,18 @@ class AutoMediaTreeService {
 
     final children = <MediaItem>[
       _browsableItem(
-        id: AutoMediaRoot.albums,
-        title: 'Albums',
+        id: AutoMediaRoot.home,
+        title: 'Home',
         extras: AutoContentStyle.gridBrowsableListPlayable,
       ),
       _browsableItem(
-        id: AutoMediaRoot.artists,
-        title: 'Artists',
+        id: AutoMediaRoot.recent,
+        title: 'Recent',
         extras: AutoContentStyle.listBrowsableListPlayable,
       ),
       _browsableItem(
-        id: AutoMediaRoot.search,
-        title: 'Search',
+        id: AutoMediaRoot.playlists,
+        title: 'Playlists',
         extras: AutoContentStyle.listBrowsableListPlayable,
       ),
       _browsableItem(
@@ -130,6 +130,22 @@ class AutoMediaTreeService {
     _cachedRootChildren = children;
     _rootCacheTimestamp = now;
     return children;
+  }
+
+  /// Home hub — entry point showing the main library browsing categories.
+  Future<List<MediaItem>> _getHomeChildren() async {
+    return [
+      _browsableItem(
+        id: AutoMediaRoot.albums,
+        title: 'Albums',
+        extras: AutoContentStyle.gridBrowsableListPlayable,
+      ),
+      _browsableItem(
+        id: AutoMediaRoot.artists,
+        title: 'Artists',
+        extras: AutoContentStyle.listBrowsableListPlayable,
+      ),
+    ];
   }
 
   Future<List<MediaItem>> _getPlaylists() async {
@@ -172,35 +188,11 @@ class AutoMediaTreeService {
         );
   }
 
-  /// Returns all songs sorted alphabetically by title, up to [_kMaxBrowseItems].
-  ///
-  /// Provides a manual browse path to any song in the library without needing
-  /// a keyboard — pair with voice search for a complete search experience.
-  Future<List<MediaItem>> _getSearchChildren() async {
-    final songs = await _libraryDao
-        .watchSongsSorted(SongSortOrder.name)
-        .first;
-    return songs
-        .take(_kMaxBrowseItems)
-        .map(_songToMediaItem)
-        .toList(growable: false);
-  }
-
   Future<List<MediaItem>> _getMoreChildren() async {
     return [
       _browsableItem(
-        id: AutoMediaRoot.playlists,
-        title: 'Playlists',
-        extras: AutoContentStyle.listBrowsableListPlayable,
-      ),
-      _browsableItem(
         id: AutoMediaRoot.liked,
         title: 'Liked',
-        extras: AutoContentStyle.listBrowsableListPlayable,
-      ),
-      _browsableItem(
-        id: AutoMediaRoot.recent,
-        title: 'Recently Played',
         extras: AutoContentStyle.listBrowsableListPlayable,
       ),
       _playableItem(
