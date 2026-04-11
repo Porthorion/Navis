@@ -328,5 +328,8 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
   }) {}
 
   @override
+  void registerMixActivator(Future<void> Function(String seedSongId) activator) {}
+
+  @override
   Future<void> waitUntilReady() async {}
 }

@@ -21,6 +21,7 @@ import 'package:navis/src/features/auth/presentation/server_reachability_provide
 import 'package:navis/src/features/downloads/presentation/auto_download_starred_dispatch_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 import 'package:navis/src/features/player/domain/instant_mix_state.dart';
 import 'package:navis/src/features/player/domain/same_vibes_state.dart';
@@ -548,6 +549,24 @@ class _AppShellState extends ConsumerState<AppShell> {
     ref.watch(scrobbleDispatchControllerProvider);
     ref.watch(starSyncDispatchControllerProvider);
     ref.watch(autoDownloadStarredDispatchControllerProvider);
+
+    // Wire preferred-mix-mode activator for the Android Auto Instant Mix button.
+    // Registered here because app_shell has access to both the handler and the
+    // mix-mode providers, avoiding a circular import in app_providers.dart.
+    void _registerMixActivator(NavisPlaybackHandler? handler) {
+      handler?.registerMixActivator(
+        (seedSongId) => activatePreferredMixModeFromContainer(
+          ref.container,
+          seedSongId: seedSongId,
+        ),
+      );
+    }
+
+    _registerMixActivator(ref.read(audioHandlerProvider));
+    ref.listen<NavisPlaybackHandler?>(
+      audioHandlerProvider,
+      (prev, next) => _registerMixActivator(next),
+    );
 
     // Global Instant Mix snackbar / error notifications (shown on any screen).
     ref.listen<InstantMixState>(instantMixProvider, (prev, next) {

@@ -102,6 +102,15 @@ abstract class NavisPlaybackHandler {
     String? artist,
     String? artUrl,
   });
+
+  /// Register the preferred-mix-mode activator for Android Auto's Instant Mix
+  /// button.  [activator] is called with the seed song ID whenever the user
+  /// taps the button and should dispatch to [InstantMixNotifier] or
+  /// [SameVibesNotifier] according to the user's current preference.
+  ///
+  /// Called from the app shell (which has access to both the handler and the
+  /// mix-mode providers) to avoid circular-import issues.
+  void registerMixActivator(Future<void> Function(String seedSongId) activator);
 }
 
 class PlaybackRuntimeSettings {
@@ -665,6 +674,11 @@ class WindowsNavisPlaybackHandler implements NavisPlaybackHandler {
     artist: artist,
     artUrl: artUrl,
   );
+
+  @override
+  void registerMixActivator(
+    Future<void> Function(String seedSongId) activator,
+  ) => _delegate.registerMixActivator(activator);
 }
 
 class LinuxNavisPlaybackHandler implements NavisPlaybackHandler {
@@ -818,6 +832,11 @@ class LinuxNavisPlaybackHandler implements NavisPlaybackHandler {
     artist: artist,
     artUrl: artUrl,
   );
+
+  @override
+  void registerMixActivator(
+    Future<void> Function(String seedSongId) activator,
+  ) => _delegate.registerMixActivator(activator);
 }
 
 /// Lightweight cancellation flag threaded through long-running queue
@@ -4028,19 +4047,30 @@ class NavisAudioHandler extends BaseAudioHandler
 
   /// Starts an Instant Mix seeded from the currently playing song.
   ///
-  /// Calls `getSimilarSongs2` (or `getInstantMix` as fallback) on the
-  /// Subsonic server and replaces the queue with the results.  Does nothing
-  /// when no song is playing or the API client is unavailable.
+  /// Delegates to [_mixActivator] if one has been registered via
+  /// [registerMixActivator], which honours the user's preferred mix mode
+  /// (SameVibes / Last.fm or legacy Subsonic Instant Mix).  Falls back to a
+  /// direct `getSimilarSongs` call while the app shell is still starting up.
   Future<void> _playInstantMix() async {
-    final api = _readApiClient();
-    if (api == null) return;
-
     final current = _currentMediaItem;
     if (current == null) return;
 
     final parsed = AutoMediaId.parse(current.id);
     if (parsed == null || parsed.entityId == null) return;
     final seedId = parsed.entityId!;
+
+    if (_mixActivator != null) {
+      try {
+        await _mixActivator!(seedId);
+      } on Object catch (e, st) {
+        AppLogger.warning('Instant Mix (preferred mode) failed for $seedId: $e\n$st');
+      }
+      return;
+    }
+
+    // Fallback: direct API call before the app shell registers the activator.
+    final api = _readApiClient();
+    if (api == null) return;
 
     try {
       final songs = await api.getSimilarSongs(seedId, count: 50);
@@ -4049,8 +4079,15 @@ class NavisAudioHandler extends BaseAudioHandler
         await replaceQueue(songIds);
       }
     } on Object catch (e, st) {
-      AppLogger.warning('Instant Mix failed for song $seedId: $e\n$st');
+      AppLogger.warning('Instant Mix (fallback) failed for song $seedId: $e\n$st');
     }
+  }
+
+  Future<void> Function(String)? _mixActivator;
+
+  @override
+  void registerMixActivator(Future<void> Function(String seedSongId) activator) {
+    _mixActivator = activator;
   }
 
   @override
