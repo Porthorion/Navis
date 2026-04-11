@@ -115,17 +115,6 @@ abstract class NavisPlaybackHandler {
   /// action.  Behaves like the in-app player button: deactivates if already
   /// running with the same seed; activates otherwise.
   void registerPreferredMixToggleCallback(Future<void> Function(String seedSongId) callback);
-
-  /// Register a reader that returns whether any preferred mix mode is currently
-  /// active.  Used by the tree service to label the More-tab item with
-  /// "(ON)" or "(OFF)".
-  void registerMixActiveReader(bool Function() reader);
-
-  /// Signal Android Auto to re-fetch the More tab's children.
-  ///
-  /// Call this whenever the mix active state changes so the "(ON)"/"(OFF)"
-  /// label refreshes without the user needing to navigate away and back.
-  void notifyMoreTabChanged();
 }
 
 class PlaybackRuntimeSettings {
@@ -691,13 +680,6 @@ class WindowsNavisPlaybackHandler implements NavisPlaybackHandler {
   void registerPreferredMixToggleCallback(
     Future<void> Function(String seedSongId) callback,
   ) => _delegate.registerPreferredMixToggleCallback(callback);
-
-  @override
-  void registerMixActiveReader(bool Function() reader) =>
-      _delegate.registerMixActiveReader(reader);
-
-  @override
-  void notifyMoreTabChanged() => _delegate.notifyMoreTabChanged();
 }
 
 class LinuxNavisPlaybackHandler implements NavisPlaybackHandler {
@@ -861,13 +843,6 @@ class LinuxNavisPlaybackHandler implements NavisPlaybackHandler {
   void registerPreferredMixToggleCallback(
     Future<void> Function(String seedSongId) callback,
   ) => _delegate.registerPreferredMixToggleCallback(callback);
-
-  @override
-  void registerMixActiveReader(bool Function() reader) =>
-      _delegate.registerMixActiveReader(reader);
-
-  @override
-  void notifyMoreTabChanged() => _delegate.notifyMoreTabChanged();
 }
 
 /// Lightweight cancellation flag threaded through long-running queue
@@ -1020,7 +995,6 @@ class NavisAudioHandler extends BaseAudioHandler
       playlistDao: _playlistDao,
       historyDao: _historyDao,
       readApiClient: _readApiClient,
-      readMixActive: () => _readMixActive?.call() ?? false,
     );
   }
 
@@ -4146,7 +4120,6 @@ class NavisAudioHandler extends BaseAudioHandler
 
   Future<void> Function(String)? _preferredMixCallback;
   Future<void> Function(String)? _preferredMixToggleCallback;
-  bool Function()? _readMixActive;
 
   @override
   void registerPreferredMixCallback(Future<void> Function(String seedSongId) callback) {
@@ -4156,17 +4129,6 @@ class NavisAudioHandler extends BaseAudioHandler
   @override
   void registerPreferredMixToggleCallback(Future<void> Function(String seedSongId) callback) {
     _preferredMixToggleCallback = callback;
-  }
-
-  @override
-  void registerMixActiveReader(bool Function() reader) {
-    _readMixActive = reader;
-  }
-
-  @override
-  void notifyMoreTabChanged() {
-    // ignore: deprecated_member_use
-    AudioServiceBackground.notifyChildrenChanged(AutoMediaRoot.more);
   }
 
   @override

@@ -141,10 +141,6 @@ class _RecordingPlaybackHandler implements NavisPlaybackHandler {
   void registerPreferredMixCallback(Future<void> Function(String seedSongId) callback) {}
   @override
   void registerPreferredMixToggleCallback(Future<void> Function(String seedSongId) callback) {}
-  @override
-  void registerMixActiveReader(bool Function() reader) {}
-  @override
-  void notifyMoreTabChanged() {}
 }
 
 void main() {

@@ -572,12 +572,6 @@ class _AppShellState extends ConsumerState<AppShell> {
           seedSongId: seedSongId,
         ),
       );
-
-      // Mix active reader: lets the tree service show "(ON)"/"(OFF)".
-      handler.registerMixActiveReader(() {
-        return ref.container.read(instantMixProvider).active ||
-            ref.container.read(sameVibesProvider).active;
-      });
     }
 
     _registerPreferredMixCallback(ref.read(audioHandlerProvider));
@@ -589,11 +583,6 @@ class _AppShellState extends ConsumerState<AppShell> {
     // Global Instant Mix snackbar / error notifications (shown on any screen).
     ref.listen<InstantMixState>(instantMixProvider, (prev, next) {
       if (!mounted) return;
-      // Refresh the Android Auto More tab when active state flips so the
-      // "(ON)"/"(OFF)" label updates without requiring navigation.
-      if (next.active != (prev?.active ?? false)) {
-        ref.read(audioHandlerProvider)?.notifyMoreTabChanged();
-      }
       if (next.pendingSnackbar != null &&
           next.pendingSnackbar != prev?.pendingSnackbar) {
         final count = int.tryParse(next.pendingSnackbar ?? '') ?? 0;
@@ -647,10 +636,6 @@ class _AppShellState extends ConsumerState<AppShell> {
     // Global Same Vibes snackbar / error notifications.
     ref.listen<SameVibesState>(sameVibesProvider, (prev, next) {
       if (!mounted) return;
-      // Refresh the Android Auto More tab when active state flips.
-      if (next.active != (prev?.active ?? false)) {
-        ref.read(audioHandlerProvider)?.notifyMoreTabChanged();
-      }
       if (!(prev?.active ?? false) && next.active && next.refilling) {
         _appNoticeController.show(
           message: '${l10n.nowPlayingSameVibesLabel}...',
