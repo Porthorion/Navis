@@ -28,54 +28,40 @@ void main() {
 
   group('getChildren - root', () {
     test(
-      'returns 6 root items',
+      'returns 4 root items',
       () async {
         final items = await service.getChildren(AutoMediaRoot.root);
-        expect(items, hasLength(6));
+        expect(items, hasLength(4));
       },
       skip: !sqliteAvailable,
     );
 
     test(
-      'root items have expected IDs',
+      'root items have expected IDs in order',
       () async {
         final items = await service.getChildren(AutoMediaRoot.root);
         final ids = items.map((e) => e.id).toList();
-        expect(ids, contains(AutoMediaRoot.playlists));
-        expect(ids, contains(AutoMediaRoot.artists));
-        expect(ids, contains(AutoMediaRoot.albums));
-        expect(ids, contains(AutoMediaRoot.liked));
-        expect(ids, contains(AutoMediaRoot.recent));
-        expect(ids, contains(AutoMediaRoot.randomMix));
+        expect(ids, [
+          AutoMediaRoot.albums,
+          AutoMediaRoot.artists,
+          AutoMediaRoot.search,
+          AutoMediaRoot.more,
+        ]);
       },
       skip: !sqliteAvailable,
     );
 
     test(
-      'browsable root items are not playable',
+      'all root items are browsable (not playable)',
       () async {
         final items = await service.getChildren(AutoMediaRoot.root);
         for (final item in items) {
-          if (item.id != AutoMediaRoot.randomMix) {
-            expect(
-              item.playable,
-              isFalse,
-              reason: '${item.id} should not be playable',
-            );
-          }
+          expect(
+            item.playable,
+            isFalse,
+            reason: '${item.id} should not be playable',
+          );
         }
-      },
-      skip: !sqliteAvailable,
-    );
-
-    test(
-      'Random Mix is playable',
-      () async {
-        final items = await service.getChildren(AutoMediaRoot.root);
-        final randomMix = items.firstWhere(
-          (i) => i.id == AutoMediaRoot.randomMix,
-        );
-        expect(randomMix.playable, isTrue);
       },
       skip: !sqliteAvailable,
     );
@@ -86,6 +72,114 @@ void main() {
         final first = await service.getChildren(AutoMediaRoot.root);
         final second = await service.getChildren(AutoMediaRoot.root);
         expect(identical(first, second), isTrue);
+      },
+      skip: !sqliteAvailable,
+    );
+  });
+
+  // ── More node ─────────────────────────────────────────────────────────────
+
+  group('getChildren - more', () {
+    test(
+      'returns 4 secondary categories',
+      () async {
+        final items = await service.getChildren(AutoMediaRoot.more);
+        expect(items, hasLength(4));
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'more items have expected IDs',
+      () async {
+        final items = await service.getChildren(AutoMediaRoot.more);
+        final ids = items.map((e) => e.id).toList();
+        expect(ids, contains(AutoMediaRoot.playlists));
+        expect(ids, contains(AutoMediaRoot.liked));
+        expect(ids, contains(AutoMediaRoot.recent));
+        expect(ids, contains(AutoMediaRoot.randomMix));
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'Random Mix is playable',
+      () async {
+        final items = await service.getChildren(AutoMediaRoot.more);
+        final randomMix = items.firstWhere(
+          (i) => i.id == AutoMediaRoot.randomMix,
+        );
+        expect(randomMix.playable, isTrue);
+      },
+      skip: !sqliteAvailable,
+    );
+  });
+
+  // ── Search node ───────────────────────────────────────────────────────────
+
+  group('getChildren - search', () {
+    test(
+      'returns empty list when library is empty',
+      () async {
+        final items = await service.getChildren(AutoMediaRoot.search);
+        expect(items, isEmpty);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'returns all songs sorted alphabetically',
+      () async {
+        await database.libraryDao.upsertArtists([
+          ArtistsTableCompanion.insert(id: 'a1', name: 'Artist'),
+        ]);
+        await database.libraryDao.upsertAlbums([
+          AlbumsTableCompanion.insert(id: 'al1', name: 'Album'),
+        ]);
+        await database.libraryDao.upsertSongs([
+          SongsTableCompanion.insert(
+            id: 's2',
+            title: 'Banana',
+            albumId: const Value('al1'),
+            artistId: const Value('a1'),
+          ),
+          SongsTableCompanion.insert(
+            id: 's1',
+            title: 'Apple',
+            albumId: const Value('al1'),
+            artistId: const Value('a1'),
+          ),
+        ]);
+
+        final items = await service.getChildren(AutoMediaRoot.search);
+        expect(items, hasLength(2));
+        expect(items[0].title, 'Apple');
+        expect(items[1].title, 'Banana');
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'search songs are playable leaf items',
+      () async {
+        await database.libraryDao.upsertArtists([
+          ArtistsTableCompanion.insert(id: 'a1', name: 'Artist'),
+        ]);
+        await database.libraryDao.upsertAlbums([
+          AlbumsTableCompanion.insert(id: 'al1', name: 'Album'),
+        ]);
+        await database.libraryDao.upsertSongs([
+          SongsTableCompanion.insert(
+            id: 's1',
+            title: 'Song',
+            albumId: const Value('al1'),
+            artistId: const Value('a1'),
+          ),
+        ]);
+
+        final items = await service.getChildren(AutoMediaRoot.search);
+        expect(items.single.playable, isTrue);
+        expect(items.single.extras?['browsable'], isNot(isTrue));
       },
       skip: !sqliteAvailable,
     );
