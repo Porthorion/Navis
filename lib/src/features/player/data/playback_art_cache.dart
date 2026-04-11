@@ -1,8 +1,7 @@
 /// Local artwork cache for Android Auto / AAOS now-playing background art.
 ///
-/// Downloads the cover art URL via [AudioService.cacheManager] — the same
-/// flutter_cache_manager instance used by audio_service's own art pre-loading
-/// — then returns the local file path so the audio handler can replace
+/// Downloads the cover art URL via [dart:io] [HttpClient] directly, then
+/// returns the local file path so the audio handler can replace
 /// [MediaItem.artUri] with a `file://` URI.
 ///
 /// When audio_service's listener sees a `file`-scheme artUri it calls
@@ -14,9 +13,10 @@
 library;
 
 import 'dart:async';
+import 'dart:io';
 
-import 'package:audio_service/audio_service.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:path_provider/path_provider.dart';
 
 class PlaybackArtCache {
   PlaybackArtCache();
@@ -55,16 +55,45 @@ class PlaybackArtCache {
 
   Future<String?> _fetch(String coverArtId, Uri artUri) async {
     try {
-      // Reuse audio_service's cache manager so we share HTTP client config,
-      // SSL settings, and any art already fetched by audio_service's own
-      // _loadArtwork pass for the same URL.
-      final file = await AudioService.cacheManager.getSingleFile(
-        artUri.toString(),
-      );
-      final path = file.path;
-      _mem[coverArtId] = path;
-      AppLogger.debug('PlaybackArtCache: art for $coverArtId → $path');
-      return path;
+      final cacheDir = await getTemporaryDirectory();
+      // Sanitise coverArtId for use as a file name component.
+      final safeName = coverArtId.replaceAll(RegExp(r'[^a-zA-Z0-9_\-]'), '_');
+      final file = File('${cacheDir.path}/navis_art_$safeName.jpg');
+
+      // Reuse a previously downloaded file if it exists (persists across
+      // app sessions so art is immediately available without a network round
+      // trip on subsequent plays).
+      if (await file.exists()) {
+        _mem[coverArtId] = file.path;
+        AppLogger.debug(
+          'PlaybackArtCache: art for $coverArtId → ${file.path} (cached on disk)',
+        );
+        return file.path;
+      }
+
+      // Download using dart:io HttpClient so we use the same platform HTTP
+      // stack as the rest of the app (SSL certificates, proxy settings, etc.).
+      final client = HttpClient();
+      try {
+        final request = await client.getUrl(artUri);
+        final response = await request.close();
+
+        if (response.statusCode != 200) {
+          AppLogger.warning(
+            'PlaybackArtCache: HTTP ${response.statusCode} for $coverArtId',
+          );
+          return null;
+        }
+
+        final sink = file.openWrite();
+        await response.pipe(sink);
+
+        _mem[coverArtId] = file.path;
+        AppLogger.debug('PlaybackArtCache: art for $coverArtId → ${file.path}');
+        return file.path;
+      } finally {
+        client.close();
+      }
     } on Object catch (error, stackTrace) {
       AppLogger.warning(
         'PlaybackArtCache: failed to fetch art for $coverArtId: '
@@ -76,6 +105,5 @@ class PlaybackArtCache {
     }
   }
 
-  // flutter_cache_manager lifecycle is managed by audio_service.
   void dispose() {}
 }

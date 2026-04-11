@@ -15,9 +15,6 @@ abstract final class AutoMediaRoot {
   static const String recent = 'root/recent';
   static const String randomMix = 'root/random';
 
-  /// Home hub — shows the main library categories (Albums, Artists).
-  static const String home = 'root/home';
-
   /// Secondary "More" node that groups less-frequently accessed categories.
   static const String more = 'root/more';
 
@@ -117,6 +114,5 @@ abstract final class AutoMediaId {
     AutoMediaRoot.recent,
     AutoMediaRoot.randomMix,
     AutoMediaRoot.more,
-    AutoMediaRoot.home,
   };
 }

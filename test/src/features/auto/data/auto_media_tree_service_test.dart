@@ -42,7 +42,7 @@ void main() {
         final items = await service.getChildren(AutoMediaRoot.root);
         final ids = items.map((e) => e.id).toList();
         expect(ids, [
-          AutoMediaRoot.home,
+          AutoMediaRoot.albums,
           AutoMediaRoot.recent,
           AutoMediaRoot.playlists,
           AutoMediaRoot.more,
@@ -108,45 +108,6 @@ void main() {
           (i) => i.id == AutoMediaRoot.randomMix,
         );
         expect(randomMix.playable, isTrue);
-      },
-      skip: !sqliteAvailable,
-    );
-  });
-
-  // ── Home node ─────────────────────────────────────────────────────────────
-
-  group('getChildren - home', () {
-    test(
-      'returns 2 library categories',
-      () async {
-        final items = await service.getChildren(AutoMediaRoot.home);
-        expect(items, hasLength(2));
-      },
-      skip: !sqliteAvailable,
-    );
-
-    test(
-      'home items are Albums and Artists',
-      () async {
-        final items = await service.getChildren(AutoMediaRoot.home);
-        final ids = items.map((e) => e.id).toList();
-        expect(ids, [AutoMediaRoot.albums, AutoMediaRoot.artists]);
-      },
-      skip: !sqliteAvailable,
-    );
-
-    test(
-      'home items are browsable',
-      () async {
-        final items = await service.getChildren(AutoMediaRoot.home);
-        for (final item in items) {
-          expect(
-            item.playable,
-            isFalse,
-            reason: '${item.id} should not be playable',
-          );
-          expect(item.extras?['browsable'], isTrue);
-        }
       },
       skip: !sqliteAvailable,
     );

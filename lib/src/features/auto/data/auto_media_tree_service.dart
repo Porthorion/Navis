@@ -80,7 +80,6 @@ class AutoMediaTreeService {
   Future<List<MediaItem>> _getChildrenImpl(String parentMediaId) async {
     return switch (parentMediaId) {
       AutoMediaRoot.root => _getRootChildren(),
-      AutoMediaRoot.home => _getHomeChildren(),
       AutoMediaRoot.playlists => _getPlaylists(),
       AutoMediaRoot.artists => _getArtists(),
       AutoMediaRoot.albums => _getAlbums(),
@@ -106,8 +105,8 @@ class AutoMediaTreeService {
 
     final children = <MediaItem>[
       _browsableItem(
-        id: AutoMediaRoot.home,
-        title: 'Home',
+        id: AutoMediaRoot.albums,
+        title: 'Albums',
         extras: AutoContentStyle.gridBrowsableListPlayable,
       ),
       _browsableItem(
@@ -130,22 +129,6 @@ class AutoMediaTreeService {
     _cachedRootChildren = children;
     _rootCacheTimestamp = now;
     return children;
-  }
-
-  /// Home hub — entry point showing the main library browsing categories.
-  Future<List<MediaItem>> _getHomeChildren() async {
-    return [
-      _browsableItem(
-        id: AutoMediaRoot.albums,
-        title: 'Albums',
-        extras: AutoContentStyle.gridBrowsableListPlayable,
-      ),
-      _browsableItem(
-        id: AutoMediaRoot.artists,
-        title: 'Artists',
-        extras: AutoContentStyle.listBrowsableListPlayable,
-      ),
-    ];
   }
 
   Future<List<MediaItem>> _getPlaylists() async {
