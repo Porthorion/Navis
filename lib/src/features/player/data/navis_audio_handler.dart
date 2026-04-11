@@ -480,6 +480,7 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
           'android.media.browse.CONTENT_STYLE_SUPPORTED': true,
           'android.media.browse.CONTENT_STYLE_BROWSABLE_HINT': 2,
           'android.media.browse.CONTENT_STYLE_PLAYABLE_HINT': 1,
+          'android.media.browse.SEARCH_SUPPORTED': true,
         },
       ),
     ).then<NavisPlaybackHandler>((handler) => handler);
@@ -1135,6 +1136,25 @@ class NavisAudioHandler extends BaseAudioHandler
 
     switch (parsed.type) {
       case AutoMediaIdType.song:
+        // Load the song's album context so the queue continues after the
+        // tapped track. Fall back to a single-song queue if no album is known.
+        final songs = await _libraryDao.getSongsByIds([parsed.entityId!]);
+        if (songs.isEmpty) break;
+        final song = songs.first;
+        final albumId = song.albumId;
+        if (albumId != null) {
+          final albumSongs = await _libraryDao.watchSongsByAlbum(albumId).first;
+          if (albumSongs.isNotEmpty) {
+            final startIndex = albumSongs.indexWhere(
+              (s) => s.id == parsed.entityId,
+            );
+            await replaceQueueWithData(
+              albumSongs,
+              startIndex: startIndex < 0 ? 0 : startIndex,
+            );
+            break;
+          }
+        }
         await replaceQueue([parsed.entityId!]);
       case AutoMediaIdType.album:
         final songs = await _libraryDao

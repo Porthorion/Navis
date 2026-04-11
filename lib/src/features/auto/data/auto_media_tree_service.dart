@@ -83,6 +83,8 @@ class AutoMediaTreeService {
       AutoMediaRoot.playlists => _getPlaylists(),
       AutoMediaRoot.artists => _getArtists(),
       AutoMediaRoot.albums => _getAlbums(),
+      AutoMediaRoot.search => _getSearchChildren(),
+      AutoMediaRoot.more => _getMoreChildren(),
       AutoMediaRoot.liked => _getLikedCategories(),
       // AudioService.recentRootId == 'recent' — the system-level RECENT_ROOT_ID
       // that AAOS uses for the home screen widget when no session is active.
@@ -104,9 +106,9 @@ class AutoMediaTreeService {
 
     final children = <MediaItem>[
       _browsableItem(
-        id: AutoMediaRoot.playlists,
-        title: 'Playlists',
-        extras: AutoContentStyle.listBrowsableListPlayable,
+        id: AutoMediaRoot.albums,
+        title: 'Albums',
+        extras: AutoContentStyle.gridBrowsableListPlayable,
       ),
       _browsableItem(
         id: AutoMediaRoot.artists,
@@ -114,23 +116,14 @@ class AutoMediaTreeService {
         extras: AutoContentStyle.listBrowsableListPlayable,
       ),
       _browsableItem(
-        id: AutoMediaRoot.albums,
-        title: 'Albums',
-        extras: AutoContentStyle.gridBrowsableListPlayable,
-      ),
-      _browsableItem(
-        id: AutoMediaRoot.liked,
-        title: 'Liked Songs',
+        id: AutoMediaRoot.search,
+        title: 'Search',
         extras: AutoContentStyle.listBrowsableListPlayable,
       ),
       _browsableItem(
-        id: AutoMediaRoot.recent,
-        title: 'Recently Played',
+        id: AutoMediaRoot.more,
+        title: 'More',
         extras: AutoContentStyle.listBrowsableListPlayable,
-      ),
-      _playableItem(
-        id: AutoMediaRoot.randomMix,
-        title: 'Random Mix',
       ),
     ];
 
@@ -177,6 +170,44 @@ class AutoMediaTreeService {
         .toList(
           growable: false,
         );
+  }
+
+  /// Returns all songs sorted alphabetically by title, up to [_kMaxBrowseItems].
+  ///
+  /// Provides a manual browse path to any song in the library without needing
+  /// a keyboard — pair with voice search for a complete search experience.
+  Future<List<MediaItem>> _getSearchChildren() async {
+    final songs = await _libraryDao
+        .watchSongsSorted(SongSortOrder.name)
+        .first;
+    return songs
+        .take(_kMaxBrowseItems)
+        .map(_songToMediaItem)
+        .toList(growable: false);
+  }
+
+  Future<List<MediaItem>> _getMoreChildren() async {
+    return [
+      _browsableItem(
+        id: AutoMediaRoot.playlists,
+        title: 'Playlists',
+        extras: AutoContentStyle.listBrowsableListPlayable,
+      ),
+      _browsableItem(
+        id: AutoMediaRoot.liked,
+        title: 'Liked',
+        extras: AutoContentStyle.listBrowsableListPlayable,
+      ),
+      _browsableItem(
+        id: AutoMediaRoot.recent,
+        title: 'Recently Played',
+        extras: AutoContentStyle.listBrowsableListPlayable,
+      ),
+      _playableItem(
+        id: AutoMediaRoot.randomMix,
+        title: 'Random Mix',
+      ),
+    ];
   }
 
   Future<List<MediaItem>> _getLikedCategories() async {

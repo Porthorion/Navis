@@ -15,6 +15,12 @@ abstract final class AutoMediaRoot {
   static const String recent = 'root/recent';
   static const String randomMix = 'root/random';
 
+  /// Search tab — lists all songs sorted by name for manual browsing.
+  static const String search = 'root/search';
+
+  /// Secondary "More" node that groups less-frequently accessed categories.
+  static const String more = 'root/more';
+
   // Sub-categories under "liked"
   static const String likedSongs = 'liked/songs';
   static const String likedAlbums = 'liked/albums';
@@ -110,5 +116,7 @@ abstract final class AutoMediaId {
     AutoMediaRoot.liked,
     AutoMediaRoot.recent,
     AutoMediaRoot.randomMix,
+    AutoMediaRoot.more,
+    AutoMediaRoot.search,
   };
 }
