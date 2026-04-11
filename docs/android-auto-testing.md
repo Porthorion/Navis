@@ -75,15 +75,19 @@ Once the DHU is running, use these commands in the DHU terminal:
 |---------|-------------|
 | `day` | Switch to day mode (light theme) |
 | `night` | Switch to night mode (dark theme) |
-| `mic` | Simulate microphone button press |
 | `dpad up/down/left/right` | Navigate using D-pad |
 | `dpad click` | Select/click current item |
-| `back` | Press back button |
-| `home` | Go to home screen |
-| `play` | Media play |
-| `pause` | Media pause |
-| `next` | Next track |
-| `prev` | Previous track |
+| `dpad back` | Press back button |
+| `keycode home` | Go to home screen |
+| `keycode media_play_pause` | Toggle play/pause |
+| `keycode media_play` | Media play |
+| `keycode media_pause` | Media pause |
+| `keycode media_next` | Next track |
+| `keycode media_previous` | Previous track |
+| `keycode search` | Open search |
+| `mic begin` | Simulate voice input start |
+| `restrict none` | Remove driving restrictions (unlocks UI during testing) |
+| `restrict all` | Enable driving restrictions |
 
 ## Manual Test Checklist
 
