@@ -1,15 +1,18 @@
 /// Local artwork cache for Android Auto / AAOS now-playing background art.
 ///
-/// Downloads the cover art URL via [dart:io] [HttpClient] directly, then
-/// returns the local file path so the audio handler can replace
-/// [MediaItem.artUri] with a `file://` URI.
+/// Downloads the cover art URL via dart:io HttpClient and returns the
+/// local file path so `NavisAudioHandler._updateArtCacheFile` can inject it
+/// into `MediaItem.extras` under the key `"artCacheFile"`.
 ///
-/// When audio_service's listener sees a `file`-scheme artUri it calls
-/// `sendToPlatform(artUri.toFilePath())` synchronously — bypassing the async
-/// `artFetchOperationId` cancellation path — which injects `artCacheFile` into
-/// the platform MediaItem. Java's AudioService reads `artCacheFile` and decodes
-/// the bitmap via `BitmapFactory.decodeFile`, loading it into
-/// `METADATA_KEY_ALBUM_ART` so the AAOS home screen widget can display it.
+/// Java's `AudioService.setMetadata` reads `extras["artCacheFile"]` and
+/// decodes the bitmap via `BitmapFactory.decodeFile`, populating
+/// `METADATA_KEY_ALBUM_ART` + `METADATA_KEY_DISPLAY_ICON` so the AAOS
+/// now-playing screen and home-screen widget can display the album art.
+///
+/// The original HTTP artUri is kept on the MediaItem so that
+/// `METADATA_KEY_DISPLAY_ICON_URI` in the MediaSession remains an HTTP URL
+/// that Android Auto (running in a separate OS process) can fetch.  A plain
+/// `file://` internal-storage path would be inaccessible to AAOS's process.
 library;
 
 import 'dart:async';

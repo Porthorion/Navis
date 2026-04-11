@@ -1233,25 +1233,52 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   /// Downloads the cover art for [trigger] to a local file and re-emits the
-  /// current [MediaItem] with [MediaItem.artUri] replaced by a `file://` URI.
+  /// current [MediaItem] with `artCacheFile` injected into
+  /// [MediaItem.extras].
   ///
-  /// When `audio_service` receives a MediaItem whose `artUri` uses the `file`
-  /// scheme it synchronously calls `sendToPlatform(artUri.toFilePath())`
-  /// without going through the async `artFetchOperationId` cancellation path.
-  /// This avoids a race where the second `mediaItem.add` call cancels the
-  /// first listener before it has delivered the MediaItem to the platform,
-  /// which caused the AAOS widget to show nothing.
+  /// ## Why extras, not artUri
   ///
-  /// Critically, this method also updates [_queueItems] with the `file://`
-  /// artUri so that if `currentIndexStream` re-emits the same index after the
-  /// download (e.g., during buffering), `_setCurrentMediaItem` will receive
-  /// the already-cached file:// version rather than the original HTTP artUri,
-  /// which would override the cached art and reset the display to blank.
+  /// A previous approach replaced [MediaItem.artUri] with a `file://` URI.
+  /// That caused Java's `createMediaMetadata` to write the raw file path into
+  /// `METADATA_KEY_DISPLAY_ICON_URI`.  Android Auto runs in a *separate OS
+  /// process* and cannot read another app's internal cache directory via a
+  /// plain `file://` URI, so it silently dropped the art.
+  ///
+  /// By keeping the original HTTP artUri (which AAOS can fetch cross-process)
+  /// and injecting `artCacheFile` into [MediaItem.extras], we get the best of
+  /// both worlds:
+  ///
+  /// * `METADATA_KEY_DISPLAY_ICON_URI` stays as the HTTP URL → AAOS can load
+  ///   art from the network whenever it wants.
+  /// * Java's `AudioService.setMetadata` reads `extras["artCacheFile"]`,
+  ///   decodes the local JPEG with `BitmapFactory.decodeFile`, and stores the
+  ///   result in `METADATA_KEY_ALBUM_ART` + `METADATA_KEY_DISPLAY_ICON` →
+  ///   immediate bitmap display without a network round-trip.
+  ///
+  /// ## Cancellation safety
+  ///
+  /// `audio_service`'s `artFetchOperationId` mechanism cancels the previous
+  /// HTTP-download listener when a new [MediaItem] is emitted.  Because we
+  /// emit the updated item (with `artCacheFile` already in extras) *after* the
+  /// download completes, the new listener sees the complete extras map and
+  /// passes it straight to `_platform.setMediaItem` — the "show without art"
+  /// intermediate call in audio_service's HTTP path still includes
+  /// `artCacheFile`, so Java always has the bitmap.
+  ///
+  /// ## Queue persistence
+  ///
+  /// This method also updates [_queueItems] so that future `currentIndexStream`
+  /// events (e.g. from Phase-2 insertions) deliver the art-cached version to
+  /// `_setCurrentMediaItem`, preventing the art from reverting to blank.
   Future<void> _updateArtCacheFile(MediaItem trigger) async {
     final coverArtId = trigger.extras?['coverArtId'] as String?;
     final artUri = trigger.artUri;
-    // Skip if artUri is already a local file URI — nothing to download.
-    if (coverArtId == null || artUri == null || artUri.scheme == 'file') return;
+    // Nothing to do if essential fields are missing.
+    if (coverArtId == null || artUri == null) return;
+    // Skip non-HTTP schemes (file://, content://, etc. — already handled).
+    if (artUri.scheme != 'http' && artUri.scheme != 'https') return;
+    // artCacheFile is already injected — no need to download again.
+    if ((trigger.extras?['artCacheFile'] as String?) != null) return;
 
     AppLogger.debug(
       '_updateArtCacheFile: fetching art for coverArtId=$coverArtId uri=$artUri',
@@ -1262,27 +1289,34 @@ class NavisAudioHandler extends BaseAudioHandler
     );
     if (localPath == null) return;
 
-    final fileUri = Uri.file(localPath);
+    // Inject artCacheFile into a copy of [item]'s extras, preserving all
+    // existing extras (coverArtId, albumId, replay-gain values, etc.).
+    MediaItem withArtCache(MediaItem item) => item.copyWith(
+      extras: <String, Object?>{...?item.extras, 'artCacheFile': localPath},
+    );
 
     // Update every occurrence of this song in the queue so that future
-    // currentIndexStream events return the file:// version and do not reset
-    // the art back to the HTTP artUri.
+    // currentIndexStream events deliver the art-cached version.
     for (var i = 0; i < _queueItems.length; i++) {
       if (_queueItems[i].id == trigger.id &&
-          _queueItems[i].artUri?.scheme != 'file') {
-        _queueItems[i] = _queueItems[i].copyWith(artUri: fileUri);
+          (_queueItems[i].extras?['artCacheFile'] as String?) == null) {
+        _queueItems[i] = withArtCache(_queueItems[i]);
       }
     }
 
     // Guard: only re-emit if we are still on the same track.
     final current = _currentMediaItem;
     if (current == null || current.id != trigger.id) return;
+    // Guard: skip if a concurrent call already injected artCacheFile.
+    if ((current.extras?['artCacheFile'] as String?) != null) return;
 
-    // Replace the HTTP artUri with a local file URI. audio_service's listener
-    // detects `scheme == 'file'` and calls sendToPlatform synchronously,
-    // injecting artCacheFile into the platform MediaItem extras so that the
-    // AAOS Java layer can decode the bitmap directly from disk.
-    final updated = current.copyWith(artUri: fileUri);
+    // Re-emit the current item with artCacheFile in extras.
+    // audio_service's HTTP-path listener will call
+    // `_platform.setMediaItem(item._toMessage())` which serialises the full
+    // extras map — Java's AudioService.setMetadata reads artCacheFile from
+    // there, decodes the bitmap, and populates METADATA_KEY_ALBUM_ART so
+    // that AAOS displays the art on the now-playing screen.
+    final updated = withArtCache(current);
     _currentMediaItem = updated;
     mediaItem.add(updated);
   }
