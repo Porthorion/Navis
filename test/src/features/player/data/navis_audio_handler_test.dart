@@ -23,6 +23,18 @@ void main() {
       expect(playingControls[2].action, MediaAction.skipToNext);
     });
 
+    test('instant mix control appears at index 3 when showInstantMix is true', () {
+      final controls = navisNotificationControls(
+        isPlaying: true,
+        showInstantMix: true,
+      );
+
+      expect(controls.length, 4);
+      expect(controls[3].action, MediaAction.custom);
+      expect(controls[3].customAction?.name, kInstantMixAction);
+      expect(controls[3].label, 'Instant Mix');
+    });
+
     test('notification compact indices align to transport controls', () {
       expect(navisNotificationCompactActionIndices, const <int>[0, 1, 2]);
     });

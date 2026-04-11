@@ -205,12 +205,26 @@ bool navisShouldRetryQueueApplyWithDirectSources({
 @visibleForTesting
 const List<int> navisNotificationCompactActionIndices = <int>[0, 1, 2];
 
+/// Custom action name sent via [AudioHandler.customAction] when the user taps
+/// the Instant Mix button in the Android Auto player.
+const String kInstantMixAction = 'instantMix';
+
 @visibleForTesting
-List<MediaControl> navisNotificationControls({required bool isPlaying}) {
+List<MediaControl> navisNotificationControls({
+  required bool isPlaying,
+  bool showInstantMix = false,
+}) {
   return <MediaControl>[
     MediaControl.skipToPrevious,
     if (isPlaying) MediaControl.pause else MediaControl.play,
     MediaControl.skipToNext,
+    if (showInstantMix)
+      const MediaControl(
+        androidIcon: 'drawable/ic_instant_mix',
+        label: 'Instant Mix',
+        action: MediaAction.custom,
+        customAction: CustomMediaAction(name: kInstantMixAction),
+      ),
   ];
 }
 
@@ -3705,8 +3719,16 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   void _broadcastPlaybackState() {
+    // Show the Instant Mix button whenever there is a current song and the API
+    // client is reachable (online).  Android Auto shows all controls; the
+    // notification compact view only shows indices 0-2 (prev/play/next).
+    final hasCurrentSong = _currentMediaItem != null;
+    final isOnline = _readApiClient() != null;
     final state = playbackState.value.copyWith(
-      controls: navisNotificationControls(isPlaying: _player.playing),
+      controls: navisNotificationControls(
+        isPlaying: _player.playing,
+        showInstantMix: hasCurrentSong && isOnline,
+      ),
       systemActions: const <MediaAction>{
         MediaAction.seek,
         MediaAction.seekForward,
@@ -3998,7 +4020,37 @@ class NavisAudioHandler extends BaseAudioHandler
     if (name == 'toggleLike') {
       return toggleLike();
     }
+    if (name == kInstantMixAction) {
+      return _playInstantMix();
+    }
     return super.customAction(name, extras);
+  }
+
+  /// Starts an Instant Mix seeded from the currently playing song.
+  ///
+  /// Calls `getSimilarSongs2` (or `getInstantMix` as fallback) on the
+  /// Subsonic server and replaces the queue with the results.  Does nothing
+  /// when no song is playing or the API client is unavailable.
+  Future<void> _playInstantMix() async {
+    final api = _readApiClient();
+    if (api == null) return;
+
+    final current = _currentMediaItem;
+    if (current == null) return;
+
+    final parsed = AutoMediaId.parse(current.id);
+    if (parsed == null || parsed.entityId == null) return;
+    final seedId = parsed.entityId!;
+
+    try {
+      final songs = await api.getSimilarSongs(seedId, count: 50);
+      final songIds = songs.map((s) => s.id).toList(growable: false);
+      if (songIds.isNotEmpty) {
+        await replaceQueue(songIds);
+      }
+    } on Object catch (e, st) {
+      AppLogger.warning('Instant Mix failed for song $seedId: $e\n$st');
+    }
   }
 
   @override
