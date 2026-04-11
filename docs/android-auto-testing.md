@@ -35,12 +35,26 @@ adb forward tcp:5277 tcp:5277
 # macOS:
 ~/Library/Android/sdk/extras/google/auto/desktop-head-unit
 
-# Linux:
+# Linux (see note below about missing libc++):
 ~/Android/Sdk/extras/google/auto/desktop-head-unit
 
 # Windows:
 %LOCALAPPDATA%\Android\Sdk\extras\google\auto\desktop-head-unit.exe
 ```
+
+> **Linux — `libc++.so.1` not found:** Modern Linux distros don't ship the libc++ version
+> that the DHU binary was linked against.  Resolve it via the NDK libraries that ship with
+> Android Studio:
+>
+> ```bash
+> NDK_LIB="$HOME/Android/Sdk/ndk/$(ls $HOME/Android/Sdk/ndk | sort -V | tail -1)/toolchains/llvm/prebuilt/linux-x86_64/lib"
+> LLDB_LIB="$HOME/android-studio/plugins/android-ndk/resources/lldb/lib64"
+> EMULATOR_LIB="$HOME/Android/Sdk/emulator/lib64"
+> LD_LIBRARY_PATH="$NDK_LIB:$LLDB_LIB:$EMULATOR_LIB" \
+>   ~/Android/Sdk/extras/google/auto/desktop-head-unit
+> ```
+>
+> This is handled automatically by `./tool/dev_app.sh dhu`.
 
 ### 4. Build & Install Navis
 
@@ -198,9 +212,20 @@ Once the DHU is running, use these commands in the DHU terminal:
    ```bash
    aapt dump xmltree build/app/outputs/flutter-apk/app-debug.apk res/xml/automotive_app_desc.xml
    ```
-3. Verify the AndroidManifest includes the `com.google.android.gms.car.application` metadata
-4. Try restarting the head unit server on the phone
-5. Try `adb forward tcp:5277 tcp:5277` again
+3. Verify the AndroidManifest `com.google.android.gms.car.application` metadata is at the
+   **`<application>` level** — NOT inside the `<service>` block. Android Auto reads it from
+   the application element to populate the launcher list; placing it inside a service causes
+   silent failure (app never appears in the media list).
+4. **Do NOT add `android:permission="android.permission.BIND_MEDIA_BROWSER_SERVICE"` to the
+   AudioService** declaration.  That permission has `protectionLevel="signature|privileged"`.
+   On devices where Android Auto is installed from the Play Store (not a privileged system
+   app), it does not hold that permission and gets `Permission Denial` when binding — which
+   prevents Auto from connecting at all.  Caller validation is handled by
+   `MediaBrowserServiceCompat.onGetRoot()` returning `null` for unauthorised callers.
+5. Try restarting the head unit server on the phone
+6. Try `adb forward tcp:5277 tcp:5277` again and restart the DHU (Android Auto uses
+   exponential back-off after repeated connection failures; a fresh DHU session forces
+   re-enumeration)
 
 ### Browse tree is empty
 

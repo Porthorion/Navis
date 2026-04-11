@@ -142,7 +142,21 @@ case "${MODE}" in
     FLUTTER_PID=$!
 
     echo "==> Launching Desktop Head Unit…"
-    "${DHU_BIN}" || true
+    # On modern Linux, libc++.so.1 / libc++abi.so.1 are not in the system path.
+    # Resolve them from the NDK (which ships them) and Android Studio's LLDB plugin,
+    # then fall back to the plain DHU binary for macOS / CI.
+    NDK_LIB=$(ls -d "${ANDROID_SDK}"/ndk/*/toolchains/llvm/prebuilt/linux-x86_64/lib 2>/dev/null | sort -V | tail -1)
+    LLDB_LIB="${HOME}/android-studio/plugins/android-ndk/resources/lldb/lib64"
+    EMULATOR_LIB="${ANDROID_SDK}/emulator/lib64"
+    EXTRA_LD=""
+    [[ -d "${NDK_LIB}" ]] && EXTRA_LD="${NDK_LIB}"
+    [[ -d "${LLDB_LIB}" ]] && EXTRA_LD="${EXTRA_LD}:${LLDB_LIB}"
+    [[ -d "${EMULATOR_LIB}" ]] && EXTRA_LD="${EXTRA_LD}:${EMULATOR_LIB}"
+    if [[ -n "${EXTRA_LD}" ]]; then
+      LD_LIBRARY_PATH="${EXTRA_LD}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" "${DHU_BIN}" || true
+    else
+      "${DHU_BIN}" || true
+    fi
 
     # When DHU exits, also stop the flutter run session.
     kill "${FLUTTER_PID}" 2>/dev/null || true
