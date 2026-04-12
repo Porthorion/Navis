@@ -250,6 +250,13 @@ Song? pickBestArtistTopTrackMatch({
       partialWeight: 0.30,
       tokenWeight: 0.30,
     );
+
+    // Require at least some artist name overlap.  A perfect title match with
+    // zero artist overlap (e.g. "Heart Attack" by Demi Lovato when searching
+    // for a Pokelawls track of the same name) must be rejected — the combined
+    // score (0.58 + 0 = 0.58) would otherwise exceed _kMinimumMatchScore.
+    if (artistScore == 0.0) continue;
+
     var score = math.max(0.0, math.min(1.0, titleScore + artistScore));
 
     // Penalise live / concert / unplugged recordings so that studio album

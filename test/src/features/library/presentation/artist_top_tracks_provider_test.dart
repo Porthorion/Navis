@@ -77,6 +77,31 @@ void main() {
     expect(match, isNull);
   });
 
+  test('returns null when title matches exactly but artist is completely different', () {
+    // "Heart Attack" by Demi Lovato should NOT match a search for a
+    // "Heart Attack" track by Pokelawls — the artist is entirely wrong.
+    final match = pickBestArtistTopTrackMatch(
+      track: _lastFm(title: 'Heart Attack', artist: 'Pokelawls'),
+      candidates: [
+        _song(id: '1', title: 'Heart Attack', artist: 'Demi Lovato'),
+      ],
+    );
+
+    expect(match, isNull);
+  });
+
+  test('returns null when title partially matches but artist is completely different', () {
+    // "RUNAWAY" by Aurora should NOT match a search for "RUNWAY" by Pokelawls.
+    final match = pickBestArtistTopTrackMatch(
+      track: _lastFm(title: 'RUNWAY', artist: 'Pokelawls'),
+      candidates: [
+        _song(id: '1', title: 'RUNAWAY', artist: 'Aurora'),
+      ],
+    );
+
+    expect(match, isNull);
+  });
+
   test('returns null for empty candidate list', () {
     final match = pickBestArtistTopTrackMatch(
       track: _lastFm(title: 'Bohemian Rhapsody', artist: 'Queen'),
