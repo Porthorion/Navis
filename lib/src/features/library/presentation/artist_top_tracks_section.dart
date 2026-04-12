@@ -74,24 +74,17 @@ class _ArtistTopTracksSectionState extends ConsumerState<ArtistTopTracksSection>
         songCount: 5,
       );
 
-      // Reuse the same matching logic as the provider, but with a lower
-      // threshold so "best guess" plays rather than silently doing nothing.
+      // Reuse the same matching logic as the provider.
       final rawTrack = LastFmArtistTopTrack(
         rank: track.rank,
         title: track.title,
         artist: track.artist,
         listeners: track.listeners,
       );
-      final best = pickBestArtistTopTrackMatch(
+      final playable = pickBestArtistTopTrackMatch(
         track: rawTrack,
         candidates: result.songs,
       );
-
-      var playable = best;
-      if (playable == null && result.songs.isNotEmpty) {
-        // Accept the top search result as a last-resort fallback.
-        playable = result.songs.first;
-      }
 
       if (playable == null) {
         AppLogger.debug(
@@ -150,9 +143,12 @@ class _ArtistTopTracksSectionState extends ConsumerState<ArtistTopTracksSection>
     return asyncTracks.when(
       skipLoadingOnReload: true,
       data: (tracks) {
-        if (tracks.isEmpty) return const SizedBox.shrink();
+        final resolved = tracks
+            .where((t) => t.isLocallyResolved)
+            .toList(growable: false);
+        if (resolved.isEmpty) return const SizedBox.shrink();
         return _TrackList(
-          tracks: tracks,
+          tracks: resolved,
           expanded: _expanded,
           playing: _playing,
           l10n: l10n,
