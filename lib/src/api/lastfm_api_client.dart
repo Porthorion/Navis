@@ -260,6 +260,28 @@ class LastFmApiClient {
     return const <String, dynamic>{};
   }
 
+  /// Returns `true` when [requested] and [resolved] refer to the same artist.
+  ///
+  /// Comparison is case-insensitive with punctuation normalised to spaces so
+  /// that minor typographical differences (e.g. "AC/DC" vs "AC DC") do not
+  /// produce false negatives. Accepts when either string is a substring of
+  /// the other to handle "The Beatles" vs "Beatles" style differences.
+  static bool _artistNamesMatch(String requested, String resolved) {
+    final a = _normalizeArtistName(requested);
+    final b = _normalizeArtistName(resolved);
+    if (a.isEmpty || b.isEmpty) return true; // can't validate — assume OK
+    return a == b || a.contains(b) || b.contains(a);
+  }
+
+  /// Lowercases [name] and replaces non-alphanumeric characters with spaces,
+  /// collapsing consecutive spaces, for artist-name comparison purposes.
+  static String _normalizeArtistName(String name) {
+    return name
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
+        .trim();
+  }
+
   List<Map<String, dynamic>> _asMapList(dynamic value) {
     if (value is List) {
       return value
@@ -308,7 +330,7 @@ class LastFmApiClient {
           'artist': normalizedArtist,
           'api_key': _apiKey,
           'format': 'json',
-          'autocorrect': 1,
+          'autocorrect': 0,
           'limit': limit,
         },
       );
@@ -322,6 +344,21 @@ class LastFmApiClient {
       }
 
       final topTracksRoot = _asMap(data['toptracks']);
+
+      // Validate the artist Last.fm actually resolved to. If it differs
+      // significantly from the requested artist, the API returned results
+      // for the wrong person — discard them rather than show misleading data.
+      final attrArtist =
+          (_asMap(topTracksRoot['@attr'])['artist'] as String?)?.trim() ?? '';
+      if (attrArtist.isNotEmpty &&
+          !_artistNamesMatch(normalizedArtist, attrArtist)) {
+        AppLogger.debug(
+          'LastFm getArtistTopTracks: resolved artist mismatch — '
+          'requested="$normalizedArtist" resolved="$attrArtist" — discarding',
+        );
+        return const [];
+      }
+
       final tracks = _asMapList(topTracksRoot['track']);
       if (tracks.isEmpty) return const [];
 
