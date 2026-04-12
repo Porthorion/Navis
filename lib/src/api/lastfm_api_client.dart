@@ -384,6 +384,19 @@ class LastFmApiClient {
           _ => null,
         };
         if (title.isEmpty || rank <= 0) continue;
+
+        // Skip tracks whose per-track artist doesn't match the requested
+        // artist.  Last.fm can return collaboration or compilation tracks
+        // attributed to a different artist within an otherwise valid response.
+        if (!_artistNamesMatch(normalizedArtist, trackArtist)) {
+          AppLogger.debug(
+            'LastFm getArtistTopTracks: skipping track "$title" — '
+            'track artist="$trackArtist" does not match '
+            'requested="$normalizedArtist"',
+          );
+          continue;
+        }
+
         result.add(
           LastFmArtistTopTrack(
             rank: rank,
@@ -393,7 +406,17 @@ class LastFmApiClient {
           ),
         );
       }
-      result.sort((a, b) => a.rank.compareTo(b.rank));
+
+      // Re-number ranks sequentially so no gaps appear in the UI after
+      // filtering out mismatched tracks.
+      for (var i = 0; i < result.length; i++) {
+        result[i] = LastFmArtistTopTrack(
+          rank: i + 1,
+          title: result[i].title,
+          artist: result[i].artist,
+          listeners: result[i].listeners,
+        );
+      }
       AppLogger.debug(
         'LastFm getArtistTopTracks: fetched ${result.length} tracks '
         'for artist="$normalizedArtist"',

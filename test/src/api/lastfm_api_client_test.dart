@@ -309,4 +309,72 @@ void main() {
       expect(tracks.first.title, 'Highway to Hell');
     },
   );
+
+  test(
+    'getArtistTopTracks: filters out tracks attributed to a different artist',
+    () async {
+      final dio = _MockDio();
+      when(
+        () => dio.get<Map<String, dynamic>>(
+          any(),
+          queryParameters: any(named: 'queryParameters'),
+        ),
+      ).thenAnswer(
+        (_) async => Response<Map<String, dynamic>>(
+          requestOptions: RequestOptions(path: '/2.0'),
+          statusCode: 200,
+          // @attr.artist matches, but track #2 is by a completely different
+          // artist (e.g. a collaboration or Last.fm data quirk).
+          data: <String, dynamic>{
+            'toptracks': <String, dynamic>{
+              '@attr': <String, dynamic>{'artist': 'Pokelawls'},
+              'track': <Map<String, dynamic>>[
+                <String, dynamic>{
+                  'name': 'Good Song',
+                  'listeners': '500',
+                  '@attr': <String, dynamic>{'rank': '1'},
+                  'artist': <String, dynamic>{'name': 'Pokelawls'},
+                },
+                <String, dynamic>{
+                  'name': 'RUNAWAY',
+                  'listeners': '1000000',
+                  '@attr': <String, dynamic>{'rank': '2'},
+                  'artist': <String, dynamic>{'name': 'Aurora'},
+                },
+                <String, dynamic>{
+                  'name': 'Another Good Song',
+                  'listeners': '300',
+                  '@attr': <String, dynamic>{'rank': '3'},
+                  'artist': <String, dynamic>{'name': 'Pokelawls'},
+                },
+                <String, dynamic>{
+                  'name': 'Heart Attack',
+                  'listeners': '2000000',
+                  '@attr': <String, dynamic>{'rank': '4'},
+                  'artist': <String, dynamic>{'name': 'Demi Lovato'},
+                },
+              ],
+            },
+          },
+        ),
+      );
+
+      final client = LastFmApiClient(apiKey: 'key', dio: dio);
+      final tracks = await client.getArtistTopTracks(
+        artist: 'Pokelawls',
+        limit: 10,
+      );
+
+      // Only the two tracks actually by Pokelawls should survive.
+      expect(tracks, hasLength(2));
+      expect(tracks[0].title, 'Good Song');
+      expect(tracks[0].artist, 'Pokelawls');
+      expect(tracks[1].title, 'Another Good Song');
+      expect(tracks[1].artist, 'Pokelawls');
+
+      // Ranks should be re-numbered sequentially (no gaps).
+      expect(tracks[0].rank, 1);
+      expect(tracks[1].rank, 2);
+    },
+  );
 }
