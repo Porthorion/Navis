@@ -208,6 +208,7 @@
   "radioLive": "LIVE",
   "serverSettingsTitle": "Configuration",
   "serverSettingsLoadError": "Could not load server settings.",
+  "serverSettingsSaveError": "Failed to save. Please try again.",
   "serverSettingsNotAuthenticated": "No active server session. Sign in to manage server settings.",
   "serverSettingsCurrentConnection": "Current connection",
   "serverSettingsNameLabel": "Name",

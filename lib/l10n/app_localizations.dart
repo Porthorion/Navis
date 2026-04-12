@@ -1042,6 +1042,12 @@ abstract class AppLocalizations {
   /// **'Could not load server settings.'**
   String get serverSettingsLoadError;
 
+  /// No description provided for @serverSettingsSaveError.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to save. Please try again.'**
+  String get serverSettingsSaveError;
+
   /// No description provided for @serverSettingsNotAuthenticated.
   ///
   /// In en, this message translates to:

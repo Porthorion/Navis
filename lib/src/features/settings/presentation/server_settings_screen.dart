@@ -32,7 +32,19 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
   bool get _isBusy => _isTestingConnection || _isSigningOut;
 
   @override
+  void initState() {
+    super.initState();
+    _lastFmApiKeyController.addListener(_onApiKeyTextChanged);
+  }
+
+  void _onApiKeyTextChanged() {
+    // Triggers rebuild so the clear icon in _LastFmCard stays in sync.
+    setState(() {});
+  }
+
+  @override
   void dispose() {
+    _lastFmApiKeyController.removeListener(_onApiKeyTextChanged);
     _lastFmApiKeyController.dispose();
     super.dispose();
   }
@@ -309,7 +321,10 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
         ),
       );
     } on Object {
-      // Silently ignore — the field retains the user's input
+      if (!mounted) return;
+      AppNoticeMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.serverSettingsSaveError)),
+      );
     } finally {
       if (mounted) setState(() => _isSavingApiKey = false);
     }

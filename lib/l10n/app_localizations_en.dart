@@ -542,6 +542,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get serverSettingsLoadError => 'Could not load server settings.';
 
   @override
+  String get serverSettingsSaveError => 'Failed to save. Please try again.';
+
+  @override
   String get serverSettingsNotAuthenticated =>
       'No active server session. Sign in to manage server settings.';
 
