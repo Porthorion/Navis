@@ -19,17 +19,18 @@ class _FakeSubsonicApiClient extends SubsonicApiClient {
         enableLogging: false,
       );
 
-  final List<({String songId, bool submission})> calls =
-      <({String songId, bool submission})>[];
+  final List<({String songId, bool submission, DateTime? time})> calls =
+      <({String songId, bool submission, DateTime? time})>[];
   Exception? nextError;
 
   @override
   Future<void> scrobble(
     String id, {
     bool submission = false,
+    DateTime? time,
     CancelToken? cancelToken,
   }) async {
-    calls.add((songId: id, submission: submission));
+    calls.add((songId: id, submission: submission, time: time));
     final error = nextError;
     if (error != null) {
       throw error;
@@ -80,8 +81,12 @@ void main() {
       final queued = await database.select(database.scrobbleQueueTable).get();
       expect(queued, isEmpty);
       expect(apiClient.calls.length, 2);
-      expect(apiClient.calls[0], (songId: 'song-1', submission: false));
-      expect(apiClient.calls[1], (songId: 'song-1', submission: true));
+      expect(apiClient.calls[0].songId, 'song-1');
+      expect(apiClient.calls[0].submission, isFalse);
+      expect(apiClient.calls[0].time!.isAtSameMomentAs(now), isTrue);
+      expect(apiClient.calls[1].songId, 'song-1');
+      expect(apiClient.calls[1].submission, isTrue);
+      expect(apiClient.calls[1].time!.isAtSameMomentAs(now), isTrue);
     }, skip: !sqliteAvailable);
 
     test(

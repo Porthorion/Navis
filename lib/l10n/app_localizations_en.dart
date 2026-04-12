@@ -207,7 +207,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get playbackSettingsScrobbleSubtitle =>
-      'Send now-playing and listened-track updates to the server.';
+      'Report tracks you play to the server (now-playing and play counts). Disable to listen anonymously.';
 
   @override
   String get playbackSettingsLrclibTitle => 'Use LRCLIB fallback';

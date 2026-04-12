@@ -145,6 +145,7 @@ class DriftScrobbleService implements ScrobbleService {
           await api.scrobble(
             event.songId,
             submission: event.submission,
+            time: event.createdAt,
           );
           await _dao.markDelivered(event.id);
         } on Object catch (error) {

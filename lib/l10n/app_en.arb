@@ -79,7 +79,7 @@
   "playbackSettingsCellularQualityLabel": "Max bitrate",
   "playbackSettingsCellularFormatLabel": "Preferred format",
   "playbackSettingsScrobbleTitle": "Enable scrobbling",
-  "playbackSettingsScrobbleSubtitle": "Send now-playing and listened-track updates to the server.",
+  "playbackSettingsScrobbleSubtitle": "Report tracks you play to the server (now-playing and play counts). Disable to listen anonymously.",
   "playbackSettingsLrclibTitle": "Use LRCLIB fallback",
   "playbackSettingsLrclibSubtitle": "When server lyrics are unavailable, try LRCLIB and cache per song.",
   "playbackSettingsGaplessTitle": "Enable gapless playback",

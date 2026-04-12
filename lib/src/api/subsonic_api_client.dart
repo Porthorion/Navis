@@ -580,6 +580,7 @@ class SubsonicApiClient {
   Future<void> scrobble(
     String id, {
     bool submission = false,
+    DateTime? time,
     CancelToken? cancelToken,
   }) async {
     await _readRoot(
@@ -587,6 +588,7 @@ class SubsonicApiClient {
       query: {
         'id': id,
         'submission': submission,
+        if (time != null) 'time': time.millisecondsSinceEpoch,
       },
       cancelToken: cancelToken,
     );
