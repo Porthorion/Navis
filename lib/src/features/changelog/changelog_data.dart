@@ -29,8 +29,47 @@ const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
     version: '0.9.8',
     entries: [
+      // New
       ChangelogEntry(
-        'Fixed Android Auto support',
+        'User-configurable Last.fm API key — enter your own key in Settings > Configuration; no build flags required',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Android Auto: Search tab for finding music directly from your car\'s head unit',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Android Auto: Instant Mix and Instant Radio controls added to the More tab, with an Instant Mix button in the player controls',
+        type: ChangelogEntryType.newFeature,
+      ),
+      // Changes / improvements
+      ChangelogEntry(
+        'Settings page renamed from "Server" to "Configuration"',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Android Auto browse tree redesigned — Home, Recent, Playlists, and More tabs replace the previous flat layout; albums are shown at the root level',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Artist top tracks section is now hidden when none of the tracks are found in your library, rather than showing entries that cannot be played',
+        type: ChangelogEntryType.improvement,
+      ),
+      // Fixes
+      ChangelogEntry(
+        'Scrobbling now records the correct listen time instead of the time the scrobble was submitted',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Artist top tracks no longer show or play songs from the wrong artists — improved matching prevents title collisions between tracks from different artists',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Android Auto album art now loads reliably — fixed a race condition that caused cover art to fail downloading',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Android Auto Instant Mix now correctly applies your album queue preference and shows accurate on/off state',
         type: ChangelogEntryType.fix,
       ),
     ],
