@@ -71,6 +71,7 @@ class SettingsRepository {
       desktopNavbarAutohide: settings.desktopNavbarAutohide,
       albumQueueEnabled: settings.albumQueueEnabled,
       likedQueueEnabled: settings.likedQueueEnabled,
+      lastFmApiKey: settings.lastFmApiKey,
     );
   }
 
@@ -130,6 +131,7 @@ class SettingsRepository {
       desktopNavbarAutohide: row.desktopNavbarAutohide,
       albumQueueEnabled: row.albumQueueEnabled,
       likedQueueEnabled: row.likedQueueEnabled,
+      lastFmApiKey: row.lastFmApiKey,
     );
   }
 

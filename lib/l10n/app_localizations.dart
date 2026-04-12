@@ -271,13 +271,13 @@ abstract class AppLocalizations {
   /// No description provided for @settingsServerTitle.
   ///
   /// In en, this message translates to:
-  /// **'Server'**
+  /// **'Configuration'**
   String get settingsServerTitle;
 
   /// No description provided for @settingsServerSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'View connection info, test, and sign out.'**
+  /// **'Server connection, account, and external services.'**
   String get settingsServerSubtitle;
 
   /// No description provided for @settingsCacheTitle.
@@ -457,7 +457,7 @@ abstract class AppLocalizations {
   /// No description provided for @playbackSettingsScrobbleSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Send now-playing and listened-track updates to the server.'**
+  /// **'Report tracks you play to the server (now-playing and play counts). Disable to listen anonymously.'**
   String get playbackSettingsScrobbleSubtitle;
 
   /// No description provided for @playbackSettingsLrclibTitle.
@@ -1033,7 +1033,7 @@ abstract class AppLocalizations {
   /// No description provided for @serverSettingsTitle.
   ///
   /// In en, this message translates to:
-  /// **'Server Settings'**
+  /// **'Configuration'**
   String get serverSettingsTitle;
 
   /// No description provided for @serverSettingsLoadError.
@@ -1215,6 +1215,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could not complete sign out. Try again.'**
   String get serverSettingsSignOutError;
+
+  /// No description provided for @configurationServerSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Server'**
+  String get configurationServerSection;
+
+  /// No description provided for @configurationExternalServicesSection.
+  ///
+  /// In en, this message translates to:
+  /// **'External services'**
+  String get configurationExternalServicesSection;
+
+  /// No description provided for @configurationLastFmSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Last.fm'**
+  String get configurationLastFmSection;
+
+  /// No description provided for @configurationLastFmApiKeyLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'API Key'**
+  String get configurationLastFmApiKeyLabel;
+
+  /// No description provided for @configurationLastFmApiKeyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Paste your Last.fm API key here'**
+  String get configurationLastFmApiKeyHint;
+
+  /// No description provided for @configurationLastFmGetApiKey.
+  ///
+  /// In en, this message translates to:
+  /// **'Get API Key'**
+  String get configurationLastFmGetApiKey;
+
+  /// No description provided for @configurationLastFmApiKeySaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Last.fm API key saved.'**
+  String get configurationLastFmApiKeySaved;
+
+  /// No description provided for @configurationLastFmApiKeyCleared.
+  ///
+  /// In en, this message translates to:
+  /// **'Last.fm API key removed.'**
+  String get configurationLastFmApiKeyCleared;
+
+  /// No description provided for @configurationLastFmBundledNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'API key bundled with this build'**
+  String get configurationLastFmBundledNotice;
+
+  /// No description provided for @configurationLastFmBundledSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'This build includes a Last.fm API key. You do not need to provide your own.'**
+  String get configurationLastFmBundledSubtitle;
 
   /// No description provided for @commonQueued.
   ///

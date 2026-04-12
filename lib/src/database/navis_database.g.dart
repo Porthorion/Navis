@@ -1231,6 +1231,17 @@ class $AppSettingsTableTable extends AppSettingsTable
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _lastFmApiKeyMeta = const VerificationMeta(
+    'lastFmApiKey',
+  );
+  @override
+  late final GeneratedColumn<String> lastFmApiKey = GeneratedColumn<String>(
+    'last_fm_api_key',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _lastFullSyncAppBuildMeta =
       const VerificationMeta('lastFullSyncAppBuild');
   @override
@@ -1310,6 +1321,7 @@ class $AppSettingsTableTable extends AppSettingsTable
     desktopNavbarAutohide,
     albumQueueEnabled,
     likedQueueEnabled,
+    lastFmApiKey,
     lastFullSyncAppBuild,
     updatedAt,
   ];
@@ -1802,6 +1814,15 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
       );
     }
+    if (data.containsKey('last_fm_api_key')) {
+      context.handle(
+        _lastFmApiKeyMeta,
+        lastFmApiKey.isAcceptableOrUnknown(
+          data['last_fm_api_key']!,
+          _lastFmApiKeyMeta,
+        ),
+      );
+    }
     if (data.containsKey('last_full_sync_app_build')) {
       context.handle(
         _lastFullSyncAppBuildMeta,
@@ -2048,6 +2069,10 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.bool,
         data['${effectivePrefix}liked_queue_enabled'],
       )!,
+      lastFmApiKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_fm_api_key'],
+      ),
       lastFullSyncAppBuild: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}last_full_sync_app_build'],
@@ -2208,6 +2233,10 @@ class AppSettingsTableData extends DataClass
   /// Default false.
   final bool likedQueueEnabled;
 
+  /// User-provided Last.fm API key. Null when not configured or when a
+  /// build-time key (NAVIS_LASTFM_API_KEY) is bundled instead.
+  final String? lastFmApiKey;
+
   /// The app version+build string (e.g. "1.2.3+100") that was current when
   /// the last forced full sync was triggered. Null means no version-triggered
   /// full sync has run yet. Used to auto-force a full resync on app updates.
@@ -2269,6 +2298,7 @@ class AppSettingsTableData extends DataClass
     required this.desktopNavbarAutohide,
     required this.albumQueueEnabled,
     required this.likedQueueEnabled,
+    this.lastFmApiKey,
     this.lastFullSyncAppBuild,
     required this.updatedAt,
   });
@@ -2366,6 +2396,9 @@ class AppSettingsTableData extends DataClass
     map['desktop_navbar_autohide'] = Variable<bool>(desktopNavbarAutohide);
     map['album_queue_enabled'] = Variable<bool>(albumQueueEnabled);
     map['liked_queue_enabled'] = Variable<bool>(likedQueueEnabled);
+    if (!nullToAbsent || lastFmApiKey != null) {
+      map['last_fm_api_key'] = Variable<String>(lastFmApiKey);
+    }
     if (!nullToAbsent || lastFullSyncAppBuild != null) {
       map['last_full_sync_app_build'] = Variable<String>(lastFullSyncAppBuild);
     }
@@ -2458,6 +2491,9 @@ class AppSettingsTableData extends DataClass
       desktopNavbarAutohide: Value(desktopNavbarAutohide),
       albumQueueEnabled: Value(albumQueueEnabled),
       likedQueueEnabled: Value(likedQueueEnabled),
+      lastFmApiKey: lastFmApiKey == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastFmApiKey),
       lastFullSyncAppBuild: lastFullSyncAppBuild == null && nullToAbsent
           ? const Value.absent()
           : Value(lastFullSyncAppBuild),
@@ -2564,6 +2600,7 @@ class AppSettingsTableData extends DataClass
       ),
       albumQueueEnabled: serializer.fromJson<bool>(json['albumQueueEnabled']),
       likedQueueEnabled: serializer.fromJson<bool>(json['likedQueueEnabled']),
+      lastFmApiKey: serializer.fromJson<String?>(json['lastFmApiKey']),
       lastFullSyncAppBuild: serializer.fromJson<String?>(
         json['lastFullSyncAppBuild'],
       ),
@@ -2643,6 +2680,7 @@ class AppSettingsTableData extends DataClass
       'desktopNavbarAutohide': serializer.toJson<bool>(desktopNavbarAutohide),
       'albumQueueEnabled': serializer.toJson<bool>(albumQueueEnabled),
       'likedQueueEnabled': serializer.toJson<bool>(likedQueueEnabled),
+      'lastFmApiKey': serializer.toJson<String?>(lastFmApiKey),
       'lastFullSyncAppBuild': serializer.toJson<String?>(lastFullSyncAppBuild),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
@@ -2704,6 +2742,7 @@ class AppSettingsTableData extends DataClass
     bool? desktopNavbarAutohide,
     bool? albumQueueEnabled,
     bool? likedQueueEnabled,
+    Value<String?> lastFmApiKey = const Value.absent(),
     Value<String?> lastFullSyncAppBuild = const Value.absent(),
     DateTime? updatedAt,
   }) => AppSettingsTableData(
@@ -2793,6 +2832,7 @@ class AppSettingsTableData extends DataClass
     desktopNavbarAutohide: desktopNavbarAutohide ?? this.desktopNavbarAutohide,
     albumQueueEnabled: albumQueueEnabled ?? this.albumQueueEnabled,
     likedQueueEnabled: likedQueueEnabled ?? this.likedQueueEnabled,
+    lastFmApiKey: lastFmApiKey.present ? lastFmApiKey.value : this.lastFmApiKey,
     lastFullSyncAppBuild: lastFullSyncAppBuild.present
         ? lastFullSyncAppBuild.value
         : this.lastFullSyncAppBuild,
@@ -2957,6 +2997,9 @@ class AppSettingsTableData extends DataClass
       likedQueueEnabled: data.likedQueueEnabled.present
           ? data.likedQueueEnabled.value
           : this.likedQueueEnabled,
+      lastFmApiKey: data.lastFmApiKey.present
+          ? data.lastFmApiKey.value
+          : this.lastFmApiKey,
       lastFullSyncAppBuild: data.lastFullSyncAppBuild.present
           ? data.lastFullSyncAppBuild.value
           : this.lastFullSyncAppBuild,
@@ -3024,6 +3067,7 @@ class AppSettingsTableData extends DataClass
           ..write('desktopNavbarAutohide: $desktopNavbarAutohide, ')
           ..write('albumQueueEnabled: $albumQueueEnabled, ')
           ..write('likedQueueEnabled: $likedQueueEnabled, ')
+          ..write('lastFmApiKey: $lastFmApiKey, ')
           ..write('lastFullSyncAppBuild: $lastFullSyncAppBuild, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -3087,6 +3131,7 @@ class AppSettingsTableData extends DataClass
     desktopNavbarAutohide,
     albumQueueEnabled,
     likedQueueEnabled,
+    lastFmApiKey,
     lastFullSyncAppBuild,
     updatedAt,
   ]);
@@ -3150,6 +3195,7 @@ class AppSettingsTableData extends DataClass
           other.desktopNavbarAutohide == this.desktopNavbarAutohide &&
           other.albumQueueEnabled == this.albumQueueEnabled &&
           other.likedQueueEnabled == this.likedQueueEnabled &&
+          other.lastFmApiKey == this.lastFmApiKey &&
           other.lastFullSyncAppBuild == this.lastFullSyncAppBuild &&
           other.updatedAt == this.updatedAt);
 }
@@ -3210,6 +3256,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<bool> desktopNavbarAutohide;
   final Value<bool> albumQueueEnabled;
   final Value<bool> likedQueueEnabled;
+  final Value<String?> lastFmApiKey;
   final Value<String?> lastFullSyncAppBuild;
   final Value<DateTime> updatedAt;
   const AppSettingsTableCompanion({
@@ -3268,6 +3315,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.desktopNavbarAutohide = const Value.absent(),
     this.albumQueueEnabled = const Value.absent(),
     this.likedQueueEnabled = const Value.absent(),
+    this.lastFmApiKey = const Value.absent(),
     this.lastFullSyncAppBuild = const Value.absent(),
     this.updatedAt = const Value.absent(),
   });
@@ -3327,6 +3375,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.desktopNavbarAutohide = const Value.absent(),
     this.albumQueueEnabled = const Value.absent(),
     this.likedQueueEnabled = const Value.absent(),
+    this.lastFmApiKey = const Value.absent(),
     this.lastFullSyncAppBuild = const Value.absent(),
     required DateTime updatedAt,
   }) : updatedAt = Value(updatedAt);
@@ -3386,6 +3435,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<bool>? desktopNavbarAutohide,
     Expression<bool>? albumQueueEnabled,
     Expression<bool>? likedQueueEnabled,
+    Expression<String>? lastFmApiKey,
     Expression<String>? lastFullSyncAppBuild,
     Expression<DateTime>? updatedAt,
   }) {
@@ -3467,6 +3517,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         'desktop_navbar_autohide': desktopNavbarAutohide,
       if (albumQueueEnabled != null) 'album_queue_enabled': albumQueueEnabled,
       if (likedQueueEnabled != null) 'liked_queue_enabled': likedQueueEnabled,
+      if (lastFmApiKey != null) 'last_fm_api_key': lastFmApiKey,
       if (lastFullSyncAppBuild != null)
         'last_full_sync_app_build': lastFullSyncAppBuild,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -3529,6 +3580,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<bool>? desktopNavbarAutohide,
     Value<bool>? albumQueueEnabled,
     Value<bool>? likedQueueEnabled,
+    Value<String?>? lastFmApiKey,
     Value<String?>? lastFullSyncAppBuild,
     Value<DateTime>? updatedAt,
   }) {
@@ -3596,6 +3648,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           desktopNavbarAutohide ?? this.desktopNavbarAutohide,
       albumQueueEnabled: albumQueueEnabled ?? this.albumQueueEnabled,
       likedQueueEnabled: likedQueueEnabled ?? this.likedQueueEnabled,
+      lastFmApiKey: lastFmApiKey ?? this.lastFmApiKey,
       lastFullSyncAppBuild: lastFullSyncAppBuild ?? this.lastFullSyncAppBuild,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -3791,6 +3844,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     if (likedQueueEnabled.present) {
       map['liked_queue_enabled'] = Variable<bool>(likedQueueEnabled.value);
     }
+    if (lastFmApiKey.present) {
+      map['last_fm_api_key'] = Variable<String>(lastFmApiKey.value);
+    }
     if (lastFullSyncAppBuild.present) {
       map['last_full_sync_app_build'] = Variable<String>(
         lastFullSyncAppBuild.value,
@@ -3862,6 +3918,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('desktopNavbarAutohide: $desktopNavbarAutohide, ')
           ..write('albumQueueEnabled: $albumQueueEnabled, ')
           ..write('likedQueueEnabled: $likedQueueEnabled, ')
+          ..write('lastFmApiKey: $lastFmApiKey, ')
           ..write('lastFullSyncAppBuild: $lastFullSyncAppBuild, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -12399,6 +12456,7 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<bool> desktopNavbarAutohide,
       Value<bool> albumQueueEnabled,
       Value<bool> likedQueueEnabled,
+      Value<String?> lastFmApiKey,
       Value<String?> lastFullSyncAppBuild,
       required DateTime updatedAt,
     });
@@ -12459,6 +12517,7 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<bool> desktopNavbarAutohide,
       Value<bool> albumQueueEnabled,
       Value<bool> likedQueueEnabled,
+      Value<String?> lastFmApiKey,
       Value<String?> lastFullSyncAppBuild,
       Value<DateTime> updatedAt,
     });
@@ -12744,6 +12803,11 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<bool> get likedQueueEnabled => $composableBuilder(
     column: $table.likedQueueEnabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastFmApiKey => $composableBuilder(
+    column: $table.lastFmApiKey,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -13042,6 +13106,11 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get lastFmApiKey => $composableBuilder(
+    column: $table.lastFmApiKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get lastFullSyncAppBuild => $composableBuilder(
     column: $table.lastFullSyncAppBuild,
     builder: (column) => ColumnOrderings(column),
@@ -13329,6 +13398,11 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get lastFmApiKey => $composableBuilder(
+    column: $table.lastFmApiKey,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get lastFullSyncAppBuild => $composableBuilder(
     column: $table.lastFullSyncAppBuild,
     builder: (column) => column,
@@ -13431,6 +13505,7 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> desktopNavbarAutohide = const Value.absent(),
                 Value<bool> albumQueueEnabled = const Value.absent(),
                 Value<bool> likedQueueEnabled = const Value.absent(),
+                Value<String?> lastFmApiKey = const Value.absent(),
                 Value<String?> lastFullSyncAppBuild = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
               }) => AppSettingsTableCompanion(
@@ -13489,6 +13564,7 @@ class $$AppSettingsTableTableTableManager
                 desktopNavbarAutohide: desktopNavbarAutohide,
                 albumQueueEnabled: albumQueueEnabled,
                 likedQueueEnabled: likedQueueEnabled,
+                lastFmApiKey: lastFmApiKey,
                 lastFullSyncAppBuild: lastFullSyncAppBuild,
                 updatedAt: updatedAt,
               ),
@@ -13550,6 +13626,7 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> desktopNavbarAutohide = const Value.absent(),
                 Value<bool> albumQueueEnabled = const Value.absent(),
                 Value<bool> likedQueueEnabled = const Value.absent(),
+                Value<String?> lastFmApiKey = const Value.absent(),
                 Value<String?> lastFullSyncAppBuild = const Value.absent(),
                 required DateTime updatedAt,
               }) => AppSettingsTableCompanion.insert(
@@ -13608,6 +13685,7 @@ class $$AppSettingsTableTableTableManager
                 desktopNavbarAutohide: desktopNavbarAutohide,
                 albumQueueEnabled: albumQueueEnabled,
                 likedQueueEnabled: likedQueueEnabled,
+                lastFmApiKey: lastFmApiKey,
                 lastFullSyncAppBuild: lastFullSyncAppBuild,
                 updatedAt: updatedAt,
               ),

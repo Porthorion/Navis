@@ -238,9 +238,25 @@ final subsonicApiProvider = Provider<SubsonicApiClient?>((ref) {
   );
 });
 
-/// Build-time Last.fm API key used by Same Vibes mode.
-final lastFmApiKeyProvider = Provider<String>((_) {
-  return AppConstants.lastFmApiKey.trim();
+
+/// Whether a Last.fm API key is bundled at build time via NAVIS_LASTFM_API_KEY.
+final lastFmBundledKeyProvider = Provider<bool>((_) {
+  return AppConstants.lastFmApiKey.trim().isNotEmpty;
+});
+
+/// The effective Last.fm API key.
+///
+/// Prefers the build-time key (NAVIS_LASTFM_API_KEY). When no build-time key
+/// is present, falls back to the user-provided key stored in app settings.
+final lastFmApiKeyProvider = Provider<String>((ref) {
+  const bundledKey = AppConstants.lastFmApiKey;
+  if (bundledKey.trim().isNotEmpty) {
+    return bundledKey.trim();
+  }
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.lastFmApiKey?.trim() ?? '';
 });
 
 final hasLastFmApiKeyProvider = Provider<bool>((ref) {
@@ -249,7 +265,7 @@ final hasLastFmApiKeyProvider = Provider<bool>((ref) {
 
 /// Last.fm client used for recommendation lookups.
 ///
-/// Returns `null` when no API key was provided at build time.
+/// Returns `null` when no API key is available (neither bundled nor user-set).
 final lastFmApiClientProvider = Provider<LastFmApiClient?>((ref) {
   final apiKey = ref.watch(lastFmApiKeyProvider);
   if (apiKey.isEmpty) {

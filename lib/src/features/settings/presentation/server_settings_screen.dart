@@ -8,6 +8,9 @@ import 'package:navis/src/features/auth/data/sign_out_service.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_connection_provider.dart';
+import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/providers/app_providers.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ServerSettingsScreen extends ConsumerStatefulWidget {
   const ServerSettingsScreen({super.key});
@@ -20,13 +23,32 @@ class ServerSettingsScreen extends ConsumerStatefulWidget {
 class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
   bool _isTestingConnection = false;
   bool _isSigningOut = false;
+  bool _isSavingApiKey = false;
+
+  final _lastFmApiKeyController = TextEditingController();
+  bool _lastFmKeyInitialized = false;
+  bool _obscureApiKey = true;
 
   bool get _isBusy => _isTestingConnection || _isSigningOut;
+
+  @override
+  void dispose() {
+    _lastFmApiKeyController.dispose();
+    super.dispose();
+  }
+
+  void _initLastFmKey(AppSettingsModel settings) {
+    if (_lastFmKeyInitialized) return;
+    _lastFmKeyInitialized = true;
+    _lastFmApiKeyController.text = settings.lastFmApiKey ?? '';
+  }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final configAsync = ref.watch(serverConfigStateProvider);
+    final settingsAsync = ref.watch(appSettingsProvider);
+    final isBundled = ref.watch(lastFmBundledKeyProvider);
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
 
@@ -46,12 +68,18 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
             );
           }
 
+          settingsAsync.whenData(_initLastFmKey);
+
           return SafeArea(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
+                  // ── Server section ──────────────────────────────────────
+                  _SectionHeader(title: l10n.configurationServerSection),
+                  const SizedBox(height: 8),
+
                   // Connection info card
                   Card(
                     child: Padding(
@@ -91,7 +119,7 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 12),
 
                   // Test Connection
                   FilledButton.tonal(
@@ -125,6 +153,26 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
                             ),
                           )
                         : Text(l10n.serverSettingsSignOut),
+                  ),
+                  const SizedBox(height: 32),
+
+                  // ── External Services section ──────────────────────────
+                  _SectionHeader(
+                    title: l10n.configurationExternalServicesSection,
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Last.fm card
+                  _LastFmCard(
+                    isBundled: isBundled,
+                    isSaving: _isSavingApiKey,
+                    obscureApiKey: _obscureApiKey,
+                    controller: _lastFmApiKeyController,
+                    onToggleObscure: () =>
+                        setState(() => _obscureApiKey = !_obscureApiKey),
+                    onSave: _saveLastFmKey,
+                    onClear: _clearLastFmKey,
+                    onGetApiKey: _openLastFmApiPage,
                   ),
                 ],
               ),
@@ -235,6 +283,50 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
     }
   }
 
+  Future<void> _saveLastFmKey() async {
+    final l10n = AppLocalizations.of(context)!;
+    setState(() => _isSavingApiKey = true);
+    try {
+      final repo = ref.read(settingsRepositoryProvider);
+      final current =
+          ref.read(appSettingsProvider).asData?.value ??
+          const AppSettingsModel.defaults();
+      final key = _lastFmApiKeyController.text.trim();
+      await repo.saveSettings(
+        current.copyWith(
+          lastFmApiKey: key.isEmpty ? null : key,
+          clearLastFmApiKey: key.isEmpty,
+        ),
+      );
+      if (!mounted) return;
+      AppNoticeMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            key.isEmpty
+                ? l10n.configurationLastFmApiKeyCleared
+                : l10n.configurationLastFmApiKeySaved,
+          ),
+        ),
+      );
+    } on Object {
+      // Silently ignore — the field retains the user's input
+    } finally {
+      if (mounted) setState(() => _isSavingApiKey = false);
+    }
+  }
+
+  Future<void> _clearLastFmKey() async {
+    _lastFmApiKeyController.clear();
+    await _saveLastFmKey();
+  }
+
+  Future<void> _openLastFmApiPage() async {
+    final uri = Uri.parse('https://www.last.fm/api/accounts');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
   String _toUserMessage(Object error, AppLocalizations l10n) {
     return switch (error) {
       SubsonicAuthException() => l10n.loginErrorAuthentication,
@@ -246,6 +338,31 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
 }
 
 enum _SignOutAction { keepData, wipeData }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Shared internal widgets
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 2),
+      child: Text(
+        title,
+        style: theme.textTheme.titleSmall?.copyWith(
+          color: theme.colorScheme.primary,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
 
 class _ServerInfoRow extends StatelessWidget {
   const _ServerInfoRow({required this.label, required this.value});
@@ -271,6 +388,159 @@ class _ServerInfoRow extends StatelessWidget {
             child: Text(value, style: theme.textTheme.bodyMedium),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Last.fm card
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _LastFmCard extends StatelessWidget {
+  const _LastFmCard({
+    required this.isBundled,
+    required this.isSaving,
+    required this.obscureApiKey,
+    required this.controller,
+    required this.onToggleObscure,
+    required this.onSave,
+    required this.onClear,
+    required this.onGetApiKey,
+  });
+
+  final bool isBundled;
+  final bool isSaving;
+  final bool obscureApiKey;
+  final TextEditingController controller;
+  final VoidCallback onToggleObscure;
+  final VoidCallback onSave;
+  final VoidCallback onClear;
+  final VoidCallback onGetApiKey;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Icon(Icons.music_note_outlined, color: cs.primary),
+                const SizedBox(width: 8),
+                Text(
+                  l10n.configurationLastFmSection,
+                  style: theme.textTheme.titleMedium,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            if (isBundled) ...<Widget>[
+              // ── Bundled key notice ──────────────────────────────────
+              Container(
+                decoration: BoxDecoration(
+                  color: cs.secondaryContainer,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Icon(
+                      Icons.verified_outlined,
+                      size: 20,
+                      color: cs.onSecondaryContainer,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            l10n.configurationLastFmBundledNotice,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: cs.onSecondaryContainer,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            l10n.configurationLastFmBundledSubtitle,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: cs.onSecondaryContainer,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ] else ...<Widget>[
+              // ── User-provided key field ─────────────────────────────
+              TextField(
+                controller: controller,
+                obscureText: obscureApiKey,
+                decoration: InputDecoration(
+                  labelText: l10n.configurationLastFmApiKeyLabel,
+                  hintText: l10n.configurationLastFmApiKeyHint,
+                  border: const OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.key_outlined),
+                  suffixIcon: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      IconButton(
+                        icon: Icon(
+                          obscureApiKey
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                        ),
+                        tooltip: obscureApiKey ? 'Show' : 'Hide',
+                        onPressed: onToggleObscure,
+                      ),
+                      if (controller.text.isNotEmpty)
+                        IconButton(
+                          icon: const Icon(Icons.clear),
+                          tooltip: 'Clear',
+                          onPressed: onClear,
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: <Widget>[
+                  // Get API Key link
+                  TextButton.icon(
+                    onPressed: onGetApiKey,
+                    icon: const Icon(Icons.open_in_new, size: 16),
+                    label: Text(l10n.configurationLastFmGetApiKey),
+                  ),
+                  const Spacer(),
+                  // Save button
+                  FilledButton.tonal(
+                    onPressed: isSaving ? null : onSave,
+                    child: isSaving
+                        ? const SizedBox(
+                            height: 18,
+                            width: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Text(l10n.serverSettingsSave),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

@@ -78,6 +78,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     bool desktopNavbarAutohide = false,
     bool albumQueueEnabled = false,
     bool likedQueueEnabled = false,
+    String? lastFmApiKey,
   }) {
     return into(appSettingsTable).insertOnConflictUpdate(
       AppSettingsTableCompanion.insert(
@@ -131,6 +132,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         desktopNavbarAutohide: Value(desktopNavbarAutohide),
         albumQueueEnabled: Value(albumQueueEnabled),
         likedQueueEnabled: Value(likedQueueEnabled),
+        lastFmApiKey: Value(lastFmApiKey),
         updatedAt: DateTime.now(),
       ),
     );
@@ -185,6 +187,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       desktopNavbarAutohide: false,
       albumQueueEnabled: false,
       likedQueueEnabled: false,
+      lastFmApiKey: null,
     );
   }
 

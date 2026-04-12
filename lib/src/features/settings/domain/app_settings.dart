@@ -53,6 +53,7 @@ class AppSettingsModel {
     this.desktopNavbarAutohide = false,
     this.albumQueueEnabled = false,
     this.likedQueueEnabled = false,
+    this.lastFmApiKey,
   });
 
   const AppSettingsModel.defaults()
@@ -104,7 +105,8 @@ class AppSettingsModel {
       desktopNavbarStyle = 'comfortable',
       desktopNavbarAutohide = false,
       albumQueueEnabled = false,
-      likedQueueEnabled = false;
+      likedQueueEnabled = false,
+      lastFmApiKey = null;
 
   final int? wifiMaxBitRate;
   final String? wifiFormat;
@@ -192,6 +194,10 @@ class AppSettingsModel {
   /// Liked page queues all liked songs and starts at the selected track.
   final bool likedQueueEnabled;
 
+  /// User-provided Last.fm API key. Null when not configured.
+  /// Ignored at runtime if a build-time key (NAVIS_LASTFM_API_KEY) is bundled.
+  final String? lastFmApiKey;
+
   AppSettingsModel copyWith({
     int? wifiMaxBitRate,
     String? wifiFormat,
@@ -242,6 +248,7 @@ class AppSettingsModel {
     bool? desktopNavbarAutohide,
     bool? albumQueueEnabled,
     bool? likedQueueEnabled,
+    String? lastFmApiKey,
     bool clearWifiBitRate = false,
     bool clearWifiFormat = false,
     bool clearCellularBitRate = false,
@@ -253,6 +260,7 @@ class AppSettingsModel {
     bool clearAlbumGridDensity = false,
     bool clearHomeSectionOrder = false,
     bool clearHomeSectionsHidden = false,
+    bool clearLastFmApiKey = false,
   }) {
     return AppSettingsModel(
       wifiMaxBitRate: clearWifiBitRate
@@ -329,6 +337,7 @@ class AppSettingsModel {
           desktopNavbarAutohide ?? this.desktopNavbarAutohide,
       albumQueueEnabled: albumQueueEnabled ?? this.albumQueueEnabled,
       likedQueueEnabled: likedQueueEnabled ?? this.likedQueueEnabled,
+      lastFmApiKey: clearLastFmApiKey ? null : lastFmApiKey ?? this.lastFmApiKey,
     );
   }
 }

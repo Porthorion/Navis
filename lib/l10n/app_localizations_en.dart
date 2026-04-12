@@ -101,11 +101,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsTitle => 'Settings';
 
   @override
-  String get settingsServerTitle => 'Server';
+  String get settingsServerTitle => 'Configuration';
 
   @override
   String get settingsServerSubtitle =>
-      'View connection info, test, and sign out.';
+      'Server connection, account, and external services.';
 
   @override
   String get settingsCacheTitle => 'Cache';
@@ -536,7 +536,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get radioLive => 'LIVE';
 
   @override
-  String get serverSettingsTitle => 'Server Settings';
+  String get serverSettingsTitle => 'Configuration';
 
   @override
   String get serverSettingsLoadError => 'Could not load server settings.';
@@ -638,6 +638,38 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get serverSettingsSignOutError =>
       'Could not complete sign out. Try again.';
+
+  @override
+  String get configurationServerSection => 'Server';
+
+  @override
+  String get configurationExternalServicesSection => 'External services';
+
+  @override
+  String get configurationLastFmSection => 'Last.fm';
+
+  @override
+  String get configurationLastFmApiKeyLabel => 'API Key';
+
+  @override
+  String get configurationLastFmApiKeyHint => 'Paste your Last.fm API key here';
+
+  @override
+  String get configurationLastFmGetApiKey => 'Get API Key';
+
+  @override
+  String get configurationLastFmApiKeySaved => 'Last.fm API key saved.';
+
+  @override
+  String get configurationLastFmApiKeyCleared => 'Last.fm API key removed.';
+
+  @override
+  String get configurationLastFmBundledNotice =>
+      'API key bundled with this build';
+
+  @override
+  String get configurationLastFmBundledSubtitle =>
+      'This build includes a Last.fm API key. You do not need to provide your own.';
 
   @override
   String get commonQueued => 'Queued';

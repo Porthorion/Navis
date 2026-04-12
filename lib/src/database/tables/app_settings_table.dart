@@ -192,6 +192,10 @@ class AppSettingsTable extends Table {
   BoolColumn get likedQueueEnabled =>
       boolean().withDefault(const Constant(false))();
 
+  /// User-provided Last.fm API key. Null when not configured or when a
+  /// build-time key (NAVIS_LASTFM_API_KEY) is bundled instead.
+  TextColumn get lastFmApiKey => text().nullable()();
+
   /// The app version+build string (e.g. "1.2.3+100") that was current when
   /// the last forced full sync was triggered. Null means no version-triggered
   /// full sync has run yet. Used to auto-force a full resync on app updates.
