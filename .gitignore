@@ -117,6 +117,9 @@ coverage/
 # Release credentials (never commit)
 tool/release.env
 
+# Tool state files
+.codex
+
 # Symbols
 app.*.symbols
 
