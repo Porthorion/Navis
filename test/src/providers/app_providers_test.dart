@@ -47,6 +47,10 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
   Stream<void> get radioStreamErrorStream => const Stream<void>.empty();
 
   @override
+  Stream<PlaybackLoadFailure> get loadFailureStream =>
+      const Stream<PlaybackLoadFailure>.empty();
+
+  @override
   Stream<ManualTrackChangeCue> get manualTrackChangeCueStream =>
       const Stream<ManualTrackChangeCue>.empty();
 
@@ -243,9 +247,13 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
   }) {}
 
   @override
-  void registerPreferredMixCallback(Future<void> Function(String seedSongId) callback) {}
+  void registerPreferredMixCallback(
+    Future<void> Function(String seedSongId) callback,
+  ) {}
   @override
-  void registerPreferredMixToggleCallback(Future<void> Function(String seedSongId) callback) {}
+  void registerPreferredMixToggleCallback(
+    Future<void> Function(String seedSongId) callback,
+  ) {}
 
   Future<void> dispose() async {
     await _controller.close();
@@ -883,5 +891,70 @@ void main() {
       },
       skip: !sqliteAvailable,
     );
+  });
+
+  group('lyrics lookup metadata helper', () {
+    test(
+      'falls back to current media item metadata when song row is missing',
+      () {
+        final metadata = navisResolveLyricsLookupMetadata(
+          songId: 'song-1',
+          song: null,
+          currentMediaItem: const MediaItem(
+            id: 'song-1',
+            title: 'Track Title',
+            artist: 'Artist Name',
+            album: 'Album Name',
+            duration: Duration(seconds: 245),
+          ),
+        );
+
+        expect(metadata, isNotNull);
+        expect(metadata!.title, 'Track Title');
+        expect(metadata.artist, 'Artist Name');
+        expect(metadata.album, 'Album Name');
+        expect(metadata.durationSeconds, 245);
+      },
+    );
+
+    test('merges missing song fields from current media item', () {
+      final metadata = navisResolveLyricsLookupMetadata(
+        songId: 'song-1',
+        song: const SongsTableData(
+          id: 'song-1',
+          title: 'Track Title',
+          artistName: null,
+          albumName: null,
+          duration: null,
+        ),
+        currentMediaItem: const MediaItem(
+          id: 'song-1',
+          title: 'Track Title',
+          artist: 'Artist Name',
+          album: 'Album Name',
+          duration: Duration(seconds: 245),
+        ),
+      );
+
+      expect(metadata, isNotNull);
+      expect(metadata!.title, 'Track Title');
+      expect(metadata.artist, 'Artist Name');
+      expect(metadata.album, 'Album Name');
+      expect(metadata.durationSeconds, 245);
+    });
+
+    test('ignores unrelated current media items', () {
+      final metadata = navisResolveLyricsLookupMetadata(
+        songId: 'song-1',
+        song: null,
+        currentMediaItem: const MediaItem(
+          id: 'song-2',
+          title: 'Other Track',
+          artist: 'Other Artist',
+        ),
+      );
+
+      expect(metadata, isNull);
+    });
   });
 }

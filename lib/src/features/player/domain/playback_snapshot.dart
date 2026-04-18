@@ -76,6 +76,9 @@ class PlaybackSnapshot {
     required this.repeatMode,
     this.isCurrentSongLiked = false,
     this.radioStation,
+    this.isLoading = false,
+    this.loadingSongId,
+    this.lastFailedSongId,
   });
 
   const PlaybackSnapshot.idle()
@@ -90,7 +93,10 @@ class PlaybackSnapshot {
       shuffleMode = AudioServiceShuffleMode.none,
       repeatMode = AudioServiceRepeatMode.none,
       isCurrentSongLiked = false,
-      radioStation = null;
+      radioStation = null,
+      isLoading = false,
+      loadingSongId = null,
+      lastFailedSongId = null;
 
   final List<String> queueSongIds;
   final String? currentSongId;
@@ -106,6 +112,15 @@ class PlaybackSnapshot {
 
   /// Non-null when playing a radio stream instead of a song queue.
   final RadioStationMetadata? radioStation;
+
+  /// True while the handler is actively switching/loading a target source.
+  final bool isLoading;
+
+  /// Song id currently being loaded, if known.
+  final String? loadingSongId;
+
+  /// Most recent song id that failed or timed out during load.
+  final String? lastFailedSongId;
 
   /// Whether the player is in radio mode (streaming a radio station).
   bool get isRadioMode => radioStation != null;
@@ -128,6 +143,9 @@ class PlaybackSnapshot {
     AudioServiceRepeatMode? repeatMode,
     bool? isCurrentSongLiked,
     RadioStationMetadata? radioStation,
+    bool? isLoading,
+    String? loadingSongId,
+    String? lastFailedSongId,
   }) {
     return PlaybackSnapshot(
       queueSongIds: queueSongIds ?? this.queueSongIds,
@@ -142,6 +160,9 @@ class PlaybackSnapshot {
       repeatMode: repeatMode ?? this.repeatMode,
       isCurrentSongLiked: isCurrentSongLiked ?? this.isCurrentSongLiked,
       radioStation: radioStation ?? this.radioStation,
+      isLoading: isLoading ?? this.isLoading,
+      loadingSongId: loadingSongId ?? this.loadingSongId,
+      lastFailedSongId: lastFailedSongId ?? this.lastFailedSongId,
     );
   }
 
@@ -159,6 +180,9 @@ class PlaybackSnapshot {
       shuffleMode: shuffleMode,
       repeatMode: repeatMode,
       isCurrentSongLiked: isCurrentSongLiked,
+      isLoading: isLoading,
+      loadingSongId: loadingSongId,
+      lastFailedSongId: lastFailedSongId,
     );
   }
 }

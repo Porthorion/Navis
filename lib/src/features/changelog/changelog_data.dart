@@ -27,6 +27,27 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
+    version: '0.9.9',
+    entries: [
+      ChangelogEntry(
+        'Playback stays responsive while songs, radio streams, and queue changes are loading — stuck remote sources no longer trap the app until restart',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Player recovery is more resilient on Android — timed-out cached stream loads now fall back cleanly and background artwork/network tasks are isolated from playback control',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Lyrics lookup is now more consistent across remote and local playback — LRCLIB fallback can reuse the active track metadata even when the local source metadata path differs',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Recently played logging no longer crashes on duplicate history writes while tracks are switching quickly',
+        type: ChangelogEntryType.fix,
+      ),
+    ],
+  ),
+  ChangelogVersion(
     version: '0.9.8',
     entries: [
       // New

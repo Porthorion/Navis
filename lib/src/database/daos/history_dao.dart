@@ -21,12 +21,13 @@ class HistoryDao extends DatabaseAccessor<NavisDatabase>
     return query.watch();
   }
 
-  Future<void> addPlayHistory(String songId) {
-    return into(playHistoryTable).insert(
+  Future<void> addPlayHistory(String songId) async {
+    await into(playHistoryTable).insert(
       PlayHistoryTableCompanion.insert(
         songId: songId,
         playedAt: DateTime.now(),
       ),
+      mode: InsertMode.insertOrIgnore,
     );
   }
 

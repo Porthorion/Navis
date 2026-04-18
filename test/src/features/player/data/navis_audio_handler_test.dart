@@ -507,6 +507,30 @@ void main() {
       expect(shouldRetry, isTrue);
     });
 
+    test('lock-cached preference is disabled for bypassed songs', () {
+      expect(
+        navisShouldUseLockCachingForSong(
+          preferLockCaching: true,
+          isBypassedForSong: false,
+        ),
+        isTrue,
+      );
+      expect(
+        navisShouldUseLockCachingForSong(
+          preferLockCaching: true,
+          isBypassedForSong: true,
+        ),
+        isFalse,
+      );
+      expect(
+        navisShouldUseLockCachingForSong(
+          preferLockCaching: false,
+          isBypassedForSong: false,
+        ),
+        isFalse,
+      );
+    });
+
     test('retries queue apply when DSP init fails on direct sources', () {
       final dspError = PlatformException(
         code: 'error',

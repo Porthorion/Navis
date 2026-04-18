@@ -23,6 +23,8 @@ import 'package:path_provider/path_provider.dart';
 
 class PlaybackArtCache {
   PlaybackArtCache();
+  static const Duration _connectionTimeout = Duration(seconds: 10);
+  static const Duration _responseTimeout = Duration(seconds: 15);
 
   /// In-memory map: coverArtId → absolute file path of the cached file.
   ///
@@ -83,9 +85,10 @@ class PlaybackArtCache {
       // Download using dart:io HttpClient so we use the same platform HTTP
       // stack as the rest of the app (SSL certificates, proxy settings, etc.).
       final client = HttpClient();
+      client.connectionTimeout = _connectionTimeout;
       try {
-        final request = await client.getUrl(artUri);
-        final response = await request.close();
+        final request = await client.getUrl(artUri).timeout(_connectionTimeout);
+        final response = await request.close().timeout(_responseTimeout);
 
         if (response.statusCode != 200) {
           AppLogger.warning(

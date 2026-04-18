@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:audio_service/audio_service.dart' show MediaItem;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:drift/drift.dart' show Value;
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/widgets.dart' show BorderRadius;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -237,7 +238,6 @@ final subsonicApiProvider = Provider<SubsonicApiClient?>((ref) {
     },
   );
 });
-
 
 /// Whether a Last.fm API key is bundled at build time via NAVIS_LASTFM_API_KEY.
 final lastFmBundledKeyProvider = Provider<bool>((_) {
@@ -1455,6 +1455,15 @@ final radioStreamErrorProvider = StreamProvider<void>((ref) {
   return handler.radioStreamErrorStream;
 });
 
+/// Emits an event whenever a playback source load fails or times out.
+final playbackLoadFailureProvider = StreamProvider<PlaybackLoadFailure>((ref) {
+  final handler = ref.watch(audioHandlerProvider);
+  if (handler == null) {
+    return const Stream<PlaybackLoadFailure>.empty();
+  }
+  return handler.loadFailureStream;
+});
+
 /// Whether the player is currently playing audio.
 final isPlayingProvider = Provider<bool>((ref) {
   return ref.watch(playerStateProvider.select((s) => s.playing));
@@ -1527,6 +1536,38 @@ final playbackVolumeProvider =
       PlaybackVolumeController.new,
     );
 
+typedef LyricsLookupMetadata = ({
+  String artist,
+  String title,
+  String? album,
+  int? durationSeconds,
+});
+
+@visibleForTesting
+LyricsLookupMetadata? navisResolveLyricsLookupMetadata({
+  required String songId,
+  SongsTableData? song,
+  MediaItem? currentMediaItem,
+}) {
+  final matchingMediaItem =
+      currentMediaItem != null && currentMediaItem.id == songId
+      ? currentMediaItem
+      : null;
+
+  final title = _preferNonEmpty(song?.title, matchingMediaItem?.title);
+  final artist = _preferNonEmpty(song?.artistName, matchingMediaItem?.artist);
+  if (title == null || artist == null) {
+    return null;
+  }
+
+  return (
+    artist: artist,
+    title: title,
+    album: _preferNonEmpty(song?.albumName, matchingMediaItem?.album),
+    durationSeconds: song?.duration ?? matchingMediaItem?.duration?.inSeconds,
+  );
+}
+
 final lyricsProvider = FutureProvider.family<LyricsResolution, String>((
   ref,
   songId,
@@ -1534,6 +1575,12 @@ final lyricsProvider = FutureProvider.family<LyricsResolution, String>((
   final api = ref.watch(subsonicApiProvider);
   final dao = ref.read(navisDatabaseProvider).libraryDao;
   final song = (await dao.getSongsByIds(<String>[songId])).firstOrNull;
+  final currentMediaItem = ref.watch(currentMediaItemProvider).asData?.value;
+  final lookupMetadata = navisResolveLyricsLookupMetadata(
+    songId: songId,
+    song: song,
+    currentMediaItem: currentMediaItem,
+  );
 
   // 1) Server synced -> server plain
   if (api != null) {
@@ -1551,11 +1598,11 @@ final lyricsProvider = FutureProvider.family<LyricsResolution, String>((
       // Continue fallback chain to allow cache hits.
     }
 
-    if (song != null && song.artistName != null && song.title.isNotEmpty) {
+    if (lookupMetadata != null) {
       try {
         final legacy = await api.getLyrics(
-          artist: song.artistName,
-          title: song.title,
+          artist: lookupMetadata.artist,
+          title: lookupMetadata.title,
         );
         if (_hasAnyLyrics(legacy)) {
           return LyricsResolution(
@@ -1586,11 +1633,7 @@ final lyricsProvider = FutureProvider.family<LyricsResolution, String>((
   }
 
   // 3) LRCLIB synced -> LRCLIB plain (opt-in; default true per product decision).
-  if (!ref.read(useLrclibProvider) ||
-      song == null ||
-      song.artistName == null ||
-      song.artistName!.isEmpty ||
-      song.title.isEmpty) {
+  if (!ref.read(useLrclibProvider) || lookupMetadata == null) {
     if (cachedResolution != null) return cachedResolution;
     return const LyricsResolution(
       lyrics: LyricsList(),
@@ -1612,10 +1655,10 @@ final lyricsProvider = FutureProvider.family<LyricsResolution, String>((
   }
 
   final expected = LrclibMatchCandidate(
-    artist: song.artistName!,
-    title: song.title,
-    album: song.albumName,
-    durationSeconds: song.duration,
+    artist: lookupMetadata.artist,
+    title: lookupMetadata.title,
+    album: lookupMetadata.album,
+    durationSeconds: lookupMetadata.durationSeconds,
   );
   final lrclib = ref.read(lrclibClientProvider);
 
@@ -1624,10 +1667,10 @@ final lyricsProvider = FutureProvider.family<LyricsResolution, String>((
     var bestScore = 0.0;
 
     final direct = await lrclib.getLyrics(
-      artist: song.artistName!,
-      title: song.title,
-      album: song.albumName,
-      duration: song.duration,
+      artist: lookupMetadata.artist,
+      title: lookupMetadata.title,
+      album: lookupMetadata.album,
+      duration: lookupMetadata.durationSeconds,
     );
     if (direct != null) {
       final score = scoreCandidate(
@@ -1647,8 +1690,8 @@ final lyricsProvider = FutureProvider.family<LyricsResolution, String>((
 
     if (best == null) {
       final candidates = await lrclib.searchLyrics(
-        artist: song.artistName!,
-        title: song.title,
+        artist: lookupMetadata.artist,
+        title: lookupMetadata.title,
       );
       for (final candidate in candidates) {
         final score = scoreCandidate(
@@ -1668,8 +1711,9 @@ final lyricsProvider = FutureProvider.family<LyricsResolution, String>((
     }
 
     if (best == null) {
-      if (cachedResolution == null)
+      if (cachedResolution == null) {
         await dao.recordExternalLyricsFailure(songId);
+      }
       if (cachedResolution != null) return cachedResolution;
       return const LyricsResolution(
         lyrics: LyricsList(),
@@ -2281,6 +2325,18 @@ Duration _externalLyricsBackoff(int failureCount) {
   final minutes = failureCount * failureCount;
   final cappedMinutes = minutes > 1440 ? 1440 : minutes;
   return Duration(minutes: cappedMinutes);
+}
+
+String? _preferNonEmpty(String? primary, String? fallback) {
+  final trimmedPrimary = primary?.trim();
+  if (trimmedPrimary != null && trimmedPrimary.isNotEmpty) {
+    return trimmedPrimary;
+  }
+  final trimmedFallback = fallback?.trim();
+  if (trimmedFallback != null && trimmedFallback.isNotEmpty) {
+    return trimmedFallback;
+  }
+  return null;
 }
 
 LyricsResolution? _lyricsResolutionFromExternalCache(

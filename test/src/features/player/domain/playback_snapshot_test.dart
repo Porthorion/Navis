@@ -102,5 +102,12 @@ void main() {
       const snapshot = PlaybackSnapshot.idle();
       expect(snapshot.hasQueue, isFalse);
     });
+
+    test('idle snapshot defaults load state fields', () {
+      const snapshot = PlaybackSnapshot.idle();
+      expect(snapshot.isLoading, isFalse);
+      expect(snapshot.loadingSongId, isNull);
+      expect(snapshot.lastFailedSongId, isNull);
+    });
   });
 }
