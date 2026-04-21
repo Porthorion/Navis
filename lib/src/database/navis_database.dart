@@ -75,12 +75,13 @@ class NavisDatabase extends _$NavisDatabase {
   static QueryExecutor _openConnection() => driftDatabase(name: 'navis.sqlite');
 
   @override
-  int get schemaVersion => 40;
+  int get schemaVersion => 41;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (m) async {
       await m.createAll();
+      await _ensureGroupListeningColumns();
       await _createIndexes();
       await _ensureAppSettingsDefaults();
     },
@@ -215,6 +216,9 @@ class NavisDatabase extends _$NavisDatabase {
     if (from < 40 && to >= 40) {
       await from39To40(migrator);
     }
+    if (from < 41 && to >= 41) {
+      await from40To41(migrator);
+    }
   }
 
   Future<void> from1To2(Migrator migrator) async {
@@ -323,10 +327,7 @@ class NavisDatabase extends _$NavisDatabase {
 
   Future<void> from10To11(Migrator migrator) async {
     if (!await _columnExists('app_settings', 'theme_mode')) {
-      await migrator.addColumn(
-        appSettingsTable,
-        appSettingsTable.themeMode,
-      );
+      await migrator.addColumn(appSettingsTable, appSettingsTable.themeMode);
     }
     if (!await _columnExists('app_settings', 'color_scheme_seed')) {
       await migrator.addColumn(
@@ -614,10 +615,7 @@ class NavisDatabase extends _$NavisDatabase {
         appSettingsTable.coverArtBorderRadius,
       );
     }
-    if (!await _columnExists(
-      'app_settings',
-      'now_playing_art_border_radius',
-    )) {
+    if (!await _columnExists('app_settings', 'now_playing_art_border_radius')) {
       await migrator.addColumn(
         appSettingsTable,
         appSettingsTable.nowPlayingArtBorderRadius,
@@ -772,10 +770,44 @@ class NavisDatabase extends _$NavisDatabase {
 
   Future<void> from39To40(Migrator migrator) async {
     if (!await _columnExists('app_settings', 'last_fm_api_key')) {
-      await migrator.addColumn(
-        appSettingsTable,
-        appSettingsTable.lastFmApiKey,
-      );
+      await migrator.addColumn(appSettingsTable, appSettingsTable.lastFmApiKey);
+    }
+  }
+
+  Future<void> from40To41(Migrator _) async {
+    await _ensureGroupListeningColumns();
+  }
+
+  Future<void> _ensureGroupListeningColumns() async {
+    if (!await _columnExists('app_settings', 'group_listening_enabled')) {
+      await customStatement('''
+        ALTER TABLE app_settings
+        ADD COLUMN group_listening_enabled INTEGER NOT NULL DEFAULT 0;
+      ''');
+    }
+    if (!await _columnExists('app_settings', 'voyage_server_url')) {
+      await customStatement('''
+        ALTER TABLE app_settings
+        ADD COLUMN voyage_server_url TEXT;
+      ''');
+    }
+    if (!await _columnExists('app_settings', 'voyage_display_name')) {
+      await customStatement('''
+        ALTER TABLE app_settings
+        ADD COLUMN voyage_display_name TEXT;
+      ''');
+    }
+    if (!await _columnExists('app_settings', 'voyage_device_label')) {
+      await customStatement('''
+        ALTER TABLE app_settings
+        ADD COLUMN voyage_device_label TEXT;
+      ''');
+    }
+    if (!await _columnExists('app_settings', 'voyage_auto_follow_host')) {
+      await customStatement('''
+        ALTER TABLE app_settings
+        ADD COLUMN voyage_auto_follow_host INTEGER NOT NULL DEFAULT 1;
+      ''');
     }
   }
 

@@ -105,11 +105,7 @@ final networkTypeProvider = Provider<NetworkType>((ref) {
 });
 
 class StreamingQuality {
-  const StreamingQuality({
-    required this.label,
-    this.maxBitRate,
-    this.format,
-  });
+  const StreamingQuality({required this.label, this.maxBitRate, this.format});
 
   final String label;
   final int? maxBitRate;
@@ -285,10 +281,7 @@ final legacyInstantMixLockedProvider = Provider<bool>((ref) {
   return !ref.watch(hasLastFmApiKeyProvider);
 });
 
-enum PreferredMixMode {
-  sameVibes,
-  legacyInstantMix,
-}
+enum PreferredMixMode { sameVibes, legacyInstantMix }
 
 final preferredMixModeProvider = Provider<PreferredMixMode>((ref) {
   if (ref.watch(legacyInstantMixLockedProvider)) {
@@ -328,9 +321,7 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
     try {
       await ref
           .read(appSettingsProvider.future)
-          .timeout(
-            const Duration(seconds: 2),
-          );
+          .timeout(const Duration(seconds: 2));
     } on TimeoutException {
       AppLogger.warning(
         'App settings were not hydrated before audio init. '
@@ -394,22 +385,20 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
     }
 
     if (ref.read(appSettingsProvider).asData?.value == null) {
-      unawaited(
-        () async {
-          try {
-            await ref.read(appSettingsProvider.future);
-            await handler.applyRuntimeSettings();
-            AppLogger.info(
-              'Deferred runtime settings sync applied after settings hydration.',
-            );
-          } on Object catch (error, stackTrace) {
-            AppLogger.warning(
-              'Deferred runtime settings sync failed: '
-              '$error\n$stackTrace',
-            );
-          }
-        }(),
-      );
+      unawaited(() async {
+        try {
+          await ref.read(appSettingsProvider.future);
+          await handler.applyRuntimeSettings();
+          AppLogger.info(
+            'Deferred runtime settings sync applied after settings hydration.',
+          );
+        } on Object catch (error, stackTrace) {
+          AppLogger.warning(
+            'Deferred runtime settings sync failed: '
+            '$error\n$stackTrace',
+          );
+        }
+      }());
     }
 
     return handler;
@@ -421,10 +410,7 @@ enum AudioBootstrapStatus { initializing, ready, failed }
 enum PlaybackUnavailableReason { initializing, startupFailed, unavailable }
 
 class PlaybackUnavailableException implements Exception {
-  const PlaybackUnavailableException({
-    required this.reason,
-    this.message,
-  });
+  const PlaybackUnavailableException({required this.reason, this.message});
 
   final PlaybackUnavailableReason reason;
   final String? message;
@@ -444,15 +430,14 @@ class AudioBootstrapState {
     this.recoveredFromTimeout = false,
   });
 
-  const AudioBootstrapState.initializing({
-    int attempt = 0,
-  }) : status = AudioBootstrapStatus.initializing,
-       handler = null,
-       errorMessage = null,
-       attempt = attempt,
-       elapsedMs = null,
-       timedOut = false,
-       recoveredFromTimeout = false;
+  const AudioBootstrapState.initializing({int attempt = 0})
+    : status = AudioBootstrapStatus.initializing,
+      handler = null,
+      errorMessage = null,
+      attempt = attempt,
+      elapsedMs = null,
+      timedOut = false,
+      recoveredFromTimeout = false;
 
   const AudioBootstrapState.ready(
     NavisPlaybackHandler readyHandler, {
@@ -524,115 +509,109 @@ class AudioBootstrapController extends Notifier<AudioBootstrapState> {
     _didAttempt = true;
     state = AudioBootstrapState.initializing(attempt: attemptId);
     final audioHandlerState = ref.read(audioHandlerStateProvider.notifier);
-    unawaited(
-      () async {
+    unawaited(() async {
+      await audioHandlerState.clearHandler();
+      final stopwatch = Stopwatch()..start();
+      final timeout = ref.read(audioBootstrapTimeoutProvider);
+      final initializeHandler = ref.read(audioHandlerInitializerProvider);
+      var timedOut = false;
+
+      Future<void> promoteReady(
+        NavisPlaybackHandler audioHandler, {
+        required bool recoveredFromTimeout,
+      }) async {
+        if (_activeAttempt != attemptId) {
+          return;
+        }
+        final audioHandlerState = ref.read(audioHandlerStateProvider.notifier);
+        await audioHandlerState.setHandler(audioHandler);
+        final elapsedMs = stopwatch.elapsedMilliseconds;
+        state = AudioBootstrapState.ready(
+          audioHandler,
+          attempt: attemptId,
+          elapsedMs: elapsedMs,
+          recoveredFromTimeout: recoveredFromTimeout,
+        );
+        if (recoveredFromTimeout) {
+          AppLogger.info(
+            'Audio bootstrap recovered after timeout in ${elapsedMs}ms '
+            '(attempt=$attemptId).',
+          );
+        } else {
+          AppLogger.info(
+            'Audio bootstrap ready in ${elapsedMs}ms '
+            '(attempt=$attemptId).',
+          );
+        }
+        if (!completer.isCompleted) {
+          completer.complete();
+        }
+      }
+
+      try {
+        AppLogger.info('Audio bootstrap start (attempt=$attemptId).');
+        final initFuture = initializeHandler();
+        unawaited(
+          initFuture.then<void>(
+            (handler) async {
+              if (_activeAttempt != attemptId || !timedOut) {
+                return;
+              }
+              await promoteReady(handler, recoveredFromTimeout: true);
+            },
+            onError: (Object error, StackTrace stackTrace) {
+              if (_activeAttempt != attemptId || !timedOut) {
+                return;
+              }
+              AppLogger.error(
+                'Audio bootstrap asynchronous completion failed after timeout '
+                '(attempt=$attemptId).',
+                error,
+                stackTrace,
+              );
+            },
+          ),
+        );
+
+        final audioHandler = await initFuture.timeout(timeout);
+        if (_activeAttempt != attemptId) {
+          if (!completer.isCompleted) {
+            completer.complete();
+          }
+          return;
+        }
+        await promoteReady(audioHandler, recoveredFromTimeout: false);
+      } on Object catch (error, stackTrace) {
+        if (_activeAttempt != attemptId) {
+          if (!completer.isCompleted) {
+            completer.complete();
+          }
+          return;
+        }
+        timedOut = error is TimeoutException;
+        final message = error is TimeoutException
+            ? 'Playback initialization timed out after ${timeout.inSeconds}s.'
+            : 'Playback initialization failed.';
+        AppLogger.error(message, error, stackTrace);
+        final elapsedMs = stopwatch.elapsedMilliseconds;
+        final audioHandlerState = ref.read(audioHandlerStateProvider.notifier);
         await audioHandlerState.clearHandler();
-        final stopwatch = Stopwatch()..start();
-        final timeout = ref.read(audioBootstrapTimeoutProvider);
-        final initializeHandler = ref.read(audioHandlerInitializerProvider);
-        var timedOut = false;
-
-        Future<void> promoteReady(
-          NavisPlaybackHandler audioHandler, {
-          required bool recoveredFromTimeout,
-        }) async {
-          if (_activeAttempt != attemptId) {
-            return;
-          }
-          final audioHandlerState = ref.read(
-            audioHandlerStateProvider.notifier,
-          );
-          await audioHandlerState.setHandler(audioHandler);
-          final elapsedMs = stopwatch.elapsedMilliseconds;
-          state = AudioBootstrapState.ready(
-            audioHandler,
-            attempt: attemptId,
-            elapsedMs: elapsedMs,
-            recoveredFromTimeout: recoveredFromTimeout,
-          );
-          if (recoveredFromTimeout) {
-            AppLogger.info(
-              'Audio bootstrap recovered after timeout in ${elapsedMs}ms '
-              '(attempt=$attemptId).',
-            );
-          } else {
-            AppLogger.info(
-              'Audio bootstrap ready in ${elapsedMs}ms '
-              '(attempt=$attemptId).',
-            );
-          }
-          if (!completer.isCompleted) {
-            completer.complete();
-          }
+        state = AudioBootstrapState.failed(
+          message,
+          attempt: attemptId,
+          elapsedMs: elapsedMs,
+          timedOut: timedOut,
+        );
+        if (!completer.isCompleted) {
+          completer.complete();
         }
-
-        try {
-          AppLogger.info('Audio bootstrap start (attempt=$attemptId).');
-          final initFuture = initializeHandler();
-          unawaited(
-            initFuture.then<void>(
-              (handler) async {
-                if (_activeAttempt != attemptId || !timedOut) {
-                  return;
-                }
-                await promoteReady(handler, recoveredFromTimeout: true);
-              },
-              onError: (Object error, StackTrace stackTrace) {
-                if (_activeAttempt != attemptId || !timedOut) {
-                  return;
-                }
-                AppLogger.error(
-                  'Audio bootstrap asynchronous completion failed after timeout '
-                  '(attempt=$attemptId).',
-                  error,
-                  stackTrace,
-                );
-              },
-            ),
-          );
-
-          final audioHandler = await initFuture.timeout(timeout);
-          if (_activeAttempt != attemptId) {
-            if (!completer.isCompleted) {
-              completer.complete();
-            }
-            return;
-          }
-          await promoteReady(audioHandler, recoveredFromTimeout: false);
-        } on Object catch (error, stackTrace) {
-          if (_activeAttempt != attemptId) {
-            if (!completer.isCompleted) {
-              completer.complete();
-            }
-            return;
-          }
-          timedOut = error is TimeoutException;
-          final message = error is TimeoutException
-              ? 'Playback initialization timed out after ${timeout.inSeconds}s.'
-              : 'Playback initialization failed.';
-          AppLogger.error(message, error, stackTrace);
-          final elapsedMs = stopwatch.elapsedMilliseconds;
-          final audioHandlerState = ref.read(
-            audioHandlerStateProvider.notifier,
-          );
-          await audioHandlerState.clearHandler();
-          state = AudioBootstrapState.failed(
-            message,
-            attempt: attemptId,
-            elapsedMs: elapsedMs,
-            timedOut: timedOut,
-          );
-          if (!completer.isCompleted) {
-            completer.complete();
-          }
-        } finally {
-          stopwatch.stop();
-          if (_activeAttempt == attemptId) {
-            _inFlight = null;
-          }
+      } finally {
+        stopwatch.stop();
+        if (_activeAttempt == attemptId) {
+          _inFlight = null;
         }
-      }(),
-    );
+      }
+    }());
     return completer.future;
   }
 }
@@ -903,11 +882,9 @@ Future<void> refreshAlbumFromServer(Ref ref, String albumId) async {
 }
 
 final refreshAlbumFromServerProvider =
-    Provider.family<Future<void> Function(), String>(
-      (ref, albumId) {
-        return () => refreshAlbumFromServer(ref, albumId);
-      },
-    );
+    Provider.family<Future<void> Function(), String>((ref, albumId) {
+      return () => refreshAlbumFromServer(ref, albumId);
+    });
 
 final artistsProvider = StreamProvider<List<ArtistsTableData>>((ref) {
   final dao = ref.watch(navisDatabaseProvider).libraryDao;
@@ -938,15 +915,11 @@ final artistByIdProvider = StreamProvider.family<ArtistsTableData?, String>((
             // server.  If hydration fails, propagate the error so the UI can
             // show an ErrorState with a retry button.
             unawaited(
-              _hydrateArtistFromServer(
-                ref,
-                artistId,
-              ).timeout(const Duration(seconds: 15)).catchError((
-                Object error,
-                StackTrace stackTrace,
-              ) {
-                controller.addError(error, stackTrace);
-              }),
+              _hydrateArtistFromServer(ref, artistId)
+                  .timeout(const Duration(seconds: 15))
+                  .catchError((Object error, StackTrace stackTrace) {
+                    controller.addError(error, stackTrace);
+                  }),
             );
           } else {
             controller.add(artist);
@@ -964,45 +937,44 @@ final artistByIdProvider = StreamProvider.family<ArtistsTableData?, String>((
   return controller.stream;
 });
 
-final albumsByArtistProvider = StreamProvider.family<List<AlbumsTableData>, String>(
-  (ref, artistId) {
-    final dao = ref.watch(navisDatabaseProvider).libraryDao;
-    final controller = StreamController<List<AlbumsTableData>>();
-    var requestedServerFallback = false;
+final albumsByArtistProvider =
+    StreamProvider.family<List<AlbumsTableData>, String>((ref, artistId) {
+      final dao = ref.watch(navisDatabaseProvider).libraryDao;
+      final controller = StreamController<List<AlbumsTableData>>();
+      var requestedServerFallback = false;
 
-    final sub = dao
-        .watchAlbumsByArtist(artistId)
-        .listen(
-          (albums) {
-            controller.add(albums);
-            if (albums.isNotEmpty || requestedServerFallback) {
-              return;
-            }
-            requestedServerFallback = true;
-            unawaited(
-              _hydrateArtistFromServer(ref, artistId).catchError((
-                Object error,
-                StackTrace stackTrace,
-              ) {
-                AppLogger.warning(
-                  'Artist albums fallback hydration failed for artist=$artistId: '
-                  '$error\n$stackTrace',
-                );
-              }),
-            );
-          },
-          onError: controller.addError,
-          onDone: controller.close,
-        );
+      final sub = dao
+          .watchAlbumsByArtist(artistId)
+          .listen(
+            (albums) {
+              controller.add(albums);
+              if (albums.isNotEmpty || requestedServerFallback) {
+                return;
+              }
+              requestedServerFallback = true;
+              unawaited(
+                _hydrateArtistFromServer(ref, artistId).catchError((
+                  Object error,
+                  StackTrace stackTrace,
+                ) {
+                  AppLogger.warning(
+                    'Artist albums fallback hydration failed for artist=$artistId: '
+                    '$error\n$stackTrace',
+                  );
+                }),
+              );
+            },
+            onError: controller.addError,
+            onDone: controller.close,
+          );
 
-    ref.onDispose(() {
-      sub.cancel();
-      controller.close();
+      ref.onDispose(() {
+        sub.cancel();
+        controller.close();
+      });
+
+      return controller.stream;
     });
-
-    return controller.stream;
-  },
-);
 
 final albumProvider = StreamProvider.family<AlbumWithSongs?, String>((
   ref,
@@ -1032,15 +1004,11 @@ final albumProvider = StreamProvider.family<AlbumWithSongs?, String>((
               // server.  If hydration fails, propagate the error so the UI can
               // show an ErrorState with a retry button.
               unawaited(
-                _hydrateAlbumFromServer(
-                  ref,
-                  albumId,
-                ).timeout(const Duration(seconds: 15)).catchError((
-                  Object error,
-                  StackTrace stackTrace,
-                ) {
-                  controller.addError(error, stackTrace);
-                }),
+                _hydrateAlbumFromServer(ref, albumId)
+                    .timeout(const Duration(seconds: 15))
+                    .catchError((Object error, StackTrace stackTrace) {
+                      controller.addError(error, stackTrace);
+                    }),
               );
             } else {
               // Hydration was already attempted and the DB still returns null.
@@ -1048,27 +1016,24 @@ final albumProvider = StreamProvider.family<AlbumWithSongs?, String>((
               controller.add(null);
             }
           } else {
-            songsSub = dao.watchSongsByAlbum(albumId).listen(
-              (songs) {
-                controller.add(AlbumWithSongs(album: album, songs: songs));
-                if (songs.isNotEmpty || requestedServerFallback) {
-                  return;
-                }
-                requestedServerFallback = true;
-                unawaited(
-                  _hydrateAlbumFromServer(ref, albumId).catchError((
-                    Object error,
-                    StackTrace stackTrace,
-                  ) {
-                    AppLogger.warning(
-                      'Album songs fallback hydration failed for album=$albumId: '
-                      '$error\n$stackTrace',
-                    );
-                  }),
-                );
-              },
-              onError: controller.addError,
-            );
+            songsSub = dao.watchSongsByAlbum(albumId).listen((songs) {
+              controller.add(AlbumWithSongs(album: album, songs: songs));
+              if (songs.isNotEmpty || requestedServerFallback) {
+                return;
+              }
+              requestedServerFallback = true;
+              unawaited(
+                _hydrateAlbumFromServer(ref, albumId).catchError((
+                  Object error,
+                  StackTrace stackTrace,
+                ) {
+                  AppLogger.warning(
+                    'Album songs fallback hydration failed for album=$albumId: '
+                    '$error\n$stackTrace',
+                  );
+                }),
+              );
+            }, onError: controller.addError);
           }
         },
         onError: controller.addError,
@@ -1107,10 +1072,7 @@ final pagedAlbumsProvider =
       request,
     ) {
       final dao = ref.watch(navisDatabaseProvider).libraryDao;
-      return dao.watchAlbumsPage(
-        sort: request.sort,
-        limit: request.limit,
-      );
+      return dao.watchAlbumsPage(sort: request.sort, limit: request.limit);
     });
 
 final likedPagedAlbumsProvider =
@@ -1169,10 +1131,7 @@ final likedSongsProvider = StreamProvider<List<SongsTableData>>((ref) {
 });
 
 final songsBySortProvider =
-    StreamProvider.family<List<SongsTableData>, SongSortOrder>((
-      ref,
-      sort,
-    ) {
+    StreamProvider.family<List<SongsTableData>, SongSortOrder>((ref, sort) {
       final dao = ref.watch(navisDatabaseProvider).libraryDao;
       return dao.watchSongsSorted(sort);
     });
@@ -1186,10 +1145,7 @@ final songByIdProvider = StreamProvider.family<SongsTableData?, String>((
 });
 
 /// Emits `true` when the song with [songId] is starred/liked.
-final songStarredProvider = StreamProvider.family<bool, String>((
-  ref,
-  songId,
-) {
+final songStarredProvider = StreamProvider.family<bool, String>((ref, songId) {
   final dao = ref.watch(navisDatabaseProvider).libraryDao;
   return dao.watchSongStarred(songId);
 });
@@ -1199,10 +1155,7 @@ final songRatingProvider = StreamProvider.family<int?, String>((ref, songId) {
   return dao.watchSongRating(songId);
 });
 
-final albumRatingProvider = StreamProvider.family<int?, String>((
-  ref,
-  albumId,
-) {
+final albumRatingProvider = StreamProvider.family<int?, String>((ref, albumId) {
   final dao = ref.watch(navisDatabaseProvider).libraryDao;
   return dao.watchAlbumRating(albumId);
 });
@@ -1213,19 +1166,13 @@ final genresProvider = StreamProvider<List<GenresTableData>>((ref) {
 });
 
 final albumsByGenreProvider =
-    StreamProvider.family<List<AlbumsTableData>, String>((
-      ref,
-      genre,
-    ) {
+    StreamProvider.family<List<AlbumsTableData>, String>((ref, genre) {
       final dao = ref.watch(navisDatabaseProvider).libraryDao;
       return dao.watchAlbumsByGenre(genre);
     });
 
 final songsByGenreProvider =
-    StreamProvider.family<List<SongsTableData>, String>((
-      ref,
-      genre,
-    ) {
+    StreamProvider.family<List<SongsTableData>, String>((ref, genre) {
       final dao = ref.watch(navisDatabaseProvider).libraryDao;
       return dao.watchSongsByGenre(genre);
     });
@@ -1333,10 +1280,7 @@ final radioStationsProvider = FutureProvider<List<InternetRadioStation>>((
 });
 
 final searchResultsProvider = FutureProvider.autoDispose
-    .family<SearchResult3, String>((
-      ref,
-      query,
-    ) async {
+    .family<SearchResult3, String>((ref, query) async {
       if (query.trim().isEmpty) {
         return const SearchResult3();
       }
@@ -1915,9 +1859,7 @@ final downloadedSongIdsProvider = StreamProvider<Set<String>>((ref) {
   final dao = ref.watch(navisDatabaseProvider).cacheDao;
   return dao
       .watchCachedTracksByType(CacheType.permanent)
-      .map(
-        (tracks) => tracks.map((track) => track.songId).toSet(),
-      );
+      .map((tracks) => tracks.map((track) => track.songId).toSet());
 });
 
 /// Provides the set of album IDs and artist IDs that have permanently cached
@@ -2267,24 +2209,20 @@ final audioMuseRepositoryProvider = Provider<AudioMuseRepository?>((ref) {
 /// AI-powered similar artists for a given artist ID.
 /// Returns an empty list when AudioMuse is unavailable.
 final audioMuseSimilarArtistsProvider = FutureProvider.autoDispose
-    .family<List<AudioMuseRecommendation>, String>(
-      (ref, artistId) async {
-        final repo = ref.watch(audioMuseRepositoryProvider);
-        if (repo == null) return const [];
-        return repo.getSimilarArtists(artistId);
-      },
-    );
+    .family<List<AudioMuseRecommendation>, String>((ref, artistId) async {
+      final repo = ref.watch(audioMuseRepositoryProvider);
+      if (repo == null) return const [];
+      return repo.getSimilarArtists(artistId);
+    });
 
 /// AI-powered similar albums for a given album ID.
 /// Returns an empty list when AudioMuse is unavailable.
 final audioMuseSimilarAlbumsProvider = FutureProvider.autoDispose
-    .family<List<AudioMuseRecommendation>, String>(
-      (ref, albumId) async {
-        final repo = ref.watch(audioMuseRepositoryProvider);
-        if (repo == null) return const [];
-        return repo.getSimilarAlbums(albumId);
-      },
-    );
+    .family<List<AudioMuseRecommendation>, String>((ref, albumId) async {
+      final repo = ref.watch(audioMuseRepositoryProvider);
+      if (repo == null) return const [];
+      return repo.getSimilarAlbums(albumId);
+    });
 
 /// AI-powered song recommendations for smart auto-queue.
 final audioMuseSongRecommendationsProvider = FutureProvider.autoDispose
@@ -2401,12 +2339,7 @@ LyricsList? _tryParseLrc(String? lrc) {
         ? fraction
         : fraction * 10;
     final start = minutes * 60000 + seconds * 1000 + millis;
-    parsed.add(
-      LyricLine(
-        start: start,
-        value: (match.group(4) ?? '').trim(),
-      ),
-    );
+    parsed.add(LyricLine(start: start, value: (match.group(4) ?? '').trim()));
   }
 
   if (parsed.isEmpty) {
@@ -2422,11 +2355,7 @@ LyricsList? _tryParseLrc(String? lrc) {
         ? (nextStart - current.start!).clamp(0, 60000)
         : null;
     lines.add(
-      LyricLine(
-        start: current.start,
-        duration: duration,
-        value: current.value,
-      ),
+      LyricLine(start: current.start, duration: duration, value: current.value),
     );
   }
 

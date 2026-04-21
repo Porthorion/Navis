@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 
-class SettingsScreen extends ConsumerWidget {
+class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final adaptiveContext = resolveAdaptiveContextFor(context);
     final adaptiveLayoutClass = adaptiveContext.adaptiveLayoutClass;
@@ -52,6 +51,13 @@ class SettingsScreen extends ConsumerWidget {
         subtitle: l10n.settingsSyncSubtitle,
         route: '/settings/sync',
         group: groupAutomation,
+      ),
+      _SettingsEntry(
+        icon: Icons.headset_mic_outlined,
+        title: 'Group Listening',
+        subtitle: 'Configure Voyage server and local sync preferences',
+        route: '/settings/group-listening',
+        group: groupConnection,
       ),
       _SettingsEntry(
         icon: Icons.graphic_eq_outlined,

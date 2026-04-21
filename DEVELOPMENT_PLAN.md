@@ -45,6 +45,7 @@ A Flutter-based Subsonic/OpenSubsonic music player client targeting Android and 
 - [Phase 29: ListenBrainz Scrobbling (Future Priority)](#phase-29-listenbrainz-scrobbling-future-priority)
 - [Phase 30: Discovery System (Idea Backlog)](#phase-30-discovery-system-idea-backlog)
 - [Phase 31: Adaptive Convergence Program (Desktop + Tablet + Phone)](#phase-31-adaptive-convergence-program-desktop--tablet--phone)
+- [Phase 32: Group Listening & Voyage Integration](#phase-32-group-listening--voyage-integration)
 - [AI Agent Development Guidelines](#ai-agent-development-guidelines)
 - [Verification Strategy](#verification-strategy)
 - [Key Technical Decisions](#key-technical-decisions)
@@ -2299,6 +2300,648 @@ Canonical execution phase for converging desktop/tablet/phone UX into one adapti
 3. Run targeted tests first, then milestone gate.
 4. Update `PROGRESS.md` evidence line in same session.
 5. If blocked, append exact error + next action to detailed progress doc.
+
+---
+
+## Phase 32: Group Listening & Voyage Integration
+
+**Priority**: P1 (major cross-repo feature; execute as a dedicated program, not as incidental polish)
+
+Canonical execution phase for Navis-side integration with the Voyage backend server.
+
+**Locked defaults (2026-04-21)**:
+- Backend implementation lives in the **Voyage** repo only.
+- Navis work in this phase is limited to app-side integration, storage, transport, playback bridge, UX, and tests.
+- MVP scope is **same-server/shared-catalog** only.
+- Sync model is **host-led + server-authoritative**, with Voyage as the room-state authority.
+- Sync uses **time-based playback anchors**, not naive "play now" event relays.
+- Navis must never send raw Subsonic credentials to Voyage.
+- Non-sensitive Voyage config may live in Drift; Voyage secrets/tokens must use secure storage.
+- Production transport target is **HTTPS/WSS**.
+
+### 32.A Navis ownership boundaries
+
+Navis owns only the client-side pieces of group listening:
+
+- settings and secure credential handling
+- versioned Voyage API client and realtime transport client
+- session lifecycle controller/provider wiring
+- playback bridge into `NavisPlaybackHandler`, `playbackSnapshotProvider`, `playbackPositionProvider`, and queue APIs
+- player/app-shell/settings UX
+- app-side diagnostics, tests, and release validation
+
+Navis does **not** own:
+
+- Voyage room authority
+- Voyage deployment/runtime operations
+- Voyage persistence schema
+- Voyage-side token issuance and room authorization logic
+
+### 32.B Required Voyage contract dependencies
+
+Navis-side work depends on a stable Voyage contract for:
+
+- health / capability discovery
+- create / join / leave room flows
+- room snapshot fetch for late join and reconnect
+- websocket event stream with ordered room versions
+- transport events: `play`, `pause`, `seek`, `queue_add`, `queue_remove`, `track_change`, `leader_change`
+- authoritative playback anchor payloads
+- source-server fingerprinting for same-server room isolation
+- room/member authorization and token semantics
+
+Navis should consume this contract in a way that keeps app changes isolated to the Navis repo even when the Voyage contract evolves.
+
+#### 32.B.1 Locked MVP wire contract (`voyage-sync.v1alpha1`)
+
+This is the concrete Navis↔Voyage contract for the same-server/shared-catalog MVP.
+It is the client-side source of truth for `GLI-N0-03` and must stay mirrored with
+the matching Voyage protocol section.
+
+##### Contract identity and negotiation
+
+- Contract id: `voyage-sync.v1alpha1`
+- REST base path: `/api/v1`
+- WebSocket subprotocol: `voyage-sync.v1alpha1`
+- `GET /api/v1/health` is the discovery endpoint. It returns:
+  - `service: "voyage"`
+  - `api_version: "v1"`
+  - `supported_protocol_versions`
+  - `latest_protocol_version`
+  - `websocket_path`
+  - `heartbeat_interval_ms`
+  - `member_stale_timeout_ms`
+- `create`, `join`, and `rejoin` request bodies must include `protocol_version`.
+- Authenticated HTTP requests without a body (`snapshot`, `leave`, `close`) must
+  send `X-Voyage-Protocol-Version: voyage-sync.v1alpha1`.
+- All success responses should use a common envelope:
+  - `protocol_version`
+  - `server_time_ms`
+  - `data`
+- All failures should use:
+  - `protocol_version`
+  - `server_time_ms`
+  - `error: { code, message, retryable, details? }`
+- Unsupported versions fail closed with HTTP `426` and
+  `error.code = unsupported_protocol_version`. The error details should include
+  `supported_protocol_versions` so Navis can stop and surface an upgrade-style
+  error instead of retrying blindly.
+
+##### HTTP lifecycle surface
+
+- `GET /api/v1/health`
+  - auth: none
+  - response: capability/version discovery only; no room state
+- `POST /api/v1/rooms`
+  - auth: none
+  - request:
+    - `protocol_version`
+    - `client: { app_version, platform, device_id, device_label, capabilities }`
+    - `member: { display_name }`
+    - `source_server_fingerprint`
+    - optional `room_seed: { queue, playback_anchor }`
+  - response:
+    - `room_id`
+    - `invite_code`
+    - `self_member: { member_id, role: "host", auth_version }`
+    - `rejoin_token`
+    - `access_token`
+    - `access_token_expires_at_ms`
+    - `room_snapshot`
+- `POST /api/v1/rooms/join`
+  - auth: none beyond `invite_code`
+  - request:
+    - `protocol_version`
+    - `invite_code`
+    - `client: { app_version, platform, device_id, device_label, capabilities }`
+    - `member: { display_name }`
+    - `source_server_fingerprint`
+  - response:
+    - `room_id`
+    - `self_member: { member_id, role: "member", auth_version }`
+    - `rejoin_token`
+    - `access_token`
+    - `access_token_expires_at_ms`
+    - `room_snapshot`
+- `POST /api/v1/rooms/{room_id}/rejoin`
+  - auth: member rejoin token
+  - request:
+    - `protocol_version`
+    - `rejoin_token`
+    - `client: { device_id, device_label, capabilities }`
+    - `source_server_fingerprint`
+    - optional `last_applied_room_version`
+  - response:
+    - `self_member: { member_id, role, auth_version }`
+    - `access_token`
+    - `access_token_expires_at_ms`
+    - `room_snapshot`
+- `GET /api/v1/rooms/{room_id}/snapshot`
+  - auth: access token
+  - response:
+    - `room_snapshot`
+- `POST /api/v1/rooms/{room_id}/leave`
+  - auth: access token
+  - request: optional `last_applied_room_version`
+  - response:
+    - `room_id`
+    - `left_member_id`
+    - `room_status`
+    - `room_version`
+  - lifecycle rule: if the caller is the host and no host transfer has already
+    been accepted, leaving closes the room for the MVP
+- `POST /api/v1/rooms/{room_id}/close`
+  - auth: host access token
+  - request: optional `expected_room_version`
+  - response:
+    - `room_id`
+    - `room_status: "closed"`
+    - `room_version`
+    - `closed_at_ms`
+- Plaintext invite codes are returned only by room-creation or invite-rotation
+  style responses. They must never appear in `room_snapshot` or WebSocket frames.
+
+##### WebSocket auth and frame types
+
+- Connect to `wss://<voyage-origin>/api/v1/rooms/{room_id}/ws`.
+- Required headers:
+  - `Authorization: Bearer <access_token>`
+  - `Sec-WebSocket-Protocol: voyage-sync.v1alpha1`
+- Query-string auth is forbidden.
+- Voyage validates `room_id`, `member_id`, token expiry, and `auth_version`
+  before completing the upgrade.
+- After a successful upgrade, Voyage must send:
+  1. `connection.welcome`
+  2. `room.snapshot`
+- `connection.welcome` includes:
+  - `protocol_version`
+  - `room_id`
+  - `member_id`
+  - server-assigned `client_connection_id`
+  - `room_version`
+  - `presence_version`
+  - `heartbeat_interval_ms`
+  - `member_stale_timeout_ms`
+  - `server_time_ms`
+- Client→server frame types:
+  - `heartbeat`
+  - `mutation.playback_anchor`
+  - `mutation.queue_add`
+  - `mutation.queue_remove`
+  - `mutation.queue_replace`
+  - `mutation.transfer_host`
+  - `mutation.remove_member`
+- Server→client frame types:
+  - `connection.welcome`
+  - `room.snapshot`
+  - `room.event`
+  - `presence.updated`
+  - `heartbeat.ack`
+  - `error`
+  - `room.closed`
+- `room.event.event_type` must cover at least:
+  - `play`
+  - `pause`
+  - `seek`
+  - `track_change`
+  - `queue_add`
+  - `queue_remove`
+  - `queue_replace`
+  - `leader_change`
+  - `member_joined`
+  - `member_left`
+  - `member_removed`
+  - `room_closed`
+  - `sync_tick`
+
+##### Authoritative room snapshot shape
+
+`room_snapshot` is the full replacement payload for join, rejoin, explicit
+snapshot fetch, and version-gap recovery. It must contain:
+
+- `protocol_version`
+- `room_id`
+- `room_status` (`active`, `closed`)
+- `room_version`
+- `presence_version`
+- `auth_version`
+- `server_time_ms`
+- `source_server_fingerprint`
+- `host_member_id`
+- `self: { member_id, role, can_control }`
+- `members[]`, where each member includes:
+  - `member_id`
+  - `display_name`
+  - `device_label`
+  - `role`
+  - `presence_state` (`active`, `stale`, `offline`)
+  - `capabilities`
+  - `joined_at_ms`
+  - `last_seen_at_ms`
+- `queue:`
+  - `queue_version`
+  - `current_index`
+  - `entries[]`, where each entry includes:
+    - `queue_entry_id`
+    - `song_id`
+    - optional `added_by_member_id`
+    - `added_at_ms`
+- `playback_anchor`
+
+##### Authoritative playback anchor shape
+
+`playback_anchor` is the server-authoritative playback reference Navis uses for
+drift correction and late join:
+
+- `room_version`
+- `queue_version`
+- `current_index`
+- `current_queue_entry_id`
+- `current_song_id`
+- `playback_state` (`playing`, `paused`)
+- `position_ms`
+- `captured_at_ms` (Voyage server clock)
+- `playback_rate`
+- `reason` (`play`, `pause`, `seek`, `track_change`, `sync_tick`, `snapshot`)
+- `issued_by_member_id`
+
+When `playback_state == "playing"`, Navis derives the expected local position as:
+
+- `position_ms + ((now_ms - captured_at_ms) * playback_rate)`
+
+When `playback_state == "paused"`, `position_ms` remains fixed until a newer
+anchor arrives.
+
+##### Event ordering and version rules
+
+- `room_version` starts at `1` when a room is created.
+- Voyage increments `room_version` exactly once for every accepted room mutation
+  or lifecycle change that changes the authoritative snapshot:
+  - playback anchor changes
+  - queue edits
+  - host transfer
+  - member join/leave/removal
+  - room close
+- `presence_version` increments only for roster/presence transitions and never
+  for heartbeat acks by themselves.
+- Every mutating WebSocket command must include:
+  - `expected_room_version`
+  - `client_mutation_id` (UUID)
+  - `client_connection_id`
+  - per-connection monotonic `client_seq`
+- Voyage rejects a mutation without incrementing `room_version` when:
+  - `expected_room_version` is stale
+  - `client_seq` is not strictly greater than the last accepted value for that
+    connection
+  - `client_mutation_id` is a replay within the dedupe window
+  - the caller token/auth version is stale
+  - the caller lacks the required room role
+- Accepted mutations are broadcast exactly once as `room.event` carrying:
+  - `event_id`
+  - `previous_room_version`
+  - `room_version`
+  - `event_type`
+  - `caused_by: { member_id, client_mutation_id? }`
+  - the updated `playback_anchor`, queue delta, or lifecycle payload
+- Navis applies `room.event` only when
+  `room_version == last_applied_room_version + 1`.
+- If Navis sees `room_version <= last_applied_room_version`, it ignores the
+  frame as stale/duplicate.
+- If Navis sees a future-version gap, it must stop applying remote mutations,
+  fetch `room_snapshot`, replace local state, and only then resume from the new
+  `room_version`.
+
+##### Heartbeat and presence contract
+
+- Navis sends `heartbeat` every `10-15s` while the room WebSocket is healthy.
+- `heartbeat` includes:
+  - `client_connection_id`
+  - `client_time_ms`
+  - `last_applied_room_version`
+  - optional `observed_position_ms`
+  - optional `transport_rtt_ms`
+- Voyage responds with `heartbeat.ack` containing:
+  - `server_time_ms`
+  - `room_version`
+  - `presence_version`
+  - `next_heartbeat_deadline_ms`
+- Missing heartbeats for roughly `45s` moves a member to `stale`, increments
+  `presence_version`, and emits `presence.updated`.
+- A successful heartbeat after `stale` moves the member back to `active`,
+  increments `presence_version`, and emits `presence.updated`.
+- `presence.updated` contains:
+  - `room_id`
+  - `room_version`
+  - `presence_version`
+  - changed `members[]`
+- Heartbeat traffic must not be treated as playback authority; it only maintains
+  presence and timing freshness.
+
+##### Error code taxonomy Navis should expect
+
+These codes must be stable across HTTP and WebSocket error surfaces:
+
+- `unsupported_protocol_version`
+- `unauthorized`
+- `forbidden`
+- `room_not_found`
+- `room_closed`
+- `invite_invalid`
+- `invite_expired`
+- `fingerprint_mismatch`
+- `stale_version`
+- `sequence_rejected`
+- `duplicate_mutation`
+- `snapshot_required`
+- `removed`
+- `revoked`
+- `rate_limited`
+- `validation_failed`
+- `internal_error`
+
+Error payloads may include:
+
+- `retry_after_ms` for `rate_limited`
+- `supported_protocol_versions` for `unsupported_protocol_version`
+- `room_version` for `stale_version`, `duplicate_mutation`, or
+  `snapshot_required`
+
+Messages must stay sanitized and must not leak database details, invite codes,
+bearer tokens, or raw backend stack traces.
+
+##### Same-server fingerprint rules
+
+- The fingerprint binds a room to one Subsonic/OpenSubsonic server identity for
+  the MVP.
+- Navis computes `source_server_fingerprint` locally as:
+  - canonicalize the configured Subsonic base URL to
+    `scheme://host[:port]/base-path`
+  - lowercase `scheme` and `host`
+  - remove default ports (`80` for HTTP, `443` for HTTPS)
+  - drop query, fragment, username, password, and trailing slash
+  - hash `navis-subsonic-origin-v1|<canonical-origin>` with SHA-256
+  - encode the digest as base64url without padding
+- Voyage stores and compares only the hashed fingerprint value.
+- `source_server_fingerprint` must match on:
+  - room creation seed
+  - join
+  - rejoin
+  - WebSocket auth
+  - snapshot application
+- `room.snapshot` and `room.event` must both carry the room fingerprint so Navis
+  can verify it before applying state.
+- A mismatch is fatal for the active sync session: Voyage returns
+  `fingerprint_mismatch`, Navis clears stored Voyage secrets, and synced mode
+  exits instead of attempting fallback matching.
+
+### 32.C Task identity and status model
+
+- Task ID format: `GLI-N{milestone}-{nn}` (example: `GLI-N3-02`)
+- Status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`
+- Done criteria for Navis tasks:
+  - code is wired into the real app surface
+  - targeted tests are added or updated
+  - secrets stay out of Drift/logging surfaces
+  - relevant docs/progress tracking are updated
+  - local quality checks pass for the touched scope
+
+### 32.D Milestones (N0-N6)
+
+#### N0 — Tracking + contract alignment
+
+- `GLI-N0-01`: add this phase definition to `DEVELOPMENT_PLAN.md`
+- `GLI-N0-02`: add Navis-side execution rows to `PROGRESS.md`
+- `GLI-N0-03`: lock the Navis↔Voyage API/event/security assumptions against the Voyage development plan
+- `GLI-N0-04`: record app-side integration boundaries so backend work never leaks into the Navis repo
+
+#### N1 — Settings + secure credential boundary
+
+- `GLI-N1-01`: add non-sensitive group listening config to app settings
+- `GLI-N1-02`: add secure storage path for Voyage tokens/secrets if required
+- `GLI-N1-03`: add connection diagnostics/test action without exposing secrets
+- `GLI-N1-04`: add migration/test coverage for new settings fields
+
+#### N2 — Voyage transport + session client
+
+- `GLI-N2-01`: add Navis-side Voyage HTTP client boundary
+- `GLI-N2-02`: add websocket/realtime client boundary
+- `GLI-N2-03`: add session models for room state, members, anchors, roles, and connection status
+- `GLI-N2-04`: add controller/provider for connect, join, leave, reconnect, and snapshot application
+
+#### N3 — Playback bridge + outbound sync
+
+- `GLI-N3-01`: translate ordered Voyage commands into `NavisPlaybackHandler` actions
+- `GLI-N3-02`: publish local playback anchors upstream with throttling and echo suppression
+- `GLI-N3-03`: gate queue mutations against room versions to avoid stale application
+- `GLI-N3-04`: handle same-server fingerprint mismatches safely
+
+#### N4 — User-facing group listening surfaces
+
+- `GLI-N4-01`: add settings entry and group listening settings screen
+- `GLI-N4-02`: add create/join/leave flows
+- `GLI-N4-03`: add active-room indicator in app shell / player surfaces
+- `GLI-N4-04`: show room role, presence, and sync-state/error messaging clearly
+
+#### N5 — Drift correction + reconnect polish
+
+- `GLI-N5-01`: apply soft correction vs hard seek thresholds from authoritative anchors
+- `GLI-N5-02`: handle late-join snapshot recovery
+- `GLI-N5-03`: handle reconnect + stale-version rejection
+- `GLI-N5-04`: ensure cross-platform playback drift behavior is observable and testable
+
+#### N6 — Validation + release readiness
+
+- `GLI-N6-01`: add unit tests for session models, version gates, and token handling
+- `GLI-N6-02`: add widget tests for settings and room UI
+- `GLI-N6-03`: add integration-style tests using fake Voyage layers and fake playback handlers
+- `GLI-N6-04`: run analyzer/tests/quality gate and update `PROGRESS.md` with evidence
+
+### 32.E Security architecture
+
+#### Trust boundaries
+
+- Navis keeps the user's Subsonic/OpenSubsonic authentication boundary local.
+  Mirror the existing auth storage split already used today:
+  `server_config`/Drift stores non-secret server details, while the password lives
+  in secure storage only.
+- Voyage is trusted only for room authority, membership, ordered playback control,
+  and reconnect snapshots. Voyage is **not** trusted with Subsonic credentials,
+  raw media URLs, or library-wide metadata.
+- Navis must verify that the locally active Subsonic server matches the room's
+  `source_server_fingerprint` before it creates, joins, rejoins, or applies
+  Voyage room state.
+
+#### Authentication and authorization model
+
+- `create room` and `join room` are HTTPS calls from Navis to Voyage that send
+  only:
+  - protocol/app version
+  - user-chosen display name
+  - device label / capability flags
+  - hashed `source_server_fingerprint`
+  - invite code for join flows
+- Voyage returns room-scoped Voyage credentials only; it never receives or issues
+  Subsonic credentials.
+- Authorization is split cleanly:
+  - **Subsonic auth** stays in Navis and is required for actual playback/media access.
+  - **Voyage auth** proves room membership and room role only.
+- MVP room permissions are host-led:
+  - host: create room, rotate invite, play/pause/seek/skip, queue replace/edit,
+    remove member, end room
+  - member: join, heartbeat, fetch snapshot, leave, acknowledge room version,
+    receive server-authoritative updates
+
+#### Token model
+
+- **Invite code**
+  - room-scoped share token
+  - short-lived and rotatable by the host
+  - used only to exchange into room membership
+  - treated as sensitive and never logged
+- **Member rejoin token**
+  - opaque random bearer (256-bit minimum)
+  - scoped to `voyage_origin + room_id + member_id + device_id`
+  - revocable, with a hard maximum lifetime of the room lifetime or 7 days,
+    whichever is shorter
+  - persisted in secure storage only
+- **Access token**
+  - opaque short-lived bearer (target 5 minutes)
+  - minted from a valid member rejoin token
+  - kept in memory only
+  - sent only in `Authorization: Bearer ...` headers or equivalent websocket
+    auth headers/subprotocols, never in query strings
+- Voyage should persist only token digests/hashes server-side, never raw bearer
+  token values.
+- Role changes, kicks, room closure, or token rotation must bump a member/room
+  auth version so previously issued access tokens and rejoin tokens can be
+  invalidated cleanly.
+
+#### Secure storage boundaries in Navis
+
+- Drift-backed app settings may store only non-sensitive group-listening config:
+  - feature enabled flag
+  - Voyage base URL
+  - display name / device label
+  - UX toggles such as auto-follow-host
+  - last non-secret room metadata if resume UX needs it
+- Secure storage must hold all Voyage bearer material:
+  - member rejoin token
+  - any future room-secret or device-secret
+- Never store Voyage tokens in Drift, widget state restoration, route params,
+  crash text, clipboard helpers, or analytics payloads.
+- If secure storage is unavailable:
+  - **release builds fail closed** for persistent rejoin storage
+  - **debug/local-dev** may use in-memory session-only fallback, but never write
+    Voyage secrets to Drift or plain files
+- Navis must clear stored Voyage secrets immediately when:
+  - the user leaves the room
+  - Voyage reports removal/revocation
+  - the room closes
+  - the active Subsonic server changes or fingerprint validation fails
+
+#### Allowed vs forbidden data sent to Voyage
+
+- Allowed:
+  - hashed `source_server_fingerprint`
+  - room id / invite code
+  - member id, display name, device label, capability flags
+  - queue song ids, current index, playback rate
+  - authoritative playback anchor inputs: play/pause state, anchor position,
+    client timestamp, latest known room version
+  - heartbeat / latency / protocol-version metadata
+- Forbidden:
+  - Subsonic username, password, API token, auth header, or salted auth material
+  - raw Subsonic base URL, stream URL, download URL, artwork URL, lyric payload,
+    local cache path, or local file path
+  - library-wide metadata dumps or browsing history unrelated to the active room
+  - raw exception text that might embed credentials or headers
+
+#### Replay protection and ordered mutation rules
+
+- Every outbound room mutation from Navis must carry:
+  - `expected_room_version`
+  - `client_mutation_id` (UUID)
+  - per-connection monotonic `client_seq`
+- Navis must stop submitting new mutations and fetch a fresh snapshot whenever
+  Voyage responds with `stale_version`, `fingerprint_mismatch`, or a room-version
+  gap.
+- Navis applies inbound realtime events only when:
+  - `room_version == last_applied_room_version + 1`, or
+  - the payload is an explicit authoritative snapshot replacement
+- Navis ignores inbound events/snapshots when:
+  - `room_version <= last_applied_room_version`
+  - `client_mutation_id` is already resolved locally
+  - the room fingerprint does not match the active Subsonic server
+- If Navis observes a future version gap, it must fetch a snapshot before
+  applying more remote commands.
+
+#### HTTPS/WSS and local-development expectations
+
+- Production/release behavior is **HTTPS/WSS only**.
+- Navis must not silently downgrade from `https`/`wss` to `http`/`ws`.
+- Debug/local-dev may allow insecure Voyage endpoints only for:
+  - loopback (`localhost`, `127.0.0.1`, `::1`)
+  - explicitly approved private-network development hosts
+- Any insecure local-dev connection must be visibly marked as insecure in the UI,
+  and its Voyage tokens should remain session-memory-only rather than persisted
+  across app restarts.
+
+#### Logging, redaction, and error-surface rules
+
+- Never log or surface:
+  - invite codes
+  - bearer tokens
+  - Authorization headers
+  - raw websocket auth payloads
+  - raw Subsonic URLs or credentials
+- Diagnostic logs may include only non-secret identifiers such as room id
+  suffixes, member role, room version, and transport state.
+- Voyage-facing client errors shown in Navis UI should use stable codes/messages
+  such as `unauthorized`, `stale_version`, `fingerprint_mismatch`, and
+  `rate_limited`, rather than dumping raw backend errors.
+- New Voyage integration code must avoid interpolating secret-bearing exceptions
+  into `AppLogger` messages.
+
+#### Abuse and rate-limit expectations
+
+- Navis should expect Voyage to enforce at least these baseline limits and handle
+  `429` with retry/backoff UX:
+  - room create: `5/minute` per IP/device
+  - invite resolve/join: `20/minute` per IP, with tighter buckets for repeated
+    invalid invite attempts
+  - rejoin/access-token refresh: `30/minute` per member token
+  - websocket connect: `10/minute` per member/device
+  - host control mutations: `10/second` burst `20`
+  - seek mutations: `4/second`
+  - queue replace / leader-transfer style mutations: `2/10 seconds`
+- Heartbeats should run on a fixed cadence (target `10-15s`) and Navis must not
+  flood them faster than `1/second`.
+
+#### Reconnect and rejoin authorization rules
+
+- Navis may auto-rejoin only when all of the following remain true:
+  - a valid member rejoin token exists in secure storage
+  - the Voyage origin matches the stored token scope
+  - the room is still active
+  - the active Subsonic server still matches the stored room fingerprint
+- Reconnect flow is:
+  1. use member rejoin token to obtain a fresh access token
+  2. fetch/apply the authoritative snapshot
+  3. resume heartbeats
+  4. only then allow new outbound control mutations
+- If Voyage reports `revoked`, `removed`, `room_closed`, or
+  `fingerprint_mismatch`, Navis must clear stored Voyage secrets and leave synced
+  mode instead of retrying indefinitely.
+- Presence loss or temporary websocket disconnect must never give Navis implicit
+  permission to keep controlling the room; only fresh Voyage authorization
+  restores control.
+
+### 32.F Working rules for this phase
+
+- Read both `Navis/DEVELOPMENT_PLAN.md` and `Voyage/DEVELOPMENT_PLAN.md` before changing the contract boundary.
+- When Navis depends on new Voyage capabilities, update the Navis-side plan and progress notes in the same workstream.
+- Do not merge backend implementation into Navis as a shortcut.
+- Keep tests close to each vertical slice; do not defer all validation to the end.
 
 ---
 

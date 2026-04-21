@@ -54,6 +54,11 @@ class AppSettingsModel {
     this.albumQueueEnabled = false,
     this.likedQueueEnabled = false,
     this.lastFmApiKey,
+    this.groupListeningEnabled = false,
+    this.voyageServerUrl,
+    this.voyageDisplayName,
+    this.voyageDeviceLabel,
+    this.voyageAutoFollowHost = true,
   });
 
   const AppSettingsModel.defaults()
@@ -106,7 +111,12 @@ class AppSettingsModel {
       desktopNavbarAutohide = false,
       albumQueueEnabled = false,
       likedQueueEnabled = false,
-      lastFmApiKey = null;
+      lastFmApiKey = null,
+      groupListeningEnabled = false,
+      voyageServerUrl = null,
+      voyageDisplayName = null,
+      voyageDeviceLabel = null,
+      voyageAutoFollowHost = true;
 
   final int? wifiMaxBitRate;
   final String? wifiFormat;
@@ -198,6 +208,21 @@ class AppSettingsModel {
   /// Ignored at runtime if a build-time key (NAVIS_LASTFM_API_KEY) is bundled.
   final String? lastFmApiKey;
 
+  /// Whether group listening / Voyage integration is enabled locally.
+  final bool groupListeningEnabled;
+
+  /// Voyage base URL. Non-sensitive and safe to persist in Drift.
+  final String? voyageServerUrl;
+
+  /// Preferred in-room display name shown to other listeners.
+  final String? voyageDisplayName;
+
+  /// Optional device label used to distinguish this client in a room.
+  final String? voyageDeviceLabel;
+
+  /// When true, the client should prefer following host-led playback changes.
+  final bool voyageAutoFollowHost;
+
   AppSettingsModel copyWith({
     int? wifiMaxBitRate,
     String? wifiFormat,
@@ -249,6 +274,11 @@ class AppSettingsModel {
     bool? albumQueueEnabled,
     bool? likedQueueEnabled,
     String? lastFmApiKey,
+    bool? groupListeningEnabled,
+    String? voyageServerUrl,
+    String? voyageDisplayName,
+    String? voyageDeviceLabel,
+    bool? voyageAutoFollowHost,
     bool clearWifiBitRate = false,
     bool clearWifiFormat = false,
     bool clearCellularBitRate = false,
@@ -261,6 +291,9 @@ class AppSettingsModel {
     bool clearHomeSectionOrder = false,
     bool clearHomeSectionsHidden = false,
     bool clearLastFmApiKey = false,
+    bool clearVoyageServerUrl = false,
+    bool clearVoyageDisplayName = false,
+    bool clearVoyageDeviceLabel = false,
   }) {
     return AppSettingsModel(
       wifiMaxBitRate: clearWifiBitRate
@@ -337,7 +370,21 @@ class AppSettingsModel {
           desktopNavbarAutohide ?? this.desktopNavbarAutohide,
       albumQueueEnabled: albumQueueEnabled ?? this.albumQueueEnabled,
       likedQueueEnabled: likedQueueEnabled ?? this.likedQueueEnabled,
-      lastFmApiKey: clearLastFmApiKey ? null : lastFmApiKey ?? this.lastFmApiKey,
+      lastFmApiKey: clearLastFmApiKey
+          ? null
+          : lastFmApiKey ?? this.lastFmApiKey,
+      groupListeningEnabled:
+          groupListeningEnabled ?? this.groupListeningEnabled,
+      voyageServerUrl: clearVoyageServerUrl
+          ? null
+          : voyageServerUrl ?? this.voyageServerUrl,
+      voyageDisplayName: clearVoyageDisplayName
+          ? null
+          : voyageDisplayName ?? this.voyageDisplayName,
+      voyageDeviceLabel: clearVoyageDeviceLabel
+          ? null
+          : voyageDeviceLabel ?? this.voyageDeviceLabel,
+      voyageAutoFollowHost: voyageAutoFollowHost ?? this.voyageAutoFollowHost,
     );
   }
 }
