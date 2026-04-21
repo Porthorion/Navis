@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:navis/src/app.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/expandable_player_sheet.dart';
@@ -13,6 +14,8 @@ import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
+import 'package:navis/src/features/group_listening/domain/group_listening_session_models.dart';
+import 'package:navis/src/features/group_listening/presentation/group_listening_session_controller.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
@@ -61,6 +64,16 @@ class _NoopScrobbleDispatchController extends ScrobbleDispatchController {
   int build() => 0;
 }
 
+class _StaticGroupListeningSessionController
+    extends GroupListeningSessionController {
+  _StaticGroupListeningSessionController(this._state);
+
+  final GroupListeningSessionState _state;
+
+  @override
+  GroupListeningSessionState build() => _state;
+}
+
 ProviderContainer _createContainerWithDatabase({
   List<Override> overrides = const <Override>[],
 }) {
@@ -77,6 +90,7 @@ ProviderContainer _createContainerWithDatabase({
 
 List<Override> _authenticatedShellOverrides({
   PlaybackSnapshot playback = _activePlayback,
+  ServerReachabilityStatus reachability = ServerReachabilityStatus.online,
 }) {
   return <Override>[
     serverConfigStateProvider.overrideWithValue(
@@ -91,9 +105,7 @@ List<Override> _authenticatedShellOverrides({
     ),
     serverReachabilityControllerProvider.overrideWith(
       () => _StaticReachabilityController(
-        const ServerReachabilityState(
-          status: ServerReachabilityStatus.online,
-        ),
+        ServerReachabilityState(status: reachability),
       ),
     ),
     librarySyncControllerProvider.overrideWith(
@@ -111,6 +123,17 @@ List<Override> _authenticatedShellOverrides({
       _NoopScrobbleDispatchController.new,
     ),
     playbackSnapshotProvider.overrideWith((ref) => Stream.value(playback)),
+    packageInfoProvider.overrideWithValue(
+      AsyncData<PackageInfo>(
+        PackageInfo(
+          appName: 'Navis',
+          packageName: 'org.navis.app',
+          version: '1.2.3',
+          buildNumber: '42',
+          buildSignature: '',
+        ),
+      ),
+    ),
   ];
 }
 
@@ -126,6 +149,89 @@ const PlaybackSnapshot _activePlayback = PlaybackSnapshot(
   shuffleMode: AudioServiceShuffleMode.none,
   repeatMode: AudioServiceRepeatMode.none,
 );
+
+final GroupListeningSessionState _activeGroupListeningSession =
+    GroupListeningSessionState(
+      availability: GroupListeningAvailability.ready,
+      status: GroupListeningSessionStatus.connected,
+      connection: GroupListeningConnectionState(
+        status: GroupListeningConnectionStatus.connected,
+        clientConnectionId: 'conn-1',
+        connectedAt: DateTime.utc(2026, 4, 21, 12),
+      ),
+      configuration: GroupListeningClientConfiguration(
+        voyageBaseUrl: Uri.parse('https://voyage.example.com'),
+        sourceServerOrigin: 'https://example.com',
+        sourceServerFingerprint: 'fingerprint',
+        displayName: 'alice',
+        deviceLabel: 'Desktop',
+        autoFollowHost: true,
+      ),
+      room: GroupListeningRoomState(
+        protocolVersion: voyageProtocolVersion,
+        roomId: 'room-1',
+        roomStatus: GroupListeningRoomStatus.active,
+        roomVersion: 1,
+        presenceVersion: 1,
+        authVersion: 1,
+        serverTime: DateTime.utc(2026, 4, 21, 12),
+        sourceServerFingerprint: 'fingerprint',
+        hostMemberId: 'member-1',
+        self: const GroupListeningSelfState(
+          memberId: 'member-1',
+          role: GroupListeningMemberRole.host,
+          canControl: true,
+          authVersion: 1,
+        ),
+        members: <GroupListeningMemberState>[
+          GroupListeningMemberState(
+            memberId: 'member-1',
+            displayName: 'Alice',
+            deviceLabel: 'Desktop',
+            role: GroupListeningMemberRole.host,
+            presenceState: GroupListeningMemberPresenceState.active,
+            joinedAt: DateTime.utc(2026, 4, 21, 12),
+            lastSeenAt: DateTime.utc(2026, 4, 21, 12),
+          ),
+          GroupListeningMemberState(
+            memberId: 'member-2',
+            displayName: 'Bob',
+            deviceLabel: 'Phone',
+            role: GroupListeningMemberRole.member,
+            presenceState: GroupListeningMemberPresenceState.active,
+            joinedAt: DateTime.utc(2026, 4, 21, 12, 0, 2),
+            lastSeenAt: DateTime.utc(2026, 4, 21, 12, 0, 2),
+          ),
+        ],
+        queue: GroupListeningQueueState(
+          queueVersion: 1,
+          currentIndex: 0,
+          entries: <GroupListeningQueueEntry>[
+            GroupListeningQueueEntry(
+              queueEntryId: 'entry-1',
+              songId: 'song-1',
+              addedByMemberId: 'member-1',
+              addedAt: DateTime.utc(2026, 4, 21, 12),
+            ),
+          ],
+        ),
+        playbackAnchor: GroupListeningPlaybackAnchor(
+          roomVersion: 1,
+          queueVersion: 1,
+          currentIndex: 0,
+          currentQueueEntryId: 'entry-1',
+          currentSongId: 'song-1',
+          playbackState: GroupListeningPlaybackStatus.playing,
+          position: const Duration(seconds: 42),
+          capturedAt: DateTime.utc(2026, 4, 21, 12),
+          playbackRate: 1,
+          reason: GroupListeningPlaybackAnchorReason.snapshot,
+          issuedByMemberId: 'member-1',
+        ),
+      ),
+      lastAppliedRoomVersion: 1,
+      lastSnapshotAt: DateTime.utc(2026, 4, 21, 12),
+    );
 
 void main() {
   Future<void> focusDesktopQueueButton(WidgetTester tester) async {
@@ -153,10 +259,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: const NavisApp(),
-      ),
+      UncontrolledProviderScope(container: container, child: const NavisApp()),
     );
     await tester.pumpAndSettle();
 
@@ -177,10 +280,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: const NavisApp(),
-      ),
+      UncontrolledProviderScope(container: container, child: const NavisApp()),
     );
     await tester.pumpAndSettle();
 
@@ -203,73 +303,59 @@ void main() {
     );
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: const NavisApp(),
-      ),
+      UncontrolledProviderScope(container: container, child: const NavisApp()),
     );
     await tester.pumpAndSettle();
 
     expect(find.byType(NavigationBar), findsNothing);
   });
 
-  testWidgets(
-    'desktop-wide shell uses unified desktop sidebar and player bar',
-    (
-      tester,
-    ) async {
-      tester.view.devicePixelRatio = 1;
-      tester.view.physicalSize = const Size(1280, 1000);
-      addTearDown(() {
-        tester.view.resetPhysicalSize();
-        tester.view.resetDevicePixelRatio();
-      });
+  testWidgets('desktop-wide shell uses unified desktop sidebar and player bar', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1280, 1000);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
 
-      final container = _createContainerWithDatabase(
-        overrides: _authenticatedShellOverrides(),
-      );
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(),
+    );
 
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: const NavisApp(),
-        ),
-      );
-      await tester.pumpAndSettle();
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: const NavisApp()),
+    );
+    await tester.pumpAndSettle();
 
-      expect(
-        find.byKey(const ValueKey('desktopSidebarRegion')),
-        findsOneWidget,
-      );
-      expect(find.byKey(const ValueKey('desktopPlayerBar')), findsOneWidget);
-      expect(find.byKey(const ValueKey('railMiniPlayer')), findsNothing);
-      expect(find.byType(ExpandablePlayerSheet), findsNothing);
-      expect(find.byIcon(Icons.open_in_full), findsNothing);
-      expect(container.read(playerSheetExpandedProvider), isFalse);
+    expect(find.byKey(const ValueKey('desktopSidebarRegion')), findsOneWidget);
+    expect(find.byKey(const ValueKey('desktopPlayerBar')), findsOneWidget);
+    expect(find.byKey(const ValueKey('railMiniPlayer')), findsNothing);
+    expect(find.byType(ExpandablePlayerSheet), findsNothing);
+    expect(find.byIcon(Icons.open_in_full), findsNothing);
+    expect(container.read(playerSheetExpandedProvider), isFalse);
 
-      await tester.tap(find.byKey(const ValueKey('desktopQueueButton')));
-      await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('desktopQueueButton')));
+    await tester.pumpAndSettle();
 
-      expect(container.read(queueOverlayVisibleProvider), isTrue);
-      expect(container.read(playerSheetExpandedProvider), isFalse);
+    expect(container.read(queueOverlayVisibleProvider), isTrue);
+    expect(container.read(playerSheetExpandedProvider), isFalse);
 
-      await tester.tapAt(const Offset(360, 40));
-      await tester.pumpAndSettle();
+    await tester.tapAt(const Offset(360, 40));
+    await tester.pumpAndSettle();
 
-      expect(container.read(queueOverlayVisibleProvider), isFalse);
+    expect(container.read(queueOverlayVisibleProvider), isFalse);
 
-      // Clicking the desktop player bar no longer opens the expanded player;
-      // the whole-bar InkWell was removed. Verify the bar itself is still present.
-      expect(find.byKey(const ValueKey('desktopPlayerBar')), findsOneWidget);
-      expect(tester.takeException(), isNull);
-    },
-  );
+    // Clicking the desktop player bar no longer opens the expanded player;
+    // the whole-bar InkWell was removed. Verify the bar itself is still present.
+    expect(find.byKey(const ValueKey('desktopPlayerBar')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets(
     'compact desktop rail keeps rail mini player and avoids desktop bar',
-    (
-      tester,
-    ) async {
+    (tester) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = const Size(1024, 1000);
       addTearDown(() {
@@ -310,10 +396,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: const NavisApp(),
-      ),
+      UncontrolledProviderScope(container: container, child: const NavisApp()),
     );
     await tester.pumpAndSettle();
 
@@ -377,10 +460,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: const NavisApp(),
-      ),
+      UncontrolledProviderScope(container: container, child: const NavisApp()),
     );
     await tester.pumpAndSettle();
 
@@ -406,10 +486,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: const NavisApp(),
-      ),
+      UncontrolledProviderScope(container: container, child: const NavisApp()),
     );
     await tester.pumpAndSettle();
 
@@ -436,10 +513,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: const NavisApp(),
-      ),
+      UncontrolledProviderScope(container: container, child: const NavisApp()),
     );
     await tester.pumpAndSettle();
 
@@ -451,10 +525,51 @@ void main() {
   });
 
   testWidgets(
+    'active group listening indicator opens the room settings screen',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(599, 1000);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final container = _createContainerWithDatabase(
+        overrides: <Override>[
+          ..._authenticatedShellOverrides(),
+          groupListeningSessionControllerProvider.overrideWith(
+            () => _StaticGroupListeningSessionController(
+              _activeGroupListeningSession,
+            ),
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const NavisApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('groupListeningShellIndicator')),
+        findsOneWidget,
+      );
+
+      await tester.tap(
+        find.byKey(const ValueKey('groupListeningShellIndicator')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Group Listening'), findsWidgets);
+    },
+  );
+
+  testWidgets(
     'keeps deep settings route stable while resizing across layouts',
-    (
-      tester,
-    ) async {
+    (tester) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = const Size(599, 1000);
       addTearDown(() {
@@ -511,10 +626,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: const NavisApp(),
-      ),
+      UncontrolledProviderScope(container: container, child: const NavisApp()),
     );
     await tester.pumpAndSettle();
 
@@ -558,10 +670,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: const NavisApp(),
-      ),
+      UncontrolledProviderScope(container: container, child: const NavisApp()),
     );
     await tester.pumpAndSettle();
 
@@ -674,46 +783,42 @@ void main() {
     },
   );
 
-  testWidgets(
-    'tight vertical rail falls back to tabbed library navigation',
-    (tester) async {
-      tester.view.devicePixelRatio = 1;
-      tester.view.physicalSize = const Size(1024, 640);
-      addTearDown(() {
-        tester.view.resetPhysicalSize();
-        tester.view.resetDevicePixelRatio();
-      });
+  testWidgets('tight vertical rail falls back to tabbed library navigation', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1024, 640);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
 
-      final container = _createContainerWithDatabase(
-        overrides: <Override>[
-          ..._authenticatedShellOverrides(),
-          showLikedPageProvider.overrideWithValue(true),
-          showArtistsPageProvider.overrideWithValue(true),
-          showPlaylistsPageProvider.overrideWithValue(true),
-          showRadioPageProvider.overrideWithValue(true),
-        ],
-      );
+    final container = _createContainerWithDatabase(
+      overrides: <Override>[
+        ..._authenticatedShellOverrides(),
+        showLikedPageProvider.overrideWithValue(true),
+        showArtistsPageProvider.overrideWithValue(true),
+        showPlaylistsPageProvider.overrideWithValue(true),
+        showRadioPageProvider.overrideWithValue(true),
+      ],
+    );
 
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: const NavisApp(),
-        ),
-      );
-      await tester.pumpAndSettle();
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: const NavisApp()),
+    );
+    await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const ValueKey('railNavTile-1')));
-      await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('railNavTile-1')));
+    await tester.pumpAndSettle();
 
-      expect(
-        find.byKey(const ValueKey('railLibrarySection-liked')),
-        findsNothing,
-      );
-      expect(find.text('Library - Albums'), findsNothing);
-      expect(find.byType(TabBar), findsOneWidget);
-      expect(find.text('Albums'), findsWidgets);
-    },
-  );
+    expect(
+      find.byKey(const ValueKey('railLibrarySection-liked')),
+      findsNothing,
+    );
+    expect(find.text('Library - Albums'), findsNothing);
+    expect(find.byType(TabBar), findsOneWidget);
+    expect(find.text('Albums'), findsWidgets);
+  });
 
   testWidgets('expanded player takes back priority over branch detail routes', (
     tester,
@@ -723,10 +828,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: const NavisApp(),
-      ),
+      UncontrolledProviderScope(container: container, child: const NavisApp()),
     );
     await tester.pumpAndSettle();
 
@@ -756,10 +858,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: const NavisApp(),
-      ),
+      UncontrolledProviderScope(container: container, child: const NavisApp()),
     );
     await tester.pumpAndSettle();
 
@@ -783,48 +882,44 @@ void main() {
     expect(container.read(playerSheetExpandedProvider), isFalse);
   });
 
-  testWidgets(
-    'escape closes queue before collapsing now playing',
-    (tester) async {
-      tester.view.devicePixelRatio = 1;
-      tester.view.physicalSize = const Size(1280, 1000);
-      addTearDown(() {
-        tester.view.resetPhysicalSize();
-        tester.view.resetDevicePixelRatio();
-      });
+  testWidgets('escape closes queue before collapsing now playing', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1280, 1000);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
 
-      final container = _createContainerWithDatabase(
-        overrides: _authenticatedShellOverrides(),
-      );
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(),
+    );
 
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: const NavisApp(),
-        ),
-      );
-      await tester.pumpAndSettle();
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: const NavisApp()),
+    );
+    await tester.pumpAndSettle();
 
-      container.read(playerOverlayStackProvider.notifier).expand();
-      await tester.pumpAndSettle();
-      expect(container.read(playerSheetExpandedProvider), isTrue);
+    container.read(playerOverlayStackProvider.notifier).expand();
+    await tester.pumpAndSettle();
+    expect(container.read(playerSheetExpandedProvider), isTrue);
 
-      container.read(playerOverlayStackProvider.notifier).showQueue();
-      await tester.pumpAndSettle();
-      expect(container.read(queueOverlayVisibleProvider), isTrue);
+    container.read(playerOverlayStackProvider.notifier).showQueue();
+    await tester.pumpAndSettle();
+    expect(container.read(queueOverlayVisibleProvider), isTrue);
 
-      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-      await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
 
-      expect(container.read(queueOverlayVisibleProvider), isFalse);
-      expect(container.read(playerSheetExpandedProvider), isTrue);
+    expect(container.read(queueOverlayVisibleProvider), isFalse);
+    expect(container.read(playerSheetExpandedProvider), isTrue);
 
-      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-      await tester.pumpAndSettle();
-      expect(container.read(playerSheetExpandedProvider), isFalse);
-      expect(tester.takeException(), isNull);
-    },
-  );
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(container.read(playerSheetExpandedProvider), isFalse);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets(
     'escape does not open now playing when nothing dismissible is open',
@@ -859,46 +954,7 @@ void main() {
     },
   );
 
-  testWidgets(
-    'escape closes collapsed queue and does not reopen now playing',
-    (tester) async {
-      tester.view.devicePixelRatio = 1;
-      tester.view.physicalSize = const Size(1280, 1000);
-      addTearDown(() {
-        tester.view.resetPhysicalSize();
-        tester.view.resetDevicePixelRatio();
-      });
-
-      final container = _createContainerWithDatabase(
-        overrides: _authenticatedShellOverrides(),
-      );
-
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: const NavisApp(),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(container.read(playerSheetExpandedProvider), isFalse);
-      container.read(playerOverlayStackProvider.notifier).showQueueOnly();
-      await tester.pumpAndSettle();
-      expect(container.read(queueOverlayVisibleProvider), isTrue);
-      expect(container.read(playerSheetExpandedProvider), isFalse);
-
-      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-      await tester.pumpAndSettle();
-      expect(container.read(queueOverlayVisibleProvider), isFalse);
-      expect(container.read(playerSheetExpandedProvider), isFalse);
-
-      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-      await tester.pumpAndSettle();
-      expect(container.read(playerSheetExpandedProvider), isFalse);
-    },
-  );
-
-  testWidgets('desktop quick-search opens via Ctrl+F and submits query', (
+  testWidgets('escape closes collapsed queue and does not reopen now playing', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -913,10 +969,44 @@ void main() {
     );
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: const NavisApp(),
+      UncontrolledProviderScope(container: container, child: const NavisApp()),
+    );
+    await tester.pumpAndSettle();
+
+    expect(container.read(playerSheetExpandedProvider), isFalse);
+    container.read(playerOverlayStackProvider.notifier).showQueueOnly();
+    await tester.pumpAndSettle();
+    expect(container.read(queueOverlayVisibleProvider), isTrue);
+    expect(container.read(playerSheetExpandedProvider), isFalse);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(container.read(queueOverlayVisibleProvider), isFalse);
+    expect(container.read(playerSheetExpandedProvider), isFalse);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(container.read(playerSheetExpandedProvider), isFalse);
+  });
+
+  testWidgets('desktop quick-search opens via Ctrl+F and submits query', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1280, 1000);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(
+        reachability: ServerReachabilityStatus.offline,
       ),
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: const NavisApp()),
     );
     await tester.pumpAndSettle();
 
@@ -954,10 +1044,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: const NavisApp(),
-      ),
+      UncontrolledProviderScope(container: container, child: const NavisApp()),
     );
     await tester.pumpAndSettle();
 
@@ -1030,10 +1117,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: const NavisApp(),
-      ),
+      UncontrolledProviderScope(container: container, child: const NavisApp()),
     );
     await tester.pumpAndSettle();
 
@@ -1059,10 +1143,8 @@ void main() {
   });
 
   testWidgets(
-    'desktop player and desktop now playing expose focus mode toggles',
-    (
-      tester,
-    ) async {
+    'desktop player and desktop now playing hide unreleased focus mode toggles',
+    (tester) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = const Size(1280, 1000);
       addTearDown(() {
@@ -1084,7 +1166,7 @@ void main() {
 
       expect(
         find.byKey(const ValueKey('desktopPlayerFocusButton')),
-        findsOneWidget,
+        findsNothing,
       );
 
       container.read(playerOverlayStackProvider.notifier).expand();
@@ -1092,7 +1174,7 @@ void main() {
 
       expect(
         find.byKey(const ValueKey('desktopNowPlayingFocusButton')),
-        findsOneWidget,
+        findsNothing,
       );
       expect(tester.takeException(), isNull);
     },
