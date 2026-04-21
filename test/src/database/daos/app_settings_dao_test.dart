@@ -177,13 +177,6 @@ void main() {
         artistViewMode: 'grid',
         homeDensity: 'compact',
       );
-      await database.appSettingsDao.saveGroupListeningSettings(
-        groupListeningEnabled: true,
-        voyageServerUrl: 'https://voyage.example.com',
-        voyageDisplayName: 'Alice',
-        voyageDeviceLabel: 'Kitchen Speaker',
-        voyageAutoFollowHost: false,
-      );
 
       await database.appSettingsDao.resetDefaults();
 
@@ -206,39 +199,6 @@ void main() {
       expect(settings.loudnessTargetGainDb, 0);
       expect(settings.dynamicAlbumColorEnabled, isFalse);
       expect(settings.homeDensity, 'comfortable');
-      final groupListening = await database.appSettingsDao
-          .getGroupListeningSettings();
-      expect(groupListening.groupListeningEnabled, isFalse);
-      expect(groupListening.voyageServerUrl, isNull);
-      expect(groupListening.voyageDisplayName, isNull);
-      expect(groupListening.voyageDeviceLabel, isNull);
-      expect(
-        groupListening.voyageAutoFollowHost,
-        AppSettingsDao.defaultVoyageAutoFollowHost,
-      );
     }, skip: !sqliteAvailable);
-
-    test(
-      'group listening settings persist outside the typed Drift model',
-      () async {
-        await database.appSettingsDao.saveGroupListeningSettings(
-          groupListeningEnabled: true,
-          voyageServerUrl: 'https://voyage.example.com',
-          voyageDisplayName: 'Alice',
-          voyageDeviceLabel: 'Office Desktop',
-          voyageAutoFollowHost: false,
-        );
-
-        final settings = await database.appSettingsDao
-            .getGroupListeningSettings();
-
-        expect(settings.groupListeningEnabled, isTrue);
-        expect(settings.voyageServerUrl, 'https://voyage.example.com');
-        expect(settings.voyageDisplayName, 'Alice');
-        expect(settings.voyageDeviceLabel, 'Office Desktop');
-        expect(settings.voyageAutoFollowHost, isFalse);
-      },
-      skip: !sqliteAvailable,
-    );
   });
 }

@@ -10,22 +10,18 @@ class SettingsRepository {
   final AppSettingsDao _dao;
 
   Stream<AppSettingsModel> watchSettings() {
-    return _dao.watchSettings().asyncMap((row) async {
-      final groupListening = await _dao.getGroupListeningSettings();
-      return _mapOrDefault(row, groupListening: groupListening);
-    });
+    return _dao.watchSettings().map(_mapOrDefault);
   }
 
   Future<AppSettingsModel> getSettings() async {
     final row = await _dao.getSettings();
-    final groupListening = await _dao.getGroupListeningSettings();
-    return _mapOrDefault(row, groupListening: groupListening);
+    return _mapOrDefault(row);
   }
 
-  Future<void> saveSettings(AppSettingsModel settings) async {
+  Future<void> saveSettings(AppSettingsModel settings) {
     // skipSilenceEnabled is persisted for compatibility with older schema
     // versions but is currently not applied at runtime playback level.
-    await _dao.saveSettings(
+    return _dao.saveSettings(
       wifiMaxBitRate: settings.wifiMaxBitRate,
       wifiFormat: settings.wifiFormat,
       cellularMaxBitRate: settings.cellularMaxBitRate,
@@ -77,33 +73,14 @@ class SettingsRepository {
       likedQueueEnabled: settings.likedQueueEnabled,
       lastFmApiKey: settings.lastFmApiKey,
     );
-    await _dao.saveGroupListeningSettings(
-      groupListeningEnabled: settings.groupListeningEnabled,
-      voyageServerUrl: settings.voyageServerUrl,
-      voyageDisplayName: settings.voyageDisplayName,
-      voyageDeviceLabel: settings.voyageDeviceLabel,
-      voyageAutoFollowHost: settings.voyageAutoFollowHost,
-    );
   }
 
   Future<void> resetDefaults() => _dao.resetDefaults();
 
-  AppSettingsModel _mapOrDefault(
-    AppSettingsTableData? row, {
-    GroupListeningSettingsRecord? groupListening,
-  }) {
+  AppSettingsModel _mapOrDefault(AppSettingsTableData? row) {
     if (row == null) {
       return const AppSettingsModel.defaults();
     }
-    final effectiveGroupListening =
-        groupListening ??
-        (
-          groupListeningEnabled: false,
-          voyageServerUrl: null,
-          voyageDisplayName: null,
-          voyageDeviceLabel: null,
-          voyageAutoFollowHost: AppSettingsDao.defaultVoyageAutoFollowHost,
-        );
     return AppSettingsModel(
       wifiMaxBitRate: row.wifiMaxBitRate,
       wifiFormat: row.wifiFormat,
@@ -155,11 +132,6 @@ class SettingsRepository {
       albumQueueEnabled: row.albumQueueEnabled,
       likedQueueEnabled: row.likedQueueEnabled,
       lastFmApiKey: row.lastFmApiKey,
-      groupListeningEnabled: effectiveGroupListening.groupListeningEnabled,
-      voyageServerUrl: effectiveGroupListening.voyageServerUrl,
-      voyageDisplayName: effectiveGroupListening.voyageDisplayName,
-      voyageDeviceLabel: effectiveGroupListening.voyageDeviceLabel,
-      voyageAutoFollowHost: effectiveGroupListening.voyageAutoFollowHost,
     );
   }
 

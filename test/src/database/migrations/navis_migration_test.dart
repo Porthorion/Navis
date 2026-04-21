@@ -10,109 +10,110 @@ import 'package:sqlite3/sqlite3.dart';
 import '../../../helpers/test_database.dart';
 
 void main() {
-  test('latest schema opens with expected user_version', () async {
-    final database = NavisDatabase(NativeDatabase.memory());
-    addTearDown(database.close);
+  test(
+    'latest schema opens with expected user_version',
+    () async {
+      final database = NavisDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
 
-    final pragmaRow = await database
-        .customSelect('PRAGMA user_version;')
-        .getSingle();
+      final pragmaRow = await database
+          .customSelect('PRAGMA user_version;')
+          .getSingle();
 
-    expect(database.schemaVersion, 41);
-    expect(pragmaRow.read<int>("user_version"), 41);
-  }, skip: !sqliteAvailable);
+      expect(database.schemaVersion, 40);
+      expect(pragmaRow.read<int>("user_version"), 40);
+    },
+    skip: !sqliteAvailable,
+  );
 
-  test('latest schema creates app settings defaults', () async {
-    final database = NavisDatabase(NativeDatabase.memory());
-    addTearDown(database.close);
+  test(
+    'latest schema creates app settings defaults',
+    () async {
+      final database = NavisDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
 
-    final settings = await database.appSettingsDao.getSettings();
-    expect(settings, isNotNull);
-    expect(settings!.id, AppSettingsDao.primarySettingsId);
-    expect(settings.wifiMaxBitRate, isNull);
-    expect(settings.wifiFormat, isNull);
-    expect(settings.cellularMaxBitRate, AppSettingsDao.defaultCellularBitRate);
-    expect(settings.cellularFormat, AppSettingsDao.defaultCellularFormat);
-    expect(settings.scrobbleEnabled, isTrue);
-    expect(settings.gaplessEnabled, isTrue);
-    expect(settings.skipSilenceEnabled, isFalse);
-    expect(settings.showRadioPage, isTrue);
-    expect(settings.showPlaylistsPage, isTrue);
-    expect(settings.showArtistsPage, isTrue);
-    expect(settings.showLikedPage, isTrue);
-    expect(settings.equalizerEnabled, isFalse);
-    expect(settings.equalizerBandGains, isNull);
-    expect(settings.loudnessEnabled, isFalse);
-    expect(settings.loudnessTargetGainDb, 0);
-    expect(
-      settings.rollingCacheBudgetMb,
-      AppSettingsDao.defaultRollingCacheBudgetMb,
-    );
-    expect(settings.autoDownloadStarredOnWifi, isFalse);
-    expect(settings.useLrclib, isTrue);
-    expect(settings.updateCheckEnabled, isTrue);
-    expect(settings.updateChannel, 'stable');
-    expect(settings.homeDensity, 'comfortable');
-    final groupListening = await database.appSettingsDao
-        .getGroupListeningSettings();
-    final columns = await database
-        .customSelect("PRAGMA table_info('app_settings');")
-        .get();
-    final columnNames = columns.map((row) => row.read<String>('name')).toSet();
-    expect(
-      columnNames,
-      containsAll(<String>{
-        'group_listening_enabled',
-        'voyage_server_url',
-        'voyage_display_name',
-        'voyage_device_label',
-        'voyage_auto_follow_host',
-      }),
-    );
-    expect(groupListening.groupListeningEnabled, isFalse);
-    expect(groupListening.voyageServerUrl, isNull);
-    expect(groupListening.voyageDisplayName, isNull);
-    expect(groupListening.voyageDeviceLabel, isNull);
-    expect(groupListening.voyageAutoFollowHost, isTrue);
-  }, skip: !sqliteAvailable);
+      final settings = await database.appSettingsDao.getSettings();
+      expect(settings, isNotNull);
+      expect(settings!.id, AppSettingsDao.primarySettingsId);
+      expect(settings.wifiMaxBitRate, isNull);
+      expect(settings.wifiFormat, isNull);
+      expect(
+        settings.cellularMaxBitRate,
+        AppSettingsDao.defaultCellularBitRate,
+      );
+      expect(
+        settings.cellularFormat,
+        AppSettingsDao.defaultCellularFormat,
+      );
+      expect(settings.scrobbleEnabled, isTrue);
+      expect(settings.gaplessEnabled, isTrue);
+      expect(settings.skipSilenceEnabled, isFalse);
+      expect(settings.showRadioPage, isTrue);
+      expect(settings.showPlaylistsPage, isTrue);
+      expect(settings.showArtistsPage, isTrue);
+      expect(settings.showLikedPage, isTrue);
+      expect(settings.equalizerEnabled, isFalse);
+      expect(settings.equalizerBandGains, isNull);
+      expect(settings.loudnessEnabled, isFalse);
+      expect(settings.loudnessTargetGainDb, 0);
+      expect(
+        settings.rollingCacheBudgetMb,
+        AppSettingsDao.defaultRollingCacheBudgetMb,
+      );
+      expect(settings.autoDownloadStarredOnWifi, isFalse);
+      expect(settings.useLrclib, isTrue);
+      expect(settings.updateCheckEnabled, isTrue);
+      expect(settings.updateChannel, 'stable');
+      expect(settings.homeDensity, 'comfortable');
+    },
+    skip: !sqliteAvailable,
+  );
 
-  test('latest schema creates scrobble queue table', () async {
-    final database = NavisDatabase(NativeDatabase.memory());
-    addTearDown(database.close);
+  test(
+    'latest schema creates scrobble queue table',
+    () async {
+      final database = NavisDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
 
-    final tableInfo = await database
-        .customSelect("PRAGMA table_info('scrobble_queue');")
-        .get();
+      final tableInfo = await database
+          .customSelect("PRAGMA table_info('scrobble_queue');")
+          .get();
 
-    expect(tableInfo, isNotEmpty);
-    final columns = tableInfo.map((row) => row.read<String>('name')).toSet();
-    expect(
-      columns,
-      containsAll(<String>{
-        'id',
-        'song_id',
-        'submission',
-        'created_at',
-        'next_attempt_at',
-        'attempts',
-        'expires_at',
-        'session_key',
-        'last_error',
-      }),
-    );
-  }, skip: !sqliteAvailable);
+      expect(tableInfo, isNotEmpty);
+      final columns = tableInfo.map((row) => row.read<String>('name')).toSet();
+      expect(
+        columns,
+        containsAll(<String>{
+          'id',
+          'song_id',
+          'submission',
+          'created_at',
+          'next_attempt_at',
+          'attempts',
+          'expires_at',
+          'session_key',
+          'last_error',
+        }),
+      );
+    },
+    skip: !sqliteAvailable,
+  );
 
-  test('latest schema includes songs.created_at column', () async {
-    final database = NavisDatabase(NativeDatabase.memory());
-    addTearDown(database.close);
+  test(
+    'latest schema includes songs.created_at column',
+    () async {
+      final database = NavisDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
 
-    final tableInfo = await database
-        .customSelect("PRAGMA table_info('songs');")
-        .get();
-    final columns = tableInfo.map((row) => row.read<String>('name')).toSet();
+      final tableInfo = await database
+          .customSelect("PRAGMA table_info('songs');")
+          .get();
+      final columns = tableInfo.map((row) => row.read<String>('name')).toSet();
 
-    expect(columns, contains('created_at'));
-  }, skip: !sqliteAvailable);
+      expect(columns, contains('created_at'));
+    },
+    skip: !sqliteAvailable,
+  );
 
   test(
     'backfillAlbumHydrationState marks albums with songs as hydrated',
@@ -219,7 +220,7 @@ void main() {
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>("user_version"), 41);
+      expect(versionRow.read<int>("user_version"), 40);
 
       final albums = await migrated.select(migrated.albumsTable).get();
       final albumsById = {for (final album in albums) album.id: album};
@@ -268,13 +269,6 @@ void main() {
       expect(settings.homeSectionOrder, isNull);
       expect(settings.homeSectionsHidden, isNull);
       expect(settings.useLrclib, isTrue);
-      final groupListening = await migrated.appSettingsDao
-          .getGroupListeningSettings();
-      expect(groupListening.groupListeningEnabled, isFalse);
-      expect(groupListening.voyageServerUrl, isNull);
-      expect(groupListening.voyageDisplayName, isNull);
-      expect(groupListening.voyageDeviceLabel, isNull);
-      expect(groupListening.voyageAutoFollowHost, isTrue);
     },
     skip: !sqliteAvailable,
   );

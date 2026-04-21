@@ -19,7 +19,6 @@ import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
 import 'package:navis/src/features/downloads/presentation/auto_download_starred_dispatch_provider.dart';
-import 'package:navis/src/features/group_listening/presentation/group_listening_playback_sync_bridge.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
@@ -38,8 +37,6 @@ import 'package:navis/src/features/player/presentation/player_sheet_provider.dar
 import 'package:navis/src/features/player/presentation/queue_sheet.dart';
 import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
 import 'package:navis/src/features/player/presentation/smart_queue_sheet.dart';
-import 'package:navis/src/features/group_listening/presentation/group_listening_active_session_indicator.dart';
-import 'package:navis/src/features/group_listening/presentation/group_listening_session_controller.dart';
 import 'package:navis/src/features/library/presentation/star_sync_dispatch_provider.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/features/home/presentation/home_scroll_provider.dart';
@@ -219,7 +216,9 @@ class _AppShellState extends ConsumerState<AppShell> {
       return false;
     }
 
-    AppLogger.debug('[ACP_INPUT] global key handler matched ${action.name}');
+    AppLogger.debug(
+      '[ACP_INPUT] global key handler matched ${action.name}',
+    );
     final executor = _executeDesktopCommand;
     if (executor == null) return false;
     unawaited(executor(action));
@@ -304,7 +303,10 @@ class _AppShellState extends ConsumerState<AppShell> {
       }
 
       final url = api
-          .getCoverArtUrl(id: coverArtId, size: _kQueueCoverArtPrefetchSizePx)
+          .getCoverArtUrl(
+            id: coverArtId,
+            size: _kQueueCoverArtPrefetchSizePx,
+          )
           .toString();
       try {
         await cacheManager.downloadFile(url, key: cacheKey);
@@ -544,7 +546,6 @@ class _AppShellState extends ConsumerState<AppShell> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     ref.watch(librarySyncControllerProvider);
-    ref.watch(groupListeningPlaybackSyncBridgeProvider);
     ref.watch(scrobbleDispatchControllerProvider);
     ref.watch(starSyncDispatchControllerProvider);
     ref.watch(autoDownloadStarredDispatchControllerProvider);
@@ -595,7 +596,10 @@ class _AppShellState extends ConsumerState<AppShell> {
         final msg = next.error == InstantMixError.unsupported
             ? l10n.nowPlayingInstantMixUnsupported
             : l10n.nowPlayingInstantMixError;
-        _appNoticeController.show(message: msg, level: AppNoticeLevel.error);
+        _appNoticeController.show(
+          message: msg,
+          level: AppNoticeLevel.error,
+        );
         ref.read(instantMixProvider.notifier).clearError();
       }
     });
@@ -616,12 +620,17 @@ class _AppShellState extends ConsumerState<AppShell> {
         final msg = next.error == SmartQueueError.unsupported
             ? l10n.smartQueueUnsupported
             : l10n.smartQueueError;
-        _appNoticeController.show(message: msg, level: AppNoticeLevel.error);
+        _appNoticeController.show(
+          message: msg,
+          level: AppNoticeLevel.error,
+        );
         ref.read(smartQueueProvider.notifier).clearError();
       }
       // Show a "stopped" notification when the session ends.
       if ((prev?.active ?? false) && !next.active && next.error == null) {
-        _appNoticeController.show(message: l10n.smartQueueStopped);
+        _appNoticeController.show(
+          message: l10n.smartQueueStopped,
+        );
       }
     });
     // Global Same Vibes snackbar / error notifications.
@@ -645,11 +654,16 @@ class _AppShellState extends ConsumerState<AppShell> {
         final msg = next.error == SameVibesError.unsupported
             ? l10n.nowPlayingSameVibesUnsupported
             : l10n.nowPlayingSameVibesError;
-        _appNoticeController.show(message: msg, level: AppNoticeLevel.error);
+        _appNoticeController.show(
+          message: msg,
+          level: AppNoticeLevel.error,
+        );
         ref.read(sameVibesProvider.notifier).clearError();
       }
       if ((prev?.active ?? false) && !next.active && next.error == null) {
-        _appNoticeController.show(message: l10n.nowPlayingSameVibesStopped);
+        _appNoticeController.show(
+          message: l10n.nowPlayingSameVibesStopped,
+        );
       }
     });
     // Global Radio stream error snackbar.
@@ -663,18 +677,18 @@ class _AppShellState extends ConsumerState<AppShell> {
       }
     });
     // Global playback-action error snackbar (fire-and-forget queue actions).
-    ref.listen<AsyncValue<PlaybackActionError>>(playbackActionErrorProvider, (
-      prev,
-      next,
-    ) {
-      if (!mounted) return;
-      final error = next.asData?.value;
-      if (error == null) return;
-      _appNoticeController.show(
-        message: _playbackErrorMessage(l10n, error),
-        level: AppNoticeLevel.error,
-      );
-    });
+    ref.listen<AsyncValue<PlaybackActionError>>(
+      playbackActionErrorProvider,
+      (prev, next) {
+        if (!mounted) return;
+        final error = next.asData?.value;
+        if (error == null) return;
+        _appNoticeController.show(
+          message: _playbackErrorMessage(l10n, error),
+          level: AppNoticeLevel.error,
+        );
+      },
+    );
     ref.listen<bool>(
       playerStateProvider.select((snapshot) => snapshot.hasActivePlayback),
       (previous, next) {
@@ -710,16 +724,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     final showOfflineBanner =
         isAuthenticated &&
         reachability.status == ServerReachabilityStatus.offline;
-    final groupListeningSession = ref.watch(
-      groupListeningSessionControllerProvider,
-    );
-    const groupListeningIndicatorReservedHeight = 76.0;
-    final showGroupListeningIndicator = groupListeningSession.hasActiveRoom;
-    final appNoticeTopOffset =
-        (showOfflineBanner ? 66.0 : 12.0) +
-        (showGroupListeningIndicator
-            ? groupListeningIndicatorReservedHeight
-            : 0);
+    final appNoticeTopOffset = showOfflineBanner ? 66.0 : 12.0;
     final playback = ref.watch(playerStateProvider);
     final currentSongId = playback.currentSongId;
     final currentSongAsync = currentSongId == null
@@ -809,7 +814,9 @@ class _AppShellState extends ConsumerState<AppShell> {
     final useRailNavigation = adaptiveContext.useRailNavigation;
     final isFocusPlayerMode = isDesktopRuntime
         ? ref.watch(
-            desktopWindowControllerProvider.select((c) => c.isFocusPlayerMode),
+            desktopWindowControllerProvider.select(
+              (c) => c.isFocusPlayerMode,
+            ),
           )
         : false;
     final desktopTokens = desktopTokensOf(context);
@@ -824,7 +831,10 @@ class _AppShellState extends ConsumerState<AppShell> {
       'icons' => 64.0,
       _ =>
         (screenWidth * 0.22)
-            .clamp(math.max(260.0, desktopTokens.sidebarWidth * 0.9), 360.0)
+            .clamp(
+              math.max(260.0, desktopTokens.sidebarWidth * 0.9),
+              360.0,
+            )
             .toDouble(),
     };
     final compactWideSystemInset =
@@ -925,13 +935,22 @@ class _AppShellState extends ConsumerState<AppShell> {
       });
     }
     final railDestinations = <_ShellDestination>[
-      _ShellDestination(icon: Icons.home_outlined, label: l10n.navHome),
+      _ShellDestination(
+        icon: Icons.home_outlined,
+        label: l10n.navHome,
+      ),
       _ShellDestination(
         icon: Icons.library_music_outlined,
         label: l10n.navLibrary,
       ),
-      _ShellDestination(icon: Icons.search, label: l10n.navSearch),
-      _ShellDestination(icon: Icons.settings_outlined, label: l10n.navSettings),
+      _ShellDestination(
+        icon: Icons.search,
+        label: l10n.navSearch,
+      ),
+      _ShellDestination(
+        icon: Icons.settings_outlined,
+        label: l10n.navSettings,
+      ),
     ];
 
     void onDestinationSelected(int index) {
@@ -949,7 +968,9 @@ class _AppShellState extends ConsumerState<AppShell> {
       if (branchIndex == _libraryBranchIndex) {
         ref
             .read(librarySectionProvider.notifier)
-            .setSection(LibrarySection.albums);
+            .setSection(
+              LibrarySection.albums,
+            );
       }
       if (branchIndex == _searchBranchIndex) {
         ref.read(searchFocusRequestProvider.notifier).increment();
@@ -1418,18 +1439,24 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                   children: <Widget>[
                                                     Icon(
                                                       Icons.cloud_off_outlined,
-                                                      color: Theme.of(context)
-                                                          .colorScheme
-                                                          .onErrorContainer,
+                                                      color:
+                                                          Theme.of(
+                                                                context,
+                                                              )
+                                                              .colorScheme
+                                                              .onErrorContainer,
                                                     ),
                                                     const SizedBox(width: 10),
                                                     Expanded(
                                                       child: Text(
                                                         l10n.serverOfflineBanner,
                                                         style: TextStyle(
-                                                          color: Theme.of(context)
-                                                              .colorScheme
-                                                              .onErrorContainer,
+                                                          color:
+                                                              Theme.of(
+                                                                    context,
+                                                                  )
+                                                                  .colorScheme
+                                                                  .onErrorContainer,
                                                         ),
                                                       ),
                                                     ),
@@ -1808,32 +1835,6 @@ class _AppShellState extends ConsumerState<AppShell> {
                               )
                             : const SizedBox.shrink(),
                       ),
-                    if (showGroupListeningIndicator)
-                      Positioned(
-                        top: showOfflineBanner ? 54 : 0,
-                        left: 0,
-                        right: 0,
-                        child: SafeArea(
-                          bottom: false,
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-                            child: Center(
-                              child: ConstrainedBox(
-                                constraints: const BoxConstraints(
-                                  maxWidth: 520,
-                                ),
-                                child: GroupListeningActiveSessionIndicator(
-                                  state: groupListeningSession,
-                                  onTap: () {
-                                    NavService.dismissKeyboard(context);
-                                    context.push('/settings/group-listening');
-                                  },
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
                     if (showPlayer &&
                         !useDesktopShell &&
                         showQueueOverlay &&
@@ -1924,7 +1925,11 @@ class _AppShellState extends ConsumerState<AppShell> {
 
     return FocusTraversalGroup(
       policy: OrderedTraversalPolicy(),
-      child: Focus(focusNode: _shellFocusNode, autofocus: true, child: shell),
+      child: Focus(
+        focusNode: _shellFocusNode,
+        autofocus: true,
+        child: shell,
+      ),
     );
   }
 }
@@ -2089,19 +2094,24 @@ class _DesktopQuickSearchOverlayState
                                 ],
                               ),
                               const SizedBox(height: 8),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
+                              Row(
                                 children: <Widget>[
-                                  for (int i = 0; i < _filterLabels.length; i++)
+                                  for (
+                                    int i = 0;
+                                    i < _filterLabels.length;
+                                    i++
+                                  ) ...<Widget>[
+                                    if (i > 0) const SizedBox(width: 8),
                                     FilterChip(
                                       label: Text(_filterLabels[i]),
                                       selected: _selectedIndex == i,
-                                      onSelected: (_) =>
-                                          setState(() => _selectedIndex = i),
+                                      onSelected: (_) => setState(
+                                        () => _selectedIndex = i,
+                                      ),
                                       visualDensity: VisualDensity.compact,
                                       showCheckmark: false,
                                     ),
+                                  ],
                                 ],
                               ),
                             ],
@@ -2220,7 +2230,10 @@ class _BatteryOptimizationSheet extends StatelessWidget {
 }
 
 class _BottomNavReveal extends StatelessWidget {
-  const _BottomNavReveal({required this.reveal, required this.child});
+  const _BottomNavReveal({
+    required this.reveal,
+    required this.child,
+  });
 
   final double reveal;
   final Widget child;
@@ -2243,7 +2256,10 @@ class _BottomNavReveal extends StatelessWidget {
           heightFactor: clamped,
           child: Transform.translate(
             offset: Offset(0, slideOffset),
-            child: Opacity(opacity: opacity, child: child),
+            child: Opacity(
+              opacity: opacity,
+              child: child,
+            ),
           ),
         ),
       ),
@@ -2886,7 +2902,9 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                   await ref.read(audioHandlerProvider)?.setVolume(volume);
                 }
 
-                Future<void> toggleMute({required String source}) async {
+                Future<void> toggleMute({
+                  required String source,
+                }) async {
                   final volume = ref
                       .read(playbackVolumeProvider.notifier)
                       .toggleMute();
@@ -2922,8 +2940,11 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                   coverArtWidget = MouseRegion(
                     cursor: SystemMouseCursors.click,
                     child: GestureDetector(
-                      onTap: () =>
-                          NavService.goToAlbum(context, ref, resolvedAlbumId),
+                      onTap: () => NavService.goToAlbum(
+                        context,
+                        ref,
+                        resolvedAlbumId,
+                      ),
                       child: coverArtWidget,
                     ),
                   );
@@ -2981,7 +3002,9 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                                 .read(
                                                   searchFilterProvider.notifier,
                                                 )
-                                                .select(SearchResultType.songs);
+                                                .select(
+                                                  SearchResultType.songs,
+                                                );
                                             NavService.goToSearch(
                                               context,
                                               ref,
@@ -3384,8 +3407,9 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                           tapTargetSize:
                                               MaterialTapTargetSize.shrinkWrap,
                                         ),
-                                        onPressed: () =>
-                                            unawaited(skipForwardOrStopRadio()),
+                                        onPressed: () => unawaited(
+                                          skipForwardOrStopRadio(),
+                                        ),
                                         icon: Icon(
                                           playback.isRadioMode
                                               ? Icons.stop_rounded
@@ -3503,7 +3527,9 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                 focusNode: widget.queueToggleFocusNode,
                                 tooltip: l10n.queueTitle,
                                 onPressed: widget.onToggleQueue,
-                                icon: const Icon(Icons.queue_music_outlined),
+                                icon: const Icon(
+                                  Icons.queue_music_outlined,
+                                ),
                               ),
                           ],
                         ),
@@ -4127,8 +4153,9 @@ class _RailSidebar extends ConsumerWidget {
                           selected:
                               selectedIndex == 1 &&
                               selectedLibrarySection == LibrarySection.liked,
-                          onTap: () =>
-                              onLibrarySectionSelected(LibrarySection.liked),
+                          onTap: () => onLibrarySectionSelected(
+                            LibrarySection.liked,
+                          ),
                         ),
                       if (showArtistsLibraryPage)
                         _RailSubNavTile(
@@ -4141,8 +4168,9 @@ class _RailSidebar extends ConsumerWidget {
                           selected:
                               selectedIndex == 1 &&
                               selectedLibrarySection == LibrarySection.artists,
-                          onTap: () =>
-                              onLibrarySectionSelected(LibrarySection.artists),
+                          onTap: () => onLibrarySectionSelected(
+                            LibrarySection.artists,
+                          ),
                         ),
                       if (showPlaylistsLibraryPage)
                         _RailSubNavTile(
@@ -4198,7 +4226,10 @@ class _RailSidebar extends ConsumerWidget {
                       )
                     : Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: <Widget>[...navTiles, const Spacer()],
+                        children: <Widget>[
+                          ...navTiles,
+                          const Spacer(),
+                        ],
                       );
 
                 if (!showPlayer) {
@@ -5434,7 +5465,10 @@ class _DesktopLyricsOverlay extends ConsumerWidget {
 }
 
 class _DesktopLyricsContent extends ConsumerWidget {
-  const _DesktopLyricsContent({required this.songId, required this.position});
+  const _DesktopLyricsContent({
+    required this.songId,
+    required this.position,
+  });
 
   final String songId;
   final Duration position;
@@ -5513,10 +5547,13 @@ class _SlideUpPlayerTransitionState extends State<_SlideUpPlayerTransition>
       reverseDuration: const Duration(milliseconds: 220),
       vsync: this,
     );
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 1),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
+    _slideAnimation =
+        Tween<Offset>(
+          begin: const Offset(0, 1),
+          end: Offset.zero,
+        ).animate(
+          CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
+        );
     if (widget.showPlayer) {
       _controller.value = 1.0;
     }
@@ -5552,7 +5589,10 @@ class _SlideUpPlayerTransitionState extends State<_SlideUpPlayerTransition>
           left: 0,
           child: IgnorePointer(
             ignoring: !widget.showPlayer,
-            child: SlideTransition(position: _slideAnimation, child: child),
+            child: SlideTransition(
+              position: _slideAnimation,
+              child: child,
+            ),
           ),
         );
       },

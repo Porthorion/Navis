@@ -8,20 +8,23 @@ import 'package:navis/src/features/settings/presentation/settings_screen.dart';
 import '../../../../helpers/adaptive_test_harness.dart';
 
 void main() {
-  testWidgets('removed desktop UI toggle is not shown', (tester) async {
-    await tester.pumpWidget(
-      ProviderScope(
-        child: MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: const SettingsScreen(),
+  testWidgets(
+    'removed desktop UI toggle is not shown',
+    (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const SettingsScreen(),
+          ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
 
-    expect(find.text('Desktop UI V1'), findsNothing);
-  });
+      expect(find.text('Desktop UI V1'), findsNothing);
+    },
+  );
 
   testWidgets('settings layout follows adaptive width parity matrix', (
     tester,
@@ -61,7 +64,6 @@ void main() {
         find.byType(AppBar),
         step.desktopFrame ? findsNothing : findsOneWidget,
       );
-      expect(find.text('Group Listening'), findsOneWidget);
       if (step.size.width >= 1200) {
         expect(find.text('Desktop Window'), findsOneWidget);
       }

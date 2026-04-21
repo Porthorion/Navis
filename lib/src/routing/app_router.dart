@@ -5,7 +5,6 @@ import 'package:navis/src/features/auth/presentation/login_screen.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/changelog/presentation/changelog_screen.dart';
 import 'package:navis/src/features/downloads/presentation/downloads_screen.dart';
-import 'package:navis/src/features/group_listening/presentation/group_listening_settings_screen.dart';
 import 'package:navis/src/features/home/presentation/home_screen.dart';
 import 'package:navis/src/features/library/presentation/album_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/artist_detail_screen.dart';
@@ -42,7 +41,10 @@ CustomTransitionPage<T> _slideFadePage<T>({
         reverseCurve: const Interval(0.35, 1, curve: Curves.easeIn),
       );
       final slide =
-          Tween<Offset>(begin: const Offset(0, 0.05), end: Offset.zero).animate(
+          Tween<Offset>(
+            begin: const Offset(0, 0.05),
+            end: Offset.zero,
+          ).animate(
             CurvedAnimation(
               parent: animation,
               curve: Curves.fastEaseInToSlowEaseOut,
@@ -87,7 +89,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: <RouteBase>[
-      GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
+      GoRoute(
+        path: '/login',
+        builder: (context, state) => const LoginScreen(),
+      ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
           return AppShell(navigationShell: navigationShell);
@@ -180,13 +185,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     pageBuilder: (context, state) => _slideFadePage(
                       key: state.pageKey,
                       child: const DownloadsScreen(),
-                    ),
-                  ),
-                  GoRoute(
-                    path: 'group-listening',
-                    pageBuilder: (context, state) => _slideFadePage(
-                      key: state.pageKey,
-                      child: const GroupListeningSettingsScreen(),
                     ),
                   ),
                   GoRoute(
