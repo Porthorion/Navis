@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io' show Platform;
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
@@ -34,9 +35,6 @@ GroupListeningAvailability resolveGroupListeningAvailability({
 GroupListeningClientConfiguration? buildGroupListeningClientConfiguration({
   required bool enabled,
   required String? voyageServerUrl,
-  required String? displayName,
-  required String? deviceLabel,
-  required bool autoFollowHost,
   required ServerConfigModel? activeServer,
 }) {
   if (resolveGroupListeningAvailability(
@@ -56,11 +54,23 @@ GroupListeningClientConfiguration? buildGroupListeningClientConfiguration({
     voyageBaseUrl: voyageBaseUrl,
     sourceServerOrigin: sourceServerOrigin,
     sourceServerFingerprint: computeSourceServerFingerprint(server.url),
-    displayName: _normalizedDisplayName(displayName, fallback: server.username),
-    deviceLabel: _normalizeOptionalText(deviceLabel),
-    autoFollowHost: autoFollowHost,
+    displayName: server.username.trim(),
+    deviceLabel: defaultGroupListeningDeviceLabel(),
+    autoFollowHost: true,
     allowInsecureTransport: voyageBaseUrl.scheme == 'http',
   );
+}
+
+String defaultGroupListeningDeviceLabel() {
+  try {
+    final hostname = _normalizeOptionalText(Platform.localHostname);
+    if (hostname != null) {
+      return hostname;
+    }
+  } on Object {
+    // Some platforms may not expose a hostname. Fall back to a stable label.
+  }
+  return '${defaultTargetPlatform.name} device';
 }
 
 Uri? normalizeVoyageBaseUri(String? rawUrl) {
@@ -136,14 +146,6 @@ int? _normalizedPort(String scheme, int? port) {
     return null;
   }
   return port;
-}
-
-String _normalizedDisplayName(String? displayName, {required String fallback}) {
-  final normalized = _normalizeOptionalText(displayName);
-  if (normalized != null) {
-    return normalized;
-  }
-  return fallback.trim();
 }
 
 String? _normalizeOptionalText(String? value) {

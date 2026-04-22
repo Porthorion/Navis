@@ -61,6 +61,27 @@ class GroupListeningCapabilityDiscovery {
 }
 
 @immutable
+class GroupListeningAvailableRoomSummary {
+  const GroupListeningAvailableRoomSummary({
+    required this.roomId,
+    required this.hostDisplayName,
+    required this.membersTotal,
+    required this.activeMembers,
+    required this.queueLength,
+    required this.roomVersion,
+    required this.lastActivityAt,
+  });
+
+  final String roomId;
+  final String hostDisplayName;
+  final int membersTotal;
+  final int activeMembers;
+  final int queueLength;
+  final int roomVersion;
+  final DateTime lastActivityAt;
+}
+
+@immutable
 class GroupListeningSessionRuntimeContext {
   const GroupListeningSessionRuntimeContext({
     required this.roomId,
@@ -430,7 +451,9 @@ class FlutterSecureGroupListeningSessionCredentialStore
       }
       final decoded = jsonDecode(rawValue);
       if (decoded is! Map<String, dynamic>) {
-        throw const FormatException('Stored session payload must be an object.');
+        throw const FormatException(
+          'Stored session payload must be an object.',
+        );
       }
       final session = _storedSessionFromJson(decoded);
       _sessionFallback = session;
@@ -502,7 +525,8 @@ class VoyageGroupListeningHttpClient implements GroupListeningHttpClient {
         },
         'source_server_fingerprint':
             request.configuration.sourceServerFingerprint,
-        if (request.roomSeed != null) 'room_seed': _roomSeedPayload(request.roomSeed!),
+        if (request.roomSeed != null)
+          'room_seed': _roomSeedPayload(request.roomSeed!),
       },
       fallbackMessage: 'Unable to create Voyage room.',
       fallbackCode: GroupListeningErrorCode.transportUnavailable,
@@ -545,6 +569,25 @@ class VoyageGroupListeningHttpClient implements GroupListeningHttpClient {
   }
 
   @override
+  Future<List<GroupListeningAvailableRoomSummary>> listAvailableRooms(
+    GroupListeningClientConfiguration configuration,
+  ) async {
+    final data = await _sendJson(
+      method: 'GET',
+      uri: _voyagePathUri(configuration.voyageBaseUrl, <String>[
+        'api',
+        'v1',
+        'rooms',
+      ]),
+      includeProtocolHeader: true,
+      sourceServerFingerprint: configuration.sourceServerFingerprint,
+      fallbackMessage: 'Unable to load available Voyage rooms.',
+      fallbackCode: GroupListeningErrorCode.transportUnavailable,
+    );
+    return _availableRoomsFromData(data);
+  }
+
+  @override
   Future<GroupListeningRoomState> fetchSnapshot(
     GroupListeningSessionRuntimeContext session, {
     int? lastAppliedRoomVersion,
@@ -568,6 +611,38 @@ class VoyageGroupListeningHttpClient implements GroupListeningHttpClient {
       fallbackSelfMemberId: session.memberId,
       fallbackSelfRole: session.role,
       fallbackSelfAuthVersion: session.authVersion,
+    );
+  }
+
+  @override
+  Future<GroupListeningJoinResponse> joinAvailableRoom({
+    required String roomId,
+    required GroupListeningClientConfiguration configuration,
+    required GroupListeningClientDescriptor client,
+  }) async {
+    final data = await _sendJson(
+      method: 'POST',
+      uri: _voyagePathUri(configuration.voyageBaseUrl, <String>[
+        'api',
+        'v1',
+        'rooms',
+        roomId,
+        'join',
+      ]),
+      body: <String, Object?>{
+        'protocol_version': voyageProtocolVersion,
+        'client': _clientPayload(client),
+        'member': <String, Object?>{
+          'display_name': configuration.displayName,
+        },
+        'source_server_fingerprint': configuration.sourceServerFingerprint,
+      },
+      fallbackMessage: 'Unable to join available Voyage room.',
+      fallbackCode: GroupListeningErrorCode.transportUnavailable,
+    );
+    return _joinResponseFromData(
+      data,
+      voyageBaseUrl: configuration.voyageBaseUrl,
     );
   }
 
@@ -675,6 +750,7 @@ class VoyageGroupListeningHttpClient implements GroupListeningHttpClient {
     Map<String, Object?>? body,
     String? accessToken,
     bool includeProtocolHeader = false,
+    String? sourceServerFingerprint,
   }) async {
     Response<Object?> response;
     try {
@@ -687,6 +763,8 @@ class VoyageGroupListeningHttpClient implements GroupListeningHttpClient {
           headers: <String, Object?>{
             if (includeProtocolHeader)
               'X-Voyage-Protocol-Version': voyageProtocolVersion,
+            if (sourceServerFingerprint != null)
+              'X-Voyage-Source-Server-Fingerprint': sourceServerFingerprint,
             if (accessToken != null)
               HttpHeaders.authorizationHeader: 'Bearer $accessToken',
           },
@@ -969,9 +1047,19 @@ abstract class GroupListeningHttpClient {
     GroupListeningClientConfiguration configuration,
   );
 
+  Future<List<GroupListeningAvailableRoomSummary>> listAvailableRooms(
+    GroupListeningClientConfiguration configuration,
+  );
+
   Future<GroupListeningJoinResponse> createRoom(
     GroupListeningCreateRoomRequest request,
   );
+
+  Future<GroupListeningJoinResponse> joinAvailableRoom({
+    required String roomId,
+    required GroupListeningClientConfiguration configuration,
+    required GroupListeningClientDescriptor client,
+  });
 
   Future<GroupListeningJoinResponse> joinRoom(
     GroupListeningJoinRoomRequest request,
@@ -1003,9 +1091,19 @@ abstract class GroupListeningRepository {
     GroupListeningClientConfiguration configuration,
   );
 
+  Future<List<GroupListeningAvailableRoomSummary>> listAvailableRooms(
+    GroupListeningClientConfiguration configuration,
+  );
+
   Future<GroupListeningJoinResponse> createRoom(
     GroupListeningCreateRoomRequest request,
   );
+
+  Future<GroupListeningJoinResponse> joinAvailableRoom({
+    required String roomId,
+    required GroupListeningClientConfiguration configuration,
+    required GroupListeningClientDescriptor client,
+  });
 
   Future<GroupListeningJoinResponse> joinRoom(
     GroupListeningJoinRoomRequest request,
@@ -1040,9 +1138,25 @@ class UnsupportedGroupListeningHttpClient implements GroupListeningHttpClient {
   const UnsupportedGroupListeningHttpClient();
 
   @override
+  Future<List<GroupListeningAvailableRoomSummary>> listAvailableRooms(
+    GroupListeningClientConfiguration configuration,
+  ) {
+    throw _unsupported();
+  }
+
+  @override
   Future<GroupListeningJoinResponse> createRoom(
     GroupListeningCreateRoomRequest request,
   ) {
+    throw _unsupported();
+  }
+
+  @override
+  Future<GroupListeningJoinResponse> joinAvailableRoom({
+    required String roomId,
+    required GroupListeningClientConfiguration configuration,
+    required GroupListeningClientDescriptor client,
+  }) {
     throw _unsupported();
   }
 
@@ -1121,10 +1235,30 @@ class DefaultGroupListeningRepository implements GroupListeningRepository {
   }
 
   @override
+  Future<List<GroupListeningAvailableRoomSummary>> listAvailableRooms(
+    GroupListeningClientConfiguration configuration,
+  ) {
+    return _httpClient.listAvailableRooms(configuration);
+  }
+
+  @override
   Future<GroupListeningCapabilityDiscovery> discover(
     GroupListeningClientConfiguration configuration,
   ) {
     return _httpClient.discover(configuration);
+  }
+
+  @override
+  Future<GroupListeningJoinResponse> joinAvailableRoom({
+    required String roomId,
+    required GroupListeningClientConfiguration configuration,
+    required GroupListeningClientDescriptor client,
+  }) {
+    return _httpClient.joinAvailableRoom(
+      roomId: roomId,
+      configuration: configuration,
+      client: client,
+    );
   }
 
   @override
@@ -1323,6 +1457,25 @@ GroupListeningJoinResponse _joinResponseFromData(
   );
 }
 
+List<GroupListeningAvailableRoomSummary> _availableRoomsFromData(
+  Map<String, dynamic> data,
+) {
+  return (data['rooms'] as List<dynamic>? ?? const <dynamic>[])
+      .map(_mapValue)
+      .map(
+        (room) => GroupListeningAvailableRoomSummary(
+          roomId: _stringValue(room['room_id']),
+          hostDisplayName: _stringValue(room['host_display_name']),
+          membersTotal: _intValue(room['members_total']),
+          activeMembers: _intValue(room['active_members']),
+          queueLength: _intValue(room['queue_length']),
+          roomVersion: _intValue(room['room_version']),
+          lastActivityAt: _dateTimeFromEpochMs(room['last_activity_at_ms']),
+        ),
+      )
+      .toList(growable: false);
+}
+
 String _roomFingerprintFromSnapshot(Map<String, dynamic> snapshot) {
   return _stringValue(snapshot['source_server_fingerprint']);
 }
@@ -1363,7 +1516,10 @@ GroupListeningRoomState _roomStateFromJson(
     sourceServerFingerprint: _stringValue(json['source_server_fingerprint']),
     hostMemberId: _stringValue(json['host_member_id']),
     self: GroupListeningSelfState(
-      memberId: _nullableStringValue(self?['member_id']) ?? fallbackSelfMemberId ?? '',
+      memberId:
+          _nullableStringValue(self?['member_id']) ??
+          fallbackSelfMemberId ??
+          '',
       role: self != null
           ? _memberRoleFromWire(self['role'])
           : (fallbackSelfRole ?? GroupListeningMemberRole.member),
@@ -1425,19 +1581,26 @@ GroupListeningQueueState _queueStateFromJson(Map<String, dynamic> json) {
   final currentIndex = _nullableIntValue(json['current_index']);
   return GroupListeningQueueState(
     queueVersion: _intValue(json['queue_version']),
-    currentIndex: currentIndex == null || currentIndex < 0 || currentIndex >= entries.length
+    currentIndex:
+        currentIndex == null ||
+            currentIndex < 0 ||
+            currentIndex >= entries.length
         ? null
         : currentIndex,
     entries: entries,
   );
 }
 
-GroupListeningPlaybackAnchor _playbackAnchorFromJson(Map<String, dynamic> json) {
+GroupListeningPlaybackAnchor _playbackAnchorFromJson(
+  Map<String, dynamic> json,
+) {
   final currentIndex = _nullableIntValue(json['current_index']);
   return GroupListeningPlaybackAnchor(
     roomVersion: _intValue(json['room_version']),
     queueVersion: _intValue(json['queue_version']),
-    currentIndex: currentIndex == null || currentIndex < 0 ? null : currentIndex,
+    currentIndex: currentIndex == null || currentIndex < 0
+        ? null
+        : currentIndex,
     currentQueueEntryId: _nullableStringValue(json['current_queue_entry_id']),
     currentSongId: _nullableStringValue(json['current_song_id']),
     playbackState: _playbackStatusFromWire(json['playback_state']),

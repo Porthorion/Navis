@@ -23,19 +23,17 @@ void main() {
       },
     );
 
-    test('builds a ready client configuration with username fallback', () {
+    test('builds a ready client configuration from active server identity', () {
       final configuration = buildGroupListeningClientConfiguration(
         enabled: true,
         voyageServerUrl: 'https://voyage.example.com/',
-        displayName: '   ',
-        deviceLabel: 'Living Room Tablet',
-        autoFollowHost: true,
         activeServer: activeServer,
       );
 
       expect(configuration, isNotNull);
       expect(configuration!.displayName, 'alice');
-      expect(configuration.deviceLabel, 'Living Room Tablet');
+      expect(configuration.deviceLabel, isNotEmpty);
+      expect(configuration.autoFollowHost, isTrue);
       expect(
         configuration.voyageBaseUrl.toString(),
         'https://voyage.example.com',

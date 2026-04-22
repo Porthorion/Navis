@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:navis/src/features/group_listening/data/group_listening_repository.dart';
 import 'package:navis/src/features/group_listening/domain/group_listening_session_models.dart';
 import 'package:navis/src/features/group_listening/presentation/group_listening_session_controller.dart';
@@ -45,7 +48,7 @@ class _ListenTogetherSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final body = const _ListenTogetherRoomContent();
+    const body = _ListenTogetherRoomContent();
     if (showAppBar) {
       return Scaffold(
         appBar: AppBar(title: const Text('Listen Together')),
@@ -124,6 +127,7 @@ class _ListenTogetherRoomContentState
     await ref
         .read(groupListeningSessionControllerProvider.notifier)
         .createRoom(client: clientDescriptor);
+    ref.invalidate(groupListeningAvailableRoomsProvider);
   }
 
   Future<void> _joinRoom(
@@ -140,11 +144,26 @@ class _ListenTogetherRoomContentState
     await ref
         .read(groupListeningSessionControllerProvider.notifier)
         .joinRoom(inviteCode: inviteCode, client: clientDescriptor);
+    ref.invalidate(groupListeningAvailableRoomsProvider);
+  }
+
+  Future<void> _joinAvailableRoom(
+    String roomId,
+    GroupListeningClientDescriptor clientDescriptor,
+  ) async {
+    FocusScope.of(context).unfocus();
+    await ref
+        .read(groupListeningSessionControllerProvider.notifier)
+        .joinAvailableRoom(roomId: roomId, client: clientDescriptor);
+    ref.invalidate(groupListeningAvailableRoomsProvider);
   }
 
   Future<void> _leaveRoom() async {
     FocusScope.of(context).unfocus();
-    await ref.read(groupListeningSessionControllerProvider.notifier).leaveRoom();
+    await ref
+        .read(groupListeningSessionControllerProvider.notifier)
+        .leaveRoom();
+    ref.invalidate(groupListeningAvailableRoomsProvider);
   }
 
   Future<void> _connectTransport() async {
@@ -154,7 +173,9 @@ class _ListenTogetherRoomContentState
 
   Future<void> _reconnect() async {
     FocusScope.of(context).unfocus();
-    await ref.read(groupListeningSessionControllerProvider.notifier).reconnect();
+    await ref
+        .read(groupListeningSessionControllerProvider.notifier)
+        .reconnect();
   }
 
   Future<void> _refreshSnapshot() async {
@@ -166,6 +187,16 @@ class _ListenTogetherRoomContentState
 
   void _dismissFailure() {
     ref.read(groupListeningSessionControllerProvider.notifier).clearFailure();
+  }
+
+  Future<void> _copyInviteCode(String inviteCode) async {
+    await Clipboard.setData(ClipboardData(text: inviteCode));
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Invite code copied.')),
+    );
   }
 
   String _availabilityMessage(GroupListeningSessionState sessionState) {
@@ -394,6 +425,18 @@ class _ListenTogetherRoomContentState
                 onDismiss: _dismissFailure,
               ),
             ],
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: <Widget>[
+                TextButton.icon(
+                  key: const ValueKey('groupListeningLeaveRoomButton'),
+                  onPressed: _isBusy(sessionState) ? null : _leaveRoom,
+                  icon: const Icon(Icons.logout_outlined),
+                  label: const Text('Leave room'),
+                ),
+              ],
+            ),
           ],
         ),
       ),
@@ -425,7 +468,7 @@ class _ListenTogetherRoomContentState
             ),
             const SizedBox(height: 8),
             Text(
-              'Create, join, or recover a room without storing any Voyage tokens in app settings.',
+              'Create a room, join with an invite, or pick an available room on this server.',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             const SizedBox(height: 16),
@@ -442,7 +485,7 @@ class _ListenTogetherRoomContentState
               onChanged: (_) => setState(() {}),
               onSubmitted: (_) {
                 if (canJoinRoom) {
-                  _joinRoom(clientDescriptor);
+                  unawaited(_joinRoom(clientDescriptor));
                 }
               },
             ),
@@ -494,13 +537,6 @@ class _ListenTogetherRoomContentState
                     icon: const Icon(Icons.sync_outlined),
                     label: const Text('Refresh snapshot'),
                   ),
-                if (sessionState.hasActiveRoom)
-                  TextButton.icon(
-                    key: const ValueKey('groupListeningLeaveRoomButton'),
-                    onPressed: _leaveRoom,
-                    icon: const Icon(Icons.logout_outlined),
-                    label: const Text('Leave room'),
-                  ),
               ],
             ),
             if (isBusy) ...<Widget>[
@@ -522,10 +558,165 @@ class _ListenTogetherRoomContentState
     );
   }
 
+  Widget _buildInviteCard(GroupListeningSessionState sessionState) {
+    final inviteCode = sessionState.activeInviteCode;
+    final room = sessionState.room;
+    if (inviteCode == null ||
+        room == null ||
+        room.self.role != GroupListeningMemberRole.host) {
+      return const SizedBox.shrink();
+    }
+    final theme = Theme.of(context);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                const Icon(Icons.ios_share_outlined),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Invite listeners',
+                    style: theme.textTheme.titleMedium,
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Copy invite code',
+                  onPressed: () => _copyInviteCode(inviteCode),
+                  icon: const Icon(Icons.copy_outlined),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            SelectableText(
+              inviteCode,
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAvailableRoomsCard(
+    GroupListeningSessionState sessionState,
+    GroupListeningClientDescriptor clientDescriptor,
+    AsyncValue<List<GroupListeningAvailableRoomSummary>> roomsAsync,
+  ) {
+    final isBusy = _isBusy(sessionState);
+    final canJoin =
+        sessionState.availability == GroupListeningAvailability.ready &&
+        !isBusy &&
+        !sessionState.hasActiveRoom;
+    final theme = Theme.of(context);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                const Icon(Icons.groups_2_outlined),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Available rooms',
+                    style: theme.textTheme.titleMedium,
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Refresh available rooms',
+                  onPressed: () =>
+                      ref.invalidate(groupListeningAvailableRoomsProvider),
+                  icon: const Icon(Icons.refresh_outlined),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            roomsAsync.when(
+              loading: () => const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: LinearProgressIndicator(),
+              ),
+              error: (error, _) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text(
+                  _failureDescription(
+                    error is GroupListeningRepositoryException
+                        ? error.failure
+                        : const GroupListeningErrorState(
+                            code: GroupListeningErrorCode.transportUnavailable,
+                            message: 'Unable to load available rooms.',
+                            retryable: true,
+                          ),
+                  ),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                ),
+              ),
+              data: (rooms) {
+                final visibleRooms = rooms
+                    .where((room) => room.roomId != sessionState.room?.roomId)
+                    .toList(growable: false);
+                if (visibleRooms.isEmpty) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Text(
+                      sessionState.availability ==
+                              GroupListeningAvailability.ready
+                          ? 'No other active rooms are available for this server.'
+                          : 'Rooms appear here after Listen Together is ready.',
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  );
+                }
+                return Column(
+                  children: visibleRooms
+                      .map(
+                        (room) => ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.meeting_room_outlined),
+                          title: Text(room.hostDisplayName),
+                          subtitle: Text(
+                            '${room.activeMembers}/${room.membersTotal} active listeners - '
+                            '${room.queueLength} queued tracks - '
+                            'updated ${_formatTimestamp(room.lastActivityAt)}',
+                          ),
+                          trailing: FilledButton.tonalIcon(
+                            onPressed: canJoin
+                                ? () => _joinAvailableRoom(
+                                    room.roomId,
+                                    clientDescriptor,
+                                  )
+                                : null,
+                            icon: const Icon(Icons.login_outlined),
+                            label: const Text('Join'),
+                          ),
+                        ),
+                      )
+                      .toList(growable: false),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final sessionState = ref.watch(groupListeningSessionControllerProvider);
     final clientDescriptor = ref.watch(groupListeningClientDescriptorProvider);
+    final availableRooms = ref.watch(groupListeningAvailableRoomsProvider);
 
     ref.listen<GroupListeningErrorState?>(
       groupListeningSessionControllerProvider.select((state) => state.failure),
@@ -542,18 +733,18 @@ class _ListenTogetherRoomContentState
     return ListView(
       padding: const EdgeInsets.all(16),
       children: <Widget>[
+        if (sessionState.activeInviteCode != null) ...<Widget>[
+          _buildInviteCard(sessionState),
+          const SizedBox(height: 12),
+        ],
         _buildOverviewCard(sessionState),
         const SizedBox(height: 12),
         _buildActionsCard(sessionState, clientDescriptor),
         const SizedBox(height: 12),
-        Card(
-          child: ListTile(
-            leading: const Icon(Icons.lock_outline),
-            title: const Text('Sensitive Voyage tokens are not stored here'),
-            subtitle: const Text(
-              'Only non-sensitive configuration is stored in app settings. Room tokens and secrets stay in secure storage.',
-            ),
-          ),
+        _buildAvailableRoomsCard(
+          sessionState,
+          clientDescriptor,
+          availableRooms,
         ),
       ],
     );
@@ -643,7 +834,8 @@ class _FailureCard extends StatelessWidget {
                     color: scheme.onErrorContainer,
                   ),
                 ),
-                if (failure.retryable || failure.retryAfter != null) ...<Widget>[
+                if (failure.retryable ||
+                    failure.retryAfter != null) ...<Widget>[
                   const SizedBox(height: 6),
                   Text(
                     failure.retryAfter == null

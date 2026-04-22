@@ -44,6 +44,22 @@ class _FakeGroupListeningRepository implements GroupListeningRepository {
   }
 
   @override
+  Future<List<GroupListeningAvailableRoomSummary>> listAvailableRooms(
+    GroupListeningClientConfiguration configuration,
+  ) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<GroupListeningJoinResponse> joinAvailableRoom({
+    required String roomId,
+    required GroupListeningClientConfiguration configuration,
+    required GroupListeningClientDescriptor client,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
   Future<GroupListeningRoomState> fetchSnapshot(
     GroupListeningSessionRuntimeContext session, {
     int? lastAppliedRoomVersion,
@@ -456,23 +472,24 @@ void main() {
         final repository = _FakeGroupListeningRepository();
         final connection = _FakeRealtimeConnection();
         final fingerprint = computeSourceServerFingerprint(activeServer.url);
-        final room = _roomState(
-          fingerprint: fingerprint,
-          roomVersion: 1,
-          queueSongIds: const <String>['song-1'],
-          currentIndex: 0,
-          playbackState: GroupListeningPlaybackStatus.paused,
-          position: const Duration(seconds: 15),
-          issuedByMemberId: 'member-1',
-        ).copyWith(
-          hostMemberId: 'member-1',
-          self: const GroupListeningSelfState(
-            memberId: 'member-2',
-            role: GroupListeningMemberRole.member,
-            canControl: false,
-            authVersion: 1,
-          ),
-        );
+        final room =
+            _roomState(
+              fingerprint: fingerprint,
+              roomVersion: 1,
+              queueSongIds: const <String>['song-1'],
+              currentIndex: 0,
+              playbackState: GroupListeningPlaybackStatus.paused,
+              position: const Duration(seconds: 15),
+              issuedByMemberId: 'member-1',
+            ).copyWith(
+              hostMemberId: 'member-1',
+              self: const GroupListeningSelfState(
+                memberId: 'member-2',
+                role: GroupListeningMemberRole.member,
+                canControl: false,
+                authVersion: 1,
+              ),
+            );
         final handler = _FakePlaybackHandler(_snapshotFromRoom(room));
         repository.joinResponse = GroupListeningJoinResponse(
           runtimeContext: GroupListeningSessionRuntimeContext(

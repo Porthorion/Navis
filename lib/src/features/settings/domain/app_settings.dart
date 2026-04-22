@@ -214,13 +214,16 @@ class AppSettingsModel {
   /// Voyage base URL. Non-sensitive and safe to persist in Drift.
   final String? voyageServerUrl;
 
-  /// Preferred in-room display name shown to other listeners.
+  /// Compatibility-only persisted field. Runtime display name is always the
+  /// active Subsonic username.
   final String? voyageDisplayName;
 
-  /// Optional device label used to distinguish this client in a room.
+  /// Compatibility-only persisted field. Runtime device label is derived from
+  /// the local device name.
   final String? voyageDeviceLabel;
 
-  /// When true, the client should prefer following host-led playback changes.
+  /// Compatibility-only persisted field. Runtime room playback is always
+  /// synchronized.
   final bool voyageAutoFollowHost;
 
   AppSettingsModel copyWith({

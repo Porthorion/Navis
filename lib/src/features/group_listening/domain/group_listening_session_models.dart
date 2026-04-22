@@ -723,6 +723,7 @@ class GroupListeningSessionState {
     this.lastAppliedRoomVersion = 0,
     this.snapshotRequired = false,
     this.lastSnapshotAt,
+    this.activeInviteCode,
     this.failure,
   });
 
@@ -735,6 +736,7 @@ class GroupListeningSessionState {
       lastAppliedRoomVersion = 0,
       snapshotRequired = false,
       lastSnapshotAt = null,
+      activeInviteCode = null,
       failure = null;
 
   final GroupListeningAvailability availability;
@@ -745,6 +747,7 @@ class GroupListeningSessionState {
   final int lastAppliedRoomVersion;
   final bool snapshotRequired;
   final DateTime? lastSnapshotAt;
+  final String? activeInviteCode;
   final GroupListeningErrorState? failure;
 
   bool get hasActiveRoom => room != null;
@@ -768,6 +771,8 @@ class GroupListeningSessionState {
     bool clearFailure = false,
     bool clearRoom = false,
     bool clearConfiguration = false,
+    String? activeInviteCode,
+    bool clearActiveInviteCode = false,
   }) {
     return GroupListeningSessionState(
       availability: availability ?? this.availability,
@@ -781,6 +786,9 @@ class GroupListeningSessionState {
           lastAppliedRoomVersion ?? this.lastAppliedRoomVersion,
       snapshotRequired: snapshotRequired ?? this.snapshotRequired,
       lastSnapshotAt: lastSnapshotAt ?? this.lastSnapshotAt,
+      activeInviteCode: clearRoom || clearActiveInviteCode
+          ? null
+          : activeInviteCode ?? this.activeInviteCode,
       failure: clearFailure ? null : failure ?? this.failure,
     );
   }
@@ -798,6 +806,7 @@ class GroupListeningSessionState {
           lastAppliedRoomVersion == other.lastAppliedRoomVersion &&
           snapshotRequired == other.snapshotRequired &&
           lastSnapshotAt == other.lastSnapshotAt &&
+          activeInviteCode == other.activeInviteCode &&
           failure == other.failure;
 
   @override
@@ -810,6 +819,7 @@ class GroupListeningSessionState {
     lastAppliedRoomVersion,
     snapshotRequired,
     lastSnapshotAt,
+    activeInviteCode,
     failure,
   );
 }

@@ -80,9 +80,9 @@ class SettingsRepository {
     await _dao.saveGroupListeningSettings(
       groupListeningEnabled: settings.groupListeningEnabled,
       voyageServerUrl: settings.voyageServerUrl,
-      voyageDisplayName: settings.voyageDisplayName,
-      voyageDeviceLabel: settings.voyageDeviceLabel,
-      voyageAutoFollowHost: settings.voyageAutoFollowHost,
+      voyageDisplayName: null,
+      voyageDeviceLabel: null,
+      voyageAutoFollowHost: AppSettingsDao.defaultVoyageAutoFollowHost,
     );
   }
 
@@ -157,9 +157,9 @@ class SettingsRepository {
       lastFmApiKey: row.lastFmApiKey,
       groupListeningEnabled: effectiveGroupListening.groupListeningEnabled,
       voyageServerUrl: effectiveGroupListening.voyageServerUrl,
-      voyageDisplayName: effectiveGroupListening.voyageDisplayName,
-      voyageDeviceLabel: effectiveGroupListening.voyageDeviceLabel,
-      voyageAutoFollowHost: effectiveGroupListening.voyageAutoFollowHost,
+      voyageDisplayName: null,
+      voyageDeviceLabel: null,
+      voyageAutoFollowHost: AppSettingsDao.defaultVoyageAutoFollowHost,
     );
   }
 

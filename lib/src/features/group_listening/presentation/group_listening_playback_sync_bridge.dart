@@ -8,8 +8,8 @@ import 'package:navis/src/features/group_listening/domain/group_listening_sessio
 import 'package:navis/src/features/group_listening/presentation/group_listening_session_controller.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
-import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:uuid/uuid.dart';
 
@@ -198,10 +198,7 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
         room.sourceServerFingerprint != configuration.sourceServerFingerprint) {
       return false;
     }
-    if (room.self.canControl) {
-      return true;
-    }
-    return configuration.autoFollowHost;
+    return true;
   }
 
   void _schedulePublish({required bool immediate}) {
@@ -328,7 +325,7 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
     final mutationType = queueChanged
         ? GroupListeningMutationType.queueReplace
         : GroupListeningMutationType.playbackAnchor;
-    final canSendMutation = queueChanged || room.self.canControl;
+    final canSendMutation = queueChanged || room.self.canControl || reason == GroupListeningPlaybackAnchorReason.seek;
     if (!canSendMutation) {
       return;
     }

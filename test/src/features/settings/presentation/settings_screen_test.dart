@@ -78,7 +78,7 @@ void main() {
         find.byType(AppBar),
         step.desktopFrame ? findsNothing : findsOneWidget,
       );
-      expect(find.text('Listen Together Configuration'), findsOneWidget);
+      expect(find.text('Listen Together Configuration'), findsNothing);
       if (step.size.width >= 1200) {
         expect(find.text('Desktop Window'), findsOneWidget);
       }
@@ -108,7 +108,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Listen Together Configuration'), findsOneWidget);
+    expect(find.text('Listen Together Configuration'), findsNothing);
     expect(find.text('Listen Together'), findsWidgets);
   });
 }

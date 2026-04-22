@@ -27,6 +27,8 @@ class _FakeGroupListeningRepository implements GroupListeningRepository {
   GroupListeningJoinResponse? createResponse;
   GroupListeningJoinResponse? rejoinResponse;
   GroupListeningRoomState? snapshotResponse;
+  List<GroupListeningAvailableRoomSummary> availableRooms =
+      const <GroupListeningAvailableRoomSummary>[];
   _FakeRealtimeConnection? connection;
 
   Object? joinError;
@@ -61,6 +63,25 @@ class _FakeGroupListeningRepository implements GroupListeningRepository {
     GroupListeningClientConfiguration configuration,
   ) async {
     return discovery;
+  }
+
+  @override
+  Future<List<GroupListeningAvailableRoomSummary>> listAvailableRooms(
+    GroupListeningClientConfiguration configuration,
+  ) async {
+    return availableRooms;
+  }
+
+  @override
+  Future<GroupListeningJoinResponse> joinAvailableRoom({
+    required String roomId,
+    required GroupListeningClientConfiguration configuration,
+    required GroupListeningClientDescriptor client,
+  }) async {
+    if (joinError != null) {
+      throw joinError!;
+    }
+    return joinResponse!;
   }
 
   @override

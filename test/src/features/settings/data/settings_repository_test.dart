@@ -22,7 +22,7 @@ void main() {
     });
 
     test(
-      'round-trips group listening settings via app settings model',
+      'persists only active group listening settings via app settings model',
       () async {
         final settings = const AppSettingsModel.defaults().copyWith(
           groupListeningEnabled: true,
@@ -37,9 +37,12 @@ void main() {
 
         expect(saved.groupListeningEnabled, isTrue);
         expect(saved.voyageServerUrl, 'https://voyage.example.com');
-        expect(saved.voyageDisplayName, 'Living Room');
-        expect(saved.voyageDeviceLabel, 'Pixel Tablet');
-        expect(saved.voyageAutoFollowHost, isFalse);
+        expect(saved.voyageDisplayName, isNull);
+        expect(saved.voyageDeviceLabel, isNull);
+        expect(
+          saved.voyageAutoFollowHost,
+          AppSettingsDao.defaultVoyageAutoFollowHost,
+        );
         expect(saved.lastFmApiKey, isNull);
       },
       skip: !sqliteAvailable,

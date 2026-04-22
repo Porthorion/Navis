@@ -58,13 +58,6 @@ class SettingsScreen extends ConsumerWidget {
         route: '/settings/sync',
         group: groupAutomation,
       ),
-      _SettingsEntry(
-        icon: Icons.headset_mic_outlined,
-        title: 'Listen Together Configuration',
-        subtitle: listenTogetherStatus.message,
-        route: '/settings/group-listening/configuration',
-        group: groupConnection,
-      ),
       if (listenTogetherStatus.isHealthy)
         const _SettingsEntry(
           icon: Icons.people_alt_outlined,

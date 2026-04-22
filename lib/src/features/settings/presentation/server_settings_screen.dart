@@ -8,6 +8,8 @@ import 'package:navis/src/features/auth/data/sign_out_service.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_connection_provider.dart';
+import 'package:navis/src/features/group_listening/presentation/group_listening_session_controller.dart';
+import 'package:navis/src/features/group_listening/presentation/group_listening_settings_provider.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -26,8 +28,12 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
   bool _isSavingApiKey = false;
 
   final _lastFmApiKeyController = TextEditingController();
+  final _voyageServerUrlController = TextEditingController();
   bool _lastFmKeyInitialized = false;
+  bool _groupListeningInitialized = false;
   bool _obscureApiKey = true;
+  bool _groupListeningEnabled = false;
+  String? _selectedVoyageServerUrl;
 
   bool get _isBusy => _isTestingConnection || _isSigningOut;
 
@@ -46,6 +52,7 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
   void dispose() {
     _lastFmApiKeyController.removeListener(_onApiKeyTextChanged);
     _lastFmApiKeyController.dispose();
+    _voyageServerUrlController.dispose();
     super.dispose();
   }
 
@@ -55,12 +62,34 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
     _lastFmApiKeyController.text = settings.lastFmApiKey ?? '';
   }
 
+  void _initGroupListeningSettings(
+    AppSettingsModel settings, {
+    required String? resolvedVoyageServerUrl,
+  }) {
+    if (_groupListeningInitialized) return;
+    _groupListeningInitialized = true;
+    _groupListeningEnabled = settings.groupListeningEnabled;
+    final configuredUrl = settings.voyageServerUrl?.trim();
+    final initialServerUrl = resolvedVoyageServerUrl ?? configuredUrl;
+    _selectedVoyageServerUrl = initialServerUrl;
+    _voyageServerUrlController.text = initialServerUrl ?? '';
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final configAsync = ref.watch(serverConfigStateProvider);
     final settingsAsync = ref.watch(appSettingsProvider);
     final isBundled = ref.watch(lastFmBundledKeyProvider);
+    final bundledVoyageServers = ref.watch(
+      groupListeningBundledVoyageServersProvider,
+    );
+    final resolvedVoyageServerUrl = ref.watch(
+      groupListeningResolvedVoyageServerUrlProvider,
+    );
+    final voyageConnectionStatus = ref.watch(
+      groupListeningVoyageConnectionStatusProvider,
+    );
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
 
@@ -80,7 +109,23 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
             );
           }
 
-          settingsAsync.whenData(_initLastFmKey);
+          settingsAsync.whenData((settings) {
+            _initLastFmKey(settings);
+            _initGroupListeningSettings(
+              settings,
+              resolvedVoyageServerUrl: resolvedVoyageServerUrl,
+            );
+          });
+          final selectedVoyageServerUrl =
+              _selectedVoyageServerUrl ??
+              (bundledVoyageServers.isEmpty
+                  ? null
+                  : bundledVoyageServers.first.url);
+          if (bundledVoyageServers.isNotEmpty &&
+              selectedVoyageServerUrl != null &&
+              _voyageServerUrlController.text != selectedVoyageServerUrl) {
+            _voyageServerUrlController.text = selectedVoyageServerUrl;
+          }
 
           return SafeArea(
             child: SingleChildScrollView(
@@ -186,6 +231,45 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
                     onClear: _clearLastFmKey,
                     onGetApiKey: _openLastFmApiPage,
                   ),
+                  const SizedBox(height: 32),
+
+                  // ── Listen Together section ─────────────────────────
+                  const _SectionHeader(title: 'Listen Together'),
+                  const SizedBox(height: 8),
+                  _ListenTogetherCard(
+                    enabled: _groupListeningEnabled,
+                    bundledServers: bundledVoyageServers,
+                    selectedServerUrl: selectedVoyageServerUrl,
+                    voyageServerUrlController: _voyageServerUrlController,
+                    connectionStatus: voyageConnectionStatus,
+                    onEnabledChanged: (value) {
+                      setState(() {
+                        _groupListeningEnabled = value;
+                        if (value &&
+                            bundledVoyageServers.isNotEmpty &&
+                            (_selectedVoyageServerUrl == null ||
+                                _selectedVoyageServerUrl!.isEmpty)) {
+                          _selectedVoyageServerUrl =
+                              bundledVoyageServers.first.url;
+                          _voyageServerUrlController.text =
+                              bundledVoyageServers.first.url;
+                        }
+                      });
+                      _saveGroupListeningSettings(bundledVoyageServers);
+                    },
+                    onServerSelected: (value) {
+                      if (value == null) return;
+                      setState(() {
+                        _selectedVoyageServerUrl = value;
+                        _voyageServerUrlController.text = value;
+                      });
+                      _saveGroupListeningSettings(bundledVoyageServers);
+                    },
+                    onManualServerChanged: (_) =>
+                        _saveGroupListeningSettings(bundledVoyageServers),
+                  ),
+                  const SizedBox(height: 12),
+                  _VoyageConnectionStatusCard(status: voyageConnectionStatus),
                 ],
               ),
             ),
@@ -335,6 +419,34 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
     await _saveLastFmKey();
   }
 
+  Future<void> _saveGroupListeningSettings(
+    List<GroupListeningVoyageServerOption> bundledServers,
+  ) async {
+    final repository = ref.read(settingsRepositoryProvider);
+    final current =
+        ref.read(appSettingsProvider).asData?.value ??
+        const AppSettingsModel.defaults();
+    final bundledServerUrl = bundledServers.isEmpty
+        ? null
+        : bundledServers.first.url;
+    final voyageServerUrl = bundledServers.isEmpty
+        ? _voyageServerUrlController.text.trim()
+        : (_selectedVoyageServerUrl ?? bundledServerUrl ?? '').trim();
+
+    await repository.saveSettings(
+      current.copyWith(
+        groupListeningEnabled: _groupListeningEnabled,
+        voyageServerUrl: voyageServerUrl.isEmpty ? null : voyageServerUrl,
+        voyageDisplayName: null,
+        voyageDeviceLabel: null,
+        voyageAutoFollowHost: true,
+        clearVoyageServerUrl: voyageServerUrl.isEmpty,
+        clearVoyageDisplayName: true,
+        clearVoyageDeviceLabel: true,
+      ),
+    );
+  }
+
   Future<void> _openLastFmApiPage() async {
     final uri = Uri.parse('https://www.last.fm/api/accounts');
     if (await canLaunchUrl(uri)) {
@@ -401,6 +513,178 @@ class _ServerInfoRow extends StatelessWidget {
           ),
           Expanded(
             child: Text(value, style: theme.textTheme.bodyMedium),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ListenTogetherCard extends StatelessWidget {
+  const _ListenTogetherCard({
+    required this.enabled,
+    required this.bundledServers,
+    required this.selectedServerUrl,
+    required this.voyageServerUrlController,
+    required this.connectionStatus,
+    required this.onEnabledChanged,
+    required this.onServerSelected,
+    required this.onManualServerChanged,
+  });
+
+  final bool enabled;
+  final List<GroupListeningVoyageServerOption> bundledServers;
+  final String? selectedServerUrl;
+  final TextEditingController voyageServerUrlController;
+  final GroupListeningVoyageConnectionStatus connectionStatus;
+  final ValueChanged<bool> onEnabledChanged;
+  final ValueChanged<String?> onServerSelected;
+  final ValueChanged<String> onManualServerChanged;
+
+  String get _enableSubtitle {
+    if (enabled) {
+      return connectionStatus.message;
+    }
+    if (bundledServers.isEmpty) {
+      return 'Enable Listen Together and connect Navis to a Voyage server.';
+    }
+    if (bundledServers.length == 1) {
+      return 'Enable Listen Together and verify the bundled Voyage server.';
+    }
+    return 'Enable Listen Together and choose which bundled Voyage server to use.';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Column(
+        children: <Widget>[
+          SwitchListTile(
+            key: const ValueKey('groupListeningEnabledSwitch'),
+            secondary: const Icon(Icons.headset_mic_outlined),
+            title: const Text('Enable Listen Together'),
+            subtitle: Text(_enableSubtitle),
+            value: enabled,
+            onChanged: onEnabledChanged,
+          ),
+          if (bundledServers.length == 1)
+            ListTile(
+              leading: const Icon(Icons.cloud_outlined),
+              title: const Text('Voyage server'),
+              subtitle: Text(bundledServers.single.label),
+            ),
+          if (bundledServers.length > 1)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: DropdownButtonFormField<String>(
+                key: const ValueKey('groupListeningVoyageServerDropdown'),
+                value: selectedServerUrl,
+                decoration: const InputDecoration(
+                  labelText: 'Voyage server',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.cloud_outlined),
+                ),
+                items: bundledServers
+                    .map(
+                      (server) => DropdownMenuItem<String>(
+                        value: server.url,
+                        child: Text(server.label),
+                      ),
+                    )
+                    .toList(growable: false),
+                onChanged: onServerSelected,
+              ),
+            ),
+          if (bundledServers.isEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: TextField(
+                key: const ValueKey('groupListeningVoyageServerUrlField'),
+                controller: voyageServerUrlController,
+                keyboardType: TextInputType.url,
+                decoration: const InputDecoration(
+                  labelText: 'Voyage server URL',
+                  hintText: 'https://voyage.example.com',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.link),
+                ),
+                onChanged: onManualServerChanged,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _VoyageConnectionStatusCard extends StatelessWidget {
+  const _VoyageConnectionStatusCard({required this.status});
+
+  final GroupListeningVoyageConnectionStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    late final Color background;
+    late final Color foreground;
+    late final IconData icon;
+    switch (status.state) {
+      case GroupListeningVoyageConnectionState.connected:
+        background = scheme.primaryContainer;
+        foreground = scheme.onPrimaryContainer;
+        icon = Icons.verified_outlined;
+        break;
+      case GroupListeningVoyageConnectionState.failed:
+        background = scheme.errorContainer;
+        foreground = scheme.onErrorContainer;
+        icon = Icons.cloud_off_outlined;
+        break;
+      case GroupListeningVoyageConnectionState.checking:
+        background = scheme.secondaryContainer;
+        foreground = scheme.onSecondaryContainer;
+        icon = Icons.sync_outlined;
+        break;
+      case GroupListeningVoyageConnectionState.disabled:
+      case GroupListeningVoyageConnectionState.unconfigured:
+        background = scheme.surfaceContainerHighest;
+        foreground = scheme.onSurfaceVariant;
+        icon = Icons.info_outline;
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Icon(icon, color: foreground),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  status.message,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: foreground,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                if (status.userActionMessage != null) ...<Widget>[
+                  const SizedBox(height: 4),
+                  Text(
+                    status.userActionMessage!,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(color: foreground),
+                  ),
+                ],
+              ],
+            ),
           ),
         ],
       ),

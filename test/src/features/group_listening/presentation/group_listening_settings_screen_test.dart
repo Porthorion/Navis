@@ -9,11 +9,12 @@ import 'package:navis/src/features/auth/presentation/server_config_provider.dart
 import 'package:navis/src/features/group_listening/data/group_listening_configuration.dart';
 import 'package:navis/src/features/group_listening/data/group_listening_repository.dart';
 import 'package:navis/src/features/group_listening/domain/group_listening_session_models.dart';
-import 'package:navis/src/features/group_listening/presentation/group_listening_configuration_screen.dart';
 import 'package:navis/src/features/group_listening/presentation/group_listening_session_controller.dart';
+import 'package:navis/src/features/group_listening/presentation/group_listening_settings_provider.dart';
 import 'package:navis/src/features/group_listening/presentation/group_listening_settings_screen.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/features/settings/presentation/server_settings_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:riverpod/src/framework.dart' show Override;
 
@@ -22,10 +23,13 @@ class _MockSettingsRepository extends Mock implements SettingsRepository {}
 class _FakeGroupListeningRepository implements GroupListeningRepository {
   GroupListeningCreateRoomRequest? lastCreateRequest;
   GroupListeningJoinRoomRequest? lastJoinRequest;
+  String? lastJoinAvailableRoomId;
   GroupListeningSessionRuntimeContext? lastLeaveSession;
   GroupListeningJoinResponse? createResponse;
   GroupListeningJoinResponse? joinResponse;
   GroupListeningRoomState? snapshotResponse;
+  List<GroupListeningAvailableRoomSummary> availableRooms =
+      const <GroupListeningAvailableRoomSummary>[];
   _FakeRealtimeConnection? connection;
 
   @override
@@ -41,6 +45,13 @@ class _FakeGroupListeningRepository implements GroupListeningRepository {
   ) async {
     lastCreateRequest = request;
     return createResponse!;
+  }
+
+  @override
+  Future<List<GroupListeningAvailableRoomSummary>> listAvailableRooms(
+    GroupListeningClientConfiguration configuration,
+  ) async {
+    return availableRooms;
   }
 
   @override
@@ -64,6 +75,16 @@ class _FakeGroupListeningRepository implements GroupListeningRepository {
     int? lastAppliedRoomVersion,
   }) async {
     return snapshotResponse!;
+  }
+
+  @override
+  Future<GroupListeningJoinResponse> joinAvailableRoom({
+    required String roomId,
+    required GroupListeningClientConfiguration configuration,
+    required GroupListeningClientDescriptor client,
+  }) async {
+    lastJoinAvailableRoomId = roomId;
+    return joinResponse!;
   }
 
   @override
@@ -142,11 +163,12 @@ Future<void> _pumpScreen(
 
 Future<void> _pumpRoomAction(WidgetTester tester) async {
   await tester.pump();
-  await tester.pump(const Duration(milliseconds: 100));
+  await tester.pump(const Duration(milliseconds: 500));
 }
 
 GroupListeningJoinResponse _joinResponse({
   required GroupListeningMemberRole role,
+  String? inviteCode,
 }) {
   final fingerprint = computeSourceServerFingerprint(_activeServer.url);
   final now = DateTime.utc(2026, 4, 21, 12);
@@ -228,6 +250,7 @@ GroupListeningJoinResponse _joinResponse({
         issuedByMemberId: hostMemberId,
       ),
     ),
+    inviteCode: inviteCode,
   );
 }
 
@@ -236,7 +259,9 @@ void main() {
     registerFallbackValue(const AppSettingsModel.defaults());
   });
 
-  testWidgets('autosaves non-sensitive Voyage preferences', (tester) async {
+  testWidgets('autosaves Listen Together enablement and Voyage URL', (
+    tester,
+  ) async {
     final repository = _MockSettingsRepository();
     AppSettingsModel? savedModel;
 
@@ -251,40 +276,34 @@ void main() {
           appSettingsProvider.overrideWithValue(
             const AsyncData(AppSettingsModel.defaults()),
           ),
-          packageInfoProvider.overrideWithValue(
-            AsyncData<PackageInfo>(_packageInfo),
-          ),
           serverConfigStateProvider.overrideWithValue(
-            const AsyncData<ServerConfigModel?>(null),
+            const AsyncData<ServerConfigModel?>(_activeServer),
           ),
+          lastFmBundledKeyProvider.overrideWithValue(true),
         ],
         child: MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: const GroupListeningConfigurationScreen(),
+          home: const ServerSettingsScreen(),
         ),
       ),
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(
-      find.widgetWithText(SwitchListTile, 'Enable group listening'),
+    final enableSwitch = find.widgetWithText(
+      SwitchListTile,
+      'Enable Listen Together',
     );
-    await tester.pumpAndSettle();
-
-    await tester.tap(
-      find.byKey(const ValueKey('groupListeningAutoFollowHostSwitch')),
+    await tester.scrollUntilVisible(
+      enableSwitch,
+      200,
+      scrollable: find.byType(Scrollable).first,
     );
+    await tester.tap(enableSwitch);
     await tester.pumpAndSettle();
 
     final voyageServerField = find.byKey(
       const ValueKey('groupListeningVoyageServerUrlField'),
-    );
-    final displayNameField = find.byKey(
-      const ValueKey('groupListeningDisplayNameField'),
-    );
-    final deviceLabelField = find.byKey(
-      const ValueKey('groupListeningDeviceLabelField'),
     );
 
     await tester.scrollUntilVisible(
@@ -294,18 +313,14 @@ void main() {
     );
     await tester.enterText(voyageServerField, 'https://voyage.example.com');
     await tester.pump();
-    await tester.enterText(displayNameField, 'Alice');
-    await tester.pump();
-    await tester.enterText(deviceLabelField, 'Living Room Tablet');
-    await tester.pump();
 
     verify(() => repository.saveSettings(any())).called(greaterThan(0));
     expect(savedModel, isNotNull);
     expect(savedModel!.groupListeningEnabled, isTrue);
     expect(savedModel!.voyageServerUrl, 'https://voyage.example.com');
-    expect(savedModel!.voyageDisplayName, 'Alice');
-    expect(savedModel!.voyageDeviceLabel, 'Living Room Tablet');
-    expect(savedModel!.voyageAutoFollowHost, isFalse);
+    expect(savedModel!.voyageDisplayName, isNull);
+    expect(savedModel!.voyageDeviceLabel, isNull);
+    expect(savedModel!.voyageAutoFollowHost, isTrue);
     expect(savedModel!.audioMuseApiKey, isNull);
   });
 
@@ -344,11 +359,15 @@ void main() {
               message: 'Enable Listen Together to connect to Voyage.',
             ),
           ),
+          serverConfigStateProvider.overrideWithValue(
+            const AsyncData<ServerConfigModel?>(_activeServer),
+          ),
+          lastFmBundledKeyProvider.overrideWithValue(true),
         ],
         child: MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: const GroupListeningConfigurationScreen(),
+          home: const ServerSettingsScreen(),
         ),
       ),
     );
@@ -359,9 +378,15 @@ void main() {
       findsNothing,
     );
 
-    await tester.tap(
-      find.byKey(const ValueKey('groupListeningVoyageServerDropdown')),
+    final voyageDropdown = find.byKey(
+      const ValueKey('groupListeningVoyageServerDropdown'),
     );
+    await tester.scrollUntilVisible(
+      voyageDropdown,
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(voyageDropdown);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Backup Voyage').last);
     await tester.pumpAndSettle();
@@ -404,11 +429,14 @@ void main() {
     },
   );
 
-  testWidgets('creates a room and exposes the leave action', (
+  testWidgets('creates a room with an automatic device label', (
     tester,
   ) async {
     final repository = _FakeGroupListeningRepository()
-      ..createResponse = _joinResponse(role: GroupListeningMemberRole.host)
+      ..createResponse = _joinResponse(
+        role: GroupListeningMemberRole.host,
+        inviteCode: 'INVITE-123',
+      )
       ..joinResponse = _joinResponse(role: GroupListeningMemberRole.member)
       ..snapshotResponse = _joinResponse(
         role: GroupListeningMemberRole.host,
@@ -445,19 +473,16 @@ void main() {
 
     expect(repository.lastCreateRequest, isNotNull);
     expect(repository.lastCreateRequest!.client.appVersion, '1.2.3');
-    expect(repository.lastCreateRequest!.client.deviceLabel, 'Desktop');
-    expect(find.text('Active room'), findsOneWidget);
-    expect(find.widgetWithText(Chip, 'Host'), findsOneWidget);
-
-    final leaveRoomButton = find.byKey(
-      const ValueKey('groupListeningLeaveRoomButton'),
+    expect(repository.lastCreateRequest!.client.deviceLabel, isNotEmpty);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(GroupListeningSettingsScreen)),
     );
-    await tester.scrollUntilVisible(
-      leaveRoomButton,
-      200,
-      scrollable: find.byType(Scrollable).first,
+    expect(
+      container.read(groupListeningSessionControllerProvider).activeInviteCode,
+      'INVITE-123',
     );
-    expect(leaveRoomButton, findsOneWidget);
+    expect(find.text('Invite listeners'), findsOneWidget);
+    expect(find.text('INVITE-123'), findsOneWidget);
   });
 
   testWidgets('joins a room with an invite code from the inline controls', (
@@ -506,6 +531,62 @@ void main() {
 
     expect(repository.lastJoinRequest, isNotNull);
     expect(repository.lastJoinRequest!.inviteCode, 'room-123');
-    expect(find.widgetWithText(Chip, 'Listener'), findsOneWidget);
+  });
+
+  testWidgets('lists available rooms and joins by room id', (tester) async {
+    final now = DateTime.utc(2026, 4, 21, 12);
+    final repository = _FakeGroupListeningRepository()
+      ..createResponse = _joinResponse(role: GroupListeningMemberRole.host)
+      ..joinResponse = _joinResponse(role: GroupListeningMemberRole.member)
+      ..snapshotResponse = _joinResponse(
+        role: GroupListeningMemberRole.member,
+      ).roomSnapshot
+      ..connection = _FakeRealtimeConnection()
+      ..availableRooms = <GroupListeningAvailableRoomSummary>[
+        GroupListeningAvailableRoomSummary(
+          roomId: 'room-public-1',
+          hostDisplayName: 'Alice',
+          membersTotal: 2,
+          activeMembers: 2,
+          queueLength: 5,
+          roomVersion: 3,
+          lastActivityAt: now,
+        ),
+      ];
+
+    await _pumpScreen(
+      tester,
+      overrides: [
+        appSettingsProvider.overrideWithValue(
+          AsyncData(
+            AppSettingsModel.defaults().copyWith(
+              groupListeningEnabled: true,
+              voyageServerUrl: 'https://voyage.example.com',
+              clearVoyageDisplayName: true,
+            ),
+          ),
+        ),
+        packageInfoProvider.overrideWithValue(
+          AsyncData<PackageInfo>(_packageInfo),
+        ),
+        serverConfigStateProvider.overrideWithValue(
+          const AsyncData<ServerConfigModel?>(_activeServer),
+        ),
+        groupListeningRepositoryProvider.overrideWithValue(repository),
+      ],
+    );
+
+    expect(find.text('Available rooms'), findsOneWidget);
+    expect(find.text('Alice'), findsOneWidget);
+
+    final availableRoomJoinButton = find.widgetWithText(FilledButton, 'Join');
+    await tester.ensureVisible(availableRoomJoinButton);
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -120));
+    await tester.pump();
+    await tester.tap(availableRoomJoinButton);
+    await _pumpRoomAction(tester);
+
+    expect(repository.lastJoinAvailableRoomId, 'room-public-1');
+    expect(repository.lastJoinRequest, isNull);
   });
 }

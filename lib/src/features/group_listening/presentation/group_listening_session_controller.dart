@@ -36,9 +36,6 @@ final groupListeningClientConfigurationProvider =
       return buildGroupListeningClientConfiguration(
         enabled: settings.enabled,
         voyageServerUrl: resolvedVoyageServerUrl,
-        displayName: settings.displayName,
-        deviceLabel: settings.deviceLabel,
-        autoFollowHost: settings.autoFollowHost,
         activeServer: activeServer,
       );
     });
@@ -74,11 +71,32 @@ final groupListeningCapabilityDiscoveryProvider =
       if (availability != GroupListeningAvailability.ready) {
         return null;
       }
-      final configuration = ref.watch(groupListeningClientConfigurationProvider);
+      final configuration = ref.watch(
+        groupListeningClientConfigurationProvider,
+      );
       if (configuration == null) {
         return null;
       }
       return ref.read(groupListeningRepositoryProvider).discover(configuration);
+    });
+
+final groupListeningAvailableRoomsProvider =
+    FutureProvider.autoDispose<List<GroupListeningAvailableRoomSummary>>((
+      ref,
+    ) async {
+      final availability = ref.watch(groupListeningAvailabilityProvider);
+      if (availability != GroupListeningAvailability.ready) {
+        return const <GroupListeningAvailableRoomSummary>[];
+      }
+      final configuration = ref.watch(
+        groupListeningClientConfigurationProvider,
+      );
+      if (configuration == null) {
+        return const <GroupListeningAvailableRoomSummary>[];
+      }
+      return ref
+          .read(groupListeningRepositoryProvider)
+          .listAvailableRooms(configuration);
     });
 
 enum GroupListeningVoyageConnectionState {
@@ -94,14 +112,12 @@ class GroupListeningVoyageConnectionStatus {
   const GroupListeningVoyageConnectionStatus({
     required this.state,
     required this.message,
-    this.serverLabel,
-    this.serverUrl,
+    this.userActionMessage,
   });
 
   final GroupListeningVoyageConnectionState state;
   final String message;
-  final String? serverLabel;
-  final String? serverUrl;
+  final String? userActionMessage;
 
   bool get isHealthy => state == GroupListeningVoyageConnectionState.connected;
 }
@@ -109,26 +125,28 @@ class GroupListeningVoyageConnectionStatus {
 final groupListeningVoyageConnectionStatusProvider =
     Provider<GroupListeningVoyageConnectionStatus>((ref) {
       final settings = ref.watch(groupListeningSettingsProvider);
-      final selectedServer = ref.watch(
-        groupListeningSelectedVoyageServerOptionProvider,
-      );
       final availability = ref.watch(groupListeningAvailabilityProvider);
-      final discoveryAsync = ref.watch(groupListeningCapabilityDiscoveryProvider);
+      final discoveryAsync = ref.watch(
+        groupListeningCapabilityDiscoveryProvider,
+      );
 
       if (!settings.enabled) {
         return GroupListeningVoyageConnectionStatus(
           state: GroupListeningVoyageConnectionState.disabled,
-          message: 'Enable Listen Together to connect to Voyage.',
-          serverLabel: selectedServer?.label,
-          serverUrl: selectedServer?.url,
+          message: 'Listen Together is off.',
         );
       }
       if (availability != GroupListeningAvailability.ready) {
+        final resolvedVoyageServerUrl = ref.watch(
+          groupListeningResolvedVoyageServerUrlProvider,
+        );
         return GroupListeningVoyageConnectionStatus(
           state: GroupListeningVoyageConnectionState.unconfigured,
-          message: 'Finish configuration before joining a room.',
-          serverLabel: selectedServer?.label,
-          serverUrl: selectedServer?.url,
+          message: 'Not connected to Voyage.',
+          userActionMessage: _voyageUserActionMessage(
+            voyageServerUrl: resolvedVoyageServerUrl,
+            availability: availability,
+          ),
         );
       }
 
@@ -136,27 +154,59 @@ final groupListeningVoyageConnectionStatusProvider =
         data: (_) => GroupListeningVoyageConnectionStatus(
           state: GroupListeningVoyageConnectionState.connected,
           message: 'Successfully connected to Voyage.',
-          serverLabel: selectedServer?.label,
-          serverUrl: selectedServer?.url,
         ),
         loading: () => GroupListeningVoyageConnectionStatus(
           state: GroupListeningVoyageConnectionState.checking,
           message: 'Checking Voyage connection...',
-          serverLabel: selectedServer?.label,
-          serverUrl: selectedServer?.url,
         ),
-        error: (_, __) => GroupListeningVoyageConnectionStatus(
+        error: (error, _) => GroupListeningVoyageConnectionStatus(
           state: GroupListeningVoyageConnectionState.failed,
-          message: 'Unable to reach Voyage right now.',
-          serverLabel: selectedServer?.label,
-          serverUrl: selectedServer?.url,
+          message: 'Not connected to Voyage.',
+          userActionMessage: _voyageDiscoveryUserActionMessage(error),
         ),
       );
     });
 
+String? _voyageUserActionMessage({
+  required String? voyageServerUrl,
+  required GroupListeningAvailability availability,
+}) {
+  if (availability != GroupListeningAvailability.unconfigured) {
+    return null;
+  }
+  final uri = normalizeVoyageBaseUri(voyageServerUrl);
+  if (uri == null) {
+    return 'Enter a valid Voyage server URL.';
+  }
+  if (!isVoyageTransportAllowed(uri)) {
+    return 'Use HTTPS for Voyage, or a local HTTP server in debug builds.';
+  }
+  return 'Sign in to your Subsonic server before using Listen Together.';
+}
+
+String? _voyageDiscoveryUserActionMessage(Object error) {
+  final failure = error is GroupListeningRepositoryException
+      ? error.failure
+      : null;
+  if (failure == null) {
+    return null;
+  }
+  return switch (failure.code) {
+    GroupListeningErrorCode.unsupportedProtocolVersion =>
+      'Update Navis or choose a Voyage server with a compatible protocol.',
+    GroupListeningErrorCode.validationFailed =>
+      'Check the Voyage server configuration and try again.',
+    GroupListeningErrorCode.insecureTransport =>
+      'Use HTTPS for Voyage, or a local HTTP server in debug builds.',
+    GroupListeningErrorCode.transportUnavailable
+        when failure.message.isNotEmpty =>
+      failure.message,
+    _ => null,
+  };
+}
+
 final groupListeningClientDescriptorProvider =
     Provider<GroupListeningClientDescriptor>((ref) {
-      final settings = ref.watch(groupListeningSettingsProvider);
       final configuration = ref.watch(
         groupListeningClientConfigurationProvider,
       );
@@ -168,17 +218,17 @@ final groupListeningClientDescriptorProvider =
       final rawDeviceId = <String>[
         packageInfo?.packageName ?? 'navis',
         defaultTargetPlatform.name,
-        settings.deviceLabel ??
-            settings.displayName ??
+        configuration?.deviceLabel ??
             configuration?.displayName ??
-            'listener',
+            defaultGroupListeningDeviceLabel(),
         fingerprintPrefix,
       ].join('-');
       return GroupListeningClientDescriptor(
         appVersion: packageInfo?.version ?? 'dev',
         platform: defaultTargetPlatform.name,
         deviceId: _normalizeGroupListeningDeviceId(rawDeviceId),
-        deviceLabel: settings.deviceLabel,
+        deviceLabel:
+            configuration?.deviceLabel ?? defaultGroupListeningDeviceLabel(),
         capabilities: const <String>{'playback_anchor'},
       );
     });
@@ -333,6 +383,43 @@ class GroupListeningSessionController
     }
   }
 
+  Future<GroupListeningSessionState> joinAvailableRoom({
+    required String roomId,
+    required GroupListeningClientDescriptor client,
+    bool connectAfterJoin = true,
+  }) async {
+    try {
+      final configuration = _requireConfiguration();
+      state = state.copyWith(
+        status: GroupListeningSessionStatus.joining,
+        clearFailure: true,
+        clearActiveInviteCode: true,
+      );
+      final result = await ref
+          .read(groupListeningRepositoryProvider)
+          .joinAvailableRoom(
+            roomId: roomId,
+            configuration: configuration,
+            client: client,
+          );
+      await _bindJoinedSession(
+        result: result,
+        client: client,
+        connectAfterJoin: connectAfterJoin,
+      );
+      return state;
+    } on Object catch (error, stackTrace) {
+      return _setFailure(
+        _asFailure(
+          error,
+          fallbackMessage: 'Unable to join available Voyage room.',
+          fallbackCode: GroupListeningErrorCode.transportUnavailable,
+        ),
+        stackTrace: stackTrace,
+      );
+    }
+  }
+
   Future<GroupListeningSessionState> connect() async {
     final session = _runtimeSession;
     if (session == null) {
@@ -408,7 +495,9 @@ class GroupListeningSessionController
   }) async {
     final connection = _connection;
     final clientConnectionId = state.connection.clientConnectionId;
-    if (!_canSendMutationType(type) || connection == null || clientConnectionId == null) {
+    if (!_canSendMutationType(type) ||
+        connection == null ||
+        clientConnectionId == null) {
       return null;
     }
 
@@ -650,6 +739,8 @@ class GroupListeningSessionController
       lastAppliedRoomVersion: snapshot.roomVersion,
       snapshotRequired: false,
       lastSnapshotAt: DateTime.now(),
+      clearActiveInviteCode:
+          snapshot.roomStatus == GroupListeningRoomStatus.closed,
       clearFailure: true,
     );
     if (snapshot.roomStatus == GroupListeningRoomStatus.closed) {
@@ -746,23 +837,27 @@ class GroupListeningSessionController
     required bool connectAfterJoin,
   }) async {
     _runtimeSession = result.runtimeContext;
-    await ref
-        .read(groupListeningSessionCredentialStoreProvider)
-        .save(
-          GroupListeningStoredSession(
-            roomId: result.runtimeContext.roomId,
-            memberId: result.runtimeContext.memberId,
-            role: result.runtimeContext.role,
-            authVersion: result.runtimeContext.authVersion,
-            voyageBaseUrl: result.runtimeContext.voyageBaseUrl,
-            sourceServerFingerprint:
-                result.runtimeContext.sourceServerFingerprint,
-            rejoinToken: result.runtimeContext.rejoinToken,
-            client: client,
-            lastAppliedRoomVersion: result.roomSnapshot.roomVersion,
-          ),
-        );
+    final storedSession = GroupListeningStoredSession(
+      roomId: result.runtimeContext.roomId,
+      memberId: result.runtimeContext.memberId,
+      role: result.runtimeContext.role,
+      authVersion: result.runtimeContext.authVersion,
+      voyageBaseUrl: result.runtimeContext.voyageBaseUrl,
+      sourceServerFingerprint: result.runtimeContext.sourceServerFingerprint,
+      rejoinToken: result.runtimeContext.rejoinToken,
+      client: client,
+      lastAppliedRoomVersion: result.roomSnapshot.roomVersion,
+    );
     applySnapshot(result.roomSnapshot);
+    state = state.copyWith(
+      activeInviteCode: result.inviteCode,
+      clearActiveInviteCode: result.inviteCode == null,
+    );
+    unawaited(
+      ref
+          .read(groupListeningSessionCredentialStoreProvider)
+          .save(storedSession),
+    );
     if (connectAfterJoin) {
       await connect();
     } else {
@@ -845,6 +940,7 @@ class GroupListeningSessionController
       state = state.copyWith(
         status: GroupListeningSessionStatus.idle,
         connection: const GroupListeningConnectionState.disconnected(),
+        clearActiveInviteCode: true,
         room: state.room?.copyWith(
           roomStatus: GroupListeningRoomStatus.closed,
           roomVersion: message.roomVersion,
@@ -895,6 +991,7 @@ class GroupListeningSessionController
         status: GroupListeningConnectionStatus.disconnected,
         lastDisconnectReason: failure,
       ),
+      clearActiveInviteCode: _isFatalSessionFailure(failure.code),
       failure: failure,
     );
   }

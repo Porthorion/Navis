@@ -10,23 +10,14 @@ class GroupListeningSettings {
   const GroupListeningSettings({
     required this.enabled,
     this.voyageServerUrl,
-    this.displayName,
-    this.deviceLabel,
-    required this.autoFollowHost,
   });
 
   const GroupListeningSettings.defaults()
     : enabled = false,
-      voyageServerUrl = null,
-      displayName = null,
-      deviceLabel = null,
-      autoFollowHost = true;
+      voyageServerUrl = null;
 
   final bool enabled;
   final String? voyageServerUrl;
-  final String? displayName;
-  final String? deviceLabel;
-  final bool autoFollowHost;
 }
 
 @immutable
@@ -47,9 +38,6 @@ final groupListeningSettingsProvider = Provider<GroupListeningSettings>((ref) {
   return GroupListeningSettings(
     enabled: settings.groupListeningEnabled,
     voyageServerUrl: settings.voyageServerUrl,
-    displayName: settings.voyageDisplayName,
-    deviceLabel: settings.voyageDeviceLabel,
-    autoFollowHost: settings.voyageAutoFollowHost,
   );
 });
 
@@ -63,8 +51,9 @@ final groupListeningResolvedVoyageServerUrlProvider = Provider<String?>((
 ) {
   final settings = ref.watch(groupListeningSettingsProvider);
   final bundledServers = ref.watch(groupListeningBundledVoyageServersProvider);
-  final configuredUrl = normalizeVoyageBaseUri(settings.voyageServerUrl)
-      ?.toString();
+  final configuredUrl = normalizeVoyageBaseUri(
+    settings.voyageServerUrl,
+  )?.toString();
 
   if (bundledServers.isEmpty) {
     return configuredUrl;
@@ -78,11 +67,15 @@ final groupListeningResolvedVoyageServerUrlProvider = Provider<String?>((
 
 final groupListeningSelectedVoyageServerOptionProvider =
     Provider<GroupListeningVoyageServerOption?>((ref) {
-      final resolvedUrl = ref.watch(groupListeningResolvedVoyageServerUrlProvider);
+      final resolvedUrl = ref.watch(
+        groupListeningResolvedVoyageServerUrlProvider,
+      );
       if (resolvedUrl == null) {
         return null;
       }
-      final bundledServers = ref.watch(groupListeningBundledVoyageServersProvider);
+      final bundledServers = ref.watch(
+        groupListeningBundledVoyageServersProvider,
+      );
       for (final server in bundledServers) {
         if (server.url == resolvedUrl) {
           return server;
@@ -108,7 +101,9 @@ List<GroupListeningVoyageServerOption> _parseBundledVoyageServers(String raw) {
     }
     final separatorIndex = trimmed.indexOf('|');
     final hasLabel = separatorIndex > 0;
-    final rawLabel = hasLabel ? trimmed.substring(0, separatorIndex).trim() : '';
+    final rawLabel = hasLabel
+        ? trimmed.substring(0, separatorIndex).trim()
+        : '';
     final rawUrl = hasLabel
         ? trimmed.substring(separatorIndex + 1).trim()
         : trimmed;
