@@ -198,13 +198,13 @@ class _GroupListeningSettingsScreenState
     if (self.canControl) {
       return 'Playback control enabled';
     }
-    return 'Following the host';
+    return 'Following the host playback';
   }
 
   String _failureDescription(GroupListeningErrorState failure) {
     switch (failure.code) {
       case GroupListeningErrorCode.transportUnavailable:
-        return 'Voyage transport is unavailable in this build. You can still configure room preferences here.';
+        return 'Navis could not reach the Voyage server or open its realtime transport.';
       case GroupListeningErrorCode.snapshotRequired:
         return 'Navis needs a fresh room snapshot before it can trust the shared state again.';
       case GroupListeningErrorCode.configurationMissing:

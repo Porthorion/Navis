@@ -39,18 +39,18 @@ final groupListeningClientConfigurationProvider =
 
 final groupListeningSessionCredentialStoreProvider =
     Provider<GroupListeningSessionCredentialStore>((_) {
-      return InMemoryGroupListeningSessionCredentialStore();
+      return const FlutterSecureGroupListeningSessionCredentialStore();
     });
 
 final groupListeningHttpClientProvider = Provider<GroupListeningHttpClient>((
   _,
 ) {
-  return const UnsupportedGroupListeningHttpClient();
+  return VoyageGroupListeningHttpClient();
 });
 
 final groupListeningRealtimeTransportProvider =
     Provider<GroupListeningRealtimeTransportClient>((_) {
-      return const UnsupportedGroupListeningRealtimeTransportClient();
+      return const IOWebSocketGroupListeningRealtimeTransportClient();
     });
 
 final groupListeningRepositoryProvider = Provider<GroupListeningRepository>((
@@ -119,6 +119,7 @@ class GroupListeningSessionController
   GroupListeningSessionRuntimeContext? _runtimeSession;
   GroupListeningRealtimeConnection? _connection;
   StreamSubscription<GroupListeningTransportMessage>? _transportSubscription;
+  Timer? _heartbeatTimer;
   int _clientSequence = 0;
 
   @override
@@ -315,9 +316,7 @@ class GroupListeningSessionController
   }) async {
     final connection = _connection;
     final clientConnectionId = state.connection.clientConnectionId;
-    if (!state.canSendRoomMutations ||
-        connection == null ||
-        clientConnectionId == null) {
+    if (!_canSendMutationType(type) || connection == null || clientConnectionId == null) {
       return null;
     }
 
@@ -684,6 +683,7 @@ class GroupListeningSessionController
 
   void _handleTransportMessage(GroupListeningTransportMessage message) {
     if (message is GroupListeningConnectionWelcomeMessage) {
+      _scheduleHeartbeat(after: message.heartbeatInterval);
       state = state.copyWith(
         status: GroupListeningSessionStatus.connected,
         connection: state.connection.copyWith(
@@ -781,6 +781,8 @@ class GroupListeningSessionController
     GroupListeningErrorState failure, {
     StackTrace? stackTrace,
   }) {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
     if (stackTrace != null) {
       AppLogger.warning(
         'Group listening transport failure: ${failure.code.name}',
@@ -879,6 +881,31 @@ class GroupListeningSessionController
         stored.sourceServerFingerprint == expected.sourceServerFingerprint;
   }
 
+  bool _canSendMutationType(GroupListeningMutationType type) {
+    final room = state.room;
+    final configuration = state.configuration;
+    if (room == null ||
+        configuration == null ||
+        state.availability != GroupListeningAvailability.ready ||
+        !state.connection.isConnected ||
+        state.snapshotRequired ||
+        room.roomStatus != GroupListeningRoomStatus.active ||
+        room.sourceServerFingerprint != configuration.sourceServerFingerprint) {
+      return false;
+    }
+
+    switch (type) {
+      case GroupListeningMutationType.queueAdd:
+      case GroupListeningMutationType.queueRemove:
+      case GroupListeningMutationType.queueReplace:
+        return true;
+      case GroupListeningMutationType.playbackAnchor:
+      case GroupListeningMutationType.transferHost:
+      case GroupListeningMutationType.removeMember:
+        return room.self.canControl;
+    }
+  }
+
   GroupListeningClientConfiguration _requireConfiguration() {
     final configuration = _configuration;
     if (configuration == null ||
@@ -894,12 +921,62 @@ class GroupListeningSessionController
   }
 
   Future<void> _disposeTransport() async {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
     await _transportSubscription?.cancel();
     _transportSubscription = null;
     final connection = _connection;
     _connection = null;
     if (connection != null) {
       await connection.disconnect();
+    }
+  }
+
+  void _scheduleHeartbeat({Duration? after}) {
+    _heartbeatTimer?.cancel();
+    final delay = after ?? state.connection.heartbeatInterval;
+    if (delay == null || delay <= Duration.zero) {
+      return;
+    }
+    _heartbeatTimer = Timer(delay, () {
+      unawaited(_sendHeartbeat());
+    });
+  }
+
+  Future<void> _sendHeartbeat() async {
+    final connection = _connection;
+    final clientConnectionId = state.connection.clientConnectionId;
+    if (connection == null ||
+        clientConnectionId == null ||
+        !state.connection.isConnected) {
+      return;
+    }
+
+    final interval = state.connection.heartbeatInterval;
+    if (interval == null || interval <= Duration.zero) {
+      return;
+    }
+
+    final observedPosition = ref.read(playerStateProvider).position;
+    try {
+      await connection.send(
+        GroupListeningHeartbeatMessage(
+          clientConnectionId: clientConnectionId,
+          clientTime: DateTime.now().toUtc(),
+          lastAppliedRoomVersion: state.lastAppliedRoomVersion,
+          observedPosition: observedPosition,
+        ),
+      );
+      _scheduleHeartbeat(after: interval);
+    } on Object catch (error, stackTrace) {
+      _handleTransportFailure(
+        _asFailure(
+          error,
+          fallbackMessage: 'Unable to send Voyage heartbeat.',
+          fallbackCode: GroupListeningErrorCode.transportDisconnected,
+        ),
+        stackTrace: stackTrace,
+      );
     }
   }
 

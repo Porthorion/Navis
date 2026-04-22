@@ -451,6 +451,101 @@ void main() {
     );
 
     test(
+      'publishes shared queue mutations even when the local member follows host playback',
+      () async {
+        final repository = _FakeGroupListeningRepository();
+        final connection = _FakeRealtimeConnection();
+        final fingerprint = computeSourceServerFingerprint(activeServer.url);
+        final room = _roomState(
+          fingerprint: fingerprint,
+          roomVersion: 1,
+          queueSongIds: const <String>['song-1'],
+          currentIndex: 0,
+          playbackState: GroupListeningPlaybackStatus.paused,
+          position: const Duration(seconds: 15),
+          issuedByMemberId: 'member-1',
+        ).copyWith(
+          hostMemberId: 'member-1',
+          self: const GroupListeningSelfState(
+            memberId: 'member-2',
+            role: GroupListeningMemberRole.member,
+            canControl: false,
+            authVersion: 1,
+          ),
+        );
+        final handler = _FakePlaybackHandler(_snapshotFromRoom(room));
+        repository.joinResponse = GroupListeningJoinResponse(
+          runtimeContext: GroupListeningSessionRuntimeContext(
+            roomId: 'room-1',
+            memberId: 'member-2',
+            role: GroupListeningMemberRole.member,
+            authVersion: 1,
+            voyageBaseUrl: Uri.parse('https://voyage.example.com'),
+            sourceServerFingerprint: fingerprint,
+            accessToken: 'access-token',
+            accessTokenExpiresAt: DateTime.utc(2026, 4, 21, 13),
+            rejoinToken: 'rejoin-token',
+          ),
+          roomSnapshot: room,
+        );
+        repository.connection = connection;
+        addTearDown(handler.dispose);
+
+        final container = createContainer(
+          repository: repository,
+          handler: handler,
+        );
+        final bridgeSubscription = container.listen(
+          groupListeningPlaybackSyncBridgeProvider,
+          (_, __) {},
+        );
+        addTearDown(bridgeSubscription.close);
+        final controller = container.read(
+          groupListeningSessionControllerProvider.notifier,
+        );
+
+        await controller.joinRoom(
+          inviteCode: 'INVITE',
+          client: client,
+          connectAfterJoin: false,
+        );
+        await controller.connect();
+        connection.add(
+          GroupListeningConnectionWelcomeMessage(
+            roomId: 'room-1',
+            memberId: 'member-2',
+            clientConnectionId: 'conn-2',
+            roomVersion: 1,
+            presenceVersion: 1,
+            heartbeatInterval: const Duration(seconds: 10),
+            memberStaleTimeout: const Duration(seconds: 45),
+            serverTime: DateTime.utc(2026, 4, 21, 12),
+          ),
+        );
+        await _pumpBridge();
+        connection.sentMessages.clear();
+
+        await container
+            .read(queueProvider.notifier)
+            .replace(
+              const <String>['song-1', 'song-2'],
+              startIndex: 1,
+              autoPlay: false,
+            );
+        await _pumpBridge();
+
+        expect(connection.sentMessages, hasLength(1));
+        final message =
+            connection.sentMessages.single as GroupListeningMutationMessage;
+        expect(message.type, GroupListeningMutationType.queueReplace);
+        expect(
+          message.queue?.entries.map((entry) => entry.songId).toList(),
+          const <String>['song-1', 'song-2'],
+        );
+      },
+    );
+
+    test(
       'applies inbound room events through queue and playback seams',
       () async {
         final repository = _FakeGroupListeningRepository();

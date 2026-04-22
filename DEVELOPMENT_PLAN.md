@@ -2313,7 +2313,7 @@ Canonical execution phase for Navis-side integration with the Voyage backend ser
 - Backend implementation lives in the **Voyage** repo only.
 - Navis work in this phase is limited to app-side integration, storage, transport, playback bridge, UX, and tests.
 - MVP scope is **same-server/shared-catalog** only.
-- Sync model is **host-led + server-authoritative**, with Voyage as the room-state authority.
+- Sync model is **host-led playback + collaborative shared queue + server-authoritative ordering**, with Voyage as the room-state authority.
 - Sync uses **time-based playback anchors**, not naive "play now" event relays.
 - Navis must never send raw Subsonic credentials to Voyage.
 - Non-sensitive Voyage config may live in Drift; Voyage secrets/tokens must use secure storage.
@@ -2785,11 +2785,13 @@ bearer tokens, or raw backend stack traces.
 - Authorization is split cleanly:
   - **Subsonic auth** stays in Navis and is required for actual playback/media access.
   - **Voyage auth** proves room membership and room role only.
-- MVP room permissions are host-led:
-  - host: create room, rotate invite, play/pause/seek/skip, queue replace/edit,
+- MVP room permissions split playback from queue collaboration:
+  - host: create room, rotate invite, play/pause/seek/skip, transfer host,
     remove member, end room
   - member: join, heartbeat, fetch snapshot, leave, acknowledge room version,
-    receive server-authoritative updates
+    receive server-authoritative updates, and participate in shared queue edits
+  - shared queue edits: queue add/remove/reorder/replace are room-authoritative
+    and must converge for every connected member
 
 #### Token model
 

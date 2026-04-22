@@ -233,9 +233,12 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
   bool _canPublishOutbound(GroupListeningSessionState session) {
     final room = session.room;
     final configuration = session.configuration;
-    return session.canSendRoomMutations &&
-        room != null &&
+    return room != null &&
         configuration != null &&
+        session.availability == GroupListeningAvailability.ready &&
+        session.connection.isConnected &&
+        !session.snapshotRequired &&
+        room.roomStatus == GroupListeningRoomStatus.active &&
         room.sourceServerFingerprint == configuration.sourceServerFingerprint;
   }
 
@@ -325,6 +328,10 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
     final mutationType = queueChanged
         ? GroupListeningMutationType.queueReplace
         : GroupListeningMutationType.playbackAnchor;
+    final canSendMutation = queueChanged || room.self.canControl;
+    if (!canSendMutation) {
+      return;
+    }
     _lastPublishedState = localState;
     _lastPublishedAt = now;
     final mutationId = await ref
