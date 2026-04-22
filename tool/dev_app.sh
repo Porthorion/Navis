@@ -43,6 +43,9 @@ DART_DEFINE_ARGS=("--dart-define=NAVIS_UPDATE_CHANNEL=dev")
 if [[ -n "${NAVIS_LASTFM_API_KEY:-}" ]]; then
   DART_DEFINE_ARGS+=("--dart-define=NAVIS_LASTFM_API_KEY=${NAVIS_LASTFM_API_KEY}")
 fi
+if [[ -n "${NAVIS_VOYAGE_SERVERS:-}" ]]; then
+  DART_DEFINE_ARGS+=("--dart-define=NAVIS_VOYAGE_SERVERS=${NAVIS_VOYAGE_SERVERS}")
+fi
 
 echo "==> Dev app identity"
 echo "    NAVIS_APP_ID_SUFFIX=${NAVIS_APP_ID_SUFFIX}"
@@ -52,6 +55,11 @@ if [[ -n "${NAVIS_LASTFM_API_KEY:-}" ]]; then
   echo "    NAVIS_LASTFM_API_KEY=provided"
 else
   echo "    NAVIS_LASTFM_API_KEY=missing (Same Vibes will fallback)"
+fi
+if [[ -n "${NAVIS_VOYAGE_SERVERS:-}" ]]; then
+  echo "    NAVIS_VOYAGE_SERVERS=provided"
+else
+  echo "    NAVIS_VOYAGE_SERVERS=missing (Listen Together stays manual-only)"
 fi
 
 case "${MODE}" in

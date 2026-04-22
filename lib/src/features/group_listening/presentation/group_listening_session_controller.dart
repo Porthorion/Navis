@@ -14,10 +14,13 @@ import 'package:uuid/uuid.dart';
 final groupListeningAvailabilityProvider = Provider<GroupListeningAvailability>(
   (ref) {
     final settings = ref.watch(groupListeningSettingsProvider);
+    final resolvedVoyageServerUrl = ref.watch(
+      groupListeningResolvedVoyageServerUrlProvider,
+    );
     final activeServer = ref.watch(serverConfigStateProvider).asData?.value;
     return resolveGroupListeningAvailability(
       enabled: settings.enabled,
-      voyageServerUrl: settings.voyageServerUrl,
+      voyageServerUrl: resolvedVoyageServerUrl,
       activeServer: activeServer,
     );
   },
@@ -26,10 +29,13 @@ final groupListeningAvailabilityProvider = Provider<GroupListeningAvailability>(
 final groupListeningClientConfigurationProvider =
     Provider<GroupListeningClientConfiguration?>((ref) {
       final settings = ref.watch(groupListeningSettingsProvider);
+      final resolvedVoyageServerUrl = ref.watch(
+        groupListeningResolvedVoyageServerUrlProvider,
+      );
       final activeServer = ref.watch(serverConfigStateProvider).asData?.value;
       return buildGroupListeningClientConfiguration(
         enabled: settings.enabled,
-        voyageServerUrl: settings.voyageServerUrl,
+        voyageServerUrl: resolvedVoyageServerUrl,
         displayName: settings.displayName,
         deviceLabel: settings.deviceLabel,
         autoFollowHost: settings.autoFollowHost,
@@ -61,6 +67,92 @@ final groupListeningRepositoryProvider = Provider<GroupListeningRepository>((
     realtimeTransport: ref.watch(groupListeningRealtimeTransportProvider),
   );
 });
+
+final groupListeningCapabilityDiscoveryProvider =
+    FutureProvider.autoDispose<GroupListeningCapabilityDiscovery?>((ref) async {
+      final availability = ref.watch(groupListeningAvailabilityProvider);
+      if (availability != GroupListeningAvailability.ready) {
+        return null;
+      }
+      final configuration = ref.watch(groupListeningClientConfigurationProvider);
+      if (configuration == null) {
+        return null;
+      }
+      return ref.read(groupListeningRepositoryProvider).discover(configuration);
+    });
+
+enum GroupListeningVoyageConnectionState {
+  disabled,
+  unconfigured,
+  checking,
+  connected,
+  failed,
+}
+
+@immutable
+class GroupListeningVoyageConnectionStatus {
+  const GroupListeningVoyageConnectionStatus({
+    required this.state,
+    required this.message,
+    this.serverLabel,
+    this.serverUrl,
+  });
+
+  final GroupListeningVoyageConnectionState state;
+  final String message;
+  final String? serverLabel;
+  final String? serverUrl;
+
+  bool get isHealthy => state == GroupListeningVoyageConnectionState.connected;
+}
+
+final groupListeningVoyageConnectionStatusProvider =
+    Provider<GroupListeningVoyageConnectionStatus>((ref) {
+      final settings = ref.watch(groupListeningSettingsProvider);
+      final selectedServer = ref.watch(
+        groupListeningSelectedVoyageServerOptionProvider,
+      );
+      final availability = ref.watch(groupListeningAvailabilityProvider);
+      final discoveryAsync = ref.watch(groupListeningCapabilityDiscoveryProvider);
+
+      if (!settings.enabled) {
+        return GroupListeningVoyageConnectionStatus(
+          state: GroupListeningVoyageConnectionState.disabled,
+          message: 'Enable Listen Together to connect to Voyage.',
+          serverLabel: selectedServer?.label,
+          serverUrl: selectedServer?.url,
+        );
+      }
+      if (availability != GroupListeningAvailability.ready) {
+        return GroupListeningVoyageConnectionStatus(
+          state: GroupListeningVoyageConnectionState.unconfigured,
+          message: 'Finish configuration before joining a room.',
+          serverLabel: selectedServer?.label,
+          serverUrl: selectedServer?.url,
+        );
+      }
+
+      return discoveryAsync.when(
+        data: (_) => GroupListeningVoyageConnectionStatus(
+          state: GroupListeningVoyageConnectionState.connected,
+          message: 'Successfully connected to Voyage.',
+          serverLabel: selectedServer?.label,
+          serverUrl: selectedServer?.url,
+        ),
+        loading: () => GroupListeningVoyageConnectionStatus(
+          state: GroupListeningVoyageConnectionState.checking,
+          message: 'Checking Voyage connection...',
+          serverLabel: selectedServer?.label,
+          serverUrl: selectedServer?.url,
+        ),
+        error: (_, __) => GroupListeningVoyageConnectionStatus(
+          state: GroupListeningVoyageConnectionState.failed,
+          message: 'Unable to reach Voyage right now.',
+          serverLabel: selectedServer?.label,
+          serverUrl: selectedServer?.url,
+        ),
+      );
+    });
 
 final groupListeningClientDescriptorProvider =
     Provider<GroupListeningClientDescriptor>((ref) {

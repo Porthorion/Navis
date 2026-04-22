@@ -1,16 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
+import 'package:navis/src/features/group_listening/presentation/group_listening_session_controller.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final adaptiveContext = resolveAdaptiveContextFor(context);
+    final listenTogetherStatus = ref.watch(
+      groupListeningVoyageConnectionStatusProvider,
+    );
     final adaptiveLayoutClass = adaptiveContext.adaptiveLayoutClass;
     final compactWideLandscapeMode = adaptiveContext.useCompactWideLandscape;
     final compactHorizontalInset = compactWideLandscapeMode ? 10.0 : 12.0;
@@ -23,6 +28,7 @@ class SettingsScreen extends StatelessWidget {
     const groupAutomation = 'Automation';
     const groupAbout = 'About';
     const groupDesktop = 'Desktop';
+    const groupListenTogether = 'Listen Together';
     final List<_SettingsEntry> coreEntries = <_SettingsEntry>[
       _SettingsEntry(
         icon: Icons.storage_outlined,
@@ -54,11 +60,19 @@ class SettingsScreen extends StatelessWidget {
       ),
       _SettingsEntry(
         icon: Icons.headset_mic_outlined,
-        title: 'Group Listening',
-        subtitle: 'Configure Voyage server and local sync preferences',
-        route: '/settings/group-listening',
+        title: 'Listen Together Configuration',
+        subtitle: listenTogetherStatus.message,
+        route: '/settings/group-listening/configuration',
         group: groupConnection,
       ),
+      if (listenTogetherStatus.isHealthy)
+        const _SettingsEntry(
+          icon: Icons.people_alt_outlined,
+          title: 'Listen Together',
+          subtitle: 'Create groups, join rooms, and manage shared playback',
+          route: '/settings/group-listening',
+          group: groupListenTogether,
+        ),
       _SettingsEntry(
         icon: Icons.graphic_eq_outlined,
         title: l10n.settingsPlaybackTitle,

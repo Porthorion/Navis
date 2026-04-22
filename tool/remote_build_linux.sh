@@ -15,6 +15,7 @@ Options:
   --package=<bundle|deb>   Linux package mode (default: bundle)
   --channel=<stable|dev>   Update channel (default: stable)
   --lastfm-key=<key>       Optional Last.fm API key dart-define
+  --voyage-servers=<raw>   Optional bundled Voyage server dart-define payload
   --remote-dir=<path>      Remote working dir relative to remote HOME
                            (default: .navis/remote-linux-build)
   --repo-root=<path>       Local repo root (default: script/..)
@@ -27,6 +28,7 @@ ASSET_PREFIX="navis"
 PACKAGE_MODE="bundle"
 UPDATE_CHANNEL="stable"
 LASTFM_API_KEY=""
+VOYAGE_SERVERS=""
 REMOTE_DIR=".navis/remote-linux-build"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
@@ -39,6 +41,7 @@ for arg in "$@"; do
     --package=*) PACKAGE_MODE="${arg#--package=}" ;;
     --channel=*) UPDATE_CHANNEL="${arg#--channel=}" ;;
     --lastfm-key=*) LASTFM_API_KEY="${arg#--lastfm-key=}" ;;
+    --voyage-servers=*) VOYAGE_SERVERS="${arg#--voyage-servers=}" ;;
     --remote-dir=*) REMOTE_DIR="${arg#--remote-dir=}" ;;
     --repo-root=*) REPO_ROOT="${arg#--repo-root=}" ;;
     -h|--help)
@@ -105,6 +108,7 @@ version="$4"
 asset_prefix="$5"
 update_channel="$6"
 lastfm_api_key="$7"
+voyage_servers="$8"
 
 archive_path="${base_dir}/${archive_name}"
 workspace_dir="${base_dir}/workspace"
@@ -120,6 +124,9 @@ flutter pub get
 build_args=("--dart-define=NAVIS_UPDATE_CHANNEL=${update_channel}")
 if [[ -n "${lastfm_api_key}" ]]; then
   build_args+=("--dart-define=NAVIS_LASTFM_API_KEY=${lastfm_api_key}")
+fi
+if [[ -n "${voyage_servers}" ]]; then
+  build_args+=("--dart-define=NAVIS_VOYAGE_SERVERS=${voyage_servers}")
 fi
 flutter build linux --release "${build_args[@]}"
 
@@ -222,7 +229,7 @@ scp "${REMOTE_SCRIPT}" "${SSH_TARGET}:${REMOTE_DIR}/navis_remote_linux_build.sh"
 
 printf '[remote-linux] Running remote build...\n'
 ssh "${SSH_TARGET}" \
-  "bash '${REMOTE_DIR}/navis_remote_linux_build.sh' '${REMOTE_DIR}' 'source.tgz' '${PACKAGE_MODE}' '${VERSION}' '${ASSET_PREFIX}' '${UPDATE_CHANNEL}' '${LASTFM_API_KEY}'"
+  "bash '${REMOTE_DIR}/navis_remote_linux_build.sh' '${REMOTE_DIR}' 'source.tgz' '${PACKAGE_MODE}' '${VERSION}' '${ASSET_PREFIX}' '${UPDATE_CHANNEL}' '${LASTFM_API_KEY}' '${VOYAGE_SERVERS}'"
 
 asset_name="$(ssh "${SSH_TARGET}" "cat '${REMOTE_DIR}/asset_name.txt'")"
 asset_name="${asset_name//$'\r'/}"

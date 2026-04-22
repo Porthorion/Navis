@@ -9,6 +9,7 @@ import 'package:navis/src/features/auth/presentation/server_config_provider.dart
 import 'package:navis/src/features/group_listening/data/group_listening_configuration.dart';
 import 'package:navis/src/features/group_listening/data/group_listening_repository.dart';
 import 'package:navis/src/features/group_listening/domain/group_listening_session_models.dart';
+import 'package:navis/src/features/group_listening/presentation/group_listening_configuration_screen.dart';
 import 'package:navis/src/features/group_listening/presentation/group_listening_session_controller.dart';
 import 'package:navis/src/features/group_listening/presentation/group_listening_settings_screen.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
@@ -260,7 +261,7 @@ void main() {
         child: MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: const GroupListeningSettingsScreen(),
+          home: const GroupListeningConfigurationScreen(),
         ),
       ),
     );
@@ -308,6 +309,68 @@ void main() {
     expect(savedModel!.audioMuseApiKey, isNull);
   });
 
+  testWidgets('uses bundled Voyage servers when more than one is available', (
+    tester,
+  ) async {
+    final repository = _MockSettingsRepository();
+    AppSettingsModel? savedModel;
+
+    when(() => repository.saveSettings(any())).thenAnswer((invocation) async {
+      savedModel = invocation.positionalArguments.first as AppSettingsModel;
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          settingsRepositoryProvider.overrideWithValue(repository),
+          appSettingsProvider.overrideWithValue(
+            const AsyncData(AppSettingsModel.defaults()),
+          ),
+          groupListeningBundledVoyageServersProvider.overrideWithValue(
+            const <GroupListeningVoyageServerOption>[
+              GroupListeningVoyageServerOption(
+                label: 'Primary Voyage',
+                url: 'https://voyage-1.example.com',
+              ),
+              GroupListeningVoyageServerOption(
+                label: 'Backup Voyage',
+                url: 'https://voyage-2.example.com',
+              ),
+            ],
+          ),
+          groupListeningVoyageConnectionStatusProvider.overrideWithValue(
+            const GroupListeningVoyageConnectionStatus(
+              state: GroupListeningVoyageConnectionState.disabled,
+              message: 'Enable Listen Together to connect to Voyage.',
+            ),
+          ),
+        ],
+        child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const GroupListeningConfigurationScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('groupListeningVoyageServerUrlField')),
+      findsNothing,
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey('groupListeningVoyageServerDropdown')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Backup Voyage').last);
+    await tester.pumpAndSettle();
+
+    verify(() => repository.saveSettings(any())).called(greaterThan(0));
+    expect(savedModel, isNotNull);
+    expect(savedModel!.voyageServerUrl, 'https://voyage-2.example.com');
+  });
+
   testWidgets(
     'shows disabled room messaging until group listening is enabled',
     (tester) async {
@@ -326,9 +389,11 @@ void main() {
         ],
       );
 
-      expect(find.text('Group listening is off'), findsOneWidget);
+      expect(find.text('Listen Together is off'), findsOneWidget);
       expect(
-        find.text('Turn on group listening to create or join rooms.'),
+        find.text(
+          'Turn on Listen Together in configuration before creating or joining rooms.',
+        ),
         findsWidgets,
       );
 

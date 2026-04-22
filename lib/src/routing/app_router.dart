@@ -5,6 +5,7 @@ import 'package:navis/src/features/auth/presentation/login_screen.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/changelog/presentation/changelog_screen.dart';
 import 'package:navis/src/features/downloads/presentation/downloads_screen.dart';
+import 'package:navis/src/features/group_listening/presentation/group_listening_configuration_screen.dart';
 import 'package:navis/src/features/group_listening/presentation/group_listening_settings_screen.dart';
 import 'package:navis/src/features/home/presentation/home_screen.dart';
 import 'package:navis/src/features/library/presentation/album_detail_screen.dart';
@@ -188,6 +189,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                       key: state.pageKey,
                       child: const GroupListeningSettingsScreen(),
                     ),
+                    routes: <RouteBase>[
+                      GoRoute(
+                        path: 'configuration',
+                        pageBuilder: (context, state) => _slideFadePage(
+                          key: state.pageKey,
+                          child: const GroupListeningConfigurationScreen(),
+                        ),
+                      ),
+                    ],
                   ),
                   GoRoute(
                     path: 'playback',

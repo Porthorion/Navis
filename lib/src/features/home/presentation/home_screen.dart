@@ -24,6 +24,8 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/changelog/changelog_data.dart';
 import 'package:navis/src/features/changelog/changelog_dialog.dart';
 import 'package:navis/src/features/changelog/changelog_provider.dart';
+import 'package:navis/src/features/group_listening/presentation/group_listening_session_controller.dart';
+import 'package:navis/src/features/group_listening/presentation/group_listening_settings_screen.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/home/presentation/home_scroll_provider.dart';
 import 'package:navis/src/features/library/domain/toggle_song_star.dart';
@@ -2952,6 +2954,11 @@ class _HomeFilterChipRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final colorScheme = Theme.of(context).colorScheme;
+    final listenTogetherAvailable = ref.watch(
+      groupListeningVoyageConnectionStatusProvider.select(
+        (status) => status.isHealthy,
+      ),
+    );
     final likedOnly = ref.watch(homeLikedOnlyFilterProvider);
     final downloadedOnly = ref.watch(downloadedOnlyFilterProvider);
     final downloadedSongIds = downloadedOnly
@@ -3003,41 +3010,55 @@ class _HomeFilterChipRow extends ConsumerWidget {
           Expanded(
             child: Align(
               alignment: Alignment.centerRight,
-              child: FilledButton.icon(
-                style: FilledButton.styleFrom(
-                  backgroundColor: colorScheme.secondaryContainer,
-                  foregroundColor: colorScheme.onSecondaryContainer,
-                  iconColor: colorScheme.onSecondaryContainer,
-                  disabledBackgroundColor:
-                      colorScheme.onSurface.withValues(alpha: 0.12),
-                  disabledForegroundColor:
-                      colorScheme.onSurface.withValues(alpha: 0.38),
-                  iconSize: 18,
-                ),
-                onPressed: likedIds.isEmpty
-                    ? null
-                    : () {
-                        final seedSongId =
-                            likedIds[math.Random().nextInt(likedIds.length)];
-                        ref
-                            .read(queueProvider.notifier)
-                            .replace(<String>[seedSongId], autoPlay: true)
-                            .then((_) async {
-                              await activatePreferredMixMode(
-                                ref,
-                                seedSongId: seedSongId,
-                              );
-                              ref
-                                  .read(playerOverlayStackProvider.notifier)
-                                  .expand();
-                            })
-                            .ignore();
-                      },
-                icon: const Icon(Icons.radio_rounded),
-                label: const Text(
-                  'Instant Radio',
-                  overflow: TextOverflow.ellipsis,
-                ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  if (listenTogetherAvailable) ...<Widget>[
+                    IconButton.filledTonal(
+                      tooltip: 'Listen Together',
+                      constraints: iconConstraints,
+                      icon: const Icon(Icons.people_alt_outlined),
+                      onPressed: () => showListenTogetherSheet(context),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: colorScheme.secondaryContainer,
+                      foregroundColor: colorScheme.onSecondaryContainer,
+                      iconColor: colorScheme.onSecondaryContainer,
+                      disabledBackgroundColor:
+                          colorScheme.onSurface.withValues(alpha: 0.12),
+                      disabledForegroundColor:
+                          colorScheme.onSurface.withValues(alpha: 0.38),
+                      iconSize: 18,
+                    ),
+                    onPressed: likedIds.isEmpty
+                        ? null
+                        : () {
+                            final seedSongId =
+                                likedIds[math.Random().nextInt(likedIds.length)];
+                            ref
+                                .read(queueProvider.notifier)
+                                .replace(<String>[seedSongId], autoPlay: true)
+                                .then((_) async {
+                                  await activatePreferredMixMode(
+                                    ref,
+                                    seedSongId: seedSongId,
+                                  );
+                                  ref
+                                      .read(playerOverlayStackProvider.notifier)
+                                      .expand();
+                                })
+                                .ignore();
+                          },
+                    icon: const Icon(Icons.radio_rounded),
+                    label: const Text(
+                      'Instant Radio',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -3057,6 +3078,11 @@ class _DesktopHomeQuickActions extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final likedOnly = ref.watch(homeLikedOnlyFilterProvider);
+    final listenTogetherAvailable = ref.watch(
+      groupListeningVoyageConnectionStatusProvider.select(
+        (status) => status.isHealthy,
+      ),
+    );
     final downloadedOnly = ref.watch(downloadedOnlyFilterProvider);
     final downloadedSongIds = downloadedOnly
         ? (ref.watch(downloadedSongIdsProvider).asData?.value ??
@@ -3100,6 +3126,12 @@ class _DesktopHomeQuickActions extends ConsumerWidget {
                 !downloadedOnly;
           },
         ),
+        if (listenTogetherAvailable)
+          IconButton(
+            tooltip: 'Listen Together',
+            icon: const Icon(Icons.people_alt_outlined),
+            onPressed: () => showListenTogetherSheet(context),
+          ),
         IconButton(
           tooltip: 'Instant Radio',
           icon: const Icon(Icons.radio_rounded),

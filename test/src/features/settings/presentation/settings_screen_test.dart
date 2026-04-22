@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
+import 'package:navis/src/features/group_listening/presentation/group_listening_session_controller.dart';
 import 'package:navis/src/features/settings/presentation/settings_screen.dart';
 
 import '../../../../helpers/adaptive_test_harness.dart';
@@ -11,6 +12,14 @@ void main() {
   testWidgets('removed desktop UI toggle is not shown', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
+        overrides: [
+          groupListeningVoyageConnectionStatusProvider.overrideWithValue(
+            const GroupListeningVoyageConnectionStatus(
+              state: GroupListeningVoyageConnectionState.disabled,
+              message: 'Enable Listen Together to connect to Voyage.',
+            ),
+          ),
+        ],
         child: MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
@@ -29,6 +38,14 @@ void main() {
     setAdaptiveTestViewport(tester, const Size(599, 1000));
     await tester.pumpWidget(
       ProviderScope(
+        overrides: [
+          groupListeningVoyageConnectionStatusProvider.overrideWithValue(
+            const GroupListeningVoyageConnectionStatus(
+              state: GroupListeningVoyageConnectionState.disabled,
+              message: 'Enable Listen Together to connect to Voyage.',
+            ),
+          ),
+        ],
         child: MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
@@ -61,11 +78,37 @@ void main() {
         find.byType(AppBar),
         step.desktopFrame ? findsNothing : findsOneWidget,
       );
-      expect(find.text('Group Listening'), findsOneWidget);
+      expect(find.text('Listen Together Configuration'), findsOneWidget);
       if (step.size.width >= 1200) {
         expect(find.text('Desktop Window'), findsOneWidget);
       }
       expect(tester.takeException(), isNull);
     }
+  });
+
+  testWidgets('shows the Listen Together section after Voyage is connected', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          groupListeningVoyageConnectionStatusProvider.overrideWithValue(
+            const GroupListeningVoyageConnectionStatus(
+              state: GroupListeningVoyageConnectionState.connected,
+              message: 'Successfully connected to Voyage.',
+            ),
+          ),
+        ],
+        child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const SettingsScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Listen Together Configuration'), findsOneWidget);
+    expect(find.text('Listen Together'), findsWidgets);
   });
 }

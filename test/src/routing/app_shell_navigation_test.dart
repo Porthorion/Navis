@@ -563,7 +563,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Group Listening'), findsWidgets);
+      expect(find.text('Listen Together'), findsWidgets);
     },
   );
 

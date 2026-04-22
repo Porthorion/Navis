@@ -27,6 +27,9 @@ Minimum tested versions:
 - Synced/unsynced lyrics with full-screen now playing
 - Offline cache plus permanent download modes
 - Adaptive layouts that scale from phone to tablet/desktop
+- Optional Listen Together rooms backed by Voyage with host-led playback,
+  collaborative shared queue edits, reconnect-aware sync, and room status UI in
+  Settings/Home
 - Keyboard-first desktop controls with platform-aware shortcuts, quick search, queue toggle, and guarded transport actions while typing
 - Desktop volume controls in the bottom player and desktop-wide now playing surfaces
 - Channel-aware updater behavior for stable/dev release tracks
@@ -104,6 +107,29 @@ Full setup and builder requirements:
 ```
 
 This builds a side-by-side dev app (`.dev` suffix, `Navis Dev`) and pins update checks to the `dev` channel.
+
+## Listen Together / Voyage
+
+Navis can bundle one or more Voyage backends at build time for the Listen
+Together feature.
+
+Set `NAVIS_VOYAGE_SERVERS` as a `--dart-define` value, or place it in
+`tool/release.env` when using the repo scripts:
+
+```bash
+NAVIS_VOYAGE_SERVERS="Primary Voyage|https://voyage.example.com,Backup Voyage|https://voyage-backup.example.com"
+```
+
+Format rules:
+
+- separate entries with commas or newlines
+- use `Label|URL` when you want a friendly server name in the UI
+- use a plain URL when the host name is enough as the label
+
+When one bundled server is present, Settings exposes a simple enable/health
+check flow. When multiple are present, Settings lets the user pick a server
+before enabling Listen Together. If no bundled servers are supplied, Navis falls
+back to manual Voyage URL entry.
 
 ## Documentation Index
 

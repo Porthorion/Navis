@@ -40,4 +40,13 @@ abstract final class AppConstants {
     'NAVIS_LASTFM_API_KEY',
     defaultValue: '',
   );
+
+  /// Bundled Voyage servers exposed to the Listen Together configuration UI.
+  ///
+  /// Use a comma/newline separated list of URLs, with optional labels in the
+  /// form `Label|https://voyage.example.com`.
+  static const String voyageServers = String.fromEnvironment(
+    'NAVIS_VOYAGE_SERVERS',
+    defaultValue: '',
+  );
 }

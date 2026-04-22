@@ -35,8 +35,8 @@ class GroupListeningActiveSessionIndicator extends StatelessWidget {
           );
 
     final title = room.self.role == GroupListeningMemberRole.host
-        ? 'Group listening • Hosting'
-        : 'Group listening • Listening';
+        ? 'Listen Together • Hosting'
+        : 'Listen Together • Listening';
     final subtitle = <String>[
       _connectionLabel(state),
       if (state.snapshotRequired) 'Snapshot required' else 'In sync',

@@ -2318,6 +2318,23 @@ Canonical execution phase for Navis-side integration with the Voyage backend ser
 - Navis must never send raw Subsonic credentials to Voyage.
 - Non-sensitive Voyage config may live in Drift; Voyage secrets/tokens must use secure storage.
 - Production transport target is **HTTPS/WSS**.
+- Bundled Voyage server presets are injected via `NAVIS_VOYAGE_SERVERS` and may
+  be surfaced as either a single-toggle health check flow or a multi-server
+  selector in Settings.
+
+### 32.A.1 Implementation status (2026-04-22)
+
+- The Navis-side Voyage HTTP client, websocket transport client, secure session
+  persistence, reconnect flow, and heartbeat scheduling are now wired into the
+  app runtime.
+- Shared queue mutations are collaborative for active room members while
+  playback/administrative control remains host-led.
+- Settings now split Listen Together into:
+  - a **configuration** route for enablement, bundled-server selection, and
+    Voyage health/capability checks
+  - a **room surface** for create/join/leave/reconnect flows and sync health
+- The room surface is reused from Home via a dismissible Listen Together modal
+  entry placed next to Instant Radio.
 
 ### 32.A Navis ownership boundaries
 
@@ -2737,10 +2754,14 @@ bearer tokens, or raw backend stack traces.
 
 #### N4 — User-facing group listening surfaces
 
-- `GLI-N4-01`: add settings entry and group listening settings screen
-- `GLI-N4-02`: add create/join/leave flows
-- `GLI-N4-03`: add active-room indicator in app shell / player surfaces
-- `GLI-N4-04`: show room role, presence, and sync-state/error messaging clearly
+- `GLI-N4-01`: add settings configuration entry plus a Listen Together
+  configuration screen for enablement and bundled Voyage server selection
+- `GLI-N4-02`: add create/join/leave flows in a dedicated Listen Together room
+  surface
+- `GLI-N4-03`: add active-room indicator in app shell / player surfaces plus a
+  Home quick-action entry that opens the same room UI in a modal
+- `GLI-N4-04`: show Voyage health-check status, room role, presence, and
+  sync-state/error messaging clearly
 
 #### N5 — Drift correction + reconnect polish
 

@@ -3,68 +3,103 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/features/group_listening/data/group_listening_repository.dart';
 import 'package:navis/src/features/group_listening/domain/group_listening_session_models.dart';
 import 'package:navis/src/features/group_listening/presentation/group_listening_session_controller.dart';
-import 'package:navis/src/features/settings/domain/app_settings.dart';
-import 'package:navis/src/providers/app_providers.dart';
 
-class GroupListeningSettingsScreen extends ConsumerStatefulWidget {
+Future<void> showListenTogetherSheet(BuildContext context) {
+  final mediaQuery = MediaQuery.of(context);
+  final heightFactor = mediaQuery.size.width >= 840 ? 0.88 : 0.94;
+
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    showDragHandle: true,
+    backgroundColor: Colors.transparent,
+    builder: (context) {
+      return FractionallySizedBox(
+        heightFactor: heightFactor,
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 720),
+            child: const _ListenTogetherSurface(showAppBar: false),
+          ),
+        ),
+      );
+    },
+  );
+}
+
+class GroupListeningSettingsScreen extends StatelessWidget {
   const GroupListeningSettingsScreen({super.key});
 
   @override
-  ConsumerState<GroupListeningSettingsScreen> createState() =>
-      _GroupListeningSettingsScreenState();
+  Widget build(BuildContext context) {
+    return const _ListenTogetherSurface(showAppBar: true);
+  }
 }
 
-class _GroupListeningSettingsScreenState
-    extends ConsumerState<GroupListeningSettingsScreen> {
-  final _inviteCodeController = TextEditingController();
-  final _voyageServerUrlController = TextEditingController();
-  final _displayNameController = TextEditingController();
-  final _deviceLabelController = TextEditingController();
+class _ListenTogetherSurface extends StatelessWidget {
+  const _ListenTogetherSurface({required this.showAppBar});
 
-  bool _enabled = false;
-  bool _autoFollowHost = true;
-  bool _initialized = false;
+  final bool showAppBar;
+
+  @override
+  Widget build(BuildContext context) {
+    final body = const _ListenTogetherRoomContent();
+    if (showAppBar) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Listen Together')),
+        body: body,
+      );
+    }
+
+    return Material(
+      color: Theme.of(context).colorScheme.surface,
+      borderRadius: BorderRadius.circular(24),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: <Widget>[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+            child: Row(
+              children: <Widget>[
+                Text(
+                  'Listen Together',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const Spacer(),
+                IconButton(
+                  tooltip: 'Close Listen Together',
+                  onPressed: () => Navigator.of(context).maybePop(),
+                  icon: const Icon(Icons.close),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(child: body),
+        ],
+      ),
+    );
+  }
+}
+
+class _ListenTogetherRoomContent extends ConsumerStatefulWidget {
+  const _ListenTogetherRoomContent();
+
+  @override
+  ConsumerState<_ListenTogetherRoomContent> createState() =>
+      _ListenTogetherRoomContentState();
+}
+
+class _ListenTogetherRoomContentState
+    extends ConsumerState<_ListenTogetherRoomContent> {
+  final _inviteCodeController = TextEditingController();
 
   @override
   void dispose() {
     _inviteCodeController.dispose();
-    _voyageServerUrlController.dispose();
-    _displayNameController.dispose();
-    _deviceLabelController.dispose();
     super.dispose();
-  }
-
-  void _initFromSettings(AppSettingsModel settings) {
-    if (_initialized) return;
-    _initialized = true;
-    _enabled = settings.groupListeningEnabled;
-    _autoFollowHost = settings.voyageAutoFollowHost;
-    _voyageServerUrlController.text = settings.voyageServerUrl ?? '';
-    _displayNameController.text = settings.voyageDisplayName ?? '';
-    _deviceLabelController.text = settings.voyageDeviceLabel ?? '';
-  }
-
-  Future<void> _save() async {
-    final repository = ref.read(settingsRepositoryProvider);
-    final current =
-        ref.read(appSettingsProvider).asData?.value ??
-        const AppSettingsModel.defaults();
-    final voyageServerUrl = _voyageServerUrlController.text.trim();
-    final displayName = _displayNameController.text.trim();
-    final deviceLabel = _deviceLabelController.text.trim();
-
-    await repository.saveSettings(
-      current.copyWith(
-        groupListeningEnabled: _enabled,
-        voyageServerUrl: voyageServerUrl.isEmpty ? null : voyageServerUrl,
-        voyageDisplayName: displayName.isEmpty ? null : displayName,
-        voyageDeviceLabel: deviceLabel.isEmpty ? null : deviceLabel,
-        voyageAutoFollowHost: _autoFollowHost,
-        clearVoyageServerUrl: voyageServerUrl.isEmpty,
-        clearVoyageDisplayName: displayName.isEmpty,
-        clearVoyageDeviceLabel: deviceLabel.isEmpty,
-      ),
-    );
   }
 
   bool _isBusy(GroupListeningSessionState sessionState) {
@@ -109,9 +144,7 @@ class _GroupListeningSettingsScreenState
 
   Future<void> _leaveRoom() async {
     FocusScope.of(context).unfocus();
-    await ref
-        .read(groupListeningSessionControllerProvider.notifier)
-        .leaveRoom();
+    await ref.read(groupListeningSessionControllerProvider.notifier).leaveRoom();
   }
 
   Future<void> _connectTransport() async {
@@ -121,9 +154,7 @@ class _GroupListeningSettingsScreenState
 
   Future<void> _reconnect() async {
     FocusScope.of(context).unfocus();
-    await ref
-        .read(groupListeningSessionControllerProvider.notifier)
-        .reconnect();
+    await ref.read(groupListeningSessionControllerProvider.notifier).reconnect();
   }
 
   Future<void> _refreshSnapshot() async {
@@ -140,9 +171,9 @@ class _GroupListeningSettingsScreenState
   String _availabilityMessage(GroupListeningSessionState sessionState) {
     switch (sessionState.availability) {
       case GroupListeningAvailability.disabled:
-        return 'Turn on group listening to create or join rooms.';
+        return 'Turn on Listen Together in configuration before creating or joining rooms.';
       case GroupListeningAvailability.unconfigured:
-        return 'Finish the Voyage URL and make sure Navis is signed in before joining a room.';
+        return 'Finish the Voyage connection setup and make sure Navis is signed in before joining a room.';
       case GroupListeningAvailability.ready:
         return sessionState.hasActiveRoom
             ? 'Room setup is ready. Use the controls below to reconnect, refresh, or leave.'
@@ -156,9 +187,9 @@ class _GroupListeningSettingsScreenState
     }
     switch (sessionState.availability) {
       case GroupListeningAvailability.disabled:
-        return 'Group listening is off';
+        return 'Listen Together is off';
       case GroupListeningAvailability.unconfigured:
-        return 'Finish setup';
+        return 'Finish configuration';
       case GroupListeningAvailability.ready:
         return 'No active room';
     }
@@ -208,7 +239,7 @@ class _GroupListeningSettingsScreenState
       case GroupListeningErrorCode.snapshotRequired:
         return 'Navis needs a fresh room snapshot before it can trust the shared state again.';
       case GroupListeningErrorCode.configurationMissing:
-        return 'Complete the Voyage server URL and sign in before starting a room.';
+        return 'Complete the Voyage configuration and sign in before starting a room.';
       case GroupListeningErrorCode.fingerprintMismatch:
         return 'This room belongs to a different server profile. Rejoin it from the matching Subsonic account.';
       case GroupListeningErrorCode.inviteInvalid:
@@ -479,7 +510,7 @@ class _GroupListeningSettingsScreenState
             const SizedBox(height: 12),
             Text(
               sessionState.hasActiveRoom
-                  ? 'Playback handoff is wired separately, so this screen stays focused on room lifecycle, roles, and sync health.'
+                  ? 'Shared queue updates stay collaborative, so add, remove, and reorder actions stay aligned for everyone in the room.'
                   : _availabilityMessage(sessionState),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -493,7 +524,6 @@ class _GroupListeningSettingsScreenState
 
   @override
   Widget build(BuildContext context) {
-    final settingsAsync = ref.watch(appSettingsProvider);
     final sessionState = ref.watch(groupListeningSessionControllerProvider);
     final clientDescriptor = ref.watch(groupListeningClientDescriptorProvider);
 
@@ -509,134 +539,23 @@ class _GroupListeningSettingsScreenState
       },
     );
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Group Listening')),
-      body: settingsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text('$error')),
-        data: (settings) {
-          _initFromSettings(settings);
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: <Widget>[
-              _buildOverviewCard(sessionState),
-              const SizedBox(height: 12),
-              _buildActionsCard(sessionState, clientDescriptor),
-              const SizedBox(height: 12),
-              Card(
-                child: Column(
-                  children: <Widget>[
-                    SwitchListTile(
-                      key: const ValueKey('groupListeningEnabledSwitch'),
-                      secondary: const Icon(Icons.headset_mic_outlined),
-                      title: const Text('Enable group listening'),
-                      subtitle: const Text(
-                        'Allow Navis to use locally stored Voyage connection preferences.',
-                      ),
-                      value: _enabled,
-                      onChanged: (value) {
-                        setState(() => _enabled = value);
-                        _save();
-                      },
-                    ),
-                    SwitchListTile(
-                      key: const ValueKey('groupListeningAutoFollowHostSwitch'),
-                      secondary: const Icon(Icons.sync_alt_outlined),
-                      title: const Text('Auto-follow host playback'),
-                      subtitle: const Text(
-                        'Prefer host-led play, pause, and seek updates when joining a room.',
-                      ),
-                      value: _autoFollowHost,
-                      onChanged: (value) {
-                        setState(() => _autoFollowHost = value);
-                        _save();
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        'Voyage connection',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        key: const ValueKey(
-                          'groupListeningVoyageServerUrlField',
-                        ),
-                        controller: _voyageServerUrlController,
-                        keyboardType: TextInputType.url,
-                        decoration: const InputDecoration(
-                          labelText: 'Voyage server URL',
-                          hintText: 'https://voyage.example.com',
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.link),
-                        ),
-                        onChanged: (_) => _save(),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        key: const ValueKey('groupListeningDisplayNameField'),
-                        controller: _displayNameController,
-                        decoration: const InputDecoration(
-                          labelText: 'Display name',
-                          hintText: 'Shown to other listeners',
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.badge_outlined),
-                        ),
-                        onChanged: (_) => _save(),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        key: const ValueKey('groupListeningDeviceLabelField'),
-                        controller: _deviceLabelController,
-                        decoration: const InputDecoration(
-                          labelText: 'Device label',
-                          hintText: 'Optional device nickname',
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.devices_outlined),
-                        ),
-                        onChanged: (_) => _save(),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Card(
-                child: ListTile(
-                  leading: const Icon(Icons.lock_outline),
-                  title: const Text(
-                    'Sensitive Voyage tokens are not stored here',
-                  ),
-                  subtitle: const Text(
-                    'Only non-sensitive configuration is stored in app settings. Room tokens and secrets must stay in secure storage.',
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Card(
-                child: ListTile(
-                  leading: const Icon(Icons.tune_outlined),
-                  title: const Text(
-                    'Playback bridge is being wired separately',
-                  ),
-                  subtitle: const Text(
-                    'This MVP screen focuses on room setup, membership, and sync visibility so it does not overlap with the active playback-bridge work.',
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: <Widget>[
+        _buildOverviewCard(sessionState),
+        const SizedBox(height: 12),
+        _buildActionsCard(sessionState, clientDescriptor),
+        const SizedBox(height: 12),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.lock_outline),
+            title: const Text('Sensitive Voyage tokens are not stored here'),
+            subtitle: const Text(
+              'Only non-sensitive configuration is stored in app settings. Room tokens and secrets stay in secure storage.',
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -724,8 +643,7 @@ class _FailureCard extends StatelessWidget {
                     color: scheme.onErrorContainer,
                   ),
                 ),
-                if (failure.retryable ||
-                    failure.retryAfter != null) ...<Widget>[
+                if (failure.retryable || failure.retryAfter != null) ...<Widget>[
                   const SizedBox(height: 6),
                   Text(
                     failure.retryAfter == null
