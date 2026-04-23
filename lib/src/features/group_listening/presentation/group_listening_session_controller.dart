@@ -576,13 +576,19 @@ class GroupListeningSessionController
             lastAppliedRoomVersion: state.lastAppliedRoomVersion,
           );
     } on Object catch (error, stackTrace) {
-      return _setFailure(
-        _asFailure(
-          error,
-          fallbackMessage: 'Unable to leave Voyage room cleanly.',
-          fallbackCode: GroupListeningErrorCode.transportUnavailable,
-        ),
-        stackTrace: stackTrace,
+      final failure = _asFailure(
+        error,
+        fallbackMessage: 'Unable to leave Voyage room cleanly.',
+        fallbackCode: GroupListeningErrorCode.transportUnavailable,
+      );
+      // Fatal codes mean the server already considers us gone (room closed,
+      // token revoked, unauthorised).  Treat this as a graceful leave and
+      // fall through to local cleanup rather than re-entering the error state.
+      if (!_isFatalSessionFailure(failure.code)) {
+        return _setFailure(failure, stackTrace: stackTrace);
+      }
+      AppLogger.warning(
+        'Leave request rejected (${failure.code}), cleaning up locally.',
       );
     }
 

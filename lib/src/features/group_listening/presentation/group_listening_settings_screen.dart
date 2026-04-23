@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:navis/src/features/group_listening/data/group_listening_repository.dart';
 import 'package:navis/src/features/group_listening/domain/group_listening_session_models.dart';
+import 'package:navis/src/features/group_listening/presentation/group_listening_playback_sync_bridge.dart';
 import 'package:navis/src/features/group_listening/presentation/group_listening_session_controller.dart';
 
 Future<void> showListenTogetherSheet(BuildContext context) {
@@ -727,6 +728,17 @@ class _ListenTogetherRoomContentState
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text(_failureDescription(next))));
+      },
+    );
+
+    ref.listen<int>(
+      groupListeningQueueTrackAddedProvider,
+      (previous, next) {
+        if (previous != null && next > previous && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Track added to queue.')),
+          );
+        }
       },
     );
 

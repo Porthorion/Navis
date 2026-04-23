@@ -18,9 +18,22 @@ final groupListeningPlaybackSyncBridgeProvider =
       GroupListeningPlaybackSyncBridge.new,
     );
 
+/// Incremented each time a remote queue-add is applied as a pure append
+/// (i.e., existing playback was not interrupted). Listeners can show a
+/// snackbar notification when the value changes.
+final groupListeningQueueTrackAddedProvider =
+    NotifierProvider<_QueueTrackAddedNotifier, int>(_QueueTrackAddedNotifier.new);
+
+class _QueueTrackAddedNotifier extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void increment() => state++;
+}
+
 class GroupListeningPlaybackSyncBridge extends Notifier<int> {
-  static const Duration _publishThrottle = Duration(milliseconds: 1200);
-  static const Duration _positionTolerance = Duration(milliseconds: 900);
+  static const Duration _publishThrottle = Duration(milliseconds: 400);
+  static const Duration _positionTolerance = Duration(milliseconds: 500);
   static const Duration _echoTolerance = Duration(milliseconds: 1500);
   static const Duration _localPositionDebounce = Duration(milliseconds: 250);
   static const Uuid _uuid = Uuid();
@@ -359,16 +372,38 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
       );
       final trackChanged = beforeApply.currentIndex != remoteState.currentIndex;
 
+      // Whether we performed a full queue replace (requires seek + play/pause sync).
+      var didFullQueueReplace = false;
+
       if (remoteState.queueSongIds.isEmpty) {
         if (beforeApply.queueSongIds.isNotEmpty || beforeApply.isRadioMode) {
           await queueController.clear();
         }
       } else if (queueChanged) {
-        await queueController.replace(
-          remoteState.queueSongIds,
-          startIndex: remoteState.currentIndex ?? 0,
-          autoPlay: remoteState.playing,
-        );
+        // Detect a pure append: old items are unchanged and new items were
+        // appended at the end without shifting the current track.
+        final isPureAppend =
+            remoteState.queueSongIds.length > beforeApply.queueSongIds.length &&
+            remoteState.currentIndex == beforeApply.currentIndex &&
+            _isPrefixOf(beforeApply.queueSongIds, remoteState.queueSongIds);
+
+        if (isPureAppend) {
+          final newIds = remoteState.queueSongIds.sublist(
+            beforeApply.queueSongIds.length,
+          );
+          for (final id in newIds) {
+            await queueController.add(id);
+          }
+          // Notify the UI to show a snackbar without interrupting playback.
+          ref.read(groupListeningQueueTrackAddedProvider.notifier).increment();
+        } else {
+          await queueController.replace(
+            remoteState.queueSongIds,
+            startIndex: remoteState.currentIndex ?? 0,
+            autoPlay: remoteState.playing,
+          );
+          didFullQueueReplace = true;
+        }
       } else if (trackChanged && remoteState.currentIndex != null) {
         if (remoteState.playing) {
           await queueController.playFromIndex(remoteState.currentIndex!);
@@ -382,9 +417,9 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
       }
 
       final afterQueueApply = _currentLocalPlaybackState();
-      if (!remoteState.queueSongIds.isEmpty) {
+      if (remoteState.queueSongIds.isNotEmpty) {
         final shouldSeek =
-            queueChanged ||
+            didFullQueueReplace ||
             trackChanged ||
             _durationDistance(afterQueueApply.position, remoteState.position) >
                 _positionTolerance;
@@ -562,6 +597,16 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
   Duration _durationDistance(Duration left, Duration right) {
     final delta = left.inMilliseconds - right.inMilliseconds;
     return Duration(milliseconds: delta.abs());
+  }
+
+  /// Returns true if [prefix] is an exact prefix of [full] (same order,
+  /// same values). Used to detect pure-append queue changes.
+  bool _isPrefixOf(List<String> prefix, List<String> full) {
+    if (prefix.length > full.length) return false;
+    for (var i = 0; i < prefix.length; i++) {
+      if (prefix[i] != full[i]) return false;
+    }
+    return true;
   }
 }
 
