@@ -108,24 +108,12 @@ class _ArtistTopTracksSectionState extends ConsumerState<ArtistTopTracksSection>
 
   void _showNotAvailable(BuildContext context) {
     if (!context.mounted) return;
-    AppNoticeMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          AppLocalizations.of(context)!.artistTopTracksNotAvailable,
-        ),
-      ),
-    );
+    showAppNotice(context, message: AppLocalizations.of(context)!.artistTopTracksNotAvailable, level: AppNoticeLevel.info);
   }
 
   void _showPlayError(BuildContext context) {
     if (!context.mounted) return;
-    AppNoticeMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          AppLocalizations.of(context)!.artistTopTracksPlayError,
-        ),
-      ),
-    );
+    showAppNotice(context, message: AppLocalizations.of(context)!.artistTopTracksPlayError, level: AppNoticeLevel.error);
   }
 
   // ---------------------------------------------------------------------------
@@ -412,11 +400,7 @@ class _TopTrackTile extends ConsumerWidget {
               ),
         );
         if (!context.mounted) return;
-        AppNoticeMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(AppLocalizations.of(context)!.downloadSongQueued),
-          ),
-        );
+        showAppNotice(context, message: AppLocalizations.of(context)!.downloadSongQueued, level: AppNoticeLevel.success);
       }(),
     );
   }

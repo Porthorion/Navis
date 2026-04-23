@@ -91,13 +91,7 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
         isStarred ? DateTime.now() : null,
       );
       setState(() => _isStarred = isStarred);
-      AppNoticeMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            AppLocalizations.of(context)!.albumDetailStarFailure,
-          ),
-        ),
-      );
+      showAppNotice(context, message: AppLocalizations.of(context)!.albumDetailStarFailure, level: AppNoticeLevel.error);
     } finally {
       if (mounted) setState(() => _isStarring = false);
     }
@@ -345,8 +339,7 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.artistDetailTitle),
-        actions: <Widget>[
-        ],
+        actions: <Widget>[],
       ),
       body: desktopMode
           ? DesktopFrame(

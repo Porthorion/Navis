@@ -161,9 +161,7 @@ class RadioTabContent extends ConsumerWidget {
           .catchError((Object error) {
             if (!context.mounted) return;
             final l10n = AppLocalizations.of(context)!;
-            AppNoticeMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(l10n.radioPlaybackError)),
-            );
+            showAppNotice(context, message: l10n.radioPlaybackError, level: AppNoticeLevel.error);
           }),
     );
   }

@@ -102,8 +102,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.playlistDetailTitle),
-        actions: <Widget>[
-        ],
+        actions: <Widget>[],
       ),
       body: desktopMode
           ? DesktopFrame(
@@ -445,14 +444,10 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
       );
       ref.invalidate(playlistDetailSyncProvider(widget.playlistId));
       if (!mounted) return;
-      AppNoticeMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.playlistDetailTrackRemoved)),
-      );
+      showAppNotice(context, message: l10n.playlistDetailTrackRemoved, level: AppNoticeLevel.success);
     } on Object {
       if (!mounted) return;
-      AppNoticeMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.playlistDetailTrackRemoveFailed)),
-      );
+      showAppNotice(context, message: l10n.playlistDetailTrackRemoveFailed, level: AppNoticeLevel.error);
     }
   }
 
@@ -490,9 +485,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
       ref.invalidate(playlistDetailSyncProvider(widget.playlistId));
       if (!mounted) return;
       final l10n = AppLocalizations.of(context)!;
-      AppNoticeMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.playlistDetailTrackRemoveFailed)),
-      );
+      showAppNotice(context, message: l10n.playlistDetailTrackRemoveFailed, level: AppNoticeLevel.error);
     }
   }
 
@@ -551,11 +544,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                       label: 'addToQueue',
                     );
                 // Optimistic success feedback.
-                AppNoticeMessenger.of(this.context).showSnackBar(
-                  SnackBar(
-                    content: Text(l10n.librarySongAddedToQueue(song.title)),
-                  ),
-                );
+                showAppNotice(this.context, message: l10n.librarySongAddedToQueue(song.title), level: AppNoticeLevel.success);
               },
             ),
             ListTile(
@@ -570,11 +559,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                       label: 'playNext',
                     );
                 // Optimistic success feedback.
-                AppNoticeMessenger.of(this.context).showSnackBar(
-                  SnackBar(
-                    content: Text(l10n.librarySongPlayNextQueued(song.title)),
-                  ),
-                );
+                showAppNotice(this.context, message: l10n.librarySongPlayNextQueued(song.title), level: AppNoticeLevel.success);
               },
             ),
             ListTile(
@@ -675,9 +660,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     );
     if (!mounted) return;
     final l10n = AppLocalizations.of(context)!;
-    AppNoticeMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(l10n.downloadPlaylistQueued(count))),
-    );
+    showAppNotice(context, message: l10n.downloadPlaylistQueued(count), level: AppNoticeLevel.success);
   }
 
   Future<void> _deleteDownload(SongsTableData song) async {
@@ -724,8 +707,6 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     );
     if (!mounted) return;
     final l10n = AppLocalizations.of(context)!;
-    AppNoticeMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(l10n.downloadSongQueued)),
-    );
+    showAppNotice(context, message: l10n.downloadSongQueued, level: AppNoticeLevel.success);
   }
 }

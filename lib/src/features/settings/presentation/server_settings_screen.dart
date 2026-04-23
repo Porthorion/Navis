@@ -301,16 +301,10 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
             password: config.password,
           );
       if (!mounted) return;
-      AppNoticeMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(l10n.loginTestConnectionSuccess(result.apiVersion)),
-        ),
-      );
+      showAppNotice(context, message: l10n.loginTestConnectionSuccess(result.apiVersion), level: AppNoticeLevel.success);
     } on Object catch (error) {
       if (!mounted) return;
-      AppNoticeMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_toUserMessage(error, l10n))),
-      );
+      showAppNotice(context, message: _toUserMessage(error, l10n), level: AppNoticeLevel.error);
     } finally {
       if (mounted) setState(() => _isTestingConnection = false);
     }
@@ -359,21 +353,17 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
           .signOut(wipeLocalData: wipeLocalData);
       await ref.read(serverConfigProvider.notifier).refresh();
       if (!mounted) return;
-      AppNoticeMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            wipeLocalData
-                ? l10n.serverSettingsSignOutWipeSuccess
-                : l10n.serverSettingsSignOutSuccess,
-          ),
-        ),
+      showAppNotice(
+        context,
+        message: wipeLocalData
+            ? l10n.serverSettingsSignOutWipeSuccess
+            : l10n.serverSettingsSignOutSuccess,
+        level: AppNoticeLevel.info,
       );
       context.go('/login');
     } on Object {
       if (!mounted) return;
-      AppNoticeMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.serverSettingsSignOutError)),
-      );
+      showAppNotice(context, message: l10n.serverSettingsSignOutError, level: AppNoticeLevel.error);
     } finally {
       if (mounted) setState(() => _isSigningOut = false);
     }
@@ -395,20 +385,16 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
         ),
       );
       if (!mounted) return;
-      AppNoticeMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            key.isEmpty
-                ? l10n.configurationLastFmApiKeyCleared
-                : l10n.configurationLastFmApiKeySaved,
-          ),
-        ),
+      showAppNotice(
+        context,
+        message: key.isEmpty
+            ? l10n.configurationLastFmApiKeyCleared
+            : l10n.configurationLastFmApiKeySaved,
+        level: AppNoticeLevel.success,
       );
     } on Object {
       if (!mounted) return;
-      AppNoticeMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.serverSettingsSaveError)),
-      );
+      showAppNotice(context, message: l10n.serverSettingsSaveError, level: AppNoticeLevel.error);
     } finally {
       if (mounted) setState(() => _isSavingApiKey = false);
     }

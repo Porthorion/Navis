@@ -2058,9 +2058,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     );
     if (!mounted) return;
     final l10n = AppLocalizations.of(context)!;
-    AppNoticeMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(l10n.downloadSongQueued)),
-    );
+    showAppNotice(context, message: l10n.downloadSongQueued, level: AppNoticeLevel.success);
   }
 
   Future<void> _queueLikedSongs(
@@ -2083,9 +2081,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         return;
       }
       final l10n = AppLocalizations.of(context)!;
-      AppNoticeMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.playbackActionFailed)),
-      );
+      showAppNotice(context, message: l10n.playbackActionFailed, level: AppNoticeLevel.error);
     }
   }
 
@@ -2557,9 +2553,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         album.id,
         isStarred ? DateTime.now() : null,
       );
-      AppNoticeMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.albumDetailStarFailure)),
-      );
+      showAppNotice(context, message: l10n.albumDetailStarFailure, level: AppNoticeLevel.error);
     }
   }
 
@@ -2595,9 +2589,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         artist.id,
         isStarred ? DateTime.now() : null,
       );
-      AppNoticeMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.albumDetailStarFailure)),
-      );
+      showAppNotice(context, message: l10n.albumDetailStarFailure, level: AppNoticeLevel.error);
     }
   }
 
@@ -3193,12 +3185,7 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
               return;
             }
             final l10n = AppLocalizations.of(context)!;
-            AppNoticeMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(l10n.playlistsLoadError),
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
+            showAppNotice(context, message: l10n.playlistsLoadError, level: AppNoticeLevel.error);
           });
         }
       },
@@ -3395,16 +3382,12 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
           .createPlaylist(name)
           .then((_) {
             if (!mounted) return;
-            AppNoticeMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(l10n.playlistsCreateSuccess)),
-            );
+            showAppNotice(context, message: l10n.playlistsCreateSuccess, level: AppNoticeLevel.success);
             ref.invalidate(playlistSyncProvider);
           })
           .catchError((_) {
             if (!mounted) return;
-            AppNoticeMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(l10n.playlistsCreateFailed)),
-            );
+            showAppNotice(context, message: l10n.playlistsCreateFailed, level: AppNoticeLevel.error);
           }),
     );
   }

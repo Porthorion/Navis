@@ -267,10 +267,8 @@ Future<void> _showDesktopAlbumContextMenu(
 }
 
 void _showQueueActionToast(BuildContext context, String message) {
-  final messenger = AppNoticeMessenger.of(context);
-  messenger
-    ..clearSnackBars()
-    ..showSnackBar(SnackBar(content: Text(message)));
+  AppNoticeMessenger.of(context).clearSnackBars();
+  showAppNotice(context, message: message, level: AppNoticeLevel.success);
 }
 
 Future<void> _downloadAlbumFromMenu(
@@ -289,9 +287,7 @@ Future<void> _downloadAlbumFromMenu(
   );
   if (!context.mounted) return;
   final l10n = AppLocalizations.of(context)!;
-  AppNoticeMessenger.of(context).showSnackBar(
-    SnackBar(content: Text(l10n.downloadAlbumQueued(count))),
-  );
+  showAppNotice(context, message: l10n.downloadAlbumQueued(count), level: AppNoticeLevel.success);
 }
 
 /// Deletes all permanently-downloaded songs in [songs] one by one,

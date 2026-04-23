@@ -130,13 +130,8 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                 jsonEncode(updated),
               );
               if (context.mounted) {
-                AppNoticeMessenger.of(context)
-                  ..clearSnackBars()
-                  ..showSnackBar(
-                    SnackBar(
-                      content: Text(l10n.appearanceColorPresetSaved),
-                    ),
-                  );
+                AppNoticeMessenger.of(context).clearSnackBars();
+                showAppNotice(context, message: l10n.appearanceColorPresetSaved, level: AppNoticeLevel.success);
               }
             },
             onDeletePreset: (colorValue) async {
@@ -167,13 +162,8 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                 await db.appSettingsDao.updateColorSchemeSeed(null);
               }
               if (context.mounted) {
-                AppNoticeMessenger.of(context)
-                  ..clearSnackBars()
-                  ..showSnackBar(
-                    SnackBar(
-                      content: Text(l10n.appearanceColorPresetDeleted),
-                    ),
-                  );
+                AppNoticeMessenger.of(context).clearSnackBars();
+                showAppNotice(context, message: l10n.appearanceColorPresetDeleted, level: AppNoticeLevel.success);
               }
             },
           ),

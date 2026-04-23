@@ -783,22 +783,14 @@ void _showNowPlayingSettingsSheet(
                                   sheetRef,
                                 ).catchError((_) {
                                   if (context.mounted) {
-                                    AppNoticeMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(l10n.ratingUpdateFailed),
-                                      ),
-                                    );
+                                    showAppNotice(context, message: l10n.ratingUpdateFailed, level: AppNoticeLevel.error);
                                   }
                                 }),
                               );
                             },
                           ),
                     onTap: isRemote
-                        ? () => AppNoticeMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(l10n.remoteSourceActionUnavailable),
-                            ),
-                          )
+                        ? () => showAppNotice(context, message: l10n.remoteSourceActionUnavailable, level: AppNoticeLevel.error)
                         : null,
                   ),
                 if (fullscreenLyricsSongId != null &&
@@ -876,11 +868,7 @@ void _showNowPlayingSettingsSheet(
                     title: Text(l10n.downloadAction),
                     onTap: () async {
                       if (isRemote) {
-                        AppNoticeMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(l10n.remoteSourceActionUnavailable),
-                          ),
-                        );
+                        showAppNotice(context, message: l10n.remoteSourceActionUnavailable, level: AppNoticeLevel.error);
                         return;
                       }
                       Navigator.of(sheetContext).pop();
@@ -893,9 +881,7 @@ void _showNowPlayingSettingsSheet(
                         format: choice.format,
                       );
                       if (context.mounted) {
-                        AppNoticeMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(l10n.downloadSongQueued)),
-                        );
+                        showAppNotice(context, message: l10n.downloadSongQueued, level: AppNoticeLevel.success);
                       }
                     },
                   ),
@@ -1376,8 +1362,10 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
         return;
       }
       final cacheManager = ref.read(coverArtCacheManagerProvider);
-      final ImageProvider<Object> imageProvider =
-          CachedNetworkImageProvider(artUrl, cacheManager: cacheManager);
+      final ImageProvider<Object> imageProvider = CachedNetworkImageProvider(
+        artUrl,
+        cacheManager: cacheManager,
+      );
       unawaited(precacheImage(imageProvider, context));
     });
   }
@@ -3449,15 +3437,7 @@ class _NowPlayingInfoPanelState extends ConsumerState<_NowPlayingInfoPanel> {
                                       ref,
                                     ).catchError((_) {
                                       if (context.mounted) {
-                                        AppNoticeMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              l10n.ratingUpdateFailed,
-                                            ),
-                                          ),
-                                        );
+                                        showAppNotice(context, message: l10n.ratingUpdateFailed, level: AppNoticeLevel.error);
                                       }
                                     }),
                                   );
@@ -3651,9 +3631,7 @@ class _NowPlayingInfoGrid extends ConsumerWidget {
                   unawaited(
                     setSongRating(currentSongId, next, ref).catchError((_) {
                       if (context.mounted) {
-                        AppNoticeMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(l10n.ratingUpdateFailed)),
-                        );
+                        showAppNotice(context, message: l10n.ratingUpdateFailed, level: AppNoticeLevel.error);
                       }
                     }),
                   );
@@ -4783,9 +4761,7 @@ class _ActionRowState extends ConsumerState<_ActionRow>
         onTap: widget.songId == null
             ? null
             : legacyMixUnavailable
-            ? () => AppNoticeMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(l10n.remoteSourceInstantMixUnavailable)),
-              )
+            ? () => showAppNotice(context, message: l10n.remoteSourceInstantMixUnavailable, level: AppNoticeLevel.error)
             : () => unawaited(
                 togglePreferredMixMode(ref, seedSongId: widget.songId!),
               ),
@@ -4805,9 +4781,7 @@ class _ActionRowState extends ConsumerState<_ActionRow>
         onTap: widget.songId == null
             ? null
             : isRemote
-            ? () => AppNoticeMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(l10n.remoteSourceActionUnavailable)),
-              )
+            ? () => showAppNotice(context, message: l10n.remoteSourceActionUnavailable, level: AppNoticeLevel.error)
             : () {
                 HapticFeedback.lightImpact();
                 final handler = ref.read(audioHandlerProvider);
@@ -5568,18 +5542,14 @@ class _NowPlayingSettingsPanel extends ConsumerWidget {
                       unawaited(
                         setSongRating(song!.id, next, ref).catchError((_) {
                           if (context.mounted) {
-                            AppNoticeMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(l10n.ratingUpdateFailed)),
-                            );
+                            showAppNotice(context, message: l10n.ratingUpdateFailed, level: AppNoticeLevel.error);
                           }
                         }),
                       );
                     },
                   ),
             onTap: isRemote
-                ? () => AppNoticeMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(l10n.remoteSourceActionUnavailable)),
-                  )
+                ? () => showAppNotice(context, message: l10n.remoteSourceActionUnavailable, level: AppNoticeLevel.error)
                 : null,
           ),
         if (fullscreenLyricsSongId != null &&
@@ -5641,9 +5611,7 @@ class _NowPlayingSettingsPanel extends ConsumerWidget {
             title: Text(l10n.downloadAction),
             onTap: () async {
               if (isRemote) {
-                AppNoticeMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(l10n.remoteSourceActionUnavailable)),
-                );
+                showAppNotice(context, message: l10n.remoteSourceActionUnavailable, level: AppNoticeLevel.error);
                 return;
               }
               final choice = await showDownloadQualitySheet(context);
@@ -5655,9 +5623,7 @@ class _NowPlayingSettingsPanel extends ConsumerWidget {
                 format: choice.format,
               );
               if (context.mounted) {
-                AppNoticeMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(l10n.downloadSongQueued)),
-                );
+                showAppNotice(context, message: l10n.downloadSongQueued, level: AppNoticeLevel.success);
               }
             },
           ),
@@ -5709,11 +5675,7 @@ class _EmbeddedMixPanel extends ConsumerWidget {
           subtitle: Text(subtitle),
           trailing: active ? const Icon(Icons.check_circle) : null,
           onTap: legacyMixUnavailable
-              ? () => AppNoticeMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(l10n.remoteSourceInstantMixUnavailable),
-                  ),
-                )
+              ? () => showAppNotice(context, message: l10n.remoteSourceInstantMixUnavailable, level: AppNoticeLevel.error)
               : () async {
                   await togglePreferredMixMode(ref, seedSongId: seedSongId);
                 },

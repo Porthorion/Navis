@@ -147,20 +147,12 @@ class _AddToPlaylistSheet extends ConsumerWidget {
             ref.invalidate(playlistDetailSyncProvider(playlistId));
             ref.invalidate(playlistSyncProvider);
             if (context.mounted) {
-              AppNoticeMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(l10n.addToPlaylistSuccess(playlistName)),
-                ),
-              );
+              showAppNotice(context, message: l10n.addToPlaylistSuccess(playlistName), level: AppNoticeLevel.success);
             }
           })
           .catchError((_) {
             if (context.mounted) {
-              AppNoticeMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(l10n.playlistDetailTrackRemoveFailed),
-                ),
-              );
+              showAppNotice(context, message: l10n.playlistDetailTrackRemoveFailed, level: AppNoticeLevel.error);
             }
           }),
     );
@@ -223,16 +215,12 @@ class _AddToPlaylistSheet extends ConsumerWidget {
           .then((_) {
             ref.invalidate(playlistSyncProvider);
             if (parentContext.mounted) {
-              AppNoticeMessenger.of(parentContext).showSnackBar(
-                SnackBar(content: Text(l10n.playlistsCreateSuccess)),
-              );
+              showAppNotice(parentContext, message: l10n.playlistsCreateSuccess, level: AppNoticeLevel.success);
             }
           })
           .catchError((_) {
             if (parentContext.mounted) {
-              AppNoticeMessenger.of(parentContext).showSnackBar(
-                SnackBar(content: Text(l10n.playlistsCreateFailed)),
-              );
+              showAppNotice(parentContext, message: l10n.playlistsCreateFailed, level: AppNoticeLevel.error);
             }
           }),
     );

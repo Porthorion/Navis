@@ -546,11 +546,7 @@ class _DownloadedTrackTile extends ConsumerWidget {
                     format: choice.format,
                   );
                   if (context.mounted) {
-                    AppNoticeMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(l10n.downloadsRedownloadQueued),
-                      ),
-                    );
+                    showAppNotice(context, message: l10n.downloadsRedownloadQueued, level: AppNoticeLevel.success);
                   }
                 },
               ),
@@ -567,14 +563,12 @@ class _DownloadedTrackTile extends ConsumerWidget {
                     ref.read(queueProvider.notifier).add(track.songId),
                   );
                   if (context.mounted) {
-                    AppNoticeMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          l10n.librarySongAddedToQueue(
-                            song?.title ?? track.songId,
-                          ),
-                        ),
+                    showAppNotice(
+                      context,
+                      message: l10n.librarySongAddedToQueue(
+                        song?.title ?? track.songId,
                       ),
+                      level: AppNoticeLevel.success,
                     );
                   }
                 },
@@ -698,11 +692,8 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
         );
       }
       if (mounted) {
-        AppNoticeMessenger.of(context)
-          ..clearSnackBars()
-          ..showSnackBar(
-            SnackBar(content: Text(l10n.cacheSettingsClearSuccess)),
-          );
+        AppNoticeMessenger.of(context).clearSnackBars();
+        showAppNotice(context, message: l10n.cacheSettingsClearSuccess, level: AppNoticeLevel.success);
       }
     } finally {
       if (mounted) setState(() => _clearing = false);

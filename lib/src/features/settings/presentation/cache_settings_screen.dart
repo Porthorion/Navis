@@ -103,9 +103,8 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
 
     if (mounted) {
       final l10n = AppLocalizations.of(context)!;
-      AppNoticeMessenger.of(context)
-        ..clearSnackBars()
-        ..showSnackBar(SnackBar(content: Text(l10n.cacheSettingsBudgetSaved)));
+      AppNoticeMessenger.of(context).clearSnackBars();
+      showAppNotice(context, message: l10n.cacheSettingsBudgetSaved, level: AppNoticeLevel.success);
     }
   }
 
@@ -118,11 +117,8 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
     ref.invalidate(coverArtCacheManagerProvider);
     if (mounted) {
       final l10n = AppLocalizations.of(context)!;
-      AppNoticeMessenger.of(context)
-        ..clearSnackBars()
-        ..showSnackBar(
-          SnackBar(content: Text(l10n.cacheSettingsCoverArtMaxSaved)),
-        );
+      AppNoticeMessenger.of(context).clearSnackBars();
+      showAppNotice(context, message: l10n.cacheSettingsCoverArtMaxSaved, level: AppNoticeLevel.success);
     }
   }
 
@@ -243,25 +239,23 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
       if (!mounted) return;
       setState(() => _coverArtStorageBytes = 0);
 
-      final messenger = AppNoticeMessenger.of(context)..clearSnackBars();
+      AppNoticeMessenger.of(context).clearSnackBars();
       if (syncState.status == LibrarySyncStatus.succeeded ||
           syncState.status == LibrarySyncStatus.skipped) {
-        messenger.showSnackBar(
-          const SnackBar(
-            content: Text('Library cache repaired and full resync completed.'),
-          ),
+        showAppNotice(
+          context,
+          message: 'Library cache repaired and full resync completed.',
+          level: AppNoticeLevel.success,
         );
       } else {
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(
-              syncState.errorMessage == null ||
-                      syncState.errorMessage!.trim().isEmpty
-                  ? 'Cache was cleared, but full resync failed.'
-                  : 'Cache was cleared, but full resync failed: '
-                        '${syncState.errorMessage}',
-            ),
-          ),
+        showAppNotice(
+          context,
+          message: syncState.errorMessage == null ||
+                  syncState.errorMessage!.trim().isEmpty
+              ? 'Cache was cleared, but full resync failed.'
+              : 'Cache was cleared, but full resync failed: '
+                    '${syncState.errorMessage}',
+          level: AppNoticeLevel.error,
         );
       }
     } finally {
@@ -298,9 +292,8 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
 
   void _showClearedSnackBar() {
     final l10n = AppLocalizations.of(context)!;
-    AppNoticeMessenger.of(context)
-      ..clearSnackBars()
-      ..showSnackBar(SnackBar(content: Text(l10n.cacheSettingsClearSuccess)));
+    AppNoticeMessenger.of(context).clearSnackBars();
+    showAppNotice(context, message: l10n.cacheSettingsClearSuccess, level: AppNoticeLevel.success);
   }
 
   // ---------------------------------------------------------------------------
@@ -336,7 +329,9 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
       if (!mounted) break;
       try {
         final url = api.getCoverArtUrl(id: id, size: 300).toString();
-        await ref.read(coverArtCacheManagerProvider).downloadFile(url, key: '$id:300');
+        await ref
+            .read(coverArtCacheManagerProvider)
+            .downloadFile(url, key: '$id:300');
       } on Exception {
         // best-effort: skip failures
       }
@@ -349,13 +344,8 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
       // Refresh storage size display
       await _loadCoverArtStorageBytes();
       if (!mounted) return;
-      AppNoticeMessenger.of(context)
-        ..clearSnackBars()
-        ..showSnackBar(
-          SnackBar(
-            content: Text(l10n.cacheSettingsPrecacheSuccess(done)),
-          ),
-        );
+      AppNoticeMessenger.of(context).clearSnackBars();
+      showAppNotice(context, message: l10n.cacheSettingsPrecacheSuccess(done), level: AppNoticeLevel.success);
     }
   }
 

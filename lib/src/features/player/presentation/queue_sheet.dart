@@ -291,9 +291,7 @@ class _QueueSheetHeader extends ConsumerWidget {
     unawaited(
       api.createPlaylist(name, songIds: queueIds).then((_) {
         if (parentContext.mounted) {
-          AppNoticeMessenger.of(parentContext).showSnackBar(
-            SnackBar(content: Text(l10n.queueSaveAsPlaylistSaved)),
-          );
+          showAppNotice(parentContext, message: l10n.queueSaveAsPlaylistSaved, level: AppNoticeLevel.success);
         }
       }),
     );

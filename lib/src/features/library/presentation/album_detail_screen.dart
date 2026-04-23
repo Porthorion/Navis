@@ -400,14 +400,15 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                             artists: _resolveArtists(details),
                                             textStyle: textTheme.titleMedium
                                                 ?.copyWith(
-                                              color: colors.primary,
-                                              fontWeight: FontWeight.w600,
-                                            ),
+                                                  color: colors.primary,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
                                             dimStyle: textTheme.titleMedium
                                                 ?.copyWith(
-                                              color: colors.onSurfaceVariant,
-                                              fontWeight: FontWeight.w600,
-                                            ),
+                                                  color:
+                                                      colors.onSurfaceVariant,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
                                           ),
                                           Text(
                                             ' • ${details.year?.toString() ?? '-'} • ${filteredSongs.length}',
@@ -485,17 +486,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                                     format: choice.format,
                                                   );
                                               if (context.mounted) {
-                                                AppNoticeMessenger.of(
-                                                  context,
-                                                ).showSnackBar(
-                                                  SnackBar(
-                                                    content: Text(
-                                                      l10n.downloadAlbumQueued(
-                                                        count,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                );
+                                                showAppNotice(context, message: l10n.downloadAlbumQueued(count), level: AppNoticeLevel.success);
                                               }
                                             },
                                             icon: const Icon(
@@ -1141,9 +1132,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
       if (!mounted) {
         return;
       }
-      AppNoticeMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
-      );
+      showAppNotice(context, message: error.toString(), level: AppNoticeLevel.error);
     } finally {
       if (mounted) {
         setState(() => _isRefreshingAlbum = false);
@@ -1214,9 +1203,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
           label: 'playNext',
         );
     // Optimistic success feedback — the action is non-blocking now.
-    AppNoticeMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(l10n.librarySongPlayNextQueued(song.title))),
-    );
+    showAppNotice(context, message: l10n.librarySongPlayNextQueued(song.title), level: AppNoticeLevel.success);
   }
 
   Future<void> _showSongActions(SongsTableData song) async {
@@ -1253,13 +1240,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                             label: 'addToQueue',
                           );
                       // Optimistic success feedback.
-                      AppNoticeMessenger.of(this.context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            l10n.librarySongAddedToQueue(song.title),
-                          ),
-                        ),
-                      );
+                      showAppNotice(this.context, message: l10n.librarySongAddedToQueue(song.title), level: AppNoticeLevel.success);
                     },
                   ),
                   ListTile(
@@ -1289,13 +1270,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                           unawaited(
                             toggleSongStar(song.id, ref).catchError((_) {
                               if (this.context.mounted) {
-                                AppNoticeMessenger.of(
-                                  this.context,
-                                ).showSnackBar(
-                                  SnackBar(
-                                    content: Text(l10n.albumDetailStarFailure),
-                                  ),
-                                );
+                                showAppNotice(this.context, message: l10n.albumDetailStarFailure, level: AppNoticeLevel.error);
                               }
                             }),
                           );
@@ -1320,13 +1295,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                             unawaited(
                               setSongRating(song.id, next, ref).catchError((_) {
                                 if (this.context.mounted) {
-                                  AppNoticeMessenger.of(
-                                    this.context,
-                                  ).showSnackBar(
-                                    SnackBar(
-                                      content: Text(l10n.ratingUpdateFailed),
-                                    ),
-                                  );
+                                  showAppNotice(this.context, message: l10n.ratingUpdateFailed, level: AppNoticeLevel.error);
                                 }
                               }),
                             );
@@ -1448,9 +1417,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
     );
     if (!mounted) return;
     final l10n = AppLocalizations.of(context)!;
-    AppNoticeMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(l10n.downloadSongQueued)),
-    );
+    showAppNotice(context, message: l10n.downloadSongQueued, level: AppNoticeLevel.success);
   }
 
   Future<void> _toggleStar({required bool isStarred}) async {
@@ -1506,9 +1473,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
         isStarred ? DateTime.now() : null,
       );
       setState(() => _isStarred = isStarred);
-      AppNoticeMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(l10n.albumDetailStarFailure)));
+      showAppNotice(context, message: l10n.albumDetailStarFailure, level: AppNoticeLevel.error);
     } finally {
       if (mounted) {
         setState(() => _isStarring = false);
@@ -1525,9 +1490,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
       if (!mounted) {
         return;
       }
-      AppNoticeMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(l10n.ratingUpdateFailed)));
+      showAppNotice(context, message: l10n.ratingUpdateFailed, level: AppNoticeLevel.error);
     } finally {
       if (mounted) {
         setState(() => _isUpdatingRating = false);
@@ -1574,7 +1537,9 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
         .where((s) => !s.$2)
         .map((s) => ArtistRef(id: id, name: s.$1))
         .toList(growable: false);
-    return nameSegments.isNotEmpty ? nameSegments : [ArtistRef(id: id, name: name)];
+    return nameSegments.isNotEmpty
+        ? nameSegments
+        : [ArtistRef(id: id, name: name)];
   }
 
   /// Splits [name] into alternating (text, isDelimiter) pairs so each artist
@@ -1616,7 +1581,9 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
     required TextStyle? dimStyle,
   }) {
     if (artists.isEmpty) {
-      final fallbackLabel = AppLocalizations.of(context)!.albumDetailUnknownArtist;
+      final fallbackLabel = AppLocalizations.of(
+        context,
+      )!.albumDetailUnknownArtist;
       return [Text(fallbackLabel, style: dimStyle)];
     }
     final widgets = <Widget>[];
@@ -1884,9 +1851,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
     );
     if (!ctx.mounted) return;
     final l10n = AppLocalizations.of(ctx)!;
-    AppNoticeMessenger.of(ctx).showSnackBar(
-      SnackBar(content: Text(l10n.downloadAlbumQueued(count))),
-    );
+    showAppNotice(ctx, message: l10n.downloadAlbumQueued(count), level: AppNoticeLevel.success);
   }
 
   /// Shows a confirmation dialog and removes all downloaded tracks in [songs].

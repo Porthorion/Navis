@@ -64,9 +64,7 @@ class _AudioMuseSettingsScreenState
       if (url.isEmpty) {
         if (!mounted) return;
         final l10n = AppLocalizations.of(context)!;
-        AppNoticeMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.audioMuseTestConnectionFailed)),
-        );
+        showAppNotice(context, message: l10n.audioMuseTestConnectionFailed, level: AppNoticeLevel.error);
         return;
       }
       final client = AudioMuseApiClient(
@@ -78,24 +76,18 @@ class _AudioMuseSettingsScreenState
       if (!mounted) return;
       final l10n = AppLocalizations.of(context)!;
       if (health.healthy) {
-        AppNoticeMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              l10n.audioMuseTestConnectionSuccess(health.version ?? 'unknown'),
-            ),
-          ),
+        showAppNotice(
+          context,
+          message: l10n.audioMuseTestConnectionSuccess(health.version ?? 'unknown'),
+          level: AppNoticeLevel.success,
         );
       } else {
-        AppNoticeMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.audioMuseTestConnectionFailed)),
-        );
+        showAppNotice(context, message: l10n.audioMuseTestConnectionFailed, level: AppNoticeLevel.error);
       }
     } on Object {
       if (!mounted) return;
       final l10n = AppLocalizations.of(context)!;
-      AppNoticeMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.audioMuseTestConnectionFailed)),
-      );
+      showAppNotice(context, message: l10n.audioMuseTestConnectionFailed, level: AppNoticeLevel.error);
     } finally {
       if (mounted) setState(() => _isTesting = false);
     }

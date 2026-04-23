@@ -2031,11 +2031,7 @@ class _DesktopRandomAlbumSongRow extends ConsumerWidget {
                       unawaited(
                         toggleSongStar(song.id, ref).catchError((_) {
                           if (context.mounted) {
-                            AppNoticeMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(l10n.albumDetailStarFailure),
-                              ),
-                            );
+                            showAppNotice(context, message: l10n.albumDetailStarFailure, level: AppNoticeLevel.error);
                           }
                         }),
                       );
@@ -2989,7 +2985,8 @@ class _HomeFilterChipRow extends ConsumerWidget {
             selectedIcon: const Icon(Icons.favorite_rounded),
             tooltip: l10n.libraryLikedOnlyFilter,
             onPressed: () {
-              ref.read(homeLikedOnlyFilterProvider.notifier).enabled = !likedOnly;
+              ref.read(homeLikedOnlyFilterProvider.notifier).enabled =
+                  !likedOnly;
             },
           ),
           const SizedBox(width: 4),
@@ -3027,17 +3024,21 @@ class _HomeFilterChipRow extends ConsumerWidget {
                       backgroundColor: colorScheme.secondaryContainer,
                       foregroundColor: colorScheme.onSecondaryContainer,
                       iconColor: colorScheme.onSecondaryContainer,
-                      disabledBackgroundColor:
-                          colorScheme.onSurface.withValues(alpha: 0.12),
-                      disabledForegroundColor:
-                          colorScheme.onSurface.withValues(alpha: 0.38),
+                      disabledBackgroundColor: colorScheme.onSurface.withValues(
+                        alpha: 0.12,
+                      ),
+                      disabledForegroundColor: colorScheme.onSurface.withValues(
+                        alpha: 0.38,
+                      ),
                       iconSize: 18,
                     ),
                     onPressed: likedIds.isEmpty
                         ? null
                         : () {
                             final seedSongId =
-                                likedIds[math.Random().nextInt(likedIds.length)];
+                                likedIds[math.Random().nextInt(
+                                  likedIds.length,
+                                )];
                             ref
                                 .read(queueProvider.notifier)
                                 .replace(<String>[seedSongId], autoPlay: true)

@@ -941,11 +941,7 @@ class _SongResultsSection extends ConsumerWidget {
                     label: 'playNext',
                   );
               if (context.mounted) {
-                AppNoticeMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(l10n.librarySongPlayNextQueued(song.title)),
-                  ),
-                );
+                showAppNotice(context, message: l10n.librarySongPlayNextQueued(song.title), level: AppNoticeLevel.success);
               }
               return;
             case 'add-queue':
@@ -956,11 +952,7 @@ class _SongResultsSection extends ConsumerWidget {
                     label: 'addToQueue',
                   );
               if (context.mounted) {
-                AppNoticeMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(l10n.librarySongAddedToQueue(song.title)),
-                  ),
-                );
+                showAppNotice(context, message: l10n.librarySongAddedToQueue(song.title), level: AppNoticeLevel.success);
               }
               return;
             case 'add-playlist':
@@ -1001,13 +993,7 @@ class _SongResultsSection extends ConsumerWidget {
                       label: 'playNext',
                     );
                 if (context.mounted) {
-                  AppNoticeMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        l10n.librarySongPlayNextQueued(song.title),
-                      ),
-                    ),
-                  );
+                  showAppNotice(context, message: l10n.librarySongPlayNextQueued(song.title), level: AppNoticeLevel.success);
                 }
               },
             ),
@@ -1023,13 +1009,7 @@ class _SongResultsSection extends ConsumerWidget {
                       label: 'addToQueue',
                     );
                 if (context.mounted) {
-                  AppNoticeMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        l10n.librarySongAddedToQueue(song.title),
-                      ),
-                    ),
-                  );
+                  showAppNotice(context, message: l10n.librarySongAddedToQueue(song.title), level: AppNoticeLevel.success);
                 }
               },
             ),

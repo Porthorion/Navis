@@ -146,21 +146,13 @@ Future<void> showSongContextMenu(
                       ),
                       onTap: () {
                         if (isRemote) {
-                          AppNoticeMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(l10n.remoteSourceActionUnavailable),
-                            ),
-                          );
+                          showAppNotice(context, message: l10n.remoteSourceActionUnavailable, level: AppNoticeLevel.error);
                           return;
                         }
                         unawaited(
                           toggleSongStar(song.id, ref).catchError((_) {
                             if (context.mounted) {
-                              AppNoticeMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(l10n.albumDetailStarFailure),
-                                ),
-                              );
+                              showAppNotice(context, message: l10n.albumDetailStarFailure, level: AppNoticeLevel.error);
                             }
                           }),
                         );
@@ -194,28 +186,14 @@ Future<void> showSongContextMenu(
                                     ref,
                                   ).catchError((_) {
                                     if (context.mounted) {
-                                      AppNoticeMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            l10n.ratingUpdateFailed,
-                                          ),
-                                        ),
-                                      );
+                                      showAppNotice(context, message: l10n.ratingUpdateFailed, level: AppNoticeLevel.error);
                                     }
                                   }),
                                 );
                               },
                             ),
                       onTap: isRemote
-                          ? () => AppNoticeMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  l10n.remoteSourceActionUnavailable,
-                                ),
-                              ),
-                            )
+                          ? () => showAppNotice(context, message: l10n.remoteSourceActionUnavailable, level: AppNoticeLevel.error)
                           : null,
                     ),
                     if (song.artistId != null && song.artistId!.isNotEmpty)
@@ -271,13 +249,7 @@ Future<void> showSongContextMenu(
                         title: Text(l10n.downloadAction),
                         onTap: () {
                           if (isRemote) {
-                            AppNoticeMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  l10n.remoteSourceActionUnavailable,
-                                ),
-                              ),
-                            );
+                            showAppNotice(context, message: l10n.remoteSourceActionUnavailable, level: AppNoticeLevel.error);
                             return;
                           }
                           Navigator.of(sheetContext).pop();
@@ -406,9 +378,7 @@ Future<void> _showDesktopSongContextMenu(
         await toggleSongStar(song.id, ref);
       } on Object {
         if (context.mounted) {
-          AppNoticeMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(l10n.albumDetailStarFailure)),
-          );
+          showAppNotice(context, message: l10n.albumDetailStarFailure, level: AppNoticeLevel.error);
         }
       }
       return;
@@ -431,10 +401,8 @@ Future<void> _showDesktopSongContextMenu(
 }
 
 void _showQueueActionToast(BuildContext context, String message) {
-  final messenger = AppNoticeMessenger.of(context);
-  messenger
-    ..clearSnackBars()
-    ..showSnackBar(SnackBar(content: Text(message)));
+  AppNoticeMessenger.of(context).clearSnackBars();
+  showAppNotice(context, message: message, level: AppNoticeLevel.success);
 }
 
 /// Downloads [songId] after showing the quality picker.
@@ -456,7 +424,5 @@ Future<void> _downloadSongFromMenu(
   );
   if (!context.mounted) return;
   final l10n = AppLocalizations.of(context)!;
-  AppNoticeMessenger.of(context).showSnackBar(
-    SnackBar(content: Text(l10n.downloadSongQueued)),
-  );
+  showAppNotice(context, message: l10n.downloadSongQueued, level: AppNoticeLevel.success);
 }
