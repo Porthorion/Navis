@@ -27,6 +27,45 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
+    version: '1.0.0',
+    entries: [
+      // New — Listen Together
+      ChangelogEntry(
+        'Listen Together — join or host a real-time group listening room; the host controls playback while all members follow along in sync with shared queue editing',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Compact session button in the player bar across all surfaces shows your current room state and opens the Listen Together sheet to create, join, or leave a room',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Settings badge lights up when you are in an active group session — easy to find even when the player is hidden',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Join and leave toasts confirm room transitions without interrupting playback or navigation',
+        type: ChangelogEntryType.newFeature,
+      ),
+      // Improvements
+      ChangelogEntry(
+        'Library sync is faster — song pages are fetched and committed in parallel',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Queue appends are pure-append — songs added while playback is running are never reordered',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Listeners in a group session can now seek within the current track; the host retains exclusive control over skip and previous',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Leaving a room from an error state now cleans up immediately without requiring a manual disconnect step',
+        type: ChangelogEntryType.improvement,
+      ),
+    ],
+  ),
+  ChangelogVersion(
     version: '0.9.9',
     entries: [
       ChangelogEntry(

@@ -2322,19 +2322,27 @@ Canonical execution phase for Navis-side integration with the Voyage backend ser
   be surfaced as either a single-toggle health check flow or a multi-server
   selector in Settings.
 
-### 32.A.1 Implementation status (2026-04-22)
+### 32.A.1 Implementation status (2026-04-23)
 
 - The Navis-side Voyage HTTP client, websocket transport client, secure session
   persistence, reconnect flow, and heartbeat scheduling are now wired into the
   app runtime.
 - Shared queue mutations are collaborative for active room members while
   playback/administrative control remains host-led.
-- Settings now split Listen Together into:
+- Listeners can seek within the current track; skip/previous remain host-only.
+- Settings split Listen Together into:
   - a **configuration** route for enablement, bundled-server selection, and
     Voyage health/capability checks
   - a **room surface** for create/join/leave/reconnect flows and sync health
-- The room surface is reused from Home via a dismissible Listen Together modal
-  entry placed next to Instant Radio.
+- The room surface is accessible via a **compact session button** embedded in
+  the player bar across all surfaces (desktop bar, rail mini-player, landscape
+  strip, portrait strip). The button icon reflects live session state and always
+  opens a dismissable Listen Together bottom sheet.
+- A **Settings nav badge** appears when an active room is open, providing
+  persistent wayfinding when the player bar is not visible.
+- **Join/leave toasts** surface room transitions without blocking the UI.
+- The disruptive floating pill banner has been replaced entirely by the above
+  non-interrupting affordances.
 
 ### 32.A Navis ownership boundaries
 

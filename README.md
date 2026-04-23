@@ -27,9 +27,7 @@ Minimum tested versions:
 - Synced/unsynced lyrics with full-screen now playing
 - Offline cache plus permanent download modes
 - Adaptive layouts that scale from phone to tablet/desktop
-- Optional Listen Together rooms backed by Voyage with host-led playback,
-  collaborative shared queue edits, reconnect-aware sync, and room status UI in
-  Settings/Home
+- Listen Together group sessions backed by Voyage: host-led playback, collaborative shared queue edits, reconnect-aware sync, compact session button in the player bar with live state icon, Settings nav badge, and join/leave toasts
 - Keyboard-first desktop controls with platform-aware shortcuts, quick search, queue toggle, and guarded transport actions while typing
 - Desktop volume controls in the bottom player and desktop-wide now playing surfaces
 - Channel-aware updater behavior for stable/dev release tracks
@@ -130,6 +128,19 @@ When one bundled server is present, Settings exposes a simple enable/health
 check flow. When multiple are present, Settings lets the user pick a server
 before enabling Listen Together. If no bundled servers are supplied, Navis falls
 back to manual Voyage URL entry.
+
+### Listen Together UI
+
+- A compact **session button** appears in the player bar on every surface
+  (desktop bar, rail mini-player, landscape strip, portrait strip). The icon
+  reflects the current state: idle (outlined people icon), hosting
+  (`headset_mic`), listening as a member (filled people icon), or needs
+  attention (`sync_problem_outlined` in error colour). Tapping always opens
+  the Listen Together bottom sheet.
+- A **Settings nav badge** appears when you are in an active room, so you can
+  always navigate back to the session panel even when the player is not
+  visible.
+- **Join/leave toasts** confirm room transitions without covering up the UI.
 
 ## Documentation Index
 
