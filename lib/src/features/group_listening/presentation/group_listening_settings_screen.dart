@@ -137,7 +137,7 @@ class _ListenTogetherRoomContentState
     await ref
         .read(groupListeningSessionControllerProvider.notifier)
         .createRoom(client: clientDescriptor);
-    ref.invalidate(groupListeningAvailableRoomsProvider);
+    if (mounted) ref.invalidate(groupListeningAvailableRoomsProvider);
   }
 
   Future<void> _joinRoom(
@@ -155,7 +155,7 @@ class _ListenTogetherRoomContentState
     await ref
         .read(groupListeningSessionControllerProvider.notifier)
         .joinRoom(inviteCode: inviteCode, client: clientDescriptor);
-    ref.invalidate(groupListeningAvailableRoomsProvider);
+    if (mounted) ref.invalidate(groupListeningAvailableRoomsProvider);
   }
 
   Future<void> _joinAvailableRoom(
@@ -166,7 +166,7 @@ class _ListenTogetherRoomContentState
     await ref
         .read(groupListeningSessionControllerProvider.notifier)
         .joinAvailableRoom(roomId: roomId, client: clientDescriptor);
-    ref.invalidate(groupListeningAvailableRoomsProvider);
+    if (mounted) ref.invalidate(groupListeningAvailableRoomsProvider);
   }
 
   Future<void> _leaveRoom() async {
@@ -174,7 +174,7 @@ class _ListenTogetherRoomContentState
     await ref
         .read(groupListeningSessionControllerProvider.notifier)
         .leaveRoom();
-    ref.invalidate(groupListeningAvailableRoomsProvider);
+    if (mounted) ref.invalidate(groupListeningAvailableRoomsProvider);
   }
 
   Future<void> _connectTransport() async {
@@ -434,18 +434,20 @@ class _ListenTogetherRoomContentState
                 onDismiss: _dismissFailure,
               ),
             ],
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: <Widget>[
-                TextButton.icon(
-                  key: const ValueKey('groupListeningLeaveRoomButton'),
-                  onPressed: _isBusy(sessionState) ? null : _leaveRoom,
-                  icon: const Icon(Icons.logout_outlined),
-                  label: const Text('Leave room'),
-                ),
-              ],
-            ),
+            if (sessionState.hasActiveRoom) ...<Widget>[
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: <Widget>[
+                  TextButton.icon(
+                    key: const ValueKey('groupListeningLeaveRoomButton'),
+                    onPressed: _isBusy(sessionState) ? null : _leaveRoom,
+                    icon: const Icon(Icons.logout_outlined),
+                    label: const Text('Leave room'),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ),
@@ -761,8 +763,15 @@ class _ListenTogetherRoomContentState
           _buildInviteCard(sessionState),
           const SizedBox(height: 12),
         ],
-        _buildOverviewCard(sessionState),
-        const SizedBox(height: 12),
+        // Only show the session status card when it has something meaningful
+        // to display: when in a room, when the feature is not fully ready
+        // (disabled/unconfigured), or when there is an active failure.
+        if (sessionState.hasActiveRoom ||
+            sessionState.availability != GroupListeningAvailability.ready ||
+            sessionState.failure != null) ...<Widget>[
+          _buildOverviewCard(sessionState),
+          const SizedBox(height: 12),
+        ],
         _buildActionsCard(sessionState, clientDescriptor),
         const SizedBox(height: 12),
         _buildAvailableRoomsCard(
