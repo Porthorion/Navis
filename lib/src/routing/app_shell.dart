@@ -1890,11 +1890,6 @@ class _AppShellState extends ConsumerState<AppShell> {
                                         groupListeningSession.hasActiveRoom,
                                     child: Icon(railDestinations[3].icon),
                                   ),
-                                  selectedIcon: Badge(
-                                    isLabelVisible:
-                                        groupListeningSession.hasActiveRoom,
-                                    child: Icon(railDestinations[3].icon),
-                                  ),
                                   label: railDestinations[3].label,
                                 ),
                               ],
