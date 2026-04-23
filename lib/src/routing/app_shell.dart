@@ -39,6 +39,7 @@ import 'package:navis/src/features/player/presentation/queue_sheet.dart';
 import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
 import 'package:navis/src/features/player/presentation/smart_queue_sheet.dart';
 import 'package:navis/src/features/group_listening/presentation/group_listening_active_session_indicator.dart';
+import 'package:navis/src/features/group_listening/domain/group_listening_session_models.dart';
 import 'package:navis/src/features/group_listening/presentation/group_listening_session_controller.dart';
 import 'package:navis/src/features/library/presentation/star_sync_dispatch_provider.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
@@ -704,6 +705,27 @@ class _AppShellState extends ConsumerState<AppShell> {
         _scheduleQueueCoverArtPrefetch();
       },
     );
+    ref.listen<GroupListeningSessionState>(
+      groupListeningSessionControllerProvider,
+      (prev, next) {
+        if (!mounted) return;
+        final prevHad = prev?.hasActiveRoom ?? false;
+        final nextHad = next.hasActiveRoom;
+        if (!prevHad && nextHad) {
+          final isHost = next.room?.self.role == GroupListeningMemberRole.host;
+          _appNoticeController.show(
+            message: isHost
+                ? 'Hosting a Listen Together session'
+                : 'Joined a Listen Together session',
+            level: AppNoticeLevel.success,
+          );
+        } else if (prevHad && !nextHad) {
+          _appNoticeController.show(
+            message: 'Left the Listen Together session',
+          );
+        }
+      },
+    );
     final isAuthenticated =
         ref.watch(serverConfigStateProvider).asData?.value != null;
     final reachability = ref.watch(serverReachabilityControllerProvider);
@@ -713,13 +735,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     final groupListeningSession = ref.watch(
       groupListeningSessionControllerProvider,
     );
-    const groupListeningIndicatorReservedHeight = 76.0;
-    final showGroupListeningIndicator = groupListeningSession.hasActiveRoom;
-    final appNoticeTopOffset =
-        (showOfflineBanner ? 66.0 : 12.0) +
-        (showGroupListeningIndicator
-            ? groupListeningIndicatorReservedHeight
-            : 0);
+    final appNoticeTopOffset = showOfflineBanner ? 66.0 : 12.0;
     final playback = ref.watch(playerStateProvider);
     final currentSongId = playback.currentSongId;
     final currentSongAsync = currentSongId == null
@@ -1808,32 +1824,6 @@ class _AppShellState extends ConsumerState<AppShell> {
                               )
                             : const SizedBox.shrink(),
                       ),
-                    if (showGroupListeningIndicator)
-                      Positioned(
-                        top: showOfflineBanner ? 54 : 0,
-                        left: 0,
-                        right: 0,
-                        child: SafeArea(
-                          bottom: false,
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-                            child: Center(
-                              child: ConstrainedBox(
-                                constraints: const BoxConstraints(
-                                  maxWidth: 520,
-                                ),
-                                child: GroupListeningActiveSessionIndicator(
-                                  state: groupListeningSession,
-                                  onTap: () {
-                                    NavService.dismissKeyboard(context);
-                                    context.push('/settings/group-listening');
-                                  },
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
                     if (showPlayer &&
                         !useDesktopShell &&
                         showQueueOverlay &&
@@ -1895,7 +1885,16 @@ class _AppShellState extends ConsumerState<AppShell> {
                                   label: railDestinations[2].label,
                                 ),
                                 NavigationDestination(
-                                  icon: Icon(railDestinations[3].icon),
+                                  icon: Badge(
+                                    isLabelVisible:
+                                        groupListeningSession.hasActiveRoom,
+                                    child: Icon(railDestinations[3].icon),
+                                  ),
+                                  selectedIcon: Badge(
+                                    isLabelVisible:
+                                        groupListeningSession.hasActiveRoom,
+                                    child: Icon(railDestinations[3].icon),
+                                  ),
                                   label: railDestinations[3].label,
                                 ),
                               ],
@@ -3459,6 +3458,7 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: <Widget>[
+                            const GroupListeningSessionButton(),
                             if (!playback.isRadioMode)
                               IconButton(
                                 tooltip: l10n.nowPlayingLyrics,
@@ -4024,6 +4024,10 @@ class _RailSidebar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final iconsOnly = navbarStyle == 'icons';
     final compact = navbarStyle == 'compact';
+    final groupListeningSession = ref.watch(
+      groupListeningSessionControllerProvider,
+    );
+    final hasActiveGroupSession = groupListeningSession.hasActiveRoom;
     return Padding(
       padding: const EdgeInsets.fromLTRB(2, 8, 2, 8),
       child: Column(
@@ -4104,6 +4108,7 @@ class _RailSidebar extends ConsumerWidget {
                         onTap: () => onDestinationSelected(i),
                         iconsOnly: iconsOnly,
                         compact: compact,
+                        showBadge: i == 3 && hasActiveGroupSession,
                       ),
                     ),
                     if (showLibrarySectionsInline && i == 1) ...<Widget>[
@@ -4230,6 +4235,7 @@ class _RailNavTile extends StatelessWidget {
     required this.onTap,
     this.iconsOnly = false,
     this.compact = false,
+    this.showBadge = false,
   });
 
   final _ShellDestination destination;
@@ -4237,6 +4243,7 @@ class _RailNavTile extends StatelessWidget {
   final VoidCallback onTap;
   final bool iconsOnly;
   final bool compact;
+  final bool showBadge;
 
   @override
   Widget build(BuildContext context) {
@@ -4268,12 +4275,15 @@ class _RailNavTile extends StatelessWidget {
                 ? MainAxisAlignment.center
                 : MainAxisAlignment.start,
             children: <Widget>[
-              Icon(
-                destination.icon,
-                size: 24,
-                color: selected
-                    ? colorScheme.onSecondaryContainer
-                    : colorScheme.onSurfaceVariant,
+              Badge(
+                isLabelVisible: showBadge,
+                child: Icon(
+                  destination.icon,
+                  size: 24,
+                  color: selected
+                      ? colorScheme.onSecondaryContainer
+                      : colorScheme.onSurfaceVariant,
+                ),
               ),
               if (!iconsOnly) ...<Widget>[
                 const SizedBox(width: 12),
@@ -4643,6 +4653,8 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                                             : null,
                                       ),
                                     ),
+                                  if (!ultraCompact)
+                                    const GroupListeningSessionButton(),
                                 ];
                                 return SingleChildScrollView(
                                   scrollDirection: Axis.horizontal,
@@ -5059,6 +5071,7 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                                   : cs.onSurfaceVariant,
                             ),
                           ),
+                        const GroupListeningSessionButton(),
                       ],
                     ),
                   )
@@ -5246,6 +5259,8 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                                       : cs.onSurfaceVariant,
                                 ),
                               ),
+                            if (!compactControls)
+                              const GroupListeningSessionButton(),
                             SizedBox(width: compactControls ? 0 : 4),
                           ],
                         ),

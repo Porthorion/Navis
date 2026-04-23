@@ -525,7 +525,7 @@ void main() {
   });
 
   testWidgets(
-    'active group listening indicator opens the room settings screen',
+    'shows a badge on the Settings nav and Listen Together sheet when in a group listening session',
     (tester) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = const Size(599, 1000);
@@ -542,6 +542,12 @@ void main() {
               _activeGroupListeningSession,
             ),
           ),
+          groupListeningVoyageConnectionStatusProvider.overrideWithValue(
+            const GroupListeningVoyageConnectionStatus(
+              state: GroupListeningVoyageConnectionState.connected,
+              message: 'Connected',
+            ),
+          ),
         ],
       );
 
@@ -553,13 +559,22 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      // A badge dot should appear on the Settings nav destination.
       expect(
-        find.byKey(const ValueKey('groupListeningShellIndicator')),
+        find.descendant(
+          of: find.byType(NavigationBar),
+          matching: find.byType(Badge),
+        ),
         findsOneWidget,
       );
 
+      // Tapping Settings navigates to the settings screen where Listen
+      // Together is accessible.
       await tester.tap(
-        find.byKey(const ValueKey('groupListeningShellIndicator')),
+        find.descendant(
+          of: find.byType(NavigationBar),
+          matching: find.byIcon(Icons.settings_outlined),
+        ),
       );
       await tester.pumpAndSettle();
 
