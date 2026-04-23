@@ -18,22 +18,22 @@ void main() {
     // Override path_provider to use a temp directory for each test.
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
-      const MethodChannel('plugins.flutter.io/path_provider'),
-      (MethodCall methodCall) async {
-        if (methodCall.method == 'getApplicationSupportDirectory') {
-          return tempDir.path;
-        }
-        return null;
-      },
-    );
+          const MethodChannel('plugins.flutter.io/path_provider'),
+          (MethodCall methodCall) async {
+            if (methodCall.method == 'getApplicationSupportDirectory') {
+              return tempDir.path;
+            }
+            return null;
+          },
+        );
   });
 
   tearDown(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
-      const MethodChannel('plugins.flutter.io/path_provider'),
-      null,
-    );
+          const MethodChannel('plugins.flutter.io/path_provider'),
+          null,
+        );
     if (tempDir.existsSync()) {
       tempDir.deleteSync(recursive: true);
     }
@@ -92,8 +92,8 @@ void main() {
     final files = tempDir.listSync().whereType<File>();
     expect(files, isNotEmpty);
     final cacheFile = files.first;
-    final json = jsonDecode(cacheFile.readAsStringSync())
-        as Map<String, dynamic>;
+    final json =
+        jsonDecode(cacheFile.readAsStringSync()) as Map<String, dynamic>;
     json['artist'] = 'Freddie Mercury';
     cacheFile.writeAsStringSync(jsonEncode(json));
 
@@ -119,8 +119,8 @@ void main() {
     // Tamper the date to yesterday.
     final files = tempDir.listSync().whereType<File>();
     final cacheFile = files.first;
-    final json = jsonDecode(cacheFile.readAsStringSync())
-        as Map<String, dynamic>;
+    final json =
+        jsonDecode(cacheFile.readAsStringSync()) as Map<String, dynamic>;
     json['date'] = '1999-01-01';
     cacheFile.writeAsStringSync(jsonEncode(json));
 
@@ -144,8 +144,8 @@ void main() {
 
     final files = tempDir.listSync().whereType<File>();
     final cacheFile = files.first;
-    final json = jsonDecode(cacheFile.readAsStringSync())
-        as Map<String, dynamic>;
+    final json =
+        jsonDecode(cacheFile.readAsStringSync()) as Map<String, dynamic>;
     json.remove('artist');
     cacheFile.writeAsStringSync(jsonEncode(json));
 
@@ -238,10 +238,9 @@ void main() {
   test('writeCache is a no-op for an empty track list', () async {
     await LastFmArtistCache.writeCache('Nobody', const []);
 
-    final files = tempDir
-        .listSync()
-        .whereType<File>()
-        .where((f) => f.path.contains('lastfm_top_'));
+    final files = tempDir.listSync().whereType<File>().where(
+      (f) => f.path.contains('lastfm_top_'),
+    );
     expect(files, isEmpty);
 
     final result = await LastFmArtistCache.readCache('Nobody');

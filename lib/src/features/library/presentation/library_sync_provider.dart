@@ -231,8 +231,8 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     final database = ref.read(navisDatabaseProvider);
     final packageInfo = await PackageInfo.fromPlatform();
     final currentBuild = '${packageInfo.version}+${packageInfo.buildNumber}';
-    final lastSyncBuild =
-        await database.appSettingsDao.getLastFullSyncAppBuild();
+    final lastSyncBuild = await database.appSettingsDao
+        .getLastFullSyncAppBuild();
     final isNewVersion = lastSyncBuild != currentBuild;
 
     final hasBeenSyncedBefore = config.lastSynced != null;
@@ -248,8 +248,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
               _startupSyncDoneFingerprint = fingerprint;
             }
             // Record the version so subsequent startups skip the forced resync.
-            if (isNewVersion &&
-                result.status == LibrarySyncStatus.succeeded) {
+            if (isNewVersion && result.status == LibrarySyncStatus.succeeded) {
               database.appSettingsDao.setLastFullSyncAppBuild(currentBuild);
             }
           })

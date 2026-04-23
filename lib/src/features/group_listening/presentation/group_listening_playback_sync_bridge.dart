@@ -22,7 +22,9 @@ final groupListeningPlaybackSyncBridgeProvider =
 /// (i.e., existing playback was not interrupted). Listeners can show a
 /// snackbar notification when the value changes.
 final groupListeningQueueTrackAddedProvider =
-    NotifierProvider<_QueueTrackAddedNotifier, int>(_QueueTrackAddedNotifier.new);
+    NotifierProvider<_QueueTrackAddedNotifier, int>(
+      _QueueTrackAddedNotifier.new,
+    );
 
 class _QueueTrackAddedNotifier extends Notifier<int> {
   @override
@@ -338,7 +340,10 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
     final mutationType = queueChanged
         ? GroupListeningMutationType.queueReplace
         : GroupListeningMutationType.playbackAnchor;
-    final canSendMutation = queueChanged || room.self.canControl || reason == GroupListeningPlaybackAnchorReason.seek;
+    final canSendMutation =
+        queueChanged ||
+        room.self.canControl ||
+        reason == GroupListeningPlaybackAnchorReason.seek;
     if (!canSendMutation) {
       return;
     }

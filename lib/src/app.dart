@@ -184,10 +184,12 @@ class _AppBootstrapOverlayState extends ConsumerState<_AppBootstrapOverlay>
   void _onBootstrapReady() {
     if (_completionTriggered) return;
     _completionTriggered = true;
-    unawaited(_ringController.forward().then<void>((_) async {
-      await Future<void>.delayed(const Duration(milliseconds: 260));
-      if (mounted) unawaited(_exitController.forward());
-    }));
+    unawaited(
+      _ringController.forward().then<void>((_) async {
+        await Future<void>.delayed(const Duration(milliseconds: 260));
+        if (mounted) unawaited(_exitController.forward());
+      }),
+    );
   }
 
   @override
@@ -210,17 +212,13 @@ class _AppBootstrapOverlayState extends ConsumerState<_AppBootstrapOverlay>
         widget.child,
         AnimatedBuilder(
           animation: Listenable.merge([_ringFill, _exit]),
-          builder:
-              (context, _) => _BootstrapSplashScreen(
-                ringFill: _ringFill.value,
-                isRingCompleting: _completionTriggered,
-                exitProgress: _exit.value,
-                isFailed: isFailed,
-                onRetry:
-                    ref
-                        .read(audioBootstrapControllerProvider.notifier)
-                        .retry,
-              ),
+          builder: (context, _) => _BootstrapSplashScreen(
+            ringFill: _ringFill.value,
+            isRingCompleting: _completionTriggered,
+            exitProgress: _exit.value,
+            isFailed: isFailed,
+            onRetry: ref.read(audioBootstrapControllerProvider.notifier).retry,
+          ),
         ),
       ],
     );
@@ -261,10 +259,9 @@ class _BootstrapSplashScreen extends StatelessWidget {
     final logoSize = screenSize.width >= 1200 ? 80.0 : 120.0;
     final strokeWidth = (logoSize * 0.055).clamp(2.2, 5.2);
     final ringColor = isFailed ? colorScheme.error : colorScheme.primary;
-    final ringTrackColor =
-        isFailed
-            ? colorScheme.error.withValues(alpha: 0.15)
-            : colorScheme.primary.withValues(alpha: 0.12);
+    final ringTrackColor = isFailed
+        ? colorScheme.error.withValues(alpha: 0.15)
+        : colorScheme.primary.withValues(alpha: 0.12);
     final iconOffset = Offset(
       -(logoSize * _assetCenterOffsetX),
       -(logoSize * _assetCenterOffsetY),
@@ -279,7 +276,10 @@ class _BootstrapSplashScreen extends StatelessWidget {
       fit: StackFit.expand,
       children: <Widget>[
         // Solid background that fades away.
-        Opacity(opacity: opacity, child: ColoredBox(color: bgColor)),
+        Opacity(
+          opacity: opacity,
+          child: ColoredBox(color: bgColor),
+        ),
         // Logo + ring that lifts toward the top while fading.
         Opacity(
           opacity: opacity,
@@ -299,10 +299,9 @@ class _BootstrapSplashScreen extends StatelessWidget {
                           child: Padding(
                             padding: EdgeInsets.all(strokeWidth / 2),
                             child: CircularProgressIndicator(
-                              value:
-                                  isRingCompleting
-                                      ? ringFill.clamp(0.0, 1.0)
-                                      : null,
+                              value: isRingCompleting
+                                  ? ringFill.clamp(0.0, 1.0)
+                                  : null,
                               strokeWidth: strokeWidth,
                               color: ringColor,
                               backgroundColor: ringTrackColor,

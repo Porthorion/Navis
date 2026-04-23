@@ -23,8 +23,9 @@ class AlbumsTable extends Table {
   /// Populated from the `artists` field in OpenSubsonic `AlbumID3` responses.
   /// Empty list (`'[]'`) on standard Subsonic servers; fall back to the legacy
   /// [artistId]/[artistName] pair in that case.
-  TextColumn get artists =>
-      text().withDefault(const Constant('[]')).map(const ArtistRefListConverter())();
+  TextColumn get artists => text()
+      .withDefault(const Constant('[]'))
+      .map(const ArtistRefListConverter())();
 
   IntColumn get songCount => integer().nullable()();
 

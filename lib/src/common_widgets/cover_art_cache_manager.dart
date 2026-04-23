@@ -135,8 +135,9 @@ CacheManager createCoverArtCacheManager({
   int maxNrOfCacheObjects = 0,
   CoverArtHttpFileService? fileService,
 }) {
-  final cap =
-      maxNrOfCacheObjects <= 0 ? _coverArtCacheUnlimited : maxNrOfCacheObjects;
+  final cap = maxNrOfCacheObjects <= 0
+      ? _coverArtCacheUnlimited
+      : maxNrOfCacheObjects;
   return CacheManager(
     Config(
       coverArtCacheKey,

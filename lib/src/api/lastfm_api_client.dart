@@ -276,10 +276,7 @@ class LastFmApiClient {
   /// Lowercases [name] and replaces non-alphanumeric characters with spaces,
   /// collapsing consecutive spaces, for artist-name comparison purposes.
   static String _normalizeArtistName(String name) {
-    return name
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
-        .trim();
+    return name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim();
   }
 
   List<Map<String, dynamic>> _asMapList(dynamic value) {

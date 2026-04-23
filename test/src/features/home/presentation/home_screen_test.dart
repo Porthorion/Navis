@@ -430,12 +430,13 @@ void main() {
           supportedLocales: AppLocalizations.supportedLocales,
           builder: (context, child) {
             return MediaQuery(
-              data: MediaQuery.of(
-                context,
-              ).copyWith(
-                textScaler: const TextScaler.linear(1.3),
-                disableAnimations: true,
-              ),
+              data:
+                  MediaQuery.of(
+                    context,
+                  ).copyWith(
+                    textScaler: const TextScaler.linear(1.3),
+                    disableAnimations: true,
+                  ),
               child: child!,
             );
           },

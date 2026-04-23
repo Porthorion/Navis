@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/features/group_listening/data/group_listening_repository.dart';
 import 'package:navis/src/features/group_listening/domain/group_listening_session_models.dart';
 import 'package:navis/src/features/group_listening/presentation/group_listening_playback_sync_bridge.dart';
@@ -11,6 +12,10 @@ import 'package:navis/src/features/group_listening/presentation/group_listening_
 Future<void> showListenTogetherSheet(BuildContext context) {
   final mediaQuery = MediaQuery.of(context);
   final heightFactor = mediaQuery.size.width >= 840 ? 0.88 : 0.94;
+  // Capture the notice controller from the caller's context so the modal can
+  // surface top-pill notifications even when pushed onto the root Navigator
+  // (which sits above AppNoticeScope in the widget tree).
+  final noticeController = AppNoticeScope.maybeOf(context);
 
   return showModalBottomSheet<void>(
     context: context,
@@ -19,7 +24,7 @@ Future<void> showListenTogetherSheet(BuildContext context) {
     showDragHandle: true,
     backgroundColor: Colors.transparent,
     builder: (context) {
-      return FractionallySizedBox(
+      Widget surface = FractionallySizedBox(
         heightFactor: heightFactor,
         child: Align(
           alignment: Alignment.bottomCenter,
@@ -29,6 +34,10 @@ Future<void> showListenTogetherSheet(BuildContext context) {
           ),
         ),
       );
+      if (noticeController != null) {
+        surface = AppNoticeScope(notifier: noticeController, child: surface);
+      }
+      return surface;
     },
   );
 }
@@ -136,8 +145,9 @@ class _ListenTogetherRoomContentState
   ) async {
     final inviteCode = _inviteCodeController.text.trim();
     if (inviteCode.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter an invite code to join a room.')),
+      showAppNotice(
+        context,
+        message: 'Enter an invite code to join a room.',
       );
       return;
     }
@@ -195,9 +205,7 @@ class _ListenTogetherRoomContentState
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Invite code copied.')),
-    );
+    showAppNotice(context, message: 'Invite code copied.', level: AppNoticeLevel.success);
   }
 
   String _availabilityMessage(GroupListeningSessionState sessionState) {
@@ -725,9 +733,11 @@ class _ListenTogetherRoomContentState
         if (next == null || next == previous || !mounted) {
           return;
         }
-        ScaffoldMessenger.of(
+        showAppNotice(
           context,
-        ).showSnackBar(SnackBar(content: Text(_failureDescription(next))));
+          message: _failureDescription(next),
+          level: AppNoticeLevel.error,
+        );
       },
     );
 
@@ -735,8 +745,10 @@ class _ListenTogetherRoomContentState
       groupListeningQueueTrackAddedProvider,
       (previous, next) {
         if (previous != null && next > previous && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Track added to queue.')),
+          showAppNotice(
+            context,
+            message: 'Track added to queue.',
+            level: AppNoticeLevel.success,
           );
         }
       },
