@@ -105,32 +105,71 @@ void main() {
       expect(navisNormalizePlaybackSpeed(2.5), 2.0);
     });
 
-    test('seek recovery helper detects lock-cached resets to the start', () {
-      expect(
-        navisShouldRecoverSeekToDirectStream(
-          sourceKind: 'lockCachedStream',
-          requestedPosition: const Duration(seconds: 48),
-          actualPosition: const Duration(milliseconds: 250),
-        ),
-        isTrue,
-      );
-      expect(
-        navisShouldRecoverSeekToDirectStream(
-          sourceKind: 'directStream',
-          requestedPosition: const Duration(seconds: 48),
-          actualPosition: const Duration(milliseconds: 250),
-        ),
-        isFalse,
-      );
-      expect(
-        navisShouldRecoverSeekToDirectStream(
-          sourceKind: 'lockCachedStream',
-          requestedPosition: const Duration(seconds: 1),
-          actualPosition: const Duration(milliseconds: 250),
-        ),
-        isFalse,
-      );
-    });
+    test(
+      'seek recovery helper detects lock-cached seek failures',
+      () {
+        // Snap-to-zero: seek to 48s, land at 250ms.
+        expect(
+          navisShouldRecoverSeekToDirectStream(
+            sourceKind: 'lockCachedStream',
+            requestedPosition: const Duration(seconds: 48),
+            actualPosition: const Duration(milliseconds: 250),
+          ),
+          isTrue,
+        );
+
+        // Snap-to-buffer-boundary: seek to 60s, land at 8s (buffer boundary).
+        expect(
+          navisShouldRecoverSeekToDirectStream(
+            sourceKind: 'lockCachedStream',
+            requestedPosition: const Duration(seconds: 60),
+            actualPosition: const Duration(seconds: 8),
+          ),
+          isTrue,
+        );
+
+        // Non-lockCachedStream source: never recover.
+        expect(
+          navisShouldRecoverSeekToDirectStream(
+            sourceKind: 'directStream',
+            requestedPosition: const Duration(seconds: 48),
+            actualPosition: const Duration(milliseconds: 250),
+          ),
+          isFalse,
+        );
+
+        // Small seek target (≤ 2s): never recover.
+        expect(
+          navisShouldRecoverSeekToDirectStream(
+            sourceKind: 'lockCachedStream',
+            requestedPosition: const Duration(seconds: 1),
+            actualPosition: const Duration(milliseconds: 250),
+          ),
+          isFalse,
+        );
+
+        // Successful seek that landed within 2s of target: no recovery.
+        expect(
+          navisShouldRecoverSeekToDirectStream(
+            sourceKind: 'lockCachedStream',
+            requestedPosition: const Duration(seconds: 30),
+            actualPosition: const Duration(milliseconds: 29500),
+          ),
+          isFalse,
+        );
+
+        // Overshoot: actual > requested — no recovery (shouldn't happen, but
+        // guard against false positives).
+        expect(
+          navisShouldRecoverSeekToDirectStream(
+            sourceKind: 'lockCachedStream',
+            requestedPosition: const Duration(seconds: 30),
+            actualPosition: const Duration(seconds: 32),
+          ),
+          isFalse,
+        );
+      },
+    );
 
     test('crossfade handoff seek helper seeks on index mismatch', () {
       expect(

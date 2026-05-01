@@ -287,8 +287,10 @@ bool navisShouldRecoverSeekToDirectStream({
     return false;
   }
   final delta = (requestedPosition - actualPosition).abs();
-  return actualPosition <= const Duration(seconds: 1) &&
-      delta >= const Duration(seconds: 2);
+  // Recover when the seek significantly under-shot the target. This catches
+  // both the "snap to near-zero" case and the "snap to buffer boundary" case
+  // (e.g. user seeks to 60s but lands at 8s because only 8s is buffered).
+  return delta >= const Duration(seconds: 2) && actualPosition < requestedPosition;
 }
 
 @visibleForTesting
@@ -4514,6 +4516,24 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   Future<void> _seekWithRecovery(Duration position) async {
+    // Proactive path: if the seek target clearly exceeds the buffered range on
+    // a lock-cached stream, skip the doomed seek and rebuild immediately.
+    // This avoids the 200 ms stutter from the reactive path below.
+    // Guard: only fire when we have a measured buffer (bufferedPosition > 0)
+    // and the target overshoots it by at least 1 s.
+    if (_currentSourceKind == PlaybackSourceKind.lockCachedStream.name) {
+      final buffered = _player.bufferedPosition;
+      if (buffered > Duration.zero &&
+          position > buffered + const Duration(seconds: 1)) {
+        AppLogger.warning(
+          'Seek target $position exceeds buffered position $buffered on a '
+          'lock-cached source. Proactively rebuilding with direct streams.',
+        );
+        await _rebuildQueueForSeekRecovery(position);
+        return;
+      }
+    }
+
     await _player.seek(position);
     await Future<void>.delayed(const Duration(milliseconds: 200));
     final actualPosition = _player.position;
@@ -4566,6 +4586,16 @@ class NavisAudioHandler extends BaseAudioHandler
     final wasPlaying = _player.playing;
     final previousLoopMode = _player.loopMode;
     final previousShuffleModeEnabled = _player.shuffleModeEnabled;
+
+    // Mark the current song as bypassed so that any future queue rebuild in
+    // this session also uses directStream for it, rather than re-trying
+    // LockCachingAudioSource and hitting the same seek failure again.
+    final currentSongId = _queueItems[currentIndex].id;
+    _markSongLockCachingBypassed(
+      currentSongId,
+      reason: 'seek recovery — switched to direct stream',
+    );
+
     final prepared = await _prepareQueueItems(
       orderedSongs,
       preferLockCaching: false,
