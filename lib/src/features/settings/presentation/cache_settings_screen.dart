@@ -331,7 +331,7 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
         final url = api.getCoverArtUrl(id: id, size: 300).toString();
         await ref
             .read(coverArtCacheManagerProvider)
-            .downloadFile(url, key: '$id:300');
+            .downloadFile(url, key: coverArtImageCacheKey(id, 300));
       } on Exception {
         // best-effort: skip failures
       }

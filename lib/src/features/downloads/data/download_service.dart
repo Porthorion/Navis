@@ -9,6 +9,7 @@ import 'package:navis/src/api/lrclib_client.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_error.dart';
+import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/database/daos/cache_dao.dart';
 import 'package:navis/src/database/daos/download_queue_dao.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
@@ -500,7 +501,10 @@ class DownloadService {
               .toString();
           unawaited(
             _readCoverArtCacheManager()
-                .downloadFile(artUrl, key: '$coverArtId:300')
+                .downloadFile(
+                  artUrl,
+                  key: coverArtImageCacheKey(coverArtId, 300),
+                )
                 .then((_) {})
                 .catchError((_) {}),
           );

@@ -293,7 +293,10 @@ class _AppShellState extends ConsumerState<AppShell> {
       if (coverArtId.isEmpty) {
         continue;
       }
-      final cacheKey = '$coverArtId:$_kQueueCoverArtPrefetchSizePx';
+      final cacheKey = coverArtImageCacheKey(
+        coverArtId,
+        _kQueueCoverArtPrefetchSizePx,
+      );
       if (_queueCoverArtPrefetchedKeys.contains(cacheKey)) {
         continue;
       }

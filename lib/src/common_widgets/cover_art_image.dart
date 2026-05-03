@@ -3,12 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
+import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
 // Re-export constants so that files which import cover_art_image.dart continue
 // to access coverArtCacheKey and kCoverArtStandardSize without extra imports.
 export 'package:navis/src/common_widgets/cover_art_cache_manager.dart'
-    show coverArtCacheKey, kCoverArtStandardSize;
+    show coverArtCacheKey, coverArtImageCacheKey, kCoverArtStandardSize;
 
 class CoverArtImage extends ConsumerWidget {
   const CoverArtImage({
@@ -98,7 +99,7 @@ class CoverArtImage extends ConsumerWidget {
       imageUrl: api
           .getCoverArtUrl(id: coverArtId!.trim(), size: resolvedSize)
           .toString(),
-      cacheKey: '${coverArtId!.trim()}:${resolvedSize ?? 0}',
+      cacheKey: coverArtImageCacheKey(coverArtId!, resolvedSize),
       fit: fit,
       width: width,
       height: height,

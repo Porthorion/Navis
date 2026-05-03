@@ -209,6 +209,7 @@ ImageProvider<Object>? _resolveNowPlayingImageProvider({
     return CachedNetworkImageProvider(
       coverUrl.toString(),
       cacheManager: cacheManager,
+      cacheKey: coverArtImageCacheKey(trimmedCoverArtId, 768),
     );
   }
 
@@ -1365,6 +1366,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
       final ImageProvider<Object> imageProvider = CachedNetworkImageProvider(
         artUrl,
         cacheManager: cacheManager,
+        cacheKey: coverArtImageCacheKey(trimmedCoverArt, 768),
       );
       unawaited(precacheImage(imageProvider, context));
     });
