@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
-import 'package:navis/src/features/home/presentation/home_screen.dart';
+import 'package:navis/src/features/home/domain/home_section_ids.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/theme/navis_theme.dart';
@@ -131,7 +131,11 @@ class AppearanceSettingsScreen extends ConsumerWidget {
               );
               if (context.mounted) {
                 AppNoticeMessenger.of(context).clearSnackBars();
-                showAppNotice(context, message: l10n.appearanceColorPresetSaved, level: AppNoticeLevel.success);
+                showAppNotice(
+                  context,
+                  message: l10n.appearanceColorPresetSaved,
+                  level: AppNoticeLevel.success,
+                );
               }
             },
             onDeletePreset: (colorValue) async {
@@ -163,7 +167,11 @@ class AppearanceSettingsScreen extends ConsumerWidget {
               }
               if (context.mounted) {
                 AppNoticeMessenger.of(context).clearSnackBars();
-                showAppNotice(context, message: l10n.appearanceColorPresetDeleted, level: AppNoticeLevel.success);
+                showAppNotice(
+                  context,
+                  message: l10n.appearanceColorPresetDeleted,
+                  level: AppNoticeLevel.success,
+                );
               }
             },
           ),

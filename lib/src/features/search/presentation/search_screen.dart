@@ -19,6 +19,7 @@ import 'package:navis/src/features/search/presentation/search_controller_provide
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/utils/format_utils.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -851,7 +852,7 @@ class _SongResultsSection extends ConsumerWidget {
                   if (song.artist != null) song.artist!,
                   if (song.album != null) song.album!,
                 ].join(' • '),
-                trailing: Text(_formatDuration(song.duration)),
+                trailing: Text(formatSeconds(song.duration, fallback: '')),
                 onTap: () {
                   unawaited(
                     ref.read(queueProvider.notifier).replaceWithSongs(<Song>[
@@ -883,7 +884,7 @@ class _SongResultsSection extends ConsumerWidget {
                   if (song.album != null) song.album!,
                 ].join(' • '),
               ),
-              trailing: Text(_formatDuration(song.duration)),
+              trailing: Text(formatSeconds(song.duration, fallback: '')),
               onTap: () {
                 unawaited(
                   ref.read(queueProvider.notifier).replaceWithSongs(<Song>[
@@ -941,7 +942,11 @@ class _SongResultsSection extends ConsumerWidget {
                     label: 'playNext',
                   );
               if (context.mounted) {
-                showAppNotice(context, message: l10n.librarySongPlayNextQueued(song.title), level: AppNoticeLevel.success);
+                showAppNotice(
+                  context,
+                  message: l10n.librarySongPlayNextQueued(song.title),
+                  level: AppNoticeLevel.success,
+                );
               }
               return;
             case 'add-queue':
@@ -952,7 +957,11 @@ class _SongResultsSection extends ConsumerWidget {
                     label: 'addToQueue',
                   );
               if (context.mounted) {
-                showAppNotice(context, message: l10n.librarySongAddedToQueue(song.title), level: AppNoticeLevel.success);
+                showAppNotice(
+                  context,
+                  message: l10n.librarySongAddedToQueue(song.title),
+                  level: AppNoticeLevel.success,
+                );
               }
               return;
             case 'add-playlist':
@@ -993,7 +1002,11 @@ class _SongResultsSection extends ConsumerWidget {
                       label: 'playNext',
                     );
                 if (context.mounted) {
-                  showAppNotice(context, message: l10n.librarySongPlayNextQueued(song.title), level: AppNoticeLevel.success);
+                  showAppNotice(
+                    context,
+                    message: l10n.librarySongPlayNextQueued(song.title),
+                    level: AppNoticeLevel.success,
+                  );
                 }
               },
             ),
@@ -1009,7 +1022,11 @@ class _SongResultsSection extends ConsumerWidget {
                       label: 'addToQueue',
                     );
                 if (context.mounted) {
-                  showAppNotice(context, message: l10n.librarySongAddedToQueue(song.title), level: AppNoticeLevel.success);
+                  showAppNotice(
+                    context,
+                    message: l10n.librarySongAddedToQueue(song.title),
+                    level: AppNoticeLevel.success,
+                  );
                 }
               },
             ),
@@ -1061,13 +1078,4 @@ class _SongResultsSection extends ConsumerWidget {
       ),
     );
   }
-}
-
-String _formatDuration(int? seconds) {
-  if (seconds == null || seconds <= 0) {
-    return '';
-  }
-  final minutes = seconds ~/ 60;
-  final remainder = seconds % 60;
-  return '$minutes:${remainder.toString().padLeft(2, '0')}';
 }

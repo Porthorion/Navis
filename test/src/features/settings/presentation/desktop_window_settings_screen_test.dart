@@ -42,7 +42,9 @@ void main() {
     );
   });
 
-  testWidgets('desktop window screen toggles focus mode', (tester) async {
+  testWidgets('desktop window screen describes focus mode placeholder', (
+    tester,
+  ) async {
     final controller = DesktopWindowController.fallback(desktopRuntime: true);
 
     await tester.pumpWidget(
@@ -58,11 +60,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Focus Player Mode'), findsOneWidget);
+    expect(
+      find.text('This experimental feature is coming in a future update.'),
+      findsOneWidget,
+    );
     expect(controller.isFocusPlayerMode, isFalse);
-
-    await tester.tap(find.byType(SwitchListTile));
-    await tester.pumpAndSettle();
-
-    expect(controller.isFocusPlayerMode, isTrue);
   });
 }

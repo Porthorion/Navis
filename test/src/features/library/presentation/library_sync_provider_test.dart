@@ -10,11 +10,23 @@ import 'package:navis/src/features/auth/presentation/server_reachability_provide
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/providers/app_providers.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+
+import '../../../../helpers/test_database.dart';
 
 // Test overrides for @visibleForTesting providers.
 final _manualSyncInterval = syncIntervalMinutesProvider.overrideWithValue(0);
 final _shortSyncInterval = syncIntervalDurationProvider.overrideWithValue(
   const Duration(milliseconds: 10),
+);
+
+final _testPackageInfo = PackageInfo(
+  appName: 'Navis',
+  packageName: 'org.navis.app',
+  version: '1.0.0',
+  buildNumber: '1',
+  buildSignature: '',
 );
 
 class _StaticReachabilityController extends ServerReachabilityController {
@@ -83,6 +95,9 @@ void main() {
 
   group('librarySyncControllerProvider', () {
     test('startup trigger runs once when authenticated', () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      await database.appSettingsDao.setLastFullSyncAppBuild('1.0.0+1');
       final engine = _FakeLibrarySyncEngine(
         ({
           onProgress,
@@ -130,6 +145,10 @@ void main() {
                 status: ServerReachabilityStatus.online,
               ),
             ),
+          ),
+          navisDatabaseProvider.overrideWithValue(database),
+          packageInfoProvider.overrideWithValue(
+            AsyncData<PackageInfo>(_testPackageInfo),
           ),
           librarySyncEngineProvider.overrideWithValue(engine),
         ],
@@ -268,6 +287,9 @@ void main() {
     test(
       'startup sync retries when reachability moves offline to online',
       () async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        await database.appSettingsDao.setLastFullSyncAppBuild('1.0.0+1');
         final engine = _FakeLibrarySyncEngine(
           ({
             onProgress,
@@ -308,6 +330,10 @@ void main() {
                   status: ServerReachabilityStatus.offline,
                 ),
               ),
+            ),
+            navisDatabaseProvider.overrideWithValue(database),
+            packageInfoProvider.overrideWithValue(
+              AsyncData<PackageInfo>(_testPackageInfo),
             ),
             librarySyncEngineProvider.overrideWithValue(engine),
           ],

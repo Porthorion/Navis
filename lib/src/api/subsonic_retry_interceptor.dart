@@ -70,8 +70,9 @@ class SubsonicRetryInterceptor extends Interceptor {
     }
 
     final status = err.response?.statusCode;
-    // Only retry genuine server-side transient errors (502, 503, 504).
+    // Only retry genuine server-side transient errors (502, 503, 504, 530).
     // 501 "Not Implemented" is permanent — retrying is pointless.
-    return status != null && (status == 502 || status == 503 || status == 504);
+    return status != null &&
+        (status == 502 || status == 503 || status == 504 || status == 530);
   }
 }

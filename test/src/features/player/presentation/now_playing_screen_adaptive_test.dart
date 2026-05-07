@@ -78,10 +78,11 @@ Future<void> _pumpNowPlaying(
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
-      child: const MaterialApp(
+      child: MaterialApp(
+        theme: ThemeData(platform: TargetPlatform.linux),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: Scaffold(body: NowPlayingScreen(onCollapse: _noopCollapse)),
+        home: const Scaffold(body: NowPlayingScreen(onCollapse: _noopCollapse)),
       ),
     ),
   );

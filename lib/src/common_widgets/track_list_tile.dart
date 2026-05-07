@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/utils/format_utils.dart';
 
 class TrackListTile extends StatelessWidget {
   const TrackListTile({
@@ -131,7 +132,7 @@ class TrackListTile extends StatelessWidget {
       trailing:
           trailing ??
           Text(
-            _formatDuration(song.duration),
+            formatSeconds(song.duration),
             style: theme.textTheme.bodySmall?.copyWith(
               color: cs.onSurface.withValues(alpha: 0.5),
             ),
@@ -145,13 +146,4 @@ class TrackListTile extends StatelessWidget {
             },
     );
   }
-}
-
-String _formatDuration(int? seconds) {
-  if (seconds == null || seconds <= 0) {
-    return '--:--';
-  }
-  final minutes = seconds ~/ 60;
-  final remainder = seconds % 60;
-  return '$minutes:${remainder.toString().padLeft(2, '0')}';
 }

@@ -26,6 +26,7 @@ import 'package:navis/src/features/changelog/changelog_dialog.dart';
 import 'package:navis/src/features/changelog/changelog_provider.dart';
 import 'package:navis/src/features/group_listening/presentation/group_listening_session_controller.dart';
 import 'package:navis/src/features/group_listening/presentation/group_listening_settings_screen.dart';
+import 'package:navis/src/features/home/domain/home_section_ids.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/home/presentation/home_scroll_provider.dart';
 import 'package:navis/src/features/library/domain/toggle_song_star.dart';
@@ -37,37 +38,12 @@ import 'package:navis/src/features/player/presentation/smart_queue_sheet.dart';
 import 'package:navis/src/features/settings/presentation/update_dialog.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/utils/format_utils.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-/// Section IDs for dynamic home ordering. The default order is the order below.
-class HomeSectionIds {
-  HomeSectionIds._();
-  static const String recentlyLikedAlbums = 'recently_liked_albums';
-  static const String likedTracks = 'liked_tracks';
-  static const String recentlyAdded = 'recently_added';
-  static const String recentlyPlayed = 'recently_played';
-  static const String randomAlbums = 'random_albums';
-  static const String mostPlayed = 'most_played';
-  static const String recentlyPlayedTracks = 'recently_played_tracks';
-  static const String frequentAlbums = 'frequent_albums';
-  static const String quickActions = 'quick_actions';
+export 'package:navis/src/features/home/domain/home_section_ids.dart';
 
-  static const List<String> defaultOrder = <String>[
-    randomAlbums,
-    recentlyLikedAlbums,
-    likedTracks,
-    recentlyAdded,
-    recentlyPlayed,
-    mostPlayed,
-    recentlyPlayedTracks,
-    frequentAlbums,
-  ];
-
-  static const List<String> defaultHidden = <String>[
-    recentlyPlayedTracks,
-    frequentAlbums,
-  ];
-}
+part 'home_support_widgets.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -2031,7 +2007,11 @@ class _DesktopRandomAlbumSongRow extends ConsumerWidget {
                       unawaited(
                         toggleSongStar(song.id, ref).catchError((_) {
                           if (context.mounted) {
-                            showAppNotice(context, message: l10n.albumDetailStarFailure, level: AppNoticeLevel.error);
+                            showAppNotice(
+                              context,
+                              message: l10n.albumDetailStarFailure,
+                              level: AppNoticeLevel.error,
+                            );
                           }
                         }),
                       );
@@ -2112,7 +2092,7 @@ class _DesktopRandomAlbumSongRow extends ConsumerWidget {
                 SizedBox(
                   width: 48,
                   child: Text(
-                    _formatDesktopSongDuration(song.duration),
+                    formatSeconds(song.duration),
                     textAlign: TextAlign.right,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: colors.onSurfaceVariant.withValues(alpha: 0.86),
@@ -2242,15 +2222,6 @@ int _compareDesktopRandomSongs(SongsTableData a, SongsTableData b) {
   }
 
   return a.id.compareTo(b.id);
-}
-
-String _formatDesktopSongDuration(int? seconds) {
-  if (seconds == null || seconds <= 0) {
-    return '--:--';
-  }
-  final minutes = seconds ~/ 60;
-  final remainder = seconds % 60;
-  return '$minutes:${remainder.toString().padLeft(2, '0')}';
 }
 
 class _RandomAlbumsHeroCarousel extends ConsumerStatefulWidget {
@@ -3001,25 +2972,21 @@ class _HomeFilterChipRow extends ConsumerWidget {
                   !downloadedOnly;
             },
           ),
-          // Expanded + Align keeps the button right-aligned while bounding its
-          // max width to the remaining space, preventing RenderFlex overflow at
-          // large text scales.
           Expanded(
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  if (listenTogetherAvailable) ...<Widget>[
-                    IconButton.filledTonal(
-                      tooltip: 'Listen Together',
-                      constraints: iconConstraints,
-                      icon: const Icon(Icons.people_alt_outlined),
-                      onPressed: () => showListenTogetherSheet(context),
-                    ),
-                    const SizedBox(width: 8),
-                  ],
-                  FilledButton.icon(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: <Widget>[
+                if (listenTogetherAvailable) ...<Widget>[
+                  IconButton.filledTonal(
+                    tooltip: 'Listen Together',
+                    constraints: iconConstraints,
+                    icon: const Icon(Icons.people_alt_outlined),
+                    onPressed: () => showListenTogetherSheet(context),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                Flexible(
+                  child: FilledButton.icon(
                     style: FilledButton.styleFrom(
                       backgroundColor: colorScheme.secondaryContainer,
                       foregroundColor: colorScheme.onSecondaryContainer,
@@ -3059,8 +3026,8 @@ class _HomeFilterChipRow extends ConsumerWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ],
@@ -3155,198 +3122,6 @@ class _DesktopHomeQuickActions extends ConsumerWidget {
                 },
         ),
       ],
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Shimmer placeholder for loading state
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _RandomHeroShimmer extends StatelessWidget {
-  const _RandomHeroShimmer({
-    required this.desktopMode,
-    required this.adaptiveLayoutClass,
-    this.density = _HomeSectionDensity.comfortable,
-  });
-
-  final bool desktopMode;
-  final AdaptiveLayoutClass adaptiveLayoutClass;
-  final _HomeSectionDensity density;
-
-  double _heroHeightFor(double availableWidth) {
-    final compact = density == _HomeSectionDensity.compact;
-    if (desktopMode) {
-      return (availableWidth * (compact ? 0.28 : 0.32)).clamp(
-        compact ? 260.0 : 300.0,
-        compact ? 420.0 : 500.0,
-      );
-    }
-    return switch (adaptiveLayoutClass) {
-      AdaptiveLayoutClass.phoneCompact => compact ? 208 : 228,
-      AdaptiveLayoutClass.tabletMedium => compact ? 224 : 244,
-      AdaptiveLayoutClass.tabletExpanded => compact ? 236 : 258,
-    };
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final availableWidth = MediaQuery.sizeOf(context).width;
-    final heroHeight = _heroHeightFor(availableWidth);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      child: Column(
-        children: <Widget>[
-          ClipRRect(
-            borderRadius: BorderRadius.circular(20),
-            child: ShimmerPlaceholder(
-              height: heroHeight,
-              width: double.infinity,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List<Widget>.generate(
-              3,
-              (index) => Padding(
-                padding: EdgeInsets.only(right: index == 2 ? 0 : 6),
-                child: ShimmerPlaceholder(
-                  height: 6,
-                  width: index == 1 ? 16 : 6,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CarouselShimmer extends StatelessWidget {
-  const _CarouselShimmer({
-    required this.compactWideLandscapeMode,
-    this.density = _HomeSectionDensity.comfortable,
-  });
-
-  final bool compactWideLandscapeMode;
-  final _HomeSectionDensity density;
-
-  @override
-  Widget build(BuildContext context) {
-    final compactDensity = density == _HomeSectionDensity.compact;
-    final cardSize = compactDensity ? 138.0 : 150.0;
-    return SizedBox(
-      height: cardSize,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.symmetric(
-          horizontal: compactWideLandscapeMode ? 0 : 16,
-        ),
-        itemCount: 4,
-        separatorBuilder: (_, _) => SizedBox(width: compactDensity ? 10 : 12),
-        itemBuilder: (context, _) {
-          return SizedBox(
-            width: cardSize,
-            child: Card(
-              clipBehavior: Clip.antiAlias,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: ShimmerPlaceholder(
-                height: cardSize,
-                width: cardSize,
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _ListShimmer extends StatelessWidget {
-  const _ListShimmer({
-    this.density = _HomeSectionDensity.comfortable,
-  });
-
-  final _HomeSectionDensity density;
-
-  @override
-  Widget build(BuildContext context) {
-    final compactDensity = density == _HomeSectionDensity.compact;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Column(
-        children: List<Widget>.generate(
-          4,
-          (index) => Padding(
-            padding: EdgeInsets.only(bottom: index == 3 ? 0 : 8),
-            child: ShimmerPlaceholder(
-              height: compactDensity ? 52 : 60,
-              width: double.infinity,
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Update banner shown at the top of the home screen when a new release is
-// available on the Forgejo repository.
-// ---------------------------------------------------------------------------
-class _UpdateBanner extends ConsumerWidget {
-  const _UpdateBanner();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context)!;
-    final updateAsync = ref.watch(updateProvider);
-    final settings = ref.watch(appSettingsProvider).asData?.value;
-
-    // If the user has disabled automatic update checks, hide the banner.
-    if (settings != null && !settings.updateCheckEnabled) {
-      return const SizedBox.shrink();
-    }
-
-    return updateAsync.when(
-      data: (info) {
-        if (info == null) return const SizedBox.shrink();
-        return MaterialBanner(
-          content: Text(l10n.updateAvailableBody(info.tagName)),
-          leading: const Icon(Icons.system_update_outlined),
-          actions: [
-            TextButton(
-              onPressed: () => ref.invalidate(updateProvider),
-              child: Text(l10n.updateDismiss),
-            ),
-            TextButton(
-              onPressed: () {
-                if (info.downloadUrl != null) {
-                  showUpdateDialog(context, info);
-                } else {
-                  launchUrl(
-                    Uri.parse(info.htmlUrl),
-                    mode: LaunchMode.externalApplication,
-                  );
-                }
-              },
-              child: Text(
-                info.downloadUrl != null
-                    ? l10n.updateInstall
-                    : l10n.updateDownload,
-              ),
-            ),
-          ],
-        );
-      },
-      loading: () => const SizedBox.shrink(),
-      error: (_, _) => const SizedBox.shrink(),
     );
   }
 }

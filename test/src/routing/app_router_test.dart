@@ -147,7 +147,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Sign in'), findsOneWidget);
+    expect(
+      find.text('Connect to your Subsonic or Navidrome server.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('shows home shell when authenticated', (tester) async {
@@ -432,6 +435,9 @@ void main() {
     await tester.tap(find.text('Sign out (keep local data)'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Sign in'), findsOneWidget);
+    expect(
+      find.text('Connect to your Subsonic or Navidrome server.'),
+      findsOneWidget,
+    );
   });
 }

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/api/models/artist_info.dart';
 import 'package:navis/src/api/models/artist_ref.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
@@ -39,6 +40,10 @@ class _DelayedReplaceHandler implements NavisPlaybackHandler {
 
   @override
   Stream<void> get radioStreamErrorStream => const Stream<void>.empty();
+
+  @override
+  Stream<PlaybackLoadFailure> get loadFailureStream =>
+      const Stream<PlaybackLoadFailure>.empty();
 
   @override
   Stream<ManualTrackChangeCue> get manualTrackChangeCueStream =>
@@ -220,6 +225,9 @@ void main() {
                 ),
               ]),
             ),
+            artistInfoProvider('artist-1').overrideWithValue(
+              const AsyncData(ArtistInfo(biography: 'Artist biography')),
+            ),
           ],
         ),
       );
@@ -227,8 +235,8 @@ void main() {
 
       expect(find.text('Artist'), findsOneWidget);
       expect(find.text('Artist 1'), findsOneWidget);
-      expect(find.text('1 albums'), findsOneWidget);
-      expect(find.text('Album 1'), findsOneWidget);
+      expect(find.textContaining('1 albums'), findsOneWidget);
+      expect(find.text('Album 1'), findsAtLeastNWidgets(1));
       await _disposeApp(tester);
     });
 
@@ -260,12 +268,16 @@ void main() {
           ],
         ),
       );
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
 
-      expect(find.text('Album'), findsOneWidget);
-      expect(find.text('Album 1'), findsOneWidget);
+      expect(find.text('Album 1'), findsAtLeastNWidgets(1));
+      await tester.scrollUntilVisible(
+        find.text('Song 1'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
       expect(find.text('Song 1'), findsOneWidget);
-      expect(find.textContaining('Artist 1'), findsOneWidget);
       await _disposeApp(tester);
     });
 

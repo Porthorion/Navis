@@ -13,7 +13,6 @@ import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/notifications/library_sync_notifier.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 
 /// Sync interval in minutes from user settings (0 = manual only).
 /// The staleness window for the sync engine equals this interval so that
@@ -229,7 +228,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
 
     // Detect app updates: force a full resync whenever the version changes.
     final database = ref.read(navisDatabaseProvider);
-    final packageInfo = await PackageInfo.fromPlatform();
+    final packageInfo = await ref.read(packageInfoProvider.future);
     final currentBuild = '${packageInfo.version}+${packageInfo.buildNumber}';
     final lastSyncBuild = await database.appSettingsDao
         .getLastFullSyncAppBuild();

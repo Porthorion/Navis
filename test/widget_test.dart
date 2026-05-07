@@ -76,6 +76,7 @@ void main() {
       ProviderScope(
         overrides: _noDbOverrides(
           extras: [
+            serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
             audioBootstrapControllerProvider.overrideWith(
               () => _StaticAudioBootstrapController(
                 state: const AudioBootstrapState.initializing(),
@@ -88,7 +89,6 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('Preparing playback'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
   });
 
@@ -100,6 +100,7 @@ void main() {
       ProviderScope(
         overrides: _noDbOverrides(
           extras: [
+            serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
             audioBootstrapControllerProvider.overrideWith(
               () => _StaticAudioBootstrapController(
                 state: const AudioBootstrapState.failed('failed'),

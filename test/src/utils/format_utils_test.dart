@@ -39,4 +39,40 @@ void main() {
       expect(formatPlaybackSpeed(0.75), '0.75×');
     });
   });
+
+  group('formatDuration', () {
+    test('formats sub-hour durations as minutes and seconds', () {
+      expect(formatDuration(const Duration(seconds: 5)), '0:05');
+      expect(formatDuration(const Duration(minutes: 3, seconds: 7)), '3:07');
+    });
+
+    test('formats hour durations as total minutes by default', () {
+      expect(
+        formatDuration(const Duration(hours: 1, minutes: 2, seconds: 3)),
+        '62:03',
+      );
+    });
+
+    test('formats hour durations with a padded minute and second field', () {
+      expect(
+        formatDuration(
+          const Duration(hours: 1, minutes: 2, seconds: 3),
+          showHours: true,
+        ),
+        '1:02:03',
+      );
+    });
+  });
+
+  group('formatSeconds', () {
+    test('formats positive second counts', () {
+      expect(formatSeconds(67), '1:07');
+    });
+
+    test('uses the fallback for null and non-positive values', () {
+      expect(formatSeconds(null), '--:--');
+      expect(formatSeconds(0), '--:--');
+      expect(formatSeconds(-4, fallback: ''), '');
+    });
+  });
 }

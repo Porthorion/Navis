@@ -1,0 +1,446 @@
+part of 'app_shell.dart';
+
+const int _homeBranchIndex = 0;
+const int _libraryBranchIndex = 1;
+const int _searchBranchIndex = 2;
+const int _settingsBranchIndex = 3;
+
+class _ShellDestination {
+  const _ShellDestination({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+}
+
+class _CompactIconRail extends StatelessWidget {
+  const _CompactIconRail({
+    required this.destinations,
+    required this.selectedIndex,
+    required this.onDestinationSelected,
+  });
+
+  final List<_ShellDestination> destinations;
+  final int selectedIndex;
+  final ValueChanged<int> onDestinationSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final count = destinations.length;
+        final hitTargetWidth = constraints.maxWidth;
+        // Keep rail width 20% wider than icon width in compact landscape.
+        final iconSize = ((hitTargetWidth / 1.2) * 0.8).clamp(22.4, 38.4);
+
+        return Column(
+          mainAxisSize: MainAxisSize.max,
+          children: <Widget>[
+            for (var i = 0; i < count; i++)
+              Expanded(
+                child: SizedBox(
+                  width: hitTargetWidth,
+                  height: double.infinity,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => onDestinationSelected(i),
+                    child: Center(
+                      child: Icon(
+                        destinations[i].icon,
+                        size: iconSize,
+                        color: i == selectedIndex
+                            ? colorScheme.primary
+                            : colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _RailSidebar extends ConsumerWidget {
+  const _RailSidebar({
+    required this.destinations,
+    required this.selectedIndex,
+    required this.onDestinationSelected,
+    required this.showLibrarySubNavigation,
+    this.allowScrollableRail = true,
+    required this.selectedLibrarySection,
+    required this.showLikedLibraryPage,
+    required this.showArtistsLibraryPage,
+    required this.showPlaylistsLibraryPage,
+    required this.showRadioLibraryPage,
+    required this.onLibrarySectionSelected,
+    required this.showPlayer,
+    required this.playback,
+    required this.onOpenPlayer,
+    this.navbarStyle = 'comfortable',
+    this.songTitle,
+    this.songArtist,
+    this.artistId,
+    this.coverArtId,
+    this.coverArtUrl,
+    this.isRadio = false,
+    this.radioArtUrl,
+    this.navbarAutohide = false,
+    this.onToggleAutohide,
+  });
+
+  final List<_ShellDestination> destinations;
+  final int selectedIndex;
+  final ValueChanged<int> onDestinationSelected;
+  final bool showLibrarySubNavigation;
+  final bool allowScrollableRail;
+  final LibrarySection selectedLibrarySection;
+  final bool showLikedLibraryPage;
+  final bool showArtistsLibraryPage;
+  final bool showPlaylistsLibraryPage;
+  final bool showRadioLibraryPage;
+  final ValueChanged<LibrarySection> onLibrarySectionSelected;
+  final bool showPlayer;
+  final PlaybackSnapshot playback;
+  final String? songTitle;
+  final String? songArtist;
+  final String? artistId;
+  final String? coverArtId;
+  final String? coverArtUrl;
+  final bool isRadio;
+  final String? radioArtUrl;
+  final VoidCallback onOpenPlayer;
+  final String navbarStyle;
+  final bool navbarAutohide;
+  final VoidCallback? onToggleAutohide;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final iconsOnly = navbarStyle == 'icons';
+    final compact = navbarStyle == 'compact';
+    final groupListeningSession = ref.watch(
+      groupListeningSessionControllerProvider,
+    );
+    final hasActiveGroupSession = groupListeningSession.hasActiveRoom;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(2, 8, 2, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          if (onToggleAutohide != null)
+            Align(
+              alignment: iconsOnly ? Alignment.center : Alignment.centerRight,
+              child: SizedBox(
+                width: 32,
+                height: 32,
+                child: IconButton(
+                  icon: Icon(
+                    navbarAutohide
+                        ? Icons.lock_open_rounded
+                        : Icons.lock_rounded,
+                    size: 16,
+                  ),
+                  tooltip: navbarAutohide
+                      ? AppLocalizations.of(context)!.desktopNavbarLockTooltip
+                      : AppLocalizations.of(
+                          context,
+                        )!.desktopNavbarUnlockTooltip,
+                  onPressed: onToggleAutohide,
+                  padding: EdgeInsets.zero,
+                  style: IconButton.styleFrom(
+                    minimumSize: const Size(32, 32),
+                    maximumSize: const Size(32, 32),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+              ),
+            ),
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final navTileEstimatedHeight = compact ? 52.0 : 64.0;
+                const subNavTileEstimatedHeight = 44.0;
+                const subNavTrailingGap = 6.0;
+                const reservedMiniPlayerHeight = 170.0;
+                const railMiniPlayerGap = 6.0;
+                const railCutoffSlack = 4.0;
+                final librarySubSectionCount =
+                    1 +
+                    (showLikedLibraryPage ? 1 : 0) +
+                    (showArtistsLibraryPage ? 1 : 0) +
+                    (showPlaylistsLibraryPage ? 1 : 0) +
+                    (showRadioLibraryPage ? 1 : 0);
+                final navViewportHeight =
+                    (constraints.maxHeight -
+                            (showPlayer
+                                ? (reservedMiniPlayerHeight + railMiniPlayerGap)
+                                : 0.0))
+                        .clamp(0.0, double.infinity);
+                final baseNavHeight =
+                    destinations.length * navTileEstimatedHeight;
+                final inlineLibraryNavHeight =
+                    baseNavHeight +
+                    (librarySubSectionCount * subNavTileEstimatedHeight) +
+                    subNavTrailingGap;
+                final showLibrarySectionsInline =
+                    !iconsOnly &&
+                    showLibrarySubNavigation &&
+                    navViewportHeight >=
+                        (inlineLibraryNavHeight + railCutoffSlack);
+                final useScrollableRail =
+                    allowScrollableRail &&
+                    navViewportHeight < (baseNavHeight + railCutoffSlack);
+
+                final navTiles = <Widget>[
+                  for (var i = 0; i < destinations.length; i++) ...<Widget>[
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _RailNavTile(
+                        key: ValueKey('railNavTile-$i'),
+                        destination: destinations[i],
+                        selected: i == selectedIndex,
+                        onTap: () => onDestinationSelected(i),
+                        iconsOnly: iconsOnly,
+                        compact: compact,
+                        showBadge: i == 3 && hasActiveGroupSession,
+                      ),
+                    ),
+                    if (showLibrarySectionsInline && i == 1) ...<Widget>[
+                      _RailSubNavTile(
+                        key: const ValueKey<String>(
+                          'railLibrarySection-albums',
+                        ),
+                        label: AppLocalizations.of(context)!.libraryTabAlbums,
+                        selected:
+                            selectedIndex == 1 &&
+                            selectedLibrarySection == LibrarySection.albums,
+                        onTap: () =>
+                            onLibrarySectionSelected(LibrarySection.albums),
+                      ),
+                      if (showLikedLibraryPage)
+                        _RailSubNavTile(
+                          key: const ValueKey<String>(
+                            'railLibrarySection-liked',
+                          ),
+                          label: AppLocalizations.of(context)!.libraryTabLiked,
+                          selected:
+                              selectedIndex == 1 &&
+                              selectedLibrarySection == LibrarySection.liked,
+                          onTap: () =>
+                              onLibrarySectionSelected(LibrarySection.liked),
+                        ),
+                      if (showArtistsLibraryPage)
+                        _RailSubNavTile(
+                          key: const ValueKey<String>(
+                            'railLibrarySection-artists',
+                          ),
+                          label: AppLocalizations.of(
+                            context,
+                          )!.libraryTabArtists,
+                          selected:
+                              selectedIndex == 1 &&
+                              selectedLibrarySection == LibrarySection.artists,
+                          onTap: () =>
+                              onLibrarySectionSelected(LibrarySection.artists),
+                        ),
+                      if (showPlaylistsLibraryPage)
+                        _RailSubNavTile(
+                          key: const ValueKey<String>(
+                            'railLibrarySection-playlists',
+                          ),
+                          label: AppLocalizations.of(context)!.navPlaylists,
+                          selected:
+                              selectedIndex == 1 &&
+                              selectedLibrarySection ==
+                                  LibrarySection.playlists,
+                          onTap: () => onLibrarySectionSelected(
+                            LibrarySection.playlists,
+                          ),
+                        ),
+                      if (showRadioLibraryPage)
+                        _RailSubNavTile(
+                          key: const ValueKey<String>(
+                            'railLibrarySection-radio',
+                          ),
+                          label: AppLocalizations.of(context)!.navRadio,
+                          selected:
+                              selectedIndex == 1 &&
+                              selectedLibrarySection == LibrarySection.radio,
+                          onTap: () =>
+                              onLibrarySectionSelected(LibrarySection.radio),
+                        ),
+                      const SizedBox(height: 6),
+                    ],
+                  ],
+                ];
+
+                final player = showPlayer
+                    ? _RailMiniPlayer(
+                        playback: playback,
+                        songTitle: songTitle,
+                        songArtist: songArtist,
+                        artistId: artistId,
+                        coverArtId: coverArtId,
+                        coverArtUrl: coverArtUrl,
+                        isRadio: isRadio,
+                        radioArtUrl: radioArtUrl,
+                        onOpenPlayer: onOpenPlayer,
+                      )
+                    : const SizedBox.shrink();
+
+                final navRegion = useScrollableRail
+                    ? SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: navTiles,
+                        ),
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: <Widget>[...navTiles, const Spacer()],
+                      );
+
+                if (!showPlayer) {
+                  return navRegion;
+                }
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    Expanded(child: navRegion),
+                    const SizedBox(height: 6),
+                    player,
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RailNavTile extends StatelessWidget {
+  const _RailNavTile({
+    super.key,
+    required this.destination,
+    required this.selected,
+    required this.onTap,
+    this.iconsOnly = false,
+    this.compact = false,
+    this.showBadge = false,
+  });
+
+  final _ShellDestination destination;
+  final bool selected;
+  final VoidCallback onTap;
+  final bool iconsOnly;
+  final bool compact;
+  final bool showBadge;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textStyle = Theme.of(context).textTheme.bodyLarge?.copyWith(
+      fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+      color: selected
+          ? colorScheme.onSecondaryContainer
+          : colorScheme.onSurfaceVariant,
+    );
+    final tilePadding = iconsOnly
+        ? const EdgeInsets.symmetric(horizontal: 4, vertical: 12)
+        : compact
+        ? const EdgeInsets.symmetric(horizontal: 12, vertical: 10)
+        : const EdgeInsets.symmetric(horizontal: 16, vertical: 14);
+
+    return Material(
+      color: selected
+          ? colorScheme.secondaryContainer.withValues(alpha: 0.9)
+          : Colors.transparent,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Padding(
+          padding: tilePadding,
+          child: Row(
+            mainAxisAlignment: iconsOnly
+                ? MainAxisAlignment.center
+                : MainAxisAlignment.start,
+            children: <Widget>[
+              Badge(
+                isLabelVisible: showBadge,
+                child: Icon(
+                  destination.icon,
+                  size: 24,
+                  color: selected
+                      ? colorScheme.onSecondaryContainer
+                      : colorScheme.onSurfaceVariant,
+                ),
+              ),
+              if (!iconsOnly) ...<Widget>[
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    destination.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: textStyle,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RailSubNavTile extends StatelessWidget {
+  const _RailSubNavTile({
+    super.key,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
+      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+      color: selected ? colorScheme.primary : colorScheme.onSurfaceVariant,
+    );
+
+    return Padding(
+      padding: const EdgeInsets.only(left: 16, right: 6, bottom: 6),
+      child: Material(
+        color: selected
+            ? colorScheme.primaryContainer.withValues(alpha: 0.35)
+            : Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: textStyle,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

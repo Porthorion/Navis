@@ -37,6 +37,10 @@ class _RecordingPlaybackHandler implements NavisPlaybackHandler {
   Stream<void> get radioStreamErrorStream => const Stream<void>.empty();
 
   @override
+  Stream<PlaybackLoadFailure> get loadFailureStream =>
+      const Stream<PlaybackLoadFailure>.empty();
+
+  @override
   Stream<ManualTrackChangeCue> get manualTrackChangeCueStream =>
       const Stream<ManualTrackChangeCue>.empty();
 
