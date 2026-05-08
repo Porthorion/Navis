@@ -26,6 +26,13 @@ final groupListeningQueueTrackAddedProvider =
       _QueueTrackAddedNotifier.new,
     );
 
+class _QueueMutationDiff {
+  const _QueueMutationDiff(this.type, this.queueEntryId);
+
+  final GroupListeningMutationType type;
+  final String queueEntryId;
+}
+
 class _QueueTrackAddedNotifier extends Notifier<int> {
   @override
   int build() => 0;
@@ -174,17 +181,28 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
     }
 
     if (previous?.snapshotRequired == true && !next.snapshotRequired) {
-      unawaited(_applyAuthoritativeInboundState(remoteState));
+      unawaited(
+        _applyAuthoritativeInboundState(
+          remoteState,
+          followPlayback: next.configuration?.autoFollowHost ?? true,
+        ),
+      );
       return;
     }
 
-    unawaited(_applyInboundState(remoteState));
+    unawaited(
+      _applyInboundState(
+        remoteState,
+        followPlayback: next.configuration?.autoFollowHost ?? true,
+      ),
+    );
   }
 
   Future<void> _applyAuthoritativeInboundState(
-    _BridgePlaybackState remoteState,
-  ) async {
-    await _applyInboundState(remoteState);
+    _BridgePlaybackState remoteState, {
+    required bool followPlayback,
+  }) async {
+    await _applyInboundState(remoteState, followPlayback: followPlayback);
     for (var i = 0; i < 4; i++) {
       await Future<void>.delayed(Duration.zero);
       if (_isApplyingRemoteState) {
@@ -200,7 +218,7 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
         return;
       }
 
-      await _applyInboundState(remoteState);
+      await _applyInboundState(remoteState, followPlayback: followPlayback);
     }
   }
 
@@ -214,6 +232,43 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
       return false;
     }
     return true;
+  }
+
+  _QueueMutationDiff? _granularQueueMutation({
+    required GroupListeningRoomState room,
+    required GroupListeningQueueState queueState,
+    required _BridgePlaybackState localState,
+    required _BridgePlaybackState remoteState,
+  }) {
+    if (localState.queueSongIds.length == remoteState.queueSongIds.length + 1 &&
+        localState.currentIndex == remoteState.currentIndex &&
+        _isPrefixOf(remoteState.queueSongIds, localState.queueSongIds)) {
+      final addedEntry = queueState.entries[remoteState.queueSongIds.length];
+      return _QueueMutationDiff(
+        GroupListeningMutationType.queueAdd,
+        addedEntry.queueEntryId,
+      );
+    }
+
+    if (localState.queueSongIds.length + 1 == remoteState.queueSongIds.length) {
+      for (
+        var removedIndex = 0;
+        removedIndex < remoteState.queueSongIds.length;
+        removedIndex++
+      ) {
+        final projected = List<String>.of(remoteState.queueSongIds)
+          ..removeAt(removedIndex);
+        if (listEquals(projected, localState.queueSongIds) &&
+            removedIndex < room.queue.entries.length) {
+          return _QueueMutationDiff(
+            GroupListeningMutationType.queueRemove,
+            room.queue.entries[removedIndex].queueEntryId,
+          );
+        }
+      }
+    }
+
+    return null;
   }
 
   void _schedulePublish({required bool immediate}) {
@@ -337,9 +392,22 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
       reason: reason,
     );
 
-    final mutationType = queueChanged
+    var mutationType = queueChanged
         ? GroupListeningMutationType.queueReplace
         : GroupListeningMutationType.playbackAnchor;
+    String? targetQueueEntryId;
+    if (queueChanged) {
+      final queueDiff = _granularQueueMutation(
+        room: room,
+        queueState: queueState,
+        localState: localState,
+        remoteState: remoteState,
+      );
+      if (queueDiff != null) {
+        mutationType = queueDiff.type;
+        targetQueueEntryId = queueDiff.queueEntryId;
+      }
+    }
     final canSendMutation =
         queueChanged ||
         room.self.canControl ||
@@ -355,13 +423,17 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
           type: mutationType,
           playbackAnchor: playbackAnchor,
           queue: queueChanged ? queueState : null,
+          targetQueueEntryId: targetQueueEntryId,
         );
     if (mutationId == null || mutationId.isEmpty) {
       return;
     }
   }
 
-  Future<void> _applyInboundState(_BridgePlaybackState remoteState) async {
+  Future<void> _applyInboundState(
+    _BridgePlaybackState remoteState, {
+    required bool followPlayback,
+  }) async {
     final handler = ref.read(audioHandlerProvider);
     if (handler == null) {
       return;
@@ -402,14 +474,24 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
           // Notify the UI to show a snackbar without interrupting playback.
           ref.read(groupListeningQueueTrackAddedProvider.notifier).increment();
         } else {
+          final startIndex = followPlayback
+              ? remoteState.currentIndex ?? 0
+              : _preservedCurrentIndex(
+                  beforeApply: beforeApply,
+                  remoteState: remoteState,
+                );
           await queueController.replace(
             remoteState.queueSongIds,
-            startIndex: remoteState.currentIndex ?? 0,
-            autoPlay: remoteState.playing,
+            startIndex: startIndex,
+            autoPlay: followPlayback
+                ? remoteState.playing
+                : beforeApply.playing,
           );
-          didFullQueueReplace = true;
+          didFullQueueReplace = followPlayback;
         }
-      } else if (trackChanged && remoteState.currentIndex != null) {
+      } else if (followPlayback &&
+          trackChanged &&
+          remoteState.currentIndex != null) {
         if (remoteState.playing) {
           await queueController.playFromIndex(remoteState.currentIndex!);
         } else {
@@ -422,7 +504,7 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
       }
 
       final afterQueueApply = _currentLocalPlaybackState();
-      if (remoteState.queueSongIds.isNotEmpty) {
+      if (followPlayback && remoteState.queueSongIds.isNotEmpty) {
         final shouldSeek =
             didFullQueueReplace ||
             trackChanged ||
@@ -434,7 +516,7 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
       }
 
       final refreshedState = _currentLocalPlaybackState();
-      if (remoteState.playing != refreshedState.playing) {
+      if (followPlayback && remoteState.playing != refreshedState.playing) {
         if (remoteState.playing) {
           await handler.play();
         } else {
@@ -497,6 +579,27 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
       currentIndex: localState.currentIndex,
       entries: List<GroupListeningQueueEntry>.unmodifiable(entries),
     );
+  }
+
+  int _preservedCurrentIndex({
+    required _BridgePlaybackState beforeApply,
+    required _BridgePlaybackState remoteState,
+  }) {
+    final currentSongId = beforeApply.currentSongId;
+    if (currentSongId != null) {
+      final index = remoteState.queueSongIds.indexOf(currentSongId);
+      if (index >= 0) {
+        return index;
+      }
+    }
+    final currentIndex = beforeApply.currentIndex;
+    if (currentIndex == null || remoteState.queueSongIds.isEmpty) {
+      return 0;
+    }
+    if (currentIndex >= remoteState.queueSongIds.length) {
+      return remoteState.queueSongIds.length - 1;
+    }
+    return currentIndex;
   }
 
   GroupListeningPlaybackAnchor _buildPlaybackAnchor({

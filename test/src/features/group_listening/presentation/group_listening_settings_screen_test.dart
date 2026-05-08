@@ -25,6 +25,8 @@ class _FakeGroupListeningRepository implements GroupListeningRepository {
   GroupListeningJoinRoomRequest? lastJoinRequest;
   String? lastJoinAvailableRoomId;
   GroupListeningSessionRuntimeContext? lastLeaveSession;
+  GroupListeningSessionRuntimeContext? lastCloseSession;
+  GroupListeningSessionRuntimeContext? lastRotateInviteSession;
   GroupListeningJoinResponse? createResponse;
   GroupListeningJoinResponse? joinResponse;
   GroupListeningRoomState? snapshotResponse;
@@ -114,6 +116,33 @@ class _FakeGroupListeningRepository implements GroupListeningRepository {
     GroupListeningRejoinRoomRequest request,
   ) async {
     return joinResponse!;
+  }
+
+  @override
+  Future<GroupListeningCloseRoomResponse> closeRoom(
+    GroupListeningSessionRuntimeContext session, {
+    int? expectedRoomVersion,
+  }) async {
+    lastCloseSession = session;
+    return GroupListeningCloseRoomResponse(
+      roomId: session.roomId,
+      roomStatus: GroupListeningRoomStatus.closed,
+      roomVersion: (expectedRoomVersion ?? 0) + 1,
+      closedAt: DateTime.utc(2026, 4, 21, 12),
+    );
+  }
+
+  @override
+  Future<GroupListeningRotateInviteResponse> rotateInvite(
+    GroupListeningSessionRuntimeContext session, {
+    int? expectedRoomVersion,
+  }) async {
+    lastRotateInviteSession = session;
+    return GroupListeningRotateInviteResponse(
+      roomId: session.roomId,
+      roomVersion: expectedRoomVersion ?? 0,
+      inviteCode: 'ROTATED',
+    );
   }
 }
 

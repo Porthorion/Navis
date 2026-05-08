@@ -37,6 +37,8 @@ class _FakeGroupListeningRepository implements GroupListeningRepository {
   Object? connectError;
   Object? snapshotError;
   Object? leaveError;
+  Object? closeError;
+  Object? rotateInviteError;
 
   @override
   Future<GroupListeningRealtimeConnection> connect(
@@ -129,6 +131,37 @@ class _FakeGroupListeningRepository implements GroupListeningRepository {
       throw rejoinError!;
     }
     return rejoinResponse!;
+  }
+
+  @override
+  Future<GroupListeningCloseRoomResponse> closeRoom(
+    GroupListeningSessionRuntimeContext session, {
+    int? expectedRoomVersion,
+  }) async {
+    if (closeError != null) {
+      throw closeError!;
+    }
+    return GroupListeningCloseRoomResponse(
+      roomId: session.roomId,
+      roomStatus: GroupListeningRoomStatus.closed,
+      roomVersion: (expectedRoomVersion ?? 0) + 1,
+      closedAt: DateTime.utc(2026, 4, 21, 12),
+    );
+  }
+
+  @override
+  Future<GroupListeningRotateInviteResponse> rotateInvite(
+    GroupListeningSessionRuntimeContext session, {
+    int? expectedRoomVersion,
+  }) async {
+    if (rotateInviteError != null) {
+      throw rotateInviteError!;
+    }
+    return GroupListeningRotateInviteResponse(
+      roomId: session.roomId,
+      roomVersion: expectedRoomVersion ?? 0,
+      inviteCode: 'ROTATED',
+    );
   }
 }
 
@@ -349,6 +382,46 @@ void main() {
       },
     );
 
+    test('updates self control after host transfer events', () async {
+      final repository = _FakeGroupListeningRepository();
+      final fingerprint = computeSourceServerFingerprint(activeServer.url);
+      repository.joinResponse = GroupListeningJoinResponse(
+        runtimeContext: _runtimeContext(fingerprint: fingerprint),
+        roomSnapshot: _roomState(fingerprint: fingerprint, roomVersion: 1),
+      );
+
+      final container = createContainer(repository: repository);
+      final controller = container.read(
+        groupListeningSessionControllerProvider.notifier,
+      );
+
+      await controller.joinRoom(
+        inviteCode: 'INVITE',
+        client: client,
+        connectAfterJoin: false,
+      );
+      controller.applyRealtimeEvent(
+        GroupListeningRoomEvent(
+          eventId: 'event-2',
+          eventType: GroupListeningRoomEventType.transferHost,
+          roomId: 'room-1',
+          previousRoomVersion: 1,
+          roomVersion: 2,
+          hostMemberId: 'member-2',
+          members: <GroupListeningMemberState>[
+            _member('member-1', GroupListeningMemberRole.member),
+            _member('member-2', GroupListeningMemberRole.host),
+          ],
+          authVersion: 1,
+          presenceVersion: 1,
+        ),
+      );
+
+      final state = container.read(groupListeningSessionControllerProvider);
+      expect(state.room?.self.role, GroupListeningMemberRole.member);
+      expect(state.room?.self.canControl, isFalse);
+    });
+
     test(
       'marks snapshot required on stale version transport failures',
       () async {
@@ -498,7 +571,7 @@ GroupListeningSessionRuntimeContext _runtimeContext({
     voyageBaseUrl: Uri.parse('https://voyage.example.com'),
     sourceServerFingerprint: fingerprint,
     accessToken: 'access-token',
-    accessTokenExpiresAt: DateTime.utc(2026, 4, 21, 13),
+    accessTokenExpiresAt: DateTime.now().toUtc().add(const Duration(hours: 1)),
     rejoinToken: 'rejoin-token',
   );
 }
@@ -620,5 +693,21 @@ GroupListeningRoomEvent _roomEvent({
       canControl: true,
       authVersion: 1,
     ),
+  );
+}
+
+GroupListeningMemberState _member(
+  String memberId,
+  GroupListeningMemberRole role,
+) {
+  return GroupListeningMemberState(
+    memberId: memberId,
+    displayName: memberId,
+    deviceLabel: 'Desktop',
+    role: role,
+    presenceState: GroupListeningMemberPresenceState.active,
+    capabilities: const <String>{'playback_anchor'},
+    joinedAt: DateTime.utc(2026, 4, 21, 12),
+    lastSeenAt: DateTime.utc(2026, 4, 21, 12),
   );
 }

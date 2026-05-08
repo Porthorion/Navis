@@ -37,6 +37,7 @@ final groupListeningClientConfigurationProvider =
         enabled: settings.enabled,
         voyageServerUrl: resolvedVoyageServerUrl,
         activeServer: activeServer,
+        autoFollowHost: settings.autoFollowHost,
       );
     });
 
@@ -229,7 +230,12 @@ final groupListeningClientDescriptorProvider =
         deviceId: _normalizeGroupListeningDeviceId(rawDeviceId),
         deviceLabel:
             configuration?.deviceLabel ?? defaultGroupListeningDeviceLabel(),
-        capabilities: const <String>{'playback_anchor'},
+        capabilities: const <String>{
+          'playback_anchor',
+          'queue_add',
+          'queue_remove',
+          'queue_replace',
+        },
       );
     });
 
@@ -256,6 +262,7 @@ String _normalizeGroupListeningDeviceId(String rawValue) {
 class GroupListeningSessionController
     extends Notifier<GroupListeningSessionState> {
   static const Uuid _uuid = Uuid();
+  static const Duration _tokenRefreshWindow = Duration(minutes: 1);
 
   GroupListeningClientConfiguration? _configuration;
   GroupListeningSessionRuntimeContext? _runtimeSession;
@@ -449,11 +456,12 @@ class GroupListeningSessionController
     try {
       await _disposeTransport();
       _clientSequence = 0;
+      final freshSession = await _ensureFreshSession();
       final connection = await ref
           .read(groupListeningRepositoryProvider)
           .connect(
             GroupListeningTransportConnectRequest(
-              session: session,
+              session: freshSession,
               lastAppliedRoomVersion: state.lastAppliedRoomVersion,
             ),
           );
@@ -569,12 +577,16 @@ class GroupListeningSessionController
       clearFailure: true,
     );
     try {
-      await ref
-          .read(groupListeningRepositoryProvider)
-          .leaveRoom(
-            session,
-            lastAppliedRoomVersion: state.lastAppliedRoomVersion,
-          );
+      await _runAuthenticatedWithRejoinRetry(
+        (freshSession) => ref
+            .read(groupListeningRepositoryProvider)
+            .leaveRoom(
+              freshSession,
+              lastAppliedRoomVersion: state.lastAppliedRoomVersion,
+            ),
+        fallbackMessage: 'Unable to leave Voyage room cleanly.',
+        fallbackCode: GroupListeningErrorCode.transportUnavailable,
+      );
     } on Object catch (error, stackTrace) {
       final failure = _asFailure(
         error,
@@ -604,6 +616,120 @@ class GroupListeningSessionController
       snapshotRequired: false,
     );
     return state;
+  }
+
+  Future<GroupListeningSessionState> closeRoom() async {
+    final session = _runtimeSession;
+    final room = state.room;
+    if (session == null || room == null) {
+      return _setFailure(
+        const GroupListeningErrorState(
+          code: GroupListeningErrorCode.sessionUnavailable,
+          message: 'No active Voyage room is available to close.',
+        ),
+      );
+    }
+    if (!room.self.canControl) {
+      return _setFailure(
+        const GroupListeningErrorState(
+          code: GroupListeningErrorCode.forbidden,
+          message: 'Only the host can close this room.',
+        ),
+      );
+    }
+
+    state = state.copyWith(
+      status: GroupListeningSessionStatus.disconnecting,
+      clearFailure: true,
+    );
+    try {
+      final result = await _runAuthenticatedWithRejoinRetry(
+        (freshSession) => ref
+            .read(groupListeningRepositoryProvider)
+            .closeRoom(
+              freshSession,
+              expectedRoomVersion: state.lastAppliedRoomVersion,
+            ),
+        fallbackMessage: 'Unable to close Voyage room.',
+        fallbackCode: GroupListeningErrorCode.transportUnavailable,
+      );
+      await _disposeTransport();
+      _runtimeSession = null;
+      await ref.read(groupListeningSessionCredentialStoreProvider).clear();
+      final latestRoom = state.room ?? room;
+      state = state.copyWith(
+        status: GroupListeningSessionStatus.idle,
+        connection: const GroupListeningConnectionState.disconnected(),
+        room: latestRoom.copyWith(
+          roomStatus: result.roomStatus,
+          roomVersion: result.roomVersion,
+          serverTime: result.closedAt,
+        ),
+        lastAppliedRoomVersion: result.roomVersion,
+        snapshotRequired: false,
+        clearActiveInviteCode: true,
+        clearFailure: true,
+      );
+      return state;
+    } on Object catch (error, stackTrace) {
+      return _setFailure(
+        _asFailure(
+          error,
+          fallbackMessage: 'Unable to close Voyage room.',
+          fallbackCode: GroupListeningErrorCode.transportUnavailable,
+        ),
+        stackTrace: stackTrace,
+      );
+    }
+  }
+
+  Future<GroupListeningSessionState> rotateInvite() async {
+    final room = state.room;
+    if (_runtimeSession == null || room == null) {
+      return _setFailure(
+        const GroupListeningErrorState(
+          code: GroupListeningErrorCode.sessionUnavailable,
+          message: 'No active Voyage room is available.',
+        ),
+      );
+    }
+    if (!room.self.canControl) {
+      return _setFailure(
+        const GroupListeningErrorState(
+          code: GroupListeningErrorCode.forbidden,
+          message: 'Only the host can rotate the invite.',
+        ),
+      );
+    }
+
+    try {
+      final result = await _runAuthenticatedWithRejoinRetry(
+        (freshSession) => ref
+            .read(groupListeningRepositoryProvider)
+            .rotateInvite(
+              freshSession,
+              expectedRoomVersion: state.lastAppliedRoomVersion,
+            ),
+        fallbackMessage: 'Unable to rotate Voyage invite.',
+        fallbackCode: GroupListeningErrorCode.transportUnavailable,
+      );
+      state = state.copyWith(
+        room: state.room?.copyWith(roomVersion: result.roomVersion),
+        lastAppliedRoomVersion: result.roomVersion,
+        activeInviteCode: result.inviteCode,
+        clearFailure: true,
+      );
+      return state;
+    } on Object catch (error, stackTrace) {
+      return _setFailure(
+        _asFailure(
+          error,
+          fallbackMessage: 'Unable to rotate Voyage invite.',
+          fallbackCode: GroupListeningErrorCode.transportUnavailable,
+        ),
+        stackTrace: stackTrace,
+      );
+    }
   }
 
   Future<GroupListeningSessionState> reconnect() async {
@@ -683,12 +809,16 @@ class GroupListeningSessionController
       );
     }
     try {
-      final snapshot = await ref
-          .read(groupListeningRepositoryProvider)
-          .fetchSnapshot(
-            session,
-            lastAppliedRoomVersion: state.lastAppliedRoomVersion,
-          );
+      final snapshot = await _runAuthenticatedWithRejoinRetry(
+        (freshSession) => ref
+            .read(groupListeningRepositoryProvider)
+            .fetchSnapshot(
+              freshSession,
+              lastAppliedRoomVersion: state.lastAppliedRoomVersion,
+            ),
+        fallbackMessage: 'Unable to refresh Voyage room snapshot.',
+        fallbackCode: GroupListeningErrorCode.transportUnavailable,
+      );
       return applySnapshot(snapshot);
     } on Object catch (error, stackTrace) {
       return _setFailure(
@@ -837,6 +967,97 @@ class GroupListeningSessionController
     state = state.copyWith(clearFailure: true);
   }
 
+  Future<T> _runAuthenticatedWithRejoinRetry<T>(
+    Future<T> Function(GroupListeningSessionRuntimeContext session) operation, {
+    required String fallbackMessage,
+    required GroupListeningErrorCode fallbackCode,
+  }) async {
+    var session = await _ensureFreshSession();
+    try {
+      return await operation(session);
+    } on Object catch (error) {
+      final failure = _asFailure(
+        error,
+        fallbackMessage: fallbackMessage,
+        fallbackCode: fallbackCode,
+      );
+      if (failure.code != GroupListeningErrorCode.unauthorized) {
+        rethrow;
+      }
+      session = await _ensureFreshSession(force: true);
+      return operation(session);
+    }
+  }
+
+  Future<GroupListeningSessionRuntimeContext> _ensureFreshSession({
+    bool force = false,
+  }) async {
+    final session = _runtimeSession;
+    if (session == null) {
+      throw const GroupListeningRepositoryException(
+        GroupListeningErrorState(
+          code: GroupListeningErrorCode.sessionUnavailable,
+          message: 'No active Voyage session is available.',
+        ),
+      );
+    }
+    if (!force &&
+        session.accessTokenExpiresAt
+                .difference(DateTime.now().toUtc())
+                .compareTo(_tokenRefreshWindow) >
+            0) {
+      return session;
+    }
+    return _rejoinCurrentSession(session);
+  }
+
+  Future<GroupListeningSessionRuntimeContext> _rejoinCurrentSession(
+    GroupListeningSessionRuntimeContext expectedSession,
+  ) async {
+    final configuration = _requireConfiguration();
+    final store = ref.read(groupListeningSessionCredentialStoreProvider);
+    final storedSession = await store.read();
+    if (storedSession == null ||
+        !_matchesStoredSession(storedSession, expectedSession)) {
+      throw const GroupListeningRepositoryException(
+        GroupListeningErrorState(
+          code: GroupListeningErrorCode.sessionUnavailable,
+          message: 'No stored Voyage rejoin session is available.',
+        ),
+      );
+    }
+    final result = await ref
+        .read(groupListeningRepositoryProvider)
+        .rejoinRoom(
+          GroupListeningRejoinRoomRequest(
+            configuration: configuration,
+            session: storedSession.copyWith(
+              lastAppliedRoomVersion: state.lastAppliedRoomVersion,
+            ),
+          ),
+        );
+    _runtimeSession = result.runtimeContext;
+    applySnapshot(result.roomSnapshot);
+    state = state.copyWith(
+      activeInviteCode: result.inviteCode,
+      clearActiveInviteCode: result.inviteCode == null,
+    );
+    await store.save(
+      GroupListeningStoredSession(
+        roomId: result.runtimeContext.roomId,
+        memberId: result.runtimeContext.memberId,
+        role: result.runtimeContext.role,
+        authVersion: result.runtimeContext.authVersion,
+        voyageBaseUrl: result.runtimeContext.voyageBaseUrl,
+        sourceServerFingerprint: result.runtimeContext.sourceServerFingerprint,
+        rejoinToken: result.runtimeContext.rejoinToken,
+        client: storedSession.client,
+        lastAppliedRoomVersion: result.roomSnapshot.roomVersion,
+      ),
+    );
+    return result.runtimeContext;
+  }
+
   Future<void> _bindJoinedSession({
     required GroupListeningJoinResponse result,
     required GroupListeningClientDescriptor client,
@@ -859,11 +1080,9 @@ class GroupListeningSessionController
       activeInviteCode: result.inviteCode,
       clearActiveInviteCode: result.inviteCode == null,
     );
-    unawaited(
-      ref
-          .read(groupListeningSessionCredentialStoreProvider)
-          .save(storedSession),
-    );
+    await ref
+        .read(groupListeningSessionCredentialStoreProvider)
+        .save(storedSession);
     if (connectAfterJoin) {
       await connect();
     } else {
@@ -1092,8 +1311,9 @@ class GroupListeningSessionController
     switch (type) {
       case GroupListeningMutationType.queueAdd:
       case GroupListeningMutationType.queueRemove:
-      case GroupListeningMutationType.queueReplace:
         return true;
+      case GroupListeningMutationType.queueReplace:
+        return room.self.canControl;
       case GroupListeningMutationType.playbackAnchor:
       case GroupListeningMutationType.transferHost:
       case GroupListeningMutationType.removeMember:

@@ -88,6 +88,22 @@ class _FakeGroupListeningRepository implements GroupListeningRepository {
   ) {
     throw UnimplementedError();
   }
+
+  @override
+  Future<GroupListeningCloseRoomResponse> closeRoom(
+    GroupListeningSessionRuntimeContext session, {
+    int? expectedRoomVersion,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<GroupListeningRotateInviteResponse> rotateInvite(
+    GroupListeningSessionRuntimeContext session, {
+    int? expectedRoomVersion,
+  }) {
+    throw UnimplementedError();
+  }
 }
 
 class _FakeRealtimeConnection implements GroupListeningRealtimeConnection {
@@ -367,6 +383,7 @@ void main() {
   ProviderContainer createContainer({
     required GroupListeningRepository repository,
     required NavisPlaybackHandler handler,
+    bool autoFollowHost = true,
   }) {
     final container = ProviderContainer(
       overrides: [
@@ -376,6 +393,7 @@ void main() {
               groupListeningEnabled: true,
               voyageServerUrl: 'https://voyage.example.com',
               voyageDeviceLabel: 'Desktop',
+              voyageAutoFollowHost: autoFollowHost,
               clearVoyageDisplayName: true,
             ),
           ),
@@ -500,7 +518,9 @@ void main() {
             voyageBaseUrl: Uri.parse('https://voyage.example.com'),
             sourceServerFingerprint: fingerprint,
             accessToken: 'access-token',
-            accessTokenExpiresAt: DateTime.utc(2026, 4, 21, 13),
+            accessTokenExpiresAt: DateTime.now().toUtc().add(
+              const Duration(hours: 1),
+            ),
             rejoinToken: 'rejoin-token',
           ),
           roomSnapshot: room,
@@ -546,7 +566,7 @@ void main() {
             .read(queueProvider.notifier)
             .replace(
               const <String>['song-1', 'song-2'],
-              startIndex: 1,
+              startIndex: 0,
               autoPlay: false,
             );
         await _pumpBridge();
@@ -554,10 +574,14 @@ void main() {
         expect(connection.sentMessages, hasLength(1));
         final message =
             connection.sentMessages.single as GroupListeningMutationMessage;
-        expect(message.type, GroupListeningMutationType.queueReplace);
+        expect(message.type, GroupListeningMutationType.queueAdd);
         expect(
           message.queue?.entries.map((entry) => entry.songId).toList(),
           const <String>['song-1', 'song-2'],
+        );
+        expect(
+          message.targetQueueEntryId,
+          message.queue?.entries.last.queueEntryId,
         );
       },
     );
@@ -631,6 +655,80 @@ void main() {
         expect(handler.seekCalls, contains(const Duration(seconds: 25)));
         expect(handler.snapshot.currentSongId, 'song-2');
         expect(handler.snapshot.playing, isTrue);
+      },
+    );
+
+    test(
+      'does not apply remote playback control when auto follow is disabled',
+      () async {
+        final repository = _FakeGroupListeningRepository();
+        final connection = _FakeRealtimeConnection();
+        final fingerprint = computeSourceServerFingerprint(activeServer.url);
+        final room = _roomState(
+          fingerprint: fingerprint,
+          roomVersion: 1,
+          queueSongIds: const <String>['song-1'],
+          currentIndex: 0,
+          playbackState: GroupListeningPlaybackStatus.paused,
+          position: const Duration(seconds: 15),
+          issuedByMemberId: 'member-1',
+        );
+        final handler = _FakePlaybackHandler(_snapshotFromRoom(room));
+        repository.joinResponse = GroupListeningJoinResponse(
+          runtimeContext: _runtimeContext(fingerprint: fingerprint),
+          roomSnapshot: room,
+        );
+        repository.connection = connection;
+        addTearDown(handler.dispose);
+
+        final container = createContainer(
+          repository: repository,
+          handler: handler,
+          autoFollowHost: false,
+        );
+        final bridgeSubscription = container.listen(
+          groupListeningPlaybackSyncBridgeProvider,
+          (_, __) {},
+        );
+        addTearDown(bridgeSubscription.close);
+        final controller = container.read(
+          groupListeningSessionControllerProvider.notifier,
+        );
+
+        await controller.joinRoom(
+          inviteCode: 'INVITE',
+          client: client,
+          connectAfterJoin: false,
+        );
+        await controller.connect();
+        connection.add(_welcome(roomVersion: 1));
+        await _pumpBridge();
+        handler.clearInteractionLog();
+
+        connection.add(
+          GroupListeningRoomEventMessage(
+            _roomEvent(
+              roomVersion: 2,
+              previousRoomVersion: 1,
+              queueSongIds: const <String>['song-1', 'song-2'],
+              currentIndex: 1,
+              playbackState: GroupListeningPlaybackStatus.playing,
+              position: const Duration(seconds: 25),
+              issuedByMemberId: 'member-2',
+            ),
+          ),
+        );
+        await _pumpBridge();
+
+        expect(handler.snapshot.queueSongIds, const <String>[
+          'song-1',
+          'song-2',
+        ]);
+        expect(handler.snapshot.currentSongId, 'song-1');
+        expect(handler.snapshot.playing, isFalse);
+        expect(handler.seekCalls, isEmpty);
+        expect(handler.playCalls, 0);
+        expect(handler.pauseCalls, 0);
       },
     );
 
@@ -820,7 +918,7 @@ GroupListeningSessionRuntimeContext _runtimeContext({
     voyageBaseUrl: Uri.parse('https://voyage.example.com'),
     sourceServerFingerprint: fingerprint,
     accessToken: 'access-token',
-    accessTokenExpiresAt: DateTime.utc(2026, 4, 21, 13),
+    accessTokenExpiresAt: DateTime.now().toUtc().add(const Duration(hours: 1)),
     rejoinToken: 'rejoin-token',
   );
 }

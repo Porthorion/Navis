@@ -36,6 +36,7 @@ GroupListeningClientConfiguration? buildGroupListeningClientConfiguration({
   required bool enabled,
   required String? voyageServerUrl,
   required ServerConfigModel? activeServer,
+  bool autoFollowHost = true,
 }) {
   if (resolveGroupListeningAvailability(
         enabled: enabled,
@@ -56,7 +57,7 @@ GroupListeningClientConfiguration? buildGroupListeningClientConfiguration({
     sourceServerFingerprint: computeSourceServerFingerprint(server.url),
     displayName: server.username.trim(),
     deviceLabel: defaultGroupListeningDeviceLabel(),
-    autoFollowHost: true,
+    autoFollowHost: autoFollowHost,
     allowInsecureTransport: voyageBaseUrl.scheme == 'http',
   );
 }

@@ -177,6 +177,21 @@ class _ListenTogetherRoomContentState
     if (mounted) ref.invalidate(groupListeningAvailableRoomsProvider);
   }
 
+  Future<void> _closeRoom() async {
+    FocusScope.of(context).unfocus();
+    await ref
+        .read(groupListeningSessionControllerProvider.notifier)
+        .closeRoom();
+    if (mounted) ref.invalidate(groupListeningAvailableRoomsProvider);
+  }
+
+  Future<void> _rotateInvite() async {
+    FocusScope.of(context).unfocus();
+    await ref
+        .read(groupListeningSessionControllerProvider.notifier)
+        .rotateInvite();
+  }
+
   Future<void> _connectTransport() async {
     FocusScope.of(context).unfocus();
     await ref.read(groupListeningSessionControllerProvider.notifier).connect();
@@ -205,7 +220,11 @@ class _ListenTogetherRoomContentState
     if (!mounted) {
       return;
     }
-    showAppNotice(context, message: 'Invite code copied.', level: AppNoticeLevel.success);
+    showAppNotice(
+      context,
+      message: 'Invite code copied.',
+      level: AppNoticeLevel.success,
+    );
   }
 
   String _availabilityMessage(GroupListeningSessionState sessionState) {
@@ -303,6 +322,8 @@ class _ListenTogetherRoomContentState
         return 'You no longer have access to this room.';
       case GroupListeningErrorCode.rateLimited:
         return 'Too many room requests were sent at once. Try again in a moment.';
+      case GroupListeningErrorCode.payloadTooLarge:
+        return 'Voyage rejected that request because it was too large.';
       case GroupListeningErrorCode.validationFailed:
         return 'Voyage rejected that room request. Double-check the invite code and room settings.';
       case GroupListeningErrorCode.unsupportedProtocolVersion:
@@ -439,6 +460,15 @@ class _ListenTogetherRoomContentState
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: <Widget>[
+                  if (room?.self.canControl ?? false) ...<Widget>[
+                    TextButton.icon(
+                      key: const ValueKey('groupListeningCloseRoomButton'),
+                      onPressed: _isBusy(sessionState) ? null : _closeRoom,
+                      icon: const Icon(Icons.cancel_outlined),
+                      label: const Text('Close room'),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
                   TextButton.icon(
                     key: const ValueKey('groupListeningLeaveRoomButton'),
                     onPressed: _isBusy(sessionState) ? null : _leaveRoom,
@@ -598,6 +628,12 @@ class _ListenTogetherRoomContentState
                   tooltip: 'Copy invite code',
                   onPressed: () => _copyInviteCode(inviteCode),
                   icon: const Icon(Icons.copy_outlined),
+                ),
+                IconButton(
+                  key: const ValueKey('groupListeningRotateInviteButton'),
+                  tooltip: 'Rotate invite code',
+                  onPressed: _isBusy(sessionState) ? null : _rotateInvite,
+                  icon: const Icon(Icons.autorenew_outlined),
                 ),
               ],
             ),

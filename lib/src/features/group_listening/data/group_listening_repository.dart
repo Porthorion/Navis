@@ -216,6 +216,34 @@ class GroupListeningLeaveResponse {
 }
 
 @immutable
+class GroupListeningCloseRoomResponse {
+  const GroupListeningCloseRoomResponse({
+    required this.roomId,
+    required this.roomStatus,
+    required this.roomVersion,
+    required this.closedAt,
+  });
+
+  final String roomId;
+  final GroupListeningRoomStatus roomStatus;
+  final int roomVersion;
+  final DateTime closedAt;
+}
+
+@immutable
+class GroupListeningRotateInviteResponse {
+  const GroupListeningRotateInviteResponse({
+    required this.roomId,
+    required this.roomVersion,
+    required this.inviteCode,
+  });
+
+  final String roomId;
+  final int roomVersion;
+  final String inviteCode;
+}
+
+@immutable
 class GroupListeningTransportConnectRequest {
   const GroupListeningTransportConnectRequest({
     required this.session,
@@ -551,7 +579,7 @@ class VoyageGroupListeningHttpClient implements GroupListeningHttpClient {
       fallbackMessage: 'Unable to discover Voyage capabilities.',
       fallbackCode: GroupListeningErrorCode.transportUnavailable,
     );
-    return GroupListeningCapabilityDiscovery(
+    final discovery = GroupListeningCapabilityDiscovery(
       service: _stringValue(data['service']),
       apiVersion: _stringValue(data['api_version']),
       supportedProtocolVersions: _stringListValue(
@@ -566,6 +594,8 @@ class VoyageGroupListeningHttpClient implements GroupListeningHttpClient {
         milliseconds: _intValue(data['member_stale_timeout_ms']),
       ),
     );
+    _ensureDiscoverySupportsCurrentProtocol(discovery);
+    return discovery;
   }
 
   @override
@@ -705,6 +735,67 @@ class VoyageGroupListeningHttpClient implements GroupListeningHttpClient {
       leftMemberId: _stringValue(data['left_member_id']),
       roomStatus: _roomStatusFromWire(data['room_status']),
       roomVersion: _intValue(data['room_version']),
+    );
+  }
+
+  @override
+  Future<GroupListeningCloseRoomResponse> closeRoom(
+    GroupListeningSessionRuntimeContext session, {
+    int? expectedRoomVersion,
+  }) async {
+    final data = await _sendJson(
+      method: 'POST',
+      uri: _voyagePathUri(session.voyageBaseUrl, <String>[
+        'api',
+        'v1',
+        'rooms',
+        session.roomId,
+        'close',
+      ]),
+      accessToken: session.accessToken,
+      includeProtocolHeader: true,
+      body: <String, Object?>{
+        if (expectedRoomVersion != null)
+          'expected_room_version': expectedRoomVersion,
+      },
+      fallbackMessage: 'Unable to close Voyage room.',
+      fallbackCode: GroupListeningErrorCode.transportUnavailable,
+    );
+    return GroupListeningCloseRoomResponse(
+      roomId: _stringValue(data['room_id']),
+      roomStatus: _roomStatusFromWire(data['room_status']),
+      roomVersion: _intValue(data['room_version']),
+      closedAt: _dateTimeFromEpochMs(data['closed_at_ms']),
+    );
+  }
+
+  @override
+  Future<GroupListeningRotateInviteResponse> rotateInvite(
+    GroupListeningSessionRuntimeContext session, {
+    int? expectedRoomVersion,
+  }) async {
+    final data = await _sendJson(
+      method: 'POST',
+      uri: _voyagePathUri(session.voyageBaseUrl, <String>[
+        'api',
+        'v1',
+        'rooms',
+        session.roomId,
+        'rotate-invite',
+      ]),
+      accessToken: session.accessToken,
+      includeProtocolHeader: true,
+      body: <String, Object?>{
+        if (expectedRoomVersion != null)
+          'expected_room_version': expectedRoomVersion,
+      },
+      fallbackMessage: 'Unable to rotate Voyage invite.',
+      fallbackCode: GroupListeningErrorCode.transportUnavailable,
+    );
+    return GroupListeningRotateInviteResponse(
+      roomId: _stringValue(data['room_id']),
+      roomVersion: _intValue(data['room_version']),
+      inviteCode: _stringValue(data['invite_code']),
     );
   }
 
@@ -912,6 +1003,7 @@ class _IOWebSocketGroupListeningRealtimeConnection
   void _handleRawMessage(dynamic rawMessage) {
     try {
       final envelope = _mapValue(_decodeJsonBody(rawMessage));
+      _validateProtocolVersion(envelope['protocol_version']);
       final frameType = _stringValue(envelope['type']);
       final serverTime = _dateTimeFromEpochMs(envelope['server_time_ms']);
       final data = envelope['data'];
@@ -1002,6 +1094,10 @@ class _IOWebSocketGroupListeningRealtimeConnection
           );
           return;
       }
+    } on GroupListeningRepositoryException catch (error) {
+      _messagesController.add(
+        GroupListeningTransportErrorMessage(error.failure),
+      );
     } on Object catch (error) {
       AppLogger.warning('Failed to decode Voyage websocket frame: $error');
       _messagesController.add(
@@ -1078,6 +1174,16 @@ abstract class GroupListeningHttpClient {
     GroupListeningSessionRuntimeContext session, {
     int? lastAppliedRoomVersion,
   });
+
+  Future<GroupListeningCloseRoomResponse> closeRoom(
+    GroupListeningSessionRuntimeContext session, {
+    int? expectedRoomVersion,
+  });
+
+  Future<GroupListeningRotateInviteResponse> rotateInvite(
+    GroupListeningSessionRuntimeContext session, {
+    int? expectedRoomVersion,
+  });
 }
 
 abstract class GroupListeningRealtimeTransportClient {
@@ -1121,6 +1227,16 @@ abstract class GroupListeningRepository {
   Future<GroupListeningLeaveResponse> leaveRoom(
     GroupListeningSessionRuntimeContext session, {
     int? lastAppliedRoomVersion,
+  });
+
+  Future<GroupListeningCloseRoomResponse> closeRoom(
+    GroupListeningSessionRuntimeContext session, {
+    int? expectedRoomVersion,
+  });
+
+  Future<GroupListeningRotateInviteResponse> rotateInvite(
+    GroupListeningSessionRuntimeContext session, {
+    int? expectedRoomVersion,
   });
 
   Future<GroupListeningRealtimeConnection> connect(
@@ -1194,6 +1310,22 @@ class UnsupportedGroupListeningHttpClient implements GroupListeningHttpClient {
   Future<GroupListeningJoinResponse> rejoinRoom(
     GroupListeningRejoinRoomRequest request,
   ) {
+    throw _unsupported();
+  }
+
+  @override
+  Future<GroupListeningCloseRoomResponse> closeRoom(
+    GroupListeningSessionRuntimeContext session, {
+    int? expectedRoomVersion,
+  }) {
+    throw _unsupported();
+  }
+
+  @override
+  Future<GroupListeningRotateInviteResponse> rotateInvite(
+    GroupListeningSessionRuntimeContext session, {
+    int? expectedRoomVersion,
+  }) {
     throw _unsupported();
   }
 }
@@ -1295,6 +1427,28 @@ class DefaultGroupListeningRepository implements GroupListeningRepository {
     GroupListeningRejoinRoomRequest request,
   ) {
     return _httpClient.rejoinRoom(request);
+  }
+
+  @override
+  Future<GroupListeningCloseRoomResponse> closeRoom(
+    GroupListeningSessionRuntimeContext session, {
+    int? expectedRoomVersion,
+  }) {
+    return _httpClient.closeRoom(
+      session,
+      expectedRoomVersion: expectedRoomVersion,
+    );
+  }
+
+  @override
+  Future<GroupListeningRotateInviteResponse> rotateInvite(
+    GroupListeningSessionRuntimeContext session, {
+    int? expectedRoomVersion,
+  }) {
+    return _httpClient.rotateInvite(
+      session,
+      expectedRoomVersion: expectedRoomVersion,
+    );
   }
 }
 
@@ -1476,6 +1630,24 @@ List<GroupListeningAvailableRoomSummary> _availableRoomsFromData(
       .toList(growable: false);
 }
 
+void _ensureDiscoverySupportsCurrentProtocol(
+  GroupListeningCapabilityDiscovery discovery,
+) {
+  if (discovery.supportsCurrentProtocol) {
+    return;
+  }
+  throw GroupListeningRepositoryException(
+    GroupListeningErrorState(
+      code: GroupListeningErrorCode.unsupportedProtocolVersion,
+      message: 'Voyage does not support $voyageProtocolVersion.',
+      details: <String, Object?>{
+        'supported_protocol_versions': discovery.supportedProtocolVersions,
+        'latest_protocol_version': discovery.latestProtocolVersion,
+      },
+    ),
+  );
+}
+
 String _roomFingerprintFromSnapshot(Map<String, dynamic> snapshot) {
   return _stringValue(snapshot['source_server_fingerprint']);
 }
@@ -1486,6 +1658,7 @@ GroupListeningRoomState _roomStateFromJson(
   GroupListeningMemberRole? fallbackSelfRole,
   int? fallbackSelfAuthVersion,
 }) {
+  _validateProtocolVersion(json['protocol_version']);
   final roomVersion = _intValue(json['room_version']);
   final authVersion = _intValue(json['auth_version']);
   final queue = _queueStateFromJson(_mapValue(json['queue']));
@@ -1716,6 +1889,43 @@ Map<String, dynamic> _outboundTransportEnvelope(
               .toList(growable: false),
         },
       };
+    case GroupListeningMutationType.queueAdd:
+      final queue = message.queue;
+      final queueEntryId = message.targetQueueEntryId?.trim();
+      if (queue == null || queueEntryId == null || queueEntryId.isEmpty) {
+        throw const GroupListeningRepositoryException(
+          GroupListeningErrorState(
+            code: GroupListeningErrorCode.validationFailed,
+            message: 'Queue add mutations require a queue entry target.',
+          ),
+        );
+      }
+      GroupListeningQueueEntry? queueEntry;
+      for (final entry in queue.entries) {
+        if (entry.queueEntryId == queueEntryId) {
+          queueEntry = entry;
+          break;
+        }
+      }
+      if (queueEntry == null) {
+        throw const GroupListeningRepositoryException(
+          GroupListeningErrorState(
+            code: GroupListeningErrorCode.validationFailed,
+            message: 'Queue add target was not found in the queue payload.',
+          ),
+        );
+      }
+      return <String, Object?>{
+        'type': 'mutation.queue_add',
+        'data': <String, Object?>{
+          'expected_room_version': message.expectedRoomVersion,
+          'client_mutation_id': message.clientMutationId,
+          'client_connection_id': message.clientConnectionId,
+          'client_seq': message.clientSequence,
+          'song_id': queueEntry.songId,
+          'queue_entry_id': queueEntry.queueEntryId,
+        },
+      };
     case GroupListeningMutationType.queueRemove:
       final queueEntryId = message.targetQueueEntryId?.trim();
       if (queueEntryId == null || queueEntryId.isEmpty) {
@@ -1776,14 +1986,6 @@ Map<String, dynamic> _outboundTransportEnvelope(
           'target_member_id': targetMemberId,
         },
       };
-    case GroupListeningMutationType.queueAdd:
-      throw const GroupListeningRepositoryException(
-        GroupListeningErrorState(
-          code: GroupListeningErrorCode.validationFailed,
-          message:
-              'Queue add mutations are not implemented by the current Navis client.',
-        ),
-      );
   }
 }
 
@@ -1887,6 +2089,7 @@ GroupListeningErrorCode _errorCodeFromWire(Object? value) {
     'revoked' => GroupListeningErrorCode.revoked,
     'rate_limited' => GroupListeningErrorCode.rateLimited,
     'validation_failed' => GroupListeningErrorCode.validationFailed,
+    'payload_too_large' => GroupListeningErrorCode.payloadTooLarge,
     'internal_error' => GroupListeningErrorCode.internalError,
     _ => GroupListeningErrorCode.unknown,
   };
@@ -1896,7 +2099,9 @@ GroupListeningMemberRole _memberRoleFromWire(Object? value) {
   return switch (_stringValue(value)) {
     'host' => GroupListeningMemberRole.host,
     'member' => GroupListeningMemberRole.member,
-    _ => GroupListeningMemberRole.member,
+    final unknown => throw _protocolFormatFailure(
+      'Unsupported Voyage member role: $unknown.',
+    ),
   };
 }
 
@@ -1905,7 +2110,9 @@ GroupListeningMemberPresenceState _presenceStateFromWire(Object? value) {
     'active' => GroupListeningMemberPresenceState.active,
     'stale' => GroupListeningMemberPresenceState.stale,
     'offline' => GroupListeningMemberPresenceState.offline,
-    _ => GroupListeningMemberPresenceState.offline,
+    final unknown => throw _protocolFormatFailure(
+      'Unsupported Voyage presence state: $unknown.',
+    ),
   };
 }
 
@@ -1913,7 +2120,9 @@ GroupListeningRoomStatus _roomStatusFromWire(Object? value) {
   return switch (_stringValue(value)) {
     'active' => GroupListeningRoomStatus.active,
     'closed' => GroupListeningRoomStatus.closed,
-    _ => GroupListeningRoomStatus.closed,
+    final unknown => throw _protocolFormatFailure(
+      'Unsupported Voyage room status: $unknown.',
+    ),
   };
 }
 
@@ -1921,7 +2130,9 @@ GroupListeningPlaybackStatus _playbackStatusFromWire(Object? value) {
   return switch (_stringValue(value)) {
     'playing' => GroupListeningPlaybackStatus.playing,
     'paused' => GroupListeningPlaybackStatus.paused,
-    _ => GroupListeningPlaybackStatus.paused,
+    final unknown => throw _protocolFormatFailure(
+      'Unsupported Voyage playback state: $unknown.',
+    ),
   };
 }
 
@@ -1933,7 +2144,9 @@ GroupListeningPlaybackAnchorReason _anchorReasonFromWire(Object? value) {
     'track_change' => GroupListeningPlaybackAnchorReason.trackChange,
     'sync_tick' => GroupListeningPlaybackAnchorReason.syncTick,
     'snapshot' => GroupListeningPlaybackAnchorReason.snapshot,
-    _ => GroupListeningPlaybackAnchorReason.snapshot,
+    final unknown => throw _protocolFormatFailure(
+      'Unsupported Voyage playback anchor reason: $unknown.',
+    ),
   };
 }
 
@@ -1957,14 +2170,46 @@ GroupListeningRoomEventType _roomEventTypeFromWire(Object? value) {
     'queue_add' => GroupListeningRoomEventType.queueAdd,
     'queue_remove' => GroupListeningRoomEventType.queueRemove,
     'queue_replace' => GroupListeningRoomEventType.queueReplace,
-    'leader_change' => GroupListeningRoomEventType.leaderChange,
+    'transfer_host' => GroupListeningRoomEventType.transferHost,
     'member_joined' => GroupListeningRoomEventType.memberJoined,
     'member_left' => GroupListeningRoomEventType.memberLeft,
     'member_removed' => GroupListeningRoomEventType.memberRemoved,
     'room_closed' => GroupListeningRoomEventType.roomClosed,
     'sync_tick' => GroupListeningRoomEventType.syncTick,
-    _ => GroupListeningRoomEventType.syncTick,
+    _ => throw const GroupListeningRepositoryException(
+      GroupListeningErrorState(
+        code: GroupListeningErrorCode.snapshotRequired,
+        message: 'Voyage sent an unsupported room event.',
+        retryable: true,
+      ),
+    ),
   };
+}
+
+GroupListeningRepositoryException _protocolFormatFailure(String message) {
+  return GroupListeningRepositoryException(
+    GroupListeningErrorState(
+      code: GroupListeningErrorCode.validationFailed,
+      message: message,
+    ),
+  );
+}
+
+void _validateProtocolVersion(Object? value) {
+  final protocolVersion = _stringValue(value);
+  if (protocolVersion == voyageProtocolVersion) {
+    return;
+  }
+  throw GroupListeningRepositoryException(
+    GroupListeningErrorState(
+      code: GroupListeningErrorCode.unsupportedProtocolVersion,
+      message: 'Voyage protocol $protocolVersion is not supported.',
+      details: <String, Object?>{
+        'expected_protocol_version': voyageProtocolVersion,
+        'received_protocol_version': protocolVersion,
+      },
+    ),
+  );
 }
 
 String _playbackMutationEventType(GroupListeningPlaybackAnchorReason reason) {

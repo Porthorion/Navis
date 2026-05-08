@@ -2370,7 +2370,7 @@ Navis-side work depends on a stable Voyage contract for:
 - create / join / leave room flows
 - room snapshot fetch for late join and reconnect
 - websocket event stream with ordered room versions
-- transport events: `play`, `pause`, `seek`, `queue_add`, `queue_remove`, `track_change`, `leader_change`
+- transport events: `play`, `pause`, `seek`, `queue_add`, `queue_remove`, `track_change`, `transfer_host`
 - authoritative playback anchor payloads
 - source-server fingerprinting for same-server room isolation
 - room/member authorization and token semantics
@@ -2532,7 +2532,7 @@ the matching Voyage protocol section.
   - `queue_add`
   - `queue_remove`
   - `queue_replace`
-  - `leader_change`
+  - `transfer_host`
   - `member_joined`
   - `member_left`
   - `member_removed`

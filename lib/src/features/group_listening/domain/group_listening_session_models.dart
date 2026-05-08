@@ -47,7 +47,7 @@ enum GroupListeningRoomEventType {
   queueAdd,
   queueRemove,
   queueReplace,
-  leaderChange,
+  transferHost,
   memberJoined,
   memberLeft,
   memberRemoved,
@@ -71,6 +71,7 @@ enum GroupListeningErrorCode {
   removed,
   revoked,
   rateLimited,
+  payloadTooLarge,
   validationFailed,
   configurationMissing,
   insecureTransport,
@@ -643,13 +644,40 @@ class GroupListeningRoomState {
       updates: event.members,
       removedMemberIds: event.removedMemberIds,
     );
+    final nextHostMemberId = event.hostMemberId ?? hostMemberId;
+    final explicitSelf = event.self;
+    GroupListeningMemberState? updatedSelfMember;
+    for (final member in updatedMembers) {
+      if (member.memberId == self.memberId) {
+        updatedSelfMember = member;
+        break;
+      }
+    }
+    final nextSelfRole =
+        explicitSelf?.role ??
+        updatedSelfMember?.role ??
+        (self.memberId == nextHostMemberId
+            ? GroupListeningMemberRole.host
+            : self.role == GroupListeningMemberRole.host
+            ? GroupListeningMemberRole.member
+            : self.role);
+    final nextRoomStatus = event.roomStatus ?? roomStatus;
+    final nextSelf =
+        explicitSelf ??
+        self.copyWith(
+          role: nextSelfRole,
+          canControl:
+              nextRoomStatus == GroupListeningRoomStatus.active &&
+              nextSelfRole == GroupListeningMemberRole.host,
+          authVersion: event.authVersion,
+        );
     return copyWith(
-      roomStatus: event.roomStatus,
+      roomStatus: nextRoomStatus,
       roomVersion: event.roomVersion,
       presenceVersion: event.presenceVersion,
       authVersion: event.authVersion,
-      hostMemberId: event.hostMemberId,
-      self: event.self,
+      hostMemberId: nextHostMemberId,
+      self: nextSelf,
       members: updatedMembers,
       queue: event.queue,
       playbackAnchor: event.playbackAnchor,

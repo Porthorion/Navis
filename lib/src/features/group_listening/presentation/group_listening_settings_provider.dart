@@ -10,14 +10,17 @@ class GroupListeningSettings {
   const GroupListeningSettings({
     required this.enabled,
     this.voyageServerUrl,
+    required this.autoFollowHost,
   });
 
   const GroupListeningSettings.defaults()
     : enabled = false,
-      voyageServerUrl = null;
+      voyageServerUrl = null,
+      autoFollowHost = true;
 
   final bool enabled;
   final String? voyageServerUrl;
+  final bool autoFollowHost;
 }
 
 @immutable
@@ -38,6 +41,7 @@ final groupListeningSettingsProvider = Provider<GroupListeningSettings>((ref) {
   return GroupListeningSettings(
     enabled: settings.groupListeningEnabled,
     voyageServerUrl: settings.voyageServerUrl,
+    autoFollowHost: settings.voyageAutoFollowHost,
   );
 });
 
