@@ -67,6 +67,9 @@ class _ActionRowState extends ConsumerState<_ActionRow>
     final instantMix = ref.watch(instantMixProvider);
     final sameVibes = ref.watch(sameVibesProvider);
     final preferredMixMode = ref.watch(preferredMixModeProvider);
+    final showListenTogether = ref.watch(
+      groupListeningSettingsProvider.select((settings) => settings.enabled),
+    );
     final mixActive = preferredMixMode == PreferredMixMode.legacyInstantMix
         ? instantMix.active
         : sameVibes.active;
@@ -109,6 +112,7 @@ class _ActionRowState extends ConsumerState<_ActionRow>
             ? widget.onOpenQueuePanel
             : () => NavService.showQueue(context, ref),
       ),
+      if (showListenTogether) const GroupListeningSessionButton(),
       _NowPlayingActionButton(
         icon: mixIcon,
         label: l10n.nowPlayingInstantMixLabel,

@@ -24,7 +24,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/changelog/changelog_data.dart';
 import 'package:navis/src/features/changelog/changelog_dialog.dart';
 import 'package:navis/src/features/changelog/changelog_provider.dart';
-import 'package:navis/src/features/group_listening/presentation/group_listening_session_controller.dart';
+import 'package:navis/src/features/group_listening/presentation/group_listening_settings_provider.dart';
 import 'package:navis/src/features/group_listening/presentation/group_listening_settings_screen.dart';
 import 'package:navis/src/features/home/domain/home_section_ids.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
@@ -2922,9 +2922,7 @@ class _HomeFilterChipRow extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
     final colorScheme = Theme.of(context).colorScheme;
     final listenTogetherAvailable = ref.watch(
-      groupListeningVoyageConnectionStatusProvider.select(
-        (status) => status.isHealthy,
-      ),
+      groupListeningSettingsProvider.select((settings) => settings.enabled),
     );
     final likedOnly = ref.watch(homeLikedOnlyFilterProvider);
     final downloadedOnly = ref.watch(downloadedOnlyFilterProvider);
@@ -3047,9 +3045,7 @@ class _DesktopHomeQuickActions extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final likedOnly = ref.watch(homeLikedOnlyFilterProvider);
     final listenTogetherAvailable = ref.watch(
-      groupListeningVoyageConnectionStatusProvider.select(
-        (status) => status.isHealthy,
-      ),
+      groupListeningSettingsProvider.select((settings) => settings.enabled),
     );
     final downloadedOnly = ref.watch(downloadedOnlyFilterProvider);
     final downloadedSongIds = downloadedOnly

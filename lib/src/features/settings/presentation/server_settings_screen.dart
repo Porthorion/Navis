@@ -547,7 +547,7 @@ class _ListenTogetherCard extends StatelessWidget {
         children: <Widget>[
           SwitchListTile(
             key: const ValueKey('groupListeningEnabledSwitch'),
-            secondary: const Icon(Icons.headset_mic_outlined),
+            secondary: enabled ? const Icon(Icons.headset_mic_outlined) : null,
             title: const Text('Enable Listen Together'),
             subtitle: Text(_enableSubtitle),
             value: enabled,

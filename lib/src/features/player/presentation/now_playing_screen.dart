@@ -20,6 +20,8 @@ import 'package:navis/src/common_widgets/lyrics_display_widget.dart';
 import 'package:navis/src/common_widgets/rating_widget.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
+import 'package:navis/src/features/group_listening/presentation/group_listening_active_session_indicator.dart';
+import 'package:navis/src/features/group_listening/presentation/group_listening_settings_provider.dart';
 import 'package:navis/src/features/library/domain/set_rating.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/domain/lyrics_resolution.dart';

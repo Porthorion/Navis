@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/features/group_listening/domain/group_listening_session_models.dart';
 import 'package:navis/src/features/group_listening/presentation/group_listening_session_controller.dart';
+import 'package:navis/src/features/group_listening/presentation/group_listening_settings_provider.dart';
 import 'package:navis/src/features/group_listening/presentation/group_listening_settings_screen.dart';
 
 /// A compact icon button that shows the current group listening state and
@@ -11,6 +12,13 @@ class GroupListeningSessionButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final enabled = ref.watch(
+      groupListeningSettingsProvider.select((settings) => settings.enabled),
+    );
+    if (!enabled) {
+      return const SizedBox.shrink();
+    }
+
     final session = ref.watch(groupListeningSessionControllerProvider);
     final room = session.room;
 
@@ -44,4 +52,3 @@ class GroupListeningSessionButton extends ConsumerWidget {
     );
   }
 }
-

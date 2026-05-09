@@ -722,7 +722,6 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                                   : cs.onSurfaceVariant,
                             ),
                           ),
-                        const GroupListeningSessionButton(),
                       ],
                     ),
                   )
@@ -910,8 +909,6 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                                       : cs.onSurfaceVariant,
                                 ),
                               ),
-                            if (!compactControls)
-                              const GroupListeningSessionButton(),
                             SizedBox(width: compactControls ? 0 : 4),
                           ],
                         ),

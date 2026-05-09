@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/features/group_listening/presentation/group_listening_settings_provider.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -34,7 +35,7 @@ final _testPlaybackProvider =
       _TestPlaybackNotifier.new,
     );
 
-ProviderContainer _createContainer() {
+ProviderContainer _createContainer({List<Override> overrides = const []}) {
   final database = createTestDatabase();
   final container = ProviderContainer(
     overrides: withTestDatabase(
@@ -43,6 +44,7 @@ ProviderContainer _createContainer() {
         playerStateProvider.overrideWith(
           (ref) => ref.watch(_testPlaybackProvider),
         ),
+        ...overrides,
       ],
     ),
   );
@@ -133,4 +135,32 @@ void main() {
     expect(find.text('Lyrics'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'fullscreen action row shows Listen Together next to queue when enabled',
+    (
+      tester,
+    ) async {
+      if (!sqliteAvailable) {
+        return;
+      }
+      setAdaptiveTestViewport(tester, const Size(390, 844));
+      final container = _createContainer(
+        overrides: <Override>[
+          groupListeningSettingsProvider.overrideWithValue(
+            const GroupListeningSettings(enabled: true, autoFollowHost: true),
+          ),
+        ],
+      );
+      container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+      await _pumpNowPlaying(tester, container);
+
+      expect(find.byTooltip('Queue'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('groupListeningSessionButton')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
 }

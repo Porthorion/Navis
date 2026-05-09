@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/features/group_listening/domain/group_listening_session_models.dart';
 import 'package:navis/src/features/group_listening/presentation/group_listening_active_session_indicator.dart';
 import 'package:navis/src/features/group_listening/presentation/group_listening_session_controller.dart';
+import 'package:navis/src/features/group_listening/presentation/group_listening_settings_provider.dart';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -29,6 +30,9 @@ Future<void> pumpSessionButton(
       overrides: [
         groupListeningSessionControllerProvider.overrideWith(
           () => _StaticGroupListeningSessionController(state),
+        ),
+        groupListeningSettingsProvider.overrideWithValue(
+          const GroupListeningSettings(enabled: true, autoFollowHost: true),
         ),
       ],
       child: const MaterialApp(
@@ -89,6 +93,35 @@ void main() {
       );
 
       expect(find.byIcon(Icons.sync_problem_outlined), findsOneWidget);
+    });
+
+    testWidgets('hides the session icon when Listen Together is disabled', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            groupListeningSessionControllerProvider.overrideWith(
+              () => _StaticGroupListeningSessionController(_idleState()),
+            ),
+            groupListeningSettingsProvider.overrideWithValue(
+              const GroupListeningSettings(
+                enabled: false,
+                autoFollowHost: true,
+              ),
+            ),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(body: GroupListeningSessionButton()),
+          ),
+        ),
+      );
+
+      expect(
+        find.byKey(const ValueKey('groupListeningSessionButton')),
+        findsNothing,
+      );
+      expect(find.byIcon(Icons.people_alt_outlined), findsNothing);
     });
   });
 }
