@@ -113,10 +113,12 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
         androidNotificationOngoing: false,
         androidStopForegroundOnPause: false,
         androidBrowsableRootExtras: const <String, dynamic>{
-          'android.media.browse.CONTENT_STYLE_SUPPORTED': true,
-          'android.media.browse.CONTENT_STYLE_BROWSABLE_HINT': 2,
-          'android.media.browse.CONTENT_STYLE_PLAYABLE_HINT': 1,
-          'android.media.browse.SEARCH_SUPPORTED': true,
+          AndroidAutoConstants.contentStyleSupportedKey: true,
+          AndroidAutoConstants.contentStyleBrowsableHintKey:
+              AndroidAutoConstants.contentStyleGrid,
+          AndroidAutoConstants.contentStylePlayableHintKey:
+              AndroidAutoConstants.contentStyleList,
+          AndroidAutoConstants.searchSupportedKey: true,
         },
       ),
     ).then<NavisPlaybackHandler>((handler) => handler);

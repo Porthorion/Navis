@@ -1,5 +1,85 @@
 part of 'navis_audio_handler.dart';
 
+enum NavisAndroidAutoSearchType {
+  empty,
+  general,
+  artist,
+  album,
+  playlist,
+  genre,
+  title,
+}
+
+final class NavisAndroidAutoSearchRequest {
+  const NavisAndroidAutoSearchRequest({
+    required this.type,
+    required this.term,
+  });
+
+  final NavisAndroidAutoSearchType type;
+  final String term;
+}
+
+@visibleForTesting
+NavisAndroidAutoSearchRequest navisAndroidAutoSearchRequest(
+  String query, [
+  Map<String, dynamic>? extras,
+]) {
+  final focus = _stringExtra(extras, AndroidAutoConstants.mediaFocusKey);
+  final title = _stringExtra(extras, AndroidAutoConstants.mediaTitleKey);
+  final artist = _stringExtra(extras, AndroidAutoConstants.mediaArtistKey);
+  final album = _stringExtra(extras, AndroidAutoConstants.mediaAlbumKey);
+  final playlist = _stringExtra(extras, AndroidAutoConstants.mediaPlaylistKey);
+  final genre = _stringExtra(extras, AndroidAutoConstants.mediaGenreKey);
+  final fallback = query.trim();
+
+  NavisAndroidAutoSearchRequest request(
+    NavisAndroidAutoSearchType type,
+    String? value,
+  ) {
+    final term = (value ?? fallback).trim();
+    return term.isEmpty
+        ? const NavisAndroidAutoSearchRequest(
+            type: NavisAndroidAutoSearchType.empty,
+            term: '',
+          )
+        : NavisAndroidAutoSearchRequest(type: type, term: term);
+  }
+
+  switch (focus) {
+    case AndroidAutoConstants.mediaFocusArtist:
+      return request(NavisAndroidAutoSearchType.artist, artist);
+    case AndroidAutoConstants.mediaFocusAlbum:
+      return request(NavisAndroidAutoSearchType.album, album);
+    case AndroidAutoConstants.mediaFocusPlaylist:
+      return request(NavisAndroidAutoSearchType.playlist, playlist);
+    case AndroidAutoConstants.mediaFocusGenre:
+      return request(NavisAndroidAutoSearchType.genre, genre);
+    case AndroidAutoConstants.mediaFocusSong:
+      return request(NavisAndroidAutoSearchType.title, title);
+  }
+
+  if (title != null) return request(NavisAndroidAutoSearchType.title, title);
+  if (artist != null) return request(NavisAndroidAutoSearchType.artist, artist);
+  if (album != null) return request(NavisAndroidAutoSearchType.album, album);
+  if (playlist != null) {
+    return request(NavisAndroidAutoSearchType.playlist, playlist);
+  }
+  if (genre != null) return request(NavisAndroidAutoSearchType.genre, genre);
+  return request(NavisAndroidAutoSearchType.general, fallback);
+}
+
+String? _stringExtra(Map<String, dynamic>? extras, String key) {
+  final value = extras?[key];
+  if (value is! String) return null;
+  final trimmed = value.trim();
+  return trimmed.isEmpty ? null : trimmed;
+}
+
+bool _containsIgnoreCase(String value, String query) {
+  return value.toLowerCase().contains(query.toLowerCase());
+}
+
 @visibleForTesting
 bool navisShouldPreloadQueue({
   required bool autoPlay,

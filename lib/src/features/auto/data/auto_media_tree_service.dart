@@ -18,6 +18,7 @@ import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/daos/playlist_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auto/data/auto_media_id.dart';
+import 'package:navis/src/features/auto/domain/android_auto_constants.dart';
 import 'package:navis/src/features/auto/domain/auto_content_style.dart';
 import 'package:navis/src/utils/app_logger.dart';
 
@@ -41,15 +42,19 @@ class AutoMediaTreeService {
     required PlaylistDao playlistDao,
     required HistoryDao historyDao,
     required SubsonicApiClient? Function() readApiClient,
+    Future<Set<String>> Function()? readDownloadedSongIds,
   }) : _libraryDao = libraryDao,
        _playlistDao = playlistDao,
        _historyDao = historyDao,
-       _readApiClient = readApiClient;
+       _readApiClient = readApiClient,
+       _readDownloadedSongIds =
+           readDownloadedSongIds ?? (() async => const <String>{});
 
   final LibraryDao _libraryDao;
   final PlaylistDao _playlistDao;
   final HistoryDao _historyDao;
   final SubsonicApiClient? Function() _readApiClient;
+  final Future<Set<String>> Function() _readDownloadedSongIds;
 
   // ── Root cache ────────────────────────────────────────────────────────────
 
@@ -68,7 +73,7 @@ class AutoMediaTreeService {
   ]) async {
     try {
       return await _getChildrenImpl(parentMediaId);
-    } catch (error, stackTrace) {
+    } on Object catch (error, stackTrace) {
       AppLogger.warning(
         'AutoMediaTreeService.getChildren($parentMediaId) failed: '
         '$error\n$stackTrace',
@@ -115,6 +120,11 @@ class AutoMediaTreeService {
         extras: AutoContentStyle.listBrowsableListPlayable,
       ),
       _browsableItem(
+        id: AutoMediaRoot.artists,
+        title: 'Artists',
+        extras: AutoContentStyle.gridBrowsableListPlayable,
+      ),
+      _browsableItem(
         id: AutoMediaRoot.playlists,
         title: 'Playlists',
         extras: AutoContentStyle.listBrowsableListPlayable,
@@ -133,42 +143,37 @@ class AutoMediaTreeService {
 
   Future<List<MediaItem>> _getPlaylists() async {
     final playlists = await _playlistDao.watchPlaylists().first;
-    return playlists
+    final items = playlists
         .take(_kMaxBrowseItems)
-        .map((p) {
-          return _browsableItem(
-            id: AutoMediaId.playlist(p.id),
-            title: p.name,
-            artUri: _coverArtUri(p.coverArt),
-            extras: AutoContentStyle.listBrowsableListPlayable,
-          );
-        })
+        .map(_playlistToMediaItem)
         .toList(growable: false);
+    return items.isEmpty
+        ? _emptyItems(AutoMediaRoot.playlists, 'No playlists')
+        : items;
   }
 
   Future<List<MediaItem>> _getArtists() async {
     final artists = await _libraryDao.watchArtists().first;
-    return artists
+    final items = artists
         .take(_kMaxBrowseItems)
-        .map((a) {
-          return _browsableItem(
-            id: AutoMediaId.artist(a.id),
-            title: a.name,
-            artUri: _coverArtUri(a.coverArt),
-            extras: AutoContentStyle.gridBrowsableListPlayable,
-          );
-        })
+        .map(_artistToMediaItem)
         .toList(growable: false);
+    return items.isEmpty
+        ? _emptyItems(AutoMediaRoot.artists, 'No artists')
+        : items;
   }
 
   Future<List<MediaItem>> _getAlbums() async {
     final albums = await _libraryDao.watchAllAlbums().first;
-    return albums
+    final items = albums
         .take(_kMaxBrowseItems)
         .map(_albumToMediaItem)
         .toList(
           growable: false,
         );
+    return items.isEmpty
+        ? _emptyItems(AutoMediaRoot.albums, 'No albums')
+        : items;
   }
 
   Future<List<MediaItem>> _getMoreChildren() async {
@@ -206,27 +211,46 @@ class AutoMediaTreeService {
 
   Future<List<MediaItem>> _getLikedSongs() async {
     final songs = await _libraryDao.watchAllStarredSongs().first;
-    return songs
+    final downloadedSongIds = await _readDownloadedSongIdsSafe();
+    final items = songs
         .take(_kMaxBrowseItems)
-        .map(_songToMediaItem)
+        .map(
+          (song) =>
+              _songToMediaItem(song, downloadedSongIds: downloadedSongIds),
+        )
         .toList(
           growable: false,
         );
+    return items.isEmpty
+        ? _emptyItems(AutoMediaRoot.likedSongs, 'No liked songs')
+        : items;
   }
 
   Future<List<MediaItem>> _getLikedAlbums() async {
     final albums = await _libraryDao.watchLikedAlbums().first;
-    return albums
+    final items = albums
         .take(_kMaxBrowseItems)
         .map(_albumToMediaItem)
         .toList(
           growable: false,
         );
+    return items.isEmpty
+        ? _emptyItems(AutoMediaRoot.likedAlbums, 'No liked albums')
+        : items;
   }
 
   Future<List<MediaItem>> _getRecentlyPlayed() async {
     final songs = await _historyDao.watchRecentlyPlayedSongs(limit: 50).first;
-    return songs.map(_songToMediaItem).toList(growable: false);
+    final downloadedSongIds = await _readDownloadedSongIdsSafe();
+    final items = songs
+        .map(
+          (song) =>
+              _songToMediaItem(song, downloadedSongIds: downloadedSongIds),
+        )
+        .toList(growable: false);
+    return items.isEmpty
+        ? _emptyItems(AutoMediaRoot.recent, 'No recent plays')
+        : items;
   }
 
   Future<List<MediaItem>> _getEntityChildren(String parentMediaId) async {
@@ -253,12 +277,24 @@ class AutoMediaTreeService {
 
   Future<List<MediaItem>> _getAlbumSongs(String albumId) async {
     final songs = await _libraryDao.watchSongsByAlbum(albumId).first;
-    return songs.map(_songToMediaItem).toList(growable: false);
+    final downloadedSongIds = await _readDownloadedSongIdsSafe();
+    return songs
+        .map(
+          (song) =>
+              _songToMediaItem(song, downloadedSongIds: downloadedSongIds),
+        )
+        .toList(growable: false);
   }
 
   Future<List<MediaItem>> _getPlaylistSongs(String playlistId) async {
     final songs = await _playlistDao.watchPlaylistSongs(playlistId).first;
-    return songs.map(_songToMediaItem).toList(growable: false);
+    final downloadedSongIds = await _readDownloadedSongIdsSafe();
+    return songs
+        .map(
+          (song) =>
+              _songToMediaItem(song, downloadedSongIds: downloadedSongIds),
+        )
+        .toList(growable: false);
   }
 
   // ── getMediaItem ──────────────────────────────────────────────────────────
@@ -267,7 +303,7 @@ class AutoMediaTreeService {
   Future<MediaItem?> getMediaItem(String mediaId) async {
     try {
       return await _getMediaItemImpl(mediaId);
-    } catch (error, stackTrace) {
+    } on Object catch (error, stackTrace) {
       AppLogger.warning(
         'AutoMediaTreeService.getMediaItem($mediaId) failed: '
         '$error\n$stackTrace',
@@ -292,7 +328,11 @@ class AutoMediaTreeService {
   Future<MediaItem?> _getSongMediaItem(String songId) async {
     final songs = await _libraryDao.getSongsByIds([songId]);
     if (songs.isEmpty) return null;
-    return _songToMediaItem(songs.first);
+    final downloadedSongIds = await _readDownloadedSongIdsSafe();
+    return _songToMediaItem(
+      songs.first,
+      downloadedSongIds: downloadedSongIds,
+    );
   }
 
   Future<MediaItem?> _getAlbumMediaItem(String albumId) async {
@@ -309,21 +349,13 @@ class AutoMediaTreeService {
     final match = artists.where((a) => a.id == artistId);
     if (match.isEmpty) return null;
     final artist = match.first;
-    return _browsableItem(
-      id: AutoMediaId.artist(artist.id),
-      title: artist.name,
-      artUri: _coverArtUri(artist.coverArt),
-    );
+    return _artistToMediaItem(artist);
   }
 
   Future<MediaItem?> _getPlaylistMediaItem(String playlistId) async {
     final playlist = await _playlistDao.watchPlaylistById(playlistId).first;
     if (playlist == null) return null;
-    return _browsableItem(
-      id: AutoMediaId.playlist(playlist.id),
-      title: playlist.name,
-      artUri: _coverArtUri(playlist.coverArt),
-    );
+    return _playlistToMediaItem(playlist);
   }
 
   // ── search ────────────────────────────────────────────────────────────────
@@ -380,8 +412,21 @@ class AutoMediaTreeService {
   }
 
   Future<List<MediaItem>> _searchLocalDb(String query) async {
-    final songs = await _libraryDao.searchSongsLocal(query, limit: 30);
-    return songs.map(_songToMediaItem).toList(growable: false);
+    final artists = await _libraryDao.searchArtistsLocal(query, limit: 5);
+    final albums = await _libraryDao.searchAlbumsLocal(query, limit: 10);
+    final playlists = (await _playlistDao.watchPlaylists().first)
+        .where((playlist) => _containsIgnoreCase(playlist.name, query))
+        .take(5)
+        .toList(growable: false);
+    final songs = await _libraryDao.searchSongsLocal(query, limit: 20);
+    final downloadedSongIds = await _readDownloadedSongIdsSafe();
+    return _mapLocalSearchResults(
+      artists,
+      albums,
+      playlists,
+      songs,
+      downloadedSongIds,
+    );
   }
 
   List<MediaItem> _mapSearchResults(
@@ -397,6 +442,10 @@ class AutoMediaTreeService {
           id: AutoMediaId.artist(a.id),
           title: a.name,
           artUri: _coverArtUri(a.coverArt),
+          extras: _statusExtras(
+            favorite: a.starred != null,
+            groupTitle: 'Artists',
+          ),
         ),
       );
     }
@@ -408,6 +457,10 @@ class AutoMediaTreeService {
           title: a.name,
           artist: a.artist,
           artUri: _coverArtUri(a.coverArt),
+          extras: _statusExtras(
+            favorite: a.starred != null,
+            groupTitle: 'Albums',
+          ),
         ),
       );
     }
@@ -424,6 +477,10 @@ class AutoMediaTreeService {
               : null,
           artUri: _coverArtUri(s.coverArt),
           playable: true,
+          extras: _statusExtras(
+            favorite: s.starred != null,
+            groupTitle: 'Songs',
+          ),
         ),
       );
     }
@@ -431,9 +488,38 @@ class AutoMediaTreeService {
     return items;
   }
 
+  List<MediaItem> _mapLocalSearchResults(
+    List<ArtistsTableData> artists,
+    List<AlbumsTableData> albums,
+    List<PlaylistsTableData> playlists,
+    List<SongsTableData> songs,
+    Set<String> downloadedSongIds,
+  ) {
+    final items = <MediaItem>[
+      for (final artist in artists)
+        _artistToMediaItem(artist, groupTitle: 'Artists'),
+      for (final album in albums)
+        _albumToMediaItem(album, groupTitle: 'Albums'),
+      for (final playlist in playlists)
+        _playlistToMediaItem(playlist, groupTitle: 'Playlists'),
+      for (final song in songs)
+        _songToMediaItem(
+          song,
+          downloadedSongIds: downloadedSongIds,
+          groupTitle: 'Songs',
+        ),
+    ];
+
+    return items.isEmpty ? _emptyItems('search', 'No results') : items;
+  }
+
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  MediaItem _songToMediaItem(SongsTableData song) {
+  MediaItem _songToMediaItem(
+    SongsTableData song, {
+    Set<String> downloadedSongIds = const <String>{},
+    String? groupTitle,
+  }) {
     return MediaItem(
       id: AutoMediaId.song(song.id),
       title: song.title,
@@ -444,15 +530,54 @@ class AutoMediaTreeService {
           : null,
       artUri: _coverArtUri(song.coverArt),
       playable: true,
+      extras: _statusExtras(
+        favorite: song.starred != null,
+        downloaded: downloadedSongIds.contains(song.id),
+        groupTitle: groupTitle,
+      ),
     );
   }
 
-  MediaItem _albumToMediaItem(AlbumsTableData album) {
+  MediaItem _albumToMediaItem(AlbumsTableData album, {String? groupTitle}) {
     return _browsableItem(
       id: AutoMediaId.album(album.id),
       title: album.name,
       artist: album.artistName,
       artUri: _coverArtUri(album.coverArt),
+      extras: _statusExtras(
+        favorite: album.starred != null,
+        groupTitle: groupTitle,
+      ),
+    );
+  }
+
+  MediaItem _artistToMediaItem(ArtistsTableData artist, {String? groupTitle}) {
+    return _browsableItem(
+      id: AutoMediaId.artist(artist.id),
+      title: artist.name,
+      artUri: _coverArtUri(artist.coverArt),
+      extras: <String, dynamic>{
+        ...AutoContentStyle.gridBrowsableListPlayable,
+        ..._statusExtras(
+          favorite: artist.starred != null,
+          groupTitle: groupTitle,
+        ),
+      },
+    );
+  }
+
+  MediaItem _playlistToMediaItem(
+    PlaylistsTableData playlist, {
+    String? groupTitle,
+  }) {
+    return _browsableItem(
+      id: AutoMediaId.playlist(playlist.id),
+      title: playlist.name,
+      artUri: _coverArtUri(playlist.coverArt),
+      extras: <String, dynamic>{
+        ...AutoContentStyle.listBrowsableListPlayable,
+        ..._statusExtras(groupTitle: groupTitle),
+      },
     );
   }
 
@@ -471,7 +596,7 @@ class AutoMediaTreeService {
       playable: false,
       extras: <String, dynamic>{
         ...?extras,
-        'browsable': true,
+        AndroidAutoConstants.isBrowsableKey: true,
       },
     );
   }
@@ -496,13 +621,65 @@ class AutoMediaTreeService {
     return api.getCoverArtUrl(id: coverArt, size: _kBrowseArtSize);
   }
 
+  Future<Set<String>> _readDownloadedSongIdsSafe() async {
+    try {
+      return await _readDownloadedSongIds();
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning(
+        'AutoMediaTreeService failed to read downloaded song IDs: '
+        '$error\n$stackTrace',
+      );
+      return const <String>{};
+    }
+  }
+
+  Map<String, dynamic> _statusExtras({
+    bool favorite = false,
+    bool? downloaded,
+    String? groupTitle,
+  }) {
+    final extras = <String, dynamic>{};
+    if (groupTitle != null) {
+      extras[AndroidAutoConstants.contentStyleGroupTitleKey] = groupTitle;
+    }
+    if (favorite) {
+      extras[AndroidAutoConstants.isFavoriteKey] = true;
+    }
+    if (downloaded != null) {
+      extras[AndroidAutoConstants.downloadStatusKey] = downloaded
+          ? AndroidAutoConstants.downloadStatusDownloaded
+          : AndroidAutoConstants.downloadStatusNotDownloaded;
+    }
+    return extras;
+  }
+
+  List<MediaItem> _emptyItems(String parentId, String message) {
+    return [
+      MediaItem(
+        id: 'empty/$parentId',
+        title: message,
+        playable: false,
+        extras: const <String, dynamic>{
+          AndroidAutoConstants.isBrowsableKey: false,
+        },
+      ),
+    ];
+  }
+
   List<MediaItem> _errorItems(String message) {
     return [
       MediaItem(
-        id: 'error/${DateTime.now().millisecondsSinceEpoch}',
+        id: 'error/content',
         title: message,
         playable: false,
+        extras: const <String, dynamic>{
+          AndroidAutoConstants.isBrowsableKey: false,
+        },
       ),
     ];
+  }
+
+  bool _containsIgnoreCase(String value, String query) {
+    return value.toLowerCase().contains(query.toLowerCase());
   }
 }

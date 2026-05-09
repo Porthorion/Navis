@@ -2,6 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/auto/domain/android_auto_constants.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 
@@ -85,6 +86,60 @@ void main() {
       expect(warnings, hasLength(1));
       expect(warnings.single, contains('Linux MPRIS registration failed.'));
       expect(warnings.single, contains('dbus unavailable'));
+    });
+
+    group('Android Auto search request parsing', () {
+      test('empty query without extras requests instant radio', () {
+        final request = navisAndroidAutoSearchRequest('');
+        expect(request.type, NavisAndroidAutoSearchType.empty);
+        expect(request.term, isEmpty);
+      });
+
+      test('artist focus uses the artist extra', () {
+        final request = navisAndroidAutoSearchRequest('', {
+          AndroidAutoConstants.mediaFocusKey:
+              AndroidAutoConstants.mediaFocusArtist,
+          AndroidAutoConstants.mediaArtistKey: 'Nina Simone',
+        });
+        expect(request.type, NavisAndroidAutoSearchType.artist);
+        expect(request.term, 'Nina Simone');
+      });
+
+      test('album focus falls back to query when album extra is absent', () {
+        final request = navisAndroidAutoSearchRequest('Blue', {
+          AndroidAutoConstants.mediaFocusKey:
+              AndroidAutoConstants.mediaFocusAlbum,
+        });
+        expect(request.type, NavisAndroidAutoSearchType.album);
+        expect(request.term, 'Blue');
+      });
+
+      test('playlist, genre, and title extras are classified', () {
+        expect(
+          navisAndroidAutoSearchRequest('', {
+            AndroidAutoConstants.mediaPlaylistKey: 'Road',
+          }).type,
+          NavisAndroidAutoSearchType.playlist,
+        );
+        expect(
+          navisAndroidAutoSearchRequest('', {
+            AndroidAutoConstants.mediaGenreKey: 'Jazz',
+          }).type,
+          NavisAndroidAutoSearchType.genre,
+        );
+        expect(
+          navisAndroidAutoSearchRequest('', {
+            AndroidAutoConstants.mediaTitleKey: 'Feeling Good',
+          }).type,
+          NavisAndroidAutoSearchType.title,
+        );
+      });
+
+      test('plain query uses general search', () {
+        final request = navisAndroidAutoSearchRequest('Queen');
+        expect(request.type, NavisAndroidAutoSearchType.general);
+        expect(request.term, 'Queen');
+      });
     });
 
     test('seek sanitize helper clamps negatives to zero', () {

@@ -18,6 +18,7 @@ import 'package:navis/src/database/daos/star_sync_dao.dart';
 import 'package:navis/src/database/tables/schema_enums.dart' as schema;
 import 'package:navis/src/features/auto/data/auto_media_id.dart';
 import 'package:navis/src/features/auto/data/auto_media_tree_service.dart';
+import 'package:navis/src/features/auto/domain/android_auto_constants.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:navis/src/features/player/data/playback_art_cache.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
@@ -91,6 +92,7 @@ class NavisAudioHandler extends BaseAudioHandler
       playlistDao: _playlistDao,
       historyDao: _historyDao,
       readApiClient: _readApiClient,
+      readDownloadedSongIds: _rollingCacheManager.getPermanentlyCachedSongIds,
     );
   }
 
@@ -342,16 +344,73 @@ class NavisAudioHandler extends BaseAudioHandler
     String query, [
     Map<String, dynamic>? extras,
   ]) async {
-    if (query.isEmpty) {
+    final request = navisAndroidAutoSearchRequest(query, extras);
+    if (request.type == NavisAndroidAutoSearchType.empty) {
       await _playInstantRadio();
       return;
     }
-    final results = await search(query, extras);
-    if (results.isEmpty) return;
 
-    // Find the first playable item.
+    switch (request.type) {
+      case NavisAndroidAutoSearchType.artist:
+        final artists = await _libraryDao.searchArtistsLocal(
+          request.term,
+          limit: 1,
+        );
+        if (artists.isNotEmpty) {
+          await playFromMediaId(AutoMediaId.artist(artists.first.id));
+          return;
+        }
+        break;
+      case NavisAndroidAutoSearchType.album:
+        final albums = await _libraryDao.searchAlbumsLocal(
+          request.term,
+          limit: 1,
+        );
+        if (albums.isNotEmpty) {
+          await playFromMediaId(AutoMediaId.album(albums.first.id));
+          return;
+        }
+        break;
+      case NavisAndroidAutoSearchType.playlist:
+        final playlists = await _playlistDao.watchPlaylists().first;
+        final matches = playlists.where(
+          (playlist) => _containsIgnoreCase(playlist.name, request.term),
+        );
+        if (matches.isNotEmpty) {
+          await playFromMediaId(AutoMediaId.playlist(matches.first.id));
+          return;
+        }
+        break;
+      case NavisAndroidAutoSearchType.genre:
+        final songs = await _libraryDao.watchSongsByGenre(request.term).first;
+        if (songs.isNotEmpty) {
+          await replaceQueueWithData(songs);
+          return;
+        }
+        break;
+      case NavisAndroidAutoSearchType.title:
+        final songs = await _libraryDao.searchSongsLocal(
+          request.term,
+          limit: 1,
+        );
+        if (songs.isNotEmpty) {
+          await playFromMediaId(AutoMediaId.song(songs.first.id));
+          return;
+        }
+        break;
+      case NavisAndroidAutoSearchType.general:
+      case NavisAndroidAutoSearchType.empty:
+        break;
+    }
+
+    final results = await search(request.term, extras);
     final playable = results.where((item) => item.playable == true);
-    final target = playable.isNotEmpty ? playable.first : results.first;
+    final browsable = results.where(
+      (item) => item.extras?[AndroidAutoConstants.isBrowsableKey] == true,
+    );
+    if (playable.isEmpty && browsable.isEmpty) return;
+
+    final target = playable.isNotEmpty ? playable.first : browsable.first;
     await playFromMediaId(target.id);
   }
 

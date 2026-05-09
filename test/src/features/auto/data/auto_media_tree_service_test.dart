@@ -1,8 +1,10 @@
-import 'package:drift/drift.dart' hide isNull, isNotNull;
+import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/auto/data/auto_media_id.dart';
 import 'package:navis/src/features/auto/data/auto_media_tree_service.dart';
+import 'package:navis/src/features/auto/domain/android_auto_constants.dart';
 
 import '../../../../helpers/test_database.dart';
 
@@ -28,10 +30,10 @@ void main() {
 
   group('getChildren - root', () {
     test(
-      'returns 4 root items',
+      'returns 5 root items',
       () async {
         final items = await service.getChildren(AutoMediaRoot.root);
-        expect(items, hasLength(4));
+        expect(items, hasLength(5));
       },
       skip: !sqliteAvailable,
     );
@@ -44,6 +46,7 @@ void main() {
         expect(ids, [
           AutoMediaRoot.albums,
           AutoMediaRoot.recent,
+          AutoMediaRoot.artists,
           AutoMediaRoot.playlists,
           AutoMediaRoot.more,
         ]);
@@ -130,10 +133,13 @@ void main() {
 
   group('getChildren - artists', () {
     test(
-      'returns empty list when no artists',
+      'returns placeholder when no artists',
       () async {
         final items = await service.getChildren(AutoMediaRoot.artists);
-        expect(items, isEmpty);
+        expect(items, hasLength(1));
+        expect(items.single.id, 'empty/${AutoMediaRoot.artists}');
+        expect(items.single.title, 'No artists');
+        expect(items.single.playable, isFalse);
       },
       skip: !sqliteAvailable,
     );
@@ -163,7 +169,10 @@ void main() {
 
         final items = await service.getChildren(AutoMediaRoot.artists);
         expect(items.single.playable, isFalse);
-        expect(items.single.extras?['browsable'], isTrue);
+        expect(
+          items.single.extras?[AndroidAutoConstants.isBrowsableKey],
+          isTrue,
+        );
       },
       skip: !sqliteAvailable,
     );
@@ -195,6 +204,17 @@ void main() {
 
         final items = await service.getChildren(AutoMediaRoot.albums);
         expect(items, hasLength(2));
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'returns placeholder when no albums',
+      () async {
+        final items = await service.getChildren(AutoMediaRoot.albums);
+        expect(items, hasLength(1));
+        expect(items.single.id, 'empty/${AutoMediaRoot.albums}');
+        expect(items.single.title, 'No albums');
       },
       skip: !sqliteAvailable,
     );
@@ -311,6 +331,50 @@ void main() {
       },
       skip: !sqliteAvailable,
     );
+
+    test(
+      'song items include favorite and download status extras',
+      () async {
+        service = AutoMediaTreeService(
+          libraryDao: database.libraryDao,
+          playlistDao: database.playlistDao,
+          historyDao: database.historyDao,
+          readApiClient: () => null,
+          readDownloadedSongIds: database.cacheDao.getPermanentlyCachedSongIds,
+        );
+        await database.libraryDao.upsertAlbums([
+          AlbumsTableCompanion.insert(id: 'al1', name: 'Album One'),
+        ]);
+        await database.libraryDao.upsertSongs([
+          SongsTableCompanion.insert(
+            id: 's1',
+            title: 'Song 1',
+            albumId: const Value('al1'),
+            starred: Value(DateTime(2024)),
+          ),
+        ]);
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: 's1',
+            filePath: '/tmp/song-1.mp3',
+            fileSize: 1,
+            format: 'mp3',
+            lastAccessedAt: DateTime(2024),
+            cacheType: CacheType.permanent,
+            downloadStatus: DownloadStatus.complete,
+          ),
+        );
+
+        final items = await service.getChildren('album/al1');
+        final extras = items.single.extras;
+        expect(extras?[AndroidAutoConstants.isFavoriteKey], isTrue);
+        expect(
+          extras?[AndroidAutoConstants.downloadStatusKey],
+          AndroidAutoConstants.downloadStatusDownloaded,
+        );
+      },
+      skip: !sqliteAvailable,
+    );
   });
 
   // ── Playlists ─────────────────────────────────────────────────────────────
@@ -327,6 +391,17 @@ void main() {
         expect(items, hasLength(1));
         expect(items.single.title, 'My Playlist');
         expect(items.single.id, 'playlist/pl1');
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'returns placeholder when no playlists',
+      () async {
+        final items = await service.getChildren(AutoMediaRoot.playlists);
+        expect(items, hasLength(1));
+        expect(items.single.id, 'empty/${AutoMediaRoot.playlists}');
+        expect(items.single.title, 'No playlists');
       },
       skip: !sqliteAvailable,
     );
@@ -589,6 +664,10 @@ void main() {
         final items = await service.search('Bohemian');
         expect(items, hasLength(1));
         expect(items.single.title, 'Bohemian Rhapsody');
+        expect(
+          items.single.extras?[AndroidAutoConstants.contentStyleGroupTitleKey],
+          'Songs',
+        );
       },
       skip: !sqliteAvailable,
     );
@@ -612,6 +691,46 @@ void main() {
         final items = await service.search('Queen');
         expect(items, hasLength(1));
         expect(items.single.artist, 'Queen');
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'local search returns grouped artists, albums, playlists, and songs',
+      () async {
+        await database.libraryDao.upsertArtists([
+          ArtistsTableCompanion.insert(id: 'artist-1', name: 'Aurora'),
+        ]);
+        await database.libraryDao.upsertAlbums([
+          AlbumsTableCompanion.insert(id: 'album-1', name: 'Aurora Live'),
+        ]);
+        await database.playlistDao.upsertPlaylists([
+          PlaylistsTableCompanion.insert(id: 'playlist-1', name: 'Aurora Mix'),
+        ]);
+        await database.libraryDao.upsertSongs([
+          SongsTableCompanion.insert(id: 'song-1', title: 'Aurora Song'),
+        ]);
+
+        final items = await service.search('Aurora');
+        expect(
+          items.map(
+            (item) =>
+                item.extras?[AndroidAutoConstants.contentStyleGroupTitleKey],
+          ),
+          containsAllInOrder(['Artists', 'Albums', 'Playlists', 'Songs']),
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'local search returns a no-results placeholder',
+      () async {
+        final items = await service.search('missing');
+        expect(items, hasLength(1));
+        expect(items.single.id, 'empty/search');
+        expect(items.single.title, 'No results');
+        expect(items.single.playable, isFalse);
       },
       skip: !sqliteAvailable,
     );

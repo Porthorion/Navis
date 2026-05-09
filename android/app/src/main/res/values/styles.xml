@@ -15,4 +15,8 @@
     <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
         <item name="android:windowBackground">?android:colorBackground</item>
     </style>
+    <style name="CarAppTheme">
+        <item name="colorAccent">@color/navis_car_accent</item>
+        <item name="android:colorAccent">@color/navis_car_accent</item>
+    </style>
 </resources>

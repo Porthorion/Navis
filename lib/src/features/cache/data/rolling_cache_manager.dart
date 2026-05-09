@@ -29,6 +29,8 @@ abstract class RollingCacheManager {
 
   /// Remove rolling-cache files that are not referenced in the DB.
   Future<void> cleanupOrphanedRollingFiles();
+
+  Future<Set<String>> getPermanentlyCachedSongIds();
 }
 
 class DriftRollingCacheManager implements RollingCacheManager {
@@ -74,6 +76,11 @@ class DriftRollingCacheManager implements RollingCacheManager {
   @override
   Future<void> touchTrack(String songId) {
     return _cacheDao.touchTrack(songId);
+  }
+
+  @override
+  Future<Set<String>> getPermanentlyCachedSongIds() {
+    return _cacheDao.getPermanentlyCachedSongIds();
   }
 
   @override

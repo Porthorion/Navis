@@ -1,5 +1,10 @@
 # Android Auto Testing Guide (DHU)
 
+This guide covers Android Auto phone projection through Navis' media browser
+service. Projection discovers the app installed on the phone; it does not
+install Navis onto the car. Android Automotive OS (AAOS) installability is a
+separate target and should not be validated from this DHU checklist.
+
 ## Prerequisites
 
 1. **Android Studio** with SDK Manager
@@ -99,7 +104,7 @@ Once the DHU is running, use these commands in the DHU terminal:
 
 ### Browse Tree — Root Level
 
-- [ ] All 6 root items display: Playlists, Artists, Albums, Liked Songs, Recently Played, Random Mix
+- [ ] All 5 root items display: Albums, Recent, Artists, Playlists, More
 - [ ] Root items respond to touch within 1 second
 - [ ] Each root item has appropriate text
 
@@ -127,13 +132,13 @@ Once the DHU is running, use these commands in the DHU terminal:
 
 ### Browse Tree — Liked Songs
 
-- [ ] "Liked Songs" subcategory lists all starred songs
+- [ ] More → Liked → Songs lists all starred songs
 - [ ] Shows appropriate empty state if no starred songs
 - [ ] Tapping a liked song starts playback
 
 ### Browse Tree — Liked Albums
 
-- [ ] "Liked Albums" subcategory shows starred albums
+- [ ] More → Liked → Albums shows starred albums
 - [ ] Drill into album shows its tracks
 
 ### Browse Tree — Recently Played
@@ -142,11 +147,11 @@ Once the DHU is running, use these commands in the DHU terminal:
 - [ ] Most recent plays appear first
 - [ ] Tapping a song starts playback
 
-### Browse Tree — Random Mix
+### Browse Tree — More Actions
 
-- [ ] Tapping "Random Mix" immediately starts playback
-- [ ] Queue populates with ~50 random songs
-- [ ] Songs come from the server (not just local cache)
+- [ ] More shows Liked, Instant Mix, and Instant Radio
+- [ ] Tapping "Instant Mix" starts a seed-based mix when a current/known song is available
+- [ ] Tapping "Instant Radio" starts playback from liked songs, server random songs, or local fallback
 
 ### Playback Controls
 
@@ -170,10 +175,10 @@ Once the DHU is running, use these commands in the DHU terminal:
 ### Search
 
 - [ ] Search icon is available in the DHU toolbar
-- [ ] Text search returns results (artists, albums, songs)
+- [ ] Text search returns grouped results: Artists, Albums, Playlists, Songs
 - [ ] Tapping a search result starts playback
-- [ ] Empty search returns empty results (no crash)
-- [ ] Voice search via `mic` DHU command works (requires Google Assistant)
+- [ ] Empty search / "play music" starts Instant Radio (no crash)
+- [ ] Voice search via `mic` DHU command works for artist, album, playlist, genre, and title requests (requires Google Assistant)
 
 ### Day/Night Mode
 
@@ -220,14 +225,18 @@ Once the DHU is running, use these commands in the DHU terminal:
    **`<application>` level** — NOT inside the `<service>` block. Android Auto reads it from
    the application element to populate the launcher list; placing it inside a service causes
    silent failure (app never appears in the media list).
-4. **Do NOT add `android:permission="android.permission.BIND_MEDIA_BROWSER_SERVICE"` to the
+4. Verify Android Auto projection metadata is present on the phone app:
+   `com.google.android.gms.car.application`,
+   `androidx.car.app.TintableAttributionIcon`, and
+   `com.google.android.gms.car.application.theme`.
+5. **Do NOT add `android:permission="android.permission.BIND_MEDIA_BROWSER_SERVICE"` to the
    AudioService** declaration.  That permission has `protectionLevel="signature|privileged"`.
    On devices where Android Auto is installed from the Play Store (not a privileged system
    app), it does not hold that permission and gets `Permission Denial` when binding — which
    prevents Auto from connecting at all.  Caller validation is handled by
    `MediaBrowserServiceCompat.onGetRoot()` returning `null` for unauthorised callers.
-5. Try restarting the head unit server on the phone
-6. Try `adb forward tcp:5277 tcp:5277` again and restart the DHU (Android Auto uses
+6. Try restarting the head unit server on the phone
+7. Try `adb forward tcp:5277 tcp:5277` again and restart the DHU (Android Auto uses
    exponential back-off after repeated connection failures; a fresh DHU session forces
    re-enumeration)
 
