@@ -187,6 +187,8 @@ class GroupListeningConnectionState {
     this.connectedAt,
     this.lastServerTime,
     this.lastHeartbeatAckAt,
+    this.connectedServerUrl,
+    this.connectedServerVersion,
     this.reconnectAttempt = 0,
     this.lastDisconnectReason,
   });
@@ -199,6 +201,8 @@ class GroupListeningConnectionState {
       connectedAt = null,
       lastServerTime = null,
       lastHeartbeatAckAt = null,
+      connectedServerUrl = null,
+      connectedServerVersion = null,
       reconnectAttempt = 0,
       lastDisconnectReason = null;
 
@@ -209,6 +213,8 @@ class GroupListeningConnectionState {
   final DateTime? connectedAt;
   final DateTime? lastServerTime;
   final DateTime? lastHeartbeatAckAt;
+  final Uri? connectedServerUrl;
+  final String? connectedServerVersion;
   final int reconnectAttempt;
   final GroupListeningErrorState? lastDisconnectReason;
 
@@ -222,9 +228,12 @@ class GroupListeningConnectionState {
     DateTime? connectedAt,
     DateTime? lastServerTime,
     DateTime? lastHeartbeatAckAt,
+    Uri? connectedServerUrl,
+    String? connectedServerVersion,
     int? reconnectAttempt,
     GroupListeningErrorState? lastDisconnectReason,
     bool clearClientConnectionId = false,
+    bool clearConnectedServer = false,
     bool clearDisconnectReason = false,
   }) {
     return GroupListeningConnectionState(
@@ -237,6 +246,12 @@ class GroupListeningConnectionState {
       connectedAt: connectedAt ?? this.connectedAt,
       lastServerTime: lastServerTime ?? this.lastServerTime,
       lastHeartbeatAckAt: lastHeartbeatAckAt ?? this.lastHeartbeatAckAt,
+      connectedServerUrl: clearConnectedServer
+          ? null
+          : connectedServerUrl ?? this.connectedServerUrl,
+      connectedServerVersion: clearConnectedServer
+          ? null
+          : connectedServerVersion ?? this.connectedServerVersion,
       reconnectAttempt: reconnectAttempt ?? this.reconnectAttempt,
       lastDisconnectReason: clearDisconnectReason
           ? null
@@ -256,6 +271,8 @@ class GroupListeningConnectionState {
           connectedAt == other.connectedAt &&
           lastServerTime == other.lastServerTime &&
           lastHeartbeatAckAt == other.lastHeartbeatAckAt &&
+          connectedServerUrl == other.connectedServerUrl &&
+          connectedServerVersion == other.connectedServerVersion &&
           reconnectAttempt == other.reconnectAttempt &&
           lastDisconnectReason == other.lastDisconnectReason;
 
@@ -268,6 +285,8 @@ class GroupListeningConnectionState {
     connectedAt,
     lastServerTime,
     lastHeartbeatAckAt,
+    connectedServerUrl,
+    connectedServerVersion,
     reconnectAttempt,
     lastDisconnectReason,
   );

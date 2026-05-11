@@ -41,6 +41,9 @@ class GroupListeningCapabilityDiscovery {
   const GroupListeningCapabilityDiscovery({
     required this.service,
     required this.apiVersion,
+    required this.serverVersion,
+    required this.buildCommit,
+    required this.buildTime,
     required this.supportedProtocolVersions,
     required this.latestProtocolVersion,
     required this.websocketPath,
@@ -50,6 +53,9 @@ class GroupListeningCapabilityDiscovery {
 
   final String service;
   final String apiVersion;
+  final String serverVersion;
+  final String buildCommit;
+  final String buildTime;
   final List<String> supportedProtocolVersions;
   final String latestProtocolVersion;
   final String websocketPath;
@@ -57,6 +63,7 @@ class GroupListeningCapabilityDiscovery {
   final Duration memberStaleTimeout;
 
   bool get supportsCurrentProtocol =>
+      latestProtocolVersion == voyageProtocolVersion &&
       supportedProtocolVersions.contains(voyageProtocolVersion);
 }
 
@@ -131,6 +138,7 @@ class GroupListeningStoredSession {
   final int lastAppliedRoomVersion;
 
   GroupListeningStoredSession copyWith({
+    Uri? voyageBaseUrl,
     int? authVersion,
     String? rejoinToken,
     int? lastAppliedRoomVersion,
@@ -140,7 +148,7 @@ class GroupListeningStoredSession {
       memberId: memberId,
       role: role,
       authVersion: authVersion ?? this.authVersion,
-      voyageBaseUrl: voyageBaseUrl,
+      voyageBaseUrl: voyageBaseUrl ?? this.voyageBaseUrl,
       sourceServerFingerprint: sourceServerFingerprint,
       rejoinToken: rejoinToken ?? this.rejoinToken,
       client: client,
@@ -582,6 +590,10 @@ class VoyageGroupListeningHttpClient implements GroupListeningHttpClient {
     final discovery = GroupListeningCapabilityDiscovery(
       service: _stringValue(data['service']),
       apiVersion: _stringValue(data['api_version']),
+      serverVersion:
+          _nullableStringValue(data['server_version']) ?? '0.0.0-dev',
+      buildCommit: _nullableStringValue(data['build_commit']) ?? 'unknown',
+      buildTime: _nullableStringValue(data['build_time']) ?? 'unknown',
       supportedProtocolVersions: _stringListValue(
         data['supported_protocol_versions'],
       ),
@@ -870,6 +882,7 @@ class VoyageGroupListeningHttpClient implements GroupListeningHttpClient {
     }
 
     final payload = _mapValue(_decodeJsonBody(response.data));
+    _validateEnvelopeProtocolVersion(payload);
     final statusCode = response.statusCode ?? HttpStatus.internalServerError;
     if (statusCode >= HttpStatus.ok &&
         statusCode < HttpStatus.multipleChoices) {
@@ -1538,6 +1551,7 @@ GroupListeningRepositoryException _failureFromDio(
   final response = error.response;
   if (response != null) {
     final payload = _mapValue(_decodeJsonBody(response.data));
+    _validateEnvelopeProtocolVersion(payload);
     return _failureFromResponse(
       payload,
       headers: response.headers.map,
@@ -1643,6 +1657,7 @@ void _ensureDiscoverySupportsCurrentProtocol(
       details: <String, Object?>{
         'supported_protocol_versions': discovery.supportedProtocolVersions,
         'latest_protocol_version': discovery.latestProtocolVersion,
+        'expected_protocol_version': voyageProtocolVersion,
       },
     ),
   );
@@ -2196,7 +2211,7 @@ GroupListeningRepositoryException _protocolFormatFailure(String message) {
 }
 
 void _validateProtocolVersion(Object? value) {
-  final protocolVersion = _stringValue(value);
+  final protocolVersion = _nullableStringValue(value) ?? '';
   if (protocolVersion == voyageProtocolVersion) {
     return;
   }
@@ -2210,6 +2225,10 @@ void _validateProtocolVersion(Object? value) {
       },
     ),
   );
+}
+
+void _validateEnvelopeProtocolVersion(Map<String, dynamic> payload) {
+  _validateProtocolVersion(payload['protocol_version']);
 }
 
 String _playbackMutationEventType(GroupListeningPlaybackAnchorReason reason) {

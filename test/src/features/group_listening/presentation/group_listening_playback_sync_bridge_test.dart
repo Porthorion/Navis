@@ -40,7 +40,20 @@ class _FakeGroupListeningRepository implements GroupListeningRepository {
   Future<GroupListeningCapabilityDiscovery> discover(
     GroupListeningClientConfiguration configuration,
   ) {
-    throw UnimplementedError();
+    return Future<GroupListeningCapabilityDiscovery>.value(
+      const GroupListeningCapabilityDiscovery(
+        service: 'voyage',
+        apiVersion: 'v1',
+        serverVersion: '1.0.0',
+        buildCommit: 'test',
+        buildTime: 'test',
+        supportedProtocolVersions: <String>[voyageProtocolVersion],
+        latestProtocolVersion: voyageProtocolVersion,
+        websocketPath: '/api/v1/rooms/ws',
+        heartbeatInterval: Duration(seconds: 10),
+        memberStaleTimeout: Duration(seconds: 45),
+      ),
+    );
   }
 
   @override

@@ -63,6 +63,9 @@ class _FakeGroupListeningRepository implements GroupListeningRepository {
     return const GroupListeningCapabilityDiscovery(
       service: 'voyage',
       apiVersion: 'v1',
+      serverVersion: '1.0.0',
+      buildCommit: 'test',
+      buildTime: 'test',
       supportedProtocolVersions: <String>[voyageProtocolVersion],
       latestProtocolVersion: voyageProtocolVersion,
       websocketPath: '/api/v1/rooms/ws',

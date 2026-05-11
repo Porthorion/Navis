@@ -7,6 +7,7 @@ import 'package:navis/src/features/group_listening/data/group_listening_configur
 import 'package:navis/src/features/group_listening/data/group_listening_repository.dart';
 import 'package:navis/src/features/group_listening/domain/group_listening_session_models.dart';
 import 'package:navis/src/features/group_listening/presentation/group_listening_settings_provider.dart';
+import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:uuid/uuid.dart';
@@ -78,7 +79,12 @@ final groupListeningCapabilityDiscoveryProvider =
       if (configuration == null) {
         return null;
       }
-      return ref.read(groupListeningRepositoryProvider).discover(configuration);
+      final resolved = await _resolveBestBundledVoyageServer(
+        ref,
+        configuration,
+      );
+      return resolved?.discovery ??
+          ref.read(groupListeningRepositoryProvider).discover(configuration);
     });
 
 final groupListeningAvailableRoomsProvider =
@@ -95,10 +101,100 @@ final groupListeningAvailableRoomsProvider =
       if (configuration == null) {
         return const <GroupListeningAvailableRoomSummary>[];
       }
+      final resolved = await _resolveBestBundledVoyageServer(
+        ref,
+        configuration,
+      );
+      final effectiveConfiguration = resolved == null
+          ? configuration
+          : _configurationWithVoyageBaseUrl(
+              configuration,
+              Uri.parse(resolved.option.url),
+            );
       return ref
           .read(groupListeningRepositoryProvider)
-          .listAvailableRooms(configuration);
+          .listAvailableRooms(effectiveConfiguration);
     });
+
+Future<GroupListeningResolvedVoyageServer?> _resolveBestBundledVoyageServer(
+  Ref ref,
+  GroupListeningClientConfiguration configuration, {
+  String? preferredUrl,
+}) async {
+  final bundledServers = ref.read(groupListeningBundledVoyageServersProvider);
+  if (bundledServers.isEmpty) {
+    return null;
+  }
+  final settings = ref.read(groupListeningSettingsProvider);
+  if (!settings.enabled) {
+    return null;
+  }
+  final selectedUrl = normalizeVoyageBaseUri(
+    preferredUrl ?? settings.voyageServerUrl,
+  )?.toString();
+  final repository = ref.read(groupListeningRepositoryProvider);
+  final probes = await Future.wait(
+    bundledServers.map((server) async {
+      final uri = normalizeVoyageBaseUri(server.url);
+      if (uri == null || !isVoyageTransportAllowed(uri)) {
+        return null;
+      }
+      try {
+        final discovery = await repository.discover(
+          _configurationWithVoyageBaseUrl(configuration, uri),
+        );
+        if (!discovery.supportsCurrentProtocol) {
+          return null;
+        }
+        return GroupListeningResolvedVoyageServer(
+          option: server,
+          discovery: discovery,
+        );
+      } on Object {
+        return null;
+      }
+    }),
+  );
+  final candidates = probes.nonNulls.toList(growable: false);
+  if (candidates.isEmpty) {
+    return null;
+  }
+  candidates.sort((a, b) {
+    final versionCompare = _compareSemanticVersions(
+      b.discovery.serverVersion,
+      a.discovery.serverVersion,
+    );
+    if (versionCompare != 0) {
+      return versionCompare;
+    }
+    final aSelected = selectedUrl != null && a.option.url == selectedUrl;
+    final bSelected = selectedUrl != null && b.option.url == selectedUrl;
+    if (aSelected != bSelected) {
+      return aSelected ? -1 : 1;
+    }
+    return bundledServers
+        .indexOf(a.option)
+        .compareTo(
+          bundledServers.indexOf(b.option),
+        );
+  });
+  return candidates.first;
+}
+
+GroupListeningClientConfiguration _configurationWithVoyageBaseUrl(
+  GroupListeningClientConfiguration configuration,
+  Uri voyageBaseUrl,
+) {
+  return GroupListeningClientConfiguration(
+    voyageBaseUrl: voyageBaseUrl,
+    sourceServerOrigin: configuration.sourceServerOrigin,
+    sourceServerFingerprint: configuration.sourceServerFingerprint,
+    displayName: configuration.displayName,
+    deviceLabel: configuration.deviceLabel,
+    autoFollowHost: configuration.autoFollowHost,
+    allowInsecureTransport: voyageBaseUrl.scheme == 'http',
+  );
+}
 
 enum GroupListeningVoyageConnectionState {
   disabled,
@@ -206,6 +302,17 @@ String? _voyageDiscoveryUserActionMessage(Object error) {
   };
 }
 
+@immutable
+class GroupListeningResolvedVoyageServer {
+  const GroupListeningResolvedVoyageServer({
+    required this.option,
+    required this.discovery,
+  });
+
+  final GroupListeningVoyageServerOption option;
+  final GroupListeningCapabilityDiscovery discovery;
+}
+
 final groupListeningClientDescriptorProvider =
     Provider<GroupListeningClientDescriptor>((ref) {
       final configuration = ref.watch(
@@ -259,16 +366,47 @@ String _normalizeGroupListeningDeviceId(String rawValue) {
   return normalized.length <= 64 ? normalized : normalized.substring(0, 64);
 }
 
+int _compareSemanticVersions(String left, String right) {
+  final leftParts = _semanticVersionParts(left);
+  final rightParts = _semanticVersionParts(right);
+  for (var index = 0; index < leftParts.length; index++) {
+    final compare = leftParts[index].compareTo(rightParts[index]);
+    if (compare != 0) {
+      return compare;
+    }
+  }
+  return left.compareTo(right);
+}
+
+List<int> _semanticVersionParts(String version) {
+  final match = RegExp(r'^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?').firstMatch(
+    version.trim(),
+  );
+  if (match == null) {
+    return const <int>[0, 0, 0];
+  }
+  return <int>[
+    int.tryParse(match.group(1) ?? '') ?? 0,
+    int.tryParse(match.group(2) ?? '') ?? 0,
+    int.tryParse(match.group(3) ?? '') ?? 0,
+  ];
+}
+
 class GroupListeningSessionController
     extends Notifier<GroupListeningSessionState> {
   static const Uuid _uuid = Uuid();
   static const Duration _tokenRefreshWindow = Duration(minutes: 1);
+  static const Duration _serverUpgradeCheckInterval = Duration(minutes: 5);
+  static const Duration _serverMigrationTimeout = Duration(seconds: 15);
 
   GroupListeningClientConfiguration? _configuration;
   GroupListeningSessionRuntimeContext? _runtimeSession;
   GroupListeningRealtimeConnection? _connection;
   StreamSubscription<GroupListeningTransportMessage>? _transportSubscription;
   Timer? _heartbeatTimer;
+  Timer? _serverUpgradeTimer;
+  GroupListeningCapabilityDiscovery? _connectingDiscovery;
+  bool _serverUpgradeInProgress = false;
   int _clientSequence = 0;
 
   @override
@@ -286,6 +424,7 @@ class GroupListeningSessionController
     );
     ref.onDispose(() {
       unawaited(_disposeTransport());
+      _serverUpgradeTimer?.cancel();
     });
 
     return GroupListeningSessionState(
@@ -298,9 +437,15 @@ class GroupListeningSessionController
 
   Future<GroupListeningCapabilityDiscovery> discoverCapabilities() async {
     try {
-      final configuration = _requireConfiguration();
-      final repository = ref.read(groupListeningRepositoryProvider);
-      return repository.discover(configuration);
+      final resolved = await _resolveBestBundledServer();
+      if (resolved != null) {
+        return resolved.discovery;
+      }
+      return ref
+          .read(groupListeningRepositoryProvider)
+          .discover(
+            _requireConfiguration(),
+          );
     } on Object catch (error, stackTrace) {
       _setFailure(
         _asFailure(
@@ -320,7 +465,7 @@ class GroupListeningSessionController
     bool connectAfterCreate = true,
   }) async {
     try {
-      final configuration = _requireConfiguration();
+      final configuration = await _configurationForRoomOperation();
       state = state.copyWith(
         status: GroupListeningSessionStatus.joining,
         clearFailure: true,
@@ -358,7 +503,7 @@ class GroupListeningSessionController
     bool connectAfterJoin = true,
   }) async {
     try {
-      final configuration = _requireConfiguration();
+      final configuration = await _configurationForRoomOperation();
       state = state.copyWith(
         status: GroupListeningSessionStatus.joining,
         clearFailure: true,
@@ -396,7 +541,7 @@ class GroupListeningSessionController
     bool connectAfterJoin = true,
   }) async {
     try {
-      final configuration = _requireConfiguration();
+      final configuration = await _configurationForRoomOperation();
       state = state.copyWith(
         status: GroupListeningSessionStatus.joining,
         clearFailure: true,
@@ -457,6 +602,7 @@ class GroupListeningSessionController
       await _disposeTransport();
       _clientSequence = 0;
       final freshSession = await _ensureFreshSession();
+      _connectingDiscovery = await _discoverSessionServer(freshSession);
       final connection = await ref
           .read(groupListeningRepositoryProvider)
           .connect(
@@ -734,7 +880,9 @@ class GroupListeningSessionController
 
   Future<GroupListeningSessionState> reconnect() async {
     try {
-      final configuration = _requireConfiguration();
+      final configuration = await _configurationForRoomOperation(
+        preferStoredServer: true,
+      );
       final storedSession = await ref
           .read(groupListeningSessionCredentialStoreProvider)
           .read();
@@ -1014,7 +1162,10 @@ class GroupListeningSessionController
   Future<GroupListeningSessionRuntimeContext> _rejoinCurrentSession(
     GroupListeningSessionRuntimeContext expectedSession,
   ) async {
-    final configuration = _requireConfiguration();
+    final configuration = _configurationWithVoyageBaseUrl(
+      _requireConfiguration(),
+      expectedSession.voyageBaseUrl,
+    );
     final store = ref.read(groupListeningSessionCredentialStoreProvider);
     final storedSession = await store.read();
     if (storedSession == null ||
@@ -1096,6 +1247,9 @@ class GroupListeningSessionController
   void _handleTransportMessage(GroupListeningTransportMessage message) {
     if (message is GroupListeningConnectionWelcomeMessage) {
       _scheduleHeartbeat(after: message.heartbeatInterval);
+      final connectedDiscovery = _connectingDiscovery;
+      _connectingDiscovery = null;
+      final connectedSession = _runtimeSession;
       state = state.copyWith(
         status: GroupListeningSessionStatus.connected,
         connection: state.connection.copyWith(
@@ -1105,10 +1259,13 @@ class GroupListeningSessionController
           memberStaleTimeout: message.memberStaleTimeout,
           connectedAt: DateTime.now(),
           lastServerTime: message.serverTime,
+          connectedServerUrl: connectedSession?.voyageBaseUrl,
+          connectedServerVersion: connectedDiscovery?.serverVersion,
           clearDisconnectReason: true,
         ),
         clearFailure: true,
       );
+      _scheduleServerUpgradeCheck();
       return;
     }
     if (message is GroupListeningRoomSnapshotMessage) {
@@ -1206,6 +1363,11 @@ class GroupListeningSessionController
       markSnapshotRequired(failure);
       return;
     }
+    if (failure.code == GroupListeningErrorCode.unsupportedProtocolVersion ||
+        failure.code == GroupListeningErrorCode.transportUnavailable ||
+        failure.code == GroupListeningErrorCode.transportDisconnected) {
+      unawaited(_checkForBundledServerUpgrade(triggeredByFailure: true));
+    }
     if (_isFatalSessionFailure(failure.code)) {
       _runtimeSession = null;
       unawaited(ref.read(groupListeningSessionCredentialStoreProvider).clear());
@@ -1240,6 +1402,7 @@ class GroupListeningSessionController
     if (previous != null &&
         next != null &&
         !previous.isTransportCompatibleWith(next) &&
+        !_runtimeSessionMatchesConfiguration(next) &&
         (state.room != null || _runtimeSession != null)) {
       unawaited(_resetForConfigurationLoss());
     }
@@ -1295,6 +1458,16 @@ class GroupListeningSessionController
         stored.sourceServerFingerprint == expected.sourceServerFingerprint;
   }
 
+  bool _runtimeSessionMatchesConfiguration(
+    GroupListeningClientConfiguration configuration,
+  ) {
+    final session = _runtimeSession;
+    return session != null &&
+        session.voyageBaseUrl == configuration.voyageBaseUrl &&
+        session.sourceServerFingerprint ==
+            configuration.sourceServerFingerprint;
+  }
+
   bool _canSendMutationType(GroupListeningMutationType type) {
     final room = state.room;
     final configuration = state.configuration;
@@ -1321,6 +1494,54 @@ class GroupListeningSessionController
     }
   }
 
+  Future<GroupListeningClientConfiguration> _configurationForRoomOperation({
+    bool preferStoredServer = false,
+  }) async {
+    final configuration = _requireConfiguration();
+    final resolved = await _resolveBestBundledServer(
+      preferredUrl: preferStoredServer
+          ? (await ref
+                    .read(groupListeningSessionCredentialStoreProvider)
+                    .read())
+                ?.voyageBaseUrl
+                .toString()
+          : null,
+    );
+    if (resolved == null) {
+      return configuration;
+    }
+    return _configurationWithVoyageBaseUrl(
+      configuration,
+      Uri.parse(resolved.option.url),
+    );
+  }
+
+  Future<GroupListeningResolvedVoyageServer?> _resolveBestBundledServer({
+    String? preferredUrl,
+  }) async {
+    final configuration = _configuration;
+    if (configuration == null ||
+        state.availability != GroupListeningAvailability.ready) {
+      return null;
+    }
+    return _resolveBestBundledVoyageServer(
+      ref,
+      configuration,
+      preferredUrl: preferredUrl,
+    );
+  }
+
+  Future<GroupListeningCapabilityDiscovery> _discoverSessionServer(
+    GroupListeningSessionRuntimeContext session,
+  ) {
+    final configuration = _requireConfiguration();
+    return ref
+        .read(groupListeningRepositoryProvider)
+        .discover(
+          _configurationWithVoyageBaseUrl(configuration, session.voyageBaseUrl),
+        );
+  }
+
   GroupListeningClientConfiguration _requireConfiguration() {
     final configuration = _configuration;
     if (configuration == null ||
@@ -1338,6 +1559,9 @@ class GroupListeningSessionController
   Future<void> _disposeTransport() async {
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
+    _serverUpgradeTimer?.cancel();
+    _serverUpgradeTimer = null;
+    _connectingDiscovery = null;
     await _transportSubscription?.cancel();
     _transportSubscription = null;
     final connection = _connection;
@@ -1393,6 +1617,204 @@ class GroupListeningSessionController
         stackTrace: stackTrace,
       );
     }
+  }
+
+  void _scheduleServerUpgradeCheck() {
+    _serverUpgradeTimer?.cancel();
+    if (!state.connection.isConnected) {
+      return;
+    }
+    _serverUpgradeTimer = Timer(_serverUpgradeCheckInterval, () {
+      unawaited(_checkForBundledServerUpgrade());
+    });
+  }
+
+  Future<void> _checkForBundledServerUpgrade({
+    bool triggeredByFailure = false,
+  }) async {
+    if (_serverUpgradeInProgress ||
+        _runtimeSession == null ||
+        !state.connection.isConnected) {
+      return;
+    }
+    final currentVersion = state.connection.connectedServerVersion;
+    final currentUrl = _runtimeSession?.voyageBaseUrl.toString();
+    if (currentVersion == null || currentUrl == null) {
+      _scheduleServerUpgradeCheck();
+      return;
+    }
+
+    final candidate = await _resolveBestBundledServer(preferredUrl: currentUrl);
+    if (candidate == null ||
+        candidate.option.url == currentUrl ||
+        _compareSemanticVersions(
+              candidate.discovery.serverVersion,
+              currentVersion,
+            ) <=
+            0) {
+      if (!triggeredByFailure) {
+        _scheduleServerUpgradeCheck();
+      }
+      return;
+    }
+    await _migrateToBundledServer(candidate);
+    if (!triggeredByFailure) {
+      _scheduleServerUpgradeCheck();
+    }
+  }
+
+  Future<void> _migrateToBundledServer(
+    GroupListeningResolvedVoyageServer candidate,
+  ) async {
+    _serverUpgradeInProgress = true;
+    GroupListeningRealtimeConnection? candidateConnection;
+    StreamSubscription<GroupListeningTransportMessage>? candidateSubscription;
+    try {
+      final currentSession = _runtimeSession;
+      final baseConfiguration = _requireConfiguration();
+      if (currentSession == null) {
+        return;
+      }
+      final store = ref.read(groupListeningSessionCredentialStoreProvider);
+      final storedSession = await store.read();
+      if (storedSession == null ||
+          !_matchesStoredSession(storedSession, currentSession)) {
+        return;
+      }
+      final nextUri = Uri.parse(candidate.option.url);
+      final nextConfiguration = _configurationWithVoyageBaseUrl(
+        baseConfiguration,
+        nextUri,
+      );
+      final result = await ref
+          .read(groupListeningRepositoryProvider)
+          .rejoinRoom(
+            GroupListeningRejoinRoomRequest(
+              configuration: nextConfiguration,
+              session: storedSession.copyWith(
+                voyageBaseUrl: nextUri,
+                lastAppliedRoomVersion: state.lastAppliedRoomVersion,
+              ),
+            ),
+          );
+      candidateConnection = await ref
+          .read(groupListeningRepositoryProvider)
+          .connect(
+            GroupListeningTransportConnectRequest(
+              session: result.runtimeContext,
+              lastAppliedRoomVersion: state.lastAppliedRoomVersion,
+            ),
+          );
+
+      final messages = <GroupListeningTransportMessage>[];
+      final ready = Completer<void>();
+      GroupListeningConnectionWelcomeMessage? welcome;
+      GroupListeningRoomSnapshotMessage? snapshot;
+      candidateSubscription = candidateConnection.messages.listen(
+        (message) {
+          messages.add(message);
+          if (message is GroupListeningConnectionWelcomeMessage) {
+            welcome = message;
+          }
+          if (message is GroupListeningRoomSnapshotMessage) {
+            snapshot = message;
+          }
+          if (welcome != null && snapshot != null && !ready.isCompleted) {
+            ready.complete();
+          }
+          if (message is GroupListeningTransportErrorMessage &&
+              !ready.isCompleted) {
+            ready.completeError(
+              GroupListeningRepositoryException(message.error),
+            );
+          }
+          if (message is GroupListeningTransportDisconnectedMessage &&
+              !ready.isCompleted) {
+            ready.completeError(
+              GroupListeningRepositoryException(
+                message.error ??
+                    const GroupListeningErrorState(
+                      code: GroupListeningErrorCode.transportDisconnected,
+                      message: 'Voyage realtime transport disconnected.',
+                      retryable: true,
+                    ),
+              ),
+            );
+          }
+        },
+        onError: ready.completeError,
+      );
+      await ready.future.timeout(_serverMigrationTimeout);
+
+      final oldConnection = _connection;
+      final oldSubscription = _transportSubscription;
+      _heartbeatTimer?.cancel();
+      _heartbeatTimer = null;
+      await oldSubscription?.cancel();
+      _connection = candidateConnection;
+      _transportSubscription = candidateConnection.messages.listen(
+        _handleTransportMessage,
+        onError: (Object error, StackTrace stackTrace) {
+          _handleTransportFailure(
+            _asFailure(
+              error,
+              fallbackMessage: 'Voyage transport stream failed.',
+              fallbackCode: GroupListeningErrorCode.transportDisconnected,
+            ),
+            stackTrace: stackTrace,
+          );
+        },
+      );
+      await candidateSubscription.cancel();
+      candidateSubscription = null;
+      candidateConnection = null;
+      await oldConnection?.disconnect();
+
+      _runtimeSession = result.runtimeContext;
+      _connectingDiscovery = candidate.discovery;
+      for (final message in messages) {
+        if (message is GroupListeningConnectionWelcomeMessage ||
+            message is GroupListeningRoomSnapshotMessage) {
+          _handleTransportMessage(message);
+        }
+      }
+      state = state.copyWith(
+        activeInviteCode: result.inviteCode,
+        clearActiveInviteCode: result.inviteCode == null,
+      );
+      await store.save(
+        GroupListeningStoredSession(
+          roomId: result.runtimeContext.roomId,
+          memberId: result.runtimeContext.memberId,
+          role: result.runtimeContext.role,
+          authVersion: result.runtimeContext.authVersion,
+          voyageBaseUrl: result.runtimeContext.voyageBaseUrl,
+          sourceServerFingerprint:
+              result.runtimeContext.sourceServerFingerprint,
+          rejoinToken: result.runtimeContext.rejoinToken,
+          client: storedSession.client,
+          lastAppliedRoomVersion: state.lastAppliedRoomVersion,
+        ),
+      );
+      await _persistSelectedVoyageServer(result.runtimeContext.voyageBaseUrl);
+    } on Object catch (error) {
+      AppLogger.warning('Voyage bundled server migration failed: $error');
+      await candidateSubscription?.cancel();
+      await candidateConnection?.disconnect();
+    } finally {
+      _serverUpgradeInProgress = false;
+    }
+  }
+
+  Future<void> _persistSelectedVoyageServer(Uri voyageBaseUrl) async {
+    final settings =
+        ref.read(appSettingsProvider).asData?.value ??
+        const AppSettingsModel.defaults();
+    await ref
+        .read(settingsRepositoryProvider)
+        .saveSettings(
+          settings.copyWith(voyageServerUrl: voyageBaseUrl.toString()),
+        );
   }
 
   GroupListeningSessionState _setFailure(

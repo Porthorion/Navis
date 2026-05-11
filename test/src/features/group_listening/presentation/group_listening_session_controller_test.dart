@@ -8,6 +8,7 @@ import 'package:navis/src/features/group_listening/data/group_listening_configur
 import 'package:navis/src/features/group_listening/data/group_listening_repository.dart';
 import 'package:navis/src/features/group_listening/domain/group_listening_session_models.dart';
 import 'package:navis/src/features/group_listening/presentation/group_listening_session_controller.dart';
+import 'package:navis/src/features/group_listening/presentation/group_listening_settings_provider.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
@@ -16,6 +17,9 @@ class _FakeGroupListeningRepository implements GroupListeningRepository {
       const GroupListeningCapabilityDiscovery(
         service: 'voyage',
         apiVersion: 'v1',
+        serverVersion: '1.0.0',
+        buildCommit: 'test',
+        buildTime: 'test',
         supportedProtocolVersions: <String>[voyageProtocolVersion],
         latestProtocolVersion: voyageProtocolVersion,
         websocketPath: '/api/v1/rooms/ws',
@@ -30,6 +34,8 @@ class _FakeGroupListeningRepository implements GroupListeningRepository {
   List<GroupListeningAvailableRoomSummary> availableRooms =
       const <GroupListeningAvailableRoomSummary>[];
   _FakeRealtimeConnection? connection;
+  final discoveriesByUrl = <String, GroupListeningCapabilityDiscovery>{};
+  final discoveredUrls = <String>[];
 
   Object? joinError;
   Object? createError;
@@ -64,7 +70,9 @@ class _FakeGroupListeningRepository implements GroupListeningRepository {
   Future<GroupListeningCapabilityDiscovery> discover(
     GroupListeningClientConfiguration configuration,
   ) async {
-    return discovery;
+    final url = configuration.voyageBaseUrl.toString();
+    discoveredUrls.add(url);
+    return discoveriesByUrl[url] ?? discovery;
   }
 
   @override
@@ -210,6 +218,8 @@ void main() {
   ProviderContainer createContainer({
     required GroupListeningRepository repository,
     AppSettingsModel? settings,
+    List<GroupListeningVoyageServerOption> bundledServers =
+        const <GroupListeningVoyageServerOption>[],
   }) {
     final container = ProviderContainer(
       overrides: [
@@ -228,6 +238,9 @@ void main() {
           const AsyncData(activeServer),
         ),
         groupListeningRepositoryProvider.overrideWithValue(repository),
+        groupListeningBundledVoyageServersProvider.overrideWithValue(
+          bundledServers,
+        ),
       ],
     );
     addTearDown(container.dispose);
@@ -251,6 +264,92 @@ void main() {
       expect(
         state.configuration?.sourceServerFingerprint,
         computeSourceServerFingerprint(activeServer.url),
+      );
+    });
+
+    test('discovers highest compatible bundled Voyage server', () async {
+      final repository = _FakeGroupListeningRepository();
+      repository.discoveriesByUrl.addAll(
+        <String, GroupListeningCapabilityDiscovery>{
+          'https://voyage-1.example.com':
+              const GroupListeningCapabilityDiscovery(
+                service: 'voyage',
+                apiVersion: 'v1',
+                serverVersion: '1.2.0',
+                buildCommit: 'one',
+                buildTime: 'test',
+                supportedProtocolVersions: <String>[voyageProtocolVersion],
+                latestProtocolVersion: voyageProtocolVersion,
+                websocketPath: '/api/v1/rooms/ws',
+                heartbeatInterval: Duration(seconds: 10),
+                memberStaleTimeout: Duration(seconds: 45),
+              ),
+          'https://voyage-2.example.com':
+              const GroupListeningCapabilityDiscovery(
+                service: 'voyage',
+                apiVersion: 'v1',
+                serverVersion: '1.3.0',
+                buildCommit: 'two',
+                buildTime: 'test',
+                supportedProtocolVersions: <String>[voyageProtocolVersion],
+                latestProtocolVersion: voyageProtocolVersion,
+                websocketPath: '/api/v1/rooms/ws',
+                heartbeatInterval: Duration(seconds: 10),
+                memberStaleTimeout: Duration(seconds: 45),
+              ),
+          'https://voyage-3.example.com':
+              const GroupListeningCapabilityDiscovery(
+                service: 'voyage',
+                apiVersion: 'v1',
+                serverVersion: '2.0.0',
+                buildCommit: 'three',
+                buildTime: 'test',
+                supportedProtocolVersions: <String>[voyageProtocolVersion],
+                latestProtocolVersion: 'voyage-sync.v2',
+                websocketPath: '/api/v1/rooms/ws',
+                heartbeatInterval: Duration(seconds: 10),
+                memberStaleTimeout: Duration(seconds: 45),
+              ),
+        },
+      );
+      final container = createContainer(
+        repository: repository,
+        settings: AppSettingsModel.defaults().copyWith(
+          groupListeningEnabled: true,
+          voyageServerUrl: 'https://voyage-1.example.com',
+        ),
+        bundledServers: const <GroupListeningVoyageServerOption>[
+          GroupListeningVoyageServerOption(
+            label: 'One',
+            url: 'https://voyage-1.example.com',
+          ),
+          GroupListeningVoyageServerOption(
+            label: 'Two',
+            url: 'https://voyage-2.example.com',
+          ),
+          GroupListeningVoyageServerOption(
+            label: 'Three',
+            url: 'https://voyage-3.example.com',
+          ),
+        ],
+      );
+
+      final discovery = await container
+          .read(groupListeningSessionControllerProvider.notifier)
+          .discoverCapabilities();
+
+      expect(discovery.serverVersion, '1.3.0');
+      expect(
+        repository.discoveredUrls,
+        contains('https://voyage-1.example.com'),
+      );
+      expect(
+        repository.discoveredUrls,
+        contains('https://voyage-2.example.com'),
+      );
+      expect(
+        repository.discoveredUrls,
+        contains('https://voyage-3.example.com'),
       );
     });
 
