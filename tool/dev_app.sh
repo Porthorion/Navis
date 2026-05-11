@@ -74,7 +74,7 @@ case "${MODE}" in
     _icon_dir="${HOME}/.local/share/icons/hicolor/256x256/apps"
     _app_dir="${HOME}/.local/share/applications"
     mkdir -p "${_icon_dir}" "${_app_dir}"
-    cp -f "lib/src/icon/Navis_Icon_Dark.png" "${_icon_dir}/navis.png"
+    cp -f "lib/src/icon/Navis_App_Icon.png" "${_icon_dir}/navis.png"
     cp -f "linux/packaging/com.navis.app.navis.desktop" \
           "${_app_dir}/com.navis.app.navis.desktop"
     gtk-update-icon-cache "${HOME}/.local/share/icons/hicolor" \

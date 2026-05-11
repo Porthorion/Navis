@@ -23,7 +23,7 @@ static gchar* resolve_app_icon_path() {
   g_autofree gchar* executable_dir = g_path_get_dirname(executable_path);
   g_autofree gchar* bundled_icon_path =
       g_build_filename(executable_dir, "data", "flutter_assets", "lib", "src",
-                       "icon", "Navis_Icon_Dark.png", nullptr);
+                       "icon", "Navis_App_Icon.png", nullptr);
   if (g_file_test(bundled_icon_path, G_FILE_TEST_EXISTS)) {
     return g_strdup(bundled_icon_path);
   }
@@ -43,7 +43,7 @@ static void my_application_activate(GApplication* application) {
 
   // Register the bundled icon directory in the GTK icon theme search path.
   // This lets gtk_window_set_icon_name() resolve "navis" from the bundle's
-  // data/icons/hicolor/256x256/apps/navis.png, which is also the path that
+  // data/icons/hicolor/*/apps/navis.png, which is also the path that
   // Wayland compositors query when the app-id matches an installed .desktop
   // file's Icon= field.
   g_autofree gchar* exe_path = g_file_read_link("/proc/self/exe", nullptr);

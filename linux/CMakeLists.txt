@@ -127,11 +127,10 @@ if(NOT CMAKE_BUILD_TYPE MATCHES "Debug")
     COMPONENT Runtime)
 endif()
 
-# App icon — installed into the XDG icon theme hierarchy so both GTK and
-# Wayland compositors can find it via icon name "navis".
-install(FILES "${PROJECT_SOURCE_DIR}/../lib/src/icon/Navis_Icon_Dark.png"
-  DESTINATION "${INSTALL_BUNDLE_DATA_DIR}/icons/hicolor/256x256/apps"
-  RENAME "navis.png"
+# App icons — installed into the XDG icon theme hierarchy so both GTK and
+# Wayland compositors can find them via icon name "navis".
+install(DIRECTORY "${PROJECT_SOURCE_DIR}/packaging/icons/hicolor"
+  DESTINATION "${INSTALL_BUNDLE_DATA_DIR}/icons"
   COMPONENT Runtime)
 
 # Desktop file — bundled alongside the app so .deb post-install scripts

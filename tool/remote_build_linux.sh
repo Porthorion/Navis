@@ -164,7 +164,7 @@ if [[ "${package_mode}" == "deb" ]]; then
   mkdir -p "${deb_stage_dir}/opt/${deb_package_name}"
   mkdir -p "${deb_stage_dir}/usr/bin"
   mkdir -p "${deb_stage_dir}/usr/share/applications"
-  mkdir -p "${deb_stage_dir}/usr/share/icons/hicolor/512x512/apps"
+  mkdir -p "${deb_stage_dir}/usr/share/icons/hicolor"
 
   cp -R "${bundle_dir}/." "${deb_stage_dir}/opt/${deb_package_name}/"
 
@@ -185,12 +185,18 @@ Terminal=false
 Type=Application
 Categories=AudioVideo;Audio;Player;
 StartupNotify=true
+StartupWMClass=navis
+MimeType=audio/mpeg;audio/ogg;audio/flac;audio/x-flac;audio/wav;audio/aac;audio/x-m4a;
 DESKTOP
 
-  icon_source="${workspace_dir}/lib/src/icon/Navis_Icon_light.png"
-  if [[ -f "${icon_source}" ]]; then
-    cp "${icon_source}" \
-      "${deb_stage_dir}/usr/share/icons/hicolor/512x512/apps/${deb_package_name}.png"
+  icon_source_dir="${workspace_dir}/linux/packaging/icons/hicolor"
+  if [[ -d "${icon_source_dir}" ]]; then
+    while IFS= read -r icon_path; do
+      icon_size="$(basename "$(dirname "$(dirname "${icon_path}")")")"
+      install -d "${deb_stage_dir}/usr/share/icons/hicolor/${icon_size}/apps"
+      install -m 0644 "${icon_path}" \
+        "${deb_stage_dir}/usr/share/icons/hicolor/${icon_size}/apps/${deb_package_name}.png"
+    done < <(find "${icon_source_dir}" -path "*/apps/navis.png" -type f | sort)
   fi
 
   semver="${version#v}"

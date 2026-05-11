@@ -49,6 +49,8 @@ New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
 
 $escapedReleaseDir = $ReleaseDir.Replace('\', '\\')
 $escapedOutputDir = $outputDir.Replace('\', '\\')
+$setupIconPath = Join-Path $PSScriptRoot "..\..\windows\runner\resources\app_icon.ico"
+$escapedSetupIconPath = $setupIconPath.Replace('\', '\\')
 
 $issBody = @"
 #define MyAppName "$appName"
@@ -68,6 +70,7 @@ DefaultDirName=$defaultDir
 DisableProgramGroupPage=yes
 OutputDir={#MyOutputDir}
 OutputBaseFilename={#MyOutputBaseName}
+SetupIconFile=$escapedSetupIconPath
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
@@ -107,4 +110,3 @@ if (-not (Test-Path -LiteralPath $OutputPath)) {
 }
 
 Write-Host "==> Windows installer ready: $OutputPath"
-
