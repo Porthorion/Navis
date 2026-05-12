@@ -1063,7 +1063,13 @@ class GroupListeningSessionController
     if (state.room != null && snapshot.roomId != state.room!.roomId) {
       return state;
     }
-    if (snapshot.roomVersion <= state.lastAppliedRoomVersion) {
+    // Allow re-applying a snapshot at the current version so that a
+    // snapshotRequired flag set by a stale_version rejection (which arrived
+    // after the corresponding room event already advanced lastApplied) can be
+    // cleared.  Using strict-less-than here means an equal-version snapshot
+    // still goes through applySnapshot and clears snapshotRequired at line
+    // below, rather than silently returning with the flag still set.
+    if (snapshot.roomVersion < state.lastAppliedRoomVersion) {
       return state;
     }
 
@@ -1341,7 +1347,8 @@ class GroupListeningSessionController
       if (message.roomVersion < state.lastAppliedRoomVersion) {
         return;
       }
-      if (message.roomVersion > state.lastAppliedRoomVersion) {
+      if (message.roomVersion > state.lastAppliedRoomVersion + 1) {
+        // Genuine gap: multiple room events are missing. Fetch a fresh snapshot.
         markSnapshotRequired(
           GroupListeningErrorState(
             code: GroupListeningErrorCode.snapshotRequired,
@@ -1350,6 +1357,14 @@ class GroupListeningSessionController
             roomVersion: message.roomVersion,
           ),
         );
+        return;
+      }
+      if (message.roomVersion > state.lastAppliedRoomVersion) {
+        // Presence arrived exactly 1 version ahead of lastApplied: the
+        // corresponding room.event is still in transit on the WS stream.
+        // Skip this presence frame; the event will arrive momentarily and
+        // advance lastAppliedRoomVersion, at which point the next presence
+        // notification (at the new version) will apply normally.
         return;
       }
       state = state.copyWith(
@@ -1365,11 +1380,23 @@ class GroupListeningSessionController
       return;
     }
     if (message is GroupListeningHeartbeatAckMessage) {
+      // Use the server's current roomVersion from the ACK to silently advance
+      // lastAppliedRoomVersion.  This reduces stale_version rejections on the
+      // next mutation when the server's version is ahead of our last applied
+      // version (e.g., a sync-tick event arrived between our snapshot and the
+      // heartbeat).  Only advance when not already fetching a snapshot, to
+      // avoid masking a genuine version gap.
+      final serverVersion = message.roomVersion;
       state = state.copyWith(
         connection: state.connection.copyWith(
           lastHeartbeatAckAt: DateTime.now(),
           lastServerTime: message.serverTime,
         ),
+        lastAppliedRoomVersion:
+            !state.snapshotRequired &&
+                    serverVersion > state.lastAppliedRoomVersion
+                ? serverVersion
+                : state.lastAppliedRoomVersion,
       );
       return;
     }
@@ -1396,6 +1423,15 @@ class GroupListeningSessionController
               message: 'Voyage realtime transport disconnected.',
               retryable: true,
             ),
+      );
+      return;
+    }
+    if (message is GroupListeningMutationRejectedMessage) {
+      // Non-fatal mutation rejection (forbidden / sequence_rejected /
+      // duplicate_mutation).  Log it but do NOT tear down the session.
+      AppLogger.info(
+        'Group listening mutation rejected: '
+        '${message.error.code.name} — ${message.error.message}',
       );
       return;
     }

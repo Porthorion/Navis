@@ -159,6 +159,18 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
       );
     }
 
+    // When the local member loses playback rights (e.g., joining a Shotgun
+    // room as a non-host), stop any audio that is currently playing.
+    // Otherwise the user keeps hearing their own audio even though they are
+    // no longer allowed to control playback in this room.
+    final prevCanPlayAudio = previous?.room?.self.canPlayAudio;
+    if (prevCanPlayAudio == true && !nextRoom.self.canPlayAudio) {
+      final handler = ref.read(audioHandlerProvider);
+      if (handler != null) {
+        unawaited(handler.pause());
+      }
+    }
+
     if (!_shouldApplyInboundState(next) ||
         nextRoom.roomVersion <= _lastObservedRoomVersion) {
       return;
@@ -414,10 +426,12 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
         targetQueueEntryId = queueDiff.queueEntryId;
       }
     }
-    final canSendMutation =
-        queueChanged ||
-        room.self.canControl ||
-        reason == GroupListeningPlaybackAnchorReason.seek;
+    // Only gate on canControl: every mutation type (playbackAnchor, seek,
+    // queueReplace, queueAdd, queueRemove) requires canControl in
+    // _canSendMutationType.  The previous queueChanged || guard bypassed this
+    // and would reach sendMutation even when the member has no control rights,
+    // with the only effect being a forbidden rejection from the server.
+    final canSendMutation = room.self.canControl;
     if (!canSendMutation) {
       return;
     }

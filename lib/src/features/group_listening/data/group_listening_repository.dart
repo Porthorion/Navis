@@ -434,6 +434,16 @@ class GroupListeningTransportDisconnectedMessage
   final bool retryable;
 }
 
+/// Emitted when the server rejects a mutation with a non-fatal error code
+/// (forbidden, sequence_rejected, duplicate_mutation).  The session must NOT
+/// be disconnected; the rejection is informational only.
+class GroupListeningMutationRejectedMessage
+    extends GroupListeningTransportMessage {
+  const GroupListeningMutationRejectedMessage(this.error);
+
+  final GroupListeningErrorState error;
+}
+
 abstract class GroupListeningRealtimeConnection {
   Stream<GroupListeningTransportMessage> get messages;
 
@@ -1114,11 +1124,23 @@ class _IOWebSocketGroupListeningRealtimeConnection
           );
           return;
         case 'error':
-          _messagesController.add(
-            GroupListeningTransportErrorMessage(
-              _errorStateFromApiError(_mapValue(envelope['error'])),
-            ),
-          );
+          final errorState =
+              _errorStateFromApiError(_mapValue(envelope['error']));
+          // Non-fatal mutation rejections must not disconnect the session.
+          // Route them to the dedicated message type so the controller can log
+          // them without triggering transport teardown.
+          const nonFatalCodes = {
+            GroupListeningErrorCode.forbidden,
+            GroupListeningErrorCode.sequenceRejected,
+            GroupListeningErrorCode.duplicateMutation,
+          };
+          if (nonFatalCodes.contains(errorState.code)) {
+            _messagesController
+                .add(GroupListeningMutationRejectedMessage(errorState));
+          } else {
+            _messagesController
+                .add(GroupListeningTransportErrorMessage(errorState));
+          }
           return;
         default:
           _messagesController.add(
