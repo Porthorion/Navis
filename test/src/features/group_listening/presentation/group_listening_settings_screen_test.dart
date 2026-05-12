@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -186,6 +187,8 @@ final _packageInfo = PackageInfo(
   buildSignature: '',
 );
 
+const _validInviteCode = 'AbCdEfGhIjKlMnOpQrStUvWx';
+
 Future<void> _pumpScreen(
   WidgetTester tester, {
   required List<Override> overrides,
@@ -206,6 +209,24 @@ Future<void> _pumpScreen(
 Future<void> _pumpRoomAction(WidgetTester tester) async {
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 500));
+}
+
+void _mockClipboardText(String? text) {
+  final messenger =
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+  messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+    switch (call.method) {
+      case 'Clipboard.getData':
+        return text == null ? null : <String, dynamic>{'text': text};
+      case 'Clipboard.setData':
+        return null;
+      default:
+        return null;
+    }
+  });
+  addTearDown(
+    () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+  );
 }
 
 GroupListeningJoinResponse _joinResponse({
@@ -465,8 +486,16 @@ void main() {
         findsWidgets,
       );
 
+      final createButtonFinder = find.byKey(
+        const ValueKey('groupListeningCreateRoomButton'),
+      );
+      await tester.scrollUntilVisible(
+        createButtonFinder,
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
       final createButton = tester.widget<FilledButton>(
-        find.byKey(const ValueKey('groupListeningCreateRoomButton')),
+        createButtonFinder,
       );
       expect(createButton.onPressed, isNull);
     },
@@ -509,9 +538,18 @@ void main() {
       ],
     );
 
-    await tester.tap(
-      find.byKey(const ValueKey('groupListeningCreateRoomButton')),
+    final createRoomButton = find.byKey(
+      const ValueKey('groupListeningCreateRoomButton'),
     );
+    await tester.scrollUntilVisible(
+      createRoomButton,
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.ensureVisible(createRoomButton);
+    final createRoomAction = tester.widget<FilledButton>(createRoomButton);
+    expect(createRoomAction.onPressed, isNotNull);
+    createRoomAction.onPressed!.call();
     await _pumpRoomAction(tester);
 
     expect(repository.lastCreateRequest, isNotNull);
@@ -524,13 +562,17 @@ void main() {
       container.read(groupListeningSessionControllerProvider).activeInviteCode,
       'INVITE-123',
     );
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, 800));
+    await tester.pumpAndSettle();
     expect(find.text('Invite listeners'), findsOneWidget);
     expect(find.text('INVITE-123'), findsOneWidget);
   });
 
-  testWidgets('joins a room with an invite code from the inline controls', (
+  testWidgets('joins a room with an invite code from the join-code modal', (
     tester,
   ) async {
+    _mockClipboardText('not-an-invite');
+
     final repository = _FakeGroupListeningRepository()
       ..createResponse = _joinResponse(role: GroupListeningMemberRole.host)
       ..joinResponse = _joinResponse(role: GroupListeningMemberRole.member)
@@ -562,13 +604,26 @@ void main() {
       ],
     );
 
+    final joinWithCodeButton = find.byKey(
+      const ValueKey('groupListeningJoinWithCodeButton'),
+    );
+    await tester.scrollUntilVisible(
+      joinWithCodeButton,
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.ensureVisible(joinWithCodeButton);
+    await tester.pumpAndSettle();
+    final joinWithCodeAction = tester.widget<TextButton>(joinWithCodeButton);
+    expect(joinWithCodeAction.onPressed, isNotNull);
+    joinWithCodeAction.onPressed!.call();
+    await _pumpRoomAction(tester);
     await tester.enterText(
-      find.byKey(const ValueKey('groupListeningInviteCodeField')),
+      find.byKey(const ValueKey('groupListeningJoinWithCodeField')),
       'room-123',
     );
-    await tester.pump();
     await tester.tap(
-      find.byKey(const ValueKey('groupListeningJoinRoomButton')),
+      find.byKey(const ValueKey('groupListeningJoinWithCodeConfirmButton')),
     );
     await _pumpRoomAction(tester);
 
@@ -577,7 +632,153 @@ void main() {
   });
 
   testWidgets(
-    'shows collaborative playback and room mode placeholders for members',
+    'prefills the join-code modal from the clipboard when an invite is detected',
+    (
+      tester,
+    ) async {
+      _mockClipboardText(_validInviteCode);
+
+      final repository = _FakeGroupListeningRepository()
+        ..joinResponse = _joinResponse(role: GroupListeningMemberRole.member)
+        ..snapshotResponse = _joinResponse(
+          role: GroupListeningMemberRole.member,
+        ).roomSnapshot
+        ..connection = _FakeRealtimeConnection();
+
+      await _pumpScreen(
+        tester,
+        overrides: [
+          appSettingsProvider.overrideWithValue(
+            AsyncData(
+              AppSettingsModel.defaults().copyWith(
+                groupListeningEnabled: true,
+                voyageServerUrl: 'https://voyage.example.com',
+                voyageDeviceLabel: 'Phone',
+                clearVoyageDisplayName: true,
+              ),
+            ),
+          ),
+          packageInfoProvider.overrideWithValue(
+            AsyncData<PackageInfo>(_packageInfo),
+          ),
+          serverConfigStateProvider.overrideWithValue(
+            const AsyncData<ServerConfigModel?>(_activeServer),
+          ),
+          groupListeningRepositoryProvider.overrideWithValue(repository),
+        ],
+      );
+
+      final joinWithCodeButton = find.byKey(
+        const ValueKey('groupListeningJoinWithCodeButton'),
+      );
+      await tester.scrollUntilVisible(
+        joinWithCodeButton,
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.ensureVisible(joinWithCodeButton);
+      await tester.pumpAndSettle();
+      final joinWithCodeAction = tester.widget<TextButton>(joinWithCodeButton);
+      expect(joinWithCodeAction.onPressed, isNotNull);
+      joinWithCodeAction.onPressed!.call();
+      await _pumpRoomAction(tester);
+
+      final inviteField = tester.widget<TextField>(
+        find.byKey(const ValueKey('groupListeningJoinWithCodeField')),
+      );
+      expect(inviteField.controller?.text, _validInviteCode);
+      expect(
+        find.text('Detected an invite code from your clipboard.'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'shows room setting toggles before creating a room',
+    (
+      tester,
+    ) async {
+      final repository = _FakeGroupListeningRepository();
+
+      await _pumpScreen(
+        tester,
+        overrides: [
+          appSettingsProvider.overrideWithValue(
+            AsyncData(
+              AppSettingsModel.defaults().copyWith(
+                groupListeningEnabled: true,
+                voyageServerUrl: 'https://voyage.example.com',
+                voyageDeviceLabel: 'Phone',
+                clearVoyageDisplayName: true,
+              ),
+            ),
+          ),
+          packageInfoProvider.overrideWithValue(
+            AsyncData<PackageInfo>(_packageInfo),
+          ),
+          serverConfigStateProvider.overrideWithValue(
+            const AsyncData<ServerConfigModel?>(_activeServer),
+          ),
+          groupListeningRepositoryProvider.overrideWithValue(repository),
+        ],
+      );
+
+      final roomSettingsTitle = find.text('Room settings');
+      final createRoomButton = find.byKey(
+        const ValueKey('groupListeningCreateRoomButton'),
+      );
+
+      expect(roomSettingsTitle, findsOneWidget);
+      expect(
+        tester.getTopLeft(roomSettingsTitle).dy,
+        lessThan(tester.getTopLeft(createRoomButton).dy),
+      );
+
+      final shotgunToggle = find.widgetWithText(
+        SwitchListTile,
+        'Shotgun Mode',
+      );
+      final hostOnlyToggle = find.widgetWithText(SwitchListTile, 'Host Only');
+      final pinProtectedToggle = find.widgetWithText(
+        SwitchListTile,
+        'Pin Protected',
+      );
+
+      expect(shotgunToggle, findsOneWidget);
+      expect(hostOnlyToggle, findsOneWidget);
+      expect(pinProtectedToggle, findsOneWidget);
+
+      await tester.tap(shotgunToggle);
+      await tester.pumpAndSettle();
+      await tester.tap(hostOnlyToggle);
+      await tester.pumpAndSettle();
+      await tester.tap(pinProtectedToggle);
+      await tester.pumpAndSettle();
+
+      expect(tester.widget<SwitchListTile>(shotgunToggle).value, isTrue);
+      expect(tester.widget<SwitchListTile>(hostOnlyToggle).value, isTrue);
+      expect(tester.widget<SwitchListTile>(pinProtectedToggle).value, isTrue);
+      expect(
+        find.byKey(const ValueKey('groupListeningRoomPinField')),
+        findsOneWidget,
+      );
+
+      await tester.enterText(
+        find.byKey(const ValueKey('groupListeningRoomPinField')),
+        '12ab34',
+      );
+      await tester.pumpAndSettle();
+
+      final pinField = tester.widget<TextField>(
+        find.byKey(const ValueKey('groupListeningRoomPinField')),
+      );
+      expect(pinField.controller?.text, '1234');
+    },
+  );
+
+  testWidgets(
+    'shows collaborative playback for members without pre-room settings',
     (
       tester,
     ) async {
@@ -621,23 +822,12 @@ void main() {
       );
 
       expect(find.text('Shared playback enabled'), findsOneWidget);
-      expect(find.text('Room settings'), findsOneWidget);
+      expect(find.text('Room settings'), findsNothing);
       expect(
         find.byKey(const ValueKey('groupListeningCloseRoomButton')),
         findsNothing,
       );
       expect(find.text('Invite listeners'), findsNothing);
-
-      final shotgunButton = find.widgetWithText(OutlinedButton, 'Shotgun Mode');
-      final hostOnlyButton = find.widgetWithText(OutlinedButton, 'Host-Only');
-      final protectedButton = find.widgetWithText(OutlinedButton, 'Protected');
-
-      expect(shotgunButton, findsOneWidget);
-      expect(hostOnlyButton, findsOneWidget);
-      expect(protectedButton, findsOneWidget);
-      expect(tester.widget<OutlinedButton>(shotgunButton).onPressed, isNull);
-      expect(tester.widget<OutlinedButton>(hostOnlyButton).onPressed, isNull);
-      expect(tester.widget<OutlinedButton>(protectedButton).onPressed, isNull);
     },
   );
 
@@ -684,7 +874,13 @@ void main() {
       ],
     );
 
-    expect(find.text('Available rooms'), findsOneWidget);
+    final availableRoomsTitle = find.text('Available rooms');
+    await tester.scrollUntilVisible(
+      availableRoomsTitle,
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(availableRoomsTitle, findsOneWidget);
     expect(find.text('Alice'), findsOneWidget);
 
     final availableRoomJoinButton = find.widgetWithText(FilledButton, 'Join');

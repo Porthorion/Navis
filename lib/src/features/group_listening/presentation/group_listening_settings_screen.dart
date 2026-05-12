@@ -107,11 +107,16 @@ class _ListenTogetherRoomContent extends ConsumerStatefulWidget {
 
 class _ListenTogetherRoomContentState
     extends ConsumerState<_ListenTogetherRoomContent> {
-  final _inviteCodeController = TextEditingController();
+  static final RegExp _inviteCodePattern = RegExp(r'^[A-Za-z0-9_-]{24}$');
+
+  final _roomPinController = TextEditingController();
+  bool _shotgunModeEnabled = false;
+  bool _hostOnlyEnabled = false;
+  bool _pinProtectedEnabled = false;
 
   @override
   void dispose() {
-    _inviteCodeController.dispose();
+    _roomPinController.dispose();
     super.dispose();
   }
 
@@ -141,9 +146,9 @@ class _ListenTogetherRoomContentState
   }
 
   Future<void> _joinRoom(
-    GroupListeningClientDescriptor clientDescriptor,
-  ) async {
-    final inviteCode = _inviteCodeController.text.trim();
+    GroupListeningClientDescriptor clientDescriptor, {
+    required String inviteCode,
+  }) async {
     if (inviteCode.isEmpty) {
       showAppNotice(
         context,
@@ -156,6 +161,116 @@ class _ListenTogetherRoomContentState
         .read(groupListeningSessionControllerProvider.notifier)
         .joinRoom(inviteCode: inviteCode, client: clientDescriptor);
     if (mounted) ref.invalidate(groupListeningAvailableRoomsProvider);
+  }
+
+  Future<String?> _clipboardInviteCode() async {
+    final clipboard = await Clipboard.getData(Clipboard.kTextPlain);
+    final text = clipboard?.text?.trim();
+    if (text == null || text.isEmpty) {
+      return null;
+    }
+    for (final token in text.split(RegExp('[\\s"\'<>]+'))) {
+      final trimmed = token.trim();
+      if (_inviteCodePattern.hasMatch(trimmed)) {
+        return trimmed;
+      }
+    }
+    return null;
+  }
+
+  Future<void> _showJoinWithCodeDialog(
+    GroupListeningClientDescriptor clientDescriptor,
+  ) async {
+    FocusScope.of(context).unfocus();
+    final clipboardInviteCode = await _clipboardInviteCode();
+    if (!mounted) {
+      return;
+    }
+    final controller = TextEditingController(text: clipboardInviteCode);
+
+    final inviteCode = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        String? errorText;
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            void submit() {
+              final normalized = controller.text.trim();
+              if (normalized.isEmpty) {
+                setDialogState(() {
+                  errorText = 'Enter an invite code to join a room.';
+                });
+                return;
+              }
+              Navigator.of(context).pop(normalized);
+            }
+
+            return AlertDialog(
+              icon: const Icon(Icons.pin_outlined),
+              title: const Text('Join with code'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  TextField(
+                    key: const ValueKey('groupListeningJoinWithCodeField'),
+                    controller: controller,
+                    autofocus: true,
+                    enableSuggestions: false,
+                    autocorrect: false,
+                    keyboardType: TextInputType.text,
+                    decoration: InputDecoration(
+                      labelText: 'Invite code',
+                      hintText: 'Paste a Voyage invite',
+                      errorText: errorText,
+                      border: const OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.meeting_room_outlined),
+                    ),
+                    onChanged: (_) {
+                      if (errorText != null) {
+                        setDialogState(() {
+                          errorText = null;
+                        });
+                      }
+                    },
+                    onSubmitted: (_) => submit(),
+                  ),
+                  if (clipboardInviteCode != null) ...<Widget>[
+                    const SizedBox(height: 12),
+                    Text(
+                      'Detected an invite code from your clipboard.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ],
+              ),
+              actions: <Widget>[
+                TextButton(
+                  key: const ValueKey('groupListeningJoinWithCodeCancelButton'),
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton.icon(
+                  key: const ValueKey(
+                    'groupListeningJoinWithCodeConfirmButton',
+                  ),
+                  onPressed: submit,
+                  icon: const Icon(Icons.login_outlined),
+                  label: const Text('Join room'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    controller.dispose();
+
+    if (!mounted || inviteCode == null) {
+      return;
+    }
+    await _joinRoom(clientDescriptor, inviteCode: inviteCode);
   }
 
   Future<void> _joinAvailableRoom(
@@ -493,8 +608,6 @@ class _ListenTogetherRoomContentState
         sessionState.availability == GroupListeningAvailability.ready &&
         !isBusy &&
         !sessionState.hasActiveRoom;
-    final canJoinRoom =
-        canStartRoom && _inviteCodeController.text.trim().isNotEmpty;
     final canRecoverActiveRoom = sessionState.hasActiveRoom && !isBusy;
 
     return Card(
@@ -513,24 +626,6 @@ class _ListenTogetherRoomContentState
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             const SizedBox(height: 16),
-            TextField(
-              key: const ValueKey('groupListeningInviteCodeField'),
-              controller: _inviteCodeController,
-              textCapitalization: TextCapitalization.characters,
-              decoration: const InputDecoration(
-                labelText: 'Invite code',
-                hintText: 'Paste a Voyage invite',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.meeting_room_outlined),
-              ),
-              onChanged: (_) => setState(() {}),
-              onSubmitted: (_) {
-                if (canJoinRoom) {
-                  unawaited(_joinRoom(clientDescriptor));
-                }
-              },
-            ),
-            const SizedBox(height: 12),
             Wrap(
               spacing: 12,
               runSpacing: 12,
@@ -542,14 +637,6 @@ class _ListenTogetherRoomContentState
                       : null,
                   icon: const Icon(Icons.add_home_outlined),
                   label: const Text('Create room'),
-                ),
-                OutlinedButton.icon(
-                  key: const ValueKey('groupListeningJoinRoomButton'),
-                  onPressed: canJoinRoom
-                      ? () => _joinRoom(clientDescriptor)
-                      : null,
-                  icon: const Icon(Icons.login_outlined),
-                  label: const Text('Join room'),
                 ),
                 if (canRecoverActiveRoom &&
                     sessionState.connection.status ==
@@ -676,6 +763,14 @@ class _ListenTogetherRoomContentState
                     style: theme.textTheme.titleMedium,
                   ),
                 ),
+                TextButton.icon(
+                  key: const ValueKey('groupListeningJoinWithCodeButton'),
+                  onPressed: canJoin
+                      ? () => _showJoinWithCodeDialog(clientDescriptor)
+                      : null,
+                  icon: const Icon(Icons.pin_outlined),
+                  label: const Text('Join with code'),
+                ),
                 IconButton(
                   tooltip: 'Refresh available rooms',
                   onPressed: () =>
@@ -758,13 +853,12 @@ class _ListenTogetherRoomContentState
   }
 
   Widget _buildRoomSettingsCard(GroupListeningSessionState sessionState) {
-    final room = sessionState.room;
-    if (room == null) {
-      return const SizedBox.shrink();
-    }
-
     final theme = Theme.of(context);
-    final hostCanEdit = room.self.canManageRoom;
+    final canEdit =
+        !sessionState.hasActiveRoom &&
+        sessionState.availability == GroupListeningAvailability.ready &&
+        !_isBusy(sessionState);
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -777,36 +871,78 @@ class _ListenTogetherRoomContentState
             ),
             const SizedBox(height: 8),
             Text(
-              hostCanEdit
-                  ? 'Default rooms already use shared playback. Extra room modes are planned here next.'
-                  : 'Default rooms already use shared playback. The host will be able to change room modes here later.',
+              'Pick room options before creating a room. These toggles are UI placeholders until Voyage wiring lands.',
               style: theme.textTheme.bodyMedium,
             ),
             const SizedBox(height: 16),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: const <Widget>[
-                _RoomSettingsPlaceholderButton(
-                  key: ValueKey('groupListeningShotgunModeButton'),
-                  icon: Icons.flash_on_outlined,
-                  label: 'Shotgun Mode',
-                ),
-                _RoomSettingsPlaceholderButton(
-                  key: ValueKey('groupListeningHostOnlyModeButton'),
-                  icon: Icons.shield_outlined,
-                  label: 'Host-Only',
-                ),
-                _RoomSettingsPlaceholderButton(
-                  key: ValueKey('groupListeningProtectedModeButton'),
-                  icon: Icons.lock_outline,
-                  label: 'Protected',
-                ),
-              ],
+            _RoomSettingsToggle(
+              key: const ValueKey('groupListeningShotgunModeToggle'),
+              icon: Icons.flash_on_outlined,
+              title: 'Shotgun Mode',
+              subtitle: 'Placeholder only for now.',
+              value: _shotgunModeEnabled,
+              enabled: canEdit,
+              onChanged: (value) {
+                setState(() {
+                  _shotgunModeEnabled = value;
+                });
+              },
             ),
+            const Divider(height: 24),
+            _RoomSettingsToggle(
+              key: const ValueKey('groupListeningHostOnlyModeToggle'),
+              icon: Icons.shield_outlined,
+              title: 'Host Only',
+              subtitle: 'Placeholder only for now.',
+              value: _hostOnlyEnabled,
+              enabled: canEdit,
+              onChanged: (value) {
+                setState(() {
+                  _hostOnlyEnabled = value;
+                });
+              },
+            ),
+            const Divider(height: 24),
+            _RoomSettingsToggle(
+              key: const ValueKey('groupListeningPinProtectedModeToggle'),
+              icon: Icons.lock_outline,
+              title: 'Pin Protected',
+              subtitle: 'Placeholder only for now.',
+              value: _pinProtectedEnabled,
+              enabled: canEdit,
+              onChanged: (value) {
+                setState(() {
+                  _pinProtectedEnabled = value;
+                  if (!value) {
+                    _roomPinController.clear();
+                  }
+                });
+              },
+            ),
+            if (_pinProtectedEnabled) ...<Widget>[
+              const SizedBox(height: 12),
+              TextField(
+                key: const ValueKey('groupListeningRoomPinField'),
+                controller: _roomPinController,
+                enabled: canEdit,
+                keyboardType: TextInputType.number,
+                inputFormatters: <TextInputFormatter>[
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(4),
+                ],
+                decoration: const InputDecoration(
+                  labelText: 'Room PIN',
+                  hintText: '4 digits',
+                  helperText:
+                      'Placeholder only until Voyage room protection is wired.',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.password_outlined),
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             Text(
-              'Coming soon: room playback modes and access protections.',
+              'Default rooms stay collaborative until these options are wired into Voyage.',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
@@ -866,7 +1002,7 @@ class _ListenTogetherRoomContentState
           _buildOverviewCard(sessionState),
           const SizedBox(height: 12),
         ],
-        if (sessionState.hasActiveRoom) ...<Widget>[
+        if (!sessionState.hasActiveRoom) ...<Widget>[
           _buildRoomSettingsCard(sessionState),
           const SizedBox(height: 12),
         ],
@@ -894,25 +1030,33 @@ class _StatusChip extends StatelessWidget {
   }
 }
 
-class _RoomSettingsPlaceholderButton extends StatelessWidget {
-  const _RoomSettingsPlaceholderButton({
+class _RoomSettingsToggle extends StatelessWidget {
+  const _RoomSettingsToggle({
     required this.icon,
-    required this.label,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.enabled,
+    required this.onChanged,
     super.key,
   });
 
   final IconData icon;
-  final String label;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final bool enabled;
+  final ValueChanged<bool> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minWidth: 180),
-      child: OutlinedButton.icon(
-        onPressed: null,
-        icon: Icon(icon),
-        label: Text(label),
-      ),
+    return SwitchListTile.adaptive(
+      contentPadding: EdgeInsets.zero,
+      secondary: Icon(icon),
+      title: Text(title),
+      subtitle: Text(subtitle),
+      value: value,
+      onChanged: enabled ? onChanged : null,
     );
   }
 }
