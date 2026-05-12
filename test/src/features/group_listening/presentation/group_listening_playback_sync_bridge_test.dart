@@ -68,6 +68,7 @@ class _FakeGroupListeningRepository implements GroupListeningRepository {
     required String roomId,
     required GroupListeningClientConfiguration configuration,
     required GroupListeningClientDescriptor client,
+    String? pinCode,
   }) {
     throw UnimplementedError();
   }
@@ -517,7 +518,7 @@ void main() {
               self: const GroupListeningSelfState(
                 memberId: 'member-2',
                 role: GroupListeningMemberRole.member,
-                canControl: false,
+                canControl: true,
                 authVersion: 1,
               ),
             );

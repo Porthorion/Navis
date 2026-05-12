@@ -463,6 +463,7 @@ class GroupListeningSessionController
 
   Future<GroupListeningSessionState> createRoom({
     required GroupListeningClientDescriptor client,
+    GroupListeningRoomOptions roomOptions = const GroupListeningRoomOptions(),
     GroupListeningRoomSeed? roomSeed,
     bool connectAfterCreate = true,
   }) async {
@@ -478,6 +479,7 @@ class GroupListeningSessionController
             GroupListeningCreateRoomRequest(
               configuration: configuration,
               client: client,
+              roomOptions: roomOptions,
               roomSeed: roomSeed,
             ),
           );
@@ -502,6 +504,7 @@ class GroupListeningSessionController
   Future<GroupListeningSessionState> joinRoom({
     required String inviteCode,
     required GroupListeningClientDescriptor client,
+    String? pinCode,
     bool connectAfterJoin = true,
   }) async {
     try {
@@ -517,6 +520,7 @@ class GroupListeningSessionController
               configuration: configuration,
               client: client,
               inviteCode: inviteCode,
+              pinCode: pinCode,
             ),
           );
       await _bindJoinedSession(
@@ -540,6 +544,7 @@ class GroupListeningSessionController
   Future<GroupListeningSessionState> joinAvailableRoom({
     required String roomId,
     required GroupListeningClientDescriptor client,
+    String? pinCode,
     bool connectAfterJoin = true,
   }) async {
     try {
@@ -555,6 +560,7 @@ class GroupListeningSessionController
             roomId: roomId,
             configuration: configuration,
             client: client,
+            pinCode: pinCode,
           );
       await _bindJoinedSession(
         result: result,
@@ -1539,7 +1545,7 @@ class GroupListeningSessionController
     switch (type) {
       case GroupListeningMutationType.queueAdd:
       case GroupListeningMutationType.queueRemove:
-        return true;
+        return room.self.canControl;
       case GroupListeningMutationType.queueReplace:
         return room.self.canControl;
       case GroupListeningMutationType.playbackAnchor:

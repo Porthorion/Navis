@@ -165,6 +165,12 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
     }
     _lastObservedRoomVersion = nextRoom.roomVersion;
 
+    if (!nextRoom.self.canPlayAudio) {
+      _lastPublishedState = _playbackStateFromRoom(nextRoom);
+      _lastPublishedAt = DateTime.now();
+      return;
+    }
+
     final remoteState = _playbackStateFromRoom(nextRoom);
     final localState = _currentLocalPlaybackState();
     final selfIssued =

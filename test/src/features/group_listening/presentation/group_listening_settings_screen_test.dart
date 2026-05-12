@@ -35,6 +35,7 @@ class _FakeGroupListeningRepository implements GroupListeningRepository {
   GroupListeningCreateRoomRequest? lastCreateRequest;
   GroupListeningJoinRoomRequest? lastJoinRequest;
   String? lastJoinAvailableRoomId;
+  String? lastJoinAvailableRoomPin;
   GroupListeningSessionRuntimeContext? lastLeaveSession;
   GroupListeningSessionRuntimeContext? lastCloseSession;
   GroupListeningSessionRuntimeContext? lastRotateInviteSession;
@@ -98,8 +99,10 @@ class _FakeGroupListeningRepository implements GroupListeningRepository {
     required String roomId,
     required GroupListeningClientConfiguration configuration,
     required GroupListeningClientDescriptor client,
+    String? pinCode,
   }) async {
     lastJoinAvailableRoomId = roomId;
+    lastJoinAvailableRoomPin = pinCode;
     return joinResponse!;
   }
 
@@ -209,6 +212,30 @@ Future<void> _pumpScreen(
 Future<void> _pumpRoomAction(WidgetTester tester) async {
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 500));
+}
+
+Future<void> _pumpSheetHost(
+  WidgetTester tester, {
+  required List<Override> overrides,
+}) async {
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: overrides,
+      child: MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showListenTogetherSheet(context),
+              child: const Text('Open sheet'),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
 }
 
 void _mockClipboardText(String? text) {
@@ -742,12 +769,18 @@ void main() {
       final hostOnlyToggle = find.widgetWithText(SwitchListTile, 'Host Only');
       final pinProtectedToggle = find.widgetWithText(
         SwitchListTile,
-        'Pin Protected',
+        'PIN Protected',
       );
 
       expect(shotgunToggle, findsOneWidget);
       expect(hostOnlyToggle, findsOneWidget);
       expect(pinProtectedToggle, findsOneWidget);
+      expect(
+        find.text('Everyone controls playback; only the host plays audio.'),
+        findsOneWidget,
+      );
+      expect(find.text('Only the host controls playback.'), findsOneWidget);
+      expect(find.text('Require a 4-digit code to join.'), findsOneWidget);
 
       await tester.tap(shotgunToggle);
       await tester.pumpAndSettle();
@@ -756,7 +789,7 @@ void main() {
       await tester.tap(pinProtectedToggle);
       await tester.pumpAndSettle();
 
-      expect(tester.widget<SwitchListTile>(shotgunToggle).value, isTrue);
+      expect(tester.widget<SwitchListTile>(shotgunToggle).value, isFalse);
       expect(tester.widget<SwitchListTile>(hostOnlyToggle).value, isTrue);
       expect(tester.widget<SwitchListTile>(pinProtectedToggle).value, isTrue);
       expect(
@@ -776,6 +809,60 @@ void main() {
       expect(pinField.controller?.text, '1234');
     },
   );
+
+  testWidgets('sends selected room mode and PIN when creating a room', (
+    tester,
+  ) async {
+    final repository = _FakeGroupListeningRepository()
+      ..createResponse = _joinResponse(
+        role: GroupListeningMemberRole.host,
+        inviteCode: 'INVITE-123',
+      )
+      ..connection = _FakeRealtimeConnection();
+
+    await _pumpScreen(
+      tester,
+      overrides: [
+        appSettingsProvider.overrideWithValue(
+          AsyncData(
+            AppSettingsModel.defaults().copyWith(
+              groupListeningEnabled: true,
+              voyageServerUrl: 'https://voyage.example.com',
+              clearVoyageDisplayName: true,
+            ),
+          ),
+        ),
+        packageInfoProvider.overrideWithValue(
+          AsyncData<PackageInfo>(_packageInfo),
+        ),
+        serverConfigStateProvider.overrideWithValue(
+          const AsyncData<ServerConfigModel?>(_activeServer),
+        ),
+        groupListeningRepositoryProvider.overrideWithValue(repository),
+      ],
+    );
+
+    await tester.tap(find.widgetWithText(SwitchListTile, 'Shotgun Mode'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.widgetWithText(SwitchListTile, 'PIN Protected'),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('groupListeningRoomPinField')),
+      '2468',
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('groupListeningCreateRoomButton')),
+    );
+    await _pumpRoomAction(tester);
+
+    expect(
+      repository.lastCreateRequest?.roomOptions.roomMode,
+      GroupListeningRoomMode.shotgun,
+    );
+    expect(repository.lastCreateRequest?.roomOptions.pinCode, '2468');
+  });
 
   testWidgets(
     'shows collaborative playback for members without pre-room settings',
@@ -830,6 +917,51 @@ void main() {
       expect(find.text('Invite listeners'), findsNothing);
     },
   );
+
+  testWidgets('shows an internal drag handle and dismisses the sheet on drag', (
+    tester,
+  ) async {
+    final repository = _FakeGroupListeningRepository();
+
+    await _pumpSheetHost(
+      tester,
+      overrides: [
+        appSettingsProvider.overrideWithValue(
+          AsyncData(
+            AppSettingsModel.defaults().copyWith(
+              groupListeningEnabled: true,
+              voyageServerUrl: 'https://voyage.example.com',
+              clearVoyageDisplayName: true,
+            ),
+          ),
+        ),
+        packageInfoProvider.overrideWithValue(
+          AsyncData<PackageInfo>(_packageInfo),
+        ),
+        serverConfigStateProvider.overrideWithValue(
+          const AsyncData<ServerConfigModel?>(_activeServer),
+        ),
+        groupListeningRepositoryProvider.overrideWithValue(repository),
+      ],
+    );
+
+    await tester.tap(find.text('Open sheet'));
+    await tester.pumpAndSettle();
+
+    final dragHandle = find.byKey(
+      const ValueKey('groupListeningSheetDragHandle'),
+    );
+    expect(dragHandle, findsOneWidget);
+
+    await tester.fling(
+      find.byKey(const ValueKey('groupListeningSheetHeader')),
+      const Offset(0, 300),
+      1200,
+    );
+    await tester.pumpAndSettle();
+
+    expect(dragHandle, findsNothing);
+  });
 
   testWidgets('lists available rooms and joins by room id', (tester) async {
     final now = DateTime.utc(2026, 4, 21, 12);
@@ -892,5 +1024,80 @@ void main() {
 
     expect(repository.lastJoinAvailableRoomId, 'room-public-1');
     expect(repository.lastJoinRequest, isNull);
+  });
+
+  testWidgets('prompts for PIN before joining a locked listed room', (
+    tester,
+  ) async {
+    final now = DateTime.utc(2026, 4, 21, 12);
+    final repository = _FakeGroupListeningRepository()
+      ..joinResponse = _joinResponse(role: GroupListeningMemberRole.member)
+      ..snapshotResponse = _joinResponse(
+        role: GroupListeningMemberRole.member,
+      ).roomSnapshot
+      ..connection = _FakeRealtimeConnection()
+      ..availableRooms = <GroupListeningAvailableRoomSummary>[
+        GroupListeningAvailableRoomSummary(
+          roomId: 'room-locked-1',
+          hostDisplayName: 'Alice',
+          roomMode: GroupListeningRoomMode.shotgun,
+          requiresPin: true,
+          membersTotal: 2,
+          activeMembers: 2,
+          queueLength: 5,
+          roomVersion: 3,
+          lastActivityAt: now,
+        ),
+      ];
+
+    await _pumpScreen(
+      tester,
+      overrides: [
+        appSettingsProvider.overrideWithValue(
+          AsyncData(
+            AppSettingsModel.defaults().copyWith(
+              groupListeningEnabled: true,
+              voyageServerUrl: 'https://voyage.example.com',
+              clearVoyageDisplayName: true,
+            ),
+          ),
+        ),
+        packageInfoProvider.overrideWithValue(
+          AsyncData<PackageInfo>(_packageInfo),
+        ),
+        serverConfigStateProvider.overrideWithValue(
+          const AsyncData<ServerConfigModel?>(_activeServer),
+        ),
+        groupListeningRepositoryProvider.overrideWithValue(repository),
+      ],
+    );
+
+    expect(find.byIcon(Icons.lock_outline), findsWidgets);
+    expect(find.textContaining('Shotgun'), findsOneWidget);
+
+    await tester.scrollUntilVisible(
+      find.text('Available rooms'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    final joinButton = find.widgetWithText(FilledButton, 'Join');
+    await tester.scrollUntilVisible(
+      joinButton,
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(joinButton);
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('groupListeningAvailableRoomPinField')),
+      '9876',
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('groupListeningAvailableRoomPinConfirmButton')),
+    );
+    await _pumpRoomAction(tester);
+
+    expect(repository.lastJoinAvailableRoomId, 'room-locked-1');
+    expect(repository.lastJoinAvailableRoomPin, '9876');
   });
 }

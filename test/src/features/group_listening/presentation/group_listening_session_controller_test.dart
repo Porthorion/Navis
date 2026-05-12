@@ -89,6 +89,7 @@ class _FakeGroupListeningRepository implements GroupListeningRepository {
     required String roomId,
     required GroupListeningClientConfiguration configuration,
     required GroupListeningClientDescriptor client,
+    String? pinCode,
   }) async {
     if (joinError != null) {
       throw joinError!;

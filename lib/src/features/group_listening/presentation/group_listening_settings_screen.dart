@@ -21,7 +21,8 @@ Future<void> showListenTogetherSheet(BuildContext context) {
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
-    showDragHandle: true,
+    showDragHandle: false,
+    enableDrag: true,
     backgroundColor: Colors.transparent,
     builder: (context) {
       Widget surface = FractionallySizedBox(
@@ -72,21 +73,45 @@ class _ListenTogetherSurface extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: Column(
         children: <Widget>[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
-            child: Row(
-              children: <Widget>[
-                Text(
-                  'Listen Together',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const Spacer(),
-                IconButton(
-                  tooltip: 'Close Listen Together',
-                  onPressed: () => Navigator.of(context).maybePop(),
-                  icon: const Icon(Icons.close),
-                ),
-              ],
+          GestureDetector(
+            key: const ValueKey('groupListeningSheetHeader'),
+            behavior: HitTestBehavior.opaque,
+            onVerticalDragEnd: (details) {
+              if (details.primaryVelocity != null &&
+                  details.primaryVelocity! > 250) {
+                Navigator.of(context).maybePop();
+              }
+            },
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+              child: Column(
+                children: <Widget>[
+                  Container(
+                    key: const ValueKey('groupListeningSheetDragHandle'),
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: <Widget>[
+                      Text(
+                        'Listen Together',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        tooltip: 'Close Listen Together',
+                        onPressed: () => Navigator.of(context).maybePop(),
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
           const Divider(height: 1),
@@ -108,6 +133,7 @@ class _ListenTogetherRoomContent extends ConsumerStatefulWidget {
 class _ListenTogetherRoomContentState
     extends ConsumerState<_ListenTogetherRoomContent> {
   static final RegExp _inviteCodePattern = RegExp(r'^[A-Za-z0-9_-]{24}$');
+  static final RegExp _pinPattern = RegExp(r'^\d{4}$');
 
   final _roomPinController = TextEditingController();
   bool _shotgunModeEnabled = false;
@@ -138,29 +164,59 @@ class _ListenTogetherRoomContentState
   Future<void> _createRoom(
     GroupListeningClientDescriptor clientDescriptor,
   ) async {
-    FocusScope.of(context).unfocus();
-    await ref
-        .read(groupListeningSessionControllerProvider.notifier)
-        .createRoom(client: clientDescriptor);
-    if (mounted) ref.invalidate(groupListeningAvailableRoomsProvider);
-  }
-
-  Future<void> _joinRoom(
-    GroupListeningClientDescriptor clientDescriptor, {
-    required String inviteCode,
-  }) async {
-    if (inviteCode.isEmpty) {
+    final roomOptions = _selectedRoomOptions();
+    if (_pinProtectedEnabled &&
+        !_pinPattern.hasMatch(roomOptions.pinCode ?? '')) {
       showAppNotice(
         context,
-        message: 'Enter an invite code to join a room.',
+        message: 'Enter a 4-digit room PIN.',
+        level: AppNoticeLevel.error,
       );
       return;
     }
     FocusScope.of(context).unfocus();
     await ref
         .read(groupListeningSessionControllerProvider.notifier)
-        .joinRoom(inviteCode: inviteCode, client: clientDescriptor);
+        .createRoom(client: clientDescriptor, roomOptions: roomOptions);
     if (mounted) ref.invalidate(groupListeningAvailableRoomsProvider);
+  }
+
+  GroupListeningRoomOptions _selectedRoomOptions() {
+    return GroupListeningRoomOptions(
+      roomMode: _hostOnlyEnabled
+          ? GroupListeningRoomMode.hostOnly
+          : _shotgunModeEnabled
+          ? GroupListeningRoomMode.shotgun
+          : GroupListeningRoomMode.collaborative,
+      pinCode: _pinProtectedEnabled ? _roomPinController.text.trim() : null,
+    );
+  }
+
+  Future<GroupListeningErrorState?> _joinRoom(
+    GroupListeningClientDescriptor clientDescriptor, {
+    required String inviteCode,
+    String? pinCode,
+  }) async {
+    if (inviteCode.isEmpty) {
+      showAppNotice(
+        context,
+        message: 'Enter an invite code to join a room.',
+      );
+      return const GroupListeningErrorState(
+        code: GroupListeningErrorCode.validationFailed,
+        message: 'Enter an invite code to join a room.',
+      );
+    }
+    FocusScope.of(context).unfocus();
+    final result = await ref
+        .read(groupListeningSessionControllerProvider.notifier)
+        .joinRoom(
+          inviteCode: inviteCode,
+          client: clientDescriptor,
+          pinCode: pinCode,
+        );
+    if (mounted) ref.invalidate(groupListeningAvailableRoomsProvider);
+    return result.failure;
   }
 
   Future<String?> _clipboardInviteCode() async {
@@ -186,74 +242,269 @@ class _ListenTogetherRoomContentState
     if (!mounted) {
       return;
     }
-    final controller = TextEditingController(text: clipboardInviteCode);
+    final inviteController = TextEditingController(text: clipboardInviteCode);
+    final pinController = TextEditingController();
+    String? inviteCode = clipboardInviteCode;
+    String? pinCode;
+    GroupListeningErrorState? pinFailure;
 
-    final inviteCode = await showDialog<String>(
+    while (mounted) {
+      final dialogResult =
+          await showDialog<({String inviteCode, String? pinCode})>(
+            context: context,
+            builder: (context) {
+              String? errorText;
+              String? pinErrorText = switch (pinFailure?.code) {
+                GroupListeningErrorCode.pinRequired => 'Enter this room PIN.',
+                GroupListeningErrorCode.pinInvalid => 'That PIN did not work.',
+                _ => null,
+              };
+
+              return StatefulBuilder(
+                builder: (context, setDialogState) {
+                  void submit() {
+                    final normalized = inviteController.text.trim();
+                    if (normalized.isEmpty) {
+                      setDialogState(() {
+                        errorText = 'Enter an invite code to join a room.';
+                      });
+                      return;
+                    }
+                    final normalizedPin = pinController.text.trim();
+                    if (normalizedPin.isNotEmpty &&
+                        !_pinPattern.hasMatch(normalizedPin)) {
+                      setDialogState(() {
+                        pinErrorText = 'Enter 4 digits.';
+                      });
+                      return;
+                    }
+                    Navigator.of(context).pop(
+                      (
+                        inviteCode: normalized,
+                        pinCode: normalizedPin.isEmpty ? null : normalizedPin,
+                      ),
+                    );
+                  }
+
+                  return AlertDialog(
+                    icon: const Icon(Icons.pin_outlined),
+                    title: const Text('Code Join'),
+                    content: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        TextField(
+                          key: const ValueKey(
+                            'groupListeningJoinWithCodeField',
+                          ),
+                          controller: inviteController,
+                          autofocus: true,
+                          enableSuggestions: false,
+                          autocorrect: false,
+                          keyboardType: TextInputType.text,
+                          decoration: InputDecoration(
+                            labelText: 'Invite code',
+                            hintText: 'Paste a Voyage invite',
+                            errorText: errorText,
+                            border: const OutlineInputBorder(),
+                            prefixIcon: const Icon(Icons.meeting_room_outlined),
+                          ),
+                          onChanged: (_) {
+                            if (errorText != null) {
+                              setDialogState(() {
+                                errorText = null;
+                              });
+                            }
+                          },
+                          onSubmitted: (_) => submit(),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          key: const ValueKey(
+                            'groupListeningJoinWithCodePinField',
+                          ),
+                          controller: pinController,
+                          autofocus: pinFailure != null,
+                          keyboardType: TextInputType.number,
+                          obscureText: true,
+                          inputFormatters: <TextInputFormatter>[
+                            FilteringTextInputFormatter.digitsOnly,
+                            LengthLimitingTextInputFormatter(4),
+                          ],
+                          decoration: InputDecoration(
+                            labelText: 'Room PIN',
+                            hintText: '4 digits',
+                            errorText: pinErrorText,
+                            border: const OutlineInputBorder(),
+                            prefixIcon: const Icon(Icons.lock_outline),
+                          ),
+                          onChanged: (_) {
+                            if (pinErrorText != null) {
+                              setDialogState(() {
+                                pinErrorText = null;
+                              });
+                            }
+                          },
+                          onSubmitted: (_) => submit(),
+                        ),
+                        if (clipboardInviteCode != null) ...<Widget>[
+                          const SizedBox(height: 12),
+                          Text(
+                            'Detected an invite code from your clipboard.',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ],
+                    ),
+                    actions: <Widget>[
+                      TextButton(
+                        key: const ValueKey(
+                          'groupListeningJoinWithCodeCancelButton',
+                        ),
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Cancel'),
+                      ),
+                      FilledButton.icon(
+                        key: const ValueKey(
+                          'groupListeningJoinWithCodeConfirmButton',
+                        ),
+                        onPressed: submit,
+                        icon: const Icon(Icons.login_outlined),
+                        label: const Text('Join room'),
+                      ),
+                    ],
+                  );
+                },
+              );
+            },
+          );
+
+      if (!mounted || dialogResult == null) {
+        inviteController.dispose();
+        pinController.dispose();
+        return;
+      }
+      inviteCode = dialogResult.inviteCode;
+      pinCode = dialogResult.pinCode;
+      pinFailure = await _joinRoom(
+        clientDescriptor,
+        inviteCode: inviteCode,
+        pinCode: pinCode,
+      );
+      if (pinFailure?.code != GroupListeningErrorCode.pinRequired &&
+          pinFailure?.code != GroupListeningErrorCode.pinInvalid) {
+        inviteController.dispose();
+        pinController.dispose();
+        return;
+      }
+      pinController.clear();
+    }
+  }
+
+  Future<GroupListeningErrorState?> _joinAvailableRoom(
+    GroupListeningAvailableRoomSummary room,
+    GroupListeningClientDescriptor clientDescriptor, {
+    String? pinCode,
+  }) async {
+    FocusScope.of(context).unfocus();
+    final result = await ref
+        .read(groupListeningSessionControllerProvider.notifier)
+        .joinAvailableRoom(
+          roomId: room.roomId,
+          client: clientDescriptor,
+          pinCode: pinCode,
+        );
+    if (mounted) ref.invalidate(groupListeningAvailableRoomsProvider);
+    return result.failure;
+  }
+
+  Future<void> _joinAvailableRoomWithPinPrompt(
+    GroupListeningAvailableRoomSummary room,
+    GroupListeningClientDescriptor clientDescriptor,
+  ) async {
+    String? pinCode;
+    if (room.requiresPin) {
+      pinCode = await _showRoomPinDialog();
+      if (!mounted || pinCode == null) {
+        return;
+      }
+    }
+    final failure = await _joinAvailableRoom(
+      room,
+      clientDescriptor,
+      pinCode: pinCode,
+    );
+    if (!mounted ||
+        (failure?.code != GroupListeningErrorCode.pinRequired &&
+            failure?.code != GroupListeningErrorCode.pinInvalid)) {
+      return;
+    }
+    final retryPin = await _showRoomPinDialog(failure: failure);
+    if (!mounted || retryPin == null) {
+      return;
+    }
+    await _joinAvailableRoom(room, clientDescriptor, pinCode: retryPin);
+  }
+
+  Future<String?> _showRoomPinDialog({GroupListeningErrorState? failure}) {
+    final controller = TextEditingController();
+    return showDialog<String>(
       context: context,
       builder: (context) {
-        String? errorText;
-
+        String? errorText = switch (failure?.code) {
+          GroupListeningErrorCode.pinInvalid => 'That PIN did not work.',
+          _ => null,
+        };
         return StatefulBuilder(
           builder: (context, setDialogState) {
             void submit() {
-              final normalized = controller.text.trim();
-              if (normalized.isEmpty) {
+              final pin = controller.text.trim();
+              if (!_pinPattern.hasMatch(pin)) {
                 setDialogState(() {
-                  errorText = 'Enter an invite code to join a room.';
+                  errorText = 'Enter 4 digits.';
                 });
                 return;
               }
-              Navigator.of(context).pop(normalized);
+              Navigator.of(context).pop(pin);
             }
 
             return AlertDialog(
-              icon: const Icon(Icons.pin_outlined),
-              title: const Text('Join with code'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  TextField(
-                    key: const ValueKey('groupListeningJoinWithCodeField'),
-                    controller: controller,
-                    autofocus: true,
-                    enableSuggestions: false,
-                    autocorrect: false,
-                    keyboardType: TextInputType.text,
-                    decoration: InputDecoration(
-                      labelText: 'Invite code',
-                      hintText: 'Paste a Voyage invite',
-                      errorText: errorText,
-                      border: const OutlineInputBorder(),
-                      prefixIcon: const Icon(Icons.meeting_room_outlined),
-                    ),
-                    onChanged: (_) {
-                      if (errorText != null) {
-                        setDialogState(() {
-                          errorText = null;
-                        });
-                      }
-                    },
-                    onSubmitted: (_) => submit(),
-                  ),
-                  if (clipboardInviteCode != null) ...<Widget>[
-                    const SizedBox(height: 12),
-                    Text(
-                      'Detected an invite code from your clipboard.',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
+              icon: const Icon(Icons.lock_outline),
+              title: const Text('Room PIN'),
+              content: TextField(
+                key: const ValueKey('groupListeningAvailableRoomPinField'),
+                controller: controller,
+                autofocus: true,
+                keyboardType: TextInputType.number,
+                obscureText: true,
+                inputFormatters: <TextInputFormatter>[
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(4),
                 ],
+                decoration: InputDecoration(
+                  labelText: 'Room PIN',
+                  hintText: '4 digits',
+                  errorText: errorText,
+                  border: const OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.lock_outline),
+                ),
+                onChanged: (_) {
+                  if (errorText != null) {
+                    setDialogState(() {
+                      errorText = null;
+                    });
+                  }
+                },
+                onSubmitted: (_) => submit(),
               ),
               actions: <Widget>[
                 TextButton(
-                  key: const ValueKey('groupListeningJoinWithCodeCancelButton'),
                   onPressed: () => Navigator.of(context).pop(),
                   child: const Text('Cancel'),
                 ),
                 FilledButton.icon(
                   key: const ValueKey(
-                    'groupListeningJoinWithCodeConfirmButton',
+                    'groupListeningAvailableRoomPinConfirmButton',
                   ),
                   onPressed: submit,
                   icon: const Icon(Icons.login_outlined),
@@ -265,23 +516,6 @@ class _ListenTogetherRoomContentState
         );
       },
     );
-    controller.dispose();
-
-    if (!mounted || inviteCode == null) {
-      return;
-    }
-    await _joinRoom(clientDescriptor, inviteCode: inviteCode);
-  }
-
-  Future<void> _joinAvailableRoom(
-    String roomId,
-    GroupListeningClientDescriptor clientDescriptor,
-  ) async {
-    FocusScope.of(context).unfocus();
-    await ref
-        .read(groupListeningSessionControllerProvider.notifier)
-        .joinAvailableRoom(roomId: roomId, client: clientDescriptor);
-    if (mounted) ref.invalidate(groupListeningAvailableRoomsProvider);
   }
 
   Future<void> _leaveRoom() async {
@@ -395,15 +629,41 @@ class _ListenTogetherRoomContentState
     return 'Waiting for transport';
   }
 
+  String _roomModeLabel(GroupListeningRoomMode roomMode) {
+    return switch (roomMode) {
+      GroupListeningRoomMode.collaborative => 'Collaborative',
+      GroupListeningRoomMode.shotgun => 'Shotgun',
+      GroupListeningRoomMode.hostOnly => 'Host only',
+    };
+  }
+
   String _controlLabel(GroupListeningSessionState sessionState) {
     final self = sessionState.room?.self;
     if (self == null) {
       return 'Room controls unavailable';
     }
+    if (!self.canPlayAudio) {
+      return 'Host audio only';
+    }
     if (self.canControl) {
       return 'Shared playback enabled';
     }
     return 'Playback locked to room host';
+  }
+
+  String _roomPolicyDescription(GroupListeningRoomState room) {
+    return switch (room.roomMode) {
+      GroupListeningRoomMode.collaborative =>
+        'Everyone can control playback and play audio.',
+      GroupListeningRoomMode.shotgun =>
+        room.self.canPlayAudio
+            ? 'Everyone can control playback. Audio plays on this host device.'
+            : 'Everyone can control playback. Audio plays on the host device.',
+      GroupListeningRoomMode.hostOnly =>
+        room.self.canControl
+            ? 'Only the host can change playback. Listeners can follow audio.'
+            : 'Only the host can change playback. This device follows audio.',
+    };
   }
 
   String _failureDescription(GroupListeningErrorState failure) {
@@ -419,6 +679,10 @@ class _ListenTogetherRoomContentState
       case GroupListeningErrorCode.inviteInvalid:
       case GroupListeningErrorCode.inviteExpired:
         return 'That invite code is no longer valid. Ask the host for a fresh one.';
+      case GroupListeningErrorCode.pinRequired:
+        return 'Enter the room PIN to join.';
+      case GroupListeningErrorCode.pinInvalid:
+        return 'That room PIN did not work.';
       case GroupListeningErrorCode.roomClosed:
         return 'This room is closed.';
       case GroupListeningErrorCode.roomNotFound:
@@ -546,6 +810,7 @@ class _ListenTogetherRoomContentState
               ),
               const SizedBox(height: 16),
               _MetadataRow(label: 'Room', value: room.roomId),
+              _MetadataRow(label: 'Mode', value: _roomModeLabel(room.roomMode)),
               _MetadataRow(label: 'Listeners', value: '${room.members.length}'),
               _MetadataRow(
                 label: 'Queued tracks',
@@ -625,6 +890,10 @@ class _ListenTogetherRoomContentState
               'Create a room, join with an invite, or pick an available room on this server.',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
+            if (!sessionState.hasActiveRoom) ...<Widget>[
+              const SizedBox(height: 16),
+              _buildRoomSettingsSection(sessionState),
+            ],
             const SizedBox(height: 16),
             Wrap(
               spacing: 12,
@@ -674,7 +943,7 @@ class _ListenTogetherRoomContentState
             const SizedBox(height: 12),
             Text(
               sessionState.hasActiveRoom
-                  ? 'Shared queue updates stay collaborative, so add, remove, and reorder actions stay aligned for everyone in the room.'
+                  ? _roomPolicyDescription(sessionState.room!)
                   : _availabilityMessage(sessionState),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -769,7 +1038,7 @@ class _ListenTogetherRoomContentState
                       ? () => _showJoinWithCodeDialog(clientDescriptor)
                       : null,
                   icon: const Icon(Icons.pin_outlined),
-                  label: const Text('Join with code'),
+                  label: const Text('Code Join'),
                 ),
                 IconButton(
                   tooltip: 'Refresh available rooms',
@@ -823,17 +1092,22 @@ class _ListenTogetherRoomContentState
                       .map(
                         (room) => ListTile(
                           contentPadding: EdgeInsets.zero,
-                          leading: const Icon(Icons.meeting_room_outlined),
+                          leading: Icon(
+                            room.requiresPin
+                                ? Icons.lock_outline
+                                : Icons.meeting_room_outlined,
+                          ),
                           title: Text(room.hostDisplayName),
                           subtitle: Text(
+                            '${_roomModeLabel(room.roomMode)} - '
                             '${room.activeMembers}/${room.membersTotal} active listeners - '
                             '${room.queueLength} queued tracks - '
                             'updated ${_formatTimestamp(room.lastActivityAt)}',
                           ),
                           trailing: FilledButton.tonalIcon(
                             onPressed: canJoin
-                                ? () => _joinAvailableRoom(
-                                    room.roomId,
+                                ? () => _joinAvailableRoomWithPinPrompt(
+                                    room,
                                     clientDescriptor,
                                   )
                                 : null,
@@ -852,104 +1126,90 @@ class _ListenTogetherRoomContentState
     );
   }
 
-  Widget _buildRoomSettingsCard(GroupListeningSessionState sessionState) {
-    final theme = Theme.of(context);
+  Widget _buildRoomSettingsSection(GroupListeningSessionState sessionState) {
     final canEdit =
         !sessionState.hasActiveRoom &&
         sessionState.availability == GroupListeningAvailability.ready &&
         !_isBusy(sessionState);
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text(
-              'Room settings',
-              style: theme.textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Pick room options before creating a room. These toggles are UI placeholders until Voyage wiring lands.',
-              style: theme.textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 16),
-            _RoomSettingsToggle(
-              key: const ValueKey('groupListeningShotgunModeToggle'),
-              icon: Icons.flash_on_outlined,
-              title: 'Shotgun Mode',
-              subtitle: 'Placeholder only for now.',
-              value: _shotgunModeEnabled,
-              enabled: canEdit,
-              onChanged: (value) {
-                setState(() {
-                  _shotgunModeEnabled = value;
-                });
-              },
-            ),
-            const Divider(height: 24),
-            _RoomSettingsToggle(
-              key: const ValueKey('groupListeningHostOnlyModeToggle'),
-              icon: Icons.shield_outlined,
-              title: 'Host Only',
-              subtitle: 'Placeholder only for now.',
-              value: _hostOnlyEnabled,
-              enabled: canEdit,
-              onChanged: (value) {
-                setState(() {
-                  _hostOnlyEnabled = value;
-                });
-              },
-            ),
-            const Divider(height: 24),
-            _RoomSettingsToggle(
-              key: const ValueKey('groupListeningPinProtectedModeToggle'),
-              icon: Icons.lock_outline,
-              title: 'Pin Protected',
-              subtitle: 'Placeholder only for now.',
-              value: _pinProtectedEnabled,
-              enabled: canEdit,
-              onChanged: (value) {
-                setState(() {
-                  _pinProtectedEnabled = value;
-                  if (!value) {
-                    _roomPinController.clear();
-                  }
-                });
-              },
-            ),
-            if (_pinProtectedEnabled) ...<Widget>[
-              const SizedBox(height: 12),
-              TextField(
-                key: const ValueKey('groupListeningRoomPinField'),
-                controller: _roomPinController,
-                enabled: canEdit,
-                keyboardType: TextInputType.number,
-                inputFormatters: <TextInputFormatter>[
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(4),
-                ],
-                decoration: const InputDecoration(
-                  labelText: 'Room PIN',
-                  hintText: '4 digits',
-                  helperText:
-                      'Placeholder only until Voyage room protection is wired.',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.password_outlined),
-                ),
-              ),
-            ],
-            const SizedBox(height: 12),
-            Text(
-              'Default rooms stay collaborative until these options are wired into Voyage.',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          'Room settings',
+          style: Theme.of(context).textTheme.titleSmall,
         ),
-      ),
+        const SizedBox(height: 8),
+        _RoomSettingsToggle(
+          key: const ValueKey('groupListeningShotgunModeToggle'),
+          icon: Icons.flash_on_outlined,
+          title: 'Shotgun Mode',
+          subtitle: 'Everyone controls playback; only the host plays audio.',
+          value: _shotgunModeEnabled,
+          enabled: canEdit,
+          onChanged: (value) {
+            setState(() {
+              _shotgunModeEnabled = value;
+              if (value) {
+                _hostOnlyEnabled = false;
+              }
+            });
+          },
+        ),
+        const Divider(height: 24),
+        _RoomSettingsToggle(
+          key: const ValueKey('groupListeningHostOnlyModeToggle'),
+          icon: Icons.shield_outlined,
+          title: 'Host Only',
+          subtitle: 'Only the host controls playback.',
+          value: _hostOnlyEnabled,
+          enabled: canEdit,
+          onChanged: (value) {
+            setState(() {
+              _hostOnlyEnabled = value;
+              if (value) {
+                _shotgunModeEnabled = false;
+              }
+            });
+          },
+        ),
+        const Divider(height: 24),
+        _RoomSettingsToggle(
+          key: const ValueKey('groupListeningPinProtectedModeToggle'),
+          icon: Icons.lock_outline,
+          title: 'PIN Protected',
+          subtitle: 'Require a 4-digit code to join.',
+          value: _pinProtectedEnabled,
+          enabled: canEdit,
+          onChanged: (value) {
+            setState(() {
+              _pinProtectedEnabled = value;
+              if (!value) {
+                _roomPinController.clear();
+              }
+            });
+          },
+        ),
+        if (_pinProtectedEnabled) ...<Widget>[
+          const SizedBox(height: 12),
+          TextField(
+            key: const ValueKey('groupListeningRoomPinField'),
+            controller: _roomPinController,
+            enabled: canEdit,
+            keyboardType: TextInputType.number,
+            inputFormatters: <TextInputFormatter>[
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(4),
+            ],
+            decoration: const InputDecoration(
+              labelText: 'Room PIN',
+              hintText: '4 digits',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.password_outlined),
+            ),
+          ),
+        ],
+      ],
     );
   }
 
@@ -1000,10 +1260,6 @@ class _ListenTogetherRoomContentState
             sessionState.availability != GroupListeningAvailability.ready ||
             sessionState.failure != null) ...<Widget>[
           _buildOverviewCard(sessionState),
-          const SizedBox(height: 12),
-        ],
-        if (!sessionState.hasActiveRoom) ...<Widget>[
-          _buildRoomSettingsCard(sessionState),
           const SizedBox(height: 12),
         ],
         _buildActionsCard(sessionState, clientDescriptor),

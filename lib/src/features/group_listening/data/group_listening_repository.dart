@@ -72,6 +72,8 @@ class GroupListeningAvailableRoomSummary {
   const GroupListeningAvailableRoomSummary({
     required this.roomId,
     required this.hostDisplayName,
+    this.roomMode = GroupListeningRoomMode.collaborative,
+    this.requiresPin = false,
     required this.membersTotal,
     required this.activeMembers,
     required this.queueLength,
@@ -81,6 +83,8 @@ class GroupListeningAvailableRoomSummary {
 
   final String roomId;
   final String hostDisplayName;
+  final GroupListeningRoomMode roomMode;
+  final bool requiresPin;
   final int membersTotal;
   final int activeMembers;
   final int queueLength;
@@ -163,12 +167,25 @@ class GroupListeningCreateRoomRequest {
   const GroupListeningCreateRoomRequest({
     required this.configuration,
     required this.client,
+    this.roomOptions = const GroupListeningRoomOptions(),
     this.roomSeed,
   });
 
   final GroupListeningClientConfiguration configuration;
   final GroupListeningClientDescriptor client;
+  final GroupListeningRoomOptions roomOptions;
   final GroupListeningRoomSeed? roomSeed;
+}
+
+@immutable
+class GroupListeningRoomOptions {
+  const GroupListeningRoomOptions({
+    this.roomMode = GroupListeningRoomMode.collaborative,
+    this.pinCode,
+  });
+
+  final GroupListeningRoomMode roomMode;
+  final String? pinCode;
 }
 
 @immutable
@@ -177,11 +194,13 @@ class GroupListeningJoinRoomRequest {
     required this.configuration,
     required this.client,
     required this.inviteCode,
+    this.pinCode,
   });
 
   final GroupListeningClientConfiguration configuration;
   final GroupListeningClientDescriptor client;
   final String inviteCode;
+  final String? pinCode;
 }
 
 @immutable
@@ -563,6 +582,7 @@ class VoyageGroupListeningHttpClient implements GroupListeningHttpClient {
             request.configuration.sourceServerFingerprint,
         if (request.roomSeed != null)
           'room_seed': _roomSeedPayload(request.roomSeed!),
+        'room_options': _roomOptionsPayload(request.roomOptions),
       },
       fallbackMessage: 'Unable to create Voyage room.',
       fallbackCode: GroupListeningErrorCode.transportUnavailable,
@@ -661,6 +681,7 @@ class VoyageGroupListeningHttpClient implements GroupListeningHttpClient {
     required String roomId,
     required GroupListeningClientConfiguration configuration,
     required GroupListeningClientDescriptor client,
+    String? pinCode,
   }) async {
     final data = await _sendJson(
       method: 'POST',
@@ -678,6 +699,7 @@ class VoyageGroupListeningHttpClient implements GroupListeningHttpClient {
           'display_name': configuration.displayName,
         },
         'source_server_fingerprint': configuration.sourceServerFingerprint,
+        if (pinCode != null && pinCode.isNotEmpty) 'pin_code': pinCode,
       },
       fallbackMessage: 'Unable to join available Voyage room.',
       fallbackCode: GroupListeningErrorCode.transportUnavailable,
@@ -703,6 +725,8 @@ class VoyageGroupListeningHttpClient implements GroupListeningHttpClient {
       body: <String, Object?>{
         'protocol_version': voyageProtocolVersion,
         'invite_code': request.inviteCode,
+        if (request.pinCode != null && request.pinCode!.isNotEmpty)
+          'pin_code': request.pinCode,
         'client': _clientPayload(request.client),
         'member': <String, Object?>{
           'display_name': request.configuration.displayName,
@@ -1168,6 +1192,7 @@ abstract class GroupListeningHttpClient {
     required String roomId,
     required GroupListeningClientConfiguration configuration,
     required GroupListeningClientDescriptor client,
+    String? pinCode,
   });
 
   Future<GroupListeningJoinResponse> joinRoom(
@@ -1222,6 +1247,7 @@ abstract class GroupListeningRepository {
     required String roomId,
     required GroupListeningClientConfiguration configuration,
     required GroupListeningClientDescriptor client,
+    String? pinCode,
   });
 
   Future<GroupListeningJoinResponse> joinRoom(
@@ -1285,6 +1311,7 @@ class UnsupportedGroupListeningHttpClient implements GroupListeningHttpClient {
     required String roomId,
     required GroupListeningClientConfiguration configuration,
     required GroupListeningClientDescriptor client,
+    String? pinCode,
   }) {
     throw _unsupported();
   }
@@ -1398,11 +1425,13 @@ class DefaultGroupListeningRepository implements GroupListeningRepository {
     required String roomId,
     required GroupListeningClientConfiguration configuration,
     required GroupListeningClientDescriptor client,
+    String? pinCode,
   }) {
     return _httpClient.joinAvailableRoom(
       roomId: roomId,
       configuration: configuration,
       client: client,
+      pinCode: pinCode,
     );
   }
 
@@ -1634,6 +1663,8 @@ List<GroupListeningAvailableRoomSummary> _availableRoomsFromData(
         (room) => GroupListeningAvailableRoomSummary(
           roomId: _stringValue(room['room_id']),
           hostDisplayName: _stringValue(room['host_display_name']),
+          roomMode: _roomModeFromWire(room['room_mode']),
+          requiresPin: _boolValue(room['requires_pin']),
           membersTotal: _intValue(room['members_total']),
           activeMembers: _intValue(room['active_members']),
           queueLength: _intValue(room['queue_length']),
@@ -1697,6 +1728,8 @@ GroupListeningRoomState _roomStateFromJson(
     protocolVersion: _stringValue(json['protocol_version']),
     roomId: _stringValue(json['room_id']),
     roomStatus: _roomStatusFromWire(json['room_status']),
+    roomMode: _roomModeFromWire(json['room_mode']),
+    requiresPin: _boolValue(json['requires_pin']),
     roomVersion: roomVersion,
     presenceVersion: _intValue(json['presence_version']),
     authVersion: authVersion,
@@ -1712,6 +1745,9 @@ GroupListeningRoomState _roomStateFromJson(
           ? _memberRoleFromWire(self['role'])
           : (fallbackSelfRole ?? GroupListeningMemberRole.member),
       canControl: self != null && _boolValue(self['can_control']),
+      canPlayAudio: self == null
+          ? true
+          : (_nullableBoolValue(self['can_play_audio']) ?? true),
       authVersion: fallbackSelfAuthVersion ?? authVersion,
     ),
     members: _memberListFromJson(json['members']),
@@ -2017,6 +2053,14 @@ Map<String, Object?> _clientPayload(GroupListeningClientDescriptor client) {
   };
 }
 
+Map<String, Object?> _roomOptionsPayload(GroupListeningRoomOptions options) {
+  return <String, Object?>{
+    'room_mode': _roomModeToWire(options.roomMode),
+    if (options.pinCode != null && options.pinCode!.isNotEmpty)
+      'pin_code': options.pinCode,
+  };
+}
+
 Map<String, Object?> _roomSeedPayload(GroupListeningRoomSeed seed) {
   return <String, Object?>{
     'queue': <String, Object?>{
@@ -2095,6 +2139,8 @@ GroupListeningErrorCode _errorCodeFromWire(Object? value) {
     'room_closed' => GroupListeningErrorCode.roomClosed,
     'invite_invalid' => GroupListeningErrorCode.inviteInvalid,
     'invite_expired' => GroupListeningErrorCode.inviteExpired,
+    'pin_required' => GroupListeningErrorCode.pinRequired,
+    'pin_invalid' => GroupListeningErrorCode.pinInvalid,
     'fingerprint_mismatch' => GroupListeningErrorCode.fingerprintMismatch,
     'stale_version' => GroupListeningErrorCode.staleVersion,
     'sequence_rejected' => GroupListeningErrorCode.sequenceRejected,
@@ -2138,6 +2184,26 @@ GroupListeningRoomStatus _roomStatusFromWire(Object? value) {
     final unknown => throw _protocolFormatFailure(
       'Unsupported Voyage room status: $unknown.',
     ),
+  };
+}
+
+GroupListeningRoomMode _roomModeFromWire(Object? value) {
+  return switch (_nullableStringValue(value)) {
+    null || '' => GroupListeningRoomMode.collaborative,
+    'collaborative' => GroupListeningRoomMode.collaborative,
+    'shotgun' => GroupListeningRoomMode.shotgun,
+    'host_only' => GroupListeningRoomMode.hostOnly,
+    final unknown => throw _protocolFormatFailure(
+      'Unsupported Voyage room mode: $unknown.',
+    ),
+  };
+}
+
+String _roomModeToWire(GroupListeningRoomMode value) {
+  return switch (value) {
+    GroupListeningRoomMode.collaborative => 'collaborative',
+    GroupListeningRoomMode.shotgun => 'shotgun',
+    GroupListeningRoomMode.hostOnly => 'host_only',
   };
 }
 
@@ -2349,6 +2415,17 @@ bool _boolValue(Object? value) {
     String value => value.trim().toLowerCase() == 'true',
     num value => value != 0,
     _ => false,
+  };
+}
+
+bool? _nullableBoolValue(Object? value) {
+  return switch (value) {
+    null => null,
+    bool value => value,
+    String value =>
+      value.trim().isEmpty ? null : value.trim().toLowerCase() == 'true',
+    num value => value != 0,
+    _ => null,
   };
 }
 

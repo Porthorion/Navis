@@ -28,6 +28,8 @@ enum GroupListeningMemberPresenceState { active, stale, offline }
 
 enum GroupListeningRoomStatus { active, closed }
 
+enum GroupListeningRoomMode { collaborative, shotgun, hostOnly }
+
 enum GroupListeningPlaybackStatus { playing, paused }
 
 enum GroupListeningPlaybackAnchorReason {
@@ -63,6 +65,8 @@ enum GroupListeningErrorCode {
   roomClosed,
   inviteInvalid,
   inviteExpired,
+  pinRequired,
+  pinInvalid,
   fingerprintMismatch,
   staleVersion,
   sequenceRejected,
@@ -298,12 +302,14 @@ class GroupListeningSelfState {
     required this.memberId,
     required this.role,
     required this.canControl,
+    this.canPlayAudio = true,
     required this.authVersion,
   });
 
   final String memberId;
   final GroupListeningMemberRole role;
   final bool canControl;
+  final bool canPlayAudio;
   final int authVersion;
 
   bool get isHost => role == GroupListeningMemberRole.host;
@@ -314,12 +320,14 @@ class GroupListeningSelfState {
     String? memberId,
     GroupListeningMemberRole? role,
     bool? canControl,
+    bool? canPlayAudio,
     int? authVersion,
   }) {
     return GroupListeningSelfState(
       memberId: memberId ?? this.memberId,
       role: role ?? this.role,
       canControl: canControl ?? this.canControl,
+      canPlayAudio: canPlayAudio ?? this.canPlayAudio,
       authVersion: authVersion ?? this.authVersion,
     );
   }
@@ -332,10 +340,12 @@ class GroupListeningSelfState {
           memberId == other.memberId &&
           role == other.role &&
           canControl == other.canControl &&
+          canPlayAudio == other.canPlayAudio &&
           authVersion == other.authVersion;
 
   @override
-  int get hashCode => Object.hash(memberId, role, canControl, authVersion);
+  int get hashCode =>
+      Object.hash(memberId, role, canControl, canPlayAudio, authVersion);
 }
 
 @immutable
@@ -602,6 +612,8 @@ class GroupListeningRoomState {
     required this.protocolVersion,
     required this.roomId,
     required this.roomStatus,
+    this.roomMode = GroupListeningRoomMode.collaborative,
+    this.requiresPin = false,
     required this.roomVersion,
     required this.presenceVersion,
     required this.authVersion,
@@ -617,6 +629,8 @@ class GroupListeningRoomState {
   final String protocolVersion;
   final String roomId;
   final GroupListeningRoomStatus roomStatus;
+  final GroupListeningRoomMode roomMode;
+  final bool requiresPin;
   final int roomVersion;
   final int presenceVersion;
   final int authVersion;
@@ -632,6 +646,8 @@ class GroupListeningRoomState {
     String? protocolVersion,
     String? roomId,
     GroupListeningRoomStatus? roomStatus,
+    GroupListeningRoomMode? roomMode,
+    bool? requiresPin,
     int? roomVersion,
     int? presenceVersion,
     int? authVersion,
@@ -647,6 +663,8 @@ class GroupListeningRoomState {
       protocolVersion: protocolVersion ?? this.protocolVersion,
       roomId: roomId ?? this.roomId,
       roomStatus: roomStatus ?? this.roomStatus,
+      roomMode: roomMode ?? this.roomMode,
+      requiresPin: requiresPin ?? this.requiresPin,
       roomVersion: roomVersion ?? this.roomVersion,
       presenceVersion: presenceVersion ?? this.presenceVersion,
       authVersion: authVersion ?? this.authVersion,
@@ -689,7 +707,14 @@ class GroupListeningRoomState {
         explicitSelf ??
         self.copyWith(
           role: nextSelfRole,
-          canControl: nextRoomStatus == GroupListeningRoomStatus.active,
+          canControl:
+              nextRoomStatus == GroupListeningRoomStatus.active &&
+              (roomMode != GroupListeningRoomMode.hostOnly ||
+                  nextSelfRole == GroupListeningMemberRole.host),
+          canPlayAudio:
+              nextRoomStatus == GroupListeningRoomStatus.active &&
+              (roomMode != GroupListeningRoomMode.shotgun ||
+                  nextSelfRole == GroupListeningMemberRole.host),
           authVersion: event.authVersion,
         );
     return copyWith(
@@ -713,6 +738,8 @@ class GroupListeningRoomState {
           protocolVersion == other.protocolVersion &&
           roomId == other.roomId &&
           roomStatus == other.roomStatus &&
+          roomMode == other.roomMode &&
+          requiresPin == other.requiresPin &&
           roomVersion == other.roomVersion &&
           presenceVersion == other.presenceVersion &&
           authVersion == other.authVersion &&
@@ -729,6 +756,8 @@ class GroupListeningRoomState {
     protocolVersion,
     roomId,
     roomStatus,
+    roomMode,
+    requiresPin,
     roomVersion,
     presenceVersion,
     authVersion,
