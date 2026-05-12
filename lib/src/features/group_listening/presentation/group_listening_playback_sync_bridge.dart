@@ -55,6 +55,7 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
   _BridgePlaybackState? _suppressedEchoState;
   DateTime? _lastPublishedAt;
   DateTime? _lastImmediateSnapshotChangeAt;
+  DateTime? _lastRemoteAnchorReceivedAt;
   bool _isApplyingRemoteState = false;
   bool _isRefreshingSnapshot = false;
 
@@ -136,6 +137,7 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
       _lastObservedRoomVersion = 0;
       _lastPublishedState = null;
       _suppressedEchoState = null;
+      _lastRemoteAnchorReceivedAt = null;
       return;
     }
 
@@ -143,6 +145,13 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
       _lastObservedRoomVersion = 0;
       _lastPublishedState = null;
       _suppressedEchoState = null;
+      _lastRemoteAnchorReceivedAt = null;
+    }
+
+    if (previousRoomId != nextRoom.roomId ||
+        previous?.room?.roomVersion != nextRoom.roomVersion ||
+        previous?.room?.playbackAnchor != nextRoom.playbackAnchor) {
+      _lastRemoteAnchorReceivedAt = DateTime.now();
     }
 
     if (next.snapshotRequired &&
@@ -200,12 +209,12 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
     _lastObservedRoomVersion = nextRoom.roomVersion;
 
     if (!nextRoom.self.canPlayAudio) {
-      _lastPublishedState = _playbackStateFromRoom(nextRoom);
+      _lastPublishedState = _playbackStateFromSession(next);
       _lastPublishedAt = DateTime.now();
       return;
     }
 
-    final remoteState = _playbackStateFromRoom(nextRoom);
+    final remoteState = _playbackStateFromSession(next);
     final localState = _currentLocalPlaybackState();
     final selfIssued =
         nextRoom.playbackAnchor.issuedByMemberId == nextRoom.self.memberId;
@@ -384,7 +393,7 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
     }
 
     final room = session.room!;
-    final remoteState = _playbackStateFromRoom(room);
+    final remoteState = _playbackStateFromSession(session);
     final queueChanged = !listEquals(
       localState.queueSongIds,
       remoteState.queueSongIds,
@@ -693,8 +702,12 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
     return GroupListeningPlaybackAnchorReason.syncTick;
   }
 
-  _BridgePlaybackState _playbackStateFromRoom(GroupListeningRoomState room) {
+  _BridgePlaybackState _playbackStateFromSession(
+    GroupListeningSessionState session,
+  ) {
+    final room = session.room!;
     final anchor = room.playbackAnchor;
+    final projectedPosition = _projectedAnchorPosition(anchor);
     return _BridgePlaybackState(
       queueSongIds: List<String>.unmodifiable(
         room.queue.entries.map((entry) => entry.songId),
@@ -702,9 +715,22 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
       currentIndex: anchor.currentIndex ?? room.queue.currentIndex,
       currentSongId: anchor.currentSongId ?? room.queue.currentSongId,
       playing: anchor.playbackState == GroupListeningPlaybackStatus.playing,
-      position: anchor.position,
+      position: projectedPosition,
       isRadioMode: false,
     );
+  }
+
+  Duration _projectedAnchorPosition(GroupListeningPlaybackAnchor anchor) {
+    final receivedAt = _lastRemoteAnchorReceivedAt;
+    if (receivedAt == null ||
+        anchor.playbackState != GroupListeningPlaybackStatus.playing) {
+      return anchor.position;
+    }
+    final elapsed = DateTime.now().difference(receivedAt);
+    final projectedAt = anchor.capturedAt.add(
+      elapsed.isNegative ? Duration.zero : elapsed,
+    );
+    return anchor.expectedPositionAt(projectedAt);
   }
 
   _BridgePlaybackState _currentLocalPlaybackState() {

@@ -400,6 +400,7 @@ class GroupListeningSessionController
   static const Duration _serverMigrationTimeout = Duration(seconds: 15);
 
   static const Duration _snapshotRetryDelay = Duration(seconds: 5);
+  static const Duration _ackLagGrace = Duration(seconds: 2);
   static const Duration _reconnectInitialDelay = Duration(seconds: 2);
   static const Duration _reconnectMaxDelay = Duration(seconds: 60);
   static const int _reconnectMaxAttempts = 8;
@@ -412,7 +413,9 @@ class GroupListeningSessionController
   Timer? _serverUpgradeTimer;
   Timer? _snapshotRetryTimer;
   Timer? _reconnectTimer;
+  Timer? _ackLagTimer;
   int _reconnectAttempts = 0;
+  int? _ackLagRoomVersion;
   GroupListeningCapabilityDiscovery? _connectingDiscovery;
   bool _serverUpgradeInProgress = false;
   bool _transportTeardownInProgress = false;
@@ -1109,6 +1112,7 @@ class GroupListeningSessionController
     );
     _snapshotRetryTimer?.cancel();
     _snapshotRetryTimer = null;
+    _clearAckLagRecovery(upToRoomVersion: snapshot.roomVersion);
     if (snapshot.roomStatus == GroupListeningRoomStatus.closed) {
       _runtimeSession = null;
       unawaited(ref.read(groupListeningSessionCredentialStoreProvider).clear());
@@ -1157,6 +1161,7 @@ class GroupListeningSessionController
       snapshotRequired: false,
       clearFailure: true,
     );
+    _clearAckLagRecovery(upToRoomVersion: event.roomVersion);
     unawaited(
       _persistLastAppliedVersion(
         event.roomVersion,
@@ -1177,6 +1182,7 @@ class GroupListeningSessionController
   GroupListeningSessionState markSnapshotRequired([
     GroupListeningErrorState? failure,
   ]) {
+    _clearAckLagRecovery();
     state = state.copyWith(
       snapshotRequired: true,
       failure:
@@ -1352,6 +1358,7 @@ class GroupListeningSessionController
       _reconnectTimer?.cancel();
       _reconnectTimer = null;
       _reconnectAttempts = 0;
+      _clearAckLagRecovery();
       final connectedDiscovery = _connectingDiscovery;
       _connectingDiscovery = null;
       final connectedSession = _runtimeSession;
@@ -1422,12 +1429,19 @@ class GroupListeningSessionController
       return;
     }
     if (message is GroupListeningHeartbeatAckMessage) {
+      final receivedAt = DateTime.now();
       state = state.copyWith(
         connection: state.connection.copyWith(
-          lastHeartbeatAckAt: DateTime.now(),
+          lastHeartbeatAckAt: receivedAt,
           lastServerTime: message.serverTime,
         ),
       );
+      if (!state.snapshotRequired &&
+          message.roomVersion > state.lastAppliedRoomVersion) {
+        _scheduleAckLagRecovery(message.roomVersion);
+      } else {
+        _clearAckLagRecovery(upToRoomVersion: state.lastAppliedRoomVersion);
+      }
       return;
     }
     if (message is GroupListeningRoomClosedMessage) {
@@ -1751,6 +1765,7 @@ class GroupListeningSessionController
     _snapshotRetryTimer = null;
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
+    _clearAckLagRecovery();
     _reconnectAttempts = 0;
     _connectingDiscovery = null;
     await _transportSubscription?.cancel();
@@ -1771,6 +1786,57 @@ class GroupListeningSessionController
     _heartbeatTimer = Timer(delay, () {
       unawaited(_sendHeartbeat());
     });
+  }
+
+  void _scheduleAckLagRecovery(int roomVersion) {
+    if (roomVersion <= state.lastAppliedRoomVersion) {
+      _clearAckLagRecovery();
+      return;
+    }
+    if (_ackLagRoomVersion == roomVersion && (_ackLagTimer?.isActive ?? false)) {
+      return;
+    }
+    _ackLagTimer?.cancel();
+    _ackLagRoomVersion = roomVersion;
+    _ackLagTimer = Timer(_ackLagGrace, () {
+      final stillLagging =
+          state.connection.isConnected &&
+          !state.snapshotRequired &&
+          state.lastAppliedRoomVersion < roomVersion;
+      if (!stillLagging) {
+        _clearAckLagRecovery(upToRoomVersion: state.lastAppliedRoomVersion);
+        return;
+      }
+      AppLogger.info(
+        'Group listening: heartbeat ack stayed ahead of room state; '
+        'requesting snapshot recovery',
+      );
+      markSnapshotRequired(
+        GroupListeningErrorState(
+          code: GroupListeningErrorCode.snapshotRequired,
+          message: 'Heartbeat ack indicates the room state is lagging behind.',
+          retryable: true,
+          roomVersion: roomVersion,
+          details: <String, Object?>{
+            'last_applied_room_version': state.lastAppliedRoomVersion,
+            'ack_room_version': roomVersion,
+          },
+        ),
+      );
+      _clearAckLagRecovery();
+    });
+  }
+
+  void _clearAckLagRecovery({int? upToRoomVersion}) {
+    final trackedRoomVersion = _ackLagRoomVersion;
+    if (upToRoomVersion != null &&
+        trackedRoomVersion != null &&
+        trackedRoomVersion > upToRoomVersion) {
+      return;
+    }
+    _ackLagTimer?.cancel();
+    _ackLagTimer = null;
+    _ackLagRoomVersion = null;
   }
 
   Future<void> _sendHeartbeat() async {

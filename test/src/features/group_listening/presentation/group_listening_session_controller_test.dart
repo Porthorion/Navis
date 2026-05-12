@@ -766,6 +766,125 @@ void main() {
     );
 
     test(
+      'marks snapshot required when heartbeat acks stay ahead of room state',
+      () async {
+        final repository = _FakeGroupListeningRepository();
+        final connection = _FakeRealtimeConnection();
+        final fingerprint = computeSourceServerFingerprint(activeServer.url);
+        repository.joinResponse = GroupListeningJoinResponse(
+          runtimeContext: _runtimeContext(fingerprint: fingerprint),
+          roomSnapshot: _roomState(fingerprint: fingerprint, roomVersion: 1),
+        );
+        repository.connection = connection;
+
+        final container = createContainer(repository: repository);
+        final controller = container.read(
+          groupListeningSessionControllerProvider.notifier,
+        );
+
+        await controller.joinRoom(
+          inviteCode: 'INVITE',
+          client: client,
+          connectAfterJoin: false,
+        );
+        await controller.connect();
+        connection.add(
+          GroupListeningConnectionWelcomeMessage(
+            roomId: 'room-1',
+            memberId: 'member-1',
+            clientConnectionId: 'conn-1',
+            roomVersion: 1,
+            presenceVersion: 1,
+            heartbeatInterval: const Duration(seconds: 10),
+            memberStaleTimeout: const Duration(seconds: 45),
+            serverTime: DateTime.utc(2026, 4, 21, 12),
+          ),
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        connection.add(
+          GroupListeningHeartbeatAckMessage(
+            roomVersion: 3,
+            presenceVersion: 1,
+            nextHeartbeatDeadline: DateTime.utc(2026, 4, 21, 12, 0, 10),
+            serverTime: DateTime.utc(2026, 4, 21, 12, 0, 1),
+          ),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 2200));
+
+        final state = container.read(groupListeningSessionControllerProvider);
+        expect(state.snapshotRequired, isTrue);
+        expect(state.failure?.code, GroupListeningErrorCode.snapshotRequired);
+        expect(state.failure?.roomVersion, 3);
+      },
+    );
+
+    test(
+      'cancels heartbeat-ack recovery when the missing room event arrives',
+      () async {
+        final repository = _FakeGroupListeningRepository();
+        final connection = _FakeRealtimeConnection();
+        final fingerprint = computeSourceServerFingerprint(activeServer.url);
+        repository.joinResponse = GroupListeningJoinResponse(
+          runtimeContext: _runtimeContext(fingerprint: fingerprint),
+          roomSnapshot: _roomState(fingerprint: fingerprint, roomVersion: 1),
+        );
+        repository.connection = connection;
+
+        final container = createContainer(repository: repository);
+        final controller = container.read(
+          groupListeningSessionControllerProvider.notifier,
+        );
+
+        await controller.joinRoom(
+          inviteCode: 'INVITE',
+          client: client,
+          connectAfterJoin: false,
+        );
+        await controller.connect();
+        connection.add(
+          GroupListeningConnectionWelcomeMessage(
+            roomId: 'room-1',
+            memberId: 'member-1',
+            clientConnectionId: 'conn-1',
+            roomVersion: 1,
+            presenceVersion: 1,
+            heartbeatInterval: const Duration(seconds: 10),
+            memberStaleTimeout: const Duration(seconds: 45),
+            serverTime: DateTime.utc(2026, 4, 21, 12),
+          ),
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        connection.add(
+          GroupListeningHeartbeatAckMessage(
+            roomVersion: 3,
+            presenceVersion: 1,
+            nextHeartbeatDeadline: DateTime.utc(2026, 4, 21, 12, 0, 10),
+            serverTime: DateTime.utc(2026, 4, 21, 12, 0, 1),
+          ),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 250));
+        connection.add(
+          GroupListeningRoomEventMessage(
+            _roomEvent(roomVersion: 2, previousRoomVersion: 1),
+          ),
+        );
+        connection.add(
+          GroupListeningRoomEventMessage(
+            _roomEvent(roomVersion: 3, previousRoomVersion: 2),
+          ),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 2200));
+
+        final state = container.read(groupListeningSessionControllerProvider);
+        expect(state.snapshotRequired, isFalse);
+        expect(state.lastAppliedRoomVersion, 3);
+        expect(state.failure, isNull);
+      },
+    );
+
+    test(
       'clears stored session when a snapshot fingerprint mismatches',
       () async {
         final repository = _FakeGroupListeningRepository();

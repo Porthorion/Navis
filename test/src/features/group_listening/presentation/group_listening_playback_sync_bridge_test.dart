@@ -308,6 +308,10 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
     _emit(_snapshot.copyWith(position: position));
   }
 
+  void updatePosition(Duration position) {
+    _emit(_snapshot.copyWith(position: position));
+  }
+
   @override
   Future<void> skipToNext() async {}
 
@@ -681,6 +685,67 @@ void main() {
     );
 
     test(
+      'does not publish a mutation for projected passive playback progression',
+      () async {
+        final repository = _FakeGroupListeningRepository();
+        final connection = _FakeRealtimeConnection();
+        final fingerprint = computeSourceServerFingerprint(activeServer.url);
+        final room = _roomState(
+          fingerprint: fingerprint,
+          roomVersion: 1,
+          queueSongIds: const <String>['song-1'],
+          currentIndex: 0,
+          playbackState: GroupListeningPlaybackStatus.playing,
+          position: const Duration(seconds: 15),
+          issuedByMemberId: 'member-1',
+        );
+        final handler = _FakePlaybackHandler(_snapshotFromRoom(room));
+        repository.joinResponse = GroupListeningJoinResponse(
+          runtimeContext: _runtimeContext(fingerprint: fingerprint),
+          roomSnapshot: room,
+        );
+        repository.connection = connection;
+        addTearDown(handler.dispose);
+
+        final container = createContainer(
+          repository: repository,
+          handler: handler,
+        );
+        final bridgeSubscription = container.listen(
+          groupListeningPlaybackSyncBridgeProvider,
+          (_, __) {},
+        );
+        addTearDown(bridgeSubscription.close);
+        final controller = container.read(
+          groupListeningSessionControllerProvider.notifier,
+        );
+
+        await controller.joinRoom(
+          inviteCode: 'INVITE',
+          client: client,
+          connectAfterJoin: false,
+        );
+        await controller.connect();
+        connection.add(
+          _welcome(
+            roomVersion: 1,
+            serverTime: room.playbackAnchor.capturedAt.add(
+              const Duration(milliseconds: 800),
+            ),
+          ),
+        );
+        await _pumpBridge();
+        connection.sentMessages.clear();
+
+        await Future<void>.delayed(const Duration(milliseconds: 650));
+        handler.updatePosition(const Duration(milliseconds: 16450));
+        await _pumpBridge();
+
+        expect(connection.sentMessages, isEmpty);
+      },
+    );
+
+    test(
       'applies inbound room events through queue and playback seams',
       () async {
         final repository = _FakeGroupListeningRepository();
@@ -988,7 +1053,10 @@ Future<void> _pumpBridge() async {
   }
 }
 
-GroupListeningConnectionWelcomeMessage _welcome({required int roomVersion}) {
+GroupListeningConnectionWelcomeMessage _welcome({
+  required int roomVersion,
+  DateTime? serverTime,
+}) {
   return GroupListeningConnectionWelcomeMessage(
     roomId: 'room-1',
     memberId: 'member-1',
@@ -997,7 +1065,7 @@ GroupListeningConnectionWelcomeMessage _welcome({required int roomVersion}) {
     presenceVersion: 1,
     heartbeatInterval: const Duration(seconds: 10),
     memberStaleTimeout: const Duration(seconds: 45),
-    serverTime: DateTime.utc(2026, 4, 21, 12),
+    serverTime: serverTime ?? DateTime.utc(2026, 4, 21, 12),
   );
 }
 
