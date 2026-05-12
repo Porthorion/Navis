@@ -45,6 +45,7 @@ class _FakeGroupListeningRepository implements GroupListeningRepository {
   Object? leaveError;
   Object? closeError;
   Object? rotateInviteError;
+  int connectCalls = 0;
   Future<void> Function()? onLeaveRoom;
   Future<void> Function()? onCloseRoom;
 
@@ -52,6 +53,7 @@ class _FakeGroupListeningRepository implements GroupListeningRepository {
   Future<GroupListeningRealtimeConnection> connect(
     GroupListeningTransportConnectRequest request,
   ) async {
+    connectCalls++;
     if (connectError != null) {
       throw connectError!;
     }
@@ -562,6 +564,46 @@ void main() {
     );
 
     test(
+      'leaves locally when Voyage is unavailable',
+      () async {
+        final repository = _FakeGroupListeningRepository();
+        final fingerprint = computeSourceServerFingerprint(activeServer.url);
+        repository.joinResponse = GroupListeningJoinResponse(
+          runtimeContext: _runtimeContext(fingerprint: fingerprint),
+          roomSnapshot: _roomState(fingerprint: fingerprint, roomVersion: 1),
+        );
+        repository.leaveError = const GroupListeningRepositoryException(
+          GroupListeningErrorState(
+            code: GroupListeningErrorCode.transportUnavailable,
+            message: 'Unable to leave Voyage room cleanly.',
+            retryable: true,
+          ),
+        );
+
+        final container = createContainer(repository: repository);
+        final controller = container.read(
+          groupListeningSessionControllerProvider.notifier,
+        );
+
+        await controller.joinRoom(
+          inviteCode: 'INVITE',
+          client: client,
+          connectAfterJoin: false,
+        );
+        await controller.leaveRoom();
+
+        final state = container.read(groupListeningSessionControllerProvider);
+        final storedSession = await container
+            .read(groupListeningSessionCredentialStoreProvider)
+            .read();
+        expect(state.status, GroupListeningSessionStatus.idle);
+        expect(state.room, isNull);
+        expect(state.failure, isNull);
+        expect(storedSession, isNull);
+      },
+    );
+
+    test(
       'leaves cleanly when transport teardown races with the leave request',
       () async {
         final repository = _FakeGroupListeningRepository();
@@ -629,6 +671,100 @@ void main() {
         expect(state.failure, isNull);
         expect(storedSession, isNull);
         expect(connection.disconnected, isTrue);
+      },
+    );
+
+    test(
+      'keeps auto-reconnecting after a retryable reconnect transport failure',
+      () async {
+        final repository = _FakeGroupListeningRepository();
+        final initialConnection = _FakeRealtimeConnection();
+        final recoveredConnection = _FakeRealtimeConnection();
+        final fingerprint = computeSourceServerFingerprint(activeServer.url);
+        final rejoinResponse = GroupListeningJoinResponse(
+          runtimeContext: _runtimeContext(fingerprint: fingerprint),
+          roomSnapshot: _roomState(fingerprint: fingerprint, roomVersion: 1),
+        );
+        repository.joinResponse = rejoinResponse;
+        repository.rejoinResponse = rejoinResponse;
+        repository.connection = initialConnection;
+
+        final container = createContainer(repository: repository);
+        final controller = container.read(
+          groupListeningSessionControllerProvider.notifier,
+        );
+
+        await controller.joinRoom(
+          inviteCode: 'INVITE',
+          client: client,
+          connectAfterJoin: false,
+        );
+        await controller.connect();
+        initialConnection.add(
+          GroupListeningConnectionWelcomeMessage(
+            roomId: 'room-1',
+            memberId: 'member-1',
+            clientConnectionId: 'conn-1',
+            roomVersion: 1,
+            presenceVersion: 1,
+            heartbeatInterval: const Duration(seconds: 10),
+            memberStaleTimeout: const Duration(seconds: 45),
+            serverTime: DateTime.utc(2026, 4, 21, 12),
+          ),
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        repository.connectError = const GroupListeningRepositoryException(
+          GroupListeningErrorState(
+            code: GroupListeningErrorCode.transportUnavailable,
+            message: 'Unable to connect to Voyage realtime transport.',
+            retryable: true,
+          ),
+        );
+        initialConnection.add(
+          const GroupListeningTransportDisconnectedMessage(
+            error: GroupListeningErrorState(
+              code: GroupListeningErrorCode.transportDisconnected,
+              message: 'Voyage realtime transport disconnected.',
+              retryable: true,
+            ),
+            retryable: true,
+          ),
+        );
+
+        await Future<void>.delayed(const Duration(milliseconds: 2200));
+
+        expect(repository.connectCalls, 2);
+        expect(
+          container.read(groupListeningSessionControllerProvider).failure?.code,
+          GroupListeningErrorCode.transportUnavailable,
+        );
+
+        repository.connectError = null;
+        repository.connection = recoveredConnection;
+
+        await Future<void>.delayed(const Duration(milliseconds: 4500));
+
+        expect(repository.connectCalls, 3);
+
+        recoveredConnection.add(
+          GroupListeningConnectionWelcomeMessage(
+            roomId: 'room-1',
+            memberId: 'member-1',
+            clientConnectionId: 'conn-2',
+            roomVersion: 1,
+            presenceVersion: 1,
+            heartbeatInterval: const Duration(seconds: 10),
+            memberStaleTimeout: const Duration(seconds: 45),
+            serverTime: DateTime.utc(2026, 4, 21, 12, 0, 7),
+          ),
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        final state = container.read(groupListeningSessionControllerProvider);
+        expect(state.status, GroupListeningSessionStatus.connected);
+        expect(state.connection.isConnected, isTrue);
+        expect(state.failure, isNull);
       },
     );
 

@@ -722,7 +722,7 @@ void main() {
   );
 
   testWidgets(
-    'shows room setting toggles before creating a room',
+    'shows only PIN room setting before creating a room',
     (
       tester,
     ) async {
@@ -762,35 +762,18 @@ void main() {
         lessThan(tester.getTopLeft(createRoomButton).dy),
       );
 
-      final shotgunToggle = find.widgetWithText(
-        SwitchListTile,
-        'Shotgun Mode',
-      );
-      final hostOnlyToggle = find.widgetWithText(SwitchListTile, 'Host Only');
       final pinProtectedToggle = find.widgetWithText(
         SwitchListTile,
         'PIN Protected',
       );
 
-      expect(shotgunToggle, findsOneWidget);
-      expect(hostOnlyToggle, findsOneWidget);
+      expect(find.text('Shotgun Mode'), findsNothing);
+      expect(find.text('Host Only'), findsNothing);
       expect(pinProtectedToggle, findsOneWidget);
-      expect(
-        find.text('Everyone controls playback; only the host plays audio.'),
-        findsOneWidget,
-      );
-      expect(find.text('Only the host controls playback.'), findsOneWidget);
       expect(find.text('Require a 4-digit code to join.'), findsOneWidget);
-
-      await tester.tap(shotgunToggle);
-      await tester.pumpAndSettle();
-      await tester.tap(hostOnlyToggle);
-      await tester.pumpAndSettle();
       await tester.tap(pinProtectedToggle);
       await tester.pumpAndSettle();
 
-      expect(tester.widget<SwitchListTile>(shotgunToggle).value, isFalse);
-      expect(tester.widget<SwitchListTile>(hostOnlyToggle).value, isTrue);
       expect(tester.widget<SwitchListTile>(pinProtectedToggle).value, isTrue);
       expect(
         find.byKey(const ValueKey('groupListeningRoomPinField')),
@@ -810,7 +793,7 @@ void main() {
     },
   );
 
-  testWidgets('sends selected room mode and PIN when creating a room', (
+  testWidgets('creates collaborative room with PIN when creating a room', (
     tester,
   ) async {
     final repository = _FakeGroupListeningRepository()
@@ -842,8 +825,6 @@ void main() {
       ],
     );
 
-    await tester.tap(find.widgetWithText(SwitchListTile, 'Shotgun Mode'));
-    await tester.pumpAndSettle();
     await tester.tap(
       find.widgetWithText(SwitchListTile, 'PIN Protected'),
     );
@@ -859,7 +840,7 @@ void main() {
 
     expect(
       repository.lastCreateRequest?.roomOptions.roomMode,
-      GroupListeningRoomMode.shotgun,
+      GroupListeningRoomMode.collaborative,
     );
     expect(repository.lastCreateRequest?.roomOptions.pinCode, '2468');
   });

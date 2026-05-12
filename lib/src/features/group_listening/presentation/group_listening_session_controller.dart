@@ -646,13 +646,17 @@ class GroupListeningSessionController
       );
       return state;
     } on Object catch (error, stackTrace) {
+      final failure = _asFailure(
+        error,
+        fallbackMessage:
+            'Unable to connect to Voyage room realtime transport.',
+        fallbackCode: GroupListeningErrorCode.transportUnavailable,
+      );
+      if (_shouldAutoReconnectAfterFailure(failure)) {
+        _scheduleAutoReconnect();
+      }
       return _setFailure(
-        _asFailure(
-          error,
-          fallbackMessage:
-              'Unable to connect to Voyage room realtime transport.',
-          fallbackCode: GroupListeningErrorCode.transportUnavailable,
-        ),
+        failure,
         connectionStatus: GroupListeningConnectionStatus.disconnected,
         stackTrace: stackTrace,
       );
@@ -766,27 +770,16 @@ class GroupListeningSessionController
         // Fatal codes mean the server already considers us gone (room closed,
         // token revoked, unauthorised). A transport failure that arrives while
         // teardown is already in progress is also treated as a graceful leave.
-        if (!_isFatalSessionFailure(failure.code) &&
+        if (!_canLeaveLocallyAfterFailure(failure) &&
             !gracefulTransportTeardown) {
           return _setFailure(failure, stackTrace: stackTrace);
         }
         AppLogger.warning(
-          'Leave request rejected (${failure.code}), cleaning up locally.',
+          'Leave request rejected (${failure.code}), leaving locally.',
         );
       }
 
-      await _disposeTransport();
-      _runtimeSession = null;
-      await ref.read(groupListeningSessionCredentialStoreProvider).clear();
-      state = state.copyWith(
-        status: GroupListeningSessionStatus.idle,
-        connection: const GroupListeningConnectionState.disconnected(),
-        clearRoom: true,
-        clearFailure: true,
-        lastAppliedRoomVersion: 0,
-        snapshotRequired: false,
-      );
-      return state;
+      return _finishLocalLeave();
     } finally {
       _endTransportTeardown();
     }
@@ -1005,6 +998,9 @@ class GroupListeningSessionController
         fallbackMessage: 'Unable to rejoin Voyage room.',
         fallbackCode: GroupListeningErrorCode.transportUnavailable,
       );
+      if (_shouldAutoReconnectAfterFailure(failure)) {
+        _scheduleAutoReconnect();
+      }
       if (_isFatalSessionFailure(failure.code)) {
         await ref.read(groupListeningSessionCredentialStoreProvider).clear();
         _runtimeSession = null;
@@ -1541,10 +1537,7 @@ class GroupListeningSessionController
     // Auto-reconnect on retryable transport disconnects (e.g. network blip,
     // server restart).  We use exponential backoff and cap attempts so the
     // user is shown an error if the server is truly unreachable.
-    if (failure.retryable == true &&
-        failure.code == GroupListeningErrorCode.transportDisconnected &&
-        !_isFatalSessionFailure(failure.code) &&
-        _runtimeSession != null) {
+    if (_shouldAutoReconnectAfterFailure(failure)) {
       _scheduleAutoReconnect();
     }
   }
@@ -1581,6 +1574,20 @@ class GroupListeningSessionController
       );
       unawaited(reconnect());
     });
+  }
+
+  bool _shouldAutoReconnectAfterFailure(GroupListeningErrorState failure) {
+    return failure.retryable == true &&
+        _runtimeSession != null &&
+        !_isFatalSessionFailure(failure.code) &&
+        (failure.code == GroupListeningErrorCode.transportDisconnected ||
+            failure.code == GroupListeningErrorCode.transportUnavailable);
+  }
+
+  bool _canLeaveLocallyAfterFailure(GroupListeningErrorState failure) {
+    return _isFatalSessionFailure(failure.code) ||
+        failure.code == GroupListeningErrorCode.transportDisconnected ||
+        failure.code == GroupListeningErrorCode.transportUnavailable;
   }
 
   void _handleAvailabilityChanged(GroupListeningAvailability availability) {
@@ -1775,6 +1782,21 @@ class GroupListeningSessionController
     if (connection != null) {
       await connection.disconnect();
     }
+  }
+
+  Future<GroupListeningSessionState> _finishLocalLeave() async {
+    await _disposeTransport();
+    _runtimeSession = null;
+    await ref.read(groupListeningSessionCredentialStoreProvider).clear();
+    state = state.copyWith(
+      status: GroupListeningSessionStatus.idle,
+      connection: const GroupListeningConnectionState.disconnected(),
+      clearRoom: true,
+      clearFailure: true,
+      lastAppliedRoomVersion: 0,
+      snapshotRequired: false,
+    );
+    return state;
   }
 
   void _scheduleHeartbeat({Duration? after}) {
