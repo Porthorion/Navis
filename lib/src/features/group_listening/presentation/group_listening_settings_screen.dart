@@ -69,7 +69,7 @@ class _ListenTogetherSurface extends StatelessWidget {
 
     return Material(
       color: Theme.of(context).colorScheme.surface,
-      borderRadius: BorderRadius.circular(24),
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       clipBehavior: Clip.antiAlias,
       child: Column(
         children: <Widget>[
@@ -1013,40 +1013,8 @@ class _ListenTogetherRoomContentState
           style: Theme.of(context).textTheme.titleSmall,
         ),
         const SizedBox(height: 8),
-        _RoomSettingsToggle(
-          key: const ValueKey('groupListeningShotgunModeToggle'),
-          icon: Icons.flash_on_outlined,
-          title: 'Shotgun Mode',
-          subtitle: 'Everyone controls playback; only the host plays audio.',
-          value: _shotgunModeEnabled,
-          enabled: canEdit,
-          onChanged: (value) {
-            setState(() {
-              _shotgunModeEnabled = value;
-              if (value) {
-                _hostOnlyEnabled = false;
-              }
-            });
-          },
-        ),
-        const Divider(height: 24),
-        _RoomSettingsToggle(
-          key: const ValueKey('groupListeningHostOnlyModeToggle'),
-          icon: Icons.shield_outlined,
-          title: 'Host Only',
-          subtitle: 'Only the host controls playback.',
-          value: _hostOnlyEnabled,
-          enabled: canEdit,
-          onChanged: (value) {
-            setState(() {
-              _hostOnlyEnabled = value;
-              if (value) {
-                _shotgunModeEnabled = false;
-              }
-            });
-          },
-        ),
-        const Divider(height: 24),
+        // Shotgun Mode and Host Only are experimental and hidden for now.
+        // State vars are kept so the toggles can be re-enabled when ready.
         _RoomSettingsToggle(
           key: const ValueKey('groupListeningPinProtectedModeToggle'),
           icon: Icons.lock_outline,
@@ -1119,8 +1087,9 @@ class _ListenTogetherRoomContentState
       },
     );
 
+    final bottomPadding = MediaQuery.viewPaddingOf(context).bottom;
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomPadding),
       children: <Widget>[
         if (sessionState.activeInviteCode != null) ...<Widget>[
           _buildInviteCard(sessionState),

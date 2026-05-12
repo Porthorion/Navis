@@ -399,12 +399,20 @@ class GroupListeningSessionController
   static const Duration _serverUpgradeCheckInterval = Duration(minutes: 5);
   static const Duration _serverMigrationTimeout = Duration(seconds: 15);
 
+  static const Duration _snapshotRetryDelay = Duration(seconds: 5);
+  static const Duration _reconnectInitialDelay = Duration(seconds: 2);
+  static const Duration _reconnectMaxDelay = Duration(seconds: 60);
+  static const int _reconnectMaxAttempts = 8;
+
   GroupListeningClientConfiguration? _configuration;
   GroupListeningSessionRuntimeContext? _runtimeSession;
   GroupListeningRealtimeConnection? _connection;
   StreamSubscription<GroupListeningTransportMessage>? _transportSubscription;
   Timer? _heartbeatTimer;
   Timer? _serverUpgradeTimer;
+  Timer? _snapshotRetryTimer;
+  Timer? _reconnectTimer;
+  int _reconnectAttempts = 0;
   GroupListeningCapabilityDiscovery? _connectingDiscovery;
   bool _serverUpgradeInProgress = false;
   bool _transportTeardownInProgress = false;
@@ -1026,14 +1034,23 @@ class GroupListeningSessionController
       );
       return applySnapshot(snapshot);
     } on Object catch (error, stackTrace) {
-      return _setFailure(
-        _asFailure(
-          error,
-          fallbackMessage: 'Unable to refresh Voyage room snapshot.',
-          fallbackCode: GroupListeningErrorCode.transportUnavailable,
-        ),
-        stackTrace: stackTrace,
+      final failure = _asFailure(
+        error,
+        fallbackMessage: 'Unable to refresh Voyage room snapshot.',
+        fallbackCode: GroupListeningErrorCode.transportUnavailable,
       );
+      // If the WS connection is still alive, don't tear down the session just
+      // because the HTTP snapshot fetch failed.  Leave snapshotRequired=true so
+      // the retry timer or the bridge will attempt again.
+      if (state.connection.isConnected) {
+        AppLogger.warning(
+          'Group listening: snapshot fetch failed (non-fatal, WS alive): '
+          '${failure.code.name} — ${failure.message}',
+        );
+        _scheduleSnapshotRetry();
+        return state;
+      }
+      return _setFailure(failure, stackTrace: stackTrace);
     }
   }
 
@@ -1090,6 +1107,8 @@ class GroupListeningSessionController
           snapshot.roomStatus == GroupListeningRoomStatus.closed,
       clearFailure: true,
     );
+    _snapshotRetryTimer?.cancel();
+    _snapshotRetryTimer = null;
     if (snapshot.roomStatus == GroupListeningRoomStatus.closed) {
       _runtimeSession = null;
       unawaited(ref.read(groupListeningSessionCredentialStoreProvider).clear());
@@ -1171,7 +1190,25 @@ class GroupListeningSessionController
           ? GroupListeningSessionStatus.connected
           : state.status,
     );
+    _scheduleSnapshotRetry();
     return state;
+  }
+
+  /// Schedules a one-shot timer to call [refreshSnapshot] if [snapshotRequired]
+  /// is still true after [_snapshotRetryDelay]. This acts as a safety net when
+  /// the bridge misses the false→true transition (e.g. concurrent in-flight
+  /// refresh) or when the initial HTTP call failed non-fatally.
+  void _scheduleSnapshotRetry() {
+    _snapshotRetryTimer?.cancel();
+    if (!state.connection.isConnected) {
+      return;
+    }
+    _snapshotRetryTimer = Timer(_snapshotRetryDelay, () {
+      if (state.snapshotRequired && state.connection.isConnected) {
+        AppLogger.info('Group listening: retrying snapshot refresh via timer');
+        unawaited(refreshSnapshot());
+      }
+    });
   }
 
   void clearFailure() {
@@ -1310,6 +1347,11 @@ class GroupListeningSessionController
   void _handleTransportMessage(GroupListeningTransportMessage message) {
     if (message is GroupListeningConnectionWelcomeMessage) {
       _scheduleHeartbeat(after: message.heartbeatInterval);
+      // Successful connection — cancel any pending auto-reconnect and reset
+      // the attempt counter so the next drop starts fresh.
+      _reconnectTimer?.cancel();
+      _reconnectTimer = null;
+      _reconnectAttempts = 0;
       final connectedDiscovery = _connectingDiscovery;
       _connectingDiscovery = null;
       final connectedSession = _runtimeSession;
@@ -1465,6 +1507,11 @@ class GroupListeningSessionController
       unawaited(_checkForBundledServerUpgrade(triggeredByFailure: true));
     }
     if (_isFatalSessionFailure(failure.code)) {
+      _snapshotRetryTimer?.cancel();
+      _snapshotRetryTimer = null;
+      _reconnectTimer?.cancel();
+      _reconnectTimer = null;
+      _reconnectAttempts = 0;
       _runtimeSession = null;
       unawaited(ref.read(groupListeningSessionCredentialStoreProvider).clear());
     }
@@ -1477,6 +1524,49 @@ class GroupListeningSessionController
       clearActiveInviteCode: _isFatalSessionFailure(failure.code),
       failure: failure,
     );
+    // Auto-reconnect on retryable transport disconnects (e.g. network blip,
+    // server restart).  We use exponential backoff and cap attempts so the
+    // user is shown an error if the server is truly unreachable.
+    if (failure.retryable == true &&
+        failure.code == GroupListeningErrorCode.transportDisconnected &&
+        !_isFatalSessionFailure(failure.code) &&
+        _runtimeSession != null) {
+      _scheduleAutoReconnect();
+    }
+  }
+
+  void _scheduleAutoReconnect() {
+    _reconnectTimer?.cancel();
+    if (_reconnectAttempts >= _reconnectMaxAttempts) {
+      AppLogger.warning(
+        'Group listening: auto-reconnect exhausted after '
+        '$_reconnectAttempts attempts',
+      );
+      return;
+    }
+    final attempt = _reconnectAttempts + 1;
+    final backoff = Duration(
+      milliseconds: (_reconnectInitialDelay.inMilliseconds *
+              (1 << (_reconnectAttempts).clamp(0, 5)))
+          .clamp(
+            _reconnectInitialDelay.inMilliseconds,
+            _reconnectMaxDelay.inMilliseconds,
+          ),
+    );
+    AppLogger.info(
+      'Group listening: scheduling auto-reconnect attempt $attempt in '
+      '${backoff.inSeconds}s',
+    );
+    _reconnectTimer = Timer(backoff, () {
+      if (_runtimeSession == null || state.connection.isConnected) {
+        return;
+      }
+      _reconnectAttempts = attempt;
+      AppLogger.info(
+        'Group listening: auto-reconnect attempt $_reconnectAttempts',
+      );
+      unawaited(reconnect());
+    });
   }
 
   void _handleAvailabilityChanged(GroupListeningAvailability availability) {
@@ -1657,6 +1747,11 @@ class GroupListeningSessionController
     _heartbeatTimer = null;
     _serverUpgradeTimer?.cancel();
     _serverUpgradeTimer = null;
+    _snapshotRetryTimer?.cancel();
+    _snapshotRetryTimer = null;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+    _reconnectAttempts = 0;
     _connectingDiscovery = null;
     await _transportSubscription?.cancel();
     _transportSubscription = null;

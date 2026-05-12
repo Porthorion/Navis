@@ -155,6 +155,25 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
             .refreshSnapshot()
             .whenComplete(() {
               _isRefreshingSnapshot = false;
+              // If snapshotRequired is still true after the first refresh
+              // (a concurrent stale_version arrived while the HTTP call was
+              // in-flight), kick off another refresh immediately rather than
+              // waiting for the next reactive transition.
+              final currentState = ref.read(
+                groupListeningSessionControllerProvider,
+              );
+              if (currentState.snapshotRequired &&
+                  currentState.connection.isConnected) {
+                _isRefreshingSnapshot = true;
+                unawaited(
+                  ref
+                      .read(groupListeningSessionControllerProvider.notifier)
+                      .refreshSnapshot()
+                      .whenComplete(() {
+                        _isRefreshingSnapshot = false;
+                      }),
+                );
+              }
             }),
       );
     }
