@@ -242,8 +242,6 @@ class _ListenTogetherRoomContentState
     if (!mounted) {
       return;
     }
-    final inviteController = TextEditingController(text: clipboardInviteCode);
-    final pinController = TextEditingController();
     String? inviteCode = clipboardInviteCode;
     String? pinCode;
     GroupListeningErrorState? pinFailure;
@@ -252,136 +250,14 @@ class _ListenTogetherRoomContentState
       final dialogResult =
           await showDialog<({String inviteCode, String? pinCode})>(
             context: context,
-            builder: (context) {
-              String? errorText;
-              String? pinErrorText = switch (pinFailure?.code) {
-                GroupListeningErrorCode.pinRequired => 'Enter this room PIN.',
-                GroupListeningErrorCode.pinInvalid => 'That PIN did not work.',
-                _ => null,
-              };
-
-              return StatefulBuilder(
-                builder: (context, setDialogState) {
-                  void submit() {
-                    final normalized = inviteController.text.trim();
-                    if (normalized.isEmpty) {
-                      setDialogState(() {
-                        errorText = 'Enter an invite code to join a room.';
-                      });
-                      return;
-                    }
-                    final normalizedPin = pinController.text.trim();
-                    if (normalizedPin.isNotEmpty &&
-                        !_pinPattern.hasMatch(normalizedPin)) {
-                      setDialogState(() {
-                        pinErrorText = 'Enter 4 digits.';
-                      });
-                      return;
-                    }
-                    Navigator.of(context).pop(
-                      (
-                        inviteCode: normalized,
-                        pinCode: normalizedPin.isEmpty ? null : normalizedPin,
-                      ),
-                    );
-                  }
-
-                  return AlertDialog(
-                    icon: const Icon(Icons.pin_outlined),
-                    title: const Text('Code Join'),
-                    content: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        TextField(
-                          key: const ValueKey(
-                            'groupListeningJoinWithCodeField',
-                          ),
-                          controller: inviteController,
-                          autofocus: true,
-                          enableSuggestions: false,
-                          autocorrect: false,
-                          keyboardType: TextInputType.text,
-                          decoration: InputDecoration(
-                            labelText: 'Invite code',
-                            hintText: 'Paste a Voyage invite',
-                            errorText: errorText,
-                            border: const OutlineInputBorder(),
-                            prefixIcon: const Icon(Icons.meeting_room_outlined),
-                          ),
-                          onChanged: (_) {
-                            if (errorText != null) {
-                              setDialogState(() {
-                                errorText = null;
-                              });
-                            }
-                          },
-                          onSubmitted: (_) => submit(),
-                        ),
-                        const SizedBox(height: 12),
-                        TextField(
-                          key: const ValueKey(
-                            'groupListeningJoinWithCodePinField',
-                          ),
-                          controller: pinController,
-                          autofocus: pinFailure != null,
-                          keyboardType: TextInputType.number,
-                          obscureText: true,
-                          inputFormatters: <TextInputFormatter>[
-                            FilteringTextInputFormatter.digitsOnly,
-                            LengthLimitingTextInputFormatter(4),
-                          ],
-                          decoration: InputDecoration(
-                            labelText: 'Room PIN',
-                            hintText: '4 digits',
-                            errorText: pinErrorText,
-                            border: const OutlineInputBorder(),
-                            prefixIcon: const Icon(Icons.lock_outline),
-                          ),
-                          onChanged: (_) {
-                            if (pinErrorText != null) {
-                              setDialogState(() {
-                                pinErrorText = null;
-                              });
-                            }
-                          },
-                          onSubmitted: (_) => submit(),
-                        ),
-                        if (clipboardInviteCode != null) ...<Widget>[
-                          const SizedBox(height: 12),
-                          Text(
-                            'Detected an invite code from your clipboard.',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
-                      ],
-                    ),
-                    actions: <Widget>[
-                      TextButton(
-                        key: const ValueKey(
-                          'groupListeningJoinWithCodeCancelButton',
-                        ),
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: const Text('Cancel'),
-                      ),
-                      FilledButton.icon(
-                        key: const ValueKey(
-                          'groupListeningJoinWithCodeConfirmButton',
-                        ),
-                        onPressed: submit,
-                        icon: const Icon(Icons.login_outlined),
-                        label: const Text('Join room'),
-                      ),
-                    ],
-                  );
-                },
-              );
-            },
+            builder: (context) => _JoinWithCodeDialog(
+              initialInviteCode: inviteCode,
+              pinFailure: pinFailure,
+              showClipboardHint: clipboardInviteCode != null,
+            ),
           );
 
       if (!mounted || dialogResult == null) {
-        inviteController.dispose();
-        pinController.dispose();
         return;
       }
       inviteCode = dialogResult.inviteCode;
@@ -393,11 +269,8 @@ class _ListenTogetherRoomContentState
       );
       if (pinFailure?.code != GroupListeningErrorCode.pinRequired &&
           pinFailure?.code != GroupListeningErrorCode.pinInvalid) {
-        inviteController.dispose();
-        pinController.dispose();
         return;
       }
-      pinController.clear();
     }
   }
 
@@ -1038,7 +911,7 @@ class _ListenTogetherRoomContentState
                       ? () => _showJoinWithCodeDialog(clientDescriptor)
                       : null,
                   icon: const Icon(Icons.pin_outlined),
-                  label: const Text('Code Join'),
+                  label: const Text('Join'),
                 ),
                 IconButton(
                   tooltip: 'Refresh available rooms',
@@ -1268,6 +1141,158 @@ class _ListenTogetherRoomContentState
           sessionState,
           clientDescriptor,
           availableRooms,
+        ),
+      ],
+    );
+  }
+}
+
+class _JoinWithCodeDialog extends StatefulWidget {
+  const _JoinWithCodeDialog({
+    required this.initialInviteCode,
+    required this.pinFailure,
+    required this.showClipboardHint,
+  });
+
+  final String? initialInviteCode;
+  final GroupListeningErrorState? pinFailure;
+  final bool showClipboardHint;
+
+  @override
+  State<_JoinWithCodeDialog> createState() => _JoinWithCodeDialogState();
+}
+
+class _JoinWithCodeDialogState extends State<_JoinWithCodeDialog> {
+  static final RegExp _pinPattern = RegExp(r'^\d{4}$');
+
+  late final TextEditingController _inviteController;
+  late final TextEditingController _pinController;
+  String? _inviteErrorText;
+  String? _pinErrorText;
+
+  @override
+  void initState() {
+    super.initState();
+    _inviteController = TextEditingController(text: widget.initialInviteCode);
+    _pinController = TextEditingController();
+    _pinErrorText = switch (widget.pinFailure?.code) {
+      GroupListeningErrorCode.pinRequired => 'Enter this room PIN.',
+      GroupListeningErrorCode.pinInvalid => 'That PIN did not work.',
+      _ => null,
+    };
+  }
+
+  @override
+  void dispose() {
+    _inviteController.dispose();
+    _pinController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final normalized = _inviteController.text.trim();
+    if (normalized.isEmpty) {
+      setState(() {
+        _inviteErrorText = 'Enter an invite code to join a room.';
+      });
+      return;
+    }
+
+    final normalizedPin = _pinController.text.trim();
+    if (normalizedPin.isNotEmpty && !_pinPattern.hasMatch(normalizedPin)) {
+      setState(() {
+        _pinErrorText = 'Enter 4 digits.';
+      });
+      return;
+    }
+
+    Navigator.of(context).pop(
+      (
+        inviteCode: normalized,
+        pinCode: normalizedPin.isEmpty ? null : normalizedPin,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      icon: const Icon(Icons.pin_outlined),
+      title: const Text('Code Join'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          TextField(
+            key: const ValueKey('groupListeningJoinWithCodeField'),
+            controller: _inviteController,
+            autofocus: widget.pinFailure == null,
+            enableSuggestions: false,
+            autocorrect: false,
+            keyboardType: TextInputType.text,
+            decoration: InputDecoration(
+              labelText: 'Invite code',
+              hintText: 'Paste a Voyage invite',
+              errorText: _inviteErrorText,
+              border: const OutlineInputBorder(),
+              prefixIcon: const Icon(Icons.meeting_room_outlined),
+            ),
+            onChanged: (_) {
+              if (_inviteErrorText != null) {
+                setState(() {
+                  _inviteErrorText = null;
+                });
+              }
+            },
+            onSubmitted: (_) => _submit(),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            key: const ValueKey('groupListeningJoinWithCodePinField'),
+            controller: _pinController,
+            autofocus: widget.pinFailure != null,
+            keyboardType: TextInputType.number,
+            obscureText: true,
+            inputFormatters: <TextInputFormatter>[
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(4),
+            ],
+            decoration: InputDecoration(
+              labelText: 'Room PIN',
+              hintText: '4 digits',
+              errorText: _pinErrorText,
+              border: const OutlineInputBorder(),
+              prefixIcon: const Icon(Icons.lock_outline),
+            ),
+            onChanged: (_) {
+              if (_pinErrorText != null) {
+                setState(() {
+                  _pinErrorText = null;
+                });
+              }
+            },
+            onSubmitted: (_) => _submit(),
+          ),
+          if (widget.showClipboardHint) ...<Widget>[
+            const SizedBox(height: 12),
+            Text(
+              'Detected an invite code from your clipboard.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ],
+      ),
+      actions: <Widget>[
+        TextButton(
+          key: const ValueKey('groupListeningJoinWithCodeCancelButton'),
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton.icon(
+          key: const ValueKey('groupListeningJoinWithCodeConfirmButton'),
+          onPressed: _submit,
+          icon: const Icon(Icons.login_outlined),
+          label: const Text('Join room'),
         ),
       ],
     );
