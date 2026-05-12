@@ -20,6 +20,16 @@ import 'package:riverpod/src/framework.dart' show Override;
 
 class _MockSettingsRepository extends Mock implements SettingsRepository {}
 
+class _StaticGroupListeningSessionController
+    extends GroupListeningSessionController {
+  _StaticGroupListeningSessionController(this._state);
+
+  final GroupListeningSessionState _state;
+
+  @override
+  GroupListeningSessionState build() => _state;
+}
+
 class _FakeGroupListeningRepository implements GroupListeningRepository {
   GroupListeningCreateRoomRequest? lastCreateRequest;
   GroupListeningJoinRoomRequest? lastJoinRequest;
@@ -201,6 +211,7 @@ Future<void> _pumpRoomAction(WidgetTester tester) async {
 GroupListeningJoinResponse _joinResponse({
   required GroupListeningMemberRole role,
   String? inviteCode,
+  bool? canControl,
 }) {
   final fingerprint = computeSourceServerFingerprint(_activeServer.url);
   final now = DateTime.utc(2026, 4, 21, 12);
@@ -233,7 +244,7 @@ GroupListeningJoinResponse _joinResponse({
       self: GroupListeningSelfState(
         memberId: selfMemberId,
         role: role,
-        canControl: role == GroupListeningMemberRole.host,
+        canControl: canControl ?? true,
         authVersion: 1,
       ),
       members: <GroupListeningMemberState>[
@@ -564,6 +575,71 @@ void main() {
     expect(repository.lastJoinRequest, isNotNull);
     expect(repository.lastJoinRequest!.inviteCode, 'room-123');
   });
+
+  testWidgets(
+    'shows collaborative playback and room mode placeholders for members',
+    (
+      tester,
+    ) async {
+      final repository = _FakeGroupListeningRepository();
+      final memberSession = _joinResponse(
+        role: GroupListeningMemberRole.member,
+        canControl: true,
+      );
+      final sessionState = GroupListeningSessionState(
+        availability: GroupListeningAvailability.ready,
+        status: GroupListeningSessionStatus.idle,
+        connection: const GroupListeningConnectionState.disconnected(),
+        room: memberSession.roomSnapshot,
+        lastAppliedRoomVersion: memberSession.roomSnapshot.roomVersion,
+      );
+
+      await _pumpScreen(
+        tester,
+        overrides: [
+          appSettingsProvider.overrideWithValue(
+            AsyncData(
+              AppSettingsModel.defaults().copyWith(
+                groupListeningEnabled: true,
+                voyageServerUrl: 'https://voyage.example.com',
+                voyageDeviceLabel: 'Phone',
+                clearVoyageDisplayName: true,
+              ),
+            ),
+          ),
+          packageInfoProvider.overrideWithValue(
+            AsyncData<PackageInfo>(_packageInfo),
+          ),
+          serverConfigStateProvider.overrideWithValue(
+            const AsyncData<ServerConfigModel?>(_activeServer),
+          ),
+          groupListeningSessionControllerProvider.overrideWith(
+            () => _StaticGroupListeningSessionController(sessionState),
+          ),
+          groupListeningRepositoryProvider.overrideWithValue(repository),
+        ],
+      );
+
+      expect(find.text('Shared playback enabled'), findsOneWidget);
+      expect(find.text('Room settings'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('groupListeningCloseRoomButton')),
+        findsNothing,
+      );
+      expect(find.text('Invite listeners'), findsNothing);
+
+      final shotgunButton = find.widgetWithText(OutlinedButton, 'Shotgun Mode');
+      final hostOnlyButton = find.widgetWithText(OutlinedButton, 'Host-Only');
+      final protectedButton = find.widgetWithText(OutlinedButton, 'Protected');
+
+      expect(shotgunButton, findsOneWidget);
+      expect(hostOnlyButton, findsOneWidget);
+      expect(protectedButton, findsOneWidget);
+      expect(tester.widget<OutlinedButton>(shotgunButton).onPressed, isNull);
+      expect(tester.widget<OutlinedButton>(hostOnlyButton).onPressed, isNull);
+      expect(tester.widget<OutlinedButton>(protectedButton).onPressed, isNull);
+    },
+  );
 
   testWidgets('lists available rooms and joins by room id', (tester) async {
     final now = DateTime.utc(2026, 4, 21, 12);

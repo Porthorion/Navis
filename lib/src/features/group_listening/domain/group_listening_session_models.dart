@@ -306,6 +306,10 @@ class GroupListeningSelfState {
   final bool canControl;
   final int authVersion;
 
+  bool get isHost => role == GroupListeningMemberRole.host;
+
+  bool get canManageRoom => isHost;
+
   GroupListeningSelfState copyWith({
     String? memberId,
     GroupListeningMemberRole? role,
@@ -685,9 +689,7 @@ class GroupListeningRoomState {
         explicitSelf ??
         self.copyWith(
           role: nextSelfRole,
-          canControl:
-              nextRoomStatus == GroupListeningRoomStatus.active &&
-              nextSelfRole == GroupListeningMemberRole.host,
+          canControl: nextRoomStatus == GroupListeningRoomStatus.active,
           authVersion: event.authVersion,
         );
     return copyWith(

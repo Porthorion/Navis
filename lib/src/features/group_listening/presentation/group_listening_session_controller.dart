@@ -407,6 +407,8 @@ class GroupListeningSessionController
   Timer? _serverUpgradeTimer;
   GroupListeningCapabilityDiscovery? _connectingDiscovery;
   bool _serverUpgradeInProgress = false;
+  bool _transportTeardownInProgress = false;
+  bool _transportTeardownFailureObserved = false;
   int _clientSequence = 0;
 
   @override
@@ -722,46 +724,55 @@ class GroupListeningSessionController
       status: GroupListeningSessionStatus.leaving,
       clearFailure: true,
     );
+    _beginTransportTeardown();
     try {
-      await _runAuthenticatedWithRejoinRetry(
-        (freshSession) => ref
-            .read(groupListeningRepositoryProvider)
-            .leaveRoom(
-              freshSession,
-              lastAppliedRoomVersion: state.lastAppliedRoomVersion,
-            ),
-        fallbackMessage: 'Unable to leave Voyage room cleanly.',
-        fallbackCode: GroupListeningErrorCode.transportUnavailable,
-      );
-    } on Object catch (error, stackTrace) {
-      final failure = _asFailure(
-        error,
-        fallbackMessage: 'Unable to leave Voyage room cleanly.',
-        fallbackCode: GroupListeningErrorCode.transportUnavailable,
-      );
-      // Fatal codes mean the server already considers us gone (room closed,
-      // token revoked, unauthorised).  Treat this as a graceful leave and
-      // fall through to local cleanup rather than re-entering the error state.
-      if (!_isFatalSessionFailure(failure.code)) {
-        return _setFailure(failure, stackTrace: stackTrace);
+      try {
+        await _runAuthenticatedWithRejoinRetry(
+          (freshSession) => ref
+              .read(groupListeningRepositoryProvider)
+              .leaveRoom(
+                freshSession,
+                lastAppliedRoomVersion: state.lastAppliedRoomVersion,
+              ),
+          fallbackMessage: 'Unable to leave Voyage room cleanly.',
+          fallbackCode: GroupListeningErrorCode.transportUnavailable,
+        );
+      } on Object catch (error, stackTrace) {
+        final failure = _asFailure(
+          error,
+          fallbackMessage: 'Unable to leave Voyage room cleanly.',
+          fallbackCode: GroupListeningErrorCode.transportUnavailable,
+        );
+        final gracefulTransportTeardown =
+            failure.code == GroupListeningErrorCode.transportUnavailable &&
+            _transportTeardownFailureObserved;
+        // Fatal codes mean the server already considers us gone (room closed,
+        // token revoked, unauthorised). A transport failure that arrives while
+        // teardown is already in progress is also treated as a graceful leave.
+        if (!_isFatalSessionFailure(failure.code) &&
+            !gracefulTransportTeardown) {
+          return _setFailure(failure, stackTrace: stackTrace);
+        }
+        AppLogger.warning(
+          'Leave request rejected (${failure.code}), cleaning up locally.',
+        );
       }
-      AppLogger.warning(
-        'Leave request rejected (${failure.code}), cleaning up locally.',
-      );
-    }
 
-    await _disposeTransport();
-    _runtimeSession = null;
-    await ref.read(groupListeningSessionCredentialStoreProvider).clear();
-    state = state.copyWith(
-      status: GroupListeningSessionStatus.idle,
-      connection: const GroupListeningConnectionState.disconnected(),
-      clearRoom: true,
-      clearFailure: true,
-      lastAppliedRoomVersion: 0,
-      snapshotRequired: false,
-    );
-    return state;
+      await _disposeTransport();
+      _runtimeSession = null;
+      await ref.read(groupListeningSessionCredentialStoreProvider).clear();
+      state = state.copyWith(
+        status: GroupListeningSessionStatus.idle,
+        connection: const GroupListeningConnectionState.disconnected(),
+        clearRoom: true,
+        clearFailure: true,
+        lastAppliedRoomVersion: 0,
+        snapshotRequired: false,
+      );
+      return state;
+    } finally {
+      _endTransportTeardown();
+    }
   }
 
   Future<GroupListeningSessionState> closeRoom() async {
@@ -775,7 +786,7 @@ class GroupListeningSessionController
         ),
       );
     }
-    if (!room.self.canControl) {
+    if (!room.self.canManageRoom) {
       return _setFailure(
         const GroupListeningErrorState(
           code: GroupListeningErrorCode.forbidden,
@@ -788,44 +799,84 @@ class GroupListeningSessionController
       status: GroupListeningSessionStatus.disconnecting,
       clearFailure: true,
     );
+    _beginTransportTeardown();
     try {
-      final result = await _runAuthenticatedWithRejoinRetry(
-        (freshSession) => ref
-            .read(groupListeningRepositoryProvider)
-            .closeRoom(
-              freshSession,
-              expectedRoomVersion: state.lastAppliedRoomVersion,
-            ),
-        fallbackMessage: 'Unable to close Voyage room.',
-        fallbackCode: GroupListeningErrorCode.transportUnavailable,
-      );
-      await _disposeTransport();
-      _runtimeSession = null;
-      await ref.read(groupListeningSessionCredentialStoreProvider).clear();
-      final latestRoom = state.room ?? room;
-      state = state.copyWith(
-        status: GroupListeningSessionStatus.idle,
-        connection: const GroupListeningConnectionState.disconnected(),
-        room: latestRoom.copyWith(
-          roomStatus: result.roomStatus,
-          roomVersion: result.roomVersion,
-          serverTime: result.closedAt,
-        ),
-        lastAppliedRoomVersion: result.roomVersion,
-        snapshotRequired: false,
-        clearActiveInviteCode: true,
-        clearFailure: true,
-      );
-      return state;
-    } on Object catch (error, stackTrace) {
-      return _setFailure(
-        _asFailure(
+      try {
+        final result = await _runAuthenticatedWithRejoinRetry(
+          (freshSession) => ref
+              .read(groupListeningRepositoryProvider)
+              .closeRoom(
+                freshSession,
+                expectedRoomVersion: state.lastAppliedRoomVersion,
+              ),
+          fallbackMessage: 'Unable to close Voyage room.',
+          fallbackCode: GroupListeningErrorCode.transportUnavailable,
+        );
+        await _disposeTransport();
+        _runtimeSession = null;
+        await ref.read(groupListeningSessionCredentialStoreProvider).clear();
+        final latestRoom = state.room ?? room;
+        state = state.copyWith(
+          status: GroupListeningSessionStatus.idle,
+          connection: const GroupListeningConnectionState.disconnected(),
+          room: latestRoom.copyWith(
+            roomStatus: result.roomStatus,
+            roomVersion: result.roomVersion,
+            serverTime: result.closedAt,
+          ),
+          lastAppliedRoomVersion: result.roomVersion,
+          snapshotRequired: false,
+          clearActiveInviteCode: true,
+          clearFailure: true,
+        );
+        return state;
+      } on Object catch (error, stackTrace) {
+        final failure = _asFailure(
           error,
           fallbackMessage: 'Unable to close Voyage room.',
           fallbackCode: GroupListeningErrorCode.transportUnavailable,
-        ),
-        stackTrace: stackTrace,
-      );
+        );
+        final roomAlreadyClosed =
+            state.room?.roomStatus == GroupListeningRoomStatus.closed ||
+            failure.code == GroupListeningErrorCode.roomClosed;
+        final gracefulTransportTeardown =
+            failure.code == GroupListeningErrorCode.transportUnavailable &&
+            _transportTeardownFailureObserved;
+        if (!roomAlreadyClosed && !gracefulTransportTeardown) {
+          return _setFailure(failure, stackTrace: stackTrace);
+        }
+
+        AppLogger.warning(
+          'Close request rejected (${failure.code}), cleaning up locally.',
+        );
+        await _disposeTransport();
+        _runtimeSession = null;
+        await ref.read(groupListeningSessionCredentialStoreProvider).clear();
+        final latestRoom = switch (state.room) {
+          final current?
+              when failure.code == GroupListeningErrorCode.roomClosed ||
+                  gracefulTransportTeardown =>
+            current.copyWith(
+              roomStatus: GroupListeningRoomStatus.closed,
+              serverTime: DateTime.now(),
+            ),
+          final current? => current,
+          null => null,
+        };
+        state = state.copyWith(
+          status: GroupListeningSessionStatus.idle,
+          connection: const GroupListeningConnectionState.disconnected(),
+          room: latestRoom,
+          clearRoom: latestRoom == null,
+          lastAppliedRoomVersion: latestRoom?.roomVersion ?? 0,
+          snapshotRequired: false,
+          clearActiveInviteCode: true,
+          clearFailure: true,
+        );
+        return state;
+      }
+    } finally {
+      _endTransportTeardown();
     }
   }
 
@@ -839,7 +890,7 @@ class GroupListeningSessionController
         ),
       );
     }
-    if (!room.self.canControl) {
+    if (!room.self.canManageRoom) {
       return _setFailure(
         const GroupListeningErrorState(
           code: GroupListeningErrorCode.forbidden,
@@ -1353,6 +1404,10 @@ class GroupListeningSessionController
   }) {
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
+    if (_transportTeardownInProgress) {
+      _transportTeardownFailureObserved = true;
+      return;
+    }
     if (stackTrace != null) {
       AppLogger.warning(
         'Group listening transport failure: ${failure.code.name}',
@@ -1858,6 +1913,16 @@ class GroupListeningSessionController
         code == GroupListeningErrorCode.revoked ||
         code == GroupListeningErrorCode.roomClosed ||
         code == GroupListeningErrorCode.unauthorized;
+  }
+
+  void _beginTransportTeardown() {
+    _transportTeardownInProgress = true;
+    _transportTeardownFailureObserved = false;
+  }
+
+  void _endTransportTeardown() {
+    _transportTeardownInProgress = false;
+    _transportTeardownFailureObserved = false;
   }
 
   List<GroupListeningMemberState> _mergeMembers({

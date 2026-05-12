@@ -600,6 +600,86 @@ void main() {
     );
 
     test(
+      'publishes playback mutations for collaborative room members',
+      () async {
+        final repository = _FakeGroupListeningRepository();
+        final connection = _FakeRealtimeConnection();
+        final fingerprint = computeSourceServerFingerprint(activeServer.url);
+        final room = _roomState(
+          fingerprint: fingerprint,
+          roomVersion: 1,
+          queueSongIds: const <String>['song-1'],
+          currentIndex: 0,
+          playbackState: GroupListeningPlaybackStatus.paused,
+          position: const Duration(seconds: 15),
+          issuedByMemberId: 'member-1',
+          selfRole: GroupListeningMemberRole.member,
+          selfCanControl: true,
+        );
+        final handler = _FakePlaybackHandler(_snapshotFromRoom(room));
+        repository.joinResponse = GroupListeningJoinResponse(
+          runtimeContext: _runtimeContext(
+            fingerprint: fingerprint,
+            role: GroupListeningMemberRole.member,
+          ),
+          roomSnapshot: room,
+        );
+        repository.connection = connection;
+        addTearDown(handler.dispose);
+
+        final container = createContainer(
+          repository: repository,
+          handler: handler,
+        );
+        final bridgeSubscription = container.listen(
+          groupListeningPlaybackSyncBridgeProvider,
+          (_, __) {},
+        );
+        addTearDown(bridgeSubscription.close);
+        final controller = container.read(
+          groupListeningSessionControllerProvider.notifier,
+        );
+
+        await controller.joinRoom(
+          inviteCode: 'INVITE',
+          client: client,
+          connectAfterJoin: false,
+        );
+        await controller.connect();
+        connection.add(
+          GroupListeningConnectionWelcomeMessage(
+            roomId: 'room-1',
+            memberId: 'member-2',
+            clientConnectionId: 'conn-2',
+            roomVersion: 1,
+            presenceVersion: 1,
+            heartbeatInterval: const Duration(seconds: 10),
+            memberStaleTimeout: const Duration(seconds: 45),
+            serverTime: DateTime.utc(2026, 4, 21, 12),
+          ),
+        );
+        await _pumpBridge();
+        connection.sentMessages.clear();
+
+        await handler.play();
+        await _pumpBridge();
+
+        expect(connection.sentMessages, hasLength(1));
+        final message =
+            connection.sentMessages.single as GroupListeningMutationMessage;
+        expect(message.type, GroupListeningMutationType.playbackAnchor);
+        expect(
+          message.playbackAnchor?.playbackState,
+          GroupListeningPlaybackStatus.playing,
+        );
+        expect(
+          message.playbackAnchor?.issuedByMemberId,
+          'member-2',
+        );
+      },
+    );
+
+    test(
       'applies inbound room events through queue and playback seams',
       () async {
         final repository = _FakeGroupListeningRepository();
@@ -922,11 +1002,15 @@ GroupListeningConnectionWelcomeMessage _welcome({required int roomVersion}) {
 
 GroupListeningSessionRuntimeContext _runtimeContext({
   required String fingerprint,
+  GroupListeningMemberRole role = GroupListeningMemberRole.host,
 }) {
+  final memberId = role == GroupListeningMemberRole.host
+      ? 'member-1'
+      : 'member-2';
   return GroupListeningSessionRuntimeContext(
     roomId: 'room-1',
-    memberId: 'member-1',
-    role: GroupListeningMemberRole.host,
+    memberId: memberId,
+    role: role,
     authVersion: 1,
     voyageBaseUrl: Uri.parse('https://voyage.example.com'),
     sourceServerFingerprint: fingerprint,
@@ -944,8 +1028,13 @@ GroupListeningRoomState _roomState({
   required GroupListeningPlaybackStatus playbackState,
   required Duration position,
   required String issuedByMemberId,
+  GroupListeningMemberRole selfRole = GroupListeningMemberRole.host,
+  bool selfCanControl = true,
 }) {
   final timestamp = DateTime.utc(2026, 4, 21, 12, 0, roomVersion);
+  final selfMemberId = selfRole == GroupListeningMemberRole.host
+      ? 'member-1'
+      : 'member-2';
   final entries = <GroupListeningQueueEntry>[
     for (var i = 0; i < queueSongIds.length; i++)
       GroupListeningQueueEntry(
@@ -975,10 +1064,10 @@ GroupListeningRoomState _roomState({
     serverTime: timestamp,
     sourceServerFingerprint: fingerprint,
     hostMemberId: 'member-1',
-    self: const GroupListeningSelfState(
-      memberId: 'member-1',
-      role: GroupListeningMemberRole.host,
-      canControl: true,
+    self: GroupListeningSelfState(
+      memberId: selfMemberId,
+      role: selfRole,
+      canControl: selfCanControl,
       authVersion: 1,
     ),
     members: <GroupListeningMemberState>[

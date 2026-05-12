@@ -286,9 +286,9 @@ class _ListenTogetherRoomContentState
       return 'Room controls unavailable';
     }
     if (self.canControl) {
-      return 'Playback control enabled';
+      return 'Shared playback enabled';
     }
-    return 'Following the host playback';
+    return 'Playback locked to room host';
   }
 
   String _failureDescription(GroupListeningErrorState failure) {
@@ -460,7 +460,7 @@ class _ListenTogetherRoomContentState
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: <Widget>[
-                  if (room?.self.canControl ?? false) ...<Widget>[
+                  if (room?.self.canManageRoom ?? false) ...<Widget>[
                     TextButton.icon(
                       key: const ValueKey('groupListeningCloseRoomButton'),
                       onPressed: _isBusy(sessionState) ? null : _closeRoom,
@@ -602,9 +602,7 @@ class _ListenTogetherRoomContentState
   Widget _buildInviteCard(GroupListeningSessionState sessionState) {
     final inviteCode = sessionState.activeInviteCode;
     final room = sessionState.room;
-    if (inviteCode == null ||
-        room == null ||
-        room.self.role != GroupListeningMemberRole.host) {
+    if (inviteCode == null || room == null || !room.self.canManageRoom) {
       return const SizedBox.shrink();
     }
     final theme = Theme.of(context);
@@ -759,6 +757,66 @@ class _ListenTogetherRoomContentState
     );
   }
 
+  Widget _buildRoomSettingsCard(GroupListeningSessionState sessionState) {
+    final room = sessionState.room;
+    if (room == null) {
+      return const SizedBox.shrink();
+    }
+
+    final theme = Theme.of(context);
+    final hostCanEdit = room.self.canManageRoom;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              'Room settings',
+              style: theme.textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              hostCanEdit
+                  ? 'Default rooms already use shared playback. Extra room modes are planned here next.'
+                  : 'Default rooms already use shared playback. The host will be able to change room modes here later.',
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: const <Widget>[
+                _RoomSettingsPlaceholderButton(
+                  key: ValueKey('groupListeningShotgunModeButton'),
+                  icon: Icons.flash_on_outlined,
+                  label: 'Shotgun Mode',
+                ),
+                _RoomSettingsPlaceholderButton(
+                  key: ValueKey('groupListeningHostOnlyModeButton'),
+                  icon: Icons.shield_outlined,
+                  label: 'Host-Only',
+                ),
+                _RoomSettingsPlaceholderButton(
+                  key: ValueKey('groupListeningProtectedModeButton'),
+                  icon: Icons.lock_outline,
+                  label: 'Protected',
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Coming soon: room playback modes and access protections.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final sessionState = ref.watch(groupListeningSessionControllerProvider);
@@ -808,6 +866,10 @@ class _ListenTogetherRoomContentState
           _buildOverviewCard(sessionState),
           const SizedBox(height: 12),
         ],
+        if (sessionState.hasActiveRoom) ...<Widget>[
+          _buildRoomSettingsCard(sessionState),
+          const SizedBox(height: 12),
+        ],
         _buildActionsCard(sessionState, clientDescriptor),
         const SizedBox(height: 12),
         _buildAvailableRoomsCard(
@@ -829,6 +891,29 @@ class _StatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Chip(avatar: Icon(icon, size: 18), label: Text(label));
+  }
+}
+
+class _RoomSettingsPlaceholderButton extends StatelessWidget {
+  const _RoomSettingsPlaceholderButton({
+    required this.icon,
+    required this.label,
+    super.key,
+  });
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 180),
+      child: OutlinedButton.icon(
+        onPressed: null,
+        icon: Icon(icon),
+        label: Text(label),
+      ),
+    );
   }
 }
 

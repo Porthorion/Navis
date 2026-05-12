@@ -27,7 +27,7 @@ Minimum tested versions:
 - Synced/unsynced lyrics with full-screen now playing
 - Offline cache plus permanent download modes
 - Adaptive layouts that scale from phone to tablet/desktop
-- Listen Together group sessions backed by Voyage: host-led playback, collaborative shared queue edits, reconnect-aware sync, compact session button in the player bar with live state icon, Settings nav badge, and join/leave toasts
+- Listen Together group sessions backed by Voyage: collaborative default-room playback and queue control, host-only room admin actions, reconnect-aware sync, placeholder room-mode settings, compact session button in the player bar with live state icon, Settings nav badge, and join/leave toasts
 - Keyboard-first desktop controls with platform-aware shortcuts, quick search, queue toggle, and guarded transport actions while typing
 - Desktop volume controls in the bottom player and desktop-wide now playing surfaces
 - Channel-aware updater behavior for stable/dev release tracks
@@ -141,6 +141,9 @@ back to manual Voyage URL entry.
   always navigate back to the session panel even when the player is not
   visible.
 - **Join/leave toasts** confirm room transitions without covering up the UI.
+- Active rooms expose a **Room settings** section with disabled placeholders for
+  Shotgun Mode, Host-Only, and Protected while the default collaborative mode
+  remains active.
 
 ## Documentation Index
 
