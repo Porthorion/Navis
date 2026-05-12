@@ -1380,23 +1380,11 @@ class GroupListeningSessionController
       return;
     }
     if (message is GroupListeningHeartbeatAckMessage) {
-      // Use the server's current roomVersion from the ACK to silently advance
-      // lastAppliedRoomVersion.  This reduces stale_version rejections on the
-      // next mutation when the server's version is ahead of our last applied
-      // version (e.g., a sync-tick event arrived between our snapshot and the
-      // heartbeat).  Only advance when not already fetching a snapshot, to
-      // avoid masking a genuine version gap.
-      final serverVersion = message.roomVersion;
       state = state.copyWith(
         connection: state.connection.copyWith(
           lastHeartbeatAckAt: DateTime.now(),
           lastServerTime: message.serverTime,
         ),
-        lastAppliedRoomVersion:
-            !state.snapshotRequired &&
-                    serverVersion > state.lastAppliedRoomVersion
-                ? serverVersion
-                : state.lastAppliedRoomVersion,
       );
       return;
     }
@@ -1444,8 +1432,19 @@ class GroupListeningSessionController
     GroupListeningErrorState failure, {
     StackTrace? stackTrace,
   }) {
-    _heartbeatTimer?.cancel();
-    _heartbeatTimer = null;
+    // Only cancel the heartbeat for non-recoverable failures that actually
+    // tear down the transport.  Recoverable errors (stale_version,
+    // snapshotRequired) keep the WS connection alive — stopping the heartbeat
+    // here causes the server to mark this client as stale after
+    // memberStaleTimeout, which is the root cause of the "sync disconnects
+    // within seconds" symptom.
+    final isRecoverable =
+        failure.code == GroupListeningErrorCode.snapshotRequired ||
+        failure.code == GroupListeningErrorCode.staleVersion;
+    if (!isRecoverable) {
+      _heartbeatTimer?.cancel();
+      _heartbeatTimer = null;
+    }
     if (_transportTeardownInProgress) {
       _transportTeardownFailureObserved = true;
       return;

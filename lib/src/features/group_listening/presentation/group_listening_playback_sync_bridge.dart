@@ -160,11 +160,14 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
     }
 
     // When the local member loses playback rights (e.g., joining a Shotgun
-    // room as a non-host), stop any audio that is currently playing.
-    // Otherwise the user keeps hearing their own audio even though they are
-    // no longer allowed to control playback in this room.
-    final prevCanPlayAudio = previous?.room?.self.canPlayAudio;
-    if (prevCanPlayAudio == true && !nextRoom.self.canPlayAudio) {
+    // room as a non-host, or the room mode switching after join), stop any
+    // audio that is currently playing so the user doesn't hear their own
+    // track overlapping with the host's stream.
+    // Default prevCanPlayAudio to true when there was no previous room so that
+    // a fresh join to a Shotgun-mode room (where canPlayAudio is false from
+    // the start) also triggers a pause.
+    final prevCanPlayAudio = previous?.room?.self.canPlayAudio ?? true;
+    if (prevCanPlayAudio && !nextRoom.self.canPlayAudio) {
       final handler = ref.read(audioHandlerProvider);
       if (handler != null) {
         unawaited(handler.pause());
