@@ -395,7 +395,7 @@ class _ListenTogetherRoomContentState
     FocusScope.of(context).unfocus();
     await ref
         .read(groupListeningSessionControllerProvider.notifier)
-        .leaveRoom();
+        .leaveRoom(source: 'settings-ui');
     if (mounted) ref.invalidate(groupListeningAvailableRoomsProvider);
   }
 
@@ -403,7 +403,7 @@ class _ListenTogetherRoomContentState
     FocusScope.of(context).unfocus();
     await ref
         .read(groupListeningSessionControllerProvider.notifier)
-        .closeRoom();
+        .closeRoom(source: 'settings-ui');
     if (mounted) ref.invalidate(groupListeningAvailableRoomsProvider);
   }
 
@@ -411,7 +411,7 @@ class _ListenTogetherRoomContentState
     FocusScope.of(context).unfocus();
     await ref
         .read(groupListeningSessionControllerProvider.notifier)
-        .rotateInvite();
+        .rotateInvite(source: 'settings-ui');
   }
 
   Future<void> _connectTransport() async {
@@ -430,7 +430,7 @@ class _ListenTogetherRoomContentState
     FocusScope.of(context).unfocus();
     await ref
         .read(groupListeningSessionControllerProvider.notifier)
-        .refreshSnapshot();
+        .refreshSnapshot(reason: 'settings-ui');
   }
 
   void _dismissFailure() {

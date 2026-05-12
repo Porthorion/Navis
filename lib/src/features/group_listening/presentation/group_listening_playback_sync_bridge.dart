@@ -58,6 +58,8 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
   DateTime? _lastRemoteAnchorReceivedAt;
   bool _isApplyingRemoteState = false;
   bool _isRefreshingSnapshot = false;
+  _BridgePlaybackState? _queuedRemoteState;
+  bool _queuedFollowPlayback = false;
 
   @override
   int build() {
@@ -161,7 +163,7 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
       unawaited(
         ref
             .read(groupListeningSessionControllerProvider.notifier)
-            .refreshSnapshot()
+            .refreshSnapshot(reason: 'bridge-snapshot-required')
             .whenComplete(() {
               _isRefreshingSnapshot = false;
               // If snapshotRequired is still true after the first refresh
@@ -177,7 +179,7 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
                 unawaited(
                   ref
                       .read(groupListeningSessionControllerProvider.notifier)
-                      .refreshSnapshot()
+                      .refreshSnapshot(reason: 'bridge-concurrent-retry')
                       .whenComplete(() {
                         _isRefreshingSnapshot = false;
                       }),
@@ -489,6 +491,11 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
     if (handler == null) {
       return;
     }
+    if (_isApplyingRemoteState) {
+      _queuedRemoteState = remoteState;
+      _queuedFollowPlayback = _queuedFollowPlayback || followPlayback;
+      return;
+    }
 
     _isApplyingRemoteState = true;
     try {
@@ -579,6 +586,13 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
       _lastPublishedState = remoteState;
       _lastPublishedAt = DateTime.now();
     } on Object catch (error, stackTrace) {
+      if (_isBenignPlaybackApplyFailure(error)) {
+        AppLogger.info(
+          'Group listening: ignoring benign playback apply interruption: '
+          '$error',
+        );
+        return;
+      }
       AppLogger.warning('Group listening playback apply failed: $error');
       FlutterError.reportError(
         FlutterErrorDetails(
@@ -590,7 +604,32 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
       );
     } finally {
       _isApplyingRemoteState = false;
+      final queuedState = _queuedRemoteState;
+      final queuedFollowPlayback = _queuedFollowPlayback;
+      _queuedRemoteState = null;
+      _queuedFollowPlayback = false;
+      if (queuedState != null) {
+        final currentState = _currentLocalPlaybackState();
+        if (!_playbackStatesEquivalent(
+          currentState,
+          queuedState,
+          tolerance: _positionTolerance,
+        )) {
+          unawaited(
+            _applyInboundState(
+              queuedState,
+              followPlayback: queuedFollowPlayback,
+            ),
+          );
+        }
+      }
     }
+  }
+
+  bool _isBenignPlaybackApplyFailure(Object error) {
+    final message = error.toString();
+    return message.contains('Loading interrupted') ||
+        message.contains('OperationCancelledException');
   }
 
   GroupListeningQueueState _queueStateFromLocalState(

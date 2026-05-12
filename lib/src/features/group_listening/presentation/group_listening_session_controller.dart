@@ -414,6 +414,10 @@ class GroupListeningSessionController
   Timer? _snapshotRetryTimer;
   Timer? _reconnectTimer;
   Timer? _ackLagTimer;
+  Future<GroupListeningSessionState>? _snapshotRefreshOperation;
+  bool _snapshotRefreshInFlight = false;
+  bool _queuedSnapshotRefresh = false;
+  String? _queuedSnapshotRefreshReason;
   int _reconnectAttempts = 0;
   int? _ackLagRoomVersion;
   GroupListeningCapabilityDiscovery? _connectingDiscovery;
@@ -648,10 +652,12 @@ class GroupListeningSessionController
     } on Object catch (error, stackTrace) {
       final failure = _asFailure(
         error,
-        fallbackMessage:
-            'Unable to connect to Voyage room realtime transport.',
+        fallbackMessage: 'Unable to connect to Voyage room realtime transport.',
         fallbackCode: GroupListeningErrorCode.transportUnavailable,
       );
+      if (_shouldCollapseToLocalCleanup(failure.code)) {
+        return _finishInvalidatedSessionCleanup(failure);
+      }
       if (_shouldAutoReconnectAfterFailure(failure)) {
         _scheduleAutoReconnect();
       }
@@ -735,11 +741,14 @@ class GroupListeningSessionController
     return state;
   }
 
-  Future<GroupListeningSessionState> leaveRoom() async {
+  Future<GroupListeningSessionState> leaveRoom({
+    String source = 'unknown',
+  }) async {
     final session = _runtimeSession;
     if (session == null) {
       return disconnect(preserveSession: false);
     }
+    _logRoomAction('leave room', source: source);
 
     state = state.copyWith(
       status: GroupListeningSessionStatus.leaving,
@@ -785,7 +794,9 @@ class GroupListeningSessionController
     }
   }
 
-  Future<GroupListeningSessionState> closeRoom() async {
+  Future<GroupListeningSessionState> closeRoom({
+    String source = 'unknown',
+  }) async {
     final session = _runtimeSession;
     final room = state.room;
     if (session == null || room == null) {
@@ -804,6 +815,7 @@ class GroupListeningSessionController
         ),
       );
     }
+    _logRoomAction('close room', source: source);
 
     state = state.copyWith(
       status: GroupListeningSessionStatus.disconnecting,
@@ -853,6 +865,9 @@ class GroupListeningSessionController
             failure.code == GroupListeningErrorCode.transportUnavailable &&
             _transportTeardownFailureObserved;
         if (!roomAlreadyClosed && !gracefulTransportTeardown) {
+          if (_shouldCollapseToLocalCleanup(failure.code)) {
+            return _finishInvalidatedSessionCleanup(failure);
+          }
           return _setFailure(failure, stackTrace: stackTrace);
         }
 
@@ -890,7 +905,9 @@ class GroupListeningSessionController
     }
   }
 
-  Future<GroupListeningSessionState> rotateInvite() async {
+  Future<GroupListeningSessionState> rotateInvite({
+    String source = 'unknown',
+  }) async {
     final room = state.room;
     if (_runtimeSession == null || room == null) {
       return _setFailure(
@@ -908,6 +925,7 @@ class GroupListeningSessionController
         ),
       );
     }
+    _logRoomAction('rotate invite', source: source);
 
     try {
       final result = await _runAuthenticatedWithRejoinRetry(
@@ -928,12 +946,16 @@ class GroupListeningSessionController
       );
       return state;
     } on Object catch (error, stackTrace) {
+      final failure = _asFailure(
+        error,
+        fallbackMessage: 'Unable to rotate Voyage invite.',
+        fallbackCode: GroupListeningErrorCode.transportUnavailable,
+      );
+      if (_shouldCollapseToLocalCleanup(failure.code)) {
+        return _finishInvalidatedSessionCleanup(failure);
+      }
       return _setFailure(
-        _asFailure(
-          error,
-          fallbackMessage: 'Unable to rotate Voyage invite.',
-          fallbackCode: GroupListeningErrorCode.transportUnavailable,
-        ),
+        failure,
         stackTrace: stackTrace,
       );
     }
@@ -998,6 +1020,9 @@ class GroupListeningSessionController
         fallbackMessage: 'Unable to rejoin Voyage room.',
         fallbackCode: GroupListeningErrorCode.transportUnavailable,
       );
+      if (_shouldCollapseToLocalCleanup(failure.code)) {
+        return _finishInvalidatedSessionCleanup(failure);
+      }
       if (_shouldAutoReconnectAfterFailure(failure)) {
         _scheduleAutoReconnect();
       }
@@ -1009,7 +1034,9 @@ class GroupListeningSessionController
     }
   }
 
-  Future<GroupListeningSessionState> refreshSnapshot() async {
+  Future<GroupListeningSessionState> refreshSnapshot({
+    String reason = 'manual',
+  }) async {
     final session = _runtimeSession;
     if (session == null) {
       return _setFailure(
@@ -1020,36 +1047,76 @@ class GroupListeningSessionController
         ),
       );
     }
-    try {
-      final snapshot = await _runAuthenticatedWithRejoinRetry(
-        (freshSession) => ref
-            .read(groupListeningRepositoryProvider)
-            .fetchSnapshot(
-              freshSession,
-              lastAppliedRoomVersion: state.lastAppliedRoomVersion,
-            ),
-        fallbackMessage: 'Unable to refresh Voyage room snapshot.',
-        fallbackCode: GroupListeningErrorCode.transportUnavailable,
+    if (_snapshotRefreshInFlight) {
+      _queuedSnapshotRefresh = true;
+      _queuedSnapshotRefreshReason = reason;
+      AppLogger.info(
+        'Group listening: coalescing snapshot refresh '
+        '(reason=$reason, last_applied=${state.lastAppliedRoomVersion})',
       );
-      return applySnapshot(snapshot);
-    } on Object catch (error, stackTrace) {
-      final failure = _asFailure(
-        error,
-        fallbackMessage: 'Unable to refresh Voyage room snapshot.',
-        fallbackCode: GroupListeningErrorCode.transportUnavailable,
-      );
-      // If the WS connection is still alive, don't tear down the session just
-      // because the HTTP snapshot fetch failed.  Leave snapshotRequired=true so
-      // the retry timer or the bridge will attempt again.
-      if (state.connection.isConnected) {
-        AppLogger.warning(
-          'Group listening: snapshot fetch failed (non-fatal, WS alive): '
-          '${failure.code.name} — ${failure.message}',
+      return _snapshotRefreshOperation ??
+          Future<GroupListeningSessionState>.value(state);
+    }
+    _snapshotRefreshInFlight = true;
+    AppLogger.info(
+      'Group listening: refreshing snapshot '
+      '(reason=$reason, last_applied=${state.lastAppliedRoomVersion})',
+    );
+    final operation = () async {
+      try {
+        final snapshot = await _runAuthenticatedWithRejoinRetry(
+          (freshSession) => ref
+              .read(groupListeningRepositoryProvider)
+              .fetchSnapshot(
+                freshSession,
+                lastAppliedRoomVersion: state.lastAppliedRoomVersion,
+              ),
+          fallbackMessage: 'Unable to refresh Voyage room snapshot.',
+          fallbackCode: GroupListeningErrorCode.transportUnavailable,
         );
-        _scheduleSnapshotRetry();
-        return state;
+        return applySnapshot(snapshot);
+      } on Object catch (error, stackTrace) {
+        final failure = _asFailure(
+          error,
+          fallbackMessage: 'Unable to refresh Voyage room snapshot.',
+          fallbackCode: GroupListeningErrorCode.transportUnavailable,
+        );
+        if (_shouldCollapseToLocalCleanup(failure.code)) {
+          return _finishInvalidatedSessionCleanup(failure);
+        }
+        // If the WS connection is still alive, don't tear down the session just
+        // because the HTTP snapshot fetch failed. Leave snapshotRequired=true so
+        // the retry timer or the bridge will attempt again.
+        if (state.connection.isConnected) {
+          AppLogger.warning(
+            'Group listening: snapshot fetch failed (reason=$reason, '
+            'non-fatal, WS alive): ${failure.code.name} — ${failure.message}',
+          );
+          _scheduleSnapshotRetry();
+          return state;
+        }
+        return _setFailure(failure, stackTrace: stackTrace);
       }
-      return _setFailure(failure, stackTrace: stackTrace);
+    }();
+    _snapshotRefreshOperation = operation;
+    try {
+      return await operation;
+    } finally {
+      _snapshotRefreshOperation = null;
+      _snapshotRefreshInFlight = false;
+      final queuedRefresh = _queuedSnapshotRefresh;
+      final queuedReason = _queuedSnapshotRefreshReason;
+      _queuedSnapshotRefresh = false;
+      _queuedSnapshotRefreshReason = null;
+      if (queuedRefresh && state.snapshotRequired) {
+        unawaited(
+          refreshSnapshot(
+            reason: queuedReason == null
+                ? 'coalesced-retry'
+                : 'coalesced-retry:$queuedReason',
+          ),
+        );
+      }
     }
   }
 
@@ -1125,7 +1192,8 @@ class GroupListeningSessionController
   GroupListeningSessionState applyRealtimeEvent(GroupListeningRoomEvent event) {
     final room = state.room;
     if (room == null || room.roomId != event.roomId) {
-      return markSnapshotRequired(
+      return _requestSnapshotRecovery(
+        'room-event-before-snapshot',
         const GroupListeningErrorState(
           code: GroupListeningErrorCode.snapshotRequired,
           message: 'Voyage room event arrived before a room snapshot.',
@@ -1137,7 +1205,8 @@ class GroupListeningSessionController
     }
     if (event.previousRoomVersion != state.lastAppliedRoomVersion ||
         event.roomVersion != state.lastAppliedRoomVersion + 1) {
-      return markSnapshotRequired(
+      return _requestSnapshotRecovery(
+        'room-event-gap',
         GroupListeningErrorState(
           code: GroupListeningErrorCode.snapshotRequired,
           message: 'Voyage room version gap detected.',
@@ -1208,9 +1277,37 @@ class GroupListeningSessionController
     _snapshotRetryTimer = Timer(_snapshotRetryDelay, () {
       if (state.snapshotRequired && state.connection.isConnected) {
         AppLogger.info('Group listening: retrying snapshot refresh via timer');
-        unawaited(refreshSnapshot());
+        unawaited(refreshSnapshot(reason: 'snapshot-retry-timer'));
       }
     });
+  }
+
+  GroupListeningSessionState _requestSnapshotRecovery(
+    String reason, [
+    GroupListeningErrorState? failure,
+  ]) {
+    final effectiveFailure =
+        failure ??
+        const GroupListeningErrorState(
+          code: GroupListeningErrorCode.snapshotRequired,
+          message: 'Voyage state is stale and requires a fresh snapshot.',
+          retryable: true,
+        );
+    AppLogger.info(
+      'Group listening: snapshot required '
+      '(reason=$reason, code=${effectiveFailure.code.name}, '
+      'last_applied=${state.lastAppliedRoomVersion}, '
+      'room_version=${effectiveFailure.roomVersion ?? state.room?.roomVersion ?? 0})',
+    );
+    return markSnapshotRequired(effectiveFailure);
+  }
+
+  void _logRoomAction(String action, {required String source}) {
+    AppLogger.info(
+      'Group listening: $action requested '
+      '(source=$source, room_id=${state.room?.roomId ?? _runtimeSession?.roomId ?? 'n/a'}, '
+      'room_version=${state.lastAppliedRoomVersion})',
+    );
   }
 
   void clearFailure() {
@@ -1394,7 +1491,8 @@ class GroupListeningSessionController
       }
       if (message.roomVersion > state.lastAppliedRoomVersion + 1) {
         // Genuine gap: multiple room events are missing. Fetch a fresh snapshot.
-        markSnapshotRequired(
+        _requestSnapshotRecovery(
+          'presence-gap',
           GroupListeningErrorState(
             code: GroupListeningErrorCode.snapshotRequired,
             message: 'Voyage presence update arrived ahead of room state.',
@@ -1508,7 +1606,11 @@ class GroupListeningSessionController
     }
     if (failure.code == GroupListeningErrorCode.snapshotRequired ||
         failure.code == GroupListeningErrorCode.staleVersion) {
-      markSnapshotRequired(failure);
+      _requestSnapshotRecovery('transport-${failure.code.name}', failure);
+      return;
+    }
+    if (_shouldCollapseToLocalCleanup(failure.code)) {
+      unawaited(_finishInvalidatedSessionCleanup(failure));
       return;
     }
     if (failure.code == GroupListeningErrorCode.unsupportedProtocolVersion ||
@@ -1553,12 +1655,13 @@ class GroupListeningSessionController
     }
     final attempt = _reconnectAttempts + 1;
     final backoff = Duration(
-      milliseconds: (_reconnectInitialDelay.inMilliseconds *
-              (1 << (_reconnectAttempts).clamp(0, 5)))
-          .clamp(
-            _reconnectInitialDelay.inMilliseconds,
-            _reconnectMaxDelay.inMilliseconds,
-          ),
+      milliseconds:
+          (_reconnectInitialDelay.inMilliseconds *
+                  (1 << (_reconnectAttempts).clamp(0, 5)))
+              .clamp(
+                _reconnectInitialDelay.inMilliseconds,
+                _reconnectMaxDelay.inMilliseconds,
+              ),
     );
     AppLogger.info(
       'Group listening: scheduling auto-reconnect attempt $attempt in '
@@ -1582,6 +1685,12 @@ class GroupListeningSessionController
         !_isFatalSessionFailure(failure.code) &&
         (failure.code == GroupListeningErrorCode.transportDisconnected ||
             failure.code == GroupListeningErrorCode.transportUnavailable);
+  }
+
+  bool _shouldCollapseToLocalCleanup(GroupListeningErrorCode code) {
+    return code == GroupListeningErrorCode.unauthorized ||
+        code == GroupListeningErrorCode.removed ||
+        code == GroupListeningErrorCode.revoked;
   }
 
   bool _canLeaveLocallyAfterFailure(GroupListeningErrorState failure) {
@@ -1799,6 +1908,28 @@ class GroupListeningSessionController
     return state;
   }
 
+  Future<GroupListeningSessionState> _finishInvalidatedSessionCleanup(
+    GroupListeningErrorState failure,
+  ) async {
+    AppLogger.warning(
+      'Group listening: session invalidated by ${failure.code.name}; '
+      'cleaning up locally.',
+    );
+    await _disposeTransport();
+    _runtimeSession = null;
+    await ref.read(groupListeningSessionCredentialStoreProvider).clear();
+    state = state.copyWith(
+      status: GroupListeningSessionStatus.idle,
+      connection: const GroupListeningConnectionState.disconnected(),
+      clearRoom: true,
+      lastAppliedRoomVersion: 0,
+      snapshotRequired: false,
+      clearActiveInviteCode: true,
+      failure: failure,
+    );
+    return state;
+  }
+
   void _scheduleHeartbeat({Duration? after}) {
     _heartbeatTimer?.cancel();
     final delay = after ?? state.connection.heartbeatInterval;
@@ -1815,7 +1946,8 @@ class GroupListeningSessionController
       _clearAckLagRecovery();
       return;
     }
-    if (_ackLagRoomVersion == roomVersion && (_ackLagTimer?.isActive ?? false)) {
+    if (_ackLagRoomVersion == roomVersion &&
+        (_ackLagTimer?.isActive ?? false)) {
       return;
     }
     _ackLagTimer?.cancel();
@@ -1833,7 +1965,8 @@ class GroupListeningSessionController
         'Group listening: heartbeat ack stayed ahead of room state; '
         'requesting snapshot recovery',
       );
-      markSnapshotRequired(
+      _requestSnapshotRecovery(
+        'heartbeat-ack-lag',
         GroupListeningErrorState(
           code: GroupListeningErrorCode.snapshotRequired,
           message: 'Heartbeat ack indicates the room state is lagging behind.',

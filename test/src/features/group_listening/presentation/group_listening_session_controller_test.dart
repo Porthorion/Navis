@@ -46,6 +46,8 @@ class _FakeGroupListeningRepository implements GroupListeningRepository {
   Object? closeError;
   Object? rotateInviteError;
   int connectCalls = 0;
+  int snapshotCalls = 0;
+  Completer<GroupListeningRoomState>? snapshotCompleter;
   Future<void> Function()? onLeaveRoom;
   Future<void> Function()? onCloseRoom;
 
@@ -104,6 +106,11 @@ class _FakeGroupListeningRepository implements GroupListeningRepository {
     GroupListeningSessionRuntimeContext session, {
     int? lastAppliedRoomVersion,
   }) async {
+    snapshotCalls++;
+    final completer = snapshotCompleter;
+    if (completer != null) {
+      return completer.future;
+    }
     if (snapshotError != null) {
       throw snapshotError!;
     }
@@ -1019,6 +1026,169 @@ void main() {
         expect(state.failure, isNull);
       },
     );
+
+    test('coalesces overlapping snapshot refresh requests', () async {
+      final repository = _FakeGroupListeningRepository();
+      final fingerprint = computeSourceServerFingerprint(activeServer.url);
+      final snapshotCompleter = Completer<GroupListeningRoomState>();
+      repository.joinResponse = GroupListeningJoinResponse(
+        runtimeContext: _runtimeContext(fingerprint: fingerprint),
+        roomSnapshot: _roomState(fingerprint: fingerprint, roomVersion: 1),
+      );
+      repository.snapshotCompleter = snapshotCompleter;
+
+      final container = createContainer(repository: repository);
+      final controller = container.read(
+        groupListeningSessionControllerProvider.notifier,
+      );
+
+      await controller.joinRoom(
+        inviteCode: 'INVITE',
+        client: client,
+        connectAfterJoin: false,
+      );
+
+      final firstRefresh = controller.refreshSnapshot(reason: 'test-one');
+      final secondRefresh = controller.refreshSnapshot(reason: 'test-two');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(repository.snapshotCalls, 1);
+
+      snapshotCompleter.complete(
+        _roomState(fingerprint: fingerprint, roomVersion: 2),
+      );
+      await Future.wait<void>([firstRefresh, secondRefresh]);
+
+      final state = container.read(groupListeningSessionControllerProvider);
+      expect(repository.snapshotCalls, 1);
+      expect(state.lastAppliedRoomVersion, 2);
+      expect(state.snapshotRequired, isFalse);
+    });
+
+    test(
+      'cleans up locally when snapshot refresh is unauthorized while connected',
+      () async {
+        final repository = _FakeGroupListeningRepository();
+        final connection = _FakeRealtimeConnection();
+        final fingerprint = computeSourceServerFingerprint(activeServer.url);
+        repository.joinResponse = GroupListeningJoinResponse(
+          runtimeContext: _runtimeContext(fingerprint: fingerprint),
+          roomSnapshot: _roomState(fingerprint: fingerprint, roomVersion: 1),
+        );
+        repository.connection = connection;
+        repository.snapshotError = const GroupListeningRepositoryException(
+          GroupListeningErrorState(
+            code: GroupListeningErrorCode.unauthorized,
+            message: 'invalid access token',
+          ),
+        );
+        repository.rejoinError = const GroupListeningRepositoryException(
+          GroupListeningErrorState(
+            code: GroupListeningErrorCode.unauthorized,
+            message: 'invalid rejoin token',
+          ),
+        );
+
+        final container = createContainer(repository: repository);
+        final controller = container.read(
+          groupListeningSessionControllerProvider.notifier,
+        );
+
+        await controller.joinRoom(
+          inviteCode: 'INVITE',
+          client: client,
+          connectAfterJoin: false,
+        );
+        await controller.connect();
+        connection.add(
+          GroupListeningConnectionWelcomeMessage(
+            roomId: 'room-1',
+            memberId: 'member-1',
+            clientConnectionId: 'conn-1',
+            roomVersion: 1,
+            presenceVersion: 1,
+            heartbeatInterval: const Duration(seconds: 10),
+            memberStaleTimeout: const Duration(seconds: 45),
+            serverTime: DateTime.utc(2026, 4, 21, 12),
+          ),
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        await controller.refreshSnapshot(reason: 'test-unauthorized');
+
+        final state = container.read(groupListeningSessionControllerProvider);
+        final storedSession = await container
+            .read(groupListeningSessionCredentialStoreProvider)
+            .read();
+        expect(state.status, GroupListeningSessionStatus.idle);
+        expect(
+          state.connection.status,
+          GroupListeningConnectionStatus.disconnected,
+        );
+        expect(state.room, isNull);
+        expect(state.failure?.code, GroupListeningErrorCode.unauthorized);
+        expect(storedSession, isNull);
+      },
+    );
+
+    test('cleans up locally when transport reports unauthorized', () async {
+      final repository = _FakeGroupListeningRepository();
+      final connection = _FakeRealtimeConnection();
+      final fingerprint = computeSourceServerFingerprint(activeServer.url);
+      repository.joinResponse = GroupListeningJoinResponse(
+        runtimeContext: _runtimeContext(fingerprint: fingerprint),
+        roomSnapshot: _roomState(fingerprint: fingerprint, roomVersion: 1),
+      );
+      repository.connection = connection;
+
+      final container = createContainer(repository: repository);
+      final controller = container.read(
+        groupListeningSessionControllerProvider.notifier,
+      );
+
+      await controller.joinRoom(
+        inviteCode: 'INVITE',
+        client: client,
+        connectAfterJoin: false,
+      );
+      await controller.connect();
+      connection.add(
+        GroupListeningConnectionWelcomeMessage(
+          roomId: 'room-1',
+          memberId: 'member-1',
+          clientConnectionId: 'conn-1',
+          roomVersion: 1,
+          presenceVersion: 1,
+          heartbeatInterval: const Duration(seconds: 10),
+          memberStaleTimeout: const Duration(seconds: 45),
+          serverTime: DateTime.utc(2026, 4, 21, 12),
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      connection.add(
+        const GroupListeningTransportErrorMessage(
+          GroupListeningErrorState(
+            code: GroupListeningErrorCode.unauthorized,
+            message: 'invalid access token',
+          ),
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      final state = container.read(groupListeningSessionControllerProvider);
+      final storedSession = await container
+          .read(groupListeningSessionCredentialStoreProvider)
+          .read();
+      expect(state.status, GroupListeningSessionStatus.idle);
+      expect(
+        state.connection.status,
+        GroupListeningConnectionStatus.disconnected,
+      );
+      expect(state.room, isNull);
+      expect(state.failure?.code, GroupListeningErrorCode.unauthorized);
+      expect(storedSession, isNull);
+    });
 
     test(
       'clears stored session when a snapshot fingerprint mismatches',

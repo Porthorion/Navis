@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -175,6 +176,10 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
   int clearQueueCalls = 0;
   int playCalls = 0;
   int pauseCalls = 0;
+  Completer<void>? replaceQueueCompleter;
+  Object? replaceQueueError;
+  int maxConcurrentReplaceQueueCalls = 0;
+  int _activeReplaceQueueCalls = 0;
 
   @override
   PlaybackSnapshot get snapshot => _snapshot;
@@ -211,6 +216,10 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
     int startIndex = 0,
     bool autoPlay = true,
   }) async {
+    _activeReplaceQueueCalls += 1;
+    if (_activeReplaceQueueCalls > maxConcurrentReplaceQueueCalls) {
+      maxConcurrentReplaceQueueCalls = _activeReplaceQueueCalls;
+    }
     replaceQueueCalls.add(
       _ReplaceQueueCall(
         songIds: List<String>.unmodifiable(songIds),
@@ -218,30 +227,43 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
         autoPlay: autoPlay,
       ),
     );
-    final normalizedIndex = songIds.isEmpty
-        ? null
-        : (startIndex < 0
-              ? 0
-              : (startIndex >= songIds.length
-                    ? songIds.length - 1
-                    : startIndex));
-    final currentSongId = normalizedIndex == null
-        ? null
-        : songIds[normalizedIndex];
-    _emit(
-      PlaybackSnapshot(
-        queueSongIds: List<String>.unmodifiable(songIds),
-        currentSongId: currentSongId,
-        currentIndex: normalizedIndex,
-        playing: autoPlay && songIds.isNotEmpty,
-        processingState: AudioProcessingState.ready,
-        position: Duration.zero,
-        duration: Duration.zero,
-        bufferedPosition: Duration.zero,
-        shuffleMode: AudioServiceShuffleMode.none,
-        repeatMode: AudioServiceRepeatMode.none,
-      ),
-    );
+    try {
+      final completer = replaceQueueCompleter;
+      if (completer != null) {
+        await completer.future;
+      }
+      final error = replaceQueueError;
+      if (error != null) {
+        replaceQueueError = null;
+        throw error;
+      }
+      final normalizedIndex = songIds.isEmpty
+          ? null
+          : (startIndex < 0
+                ? 0
+                : (startIndex >= songIds.length
+                      ? songIds.length - 1
+                      : startIndex));
+      final currentSongId = normalizedIndex == null
+          ? null
+          : songIds[normalizedIndex];
+      _emit(
+        PlaybackSnapshot(
+          queueSongIds: List<String>.unmodifiable(songIds),
+          currentSongId: currentSongId,
+          currentIndex: normalizedIndex,
+          playing: autoPlay && songIds.isNotEmpty,
+          processingState: AudioProcessingState.ready,
+          position: Duration.zero,
+          duration: Duration.zero,
+          bufferedPosition: Duration.zero,
+          shuffleMode: AudioServiceShuffleMode.none,
+          repeatMode: AudioServiceRepeatMode.none,
+        ),
+      );
+    } finally {
+      _activeReplaceQueueCalls -= 1;
+    }
   }
 
   @override
@@ -369,6 +391,7 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
     clearQueueCalls = 0;
     playCalls = 0;
     pauseCalls = 0;
+    maxConcurrentReplaceQueueCalls = 0;
   }
 
   Future<void> dispose() async {
@@ -814,6 +837,167 @@ void main() {
         expect(handler.seekCalls, contains(const Duration(seconds: 25)));
         expect(handler.snapshot.currentSongId, 'song-2');
         expect(handler.snapshot.playing, isTrue);
+      },
+    );
+
+    test(
+      'serializes overlapping inbound playback applies',
+      () async {
+        final repository = _FakeGroupListeningRepository();
+        final connection = _FakeRealtimeConnection();
+        final fingerprint = computeSourceServerFingerprint(activeServer.url);
+        final room = _roomState(
+          fingerprint: fingerprint,
+          roomVersion: 1,
+          queueSongIds: const <String>['song-1'],
+          currentIndex: 0,
+          playbackState: GroupListeningPlaybackStatus.paused,
+          position: const Duration(seconds: 15),
+          issuedByMemberId: 'member-1',
+        );
+        final handler = _FakePlaybackHandler(_snapshotFromRoom(room));
+        handler.replaceQueueCompleter = Completer<void>();
+        repository.joinResponse = GroupListeningJoinResponse(
+          runtimeContext: _runtimeContext(fingerprint: fingerprint),
+          roomSnapshot: room,
+        );
+        repository.connection = connection;
+        addTearDown(handler.dispose);
+
+        final container = createContainer(
+          repository: repository,
+          handler: handler,
+        );
+        final bridgeSubscription = container.listen(
+          groupListeningPlaybackSyncBridgeProvider,
+          (_, __) {},
+        );
+        addTearDown(bridgeSubscription.close);
+        final controller = container.read(
+          groupListeningSessionControllerProvider.notifier,
+        );
+
+        await controller.joinRoom(
+          inviteCode: 'INVITE',
+          client: client,
+          connectAfterJoin: false,
+        );
+        await controller.connect();
+        connection.add(_welcome(roomVersion: 1));
+        await _pumpBridge();
+        handler.clearInteractionLog();
+
+        connection.add(
+          GroupListeningRoomEventMessage(
+            _roomEvent(
+              roomVersion: 2,
+              previousRoomVersion: 1,
+              queueSongIds: const <String>['song-1', 'song-2'],
+              currentIndex: 1,
+              playbackState: GroupListeningPlaybackStatus.playing,
+              position: const Duration(seconds: 25),
+              issuedByMemberId: 'member-2',
+            ),
+          ),
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        connection.add(
+          GroupListeningRoomEventMessage(
+            _roomEvent(
+              roomVersion: 3,
+              previousRoomVersion: 2,
+              queueSongIds: const <String>['song-1', 'song-2', 'song-3'],
+              currentIndex: 2,
+              playbackState: GroupListeningPlaybackStatus.playing,
+              position: const Duration(seconds: 40),
+              issuedByMemberId: 'member-2',
+            ),
+          ),
+        );
+        await Future<void>.delayed(Duration.zero);
+        handler.replaceQueueCompleter?.complete();
+        handler.replaceQueueCompleter = null;
+        await _pumpBridge();
+
+        expect(handler.maxConcurrentReplaceQueueCalls, 1);
+        expect(handler.replaceQueueCalls, hasLength(2));
+        expect(
+          handler.replaceQueueCalls.last.songIds,
+          const <String>['song-1', 'song-2', 'song-3'],
+        );
+        expect(handler.snapshot.currentSongId, 'song-3');
+      },
+    );
+
+    test(
+      'ignores benign loading interruptions during inbound playback apply',
+      () async {
+        final repository = _FakeGroupListeningRepository();
+        final connection = _FakeRealtimeConnection();
+        final fingerprint = computeSourceServerFingerprint(activeServer.url);
+        final room = _roomState(
+          fingerprint: fingerprint,
+          roomVersion: 1,
+          queueSongIds: const <String>['song-1'],
+          currentIndex: 0,
+          playbackState: GroupListeningPlaybackStatus.paused,
+          position: const Duration(seconds: 15),
+          issuedByMemberId: 'member-1',
+        );
+        final handler = _FakePlaybackHandler(_snapshotFromRoom(room));
+        handler.replaceQueueError = StateError('Loading interrupted');
+        repository.joinResponse = GroupListeningJoinResponse(
+          runtimeContext: _runtimeContext(fingerprint: fingerprint),
+          roomSnapshot: room,
+        );
+        repository.connection = connection;
+        addTearDown(handler.dispose);
+
+        final capturedFlutterErrors = <FlutterErrorDetails>[];
+        final previousOnError = FlutterError.onError;
+        FlutterError.onError = capturedFlutterErrors.add;
+        addTearDown(() => FlutterError.onError = previousOnError);
+
+        final container = createContainer(
+          repository: repository,
+          handler: handler,
+        );
+        final bridgeSubscription = container.listen(
+          groupListeningPlaybackSyncBridgeProvider,
+          (_, __) {},
+        );
+        addTearDown(bridgeSubscription.close);
+        final controller = container.read(
+          groupListeningSessionControllerProvider.notifier,
+        );
+
+        await controller.joinRoom(
+          inviteCode: 'INVITE',
+          client: client,
+          connectAfterJoin: false,
+        );
+        await controller.connect();
+        connection.add(_welcome(roomVersion: 1));
+        await _pumpBridge();
+        handler.clearInteractionLog();
+
+        connection.add(
+          GroupListeningRoomEventMessage(
+            _roomEvent(
+              roomVersion: 2,
+              previousRoomVersion: 1,
+              queueSongIds: const <String>['song-1', 'song-2'],
+              currentIndex: 1,
+              playbackState: GroupListeningPlaybackStatus.playing,
+              position: const Duration(seconds: 25),
+              issuedByMemberId: 'member-2',
+            ),
+          ),
+        );
+        await _pumpBridge();
+
+        expect(capturedFlutterErrors, isEmpty);
       },
     );
 
