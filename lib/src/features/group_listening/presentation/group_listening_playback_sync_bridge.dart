@@ -218,8 +218,10 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
 
     final remoteState = _playbackStateFromSession(next);
     final localState = _currentLocalPlaybackState();
-    final selfIssued =
-        nextRoom.playbackAnchor.issuedByMemberId == nextRoom.self.memberId;
+    final selfIssued = nextRoom.playbackAnchor.issuedByConnectionId != null
+        ? nextRoom.playbackAnchor.issuedByConnectionId ==
+              next.connection.clientConnectionId
+        : nextRoom.playbackAnchor.issuedByMemberId == nextRoom.self.memberId;
     if (selfIssued &&
         _playbackStatesEquivalent(
           localState,
@@ -716,6 +718,7 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
       playbackRate: settings.playbackSpeed,
       reason: reason,
       issuedByMemberId: session.room?.self.memberId,
+      issuedByConnectionId: session.connection.clientConnectionId,
     );
   }
 

@@ -704,6 +704,10 @@ void main() {
           message.playbackAnchor?.issuedByMemberId,
           'member-2',
         );
+        expect(
+          message.playbackAnchor?.issuedByConnectionId,
+          'conn-2',
+        );
       },
     );
 
@@ -1140,6 +1144,7 @@ void main() {
               playbackState: GroupListeningPlaybackStatus.playing,
               position: Duration.zero,
               issuedByMemberId: 'member-1',
+              issuedByConnectionId: 'conn-1',
             ),
           ),
         );
@@ -1149,6 +1154,74 @@ void main() {
         expect(handler.seekCalls, isEmpty);
         expect(handler.playCalls, 0);
         expect(handler.pauseCalls, 0);
+      },
+    );
+
+    test(
+      'applies playback updates from a different connection of the same member',
+      () async {
+        final repository = _FakeGroupListeningRepository();
+        final connection = _FakeRealtimeConnection();
+        final fingerprint = computeSourceServerFingerprint(activeServer.url);
+        final room = _roomState(
+          fingerprint: fingerprint,
+          roomVersion: 1,
+          queueSongIds: const <String>['song-1'],
+          currentIndex: 0,
+          playbackState: GroupListeningPlaybackStatus.paused,
+          position: const Duration(seconds: 15),
+          issuedByMemberId: 'member-1',
+        );
+        final handler = _FakePlaybackHandler(_snapshotFromRoom(room));
+        repository.joinResponse = GroupListeningJoinResponse(
+          runtimeContext: _runtimeContext(fingerprint: fingerprint),
+          roomSnapshot: room,
+        );
+        repository.connection = connection;
+        addTearDown(handler.dispose);
+
+        final container = createContainer(
+          repository: repository,
+          handler: handler,
+        );
+        final bridgeSubscription = container.listen(
+          groupListeningPlaybackSyncBridgeProvider,
+          (_, __) {},
+        );
+        addTearDown(bridgeSubscription.close);
+        final controller = container.read(
+          groupListeningSessionControllerProvider.notifier,
+        );
+
+        await controller.joinRoom(
+          inviteCode: 'INVITE',
+          client: client,
+          connectAfterJoin: false,
+        );
+        await controller.connect();
+        connection.add(_welcome(roomVersion: 1));
+        await _pumpBridge();
+        handler.clearInteractionLog();
+
+        connection.add(
+          GroupListeningRoomEventMessage(
+            _roomEvent(
+              roomVersion: 2,
+              previousRoomVersion: 1,
+              queueSongIds: const <String>['song-1'],
+              currentIndex: 0,
+              playbackState: GroupListeningPlaybackStatus.playing,
+              position: const Duration(seconds: 20),
+              issuedByMemberId: 'member-1',
+              issuedByConnectionId: 'conn-rejoined',
+            ),
+          ),
+        );
+        await _pumpBridge();
+
+        expect(handler.playCalls, 1);
+        expect(handler.seekCalls, contains(const Duration(seconds: 20)));
+        expect(handler.snapshot.playing, isTrue);
       },
     );
 
@@ -1281,6 +1354,7 @@ GroupListeningRoomState _roomState({
   required GroupListeningPlaybackStatus playbackState,
   required Duration position,
   required String issuedByMemberId,
+  String? issuedByConnectionId,
   GroupListeningMemberRole selfRole = GroupListeningMemberRole.host,
   bool selfCanControl = true,
 }) {
@@ -1362,6 +1436,7 @@ GroupListeningRoomState _roomState({
       playbackRate: 1,
       reason: GroupListeningPlaybackAnchorReason.snapshot,
       issuedByMemberId: issuedByMemberId,
+      issuedByConnectionId: issuedByConnectionId,
     ),
   );
 }
@@ -1374,6 +1449,7 @@ GroupListeningRoomEvent _roomEvent({
   required GroupListeningPlaybackStatus playbackState,
   required Duration position,
   required String issuedByMemberId,
+  String? issuedByConnectionId,
 }) {
   final timestamp = DateTime.utc(2026, 4, 21, 12, 0, roomVersion);
   final entries = <GroupListeningQueueEntry>[
@@ -1416,6 +1492,7 @@ GroupListeningRoomEvent _roomEvent({
       playbackRate: 1,
       reason: GroupListeningPlaybackAnchorReason.trackChange,
       issuedByMemberId: issuedByMemberId,
+      issuedByConnectionId: issuedByConnectionId,
     ),
     queue: GroupListeningQueueState(
       queueVersion: roomVersion,

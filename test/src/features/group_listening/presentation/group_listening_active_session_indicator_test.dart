@@ -79,6 +79,30 @@ void main() {
       expect(find.byIcon(Icons.people_alt), findsOneWidget);
     });
 
+    testWidgets('reports connected users in the tooltip', (tester) async {
+      final state = _sessionState().copyWith(
+        room: _sessionState().room?.copyWith(
+          members: <GroupListeningMemberState>[
+            _sessionState().room!.members[0],
+            _sessionState().room!.members[1].copyWith(
+              presenceState: GroupListeningMemberPresenceState.stale,
+            ),
+          ],
+        ),
+      );
+
+      await pumpSessionButton(tester, state);
+      await tester.longPress(
+        find.byKey(const ValueKey('groupListeningSessionButton')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Listen Together · Hosting · 1 connected · 2 in room'),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('shows sync_problem icon when session needs attention', (
       tester,
     ) async {

@@ -961,6 +961,71 @@ class GroupListeningSessionController
     }
   }
 
+  Future<String?> transferHost({
+    required String targetMemberId,
+    String source = 'unknown',
+  }) async {
+    final room = state.room;
+    if (_runtimeSession == null || room == null) {
+      state = state.copyWith(
+        failure: const GroupListeningErrorState(
+          code: GroupListeningErrorCode.sessionUnavailable,
+          message: 'No active Voyage room is available.',
+        ),
+      );
+      return null;
+    }
+    if (!room.self.canManageRoom) {
+      state = state.copyWith(
+        failure: const GroupListeningErrorState(
+          code: GroupListeningErrorCode.forbidden,
+          message: 'Only the host can transfer room ownership.',
+        ),
+      );
+      return null;
+    }
+    if (targetMemberId == room.self.memberId) {
+      state = state.copyWith(
+        failure: const GroupListeningErrorState(
+          code: GroupListeningErrorCode.validationFailed,
+          message: 'Select a different active member as the new host.',
+        ),
+      );
+      return null;
+    }
+    GroupListeningMemberState? targetMember;
+    for (final member in room.members) {
+      if (member.memberId == targetMemberId) {
+        targetMember = member;
+        break;
+      }
+    }
+    if (targetMember == null) {
+      state = state.copyWith(
+        failure: const GroupListeningErrorState(
+          code: GroupListeningErrorCode.validationFailed,
+          message: 'The selected member is no longer in the room.',
+        ),
+      );
+      return null;
+    }
+    if (targetMember.presenceState !=
+        GroupListeningMemberPresenceState.active) {
+      state = state.copyWith(
+        failure: const GroupListeningErrorState(
+          code: GroupListeningErrorCode.validationFailed,
+          message: 'Select an active member as the new host.',
+        ),
+      );
+      return null;
+    }
+    _logRoomAction('transfer host', source: source);
+    return sendMutation(
+      type: GroupListeningMutationType.transferHost,
+      targetMemberId: targetMemberId,
+    );
+  }
+
   Future<GroupListeningSessionState> reconnect() async {
     try {
       final configuration = await _configurationForRoomOperation(

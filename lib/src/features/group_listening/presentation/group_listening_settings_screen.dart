@@ -449,6 +449,42 @@ class _ListenTogetherRoomContentState
     );
   }
 
+  Future<void> _transferHost(GroupListeningMemberState member) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        icon: const Icon(Icons.swap_horiz_outlined),
+        title: const Text('Transfer host'),
+        content: Text('Make ${member.displayName} the new room host?'),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Transfer host'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || confirmed != true) {
+      return;
+    }
+
+    final mutationId = await ref
+        .read(groupListeningSessionControllerProvider.notifier)
+        .transferHost(targetMemberId: member.memberId, source: 'settings-ui');
+    if (!mounted || mutationId == null) {
+      return;
+    }
+    showAppNotice(
+      context,
+      message: 'Host transfer requested.',
+      level: AppNoticeLevel.success,
+    );
+  }
+
   String _availabilityMessage(GroupListeningSessionState sessionState) {
     switch (sessionState.availability) {
       case GroupListeningAvailability.disabled:
@@ -588,18 +624,8 @@ class _ListenTogetherRoomContentState
     }
   }
 
-  String? _hostDisplayName(GroupListeningSessionState sessionState) {
-    final room = sessionState.room;
-    if (room == null) {
-      return null;
-    }
-    for (final member in room.members) {
-      if (member.memberId == room.hostMemberId) {
-        return member.displayName;
-      }
-    }
-    return null;
-  }
+  String? _hostDisplayName(GroupListeningSessionState sessionState) =>
+      sessionState.room?.hostMember?.displayName;
 
   String _formatTimestamp(DateTime timestamp) {
     final local = timestamp.toLocal();
@@ -607,6 +633,54 @@ class _ListenTogetherRoomContentState
     final minutes = local.minute.toString().padLeft(2, '0');
     final seconds = local.second.toString().padLeft(2, '0');
     return '$hours:$minutes:$seconds';
+  }
+
+  String _presenceLabel(GroupListeningMemberPresenceState presenceState) {
+    return switch (presenceState) {
+      GroupListeningMemberPresenceState.active => 'Connected',
+      GroupListeningMemberPresenceState.stale => 'Stale',
+      GroupListeningMemberPresenceState.offline => 'Offline',
+    };
+  }
+
+  IconData _presenceIcon(GroupListeningMemberPresenceState presenceState) {
+    return switch (presenceState) {
+      GroupListeningMemberPresenceState.active => Icons.circle,
+      GroupListeningMemberPresenceState.stale => Icons.access_time_outlined,
+      GroupListeningMemberPresenceState.offline => Icons.cloud_off_outlined,
+    };
+  }
+
+  String _connectedUsersSummary(GroupListeningRoomState room) {
+    final active = room.activeMemberCount;
+    final stale = room.staleMemberCount;
+    if (stale == 0) {
+      return '$active active';
+    }
+    return '$active active · $stale stale';
+  }
+
+  List<GroupListeningMemberState> _sortedRoomMembers(
+    GroupListeningRoomState room,
+  ) {
+    final members = List<GroupListeningMemberState>.of(room.members);
+    members.sort((a, b) {
+      final aIsHost = a.memberId == room.hostMemberId;
+      final bIsHost = b.memberId == room.hostMemberId;
+      if (aIsHost != bIsHost) {
+        return aIsHost ? -1 : 1;
+      }
+      if (a.presenceState != b.presenceState) {
+        const ranks = <GroupListeningMemberPresenceState, int>{
+          GroupListeningMemberPresenceState.active: 0,
+          GroupListeningMemberPresenceState.stale: 1,
+          GroupListeningMemberPresenceState.offline: 2,
+        };
+        return ranks[a.presenceState]!.compareTo(ranks[b.presenceState]!);
+      }
+      return a.joinedAt.compareTo(b.joinedAt);
+    });
+    return members;
   }
 
   Widget _buildOverviewCard(GroupListeningSessionState sessionState) {
@@ -684,7 +758,10 @@ class _ListenTogetherRoomContentState
               const SizedBox(height: 16),
               _MetadataRow(label: 'Room', value: room.roomId),
               _MetadataRow(label: 'Mode', value: _roomModeLabel(room.roomMode)),
-              _MetadataRow(label: 'Listeners', value: '${room.members.length}'),
+              _MetadataRow(
+                label: 'Connected users',
+                value: '${room.activeMemberCount}/${room.members.length}',
+              ),
               _MetadataRow(
                 label: 'Queued tracks',
                 value: '${room.queue.entries.length}',
@@ -871,6 +948,97 @@ class _ListenTogetherRoomContentState
                 fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildConnectedUsersCard(GroupListeningSessionState sessionState) {
+    final room = sessionState.room;
+    if (room == null) {
+      return const SizedBox.shrink();
+    }
+
+    final members = _sortedRoomMembers(room);
+    final theme = Theme.of(context);
+    final canTransferHost = room.self.canManageRoom && !_isBusy(sessionState);
+
+    return Card(
+      key: const ValueKey('groupListeningConnectedUsersCard'),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                const Icon(Icons.groups_outlined),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        'Connected users',
+                        style: theme.textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _connectedUsersSummary(room),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            for (var index = 0; index < members.length; index++) ...<Widget>[
+              if (index > 0) const Divider(height: 16),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(
+                  _presenceIcon(members[index].presenceState),
+                  color:
+                      members[index].presenceState ==
+                          GroupListeningMemberPresenceState.active
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurfaceVariant,
+                ),
+                title: Row(
+                  children: <Widget>[
+                    Expanded(child: Text(members[index].displayName)),
+                    if (members[index].memberId == room.self.memberId)
+                      const _MemberBadge(label: 'You'),
+                    if (members[index].memberId == room.hostMemberId)
+                      const _MemberBadge(label: 'Host'),
+                  ],
+                ),
+                subtitle: Text(
+                  [
+                    if ((members[index].deviceLabel ?? '').isNotEmpty)
+                      members[index].deviceLabel!,
+                    _presenceLabel(members[index].presenceState),
+                  ].join(' · '),
+                ),
+                trailing:
+                    canTransferHost &&
+                        members[index].memberId != room.self.memberId &&
+                        members[index].presenceState ==
+                            GroupListeningMemberPresenceState.active
+                    ? TextButton(
+                        key: ValueKey(
+                          'groupListeningTransferHostButton-${members[index].memberId}',
+                        ),
+                        onPressed: () => _transferHost(members[index]),
+                        child: const Text('Make host'),
+                      )
+                    : null,
+              ),
+            ],
           ],
         ),
       ),
@@ -1104,6 +1272,10 @@ class _ListenTogetherRoomContentState
           _buildOverviewCard(sessionState),
           const SizedBox(height: 12),
         ],
+        if (sessionState.hasActiveRoom) ...<Widget>[
+          _buildConnectedUsersCard(sessionState),
+          const SizedBox(height: 12),
+        ],
         _buildActionsCard(sessionState, clientDescriptor),
         const SizedBox(height: 12),
         _buildAvailableRoomsCard(
@@ -1334,6 +1506,23 @@ class _MetadataRow extends StatelessWidget {
           ),
           Expanded(child: Text(value)),
         ],
+      ),
+    );
+  }
+}
+
+class _MemberBadge extends StatelessWidget {
+  const _MemberBadge({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 6),
+      child: Chip(
+        visualDensity: VisualDensity.compact,
+        label: Text(label),
       ),
     );
   }

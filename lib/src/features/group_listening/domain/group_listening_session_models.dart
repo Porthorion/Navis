@@ -510,6 +510,7 @@ class GroupListeningPlaybackAnchor {
     required this.playbackRate,
     required this.reason,
     this.issuedByMemberId,
+    this.issuedByConnectionId,
   });
 
   final int roomVersion;
@@ -523,6 +524,7 @@ class GroupListeningPlaybackAnchor {
   final double playbackRate;
   final GroupListeningPlaybackAnchorReason reason;
   final String? issuedByMemberId;
+  final String? issuedByConnectionId;
 
   Duration expectedPositionAt(DateTime now) {
     if (playbackState == GroupListeningPlaybackStatus.paused) {
@@ -549,7 +551,8 @@ class GroupListeningPlaybackAnchor {
           capturedAt == other.capturedAt &&
           playbackRate == other.playbackRate &&
           reason == other.reason &&
-          issuedByMemberId == other.issuedByMemberId;
+          issuedByMemberId == other.issuedByMemberId &&
+          issuedByConnectionId == other.issuedByConnectionId;
 
   @override
   int get hashCode => Object.hash(
@@ -564,6 +567,7 @@ class GroupListeningPlaybackAnchor {
     playbackRate,
     reason,
     issuedByMemberId,
+    issuedByConnectionId,
   );
 }
 
@@ -641,6 +645,29 @@ class GroupListeningRoomState {
   final List<GroupListeningMemberState> members;
   final GroupListeningQueueState queue;
   final GroupListeningPlaybackAnchor playbackAnchor;
+
+  GroupListeningMemberState? get hostMember {
+    for (final member in members) {
+      if (member.memberId == hostMemberId) {
+        return member;
+      }
+    }
+    return null;
+  }
+
+  int get activeMemberCount => members
+      .where(
+        (member) =>
+            member.presenceState == GroupListeningMemberPresenceState.active,
+      )
+      .length;
+
+  int get staleMemberCount => members
+      .where(
+        (member) =>
+            member.presenceState == GroupListeningMemberPresenceState.stale,
+      )
+      .length;
 
   GroupListeningRoomState copyWith({
     String? protocolVersion,
@@ -778,11 +805,11 @@ class GroupListeningRoomState {
     final byId = <String, GroupListeningMemberState>{
       for (final member in existing) member.memberId: member,
     };
-    for (final memberId in removedMemberIds) {
-      byId.remove(memberId);
-    }
     for (final member in updates) {
       byId[member.memberId] = member;
+    }
+    for (final memberId in removedMemberIds) {
+      byId.remove(memberId);
     }
     final merged = byId.values.toList(growable: false)
       ..sort((a, b) => a.joinedAt.compareTo(b.joinedAt));

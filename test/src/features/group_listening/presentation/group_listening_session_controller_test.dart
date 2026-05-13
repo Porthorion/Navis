@@ -536,6 +536,61 @@ void main() {
     });
 
     test(
+      'applies explicit removed member ids on combined leave and host transfer',
+      () async {
+        final repository = _FakeGroupListeningRepository();
+        final fingerprint = computeSourceServerFingerprint(activeServer.url);
+        repository.joinResponse = GroupListeningJoinResponse(
+          runtimeContext: _runtimeContext(
+            fingerprint: fingerprint,
+            role: GroupListeningMemberRole.member,
+          ),
+          roomSnapshot: _roomState(
+            fingerprint: fingerprint,
+            roomVersion: 1,
+            selfRole: GroupListeningMemberRole.member,
+            selfCanControl: true,
+          ),
+        );
+
+        final container = createContainer(repository: repository);
+        final controller = container.read(
+          groupListeningSessionControllerProvider.notifier,
+        );
+
+        await controller.joinRoom(
+          inviteCode: 'INVITE',
+          client: client,
+          connectAfterJoin: false,
+        );
+        controller.applyRealtimeEvent(
+          GroupListeningRoomEvent(
+            eventId: 'event-2',
+            eventType: GroupListeningRoomEventType.memberLeft,
+            roomId: 'room-1',
+            previousRoomVersion: 1,
+            roomVersion: 2,
+            hostMemberId: 'member-2',
+            members: <GroupListeningMemberState>[
+              _member('member-1', GroupListeningMemberRole.member),
+              _member('member-2', GroupListeningMemberRole.host),
+            ],
+            removedMemberIds: const <String>['member-1'],
+            authVersion: 1,
+            presenceVersion: 1,
+          ),
+        );
+
+        final state = container.read(groupListeningSessionControllerProvider);
+        expect(state.room?.hostMemberId, 'member-2');
+        expect(
+          state.room?.members.map((member) => member.memberId).toList(),
+          isNot(contains('member-1')),
+        );
+      },
+    );
+
+    test(
       'keeps room admin actions host-only for collaborative members',
       () async {
         final repository = _FakeGroupListeningRepository();
@@ -678,6 +733,144 @@ void main() {
         expect(state.failure, isNull);
         expect(storedSession, isNull);
         expect(connection.disconnected, isTrue);
+      },
+    );
+
+    test('sends transfer_host mutations for host users', () async {
+      final repository = _FakeGroupListeningRepository();
+      final connection = _FakeRealtimeConnection();
+      final fingerprint = computeSourceServerFingerprint(activeServer.url);
+      repository.joinResponse = GroupListeningJoinResponse(
+        runtimeContext: _runtimeContext(fingerprint: fingerprint),
+        roomSnapshot:
+            _roomState(
+              fingerprint: fingerprint,
+              roomVersion: 1,
+            ).copyWith(
+              members: <GroupListeningMemberState>[
+                _member('member-1', GroupListeningMemberRole.host),
+                _member('member-2', GroupListeningMemberRole.member),
+              ],
+            ),
+      );
+      repository.connection = connection;
+
+      final container = createContainer(repository: repository);
+      final controller = container.read(
+        groupListeningSessionControllerProvider.notifier,
+      );
+
+      await controller.joinRoom(
+        inviteCode: 'INVITE',
+        client: client,
+        connectAfterJoin: false,
+      );
+      await controller.connect();
+      connection.add(
+        GroupListeningConnectionWelcomeMessage(
+          roomId: 'room-1',
+          memberId: 'member-1',
+          clientConnectionId: 'conn-1',
+          roomVersion: 1,
+          presenceVersion: 1,
+          heartbeatInterval: const Duration(seconds: 10),
+          memberStaleTimeout: const Duration(seconds: 45),
+          serverTime: DateTime.utc(2026, 4, 21, 12),
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      final mutationId = await controller.transferHost(
+        targetMemberId: 'member-2',
+        source: 'settings-ui',
+      );
+
+      expect(mutationId, isNotNull);
+      expect(connection.sentMessages, hasLength(1));
+      final message =
+          connection.sentMessages.single as GroupListeningMutationMessage;
+      expect(message.type, GroupListeningMutationType.transferHost);
+      expect(message.targetMemberId, 'member-2');
+    });
+
+    test(
+      'rejects transfer_host when the target member is no longer present',
+      () async {
+        final repository = _FakeGroupListeningRepository();
+        final connection = _FakeRealtimeConnection();
+        final fingerprint = computeSourceServerFingerprint(activeServer.url);
+        repository.joinResponse = GroupListeningJoinResponse(
+          runtimeContext: _runtimeContext(fingerprint: fingerprint),
+          roomSnapshot: _roomState(fingerprint: fingerprint, roomVersion: 1),
+        );
+        repository.connection = connection;
+
+        final container = createContainer(repository: repository);
+        final controller = container.read(
+          groupListeningSessionControllerProvider.notifier,
+        );
+
+        await controller.joinRoom(
+          inviteCode: 'INVITE',
+          client: client,
+          connectAfterJoin: false,
+        );
+
+        final mutationId = await controller.transferHost(
+          targetMemberId: 'member-2',
+          source: 'settings-ui',
+        );
+
+        final state = container.read(groupListeningSessionControllerProvider);
+        expect(mutationId, isNull);
+        expect(connection.sentMessages, isEmpty);
+        expect(state.failure?.code, GroupListeningErrorCode.validationFailed);
+      },
+    );
+
+    test(
+      'rejects transfer_host when the target member is not active',
+      () async {
+        final repository = _FakeGroupListeningRepository();
+        final connection = _FakeRealtimeConnection();
+        final fingerprint = computeSourceServerFingerprint(activeServer.url);
+        repository.joinResponse = GroupListeningJoinResponse(
+          runtimeContext: _runtimeContext(fingerprint: fingerprint),
+          roomSnapshot:
+              _roomState(
+                fingerprint: fingerprint,
+                roomVersion: 1,
+              ).copyWith(
+                members: <GroupListeningMemberState>[
+                  _member('member-1', GroupListeningMemberRole.host),
+                  _member('member-2', GroupListeningMemberRole.member).copyWith(
+                    presenceState: GroupListeningMemberPresenceState.stale,
+                  ),
+                ],
+              ),
+        );
+        repository.connection = connection;
+
+        final container = createContainer(repository: repository);
+        final controller = container.read(
+          groupListeningSessionControllerProvider.notifier,
+        );
+
+        await controller.joinRoom(
+          inviteCode: 'INVITE',
+          client: client,
+          connectAfterJoin: false,
+        );
+
+        final mutationId = await controller.transferHost(
+          targetMemberId: 'member-2',
+          source: 'settings-ui',
+        );
+
+        final state = container.read(groupListeningSessionControllerProvider);
+        expect(mutationId, isNull);
+        expect(connection.sentMessages, isEmpty);
+        expect(state.failure?.code, GroupListeningErrorCode.validationFailed);
       },
     );
 

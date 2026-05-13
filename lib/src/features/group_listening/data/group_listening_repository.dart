@@ -1124,8 +1124,9 @@ class _IOWebSocketGroupListeningRealtimeConnection
           );
           return;
         case 'error':
-          final errorState =
-              _errorStateFromApiError(_mapValue(envelope['error']));
+          final errorState = _errorStateFromApiError(
+            _mapValue(envelope['error']),
+          );
           // Non-fatal mutation rejections must not disconnect the session.
           // Route them to the dedicated message type so the controller can log
           // them without triggering transport teardown.
@@ -1135,11 +1136,13 @@ class _IOWebSocketGroupListeningRealtimeConnection
             GroupListeningErrorCode.duplicateMutation,
           };
           if (nonFatalCodes.contains(errorState.code)) {
-            _messagesController
-                .add(GroupListeningMutationRejectedMessage(errorState));
+            _messagesController.add(
+              GroupListeningMutationRejectedMessage(errorState),
+            );
           } else {
-            _messagesController
-                .add(GroupListeningTransportErrorMessage(errorState));
+            _messagesController.add(
+              GroupListeningTransportErrorMessage(errorState),
+            );
           }
           return;
         default:
@@ -1781,9 +1784,14 @@ GroupListeningRoomState _roomStateFromJson(
 GroupListeningRoomEvent _roomEventFromJson(Map<String, dynamic> json) {
   final eventType = _roomEventTypeFromWire(json['event_type']);
   final members = _memberListFromJson(json['members']);
-  final removedMemberIds =
-      eventType == GroupListeningRoomEventType.memberLeft ||
-          eventType == GroupListeningRoomEventType.memberRemoved
+  final explicitRemovedMemberIds =
+      (json['removed_member_ids'] as List<dynamic>? ?? const <dynamic>[])
+          .map(_stringValue)
+          .toList(growable: false);
+  final removedMemberIds = explicitRemovedMemberIds.isNotEmpty
+      ? explicitRemovedMemberIds
+      : (eventType == GroupListeningRoomEventType.memberLeft ||
+            eventType == GroupListeningRoomEventType.memberRemoved)
       ? members.map((member) => member.memberId).toList(growable: false)
       : const <String>[];
   final causedBy = _nullableMapValue(json['caused_by']);
@@ -1855,6 +1863,9 @@ GroupListeningPlaybackAnchor _playbackAnchorFromJson(
     playbackRate: _doubleValue(json['playback_rate']),
     reason: _anchorReasonFromWire(json['reason']),
     issuedByMemberId: _nullableStringValue(json['issued_by_member_id']),
+    issuedByConnectionId: _nullableStringValue(
+      json['issued_by_connection_id'],
+    ),
   );
 }
 

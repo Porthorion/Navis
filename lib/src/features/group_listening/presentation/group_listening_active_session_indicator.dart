@@ -21,6 +21,8 @@ class GroupListeningSessionButton extends ConsumerWidget {
 
     final session = ref.watch(groupListeningSessionControllerProvider);
     final room = session.room;
+    final connectedCount = room?.activeMemberCount ?? 0;
+    final roomCount = room?.members.length ?? 0;
 
     final IconData icon;
     final Color? color;
@@ -37,11 +39,15 @@ class GroupListeningSessionButton extends ConsumerWidget {
     } else if (room.self.role == GroupListeningMemberRole.host) {
       icon = Icons.headset_mic;
       color = Theme.of(context).colorScheme.primary;
-      tooltip = 'Listen Together · Hosting · ${room.members.length} in room';
+      tooltip =
+          'Listen Together · Hosting · $connectedCount connected'
+          '${roomCount != connectedCount ? ' · $roomCount in room' : ''}';
     } else {
       icon = Icons.people_alt;
       color = Theme.of(context).colorScheme.primary;
-      tooltip = 'Listen Together · ${room.members.length} in room';
+      tooltip =
+          'Listen Together · $connectedCount connected'
+          '${roomCount != connectedCount ? ' · $roomCount in room' : ''}';
     }
 
     return IconButton(

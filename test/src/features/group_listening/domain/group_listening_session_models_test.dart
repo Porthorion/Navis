@@ -89,4 +89,67 @@ void main() {
       );
     });
   });
+
+  group('GroupListeningRoomState', () {
+    test('exposes host and presence-aware member counts', () {
+      final now = DateTime.utc(2026, 4, 21, 12);
+      final room = GroupListeningRoomState(
+        protocolVersion: voyageProtocolVersion,
+        roomId: 'room-1',
+        roomStatus: GroupListeningRoomStatus.active,
+        roomVersion: 1,
+        presenceVersion: 1,
+        authVersion: 1,
+        serverTime: now,
+        sourceServerFingerprint: 'fingerprint',
+        hostMemberId: 'member-1',
+        self: const GroupListeningSelfState(
+          memberId: 'member-1',
+          role: GroupListeningMemberRole.host,
+          canControl: true,
+          authVersion: 1,
+        ),
+        members: <GroupListeningMemberState>[
+          GroupListeningMemberState(
+            memberId: 'member-1',
+            displayName: 'Alice',
+            role: GroupListeningMemberRole.host,
+            presenceState: GroupListeningMemberPresenceState.active,
+            joinedAt: now,
+            lastSeenAt: now,
+          ),
+          GroupListeningMemberState(
+            memberId: 'member-2',
+            displayName: 'Bob',
+            role: GroupListeningMemberRole.member,
+            presenceState: GroupListeningMemberPresenceState.stale,
+            joinedAt: now,
+            lastSeenAt: now,
+          ),
+        ],
+        queue: const GroupListeningQueueState(
+          queueVersion: 1,
+          currentIndex: 0,
+          entries: <GroupListeningQueueEntry>[],
+        ),
+        playbackAnchor: GroupListeningPlaybackAnchor(
+          roomVersion: 1,
+          queueVersion: 1,
+          currentIndex: 0,
+          currentQueueEntryId: null,
+          currentSongId: null,
+          playbackState: GroupListeningPlaybackStatus.paused,
+          position: Duration.zero,
+          capturedAt: now,
+          playbackRate: 1,
+          reason: GroupListeningPlaybackAnchorReason.snapshot,
+          issuedByMemberId: 'member-1',
+        ),
+      );
+
+      expect(room.hostMember?.displayName, 'Alice');
+      expect(room.activeMemberCount, 1);
+      expect(room.staleMemberCount, 1);
+    });
+  });
 }
