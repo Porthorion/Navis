@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 
@@ -9,6 +10,113 @@ void main() {
     test('uses stable cover-art ID and size instead of URL salt', () {
       expect(coverArtImageCacheKey(' cover-1 ', 600), 'cover-1:600');
       expect(coverArtImageCacheKey('cover-1', null), 'cover-1:0');
+    });
+  });
+
+  group('CoverArtLoadCoordinator', () {
+    test('cancels older offscreen requests before network admission', () async {
+      final coordinator = CoverArtLoadCoordinator(
+        maxActiveDownloads: 1,
+        criticalReserve: 0,
+      );
+      final blocker = await coordinator.acquire('blocker');
+      final interest = coordinator.trackInterest(
+        'cover-1:600',
+        CoverArtLoadPriority.visible,
+      );
+      final queued = coordinator.acquire('cover-1:600');
+      unawaited(queued.then<void>((_) {}, onError: (_, _) {}));
+
+      interest.dispose();
+
+      await expectLater(
+        queued,
+        throwsA(isA<CoverArtLoadCanceledException>()),
+      );
+      expect(coordinator.queuedCount, 0);
+
+      blocker.release();
+    });
+
+    test(
+      'newly visible requests jump ahead of older background work',
+      () async {
+        final coordinator = CoverArtLoadCoordinator(
+          maxActiveDownloads: 1,
+          criticalReserve: 0,
+        );
+        final blocker = await coordinator.acquire('blocker');
+        final background = coordinator.acquire('background:600');
+        coordinator.trackInterest('visible:600', CoverArtLoadPriority.visible);
+        final visible = coordinator.acquire('visible:600');
+
+        blocker.release();
+        final visibleLease = await visible.timeout(const Duration(seconds: 1));
+
+        expect(coordinator.activeCount, 1);
+        visibleLease.release();
+        final backgroundLease = await background.timeout(
+          const Duration(seconds: 1),
+        );
+        backgroundLease.release();
+      },
+    );
+
+    test('critical requests use reserved capacity', () async {
+      final coordinator = CoverArtLoadCoordinator(maxActiveDownloads: 2);
+      coordinator.trackInterest('visible-1:600', CoverArtLoadPriority.visible);
+      coordinator.trackInterest('visible-2:600', CoverArtLoadPriority.visible);
+      coordinator.trackInterest('critical:600', CoverArtLoadPriority.critical);
+
+      final visible1 = await coordinator.acquire('visible-1:600');
+      final visible2 = coordinator.acquire('visible-2:600');
+      final critical = await coordinator
+          .acquire('critical:600')
+          .timeout(const Duration(seconds: 1));
+
+      expect(coordinator.activeCount, 2);
+      await expectLater(
+        visible2.timeout(const Duration(milliseconds: 20)),
+        throwsA(isA<TimeoutException>()),
+      );
+
+      critical.release();
+      visible1.release();
+      final visible2Lease = await visible2.timeout(const Duration(seconds: 1));
+      visible2Lease.release();
+    });
+
+    test('duplicate widgets share one pending and active request', () async {
+      final coordinator = CoverArtLoadCoordinator(
+        maxActiveDownloads: 1,
+        criticalReserve: 0,
+      );
+      final blocker = await coordinator.acquire('blocker');
+      final firstInterest = coordinator.trackInterest(
+        'cover-1:600',
+        CoverArtLoadPriority.visible,
+      );
+      final secondInterest = coordinator.trackInterest(
+        'cover-1:600',
+        CoverArtLoadPriority.visible,
+      );
+
+      final first = coordinator.acquire('cover-1:600');
+      final second = coordinator.acquire('cover-1:600');
+
+      expect(coordinator.queuedCount, 1);
+      blocker.release();
+      final firstLease = await first.timeout(const Duration(seconds: 1));
+      final secondLease = await second.timeout(const Duration(seconds: 1));
+
+      expect(coordinator.activeCount, 1);
+      firstLease.release();
+      expect(coordinator.activeCount, 1);
+      secondLease.release();
+      expect(coordinator.activeCount, 0);
+
+      firstInterest.dispose();
+      secondInterest.dispose();
     });
   });
 
@@ -24,26 +132,77 @@ void main() {
       addTearDown(() => server.close(force: true));
 
       server.listen((request) {
+        if (request.uri.queryParameters['id'] == 'cover-ok') {
+          request.response.headers.contentType = ContentType('image', 'jpeg');
+          request.response.add(<int>[0xff, 0xd8, 0xff, 0xd9]);
+          unawaited(request.response.close());
+          return;
+        }
         // Intentionally leave the response open without headers.
       });
 
-      final url = Uri(
-        scheme: 'http',
-        host: InternetAddress.loopbackIPv4.address,
-        port: server.port,
-        path: '/rest/getCoverArt.view',
-        queryParameters: const <String, String>{
-          'id': 'cover-1',
-          'size': '600',
-          't': 'redacted',
-        },
-      ).toString();
+      final url = _coverArtUrl(server, id: 'cover-1');
 
       await expectLater(
         service.get(url),
         throwsA(isA<TimeoutException>()),
       );
+
+      final response = await service.get(_coverArtUrl(server, id: 'cover-ok'));
+
+      expect(response.statusCode, HttpStatus.ok);
+      expect(
+        await response.content.expand((bytes) => bytes).toList(),
+        hasLength(4),
+      );
     });
+
+    test(
+      'recovers after stalled requests fill every connection slot',
+      () async {
+        final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        final service = CoverArtHttpFileService(
+          connectionTimeout: const Duration(milliseconds: 50),
+          responseTimeout: const Duration(milliseconds: 50),
+          bodyReadTimeout: const Duration(milliseconds: 50),
+        );
+        addTearDown(service.close);
+        addTearDown(() => server.close(force: true));
+
+        server.listen((request) {
+          if (request.uri.queryParameters['id'] == 'cover-ok') {
+            request.response.headers.contentType = ContentType('image', 'jpeg');
+            request.response.add(<int>[0xff, 0xd8, 0xff, 0xd9]);
+            unawaited(request.response.close());
+            return;
+          }
+          // Intentionally leave the response open without headers.
+        });
+
+        final stalledRequests = List<Future<Object?>>.generate(4, (index) {
+          return service
+              .get(_coverArtUrl(server, id: 'cover-stalled-$index'))
+              .then<Object?>(
+                (_) => null,
+                onError: (Object error, StackTrace _) => error,
+              );
+        });
+
+        final failures = await Future.wait(stalledRequests);
+        expect(failures.whereType<TimeoutException>(), isNotEmpty);
+        expect(failures.where((failure) => failure != null), hasLength(4));
+
+        final response = await service.get(
+          _coverArtUrl(server, id: 'cover-ok'),
+        );
+
+        expect(response.statusCode, HttpStatus.ok);
+        expect(
+          await response.content.expand((bytes) => bytes).toList(),
+          hasLength(4),
+        );
+      },
+    );
 
     test('times out stalled response bodies', () async {
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
@@ -56,23 +215,19 @@ void main() {
       addTearDown(() => server.close(force: true));
 
       server.listen((request) async {
+        if (request.uri.queryParameters['id'] == 'cover-ok') {
+          request.response.headers.contentType = ContentType('image', 'jpeg');
+          request.response.add(<int>[0xff, 0xd8, 0xff, 0xd9]);
+          unawaited(request.response.close());
+          return;
+        }
         request.response.headers.contentType = ContentType('image', 'jpeg');
         request.response.add(<int>[0xff, 0xd8]);
         await request.response.flush();
         // Intentionally leave the body open so the client must time out.
       });
 
-      final url = Uri(
-        scheme: 'http',
-        host: InternetAddress.loopbackIPv4.address,
-        port: server.port,
-        path: '/rest/getCoverArt.view',
-        queryParameters: const <String, String>{
-          'id': 'cover-2',
-          'size': '600',
-          't': 'redacted',
-        },
-      ).toString();
+      final url = _coverArtUrl(server, id: 'cover-2');
 
       final response = await service.get(url);
 
@@ -81,6 +236,143 @@ void main() {
         response.content.drain<void>(),
         throwsA(isA<TimeoutException>()),
       );
+
+      final nextResponse = await service.get(
+        _coverArtUrl(server, id: 'cover-ok'),
+      );
+
+      expect(nextResponse.statusCode, HttpStatus.ok);
+      expect(
+        await nextResponse.content.expand((bytes) => bytes).toList(),
+        hasLength(4),
+      );
+    });
+
+    test('rapid stale visible requests do not reach the server', () async {
+      final coordinator = CoverArtLoadCoordinator(
+        maxActiveDownloads: 1,
+        criticalReserve: 0,
+      );
+      final service = CoverArtHttpFileService(
+        loadCoordinator: coordinator,
+        connectionTimeout: const Duration(milliseconds: 100),
+        responseTimeout: const Duration(milliseconds: 100),
+        bodyReadTimeout: const Duration(milliseconds: 100),
+      );
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final requests = <String>[];
+      late HttpResponse blockerResponse;
+      addTearDown(service.close);
+      addTearDown(() => server.close(force: true));
+
+      server.listen((request) async {
+        final id = request.uri.queryParameters['id'] ?? '';
+        requests.add(id);
+        request.response.headers.contentType = ContentType('image', 'jpeg');
+        if (id == 'blocker') {
+          blockerResponse = request.response;
+          request.response.add(<int>[0xff, 0xd8]);
+          await request.response.flush();
+          return;
+        }
+        request.response.add(_tinyJpeg);
+        unawaited(request.response.close());
+      });
+
+      final blocker = await service.get(_coverArtUrl(server, id: 'blocker'));
+      final queued = <Future<FileServiceResponse>>[];
+      for (var index = 0; index < 8; index++) {
+        final id = 'stale-$index';
+        final key = coverArtImageCacheKey(id, 600);
+        final interest = coordinator.trackInterest(
+          key,
+          CoverArtLoadPriority.visible,
+        );
+        final future = service.get(_coverArtUrl(server, id: id));
+        unawaited(future.then<void>((_) {}, onError: (_, _) {}));
+        queued.add(future);
+        interest.dispose();
+      }
+
+      for (final future in queued) {
+        await expectLater(
+          future,
+          throwsA(isA<CoverArtLoadCanceledException>()),
+        );
+      }
+      await blockerResponse.close();
+      await blocker.content.drain<void>();
+
+      expect(requests, <String>['blocker']);
+    });
+
+    test('visible requests are started before older background work', () async {
+      final coordinator = CoverArtLoadCoordinator(
+        maxActiveDownloads: 1,
+        criticalReserve: 0,
+      );
+      final service = CoverArtHttpFileService(
+        loadCoordinator: coordinator,
+        connectionTimeout: const Duration(milliseconds: 100),
+        responseTimeout: const Duration(milliseconds: 100),
+        bodyReadTimeout: const Duration(milliseconds: 100),
+      );
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final requests = <String>[];
+      late HttpResponse blockerResponse;
+      addTearDown(service.close);
+      addTearDown(() => server.close(force: true));
+
+      server.listen((request) async {
+        final id = request.uri.queryParameters['id'] ?? '';
+        requests.add(id);
+        request.response.headers.contentType = ContentType('image', 'jpeg');
+        if (id == 'blocker') {
+          blockerResponse = request.response;
+          request.response.add(<int>[0xff, 0xd8]);
+          await request.response.flush();
+          return;
+        }
+        request.response.add(_tinyJpeg);
+        unawaited(request.response.close());
+      });
+
+      final blocker = await service.get(_coverArtUrl(server, id: 'blocker'));
+      final background = service.get(_coverArtUrl(server, id: 'background'));
+      final visibleInterest = coordinator.trackInterest(
+        coverArtImageCacheKey('visible', 600),
+        CoverArtLoadPriority.visible,
+      );
+      final visible = service.get(_coverArtUrl(server, id: 'visible'));
+
+      await blockerResponse.close();
+      await blocker.content.drain<void>();
+      final visibleResponse = await visible.timeout(const Duration(seconds: 1));
+      await visibleResponse.content.drain<void>();
+      final backgroundResponse = await background.timeout(
+        const Duration(seconds: 1),
+      );
+      await backgroundResponse.content.drain<void>();
+      visibleInterest.dispose();
+
+      expect(requests.take(2), <String>['blocker', 'visible']);
+      expect(requests, contains('background'));
     });
   });
+}
+
+const _tinyJpeg = <int>[0xff, 0xd8, 0xff, 0xd9];
+
+String _coverArtUrl(HttpServer server, {required String id}) {
+  return Uri(
+    scheme: 'http',
+    host: InternetAddress.loopbackIPv4.address,
+    port: server.port,
+    path: '/rest/getCoverArt.view',
+    queryParameters: <String, String>{
+      'id': id,
+      'size': '600',
+      't': 'redacted',
+    },
+  ).toString();
 }

@@ -253,6 +253,7 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                     width: compactLayout ? 42 : 48,
                     height: compactLayout ? 42 : 48,
                     borderRadius: BorderRadius.circular(8),
+                    loadPriority: CoverArtLoadPriority.critical,
                   );
                 }
 

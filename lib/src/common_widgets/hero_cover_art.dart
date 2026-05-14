@@ -15,6 +15,7 @@ class HeroCoverArt extends StatelessWidget {
     this.circular = false,
     this.showLoadingPlaceholder = true,
     this.fadeInDuration,
+    this.loadPriority = CoverArtLoadPriority.visible,
   });
 
   final String? coverArtId;
@@ -37,6 +38,7 @@ class HeroCoverArt extends StatelessWidget {
   /// [CoverArtImage] default (150 ms). Use a longer value (e.g., 350 ms)
   /// for full-bleed art so the image appears smoothly after the hero.
   final Duration? fadeInDuration;
+  final CoverArtLoadPriority loadPriority;
 
   @override
   Widget build(BuildContext context) {
@@ -89,6 +91,7 @@ class HeroCoverArt extends StatelessWidget {
               circular: circular,
               fadeInDuration: Duration.zero,
               lockedSize: lockedSize,
+              loadPriority: CoverArtLoadPriority.critical,
             );
           },
       child: CoverArtImage(
@@ -102,6 +105,7 @@ class HeroCoverArt extends StatelessWidget {
         circular: circular,
         showLoadingPlaceholder: showLoadingPlaceholder,
         fadeInDuration: fadeInDuration ?? const Duration(milliseconds: 150),
+        loadPriority: loadPriority,
       ),
     );
   }

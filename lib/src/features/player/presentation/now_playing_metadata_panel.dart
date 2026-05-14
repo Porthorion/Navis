@@ -16,6 +16,7 @@ class _CoverArt extends ConsumerWidget {
       return CoverArtImage(
         coverArtId: coverArtId,
         size: kCoverArtStandardSize,
+        loadPriority: CoverArtLoadPriority.critical,
       );
     }
 
@@ -23,6 +24,7 @@ class _CoverArt extends ConsumerWidget {
       coverArtId: coverArtId,
       size: kCoverArtStandardSize,
       semanticLabel: semanticLabel,
+      loadPriority: CoverArtLoadPriority.critical,
     );
   }
 }

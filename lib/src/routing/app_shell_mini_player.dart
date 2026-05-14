@@ -111,6 +111,7 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                                     width: 44,
                                     height: 44,
                                     borderRadius: BorderRadius.circular(9),
+                                    loadPriority: CoverArtLoadPriority.critical,
                                   ),
                                 const SizedBox(width: 8),
                                 Expanded(
@@ -600,6 +601,7 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                             width: 64,
                             height: 64,
                             borderRadius: BorderRadius.circular(10),
+                            loadPriority: CoverArtLoadPriority.critical,
                           ),
                         const SizedBox(width: 14),
                         Expanded(
@@ -755,6 +757,7 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                                 width: 48,
                                 height: 48,
                                 borderRadius: BorderRadius.circular(8),
+                                loadPriority: CoverArtLoadPriority.critical,
                               ),
                             const SizedBox(width: 12),
                             Expanded(

@@ -209,6 +209,7 @@ class CoverArtViewerScreen extends StatelessWidget {
                             height: side,
                             fit: BoxFit.contain,
                             fadeInDuration: Duration.zero,
+                            loadPriority: CoverArtLoadPriority.critical,
                           ),
                           CoverArtImage(
                             coverArtId: coverArtId,
@@ -218,6 +219,7 @@ class CoverArtViewerScreen extends StatelessWidget {
                             fit: BoxFit.contain,
                             showLoadingPlaceholder: false,
                             showErrorPlaceholder: false,
+                            loadPriority: CoverArtLoadPriority.critical,
                           ),
                         ],
                       ),

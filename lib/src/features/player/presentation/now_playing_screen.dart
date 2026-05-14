@@ -241,8 +241,17 @@ Future<void> prewarmNowPlayingVisuals({
     if (imageProvider == null) {
       return;
     }
-    await precacheImage(imageProvider, context);
+    final trimmedCoverArtId = coverArtId?.trim() ?? '';
+    final coverArtInterest = trimmedCoverArtId.isEmpty
+        ? null
+        : ref
+              .read(coverArtLoadCoordinatorProvider)
+              .trackInterest(
+                coverArtImageCacheKey(trimmedCoverArtId, 768),
+                CoverArtLoadPriority.critical,
+              );
     try {
+      await precacheImage(imageProvider, context, onError: (_, _) {});
       final scheme = await ColorScheme.fromImageProvider(
         provider: imageProvider,
         brightness: brightness,
@@ -250,6 +259,8 @@ Future<void> prewarmNowPlayingVisuals({
       _nowPlayingTintColorCache[cacheKey] = scheme.primary;
     } on Exception {
       // Best-effort warm path: ignore extraction failures.
+    } finally {
+      coverArtInterest?.dispose();
     }
   }
 
@@ -1372,7 +1383,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
         cacheManager: cacheManager,
         cacheKey: coverArtImageCacheKey(trimmedCoverArt, 768),
       );
-      unawaited(precacheImage(imageProvider, context));
+      unawaited(precacheImage(imageProvider, context, onError: (_, _) {}));
     });
   }
 

@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
@@ -5,13 +8,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 
 // Re-export constants so that files which import cover_art_image.dart continue
 // to access coverArtCacheKey and kCoverArtStandardSize without extra imports.
 export 'package:navis/src/common_widgets/cover_art_cache_manager.dart'
-    show coverArtCacheKey, coverArtImageCacheKey, kCoverArtStandardSize;
+    show
+        CoverArtLoadPriority,
+        coverArtCacheKey,
+        coverArtImageCacheKey,
+        kCoverArtStandardSize;
 
-class CoverArtImage extends ConsumerWidget {
+class CoverArtImage extends ConsumerStatefulWidget {
   const CoverArtImage({
     required this.coverArtId,
     super.key,
@@ -27,6 +35,7 @@ class CoverArtImage extends ConsumerWidget {
     this.showLoadingPlaceholder = true,
     this.showErrorPlaceholder = true,
     this.lockedSize,
+    this.loadPriority = CoverArtLoadPriority.visible,
   });
 
   final String? coverArtId;
@@ -49,47 +58,202 @@ class CoverArtImage extends ConsumerWidget {
   /// Used during hero flight animations to prevent mid-flight URL changes.
   final int? lockedSize;
 
+  /// Controls whether this image may start network work immediately or should
+  /// wait for viewport visibility.
+  final CoverArtLoadPriority loadPriority;
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final id = coverArtId?.trim() ?? '';
+  ConsumerState<CoverArtImage> createState() => _CoverArtImageState();
+}
+
+class _CoverArtImageState extends ConsumerState<CoverArtImage> {
+  final Key _visibilityKey = UniqueKey();
+
+  FileInfo? _cachedFileInfo;
+  String? _cacheProbeKey;
+  CacheManager? _cacheProbeManager;
+  CoverArtLoadInterest? _interest;
+  String? _interestKey;
+  CoverArtLoadPriority? _interestPriority;
+  var _isVisible = false;
+
+  @override
+  void dispose() {
+    _clearInterest();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final id = widget.coverArtId?.trim() ?? '';
     if (id.isEmpty) {
+      _clearInterest();
       return _withSemantics(_fallback(context));
     }
 
     final api = ref.watch(subsonicApiProvider);
     if (api == null) {
+      _clearInterest();
       return _withSemantics(_fallback(context));
     }
 
     final cacheManager = ref.watch(coverArtCacheManagerProvider);
+    final coordinator = ref.watch(coverArtLoadCoordinatorProvider);
 
     // When the size is fully determined without needing layout constraints
-    // (explicit size param or locked hero size), build the image widget
-    // immediately — skipping LayoutBuilder entirely. This starts the cache
-    // look-up one layout pass earlier, so the decoded image is ready before
-    // the hero animation finishes landing. It also guarantees that the URL
-    // matches exactly what was cached at the source (same size = same key).
-    final preResolved = lockedSize ?? (size != null && size! > 0 ? size : null);
+    // (explicit size param or locked hero size), build without LayoutBuilder so
+    // the cache lookup starts one layout pass earlier.
+    final preResolved =
+        widget.lockedSize ??
+        (widget.size != null && widget.size! > 0 ? widget.size : null);
     if (preResolved != null) {
-      return _withSemantics(
-        _buildImageChild(context, preResolved, api, cacheManager),
+      return _buildResolved(
+        context: context,
+        resolvedSize: preResolved,
+        api: api,
+        cacheManager: cacheManager,
+        coordinator: coordinator,
       );
     }
 
     // No explicit size: derive from layout constraints (used only for widgets
-    // that intentionally omit a size and rely on their container dimensions,
-    // e.g. the now-playing full-screen art).
+    // that intentionally omit a size and rely on their container dimensions).
     return LayoutBuilder(
       builder: (context, constraints) {
         final resolvedSize = _resolveFromConstraints(context, constraints);
-        return _withSemantics(
-          _buildImageChild(context, resolvedSize, api, cacheManager),
+        return _buildResolved(
+          context: context,
+          resolvedSize: resolvedSize,
+          api: api,
+          cacheManager: cacheManager,
+          coordinator: coordinator,
         );
       },
     );
   }
 
-  Widget _buildImageChild(
+  Widget _buildResolved({
+    required BuildContext context,
+    required int? resolvedSize,
+    required SubsonicApiClient api,
+    required CacheManager cacheManager,
+    required CoverArtLoadCoordinator coordinator,
+  }) {
+    final id = widget.coverArtId!.trim();
+    final cacheKey = coverArtImageCacheKey(id, resolvedSize);
+    _startCacheProbe(cacheManager, cacheKey);
+    _syncInterest(coordinator, cacheKey, _activePriority);
+
+    final networkAllowed =
+        widget.loadPriority == CoverArtLoadPriority.critical ||
+        widget.loadPriority == CoverArtLoadPriority.background ||
+        _isVisible;
+    final cachedFile = _cachedFileInfo?.file;
+    final child = networkAllowed
+        ? _buildNetworkImageChild(context, resolvedSize, api, cacheManager)
+        : cachedFile != null
+        ? _buildFileImageChild(context, cachedFile)
+        : (widget.showLoadingPlaceholder
+              ? _fallback(context)
+              : _emptyPlaceholder());
+
+    return _withVisibility(_withSemantics(child));
+  }
+
+  CoverArtLoadPriority? get _activePriority {
+    switch (widget.loadPriority) {
+      case CoverArtLoadPriority.critical:
+        return CoverArtLoadPriority.critical;
+      case CoverArtLoadPriority.background:
+        return CoverArtLoadPriority.background;
+      case CoverArtLoadPriority.visible:
+        return _isVisible ? CoverArtLoadPriority.visible : null;
+    }
+  }
+
+  void _startCacheProbe(CacheManager cacheManager, String cacheKey) {
+    if (_cacheProbeKey == cacheKey &&
+        identical(_cacheProbeManager, cacheManager)) {
+      return;
+    }
+    _cacheProbeKey = cacheKey;
+    _cacheProbeManager = cacheManager;
+    _cachedFileInfo = null;
+    unawaited(
+      cacheManager
+          .getFileFromCache(cacheKey)
+          .then(
+            (fileInfo) {
+              if (!mounted ||
+                  _cacheProbeKey != cacheKey ||
+                  !identical(_cacheProbeManager, cacheManager)) {
+                return;
+              }
+              setState(() {
+                _cachedFileInfo = fileInfo;
+              });
+            },
+            onError: (_) {
+              if (!mounted ||
+                  _cacheProbeKey != cacheKey ||
+                  !identical(_cacheProbeManager, cacheManager)) {
+                return;
+              }
+              setState(() {
+                _cachedFileInfo = null;
+              });
+            },
+          ),
+    );
+  }
+
+  void _syncInterest(
+    CoverArtLoadCoordinator coordinator,
+    String cacheKey,
+    CoverArtLoadPriority? priority,
+  ) {
+    if (_interestKey == cacheKey && _interestPriority == priority) {
+      return;
+    }
+    _clearInterest();
+    if (priority == null) {
+      return;
+    }
+    _interestKey = cacheKey;
+    _interestPriority = priority;
+    _interest = coordinator.trackInterest(cacheKey, priority);
+  }
+
+  void _clearInterest() {
+    _interest?.dispose();
+    _interest = null;
+    _interestKey = null;
+    _interestPriority = null;
+  }
+
+  Widget _withVisibility(Widget child) {
+    if (widget.loadPriority != CoverArtLoadPriority.visible) {
+      return child;
+    }
+    return VisibilityDetector(
+      key: _visibilityKey,
+      onVisibilityChanged: (info) {
+        if (!mounted) {
+          return;
+        }
+        final nextVisible = info.visibleFraction > 0;
+        if (_isVisible == nextVisible) {
+          return;
+        }
+        setState(() {
+          _isVisible = nextVisible;
+        });
+      },
+      child: child,
+    );
+  }
+
+  Widget _buildNetworkImageChild(
     BuildContext context,
     int? resolvedSize,
     SubsonicApiClient api,
@@ -97,40 +261,55 @@ class CoverArtImage extends ConsumerWidget {
   ) {
     final image = CachedNetworkImage(
       imageUrl: api
-          .getCoverArtUrl(id: coverArtId!.trim(), size: resolvedSize)
+          .getCoverArtUrl(id: widget.coverArtId!.trim(), size: resolvedSize)
           .toString(),
-      cacheKey: coverArtImageCacheKey(coverArtId!, resolvedSize),
-      fit: fit,
-      width: width,
-      height: height,
+      cacheKey: coverArtImageCacheKey(widget.coverArtId!, resolvedSize),
+      fit: widget.fit,
+      width: widget.width,
+      height: widget.height,
       cacheManager: cacheManager,
-      fadeInDuration: fadeInDuration,
+      fadeInDuration: widget.fadeInDuration,
       fadeOutDuration: Duration.zero,
-      memCacheWidth: _memCacheSize(width, resolvedSize),
-      memCacheHeight: _memCacheSize(height, resolvedSize),
-      placeholder: (_, _) =>
-          showLoadingPlaceholder ? _fallback(context) : _emptyPlaceholder(),
-      errorWidget: (_, _, _) =>
-          showErrorPlaceholder ? _fallback(context) : _emptyPlaceholder(),
+      memCacheWidth: _memCacheSize(widget.width, resolvedSize),
+      memCacheHeight: _memCacheSize(widget.height, resolvedSize),
+      placeholder: (_, _) => widget.showLoadingPlaceholder
+          ? _fallback(context)
+          : _emptyPlaceholder(),
+      errorWidget: (_, _, _) => widget.showErrorPlaceholder
+          ? _fallback(context)
+          : _emptyPlaceholder(),
     );
+    return _clip(image);
+  }
 
-    Widget child;
-    if (circular) {
-      child = ClipOval(child: image);
-    } else {
-      final radius = borderRadius ?? BorderRadius.zero;
-      child = radius == BorderRadius.zero
-          ? image
-          : ClipRRect(borderRadius: radius, child: image);
+  Widget _buildFileImageChild(BuildContext context, File file) {
+    final image = Image.file(
+      file,
+      fit: widget.fit,
+      width: widget.width,
+      height: widget.height,
+      errorBuilder: (_, _, _) => widget.showErrorPlaceholder
+          ? _fallback(context)
+          : _emptyPlaceholder(),
+    );
+    return _clip(image);
+  }
+
+  Widget _clip(Widget child) {
+    if (widget.circular) {
+      return ClipOval(child: child);
     }
-    return child;
+    final radius = widget.borderRadius ?? BorderRadius.zero;
+    return radius == BorderRadius.zero
+        ? child
+        : ClipRRect(borderRadius: radius, child: child);
   }
 
   Widget _withSemantics(Widget child) {
-    if (semanticLabel != null) {
+    if (widget.semanticLabel != null) {
       return Semantics(
         image: true,
-        label: semanticLabel,
+        label: widget.semanticLabel,
         child: ExcludeSemantics(child: child),
       );
     }
@@ -139,16 +318,18 @@ class CoverArtImage extends ConsumerWidget {
 
   Widget _fallback(BuildContext context) {
     return Container(
-      width: width,
-      height: height,
+      width: widget.width,
+      height: widget.height,
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: circular ? null : borderRadius ?? BorderRadius.zero,
-        shape: circular ? BoxShape.circle : BoxShape.rectangle,
+        borderRadius: widget.circular
+            ? null
+            : widget.borderRadius ?? BorderRadius.zero,
+        shape: widget.circular ? BoxShape.circle : BoxShape.rectangle,
       ),
       alignment: Alignment.center,
       child: Icon(
-        placeholderIcon,
+        widget.placeholderIcon,
         size: _placeholderIconSize,
         color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(
           alpha: 0.5,
@@ -157,13 +338,19 @@ class CoverArtImage extends ConsumerWidget {
     );
   }
 
-  Widget _emptyPlaceholder() => SizedBox(width: width, height: height);
+  Widget _emptyPlaceholder() {
+    return SizedBox(width: widget.width, height: widget.height);
+  }
 
   /// Scale the placeholder icon relative to the container but keep a sane min.
   /// Guards against double.infinity when the widget fills its parent.
   double get _placeholderIconSize {
-    final w = (width != null && width!.isFinite) ? width! : 48.0;
-    final h = (height != null && height!.isFinite) ? height! : 48.0;
+    final w = (widget.width != null && widget.width!.isFinite)
+        ? widget.width!
+        : 48.0;
+    final h = (widget.height != null && widget.height!.isFinite)
+        ? widget.height!
+        : 48.0;
     final dim = w < h ? w : h;
     final scaled = dim * 0.4;
     return scaled < 20 ? 20 : scaled;
@@ -175,7 +362,7 @@ class CoverArtImage extends ConsumerWidget {
     if (layoutDimension != null &&
         layoutDimension > 0 &&
         layoutDimension.isFinite) {
-      // Use 2× the layout size for crisp Retina display.
+      // Use 2x the layout size for crisp Retina display.
       return (layoutDimension * 2).ceil();
     }
     if (requestedSize != null && requestedSize > 0) {
@@ -184,8 +371,8 @@ class CoverArtImage extends ConsumerWidget {
     return null;
   }
 
-  /// Resolves a pixel size from layout [constraints] only (no explicit size).
-  /// Called only when no [size] or [lockedSize] was provided to the widget.
+  /// Resolves a pixel size from layout constraints only (no explicit size).
+  /// Called only when no size or locked hero size was provided to the widget.
   int? _resolveFromConstraints(
     BuildContext context,
     BoxConstraints constraints,
@@ -200,8 +387,8 @@ class CoverArtImage extends ConsumerWidget {
   }
 
   double? _targetLogicalExtent(BoxConstraints constraints) {
-    final explicitWidth = _finitePositive(width);
-    final explicitHeight = _finitePositive(height);
+    final explicitWidth = _finitePositive(widget.width);
+    final explicitHeight = _finitePositive(widget.height);
     if (explicitWidth != null || explicitHeight != null) {
       if (explicitWidth == null) {
         return explicitHeight;

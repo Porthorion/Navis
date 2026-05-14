@@ -74,18 +74,25 @@ final _coverArtMaxObjectsProvider = StreamProvider<int>((ref) {
 ///   2. Runs for the lifetime of the app.
 ///   3. Explicitly invalidated via [ref.invalidate] from the settings screen
 ///      — by which point the DB has been open for seconds and disposal is safe.
+final coverArtLoadCoordinatorProvider = Provider<CoverArtLoadCoordinator>((
+  ref,
+) {
+  return CoverArtLoadCoordinator();
+});
+
 final coverArtCacheManagerProvider = Provider<CacheManager>((ref) {
   // ref.read, not ref.watch — prevents reactive rebuilds caused by the
   // settings stream emitting at startup (AsyncLoading → AsyncData), which
   // would dispose the manager before its internal SQLite DB finishes opening.
   final maxObjects = ref.read(_coverArtMaxObjectsProvider).value ?? 0;
-  final service = CoverArtHttpFileService();
+  final coordinator = ref.watch(coverArtLoadCoordinatorProvider);
+  final service = CoverArtHttpFileService(loadCoordinator: coordinator);
   final manager = createCoverArtCacheManager(
     maxNrOfCacheObjects: maxObjects,
     fileService: service,
   );
   ref.onDispose(() {
-    service.close();
+    service.close(force: true);
     // ignore: discarded_futures
     manager.dispose();
   });

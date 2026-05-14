@@ -368,6 +368,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                     height: artSize,
                                     borderRadius: coverRadius,
                                     placeholderIcon: Icons.album_outlined,
+                                    loadPriority: CoverArtLoadPriority.critical,
                                   ),
                                 ),
                                 const SizedBox(width: 28),
