@@ -15,6 +15,7 @@ import 'package:navis/src/api/models/song.dart' as api;
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/database/daos/history_dao.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
+import 'package:navis/src/database/daos/play_queue_dao.dart';
 import 'package:navis/src/database/daos/playlist_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auto/data/auto_media_id.dart';
@@ -40,11 +41,13 @@ class AutoMediaTreeService {
   AutoMediaTreeService({
     required LibraryDao libraryDao,
     required PlaylistDao playlistDao,
+    required PlayQueueDao playQueueDao,
     required HistoryDao historyDao,
     required SubsonicApiClient? Function() readApiClient,
     Future<Set<String>> Function()? readDownloadedSongIds,
   }) : _libraryDao = libraryDao,
        _playlistDao = playlistDao,
+       _playQueueDao = playQueueDao,
        _historyDao = historyDao,
        _readApiClient = readApiClient,
        _readDownloadedSongIds =
@@ -52,6 +55,7 @@ class AutoMediaTreeService {
 
   final LibraryDao _libraryDao;
   final PlaylistDao _playlistDao;
+  final PlayQueueDao _playQueueDao;
   final HistoryDao _historyDao;
   final SubsonicApiClient? Function() _readApiClient;
   final Future<Set<String>> Function() _readDownloadedSongIds;
@@ -250,7 +254,37 @@ class AutoMediaTreeService {
               _songToMediaItem(song, downloadedSongIds: downloadedSongIds),
         )
         .toList(growable: false);
-    return items.isEmpty ? _emptyItems(parentId, 'No recent plays') : items;
+    if (items.isNotEmpty) {
+      return items;
+    }
+    if (parentId == AudioService.recentRootId) {
+      final resumableItems = await _getResumableQueueFallback(
+        downloadedSongIds: downloadedSongIds,
+      );
+      if (resumableItems.isNotEmpty) {
+        return resumableItems;
+      }
+    }
+    return _emptyItems(parentId, 'No recent plays');
+  }
+
+  Future<List<MediaItem>> _getResumableQueueFallback({
+    required Set<String> downloadedSongIds,
+  }) async {
+    final queueState = await _playQueueDao.getQueueState();
+    final queuedSongs = await _playQueueDao.getQueueItems();
+    if (queuedSongs.isEmpty) {
+      return const <MediaItem>[];
+    }
+    final queueIndex = (queueState?.currentIndex ?? 0)
+        .clamp(0, math.max(0, queuedSongs.length - 1))
+        .toInt();
+    return <MediaItem>[
+      _songToMediaItem(
+        queuedSongs[queueIndex],
+        downloadedSongIds: downloadedSongIds,
+      ),
+    ];
   }
 
   Future<List<MediaItem>> _getEntityChildren(String parentMediaId) async {

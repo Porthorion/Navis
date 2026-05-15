@@ -51,7 +51,10 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
         ? l10n.miniPlayerUnknownArtist
         : widget.songArtist!;
     final resolvedArtistId = (widget.artistId ?? '').trim();
-    final canOpenArtist = resolvedArtistId.isNotEmpty && !playback.isRadioMode;
+    final canOpenArtist =
+        !playback.isRadioMode &&
+        (resolvedArtistId.isNotEmpty ||
+            (widget.songArtist ?? '').trim().isNotEmpty);
 
     final livePosition = ref.watch(playbackPositionProvider).asData?.value;
     final position = livePosition ?? playback.position;
@@ -261,8 +264,15 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                   coverArtWidget = MouseRegion(
                     cursor: SystemMouseCursors.click,
                     child: GestureDetector(
-                      onTap: () =>
-                          NavService.goToAlbum(context, ref, resolvedAlbumId),
+                      onTap: () => unawaited(
+                        NormalPlaybackMetadataNavigator.goToAlbum(
+                          context,
+                          ref,
+                          albumId: resolvedAlbumId,
+                          artistId: widget.artistId,
+                          artistName: widget.songArtist,
+                        ),
+                      ),
                       child: coverArtWidget,
                     ),
                   );
@@ -307,7 +317,7 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: <Widget>[
-                                    // Title — tappable for radio (search songs)
+                                    // Title — tappable for radio search and normal cached metadata navigation.
                                     if (playback.isRadioMode &&
                                         (widget.songTitle ?? '')
                                             .trim()
@@ -316,15 +326,11 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                         cursor: SystemMouseCursors.click,
                                         child: GestureDetector(
                                           onTap: () {
-                                            ref
-                                                .read(
-                                                  searchFilterProvider.notifier,
-                                                )
-                                                .select(SearchResultType.songs);
-                                            NavService.goToSearch(
+                                            NavService.goToFilteredSearch(
                                               context,
                                               ref,
                                               widget.songTitle!.trim(),
+                                              SearchResultType.songs,
                                             );
                                           },
                                           child: Text(
@@ -335,6 +341,37 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                                 .textTheme
                                                 .bodyMedium
                                                 ?.copyWith(
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                          ),
+                                        ),
+                                      )
+                                    else if (!playback.isRadioMode &&
+                                        (widget.songTitle ?? '')
+                                            .trim()
+                                            .isNotEmpty)
+                                      MouseRegion(
+                                        cursor: SystemMouseCursors.click,
+                                        child: GestureDetector(
+                                          onTap: () => unawaited(
+                                            NormalPlaybackMetadataNavigator.goToTitle(
+                                              context,
+                                              ref,
+                                              title: widget.songTitle,
+                                              albumId: widget.albumId,
+                                              artistId: widget.artistId,
+                                              artistName: widget.songArtist,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            title,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodyMedium
+                                                ?.copyWith(
+                                                  color: colors.primary,
                                                   fontWeight: FontWeight.w700,
                                                 ),
                                           ),
@@ -366,12 +403,14 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                             alignment: Alignment.centerLeft,
                                             foregroundColor: colors.primary,
                                           ),
-                                          onPressed: () =>
-                                              NavService.goToArtist(
-                                                context,
-                                                ref,
-                                                resolvedArtistId,
-                                              ),
+                                          onPressed: () => unawaited(
+                                            NormalPlaybackMetadataNavigator.goToArtist(
+                                              context,
+                                              ref,
+                                              artistId: widget.artistId,
+                                              artistName: widget.songArtist,
+                                            ),
+                                          ),
                                           child: Text(
                                             artist,
                                             maxLines: 1,
@@ -413,19 +452,11 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                               cursor: SystemMouseCursors.click,
                                               child: GestureDetector(
                                                 onTap: () {
-                                                  ref
-                                                      .read(
-                                                        searchFilterProvider
-                                                            .notifier,
-                                                      )
-                                                      .select(
-                                                        SearchResultType
-                                                            .artists,
-                                                      );
-                                                  NavService.goToSearch(
+                                                  NavService.goToFilteredSearch(
                                                     context,
                                                     ref,
                                                     name,
+                                                    SearchResultType.artists,
                                                   );
                                                 },
                                                 child: Text(

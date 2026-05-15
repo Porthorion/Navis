@@ -18,6 +18,7 @@ void main() {
     service = AutoMediaTreeService(
       libraryDao: database.libraryDao,
       playlistDao: database.playlistDao,
+      playQueueDao: database.playQueueDao,
       historyDao: database.historyDao,
       readApiClient: () => null,
     );
@@ -339,6 +340,7 @@ void main() {
         service = AutoMediaTreeService(
           libraryDao: database.libraryDao,
           playlistDao: database.playlistDao,
+          playQueueDao: database.playQueueDao,
           historyDao: database.historyDao,
           readApiClient: () => null,
           readDownloadedSongIds: database.cacheDao.getPermanentlyCachedSongIds,
@@ -524,6 +526,27 @@ void main() {
         expect(items.single.id, 'empty/${AudioService.recentRootId}');
         expect(items.single.title, 'No recent plays');
         expect(items.single.playable, isFalse);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'system recent root falls back to persisted queue item when history is empty',
+      () async {
+        await database.libraryDao.upsertSongs([
+          SongsTableCompanion.insert(id: 's1', title: 'Song 1'),
+          SongsTableCompanion.insert(id: 's2', title: 'Song 2'),
+        ]);
+        await database.playQueueDao.saveQueue(
+          currentIndex: 1,
+          songIds: const <String>['s1', 's2'],
+        );
+
+        final items = await service.getChildren(AudioService.recentRootId);
+        expect(items, hasLength(1));
+        expect(items.single.id, 'song/s2');
+        expect(items.single.title, 'Song 2');
+        expect(items.single.playable, isTrue);
       },
       skip: !sqliteAvailable,
     );

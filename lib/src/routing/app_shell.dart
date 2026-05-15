@@ -33,6 +33,7 @@ import 'package:navis/src/features/player/presentation/same_vibes_notifier.dart'
 import 'package:navis/src/features/player/presentation/smart_queue_notifier.dart';
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/src/features/player/presentation/desktop_volume_slider.dart';
+import 'package:navis/src/features/player/presentation/normal_playback_metadata_navigation.dart';
 import 'package:navis/src/common_widgets/lyrics_display_widget.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_sheet.dart';
@@ -44,13 +45,7 @@ import 'package:navis/src/features/group_listening/presentation/group_listening_
 import 'package:navis/src/features/library/presentation/star_sync_dispatch_provider.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/features/home/presentation/home_scroll_provider.dart';
-import 'package:navis/src/features/search/presentation/search_controller_provider.dart'
-    show
-        quickSearchOverlayVisibleProvider,
-        searchFocusRequestProvider,
-        searchFilterProvider,
-        searchQueryProvider,
-        SearchResultType;
+import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_commands.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
@@ -1364,6 +1359,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                   songTitle: songTitle,
                                                   songArtist: songArtist,
                                                   artistId: artistId,
+                                                  albumId: albumId,
                                                   coverArtId: coverArtId,
                                                   coverArtUrl: coverArtUrl,
                                                   isRadio: playback.isRadioMode,

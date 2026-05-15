@@ -90,6 +90,7 @@ class NavisAudioHandler extends BaseAudioHandler
     _autoMediaTreeService = AutoMediaTreeService(
       libraryDao: _libraryDao,
       playlistDao: _playlistDao,
+      playQueueDao: _playQueueDao,
       historyDao: _historyDao,
       readApiClient: _readApiClient,
       readDownloadedSongIds: _rollingCacheManager.getPermanentlyCachedSongIds,
@@ -593,6 +594,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
     await _restoreQueueAfterStartup();
     _emitSnapshot();
+    await _notifyAndroidAutoBrowseRefresh();
     AppLogger.info('Audio handler init: ready.');
   }
 
@@ -1701,6 +1703,7 @@ class NavisAudioHandler extends BaseAudioHandler
         initialPosition: restorePosition,
         persist: false,
         preloadWhenPaused: false,
+        forcePreloadWhenPaused: true,
       );
     } on PlaybackSourceUnavailableException {
       AppLogger.warning(
@@ -1819,6 +1822,7 @@ class NavisAudioHandler extends BaseAudioHandler
     Duration initialPosition = Duration.zero,
     required bool persist,
     bool preloadWhenPaused = true,
+    bool forcePreloadWhenPaused = false,
     int generation = 0,
   }) async {
     List<_PreparedQueueItem> prepared;
@@ -1854,6 +1858,7 @@ class NavisAudioHandler extends BaseAudioHandler
         autoPlay: autoPlay,
         initialPosition: initialPosition,
         preloadWhenPaused: preloadWhenPaused,
+        forcePreloadWhenPaused: forcePreloadWhenPaused,
         generation: generation,
       );
     } on Object catch (error, stackTrace) {
@@ -1899,6 +1904,7 @@ class NavisAudioHandler extends BaseAudioHandler
           autoPlay: autoPlay,
           initialPosition: initialPosition,
           preloadWhenPaused: preloadWhenPaused,
+          forcePreloadWhenPaused: forcePreloadWhenPaused,
           generation: generation,
         );
       } on Object catch (retryError, retryStackTrace) {
@@ -1917,6 +1923,7 @@ class NavisAudioHandler extends BaseAudioHandler
           autoPlay: autoPlay,
           initialPosition: initialPosition,
           preloadWhenPaused: preloadWhenPaused,
+          forcePreloadWhenPaused: forcePreloadWhenPaused,
           generation: generation,
         );
       }
@@ -2313,6 +2320,7 @@ class NavisAudioHandler extends BaseAudioHandler
     required bool autoPlay,
     required Duration initialPosition,
     required bool preloadWhenPaused,
+    bool forcePreloadWhenPaused = false,
     int generation = 0,
   }) async {
     _queueItems
@@ -2329,6 +2337,7 @@ class NavisAudioHandler extends BaseAudioHandler
         autoPlay: autoPlay,
         preloadWhenPaused: preloadWhenPaused,
         gaplessEnabled: _gaplessEnabled,
+        forcePreloadWhenPaused: forcePreloadWhenPaused,
       ),
       initialIndex: startIndex,
       initialPosition: initialPosition,
@@ -3431,6 +3440,24 @@ class NavisAudioHandler extends BaseAudioHandler
           : AudioServiceShuffleMode.none,
     );
     playbackState.add(state);
+  }
+
+  Future<void> _notifyAndroidAutoBrowseRefresh() async {
+    if (!_isAndroidRuntime) {
+      return;
+    }
+    try {
+      await AudioServiceBackground.notifyChildrenChanged();
+      await AudioServiceBackground.notifyChildrenChanged(AutoMediaRoot.recent);
+      await AudioServiceBackground.notifyChildrenChanged(
+        AudioService.recentRootId,
+      );
+      AppLogger.info('Android Auto browse roots refresh requested.');
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning(
+        'Android Auto browse refresh request failed: $error\n$stackTrace',
+      );
+    }
   }
 
   AudioProcessingState _mapProcessingState(ProcessingState state) {

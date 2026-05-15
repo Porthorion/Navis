@@ -512,34 +512,47 @@ void main() {
       },
     );
 
-    test('queue preload decision respects autoplay and gapless settings', () {
-      expect(
-        navisShouldPreloadQueue(
-          autoPlay: true,
-          preloadWhenPaused: false,
-          gaplessEnabled: false,
-        ),
-        isTrue,
-      );
+    test(
+      'queue preload decision respects autoplay, gapless, and forced restore preloading',
+      () {
+        expect(
+          navisShouldPreloadQueue(
+            autoPlay: true,
+            preloadWhenPaused: false,
+            gaplessEnabled: false,
+          ),
+          isTrue,
+        );
 
-      expect(
-        navisShouldPreloadQueue(
-          autoPlay: false,
-          preloadWhenPaused: true,
-          gaplessEnabled: true,
-        ),
-        isTrue,
-      );
+        expect(
+          navisShouldPreloadQueue(
+            autoPlay: false,
+            preloadWhenPaused: true,
+            gaplessEnabled: true,
+          ),
+          isTrue,
+        );
 
-      expect(
-        navisShouldPreloadQueue(
-          autoPlay: false,
-          preloadWhenPaused: true,
-          gaplessEnabled: false,
-        ),
-        isFalse,
-      );
-    });
+        expect(
+          navisShouldPreloadQueue(
+            autoPlay: false,
+            preloadWhenPaused: true,
+            gaplessEnabled: false,
+          ),
+          isFalse,
+        );
+
+        expect(
+          navisShouldPreloadQueue(
+            autoPlay: false,
+            preloadWhenPaused: false,
+            gaplessEnabled: false,
+            forcePreloadWhenPaused: true,
+          ),
+          isTrue,
+        );
+      },
+    );
 
     test('effective gapless is enabled when crossfade is enabled', () {
       expect(

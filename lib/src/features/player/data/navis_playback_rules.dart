@@ -85,8 +85,11 @@ bool navisShouldPreloadQueue({
   required bool autoPlay,
   required bool preloadWhenPaused,
   required bool gaplessEnabled,
+  bool forcePreloadWhenPaused = false,
 }) {
-  return autoPlay || (preloadWhenPaused && gaplessEnabled);
+  return autoPlay ||
+      forcePreloadWhenPaused ||
+      (preloadWhenPaused && gaplessEnabled);
 }
 
 @visibleForTesting

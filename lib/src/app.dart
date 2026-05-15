@@ -17,9 +17,14 @@ import 'package:navis/src/theme/navis_theme.dart';
 /// Root application widget for Navis.
 class NavisApp extends ConsumerStatefulWidget {
   /// Creates a new [NavisApp].
-  const NavisApp({super.key, this.requirePlaybackBootstrap = false});
+  const NavisApp({
+    super.key,
+    this.requirePlaybackBootstrap = false,
+    this.schedulePlaybackBootstrap = true,
+  });
 
   final bool requirePlaybackBootstrap;
+  final bool schedulePlaybackBootstrap;
 
   @override
   ConsumerState<NavisApp> createState() => _NavisAppState();
@@ -33,7 +38,9 @@ class _NavisAppState extends ConsumerState<NavisApp> {
   @override
   void initState() {
     super.initState();
-    if (!widget.requirePlaybackBootstrap || _didScheduleBootstrap) {
+    if (!widget.requirePlaybackBootstrap ||
+        !widget.schedulePlaybackBootstrap ||
+        _didScheduleBootstrap) {
       return;
     }
     _didScheduleBootstrap = true;

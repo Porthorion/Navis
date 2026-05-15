@@ -83,6 +83,7 @@ class _RailSidebar extends ConsumerWidget {
     this.songTitle,
     this.songArtist,
     this.artistId,
+    this.albumId,
     this.coverArtId,
     this.coverArtUrl,
     this.isRadio = false,
@@ -107,6 +108,7 @@ class _RailSidebar extends ConsumerWidget {
   final String? songTitle;
   final String? songArtist;
   final String? artistId;
+  final String? albumId;
   final String? coverArtId;
   final String? coverArtUrl;
   final bool isRadio;
@@ -282,6 +284,7 @@ class _RailSidebar extends ConsumerWidget {
                         songTitle: songTitle,
                         songArtist: songArtist,
                         artistId: artistId,
+                        albumId: albumId,
                         coverArtId: coverArtId,
                         coverArtUrl: coverArtUrl,
                         isRadio: isRadio,

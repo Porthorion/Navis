@@ -58,6 +58,17 @@ abstract final class NavService {
     context.go('/search');
   }
 
+  /// Navigate to the search screen with a result type filter pre-selected.
+  static void goToFilteredSearch(
+    BuildContext context,
+    WidgetRef ref,
+    String query,
+    SearchResultType filter,
+  ) {
+    ref.read(searchFilterProvider.notifier).select(filter);
+    goToSearch(context, ref, query);
+  }
+
   // ---------------------------------------------------------------------------
   // Player helpers
   // ---------------------------------------------------------------------------

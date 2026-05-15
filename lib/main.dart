@@ -24,6 +24,12 @@ Future<void> main() async {
     unawaited(UpdateService.cleanupStaledUpdates());
   }
   final desktopBootstrap = await _configureDesktopWindow();
+  final rootContainer = _createRootProviderContainer(
+    desktopBootstrap: desktopBootstrap,
+  );
+  rootContainer
+      .read(audioBootstrapControllerProvider.notifier)
+      .ensureInitialized();
 
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   AppLogger.info('Edge-to-edge mode enabled.');
@@ -31,23 +37,32 @@ Future<void> main() async {
   await NotificationBootstrap.initialize();
 
   runApp(
-    ProviderScope(
-      overrides: [
-        if (desktopBootstrap != null)
-          navisDatabaseProvider.overrideWith(
-            (ref) => desktopBootstrap.database,
-          ),
-        if (desktopBootstrap != null)
-          settingsRepositoryProvider.overrideWith(
-            (ref) => desktopBootstrap.settingsRepository,
-          ),
-        if (desktopBootstrap != null)
-          desktopWindowControllerProvider.overrideWith(
-            (ref) => desktopBootstrap.controller,
-          ),
-      ],
-      child: const NavisApp(requirePlaybackBootstrap: true),
+    UncontrolledProviderScope(
+      container: rootContainer,
+      child: const NavisApp(
+        requirePlaybackBootstrap: true,
+        schedulePlaybackBootstrap: false,
+      ),
     ),
+  );
+}
+
+ProviderContainer _createRootProviderContainer({
+  required _DesktopBootstrap? desktopBootstrap,
+}) {
+  return ProviderContainer(
+    overrides: [
+      if (desktopBootstrap != null)
+        navisDatabaseProvider.overrideWith((ref) => desktopBootstrap.database),
+      if (desktopBootstrap != null)
+        settingsRepositoryProvider.overrideWith(
+          (ref) => desktopBootstrap.settingsRepository,
+        ),
+      if (desktopBootstrap != null)
+        desktopWindowControllerProvider.overrideWith(
+          (ref) => desktopBootstrap.controller,
+        ),
+    ],
   );
 }
 

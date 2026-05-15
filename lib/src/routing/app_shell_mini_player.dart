@@ -7,6 +7,7 @@ class _RailMiniPlayer extends ConsumerStatefulWidget {
     this.songTitle,
     this.songArtist,
     this.artistId,
+    this.albumId,
     this.coverArtId,
     this.coverArtUrl,
     this.isRadio = false,
@@ -18,6 +19,7 @@ class _RailMiniPlayer extends ConsumerStatefulWidget {
   final String? songTitle;
   final String? songArtist;
   final String? artistId;
+  final String? albumId;
   final String? coverArtId;
   final String? coverArtUrl;
   final bool isRadio;
@@ -58,7 +60,14 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
         ? l10n.miniPlayerUnknownArtist
         : widget.songArtist!;
     final resolvedArtistId = (widget.artistId ?? '').trim();
-    final canNavigateArtist = resolvedArtistId.isNotEmpty && !widget.isRadio;
+    final resolvedAlbumId = (widget.albumId ?? '').trim();
+    final canNavigateArtist =
+        !widget.isRadio &&
+        (resolvedArtistId.isNotEmpty ||
+            (widget.songArtist ?? '').trim().isNotEmpty);
+    final canNavigateTitle =
+        !widget.isRadio && (widget.songTitle ?? '').trim().isNotEmpty;
+    final canNavigateAlbum = !widget.isRadio && resolvedAlbumId.isNotEmpty;
     const compactButtonConstraints = BoxConstraints(
       minWidth: 46,
       minHeight: 46,
@@ -91,28 +100,53 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                           children: <Widget>[
                             Row(
                               children: <Widget>[
-                                if (widget.isRadio)
-                                  _MiniRadioArt(
-                                    artUrl: widget.radioArtUrl,
-                                    colorScheme: cs,
-                                    size: 44,
-                                  )
-                                else if (widget.coverArtId == null ||
-                                    widget.coverArtId!.trim().isEmpty)
-                                  _MiniRemoteArt(
-                                    artUrl: widget.coverArtUrl,
-                                    colorScheme: cs,
-                                    size: 44,
-                                  )
-                                else
-                                  CoverArtImage(
-                                    coverArtId: widget.coverArtId,
-                                    size: kCoverArtStandardSize,
-                                    width: 44,
-                                    height: 44,
-                                    borderRadius: BorderRadius.circular(9),
-                                    loadPriority: CoverArtLoadPriority.critical,
-                                  ),
+                                Builder(
+                                  builder: (context) {
+                                    Widget art;
+                                    if (widget.isRadio) {
+                                      art = _MiniRadioArt(
+                                        artUrl: widget.radioArtUrl,
+                                        colorScheme: cs,
+                                        size: 44,
+                                      );
+                                    } else if (widget.coverArtId == null ||
+                                        widget.coverArtId!.trim().isEmpty) {
+                                      art = _MiniRemoteArt(
+                                        artUrl: widget.coverArtUrl,
+                                        colorScheme: cs,
+                                        size: 44,
+                                      );
+                                    } else {
+                                      art = CoverArtImage(
+                                        coverArtId: widget.coverArtId,
+                                        size: kCoverArtStandardSize,
+                                        width: 44,
+                                        height: 44,
+                                        borderRadius: BorderRadius.circular(9),
+                                        loadPriority:
+                                            CoverArtLoadPriority.critical,
+                                      );
+                                    }
+                                    if (!canNavigateAlbum) {
+                                      return art;
+                                    }
+                                    return MouseRegion(
+                                      cursor: SystemMouseCursors.click,
+                                      child: GestureDetector(
+                                        onTap: () => unawaited(
+                                          NormalPlaybackMetadataNavigator.goToAlbum(
+                                            context,
+                                            ref,
+                                            albumId: resolvedAlbumId,
+                                            artistId: widget.artistId,
+                                            artistName: widget.songArtist,
+                                          ),
+                                        ),
+                                        child: art,
+                                      ),
+                                    );
+                                  },
+                                ),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Column(
@@ -120,35 +154,72 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                                         CrossAxisAlignment.start,
                                     mainAxisSize: MainAxisSize.min,
                                     children: <Widget>[
-                                      Text(
-                                        (widget.songTitle == null ||
-                                                widget.songTitle!
-                                                    .trim()
-                                                    .isEmpty)
-                                            ? l10n.miniPlayerUnknownTrack
-                                            : widget.songTitle!,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        softWrap: false,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodyMedium
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.w700,
-                                              fontSize: 17,
-                                              height: 1.15,
+                                      canNavigateTitle
+                                          ? GestureDetector(
+                                              behavior: HitTestBehavior.opaque,
+                                              onTap: () => unawaited(
+                                                NormalPlaybackMetadataNavigator.goToTitle(
+                                                  context,
+                                                  ref,
+                                                  title: widget.songTitle,
+                                                  albumId: widget.albumId,
+                                                  artistId: widget.artistId,
+                                                  artistName: widget.songArtist,
+                                                ),
+                                              ),
+                                              child: MouseRegion(
+                                                cursor:
+                                                    SystemMouseCursors.click,
+                                                child: Text(
+                                                  widget.songTitle!,
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  softWrap: false,
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .bodyMedium
+                                                      ?.copyWith(
+                                                        color: cs.primary,
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                        fontSize: 17,
+                                                        height: 1.15,
+                                                      ),
+                                                ),
+                                              ),
+                                            )
+                                          : Text(
+                                              (widget.songTitle == null ||
+                                                      widget.songTitle!
+                                                          .trim()
+                                                          .isEmpty)
+                                                  ? l10n.miniPlayerUnknownTrack
+                                                  : widget.songTitle!,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              softWrap: false,
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodyMedium
+                                                  ?.copyWith(
+                                                    fontWeight: FontWeight.w700,
+                                                    fontSize: 17,
+                                                    height: 1.15,
+                                                  ),
                                             ),
-                                      ),
                                       const SizedBox(height: 1),
                                       canNavigateArtist
                                           ? GestureDetector(
                                               behavior: HitTestBehavior.opaque,
-                                              onTap: () =>
-                                                  NavService.goToArtist(
-                                                    context,
-                                                    ref,
-                                                    resolvedArtistId,
-                                                  ),
+                                              onTap: () => unawaited(
+                                                NormalPlaybackMetadataNavigator.goToArtist(
+                                                  context,
+                                                  ref,
+                                                  artistId: widget.artistId,
+                                                  artistName: widget.songArtist,
+                                                ),
+                                              ),
                                               child: MouseRegion(
                                                 cursor:
                                                     SystemMouseCursors.click,

@@ -106,6 +106,17 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return query.watchSingleOrNull();
   }
 
+  Future<ArtistsTableData?> getArtistById(String artistId) {
+    final id = artistId.trim();
+    if (id.isEmpty) {
+      return Future<ArtistsTableData?>.value();
+    }
+    final query = select(artistsTable)
+      ..where((table) => table.id.equals(id))
+      ..limit(1);
+    return query.getSingleOrNull();
+  }
+
   Stream<List<AlbumsTableData>> watchAllAlbums({bool likedOnly = false}) {
     if (!likedOnly) {
       final query = _orderedAlbumsQuery(AlbumSortOrder.newest);
@@ -211,6 +222,17 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return query.watchSingleOrNull();
   }
 
+  Future<AlbumsTableData?> getAlbumById(String albumId) {
+    final id = albumId.trim();
+    if (id.isEmpty) {
+      return Future<AlbumsTableData?>.value();
+    }
+    final query = select(albumsTable)
+      ..where((table) => table.id.equals(id))
+      ..limit(1);
+    return query.getSingleOrNull();
+  }
+
   Stream<List<SongsTableData>> watchSongsByAlbum(String albumId) {
     final query = select(songsTable)
       ..where((table) => table.albumId.equals(albumId))
@@ -248,6 +270,17 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       ..where((table) => table.id.equals(songId))
       ..limit(1);
     return query.watchSingleOrNull();
+  }
+
+  Future<SongsTableData?> getSongById(String songId) {
+    final id = songId.trim();
+    if (id.isEmpty) {
+      return Future<SongsTableData?>.value();
+    }
+    final query = select(songsTable)
+      ..where((table) => table.id.equals(id))
+      ..limit(1);
+    return query.getSingleOrNull();
   }
 
   Stream<List<SongsTableData>> watchAllSongs() {
@@ -729,6 +762,22 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return select(artistsTable).get();
   }
 
+  Future<ArtistsTableData?> findOneExactNormalizedArtistByName(
+    String name,
+  ) async {
+    final normalizedName = _normalizeMetadataLookup(name);
+    if (normalizedName.isEmpty) {
+      return null;
+    }
+
+    final matches = (await getAllArtists())
+        .where(
+          (artist) => _normalizeMetadataLookup(artist.name) == normalizedName,
+        )
+        .toList(growable: false);
+    return matches.length == 1 ? matches.single : null;
+  }
+
   Future<int> countArtists() async {
     final countExpression = artistsTable.id.count();
     final query = selectOnly(artistsTable)..addColumns([countExpression]);
@@ -753,6 +802,61 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return select(albumsTable).get();
   }
 
+  Future<AlbumsTableData?> findOneExactNormalizedAlbumByName(
+    String albumName, {
+    String? artistId,
+    String? artistName,
+  }) async {
+    final normalizedAlbum = _normalizeMetadataLookup(albumName);
+    if (normalizedAlbum.isEmpty) {
+      return null;
+    }
+
+    final exactAlbums = (await getAllAlbums())
+        .where(
+          (album) => _normalizeMetadataLookup(album.name) == normalizedAlbum,
+        )
+        .toList(growable: false);
+    if (exactAlbums.isEmpty) {
+      return null;
+    }
+
+    final id = artistId?.trim();
+    final normalizedArtist = _normalizeMetadataLookup(artistName ?? '');
+    if ((id != null && id.isNotEmpty) || normalizedArtist.isNotEmpty) {
+      final contextMatches = exactAlbums
+          .where((album) {
+            if (id != null && id.isNotEmpty) {
+              if (album.artistId == id) {
+                return true;
+              }
+              if (album.artists.any((artist) => artist.id == id)) {
+                return true;
+              }
+            }
+            if (normalizedArtist.isNotEmpty) {
+              if (_normalizeMetadataLookup(album.artistName ?? '') ==
+                  normalizedArtist) {
+                return true;
+              }
+              if (album.artists.any(
+                (artist) =>
+                    _normalizeMetadataLookup(artist.name) == normalizedArtist,
+              )) {
+                return true;
+              }
+            }
+            return false;
+          })
+          .toList(growable: false);
+      if (contextMatches.isNotEmpty) {
+        return contextMatches.length == 1 ? contextMatches.single : null;
+      }
+    }
+
+    return exactAlbums.length == 1 ? exactAlbums.single : null;
+  }
+
   Future<List<AlbumsTableData>> getLikedAlbums() {
     return customSelect(
       '''
@@ -773,6 +877,65 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       ..where((t) => t.starred.isNotNull())
       ..orderBy([(t) => OrderingTerm.desc(t.starred)]);
     return query.get();
+  }
+
+  Future<SongsTableData?> findOneExactNormalizedSongByTitle(
+    String title, {
+    String? artistId,
+    String? artistName,
+    String? albumId,
+    String? albumName,
+  }) async {
+    final normalizedTitle = _normalizeMetadataLookup(title);
+    if (normalizedTitle.isEmpty) {
+      return null;
+    }
+
+    final exactSongs = (await getAllSongs())
+        .where(
+          (song) => _normalizeMetadataLookup(song.title) == normalizedTitle,
+        )
+        .toList(growable: false);
+    if (exactSongs.isEmpty) {
+      return null;
+    }
+
+    final normalizedAlbum = _normalizeMetadataLookup(albumName ?? '');
+    final normalizedArtist = _normalizeMetadataLookup(artistName ?? '');
+    final trimmedAlbumId = albumId?.trim();
+    final trimmedArtistId = artistId?.trim();
+    final filters = <bool Function(SongsTableData)>[
+      if (trimmedAlbumId != null && trimmedAlbumId.isNotEmpty)
+        (song) => song.albumId == trimmedAlbumId,
+      if (normalizedAlbum.isNotEmpty &&
+          trimmedArtistId != null &&
+          trimmedArtistId.isNotEmpty)
+        (song) =>
+            _normalizeMetadataLookup(song.albumName ?? '') == normalizedAlbum &&
+            song.artistId == trimmedArtistId,
+      if (normalizedAlbum.isNotEmpty && normalizedArtist.isNotEmpty)
+        (song) =>
+            _normalizeMetadataLookup(song.albumName ?? '') == normalizedAlbum &&
+            _normalizeMetadataLookup(song.artistName ?? '') == normalizedArtist,
+      if (normalizedAlbum.isNotEmpty)
+        (song) =>
+            _normalizeMetadataLookup(song.albumName ?? '') == normalizedAlbum,
+      if (trimmedArtistId != null && trimmedArtistId.isNotEmpty)
+        (song) => song.artistId == trimmedArtistId,
+      if (normalizedArtist.isNotEmpty)
+        (song) =>
+            _normalizeMetadataLookup(song.artistName ?? '') == normalizedArtist,
+    ];
+
+    for (final filter in filters) {
+      final matches = exactSongs.where(filter).toList(growable: false);
+      if (matches.isEmpty) {
+        continue;
+      }
+      return matches.length == 1 ? matches.single : null;
+    }
+
+    return exactSongs.length == 1 ? exactSongs.single : null;
   }
 
   /// Return a map of albumId → set of songIds for the given album IDs.
@@ -1133,5 +1296,16 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       case AlbumSortOrder.artist:
         return 'artist_name ASC, name ASC, id ASC';
     }
+  }
+
+  String _normalizeMetadataLookup(String value) {
+    final lower = value.toLowerCase().trim();
+    final withoutParen = lower.replaceAll(RegExp(r'\([^)]*\)'), ' ');
+    final withoutFeat = withoutParen.replaceAll(
+      RegExp(r'\b(feat\.?|ft\.?)\b.*$'),
+      ' ',
+    );
+    final withoutPunct = withoutFeat.replaceAll(RegExp(r'[^a-z0-9\s]'), ' ');
+    return withoutPunct.replaceAll(RegExp(r'\s+'), ' ').trim();
   }
 }

@@ -37,6 +37,7 @@ GroupListeningClientConfiguration? buildGroupListeningClientConfiguration({
   required String? voyageServerUrl,
   required ServerConfigModel? activeServer,
   bool autoFollowHost = true,
+  String? deviceLabel,
 }) {
   if (resolveGroupListeningAvailability(
         enabled: enabled,
@@ -56,22 +57,43 @@ GroupListeningClientConfiguration? buildGroupListeningClientConfiguration({
     sourceServerOrigin: sourceServerOrigin,
     sourceServerFingerprint: computeSourceServerFingerprint(server.url),
     displayName: server.username.trim(),
-    deviceLabel: defaultGroupListeningDeviceLabel(),
+    deviceLabel: defaultGroupListeningDeviceLabel(
+      resolvedDeviceName: deviceLabel,
+    ),
     autoFollowHost: autoFollowHost,
     allowInsecureTransport: voyageBaseUrl.scheme == 'http',
   );
 }
 
-String defaultGroupListeningDeviceLabel() {
+String defaultGroupListeningDeviceLabel({String? resolvedDeviceName}) {
+  String? hostname;
   try {
-    final hostname = _normalizeOptionalText(Platform.localHostname);
-    if (hostname != null) {
-      return hostname;
-    }
+    hostname = Platform.localHostname;
   } on Object {
     // Some platforms may not expose a hostname. Fall back to a stable label.
   }
-  return '${defaultTargetPlatform.name} device';
+  return resolveGroupListeningDeviceLabel(
+    deviceName: resolvedDeviceName,
+    hostname: hostname,
+  );
+}
+
+String resolveGroupListeningDeviceLabel({
+  String? deviceName,
+  String? hostname,
+  TargetPlatform? fallbackPlatform,
+}) {
+  final resolvedDeviceName = _normalizeDeviceLabelCandidate(deviceName);
+  if (resolvedDeviceName != null) {
+    return resolvedDeviceName;
+  }
+
+  final resolvedHostname = _normalizeDeviceLabelCandidate(hostname);
+  if (resolvedHostname != null) {
+    return resolvedHostname;
+  }
+
+  return '${(fallbackPlatform ?? defaultTargetPlatform).name} device';
 }
 
 Uri? normalizeVoyageBaseUri(String? rawUrl) {
@@ -157,9 +179,21 @@ String? _normalizeOptionalText(String? value) {
   return trimmed;
 }
 
+String? _normalizeDeviceLabelCandidate(String? value) {
+  final normalized = _normalizeOptionalText(value)?.replaceAll(
+    RegExp(r'\s+'),
+    ' ',
+  );
+  if (normalized == null || _isLoopbackHost(normalized)) {
+    return null;
+  }
+  return normalized;
+}
+
 bool _isLoopbackHost(String host) {
   final normalized = host.toLowerCase();
   return normalized == 'localhost' ||
+      normalized == 'localhost.localdomain' ||
       normalized == '127.0.0.1' ||
       normalized == '::1';
 }

@@ -718,22 +718,38 @@ class _NowPlayingSettingsPanel extends ConsumerWidget {
             title: Text(l10n.nowPlayingLyrics),
             onTap: onOpenFullscreenLyrics,
           ),
-        if (song?.albumId != null && song!.albumId!.isNotEmpty)
+        if (song != null &&
+            ((song!.albumId ?? '').trim().isNotEmpty ||
+                (song!.albumName ?? '').trim().isNotEmpty))
           ListTile(
             leading: const Icon(Icons.album_outlined),
             title: Text(l10n.nowPlayingGoToAlbum),
             onTap: () {
               onCollapse?.call();
-              NavService.goToAlbum(context, ref, song!.albumId!);
+              unawaited(
+                NormalPlaybackMetadataNavigator.goToAlbum(
+                  context,
+                  ref,
+                  song: song,
+                ),
+              );
             },
           ),
-        if (song?.artistId != null && song!.artistId!.isNotEmpty)
+        if (song != null &&
+            ((song!.artistId ?? '').trim().isNotEmpty ||
+                (song!.artistName ?? '').trim().isNotEmpty))
           ListTile(
             leading: const Icon(Icons.person_outline),
             title: Text(l10n.nowPlayingGoToArtist),
             onTap: () {
               onCollapse?.call();
-              NavService.goToArtist(context, ref, song!.artistId!);
+              unawaited(
+                NormalPlaybackMetadataNavigator.goToArtist(
+                  context,
+                  ref,
+                  song: song,
+                ),
+              );
             },
           ),
         if (song != null)

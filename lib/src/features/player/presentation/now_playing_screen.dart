@@ -12,6 +12,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/features/player/presentation/desktop_volume_slider.dart';
+import 'package:navis/src/features/player/presentation/normal_playback_metadata_navigation.dart';
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
 import 'package:navis/src/features/player/presentation/queue_sheet.dart';
 import 'package:navis/src/features/player/presentation/same_vibes_notifier.dart';
@@ -815,22 +816,38 @@ void _showNowPlayingSettingsSheet(
                       );
                     },
                   ),
-                if (song?.albumId != null && song!.albumId!.isNotEmpty)
+                if (song != null &&
+                    ((song.albumId ?? '').trim().isNotEmpty ||
+                        (song.albumName ?? '').trim().isNotEmpty))
                   ListTile(
                     leading: const Icon(Icons.album_outlined),
                     title: Text(l10n.nowPlayingGoToAlbum),
                     onTap: () {
                       Navigator.of(sheetContext).pop();
-                      NavService.goToAlbum(context, ref, song.albumId!);
+                      unawaited(
+                        NormalPlaybackMetadataNavigator.goToAlbum(
+                          context,
+                          ref,
+                          song: song,
+                        ),
+                      );
                     },
                   ),
-                if (song?.artistId != null && song!.artistId!.isNotEmpty)
+                if (song != null &&
+                    ((song.artistId ?? '').trim().isNotEmpty ||
+                        (song.artistName ?? '').trim().isNotEmpty))
                   ListTile(
                     leading: const Icon(Icons.person_outline),
                     title: Text(l10n.nowPlayingGoToArtist),
                     onTap: () {
                       Navigator.of(sheetContext).pop();
-                      NavService.goToArtist(context, ref, song.artistId!);
+                      unawaited(
+                        NormalPlaybackMetadataNavigator.goToArtist(
+                          context,
+                          ref,
+                          song: song,
+                        ),
+                      );
                     },
                   ),
                 if (song != null)
@@ -1816,6 +1833,51 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
         : (song?.albumName ??
               currentMediaItem?.album ??
               l10n.nowPlayingUnknownAlbum);
+    final normalTitle = song?.title ?? currentMediaItem?.title;
+    final normalArtistName = song?.artistName ?? currentMediaItem?.artist;
+    final normalAlbumName = song?.albumName ?? currentMediaItem?.album;
+    final normalTitleTap = !isRadio && (normalTitle ?? '').trim().isNotEmpty
+        ? () => unawaited(
+            NormalPlaybackMetadataNavigator.goToTitle(
+              context,
+              ref,
+              song: song,
+              title: normalTitle,
+              artistId: resolvedArtistId,
+              artistName: normalArtistName,
+              albumName: normalAlbumName,
+            ),
+          )
+        : null;
+    final normalArtistTap =
+        !isRadio &&
+            (resolvedArtistId != null ||
+                (normalArtistName ?? '').trim().isNotEmpty)
+        ? () => unawaited(
+            NormalPlaybackMetadataNavigator.goToArtist(
+              context,
+              ref,
+              song: song,
+              artistId: resolvedArtistId,
+              artistName: normalArtistName,
+            ),
+          )
+        : null;
+    final normalAlbumTap =
+        !isRadio &&
+            ((song?.albumId ?? '').trim().isNotEmpty ||
+                (normalAlbumName ?? '').trim().isNotEmpty)
+        ? () => unawaited(
+            NormalPlaybackMetadataNavigator.goToAlbum(
+              context,
+              ref,
+              song: song,
+              albumName: normalAlbumName,
+              artistId: resolvedArtistId,
+              artistName: normalArtistName,
+            ),
+          )
+        : null;
     final coverArtId = song?.coverArt;
     final mediaArtUrl = currentMediaItem?.artUri?.toString();
     final hasCoverArtId = coverArtId != null && coverArtId.trim().isNotEmpty;
@@ -2033,7 +2095,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                                     );
                                   }
                                 : null)
-                          : null,
+                          : normalTitleTap,
                       artistLinks: isRadio
                           ? (radioMeta?.nowPlayingArtist != null &&
                                     radioMeta!.nowPlayingArtist!.isNotEmpty
@@ -2060,31 +2122,8 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                                       .toList()
                                 : null)
                           : null,
-                      onArtistTap: isRadio
-                          ? null
-                          : (resolvedArtistId != null
-                                ? () => NavService.goToArtist(
-                                    context,
-                                    ref,
-                                    resolvedArtistId,
-                                  )
-                                : (song?.artistName != null &&
-                                          song!.artistName!.isNotEmpty
-                                      ? () => NavService.goToSearch(
-                                          context,
-                                          ref,
-                                          song.artistName!,
-                                        )
-                                      : null)),
-                      onAlbumTap: isRadio
-                          ? null
-                          : (song?.albumId != null && song!.albumId!.isNotEmpty
-                                ? () => NavService.goToAlbum(
-                                    context,
-                                    ref,
-                                    song.albumId!,
-                                  )
-                                : null),
+                      onArtistTap: isRadio ? null : normalArtistTap,
+                      onAlbumTap: isRadio ? null : normalAlbumTap,
                     ),
                   ),
                   if (!isRadio) ...<Widget>[
@@ -2487,7 +2526,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                             );
                           }
                         : null)
-                  : null,
+                  : normalTitleTap,
               artistLinks: isRadio
                   ? (radioMeta?.nowPlayingArtist != null &&
                             radioMeta!.nowPlayingArtist!.isNotEmpty
@@ -2506,28 +2545,8 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                               .toList()
                         : null)
                   : null,
-              onArtistTap: isRadio
-                  ? null
-                  : (resolvedArtistId != null
-                        ? () => NavService.goToArtist(
-                            context,
-                            ref,
-                            resolvedArtistId,
-                          )
-                        : (song?.artistName != null &&
-                                  song!.artistName!.isNotEmpty
-                              ? () => NavService.goToSearch(
-                                  context,
-                                  ref,
-                                  song.artistName!,
-                                )
-                              : null)),
-              onAlbumTap: isRadio
-                  ? null
-                  : (song?.albumId != null && song!.albumId!.isNotEmpty
-                        ? () =>
-                              NavService.goToAlbum(context, ref, song.albumId!)
-                        : null),
+              onArtistTap: isRadio ? null : normalArtistTap,
+              onAlbumTap: isRadio ? null : normalAlbumTap,
             ),
           ),
           if (!isRadio) ...[
@@ -2832,7 +2851,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                               );
                             }
                           : null)
-                    : null,
+                    : normalTitleTap,
                 artistLinks: isRadio
                     ? (radioMeta?.nowPlayingArtist != null &&
                               radioMeta!.nowPlayingArtist!.isNotEmpty
@@ -2851,31 +2870,8 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                                 .toList()
                           : null)
                     : null,
-                onArtistTap: isRadio
-                    ? null
-                    : (resolvedArtistId != null
-                          ? () => NavService.goToArtist(
-                              context,
-                              ref,
-                              resolvedArtistId,
-                            )
-                          : (song?.artistName != null &&
-                                    song!.artistName!.isNotEmpty
-                                ? () => NavService.goToSearch(
-                                    context,
-                                    ref,
-                                    song.artistName!,
-                                  )
-                                : null)),
-                onAlbumTap: isRadio
-                    ? null
-                    : (song?.albumId != null && song!.albumId!.isNotEmpty
-                          ? () => NavService.goToAlbum(
-                              context,
-                              ref,
-                              song.albumId!,
-                            )
-                          : null),
+                onArtistTap: isRadio ? null : normalArtistTap,
+                onAlbumTap: isRadio ? null : normalAlbumTap,
               ),
             ),
             if (!isRadio) ...<Widget>[

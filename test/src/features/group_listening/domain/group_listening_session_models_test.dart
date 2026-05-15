@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/group_listening/data/group_listening_configuration.dart';
@@ -28,11 +29,12 @@ void main() {
         enabled: true,
         voyageServerUrl: 'https://voyage.example.com/',
         activeServer: activeServer,
+        deviceLabel: 'Pixel Tablet',
       );
 
       expect(configuration, isNotNull);
       expect(configuration!.displayName, 'alice');
-      expect(configuration.deviceLabel, isNotEmpty);
+      expect(configuration.deviceLabel, 'Pixel Tablet');
       expect(configuration.autoFollowHost, isTrue);
       expect(
         configuration.voyageBaseUrl.toString(),
@@ -41,6 +43,33 @@ void main() {
       expect(
         configuration.sourceServerOrigin,
         'https://sub.example.com/navidrome',
+      );
+    });
+
+    test('prefers native device name over hostname', () {
+      expect(
+        resolveGroupListeningDeviceLabel(
+          deviceName: 'Pixel Tablet',
+          hostname: 'desktop-host',
+        ),
+        'Pixel Tablet',
+      );
+    });
+
+    test('rejects loopback hostnames before using platform fallback', () {
+      expect(
+        resolveGroupListeningDeviceLabel(
+          hostname: 'localhost',
+          fallbackPlatform: TargetPlatform.android,
+        ),
+        'android device',
+      );
+      expect(
+        resolveGroupListeningDeviceLabel(
+          hostname: 'localhost.localdomain',
+          fallbackPlatform: TargetPlatform.android,
+        ),
+        'android device',
       );
     });
   });

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/group_listening/data/group_listening_configuration.dart';
+import 'package:navis/src/features/group_listening/data/group_listening_device_name_service.dart';
 import 'package:navis/src/features/group_listening/data/group_listening_repository.dart';
 import 'package:navis/src/features/group_listening/domain/group_listening_session_models.dart';
 import 'package:navis/src/features/group_listening/presentation/group_listening_settings_provider.dart';
@@ -30,6 +31,10 @@ final groupListeningAvailabilityProvider = Provider<GroupListeningAvailability>(
 final groupListeningClientConfigurationProvider =
     Provider<GroupListeningClientConfiguration?>((ref) {
       final settings = ref.watch(groupListeningSettingsProvider);
+      final deviceLabel = ref
+          .watch(groupListeningDeviceLabelProvider)
+          .asData
+          ?.value;
       final resolvedVoyageServerUrl = ref.watch(
         groupListeningResolvedVoyageServerUrlProvider,
       );
@@ -39,8 +44,13 @@ final groupListeningClientConfigurationProvider =
         voyageServerUrl: resolvedVoyageServerUrl,
         activeServer: activeServer,
         autoFollowHost: settings.autoFollowHost,
+        deviceLabel: deviceLabel,
       );
     });
+
+final groupListeningDeviceLabelProvider = FutureProvider<String>((ref) {
+  return const GroupListeningDeviceNameService().resolveDeviceLabel();
+});
 
 final groupListeningSessionCredentialStoreProvider =
     Provider<GroupListeningSessionCredentialStore>((_) {
@@ -318,7 +328,13 @@ final groupListeningClientDescriptorProvider =
       final configuration = ref.watch(
         groupListeningClientConfigurationProvider,
       );
+      final resolvedDeviceLabel = ref
+          .watch(groupListeningDeviceLabelProvider)
+          .asData
+          ?.value;
       final packageInfo = ref.watch(packageInfoProvider).asData?.value;
+      final fallbackDeviceLabel =
+          resolvedDeviceLabel ?? defaultGroupListeningDeviceLabel();
       final fingerprint = configuration?.sourceServerFingerprint ?? 'local';
       final fingerprintPrefix = fingerprint.length <= 12
           ? fingerprint
@@ -328,15 +344,14 @@ final groupListeningClientDescriptorProvider =
         defaultTargetPlatform.name,
         configuration?.deviceLabel ??
             configuration?.displayName ??
-            defaultGroupListeningDeviceLabel(),
+            fallbackDeviceLabel,
         fingerprintPrefix,
       ].join('-');
       return GroupListeningClientDescriptor(
         appVersion: packageInfo?.version ?? 'dev',
         platform: defaultTargetPlatform.name,
         deviceId: _normalizeGroupListeningDeviceId(rawDeviceId),
-        deviceLabel:
-            configuration?.deviceLabel ?? defaultGroupListeningDeviceLabel(),
+        deviceLabel: configuration?.deviceLabel ?? fallbackDeviceLabel,
         capabilities: const <String>{
           'playback_anchor',
           'queue_add',
