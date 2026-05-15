@@ -10,9 +10,8 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 class _FakeSubsonicApiClient extends SubsonicApiClient {
-  _FakeSubsonicApiClient()
+  _FakeSubsonicApiClient({super.baseUrl = 'https://example.com'})
     : super(
-        baseUrl: 'https://example.com',
         authConfig: const SubsonicAuthConfig(
           username: 'alice',
           password: 'secret',
@@ -124,6 +123,94 @@ void main() {
 
       expect(
         coordinator.interestCount(coverArtImageCacheKey('cover-1', 600)),
+        0,
+      );
+    });
+
+    testWidgets('near-viewport covers register visible interest', (
+      tester,
+    ) async {
+      final coordinator = CoverArtLoadCoordinator();
+      final manager = createCoverArtCacheManager(
+        loadCoordinator: coordinator,
+      );
+      addTearDown(() => _disposeCacheManager(manager));
+
+      await tester.pumpWidget(
+        _buildWidget(
+          overrides: <Object>[
+            subsonicApiProvider.overrideWithValue(_FakeSubsonicApiClient()),
+            coverArtLoadCoordinatorProvider.overrideWithValue(coordinator),
+            coverArtCacheManagerProvider.overrideWithValue(manager),
+          ],
+          child: SizedBox(
+            height: 100,
+            width: 100,
+            child: ListView(
+              cacheExtent: 400,
+              children: const <Widget>[
+                SizedBox(height: 150),
+                CoverArtImage(
+                  coverArtId: 'cover-near',
+                  size: kCoverArtStandardSize,
+                  width: 64,
+                  height: 64,
+                ),
+                SizedBox(height: 800),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        coordinator.interestCount(coverArtImageCacheKey('cover-near', 600)),
+        1,
+      );
+    });
+
+    testWidgets('far-offscreen covers do not register visible interest', (
+      tester,
+    ) async {
+      final coordinator = CoverArtLoadCoordinator();
+      final manager = createCoverArtCacheManager(
+        loadCoordinator: coordinator,
+      );
+      addTearDown(() => _disposeCacheManager(manager));
+
+      await tester.pumpWidget(
+        _buildWidget(
+          overrides: <Object>[
+            subsonicApiProvider.overrideWithValue(_FakeSubsonicApiClient()),
+            coverArtLoadCoordinatorProvider.overrideWithValue(coordinator),
+            coverArtCacheManagerProvider.overrideWithValue(manager),
+          ],
+          child: SizedBox(
+            height: 100,
+            width: 100,
+            child: ListView(
+              cacheExtent: 500,
+              children: const <Widget>[
+                SizedBox(height: 350),
+                CoverArtImage(
+                  coverArtId: 'cover-far',
+                  size: kCoverArtStandardSize,
+                  width: 64,
+                  height: 64,
+                ),
+                SizedBox(height: 800),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        coordinator.interestCount(coverArtImageCacheKey('cover-far', 600)),
         0,
       );
     });

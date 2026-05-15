@@ -36,6 +36,7 @@ class CoverArtImage extends ConsumerStatefulWidget {
     this.showErrorPlaceholder = true,
     this.lockedSize,
     this.loadPriority = CoverArtLoadPriority.visible,
+    this.preloadScreens = 1.0,
   });
 
   final String? coverArtId;
@@ -62,6 +63,13 @@ class CoverArtImage extends ConsumerStatefulWidget {
   /// wait for viewport visibility.
   final CoverArtLoadPriority loadPriority;
 
+  /// Number of viewport extents around the visible scroll area that should
+  /// count as interested for normal visible-priority loading.
+  ///
+  /// This lets list/grid art warm before it reaches the screen without keeping
+  /// far-offscreen requests alive.
+  final double preloadScreens;
+
   @override
   ConsumerState<CoverArtImage> createState() => _CoverArtImageState();
 }
@@ -75,10 +83,31 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
   CoverArtLoadInterest? _interest;
   String? _interestKey;
   CoverArtLoadPriority? _interestPriority;
+  ScrollPosition? _scrollPosition;
+  String? _renderedNetworkCacheKey;
   var _isVisible = false;
+  var _isInLoadWindow = false;
+  var _loadWindowCheckScheduled = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncScrollPosition();
+    _scheduleLoadWindowCheck();
+  }
+
+  @override
+  void didUpdateWidget(covariant CoverArtImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.loadPriority != widget.loadPriority ||
+        oldWidget.preloadScreens != widget.preloadScreens) {
+      _scheduleLoadWindowCheck();
+    }
+  }
 
   @override
   void dispose() {
+    _scrollPosition?.removeListener(_handleScrollPositionChanged);
     _clearInterest();
     super.dispose();
   }
@@ -141,14 +170,16 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
   }) {
     final id = widget.coverArtId!.trim();
     final cacheKey = coverArtImageCacheKey(id, resolvedSize);
+    _scheduleLoadWindowCheck();
     _startCacheProbe(cacheManager, cacheKey);
     _syncInterest(coordinator, cacheKey, _activePriority);
 
-    final networkAllowed =
+    final wantsNetwork =
         widget.loadPriority == CoverArtLoadPriority.critical ||
         widget.loadPriority == CoverArtLoadPriority.background ||
-        _isVisible;
+        _wantsVisibleLoad;
     final cachedFile = _cachedFileInfo?.file;
+    final networkAllowed = wantsNetwork || _renderedNetworkCacheKey == cacheKey;
     final child = networkAllowed
         ? _buildNetworkImageChild(context, resolvedSize, api, cacheManager)
         : cachedFile != null
@@ -167,9 +198,11 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
       case CoverArtLoadPriority.background:
         return CoverArtLoadPriority.background;
       case CoverArtLoadPriority.visible:
-        return _isVisible ? CoverArtLoadPriority.visible : null;
+        return _wantsVisibleLoad ? CoverArtLoadPriority.visible : null;
     }
   }
+
+  bool get _wantsVisibleLoad => _isVisible || _isInLoadWindow;
 
   void _startCacheProbe(CacheManager cacheManager, String cacheKey) {
     if (_cacheProbeKey == cacheKey &&
@@ -253,17 +286,85 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
     );
   }
 
+  void _syncScrollPosition() {
+    final nextPosition = Scrollable.maybeOf(context)?.position;
+    if (identical(nextPosition, _scrollPosition)) {
+      return;
+    }
+    _scrollPosition?.removeListener(_handleScrollPositionChanged);
+    _scrollPosition = nextPosition;
+    _scrollPosition?.addListener(_handleScrollPositionChanged);
+  }
+
+  void _handleScrollPositionChanged() {
+    _scheduleLoadWindowCheck();
+  }
+
+  void _scheduleLoadWindowCheck() {
+    if (!mounted ||
+        widget.loadPriority != CoverArtLoadPriority.visible ||
+        _loadWindowCheckScheduled) {
+      return;
+    }
+    _loadWindowCheckScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadWindowCheckScheduled = false;
+      if (!mounted) {
+        return;
+      }
+      _syncScrollPosition();
+      final nextInLoadWindow = _computeIsInLoadWindow();
+      if (_isInLoadWindow == nextInLoadWindow) {
+        return;
+      }
+      setState(() {
+        _isInLoadWindow = nextInLoadWindow;
+      });
+    });
+  }
+
+  bool _computeIsInLoadWindow() {
+    final scrollable = Scrollable.maybeOf(context);
+    final viewportRenderObject = scrollable?.context.findRenderObject();
+    final renderObject = context.findRenderObject();
+    if (scrollable == null ||
+        viewportRenderObject is! RenderBox ||
+        renderObject is! RenderBox ||
+        !viewportRenderObject.hasSize ||
+        !renderObject.hasSize ||
+        !viewportRenderObject.attached ||
+        !renderObject.attached) {
+      return _isVisible;
+    }
+
+    final viewportOrigin = viewportRenderObject.localToGlobal(Offset.zero);
+    final childOrigin = renderObject.localToGlobal(Offset.zero);
+    final viewportRect = viewportOrigin & viewportRenderObject.size;
+    final childRect = childOrigin & renderObject.size;
+    final preloadScreens = widget.preloadScreens.isFinite
+        ? widget.preloadScreens.clamp(0.0, 10.0)
+        : 0.0;
+    final loadRect = Rect.fromLTRB(
+      viewportRect.left - viewportRect.width * preloadScreens,
+      viewportRect.top - viewportRect.height * preloadScreens,
+      viewportRect.right + viewportRect.width * preloadScreens,
+      viewportRect.bottom + viewportRect.height * preloadScreens,
+    );
+    return loadRect.overlaps(childRect);
+  }
+
   Widget _buildNetworkImageChild(
     BuildContext context,
     int? resolvedSize,
     SubsonicApiClient api,
     CacheManager cacheManager,
   ) {
+    final cacheKey = coverArtImageCacheKey(widget.coverArtId!, resolvedSize);
     final image = CachedNetworkImage(
       imageUrl: api
           .getCoverArtUrl(id: widget.coverArtId!.trim(), size: resolvedSize)
           .toString(),
-      cacheKey: coverArtImageCacheKey(widget.coverArtId!, resolvedSize),
+      cacheKey: cacheKey,
       fit: widget.fit,
       width: widget.width,
       height: widget.height,
@@ -272,6 +373,15 @@ class _CoverArtImageState extends ConsumerState<CoverArtImage> {
       fadeOutDuration: Duration.zero,
       memCacheWidth: _memCacheSize(widget.width, resolvedSize),
       memCacheHeight: _memCacheSize(widget.height, resolvedSize),
+      imageBuilder: (context, imageProvider) {
+        _renderedNetworkCacheKey = cacheKey;
+        return Image(
+          image: imageProvider,
+          fit: widget.fit,
+          width: widget.width,
+          height: widget.height,
+        );
+      },
       placeholder: (_, _) => widget.showLoadingPlaceholder
           ? _fallback(context)
           : _emptyPlaceholder(),
