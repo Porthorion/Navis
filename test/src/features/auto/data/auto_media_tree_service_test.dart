@@ -1,3 +1,4 @@
+import 'package:audio_service/audio_service.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -514,25 +515,42 @@ void main() {
       },
       skip: !sqliteAvailable,
     );
+
+    test(
+      'system recent root returns placeholder when empty',
+      () async {
+        final items = await service.getChildren(AudioService.recentRootId);
+        expect(items, hasLength(1));
+        expect(items.single.id, 'empty/${AudioService.recentRootId}');
+        expect(items.single.title, 'No recent plays');
+        expect(items.single.playable, isFalse);
+      },
+      skip: !sqliteAvailable,
+    );
   });
 
   // ── Unknown parent ID ────────────────────────────────────────────────────
 
   group('getChildren - edge cases', () {
     test(
-      'returns empty list for unknown entity parent',
+      'returns placeholder for unknown entity parent',
       () async {
         final items = await service.getChildren('unknown/parent');
-        expect(items, isEmpty);
+        expect(items, hasLength(1));
+        expect(items.single.id, 'empty/unknown/parent');
+        expect(items.single.title, 'No content');
+        expect(items.single.playable, isFalse);
       },
       skip: !sqliteAvailable,
     );
 
     test(
-      'returns empty list for entity that does not exist',
+      'returns placeholder for entity that does not exist',
       () async {
         final items = await service.getChildren('album/nonexistent');
-        expect(items, isEmpty);
+        expect(items, hasLength(1));
+        expect(items.single.id, 'empty/album/nonexistent');
+        expect(items.single.title, 'No songs');
       },
       skip: !sqliteAvailable,
     );
@@ -718,6 +736,69 @@ void main() {
                 item.extras?[AndroidAutoConstants.contentStyleGroupTitleKey],
           ),
           containsAllInOrder(['Artists', 'Albums', 'Playlists', 'Songs']),
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'voice artist focus returns only artist results',
+      () async {
+        await database.libraryDao.upsertArtists([
+          ArtistsTableCompanion.insert(id: 'artist-1', name: 'Aurora'),
+        ]);
+        await database.libraryDao.upsertAlbums([
+          AlbumsTableCompanion.insert(id: 'album-1', name: 'Aurora Live'),
+        ]);
+        await database.playlistDao.upsertPlaylists([
+          PlaylistsTableCompanion.insert(id: 'playlist-1', name: 'Aurora Mix'),
+        ]);
+        await database.libraryDao.upsertSongs([
+          SongsTableCompanion.insert(id: 'song-1', title: 'Aurora Song'),
+        ]);
+
+        final items = await service.search('Aurora', {
+          AndroidAutoConstants.mediaFocusKey:
+              AndroidAutoConstants.mediaFocusArtist,
+        });
+
+        expect(items, hasLength(1));
+        expect(items.single.id, 'artist/artist-1');
+        expect(
+          items.single.extras?[AndroidAutoConstants.contentStyleGroupTitleKey],
+          'Artists',
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'voice song focus returns playable song results',
+      () async {
+        await database.libraryDao.upsertArtists([
+          ArtistsTableCompanion.insert(id: 'artist-1', name: 'Aurora'),
+        ]);
+        await database.libraryDao.upsertAlbums([
+          AlbumsTableCompanion.insert(id: 'album-1', name: 'Aurora Live'),
+        ]);
+        await database.playlistDao.upsertPlaylists([
+          PlaylistsTableCompanion.insert(id: 'playlist-1', name: 'Aurora Mix'),
+        ]);
+        await database.libraryDao.upsertSongs([
+          SongsTableCompanion.insert(id: 'song-1', title: 'Aurora Song'),
+        ]);
+
+        final items = await service.search('Aurora', {
+          AndroidAutoConstants.mediaFocusKey:
+              AndroidAutoConstants.mediaFocusSong,
+        });
+
+        expect(items, hasLength(1));
+        expect(items.single.id, 'song/song-1');
+        expect(items.single.playable, isTrue);
+        expect(
+          items.single.extras?[AndroidAutoConstants.contentStyleGroupTitleKey],
+          'Songs',
         );
       },
       skip: !sqliteAvailable,

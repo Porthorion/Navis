@@ -35,7 +35,7 @@ const int _kBrowseArtSize = 256;
 ///
 /// This class is intentionally stateless with respect to playback — it only
 /// reads library data.  Playback actions (`playFromMediaId`, etc.) remain in
-/// [NavisAudioHandler].
+/// `NavisAudioHandler`.
 class AutoMediaTreeService {
   AutoMediaTreeService({
     required LibraryDao libraryDao,
@@ -93,7 +93,9 @@ class AutoMediaTreeService {
       // AudioService.recentRootId == 'recent' — the system-level RECENT_ROOT_ID
       // that AAOS uses for the home screen widget when no session is active.
       // AutoMediaRoot.recent == 'root/recent' is our own browseable node.
-      AutoMediaRoot.recent || AudioService.recentRootId => _getRecentlyPlayed(),
+      AutoMediaRoot.recent || AudioService.recentRootId => _getRecentlyPlayed(
+        parentMediaId,
+      ),
       AutoMediaRoot.likedSongs => _getLikedSongs(),
       AutoMediaRoot.likedAlbums => _getLikedAlbums(),
       _ => _getEntityChildren(parentMediaId),
@@ -239,7 +241,7 @@ class AutoMediaTreeService {
         : items;
   }
 
-  Future<List<MediaItem>> _getRecentlyPlayed() async {
+  Future<List<MediaItem>> _getRecentlyPlayed(String parentId) async {
     final songs = await _historyDao.watchRecentlyPlayedSongs(limit: 50).first;
     final downloadedSongIds = await _readDownloadedSongIdsSafe();
     final items = songs
@@ -248,53 +250,58 @@ class AutoMediaTreeService {
               _songToMediaItem(song, downloadedSongIds: downloadedSongIds),
         )
         .toList(growable: false);
-    return items.isEmpty
-        ? _emptyItems(AutoMediaRoot.recent, 'No recent plays')
-        : items;
+    return items.isEmpty ? _emptyItems(parentId, 'No recent plays') : items;
   }
 
   Future<List<MediaItem>> _getEntityChildren(String parentMediaId) async {
     final parsed = AutoMediaId.parse(parentMediaId);
-    if (parsed == null || parsed.entityId == null) return const [];
+    if (parsed == null || parsed.entityId == null) {
+      return _emptyItems(parentMediaId, 'No content');
+    }
 
     return switch (parsed.type) {
       AutoMediaIdType.artist => _getArtistAlbums(parsed.entityId!),
       AutoMediaIdType.album => _getAlbumSongs(parsed.entityId!),
       AutoMediaIdType.playlist => _getPlaylistSongs(parsed.entityId!),
-      _ => const <MediaItem>[],
+      _ => _emptyItems(parentMediaId, 'No content'),
     };
   }
 
   Future<List<MediaItem>> _getArtistAlbums(String artistId) async {
     final albums = await _libraryDao.watchAlbumsByArtist(artistId).first;
-    return albums
+    final items = albums
         .take(_kMaxBrowseItems)
         .map(_albumToMediaItem)
         .toList(
           growable: false,
         );
+    return items.isEmpty ? _emptyItems('artist/$artistId', 'No albums') : items;
   }
 
   Future<List<MediaItem>> _getAlbumSongs(String albumId) async {
     final songs = await _libraryDao.watchSongsByAlbum(albumId).first;
     final downloadedSongIds = await _readDownloadedSongIdsSafe();
-    return songs
+    final items = songs
         .map(
           (song) =>
               _songToMediaItem(song, downloadedSongIds: downloadedSongIds),
         )
         .toList(growable: false);
+    return items.isEmpty ? _emptyItems('album/$albumId', 'No songs') : items;
   }
 
   Future<List<MediaItem>> _getPlaylistSongs(String playlistId) async {
     final songs = await _playlistDao.watchPlaylistSongs(playlistId).first;
     final downloadedSongIds = await _readDownloadedSongIdsSafe();
-    return songs
+    final items = songs
         .map(
           (song) =>
               _songToMediaItem(song, downloadedSongIds: downloadedSongIds),
         )
         .toList(growable: false);
+    return items.isEmpty
+        ? _emptyItems('playlist/$playlistId', 'No songs')
+        : items;
   }
 
   // ── getMediaItem ──────────────────────────────────────────────────────────
@@ -372,7 +379,7 @@ class AutoMediaTreeService {
 
     try {
       return await _searchImpl(query, extras);
-    } catch (error, stackTrace) {
+    } on Object catch (error, stackTrace) {
       AppLogger.warning(
         'AutoMediaTreeService.search($query) failed: '
         '$error\n$stackTrace',
@@ -385,40 +392,52 @@ class AutoMediaTreeService {
     String query,
     Map<String, dynamic>? extras,
   ) async {
+    final focus = _SearchFocus.fromExtras(extras);
     final api = _readApiClient();
     if (api != null) {
-      return _searchViaApi(api, query, extras);
+      return _searchViaApi(api, query, focus);
     }
-    return _searchLocalDb(query);
+    return _searchLocalDb(query, focus);
   }
 
   Future<List<MediaItem>> _searchViaApi(
     SubsonicApiClient api,
     String query,
-    Map<String, dynamic>? extras,
+    _SearchFocus focus,
   ) async {
     try {
       final result = await api.search3(
         query: query,
-        artistCount: 5,
-        albumCount: 10,
-        songCount: 20,
+        artistCount: focus.includeArtists ? 5 : 0,
+        albumCount: focus.includeAlbums ? 10 : 0,
+        songCount: focus.includeSongs ? 20 : 0,
       );
       return _mapSearchResults(result.artists, result.albums, result.songs);
-    } catch (_) {
+    } on Object {
       // Fall back to local search on API failure.
-      return _searchLocalDb(query);
+      return _searchLocalDb(query, focus);
     }
   }
 
-  Future<List<MediaItem>> _searchLocalDb(String query) async {
-    final artists = await _libraryDao.searchArtistsLocal(query, limit: 5);
-    final albums = await _libraryDao.searchAlbumsLocal(query, limit: 10);
-    final playlists = (await _playlistDao.watchPlaylists().first)
-        .where((playlist) => _containsIgnoreCase(playlist.name, query))
-        .take(5)
-        .toList(growable: false);
-    final songs = await _libraryDao.searchSongsLocal(query, limit: 20);
+  Future<List<MediaItem>> _searchLocalDb(
+    String query,
+    _SearchFocus focus,
+  ) async {
+    final artists = focus.includeArtists
+        ? await _libraryDao.searchArtistsLocal(query, limit: 5)
+        : const <ArtistsTableData>[];
+    final albums = focus.includeAlbums
+        ? await _libraryDao.searchAlbumsLocal(query, limit: 10)
+        : const <AlbumsTableData>[];
+    final playlists = focus.includePlaylists
+        ? (await _playlistDao.watchPlaylists().first)
+              .where((playlist) => _containsIgnoreCase(playlist.name, query))
+              .take(5)
+              .toList(growable: false)
+        : const <PlaylistsTableData>[];
+    final songs = focus.includeSongs
+        ? await _libraryDao.searchSongsLocal(query, limit: 20)
+        : const <SongsTableData>[];
     final downloadedSongIds = await _readDownloadedSongIdsSafe();
     return _mapLocalSearchResults(
       artists,
@@ -682,4 +701,47 @@ class AutoMediaTreeService {
   bool _containsIgnoreCase(String value, String query) {
     return value.toLowerCase().contains(query.toLowerCase());
   }
+}
+
+class _SearchFocus {
+  const _SearchFocus({
+    this.includeArtists = true,
+    this.includeAlbums = true,
+    this.includePlaylists = true,
+    this.includeSongs = true,
+  });
+
+  factory _SearchFocus.fromExtras(Map<String, dynamic>? extras) {
+    final focus = extras?[AndroidAutoConstants.mediaFocusKey];
+    return switch (focus) {
+      AndroidAutoConstants.mediaFocusArtist => const _SearchFocus(
+        includeAlbums: false,
+        includePlaylists: false,
+        includeSongs: false,
+      ),
+      AndroidAutoConstants.mediaFocusAlbum => const _SearchFocus(
+        includeArtists: false,
+        includePlaylists: false,
+        includeSongs: false,
+      ),
+      AndroidAutoConstants.mediaFocusPlaylist => const _SearchFocus(
+        includeArtists: false,
+        includeAlbums: false,
+        includeSongs: false,
+      ),
+      AndroidAutoConstants.mediaFocusSong => const _SearchFocus(
+        includeArtists: false,
+        includeAlbums: false,
+        includePlaylists: false,
+      ),
+      _ => all,
+    };
+  }
+
+  final bool includeArtists;
+  final bool includeAlbums;
+  final bool includePlaylists;
+  final bool includeSongs;
+
+  static const all = _SearchFocus();
 }

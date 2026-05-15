@@ -23,7 +23,13 @@ separate target and should not be validated from this DHU checklist.
 3. Scroll to **Version** at the bottom
 4. Tap the version number **10 times** to unlock Developer Settings
 5. Tap the three-dot menu (⋮) → **Developer settings**
-6. Enable **Unknown sources** (allows connecting to DHU without Google's review)
+6. Enable **Unknown sources**. This is required for sideloaded APKs to appear
+   in Android Auto's media app list. A real vehicle or DHU session can still
+   hide a sideloaded app when this setting is off, even if the manifest is
+   correct.
+
+> For release validation, Google Play internal testing avoids the sideload
+> visibility gate because Android Auto treats the install as trusted.
 
 ### 2. Start the Head Unit Server
 
@@ -70,6 +76,9 @@ adb forward tcp:5277 tcp:5277
 # Or build APK directly
 flutter build apk --debug
 adb install build/app/outputs/flutter-apk/app-debug.apk
+
+# Verify the Android Auto manifest and packaged automotive descriptor
+./tool/verify_android_auto_manifest.sh
 ```
 
 ## DHU Commands
@@ -217,26 +226,32 @@ Once the DHU is running, use these commands in the DHU terminal:
 ### DHU doesn't show Navis
 
 1. Verify the app is installed: `adb shell pm list packages | grep navis`
-2. Check that the `automotive_app_desc.xml` resource is in the APK:
+2. Confirm Android Auto Developer settings → **Unknown sources** is enabled
+   for sideloaded APKs. Code cannot bypass this trusted-source gate.
+3. Run the local manifest verifier:
+   ```bash
+   ./tool/verify_android_auto_manifest.sh
+   ```
+4. Check that the `automotive_app_desc.xml` resource is in the APK:
    ```bash
    aapt dump xmltree build/app/outputs/flutter-apk/app-debug.apk res/xml/automotive_app_desc.xml
    ```
-3. Verify the AndroidManifest `com.google.android.gms.car.application` metadata is at the
+5. Verify the AndroidManifest `com.google.android.gms.car.application` metadata is at the
    **`<application>` level** — NOT inside the `<service>` block. Android Auto reads it from
    the application element to populate the launcher list; placing it inside a service causes
    silent failure (app never appears in the media list).
-4. Verify Android Auto projection metadata is present on the phone app:
+6. Verify Android Auto projection metadata is present on the phone app:
    `com.google.android.gms.car.application`,
    `androidx.car.app.TintableAttributionIcon`, and
    `com.google.android.gms.car.application.theme`.
-5. **Do NOT add `android:permission="android.permission.BIND_MEDIA_BROWSER_SERVICE"` to the
+7. **Do NOT add `android:permission="android.permission.BIND_MEDIA_BROWSER_SERVICE"` to the
    AudioService** declaration.  That permission has `protectionLevel="signature|privileged"`.
    On devices where Android Auto is installed from the Play Store (not a privileged system
    app), it does not hold that permission and gets `Permission Denial` when binding — which
    prevents Auto from connecting at all.  Caller validation is handled by
    `MediaBrowserServiceCompat.onGetRoot()` returning `null` for unauthorised callers.
-6. Try restarting the head unit server on the phone
-7. Try `adb forward tcp:5277 tcp:5277` again and restart the DHU (Android Auto uses
+8. Try restarting the head unit server on the phone
+9. Try `adb forward tcp:5277 tcp:5277` again and restart the DHU (Android Auto uses
    exponential back-off after repeated connection failures; a fresh DHU session forces
    re-enumeration)
 

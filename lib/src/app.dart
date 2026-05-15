@@ -31,15 +31,13 @@ class _NavisAppState extends ConsumerState<NavisApp> {
       _DesktopActivationShortcutManager();
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
+  void initState() {
+    super.initState();
     if (!widget.requirePlaybackBootstrap || _didScheduleBootstrap) {
       return;
     }
     _didScheduleBootstrap = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(audioBootstrapControllerProvider.notifier).ensureInitialized();
-    });
+    ref.read(audioBootstrapControllerProvider.notifier).ensureInitialized();
   }
 
   @override
