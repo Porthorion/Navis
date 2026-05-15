@@ -37,7 +37,12 @@ class _NavisAppState extends ConsumerState<NavisApp> {
       return;
     }
     _didScheduleBootstrap = true;
-    ref.read(audioBootstrapControllerProvider.notifier).ensureInitialized();
+    unawaited(
+      Future<void>.microtask(() {
+        if (!mounted) return;
+        ref.read(audioBootstrapControllerProvider.notifier).ensureInitialized();
+      }),
+    );
   }
 
   @override
