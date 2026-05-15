@@ -158,7 +158,11 @@ class QueueScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(parentContext)!;
     api.createPlaylist(name, songIds: queueIds).then((_) {
       if (parentContext.mounted) {
-        showAppNotice(parentContext, message: l10n.queueSaveAsPlaylistSaved, level: AppNoticeLevel.success);
+        showAppNotice(
+          parentContext,
+          message: l10n.queueSaveAsPlaylistSaved,
+          level: AppNoticeLevel.success,
+        );
       }
     });
   }

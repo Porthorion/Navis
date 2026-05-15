@@ -41,7 +41,11 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
       setState(() => _userTriggeredCheck = false);
       final info = next.asData?.value;
       if (!next.hasError && info == null) {
-        showAppNotice(context, message: l10n.updateUpToDate, level: AppNoticeLevel.info);
+        showAppNotice(
+          context,
+          message: l10n.updateUpToDate,
+          level: AppNoticeLevel.info,
+        );
       } else if (info != null && info.downloadUrl != null) {
         showUpdateDialog(context, info);
       }

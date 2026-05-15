@@ -131,12 +131,20 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
           .createPlaylist(name)
           .then((_) {
             if (!mounted) return;
-            showAppNotice(context, message: l10n.playlistsCreateSuccess, level: AppNoticeLevel.success);
+            showAppNotice(
+              context,
+              message: l10n.playlistsCreateSuccess,
+              level: AppNoticeLevel.success,
+            );
             ref.invalidate(playlistSyncProvider);
           })
           .catchError((_) {
             if (!mounted) return;
-            showAppNotice(context, message: l10n.playlistsCreateFailed, level: AppNoticeLevel.error);
+            showAppNotice(
+              context,
+              message: l10n.playlistsCreateFailed,
+              level: AppNoticeLevel.error,
+            );
           }),
     );
   }
@@ -236,12 +244,20 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
           .updatePlaylist(id: playlistId, name: newName)
           .then((_) {
             if (!mounted) return;
-            showAppNotice(context, message: l10n.playlistsRenameSuccess, level: AppNoticeLevel.success);
+            showAppNotice(
+              context,
+              message: l10n.playlistsRenameSuccess,
+              level: AppNoticeLevel.success,
+            );
             ref.invalidate(playlistSyncProvider);
           })
           .catchError((_) {
             if (!mounted) return;
-            showAppNotice(context, message: l10n.playlistsRenameFailed, level: AppNoticeLevel.error);
+            showAppNotice(
+              context,
+              message: l10n.playlistsRenameFailed,
+              level: AppNoticeLevel.error,
+            );
           }),
     );
   }
@@ -286,12 +302,20 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
           .deletePlaylist(playlistId)
           .then((_) {
             if (!mounted) return;
-            showAppNotice(context, message: l10n.playlistsDeleteSuccess, level: AppNoticeLevel.success);
+            showAppNotice(
+              context,
+              message: l10n.playlistsDeleteSuccess,
+              level: AppNoticeLevel.success,
+            );
             ref.invalidate(playlistSyncProvider);
           })
           .catchError((_) {
             if (!mounted) return;
-            showAppNotice(context, message: l10n.playlistsDeleteFailed, level: AppNoticeLevel.error);
+            showAppNotice(
+              context,
+              message: l10n.playlistsDeleteFailed,
+              level: AppNoticeLevel.error,
+            );
           }),
     );
   }

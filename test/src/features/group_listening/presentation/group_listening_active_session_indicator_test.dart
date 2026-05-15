@@ -79,6 +79,18 @@ void main() {
       expect(find.byIcon(Icons.people_alt), findsOneWidget);
     });
 
+    testWidgets('shows the active connected-user count as a badge', (
+      tester,
+    ) async {
+      await pumpSessionButton(tester, _sessionState());
+
+      expect(
+        find.byKey(const ValueKey('groupListeningSessionBadgeLabel')),
+        findsOneWidget,
+      );
+      expect(find.text('2'), findsOneWidget);
+    });
+
     testWidgets('reports connected users in the tooltip', (tester) async {
       final state = _sessionState().copyWith(
         room: _sessionState().room?.copyWith(
@@ -101,6 +113,7 @@ void main() {
         find.text('Listen Together · Hosting · 1 connected · 2 in room'),
         findsOneWidget,
       );
+      expect(find.text('1'), findsOneWidget);
     });
 
     testWidgets('shows sync_problem icon when session needs attention', (

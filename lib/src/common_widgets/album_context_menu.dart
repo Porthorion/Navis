@@ -287,7 +287,11 @@ Future<void> _downloadAlbumFromMenu(
   );
   if (!context.mounted) return;
   final l10n = AppLocalizations.of(context)!;
-  showAppNotice(context, message: l10n.downloadAlbumQueued(count), level: AppNoticeLevel.success);
+  showAppNotice(
+    context,
+    message: l10n.downloadAlbumQueued(count),
+    level: AppNoticeLevel.success,
+  );
 }
 
 /// Deletes all permanently-downloaded songs in [songs] one by one,

@@ -773,18 +773,24 @@ class GroupListeningSessionController
           fallbackMessage: 'Unable to leave Voyage room cleanly.',
           fallbackCode: GroupListeningErrorCode.transportUnavailable,
         );
-        final gracefulTransportTeardown =
-            failure.code == GroupListeningErrorCode.transportUnavailable &&
-            _transportTeardownFailureObserved;
         // Fatal codes mean the server already considers us gone (room closed,
-        // token revoked, unauthorised). A transport failure that arrives while
-        // teardown is already in progress is also treated as a graceful leave.
-        if (!_canLeaveLocallyAfterFailure(failure) &&
-            !gracefulTransportTeardown) {
-          return _setFailure(failure, stackTrace: stackTrace);
+        // token revoked, unauthorised).
+        if (_canLeaveLocallyAfterFailure(failure)) {
+          AppLogger.warning(
+            'Leave request rejected (${failure.code}), leaving locally.',
+          );
+          return _finishLocalLeave();
         }
-        AppLogger.warning(
-          'Leave request rejected (${failure.code}), leaving locally.',
+        final retryResult = await _retryLeaveAfterRejoin(
+          session,
+          initialFailure: failure,
+        );
+        if (retryResult != null) {
+          return retryResult;
+        }
+        return _finishLocalLeaveAfterUnconfirmedLeave(
+          failure,
+          stackTrace: stackTrace,
         );
       }
 
@@ -1759,9 +1765,7 @@ class GroupListeningSessionController
   }
 
   bool _canLeaveLocallyAfterFailure(GroupListeningErrorState failure) {
-    return _isFatalSessionFailure(failure.code) ||
-        failure.code == GroupListeningErrorCode.transportDisconnected ||
-        failure.code == GroupListeningErrorCode.transportUnavailable;
+    return _isFatalSessionFailure(failure.code);
   }
 
   void _handleAvailabilityChanged(GroupListeningAvailability availability) {
@@ -1971,6 +1975,54 @@ class GroupListeningSessionController
       snapshotRequired: false,
     );
     return state;
+  }
+
+  Future<GroupListeningSessionState?> _retryLeaveAfterRejoin(
+    GroupListeningSessionRuntimeContext expectedSession, {
+    required GroupListeningErrorState initialFailure,
+  }) async {
+    if (initialFailure.code != GroupListeningErrorCode.transportUnavailable &&
+        initialFailure.code != GroupListeningErrorCode.transportDisconnected) {
+      return null;
+    }
+
+    try {
+      final refreshedSession = await _rejoinCurrentSession(expectedSession);
+      await ref
+          .read(groupListeningRepositoryProvider)
+          .leaveRoom(
+            refreshedSession,
+            lastAppliedRoomVersion: state.lastAppliedRoomVersion,
+          );
+      return _finishLocalLeave();
+    } on Object catch (error, stackTrace) {
+      final retryFailure = _asFailure(
+        error,
+        fallbackMessage: 'Unable to leave Voyage room cleanly.',
+        fallbackCode: GroupListeningErrorCode.transportUnavailable,
+      );
+      if (_canLeaveLocallyAfterFailure(retryFailure)) {
+        AppLogger.warning(
+          'Leave retry rejected (${retryFailure.code}), leaving locally.',
+        );
+        return _finishLocalLeave();
+      }
+      return _finishLocalLeaveAfterUnconfirmedLeave(
+        retryFailure,
+        stackTrace: stackTrace,
+      );
+    }
+  }
+
+  Future<GroupListeningSessionState> _finishLocalLeaveAfterUnconfirmedLeave(
+    GroupListeningErrorState failure, {
+    StackTrace? stackTrace,
+  }) async {
+    AppLogger.warning(
+      'Leave was not confirmed by Voyage (${failure.code}); '
+      'clearing local session anyway.${stackTrace == null ? '' : '\n$stackTrace'}',
+    );
+    return _finishLocalLeave();
   }
 
   Future<GroupListeningSessionState> _finishInvalidatedSessionCleanup(

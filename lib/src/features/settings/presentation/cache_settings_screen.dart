@@ -104,7 +104,11 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
     if (mounted) {
       final l10n = AppLocalizations.of(context)!;
       AppNoticeMessenger.of(context).clearSnackBars();
-      showAppNotice(context, message: l10n.cacheSettingsBudgetSaved, level: AppNoticeLevel.success);
+      showAppNotice(
+        context,
+        message: l10n.cacheSettingsBudgetSaved,
+        level: AppNoticeLevel.success,
+      );
     }
   }
 
@@ -118,7 +122,11 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
     if (mounted) {
       final l10n = AppLocalizations.of(context)!;
       AppNoticeMessenger.of(context).clearSnackBars();
-      showAppNotice(context, message: l10n.cacheSettingsCoverArtMaxSaved, level: AppNoticeLevel.success);
+      showAppNotice(
+        context,
+        message: l10n.cacheSettingsCoverArtMaxSaved,
+        level: AppNoticeLevel.success,
+      );
     }
   }
 
@@ -250,7 +258,8 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
       } else {
         showAppNotice(
           context,
-          message: syncState.errorMessage == null ||
+          message:
+              syncState.errorMessage == null ||
                   syncState.errorMessage!.trim().isEmpty
               ? 'Cache was cleared, but full resync failed.'
               : 'Cache was cleared, but full resync failed: '
@@ -293,7 +302,11 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
   void _showClearedSnackBar() {
     final l10n = AppLocalizations.of(context)!;
     AppNoticeMessenger.of(context).clearSnackBars();
-    showAppNotice(context, message: l10n.cacheSettingsClearSuccess, level: AppNoticeLevel.success);
+    showAppNotice(
+      context,
+      message: l10n.cacheSettingsClearSuccess,
+      level: AppNoticeLevel.success,
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -345,7 +358,11 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
       await _loadCoverArtStorageBytes();
       if (!mounted) return;
       AppNoticeMessenger.of(context).clearSnackBars();
-      showAppNotice(context, message: l10n.cacheSettingsPrecacheSuccess(done), level: AppNoticeLevel.success);
+      showAppNotice(
+        context,
+        message: l10n.cacheSettingsPrecacheSuccess(done),
+        level: AppNoticeLevel.success,
+      );
     }
   }
 

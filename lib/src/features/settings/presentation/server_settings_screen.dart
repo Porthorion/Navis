@@ -301,10 +301,18 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
             password: config.password,
           );
       if (!mounted) return;
-      showAppNotice(context, message: l10n.loginTestConnectionSuccess(result.apiVersion), level: AppNoticeLevel.success);
+      showAppNotice(
+        context,
+        message: l10n.loginTestConnectionSuccess(result.apiVersion),
+        level: AppNoticeLevel.success,
+      );
     } on Object catch (error) {
       if (!mounted) return;
-      showAppNotice(context, message: _toUserMessage(error, l10n), level: AppNoticeLevel.error);
+      showAppNotice(
+        context,
+        message: _toUserMessage(error, l10n),
+        level: AppNoticeLevel.error,
+      );
     } finally {
       if (mounted) setState(() => _isTestingConnection = false);
     }
@@ -363,7 +371,11 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
       context.go('/login');
     } on Object {
       if (!mounted) return;
-      showAppNotice(context, message: l10n.serverSettingsSignOutError, level: AppNoticeLevel.error);
+      showAppNotice(
+        context,
+        message: l10n.serverSettingsSignOutError,
+        level: AppNoticeLevel.error,
+      );
     } finally {
       if (mounted) setState(() => _isSigningOut = false);
     }
@@ -394,7 +406,11 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
       );
     } on Object {
       if (!mounted) return;
-      showAppNotice(context, message: l10n.serverSettingsSaveError, level: AppNoticeLevel.error);
+      showAppNotice(
+        context,
+        message: l10n.serverSettingsSaveError,
+        level: AppNoticeLevel.error,
+      );
     } finally {
       if (mounted) setState(() => _isSavingApiKey = false);
     }

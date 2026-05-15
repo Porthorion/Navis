@@ -5,10 +5,19 @@ import 'package:navis/src/features/group_listening/presentation/group_listening_
 import 'package:navis/src/features/group_listening/presentation/group_listening_settings_provider.dart';
 import 'package:navis/src/features/group_listening/presentation/group_listening_settings_screen.dart';
 
+enum GroupListeningSessionButtonVariant { standard, filledTonal }
+
 /// A compact icon button that shows the current group listening state and
 /// opens the Listen Together sheet when tapped.
 class GroupListeningSessionButton extends ConsumerWidget {
-  const GroupListeningSessionButton({super.key});
+  const GroupListeningSessionButton({
+    super.key,
+    this.variant = GroupListeningSessionButtonVariant.standard,
+    this.constraints,
+  });
+
+  final GroupListeningSessionButtonVariant variant;
+  final BoxConstraints? constraints;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -50,11 +59,32 @@ class GroupListeningSessionButton extends ConsumerWidget {
           '${roomCount != connectedCount ? ' · $roomCount in room' : ''}';
     }
 
-    return IconButton(
-      key: const ValueKey('groupListeningSessionButton'),
-      tooltip: tooltip,
-      icon: Icon(icon, color: color),
-      onPressed: () => showListenTogetherSheet(context),
+    final iconWidget = Badge(
+      isLabelVisible: connectedCount > 0,
+      label: Text(
+        connectedCount > 99 ? '99+' : '$connectedCount',
+        key: const ValueKey('groupListeningSessionBadgeLabel'),
+      ),
+      child: Icon(icon, color: color),
     );
+
+    switch (variant) {
+      case GroupListeningSessionButtonVariant.standard:
+        return IconButton(
+          key: const ValueKey('groupListeningSessionButton'),
+          tooltip: tooltip,
+          constraints: constraints,
+          icon: iconWidget,
+          onPressed: () => showListenTogetherSheet(context),
+        );
+      case GroupListeningSessionButtonVariant.filledTonal:
+        return IconButton.filledTonal(
+          key: const ValueKey('groupListeningSessionButton'),
+          tooltip: tooltip,
+          constraints: constraints,
+          icon: iconWidget,
+          onPressed: () => showListenTogetherSheet(context),
+        );
+    }
   }
 }

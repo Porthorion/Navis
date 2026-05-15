@@ -150,7 +150,11 @@ class GenreDetailScreen extends ConsumerWidget {
                                       ),
                                 );
                                 if (!context.mounted) return;
-                                showAppNotice(context, message: l10n.downloadSongQueued, level: AppNoticeLevel.success);
+                                showAppNotice(
+                                  context,
+                                  message: l10n.downloadSongQueued,
+                                  level: AppNoticeLevel.success,
+                                );
                               }()),
                             ),
                             IconButton(

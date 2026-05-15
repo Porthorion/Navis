@@ -6,6 +6,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/auth/domain/server_config.dart';
+import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
+import 'package:navis/src/features/group_listening/domain/group_listening_session_models.dart';
+import 'package:navis/src/features/group_listening/presentation/group_listening_session_controller.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/home/presentation/home_screen.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
@@ -17,6 +21,7 @@ import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:riverpod/src/framework.dart' show Override;
 
 import '../../../../helpers/adaptive_test_harness.dart';
+import '../../../../helpers/test_database.dart';
 
 class _StaticLibrarySyncController extends LibrarySyncController {
   @override
@@ -86,6 +91,19 @@ class _PendingRefreshLibrarySyncController extends LibrarySyncController {
     _completer = Completer<LibrarySyncState>();
   }
 }
+
+class _StaticGroupListeningSessionController
+    extends GroupListeningSessionController {
+  _StaticGroupListeningSessionController(this._state);
+
+  final GroupListeningSessionState _state;
+
+  @override
+  GroupListeningSessionState build() => _state;
+}
+
+const _disabledGroupListeningSessionState =
+    GroupListeningSessionState.disabled();
 
 class _QueueSpyController extends QueueController {
   List<String>? lastReplaceIds;
@@ -163,41 +181,54 @@ AlbumWithSongs _albumWithSongs(
 Future<void> _pumpHomeWithSyncState(
   WidgetTester tester,
   LibrarySyncState syncState,
+  NavisDatabase database,
 ) async {
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [
-        appSettingsProvider.overrideWithValue(
-          const AsyncData(AppSettingsModel.defaults()),
-        ),
-        librarySyncControllerProvider.overrideWith(
-          () => _FixedLibrarySyncController(syncState),
-        ),
-        homeLikedSongsProvider.overrideWithValue(
-          const AsyncData(<SongsTableData>[]),
-        ),
-        likedSongsProvider.overrideWithValue(
-          const AsyncData(<SongsTableData>[]),
-        ),
-        homeRecentlyAddedProvider.overrideWithValue(
-          const AsyncData(<Album>[]),
-        ),
-        homeRecentlyPlayedAlbumsProvider.overrideWithValue(
-          const AsyncData(<AlbumsTableData>[]),
-        ),
-        homeRandomAlbumsProvider.overrideWithValue(
-          const AsyncData(<Album>[]),
-        ),
-        homeRandomShowcaseProvider.overrideWith(
-          (ref, filters) async => const <HomeRandomShowcaseAlbum>[],
-        ),
-        homeMostPlayedSongsProvider.overrideWithValue(
-          const AsyncData(<SongsTableData>[]),
-        ),
-        likedAlbumsRecentProvider.overrideWithValue(
-          const AsyncData(<AlbumsTableData>[]),
-        ),
-      ],
+      overrides: withTestDatabase(
+        database,
+        overrides: [
+          appSettingsProvider.overrideWithValue(
+            const AsyncData(AppSettingsModel.defaults()),
+          ),
+          groupListeningSessionControllerProvider.overrideWith(
+            () => _StaticGroupListeningSessionController(
+              _disabledGroupListeningSessionState,
+            ),
+          ),
+          serverConfigStateProvider.overrideWithValue(
+            const AsyncData<ServerConfigModel?>(null),
+          ),
+          subsonicApiProvider.overrideWithValue(null),
+          librarySyncControllerProvider.overrideWith(
+            () => _FixedLibrarySyncController(syncState),
+          ),
+          homeLikedSongsProvider.overrideWithValue(
+            const AsyncData(<SongsTableData>[]),
+          ),
+          likedSongsProvider.overrideWithValue(
+            const AsyncData(<SongsTableData>[]),
+          ),
+          homeRecentlyAddedProvider.overrideWithValue(
+            const AsyncData(<Album>[]),
+          ),
+          homeRecentlyPlayedAlbumsProvider.overrideWithValue(
+            const AsyncData(<AlbumsTableData>[]),
+          ),
+          homeRandomAlbumsProvider.overrideWithValue(
+            const AsyncData(<Album>[]),
+          ),
+          homeRandomShowcaseProvider.overrideWith(
+            (ref, filters) async => const <HomeRandomShowcaseAlbum>[],
+          ),
+          homeMostPlayedSongsProvider.overrideWithValue(
+            const AsyncData(<SongsTableData>[]),
+          ),
+          likedAlbumsRecentProvider.overrideWithValue(
+            const AsyncData(<AlbumsTableData>[]),
+          ),
+        ],
+      ),
       child: MaterialApp(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
@@ -216,39 +247,52 @@ Future<void> _pumpHomeWithSyncState(
 Future<void> _pumpHomeWithControllerOverride(
   WidgetTester tester, {
   required LibrarySyncController Function() createController,
+  required NavisDatabase database,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [
-        appSettingsProvider.overrideWithValue(
-          const AsyncData(AppSettingsModel.defaults()),
-        ),
-        librarySyncControllerProvider.overrideWith(createController),
-        homeLikedSongsProvider.overrideWithValue(
-          const AsyncData(<SongsTableData>[]),
-        ),
-        likedSongsProvider.overrideWithValue(
-          const AsyncData(<SongsTableData>[]),
-        ),
-        homeRecentlyAddedProvider.overrideWithValue(
-          const AsyncData(<Album>[]),
-        ),
-        homeRecentlyPlayedAlbumsProvider.overrideWithValue(
-          const AsyncData(<AlbumsTableData>[]),
-        ),
-        homeRandomAlbumsProvider.overrideWithValue(
-          const AsyncData(<Album>[]),
-        ),
-        homeRandomShowcaseProvider.overrideWith(
-          (ref, filters) async => const <HomeRandomShowcaseAlbum>[],
-        ),
-        homeMostPlayedSongsProvider.overrideWithValue(
-          const AsyncData(<SongsTableData>[]),
-        ),
-        likedAlbumsRecentProvider.overrideWithValue(
-          const AsyncData(<AlbumsTableData>[]),
-        ),
-      ],
+      overrides: withTestDatabase(
+        database,
+        overrides: [
+          appSettingsProvider.overrideWithValue(
+            const AsyncData(AppSettingsModel.defaults()),
+          ),
+          groupListeningSessionControllerProvider.overrideWith(
+            () => _StaticGroupListeningSessionController(
+              _disabledGroupListeningSessionState,
+            ),
+          ),
+          serverConfigStateProvider.overrideWithValue(
+            const AsyncData<ServerConfigModel?>(null),
+          ),
+          subsonicApiProvider.overrideWithValue(null),
+          librarySyncControllerProvider.overrideWith(createController),
+          homeLikedSongsProvider.overrideWithValue(
+            const AsyncData(<SongsTableData>[]),
+          ),
+          likedSongsProvider.overrideWithValue(
+            const AsyncData(<SongsTableData>[]),
+          ),
+          homeRecentlyAddedProvider.overrideWithValue(
+            const AsyncData(<Album>[]),
+          ),
+          homeRecentlyPlayedAlbumsProvider.overrideWithValue(
+            const AsyncData(<AlbumsTableData>[]),
+          ),
+          homeRandomAlbumsProvider.overrideWithValue(
+            const AsyncData(<Album>[]),
+          ),
+          homeRandomShowcaseProvider.overrideWith(
+            (ref, filters) async => const <HomeRandomShowcaseAlbum>[],
+          ),
+          homeMostPlayedSongsProvider.overrideWithValue(
+            const AsyncData(<SongsTableData>[]),
+          ),
+          likedAlbumsRecentProvider.overrideWithValue(
+            const AsyncData(<AlbumsTableData>[]),
+          ),
+        ],
+      ),
       child: MaterialApp(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
@@ -267,44 +311,56 @@ Future<void> _pumpHomeWithControllerOverride(
 Future<void> _pumpRandomSectionHome(
   WidgetTester tester, {
   required List<HomeRandomShowcaseAlbum> randomAlbums,
+  required NavisDatabase database,
   List<Override> overrides = const <Override>[],
 }) async {
-  final sectionOverrides = <Override>[
-    appSettingsProvider.overrideWithValue(
-      AsyncData(
-        const AppSettingsModel.defaults().copyWith(
-          homeSectionOrder: <String>[HomeSectionIds.randomAlbums],
-          homeSectionsHidden: <String>[],
+  final sectionOverrides = withTestDatabase(
+    database,
+    overrides: <Override>[
+      appSettingsProvider.overrideWithValue(
+        AsyncData(
+          const AppSettingsModel.defaults().copyWith(
+            homeSectionOrder: <String>[HomeSectionIds.randomAlbums],
+            homeSectionsHidden: <String>[],
+          ),
         ),
       ),
-    ),
-    librarySyncControllerProvider.overrideWith(
-      _StaticLibrarySyncController.new,
-    ),
-    subsonicApiProvider.overrideWithValue(null),
-    homeRandomShowcaseProvider.overrideWith(
-      (ref, filters) async => randomAlbums,
-    ),
-    homeLikedSongsProvider.overrideWithValue(
-      const AsyncData(<SongsTableData>[]),
-    ),
-    likedSongsProvider.overrideWithValue(
-      const AsyncData(<SongsTableData>[]),
-    ),
-    homeRecentlyAddedProvider.overrideWithValue(
-      const AsyncData(<Album>[]),
-    ),
-    homeRecentlyPlayedAlbumsProvider.overrideWithValue(
-      const AsyncData(<AlbumsTableData>[]),
-    ),
-    homeMostPlayedSongsProvider.overrideWithValue(
-      const AsyncData(<SongsTableData>[]),
-    ),
-    likedAlbumsRecentProvider.overrideWithValue(
-      const AsyncData(<AlbumsTableData>[]),
-    ),
-    ...overrides,
-  ];
+      groupListeningSessionControllerProvider.overrideWith(
+        () => _StaticGroupListeningSessionController(
+          _disabledGroupListeningSessionState,
+        ),
+      ),
+      serverConfigStateProvider.overrideWithValue(
+        const AsyncData<ServerConfigModel?>(null),
+      ),
+      librarySyncControllerProvider.overrideWith(
+        _StaticLibrarySyncController.new,
+      ),
+      subsonicApiProvider.overrideWithValue(null),
+      homeRandomShowcaseProvider.overrideWith(
+        (ref, filters) async => randomAlbums,
+      ),
+      homeLikedSongsProvider.overrideWithValue(
+        const AsyncData(<SongsTableData>[]),
+      ),
+      likedSongsProvider.overrideWithValue(
+        const AsyncData(<SongsTableData>[]),
+      ),
+      homeRecentlyAddedProvider.overrideWithValue(
+        const AsyncData(<Album>[]),
+      ),
+      homeRecentlyPlayedAlbumsProvider.overrideWithValue(
+        const AsyncData(<AlbumsTableData>[]),
+      ),
+      homeMostPlayedSongsProvider.overrideWithValue(
+        const AsyncData(<SongsTableData>[]),
+      ),
+      likedAlbumsRecentProvider.overrideWithValue(
+        const AsyncData(<AlbumsTableData>[]),
+      ),
+      ...overrides,
+    ],
+  );
   await tester.pumpWidget(
     ProviderScope(
       overrides: sectionOverrides,
@@ -323,6 +379,16 @@ Future<void> _pumpRandomSectionHome(
 }
 
 void main() {
+  late NavisDatabase database;
+
+  setUpAll(() {
+    database = createTestDatabase();
+  });
+
+  tearDownAll(() async {
+    await database.close();
+  });
+
   testWidgets('home cards avoid RenderFlex overflow on constrained layouts', (
     tester,
   ) async {
@@ -336,95 +402,108 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [
-          appSettingsProvider.overrideWithValue(
-            const AsyncData(AppSettingsModel.defaults()),
-          ),
-          librarySyncControllerProvider.overrideWith(
-            _StaticLibrarySyncController.new,
-          ),
-          homeLikedSongsProvider.overrideWithValue(
-            const AsyncData(<SongsTableData>[
-              SongsTableData(
-                id: 'song-1',
-                title: 'A very long song title that should ellipsize correctly',
-                artistName:
-                    'An artist with a very long display name for overflow testing',
-                coverArt: 'cover-song-1',
+        overrides: withTestDatabase(
+          database,
+          overrides: [
+            appSettingsProvider.overrideWithValue(
+              const AsyncData(AppSettingsModel.defaults()),
+            ),
+            groupListeningSessionControllerProvider.overrideWith(
+              () => _StaticGroupListeningSessionController(
+                _disabledGroupListeningSessionState,
               ),
-            ]),
-          ),
-          likedSongsProvider.overrideWithValue(
-            const AsyncData(<SongsTableData>[]),
-          ),
-          homeRecentlyAddedProvider.overrideWithValue(
-            const AsyncData(<Album>[
-              Album(
-                id: 'album-1',
-                name:
-                    'A very long album title that should not overflow the card',
-                artist:
-                    'An artist with a very long display name for overflow testing',
-                coverArt: 'cover-album-1',
-              ),
-            ]),
-          ),
-          homeRecentlyPlayedAlbumsProvider.overrideWithValue(
-            const AsyncData(<AlbumsTableData>[
-              AlbumsTableData(
-                id: 'album-2',
-                name: 'Another very long album title for recent section',
-                artistName: 'Overflow Tester',
-                coverArt: 'cover-album-2',
-                songsHydrated: false,
-                artists: const <ArtistRef>[],
-              ),
-            ]),
-          ),
-          homeRandomAlbumsProvider.overrideWithValue(
-            const AsyncData(<Album>[
-              Album(
-                id: 'album-3',
-                name: 'Random long album title for constrained card layout',
-                artist: 'Overflow Tester',
-                coverArt: 'cover-album-3',
-              ),
-            ]),
-          ),
-          homeRandomShowcaseProvider.overrideWith(
-            (ref, filters) async => const <HomeRandomShowcaseAlbum>[
-              HomeRandomShowcaseAlbum(
-                id: 'album-3',
-                name: 'Random long album title for constrained card layout',
-                artist: 'Overflow Tester',
-                coverArtId: 'cover-album-3',
-                source: HomeRandomShowcaseSource.serverRandom,
-              ),
-            ],
-          ),
-          homeMostPlayedSongsProvider.overrideWithValue(
-            const AsyncData(<SongsTableData>[
-              SongsTableData(
-                id: 'song-2',
-                title: 'A very long most-played song title to stress layout',
-                artistName: 'Overflow Tester',
-                coverArt: 'cover-song-2',
-              ),
-            ]),
-          ),
-          likedAlbumsRecentProvider.overrideWithValue(
-            const AsyncData(<AlbumsTableData>[
-              AlbumsTableData(
-                id: 'album-4',
-                name: 'Liked album title',
-                artistName: 'Favorite Artist',
-                coverArt: 'cover-album-4',
-                songsHydrated: false,
-                artists: const <ArtistRef>[],
-              ),
-            ]),
-          ),
-        ],
+            ),
+            serverConfigStateProvider.overrideWithValue(
+              const AsyncData<ServerConfigModel?>(null),
+            ),
+            subsonicApiProvider.overrideWithValue(null),
+            librarySyncControllerProvider.overrideWith(
+              _StaticLibrarySyncController.new,
+            ),
+            homeLikedSongsProvider.overrideWithValue(
+              const AsyncData(<SongsTableData>[
+                SongsTableData(
+                  id: 'song-1',
+                  title:
+                      'A very long song title that should ellipsize correctly',
+                  artistName:
+                      'An artist with a very long display name for overflow testing',
+                  coverArt: 'cover-song-1',
+                ),
+              ]),
+            ),
+            likedSongsProvider.overrideWithValue(
+              const AsyncData(<SongsTableData>[]),
+            ),
+            homeRecentlyAddedProvider.overrideWithValue(
+              const AsyncData(<Album>[
+                Album(
+                  id: 'album-1',
+                  name:
+                      'A very long album title that should not overflow the card',
+                  artist:
+                      'An artist with a very long display name for overflow testing',
+                  coverArt: 'cover-album-1',
+                ),
+              ]),
+            ),
+            homeRecentlyPlayedAlbumsProvider.overrideWithValue(
+              const AsyncData(<AlbumsTableData>[
+                AlbumsTableData(
+                  id: 'album-2',
+                  name: 'Another very long album title for recent section',
+                  artistName: 'Overflow Tester',
+                  coverArt: 'cover-album-2',
+                  songsHydrated: false,
+                  artists: const <ArtistRef>[],
+                ),
+              ]),
+            ),
+            homeRandomAlbumsProvider.overrideWithValue(
+              const AsyncData(<Album>[
+                Album(
+                  id: 'album-3',
+                  name: 'Random long album title for constrained card layout',
+                  artist: 'Overflow Tester',
+                  coverArt: 'cover-album-3',
+                ),
+              ]),
+            ),
+            homeRandomShowcaseProvider.overrideWith(
+              (ref, filters) async => const <HomeRandomShowcaseAlbum>[
+                HomeRandomShowcaseAlbum(
+                  id: 'album-3',
+                  name: 'Random long album title for constrained card layout',
+                  artist: 'Overflow Tester',
+                  coverArtId: 'cover-album-3',
+                  source: HomeRandomShowcaseSource.serverRandom,
+                ),
+              ],
+            ),
+            homeMostPlayedSongsProvider.overrideWithValue(
+              const AsyncData(<SongsTableData>[
+                SongsTableData(
+                  id: 'song-2',
+                  title: 'A very long most-played song title to stress layout',
+                  artistName: 'Overflow Tester',
+                  coverArt: 'cover-song-2',
+                ),
+              ]),
+            ),
+            likedAlbumsRecentProvider.overrideWithValue(
+              const AsyncData(<AlbumsTableData>[
+                AlbumsTableData(
+                  id: 'album-4',
+                  name: 'Liked album title',
+                  artistName: 'Favorite Artist',
+                  coverArt: 'cover-album-4',
+                  songsHydrated: false,
+                  artists: const <ArtistRef>[],
+                ),
+              ]),
+            ),
+          ],
+        ),
         child: MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
@@ -465,38 +544,50 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [
-          appSettingsProvider.overrideWithValue(
-            const AsyncData(AppSettingsModel.defaults()),
-          ),
-          librarySyncControllerProvider.overrideWith(
-            _StaticLibrarySyncController.new,
-          ),
-          homeLikedSongsProvider.overrideWithValue(
-            const AsyncData(<SongsTableData>[]),
-          ),
-          likedSongsProvider.overrideWithValue(
-            const AsyncData(<SongsTableData>[]),
-          ),
-          homeRecentlyAddedProvider.overrideWithValue(
-            const AsyncData(<Album>[]),
-          ),
-          homeRecentlyPlayedAlbumsProvider.overrideWithValue(
-            const AsyncData(<AlbumsTableData>[]),
-          ),
-          homeRandomAlbumsProvider.overrideWithValue(
-            const AsyncData(<Album>[]),
-          ),
-          homeRandomShowcaseProvider.overrideWith(
-            (ref, filters) async => const <HomeRandomShowcaseAlbum>[],
-          ),
-          homeMostPlayedSongsProvider.overrideWithValue(
-            const AsyncData(<SongsTableData>[]),
-          ),
-          likedAlbumsRecentProvider.overrideWithValue(
-            const AsyncData(<AlbumsTableData>[]),
-          ),
-        ],
+        overrides: withTestDatabase(
+          database,
+          overrides: [
+            appSettingsProvider.overrideWithValue(
+              const AsyncData(AppSettingsModel.defaults()),
+            ),
+            groupListeningSessionControllerProvider.overrideWith(
+              () => _StaticGroupListeningSessionController(
+                _disabledGroupListeningSessionState,
+              ),
+            ),
+            serverConfigStateProvider.overrideWithValue(
+              const AsyncData<ServerConfigModel?>(null),
+            ),
+            subsonicApiProvider.overrideWithValue(null),
+            librarySyncControllerProvider.overrideWith(
+              _StaticLibrarySyncController.new,
+            ),
+            homeLikedSongsProvider.overrideWithValue(
+              const AsyncData(<SongsTableData>[]),
+            ),
+            likedSongsProvider.overrideWithValue(
+              const AsyncData(<SongsTableData>[]),
+            ),
+            homeRecentlyAddedProvider.overrideWithValue(
+              const AsyncData(<Album>[]),
+            ),
+            homeRecentlyPlayedAlbumsProvider.overrideWithValue(
+              const AsyncData(<AlbumsTableData>[]),
+            ),
+            homeRandomAlbumsProvider.overrideWithValue(
+              const AsyncData(<Album>[]),
+            ),
+            homeRandomShowcaseProvider.overrideWith(
+              (ref, filters) async => const <HomeRandomShowcaseAlbum>[],
+            ),
+            homeMostPlayedSongsProvider.overrideWithValue(
+              const AsyncData(<SongsTableData>[]),
+            ),
+            likedAlbumsRecentProvider.overrideWithValue(
+              const AsyncData(<AlbumsTableData>[]),
+            ),
+          ],
+        ),
         child: MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
@@ -520,7 +611,11 @@ void main() {
     (tester) async {
       const desktopBrandRow = ValueKey<String>('homeDesktopBrandRow');
       setAdaptiveTestViewport(tester, const Size(599, 1000));
-      await _pumpHomeWithSyncState(tester, const LibrarySyncState.idle());
+      await _pumpHomeWithSyncState(
+        tester,
+        const LibrarySyncState.idle(),
+        database,
+      );
 
       expect(find.byType(HomeScreen), findsOneWidget);
       expect(find.byKey(desktopBrandRow), findsNothing);
@@ -550,38 +645,50 @@ void main() {
     (tester) async {
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [
-            appSettingsProvider.overrideWithValue(
-              const AsyncData(AppSettingsModel.defaults()),
-            ),
-            librarySyncControllerProvider.overrideWith(
-              _StaticLibrarySyncController.new,
-            ),
-            homeLikedSongsProvider.overrideWithValue(
-              const AsyncData(<SongsTableData>[]),
-            ),
-            likedSongsProvider.overrideWithValue(
-              const AsyncData(<SongsTableData>[]),
-            ),
-            homeRecentlyAddedProvider.overrideWithValue(
-              const AsyncData(<Album>[]),
-            ),
-            homeRecentlyPlayedAlbumsProvider.overrideWithValue(
-              const AsyncData(<AlbumsTableData>[]),
-            ),
-            homeRandomAlbumsProvider.overrideWithValue(
-              const AsyncData(<Album>[]),
-            ),
-            homeRandomShowcaseProvider.overrideWith(
-              (ref, filters) async => const <HomeRandomShowcaseAlbum>[],
-            ),
-            homeMostPlayedSongsProvider.overrideWithValue(
-              const AsyncData(<SongsTableData>[]),
-            ),
-            likedAlbumsRecentProvider.overrideWithValue(
-              const AsyncData(<AlbumsTableData>[]),
-            ),
-          ],
+          overrides: withTestDatabase(
+            database,
+            overrides: [
+              appSettingsProvider.overrideWithValue(
+                const AsyncData(AppSettingsModel.defaults()),
+              ),
+              groupListeningSessionControllerProvider.overrideWith(
+                () => _StaticGroupListeningSessionController(
+                  _disabledGroupListeningSessionState,
+                ),
+              ),
+              serverConfigStateProvider.overrideWithValue(
+                const AsyncData<ServerConfigModel?>(null),
+              ),
+              subsonicApiProvider.overrideWithValue(null),
+              librarySyncControllerProvider.overrideWith(
+                _StaticLibrarySyncController.new,
+              ),
+              homeLikedSongsProvider.overrideWithValue(
+                const AsyncData(<SongsTableData>[]),
+              ),
+              likedSongsProvider.overrideWithValue(
+                const AsyncData(<SongsTableData>[]),
+              ),
+              homeRecentlyAddedProvider.overrideWithValue(
+                const AsyncData(<Album>[]),
+              ),
+              homeRecentlyPlayedAlbumsProvider.overrideWithValue(
+                const AsyncData(<AlbumsTableData>[]),
+              ),
+              homeRandomAlbumsProvider.overrideWithValue(
+                const AsyncData(<Album>[]),
+              ),
+              homeRandomShowcaseProvider.overrideWith(
+                (ref, filters) async => const <HomeRandomShowcaseAlbum>[],
+              ),
+              homeMostPlayedSongsProvider.overrideWithValue(
+                const AsyncData(<SongsTableData>[]),
+              ),
+              likedAlbumsRecentProvider.overrideWithValue(
+                const AsyncData(<AlbumsTableData>[]),
+              ),
+            ],
+          ),
           child: MaterialApp(
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
@@ -614,92 +721,8 @@ void main() {
   testWidgets('random section renders dedicated hero carousel', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [
-          appSettingsProvider.overrideWithValue(
-            AsyncData(
-              const AppSettingsModel.defaults().copyWith(
-                homeSectionOrder: <String>[HomeSectionIds.randomAlbums],
-                homeSectionsHidden: <String>[],
-              ),
-            ),
-          ),
-          librarySyncControllerProvider.overrideWith(
-            _StaticLibrarySyncController.new,
-          ),
-          homeRandomShowcaseProvider.overrideWith(
-            (ref, filters) async => const <HomeRandomShowcaseAlbum>[
-              HomeRandomShowcaseAlbum(
-                id: 'hero-1',
-                name: 'Hero One',
-                artist: 'Artist One',
-                coverArtId: 'cover-hero-1',
-                source: HomeRandomShowcaseSource.serverRandom,
-              ),
-              HomeRandomShowcaseAlbum(
-                id: 'hero-2',
-                name: 'Hero Two',
-                artist: 'Artist Two',
-                coverArtId: 'cover-hero-2',
-                source: HomeRandomShowcaseSource.serverRandom,
-              ),
-            ],
-          ),
-          homeLikedSongsProvider.overrideWithValue(
-            const AsyncData(<SongsTableData>[]),
-          ),
-          likedSongsProvider.overrideWithValue(
-            const AsyncData(<SongsTableData>[]),
-          ),
-          homeRecentlyAddedProvider.overrideWithValue(
-            const AsyncData(<Album>[]),
-          ),
-          homeRecentlyPlayedAlbumsProvider.overrideWithValue(
-            const AsyncData(<AlbumsTableData>[]),
-          ),
-          homeMostPlayedSongsProvider.overrideWithValue(
-            const AsyncData(<SongsTableData>[]),
-          ),
-          likedAlbumsRecentProvider.overrideWithValue(
-            const AsyncData(<AlbumsTableData>[]),
-          ),
-        ],
-        child: MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          builder: (ctx, child) => MediaQuery(
-            data: MediaQuery.of(ctx).copyWith(disableAnimations: true),
-            child: child!,
-          ),
-          home: const HomeScreen(),
-        ),
-      ),
-    );
-
-    await tester.pumpAndSettle();
-
-    expect(
-      find.byKey(const ValueKey<String>('home-random-hero-carousel')),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(const ValueKey<String>('home-random-hero-carousel-page-0')),
-      findsOneWidget,
-    );
-  });
-
-  testWidgets(
-    'random hero carousel auto-advances and pauses after interaction',
-    (tester) async {
-      final view = tester.view;
-      view.devicePixelRatio = 1.0;
-      view.physicalSize = const Size(390, 844);
-      addTearDown(() {
-        view.resetPhysicalSize();
-        view.resetDevicePixelRatio();
-      });
-
-      await tester.pumpWidget(
-        ProviderScope(
+        overrides: withTestDatabase(
+          database,
           overrides: [
             appSettingsProvider.overrideWithValue(
               AsyncData(
@@ -707,6 +730,11 @@ void main() {
                   homeSectionOrder: <String>[HomeSectionIds.randomAlbums],
                   homeSectionsHidden: <String>[],
                 ),
+              ),
+            ),
+            groupListeningSessionControllerProvider.overrideWith(
+              () => _StaticGroupListeningSessionController(
+                _disabledGroupListeningSessionState,
               ),
             ),
             librarySyncControllerProvider.overrideWith(
@@ -726,13 +754,6 @@ void main() {
                   name: 'Hero Two',
                   artist: 'Artist Two',
                   coverArtId: 'cover-hero-2',
-                  source: HomeRandomShowcaseSource.serverRandom,
-                ),
-                HomeRandomShowcaseAlbum(
-                  id: 'hero-3',
-                  name: 'Hero Three',
-                  artist: 'Artist Three',
-                  coverArtId: 'cover-hero-3',
                   source: HomeRandomShowcaseSource.serverRandom,
                 ),
               ],
@@ -756,6 +777,115 @@ void main() {
               const AsyncData(<AlbumsTableData>[]),
             ),
           ],
+        ),
+        child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          builder: (ctx, child) => MediaQuery(
+            data: MediaQuery.of(ctx).copyWith(disableAnimations: true),
+            child: child!,
+          ),
+          home: const HomeScreen(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey<String>('home-random-hero-carousel')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey<String>('home-random-hero-carousel-page-0')),
+      findsOneWidget,
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets(
+    'random hero carousel auto-advances and pauses after interaction',
+    (tester) async {
+      final view = tester.view;
+      view.devicePixelRatio = 1.0;
+      view.physicalSize = const Size(390, 844);
+      addTearDown(() {
+        view.resetPhysicalSize();
+        view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: withTestDatabase(
+            database,
+            overrides: [
+              appSettingsProvider.overrideWithValue(
+                AsyncData(
+                  const AppSettingsModel.defaults().copyWith(
+                    homeSectionOrder: <String>[HomeSectionIds.randomAlbums],
+                    homeSectionsHidden: <String>[],
+                  ),
+                ),
+              ),
+              groupListeningSessionControllerProvider.overrideWith(
+                () => _StaticGroupListeningSessionController(
+                  _disabledGroupListeningSessionState,
+                ),
+              ),
+              serverConfigStateProvider.overrideWithValue(
+                const AsyncData<ServerConfigModel?>(null),
+              ),
+              subsonicApiProvider.overrideWithValue(null),
+              librarySyncControllerProvider.overrideWith(
+                _StaticLibrarySyncController.new,
+              ),
+              homeRandomShowcaseProvider.overrideWith(
+                (ref, filters) async => const <HomeRandomShowcaseAlbum>[
+                  HomeRandomShowcaseAlbum(
+                    id: 'hero-1',
+                    name: 'Hero One',
+                    artist: 'Artist One',
+                    coverArtId: 'cover-hero-1',
+                    source: HomeRandomShowcaseSource.serverRandom,
+                  ),
+                  HomeRandomShowcaseAlbum(
+                    id: 'hero-2',
+                    name: 'Hero Two',
+                    artist: 'Artist Two',
+                    coverArtId: 'cover-hero-2',
+                    source: HomeRandomShowcaseSource.serverRandom,
+                  ),
+                  HomeRandomShowcaseAlbum(
+                    id: 'hero-3',
+                    name: 'Hero Three',
+                    artist: 'Artist Three',
+                    coverArtId: 'cover-hero-3',
+                    source: HomeRandomShowcaseSource.serverRandom,
+                  ),
+                ],
+              ),
+              homeLikedSongsProvider.overrideWithValue(
+                const AsyncData(<SongsTableData>[]),
+              ),
+              likedSongsProvider.overrideWithValue(
+                const AsyncData(<SongsTableData>[]),
+              ),
+              homeRecentlyAddedProvider.overrideWithValue(
+                const AsyncData(<Album>[]),
+              ),
+              homeRecentlyPlayedAlbumsProvider.overrideWithValue(
+                const AsyncData(<AlbumsTableData>[]),
+              ),
+              homeMostPlayedSongsProvider.overrideWithValue(
+                const AsyncData(<SongsTableData>[]),
+              ),
+              likedAlbumsRecentProvider.overrideWithValue(
+                const AsyncData(<AlbumsTableData>[]),
+              ),
+            ],
+          ),
           child: MaterialApp(
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
@@ -822,6 +952,7 @@ void main() {
       setAdaptiveTestViewport(tester, const Size(1200, 900));
       await _pumpRandomSectionHome(
         tester,
+        database: database,
         randomAlbums: randomAlbums,
         overrides: <Override>[
           albumProvider.overrideWith(
@@ -872,7 +1003,7 @@ void main() {
       );
 
       await tester.pumpWidget(const SizedBox.shrink());
-      await tester.pump();
+      await tester.pumpAndSettle();
     },
   );
 
@@ -899,6 +1030,7 @@ void main() {
       setAdaptiveTestViewport(tester, const Size(1366, 900));
       await _pumpRandomSectionHome(
         tester,
+        database: database,
         randomAlbums: randomAlbums,
         overrides: <Override>[
           albumProvider.overrideWith((ref, albumId) {
@@ -989,6 +1121,7 @@ void main() {
       setAdaptiveTestViewport(tester, const Size(1280, 900));
       await _pumpRandomSectionHome(
         tester,
+        database: database,
         randomAlbums: randomAlbums,
         overrides: <Override>[
           queueProvider.overrideWith(_QueueSpyController.new),
@@ -1050,7 +1183,7 @@ void main() {
       expect(find.text('Play now'), findsOneWidget);
 
       await tester.pumpWidget(const SizedBox.shrink());
-      await tester.pump();
+      await tester.pumpAndSettle();
     },
   );
 
@@ -1071,6 +1204,7 @@ void main() {
     setAdaptiveTestViewport(tester, const Size(1200, 900));
     await _pumpRandomSectionHome(
       tester,
+      database: database,
       randomAlbums: randomAlbums,
       overrides: <Override>[
         albumProvider.overrideWith(
@@ -1118,7 +1252,7 @@ void main() {
     }
 
     await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump();
+    await tester.pumpAndSettle();
   });
 
   testWidgets('shows determinate sync ring around logo while syncing', (
@@ -1132,6 +1266,7 @@ void main() {
         processed: 3,
         total: 10,
       ),
+      database,
     );
 
     final ring = find.byKey(const ValueKey<String>('home-sync-ring'));
@@ -1156,6 +1291,7 @@ void main() {
         status: LibrarySyncStatus.running,
         stage: LibrarySyncStage.preparing,
       ),
+      database,
     );
 
     final ring = find.byKey(const ValueKey<String>('home-sync-ring'));
@@ -1175,6 +1311,7 @@ void main() {
         status: LibrarySyncStatus.failed,
         stage: LibrarySyncStage.completed,
       ),
+      database,
     );
 
     final ring = find.byKey(const ValueKey<String>('home-sync-ring'));
@@ -1211,7 +1348,7 @@ void main() {
     ];
 
     for (final state in states) {
-      await _pumpHomeWithSyncState(tester, state);
+      await _pumpHomeWithSyncState(tester, state, database);
       final ring = find.byKey(const ValueKey<String>('home-sync-ring'));
       expect(ring, findsOneWidget);
       final ringOpacity = tester.widget<AnimatedOpacity>(
@@ -1235,6 +1372,7 @@ void main() {
       await _pumpHomeWithControllerOverride(
         tester,
         createController: () => controller,
+        database: database,
       );
 
       await tester.drag(find.byType(ListView).first, const Offset(0, 340));

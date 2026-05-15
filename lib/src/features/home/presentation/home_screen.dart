@@ -24,8 +24,8 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/changelog/changelog_data.dart';
 import 'package:navis/src/features/changelog/changelog_dialog.dart';
 import 'package:navis/src/features/changelog/changelog_provider.dart';
+import 'package:navis/src/features/group_listening/presentation/group_listening_active_session_indicator.dart';
 import 'package:navis/src/features/group_listening/presentation/group_listening_settings_provider.dart';
-import 'package:navis/src/features/group_listening/presentation/group_listening_settings_screen.dart';
 import 'package:navis/src/features/home/domain/home_section_ids.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/home/presentation/home_scroll_provider.dart';
@@ -2921,7 +2921,7 @@ class _HomeFilterChipRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final colorScheme = Theme.of(context).colorScheme;
-    final listenTogetherAvailable = ref.watch(
+    final listenTogetherEnabled = ref.watch(
       groupListeningSettingsProvider.select((settings) => settings.enabled),
     );
     final likedOnly = ref.watch(homeLikedOnlyFilterProvider);
@@ -2974,12 +2974,10 @@ class _HomeFilterChipRow extends ConsumerWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: <Widget>[
-                if (listenTogetherAvailable) ...<Widget>[
-                  IconButton.filledTonal(
-                    tooltip: 'Listen Together',
+                if (listenTogetherEnabled) ...<Widget>[
+                  GroupListeningSessionButton(
+                    variant: GroupListeningSessionButtonVariant.filledTonal,
                     constraints: iconConstraints,
-                    icon: const Icon(Icons.people_alt_outlined),
-                    onPressed: () => showListenTogetherSheet(context),
                   ),
                   const SizedBox(width: 8),
                 ],
@@ -3044,7 +3042,7 @@ class _DesktopHomeQuickActions extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final likedOnly = ref.watch(homeLikedOnlyFilterProvider);
-    final listenTogetherAvailable = ref.watch(
+    final listenTogetherEnabled = ref.watch(
       groupListeningSettingsProvider.select((settings) => settings.enabled),
     );
     final downloadedOnly = ref.watch(downloadedOnlyFilterProvider);
@@ -3090,12 +3088,7 @@ class _DesktopHomeQuickActions extends ConsumerWidget {
                 !downloadedOnly;
           },
         ),
-        if (listenTogetherAvailable)
-          IconButton(
-            tooltip: 'Listen Together',
-            icon: const Icon(Icons.people_alt_outlined),
-            onPressed: () => showListenTogetherSheet(context),
-          ),
+        if (listenTogetherEnabled) const GroupListeningSessionButton(),
         IconButton(
           tooltip: 'Instant Radio',
           icon: const Icon(Icons.radio_rounded),

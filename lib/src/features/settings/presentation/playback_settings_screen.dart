@@ -799,7 +799,11 @@ class _PlaybackSettingsScreenState
         return;
       }
       final l10n = AppLocalizations.of(context)!;
-      showAppNotice(context, message: l10n.playbackSettingsSaveFailure(error.toString()), level: AppNoticeLevel.error);
+      showAppNotice(
+        context,
+        message: l10n.playbackSettingsSaveFailure(error.toString()),
+        level: AppNoticeLevel.error,
+      );
     } finally {
       if (mounted) {
         setState(() => _isAutoSaving = false);
@@ -848,12 +852,20 @@ class _PlaybackSettingsScreenState
         _didHydrateForm = true;
         _lastSavedSignature = _formSignature();
       });
-      showAppNotice(context, message: l10n.playbackSettingsResetSuccess, level: AppNoticeLevel.success);
+      showAppNotice(
+        context,
+        message: l10n.playbackSettingsResetSuccess,
+        level: AppNoticeLevel.success,
+      );
     } on Object catch (error) {
       if (!mounted) {
         return;
       }
-      showAppNotice(context, message: l10n.playbackSettingsResetFailure(error.toString()), level: AppNoticeLevel.error);
+      showAppNotice(
+        context,
+        message: l10n.playbackSettingsResetFailure(error.toString()),
+        level: AppNoticeLevel.error,
+      );
     } finally {
       if (mounted) {
         setState(() => _isSaving = false);

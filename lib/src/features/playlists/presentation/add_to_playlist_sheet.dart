@@ -147,12 +147,20 @@ class _AddToPlaylistSheet extends ConsumerWidget {
             ref.invalidate(playlistDetailSyncProvider(playlistId));
             ref.invalidate(playlistSyncProvider);
             if (context.mounted) {
-              showAppNotice(context, message: l10n.addToPlaylistSuccess(playlistName), level: AppNoticeLevel.success);
+              showAppNotice(
+                context,
+                message: l10n.addToPlaylistSuccess(playlistName),
+                level: AppNoticeLevel.success,
+              );
             }
           })
           .catchError((_) {
             if (context.mounted) {
-              showAppNotice(context, message: l10n.playlistDetailTrackRemoveFailed, level: AppNoticeLevel.error);
+              showAppNotice(
+                context,
+                message: l10n.playlistDetailTrackRemoveFailed,
+                level: AppNoticeLevel.error,
+              );
             }
           }),
     );
@@ -215,12 +223,20 @@ class _AddToPlaylistSheet extends ConsumerWidget {
           .then((_) {
             ref.invalidate(playlistSyncProvider);
             if (parentContext.mounted) {
-              showAppNotice(parentContext, message: l10n.playlistsCreateSuccess, level: AppNoticeLevel.success);
+              showAppNotice(
+                parentContext,
+                message: l10n.playlistsCreateSuccess,
+                level: AppNoticeLevel.success,
+              );
             }
           })
           .catchError((_) {
             if (parentContext.mounted) {
-              showAppNotice(parentContext, message: l10n.playlistsCreateFailed, level: AppNoticeLevel.error);
+              showAppNotice(
+                parentContext,
+                message: l10n.playlistsCreateFailed,
+                level: AppNoticeLevel.error,
+              );
             }
           }),
     );

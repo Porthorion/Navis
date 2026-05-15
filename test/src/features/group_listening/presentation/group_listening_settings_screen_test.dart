@@ -895,9 +895,223 @@ void main() {
         find.byKey(const ValueKey('groupListeningCloseRoomButton')),
         findsNothing,
       );
+      expect(
+        find.byKey(const ValueKey('groupListeningLeaveRoomButton')),
+        findsOneWidget,
+      );
       expect(find.text('Invite listeners'), findsNothing);
     },
   );
+
+  testWidgets('shows leave room without a close room button for hosts', (
+    tester,
+  ) async {
+    final repository = _FakeGroupListeningRepository();
+    final hostSession = _joinResponse(role: GroupListeningMemberRole.host);
+    final sessionState = GroupListeningSessionState(
+      availability: GroupListeningAvailability.ready,
+      status: GroupListeningSessionStatus.connected,
+      connection: const GroupListeningConnectionState(
+        status: GroupListeningConnectionStatus.connected,
+      ),
+      room: hostSession.roomSnapshot,
+      lastAppliedRoomVersion: hostSession.roomSnapshot.roomVersion,
+      activeInviteCode: hostSession.inviteCode,
+    );
+
+    await _pumpScreen(
+      tester,
+      overrides: [
+        appSettingsProvider.overrideWithValue(
+          AsyncData(
+            AppSettingsModel.defaults().copyWith(
+              groupListeningEnabled: true,
+              voyageServerUrl: 'https://voyage.example.com',
+              voyageDeviceLabel: 'Desktop',
+              clearVoyageDisplayName: true,
+            ),
+          ),
+        ),
+        packageInfoProvider.overrideWithValue(
+          AsyncData<PackageInfo>(_packageInfo),
+        ),
+        serverConfigStateProvider.overrideWithValue(
+          const AsyncData<ServerConfigModel?>(_activeServer),
+        ),
+        groupListeningSessionControllerProvider.overrideWith(
+          () => _StaticGroupListeningSessionController(sessionState),
+        ),
+        groupListeningRepositoryProvider.overrideWithValue(repository),
+      ],
+    );
+
+    expect(
+      find.byKey(const ValueKey('groupListeningCloseRoomButton')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('groupListeningLeaveRoomButton')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('shows the host first with a crown icon in connected users', (
+    tester,
+  ) async {
+    final repository = _FakeGroupListeningRepository();
+    final hostSession = _joinResponse(role: GroupListeningMemberRole.host);
+    final room = hostSession.roomSnapshot;
+    final sessionState = GroupListeningSessionState(
+      availability: GroupListeningAvailability.ready,
+      status: GroupListeningSessionStatus.connected,
+      connection: const GroupListeningConnectionState(
+        status: GroupListeningConnectionStatus.connected,
+      ),
+      room: room,
+      lastAppliedRoomVersion: room.roomVersion,
+      activeInviteCode: hostSession.inviteCode,
+    );
+
+    await _pumpScreen(
+      tester,
+      overrides: [
+        appSettingsProvider.overrideWithValue(
+          AsyncData(
+            AppSettingsModel.defaults().copyWith(
+              groupListeningEnabled: true,
+              voyageServerUrl: 'https://voyage.example.com',
+              clearVoyageDisplayName: true,
+            ),
+          ),
+        ),
+        packageInfoProvider.overrideWithValue(
+          AsyncData<PackageInfo>(_packageInfo),
+        ),
+        serverConfigStateProvider.overrideWithValue(
+          const AsyncData<ServerConfigModel?>(_activeServer),
+        ),
+        groupListeningSessionControllerProvider.overrideWith(
+          () => _StaticGroupListeningSessionController(sessionState),
+        ),
+        groupListeningRepositoryProvider.overrideWithValue(repository),
+      ],
+    );
+
+    final connectedUsersCard = find.byKey(
+      const ValueKey('groupListeningConnectedUsersCard'),
+    );
+    await tester.scrollUntilVisible(
+      connectedUsersCard,
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+
+    final hostTile = find.byKey(
+      const ValueKey('groupListeningMemberTile-member-1'),
+    );
+    final memberTile = find.byKey(
+      const ValueKey('groupListeningMemberTile-member-2'),
+    );
+    final hostIcon = tester.widget<Icon>(
+      find.byKey(const ValueKey('groupListeningMemberIcon-member-1')),
+    );
+
+    expect(
+      tester.getTopLeft(hostTile).dy,
+      lessThan(tester.getTopLeft(memberTile).dy),
+    );
+    expect(hostIcon.icon, Icons.workspace_premium_rounded);
+    expect(
+      find.descendant(of: hostTile, matching: find.text('Host')),
+      findsNothing,
+    );
+  });
+
+  testWidgets('colors connected-user icons by presence state', (tester) async {
+    final repository = _FakeGroupListeningRepository();
+    final hostSession = _joinResponse(role: GroupListeningMemberRole.host);
+    final room = hostSession.roomSnapshot.copyWith(
+      members: <GroupListeningMemberState>[
+        hostSession.roomSnapshot.members[0],
+        hostSession.roomSnapshot.members[1].copyWith(
+          presenceState: GroupListeningMemberPresenceState.stale,
+        ),
+        GroupListeningMemberState(
+          memberId: 'member-3',
+          displayName: 'Cara',
+          deviceLabel: 'Tablet',
+          role: GroupListeningMemberRole.member,
+          presenceState: GroupListeningMemberPresenceState.offline,
+          joinedAt: hostSession.roomSnapshot.members[1].joinedAt.add(
+            const Duration(seconds: 2),
+          ),
+          lastSeenAt: hostSession.roomSnapshot.members[1].lastSeenAt.add(
+            const Duration(seconds: 2),
+          ),
+        ),
+      ],
+    );
+    final sessionState = GroupListeningSessionState(
+      availability: GroupListeningAvailability.ready,
+      status: GroupListeningSessionStatus.connected,
+      connection: const GroupListeningConnectionState(
+        status: GroupListeningConnectionStatus.connected,
+      ),
+      room: room,
+      lastAppliedRoomVersion: room.roomVersion,
+      activeInviteCode: hostSession.inviteCode,
+    );
+
+    await _pumpScreen(
+      tester,
+      overrides: [
+        appSettingsProvider.overrideWithValue(
+          AsyncData(
+            AppSettingsModel.defaults().copyWith(
+              groupListeningEnabled: true,
+              voyageServerUrl: 'https://voyage.example.com',
+              clearVoyageDisplayName: true,
+            ),
+          ),
+        ),
+        packageInfoProvider.overrideWithValue(
+          AsyncData<PackageInfo>(_packageInfo),
+        ),
+        serverConfigStateProvider.overrideWithValue(
+          const AsyncData<ServerConfigModel?>(_activeServer),
+        ),
+        groupListeningSessionControllerProvider.overrideWith(
+          () => _StaticGroupListeningSessionController(sessionState),
+        ),
+        groupListeningRepositoryProvider.overrideWithValue(repository),
+      ],
+    );
+
+    final connectedUsersCard = find.byKey(
+      const ValueKey('groupListeningConnectedUsersCard'),
+    );
+    await tester.scrollUntilVisible(
+      connectedUsersCard,
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+
+    final activeIcon = tester.widget<Icon>(
+      find.byKey(const ValueKey('groupListeningMemberIcon-member-1')),
+    );
+    final staleIcon = tester.widget<Icon>(
+      find.byKey(const ValueKey('groupListeningMemberIcon-member-2')),
+    );
+    final offlineIcon = tester.widget<Icon>(
+      find.byKey(const ValueKey('groupListeningMemberIcon-member-3')),
+    );
+
+    expect(activeIcon.color, const Color(0xFF2E7D32));
+    expect(staleIcon.icon, Icons.circle);
+    expect(staleIcon.color, const Color(0xFFED6C02));
+    expect(offlineIcon.icon, Icons.circle);
+    expect(offlineIcon.color, const Color(0xFFD32F2F));
+  });
 
   testWidgets('shows an internal drag handle and dismisses the sheet on drag', (
     tester,

@@ -546,7 +546,11 @@ class _DownloadedTrackTile extends ConsumerWidget {
                     format: choice.format,
                   );
                   if (context.mounted) {
-                    showAppNotice(context, message: l10n.downloadsRedownloadQueued, level: AppNoticeLevel.success);
+                    showAppNotice(
+                      context,
+                      message: l10n.downloadsRedownloadQueued,
+                      level: AppNoticeLevel.success,
+                    );
                   }
                 },
               ),
@@ -693,7 +697,11 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
       }
       if (mounted) {
         AppNoticeMessenger.of(context).clearSnackBars();
-        showAppNotice(context, message: l10n.cacheSettingsClearSuccess, level: AppNoticeLevel.success);
+        showAppNotice(
+          context,
+          message: l10n.cacheSettingsClearSuccess,
+          level: AppNoticeLevel.success,
+        );
       }
     } finally {
       if (mounted) setState(() => _clearing = false);

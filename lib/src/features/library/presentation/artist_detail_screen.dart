@@ -91,7 +91,11 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
         isStarred ? DateTime.now() : null,
       );
       setState(() => _isStarred = isStarred);
-      showAppNotice(context, message: AppLocalizations.of(context)!.albumDetailStarFailure, level: AppNoticeLevel.error);
+      showAppNotice(
+        context,
+        message: AppLocalizations.of(context)!.albumDetailStarFailure,
+        level: AppNoticeLevel.error,
+      );
     } finally {
       if (mounted) setState(() => _isStarring = false);
     }

@@ -46,6 +46,8 @@ class _FakeGroupListeningRepository implements GroupListeningRepository {
   Object? closeError;
   Object? rotateInviteError;
   int connectCalls = 0;
+  int leaveCalls = 0;
+  int rejoinCalls = 0;
   int snapshotCalls = 0;
   Completer<GroupListeningRoomState>? snapshotCompleter;
   Future<void> Function()? onLeaveRoom;
@@ -132,6 +134,7 @@ class _FakeGroupListeningRepository implements GroupListeningRepository {
     GroupListeningSessionRuntimeContext session, {
     int? lastAppliedRoomVersion,
   }) async {
+    leaveCalls++;
     await onLeaveRoom?.call();
     if (leaveError != null) {
       throw leaveError!;
@@ -148,6 +151,7 @@ class _FakeGroupListeningRepository implements GroupListeningRepository {
   Future<GroupListeningJoinResponse> rejoinRoom(
     GroupListeningRejoinRoomRequest request,
   ) async {
+    rejoinCalls++;
     if (rejoinError != null) {
       throw rejoinError!;
     }
@@ -626,21 +630,29 @@ void main() {
     );
 
     test(
-      'leaves locally when Voyage is unavailable',
+      'retries leave after rejoining when Voyage does not confirm the first leave',
       () async {
         final repository = _FakeGroupListeningRepository();
         final fingerprint = computeSourceServerFingerprint(activeServer.url);
-        repository.joinResponse = GroupListeningJoinResponse(
+        final session = GroupListeningJoinResponse(
           runtimeContext: _runtimeContext(fingerprint: fingerprint),
           roomSnapshot: _roomState(fingerprint: fingerprint, roomVersion: 1),
         );
-        repository.leaveError = const GroupListeningRepositoryException(
-          GroupListeningErrorState(
-            code: GroupListeningErrorCode.transportUnavailable,
-            message: 'Unable to leave Voyage room cleanly.',
-            retryable: true,
-          ),
-        );
+        repository.joinResponse = session;
+        repository.rejoinResponse = session;
+        repository.onLeaveRoom = () async {
+          if (repository.leaveCalls == 1) {
+            repository.leaveError = const GroupListeningRepositoryException(
+              GroupListeningErrorState(
+                code: GroupListeningErrorCode.transportUnavailable,
+                message: 'Unable to leave Voyage room cleanly.',
+                retryable: true,
+              ),
+            );
+            return;
+          }
+          repository.leaveError = null;
+        };
 
         final container = createContainer(repository: repository);
         final controller = container.read(
@@ -658,6 +670,8 @@ void main() {
         final storedSession = await container
             .read(groupListeningSessionCredentialStoreProvider)
             .read();
+        expect(repository.leaveCalls, 2);
+        expect(repository.rejoinCalls, 1);
         expect(state.status, GroupListeningSessionStatus.idle);
         expect(state.room, isNull);
         expect(state.failure, isNull);
@@ -666,15 +680,17 @@ void main() {
     );
 
     test(
-      'leaves cleanly when transport teardown races with the leave request',
+      'cleans up locally when Voyage still does not confirm leave after a retry',
       () async {
         final repository = _FakeGroupListeningRepository();
         final connection = _FakeRealtimeConnection();
         final fingerprint = computeSourceServerFingerprint(activeServer.url);
-        repository.joinResponse = GroupListeningJoinResponse(
+        final session = GroupListeningJoinResponse(
           runtimeContext: _runtimeContext(fingerprint: fingerprint),
           roomSnapshot: _roomState(fingerprint: fingerprint, roomVersion: 1),
         );
+        repository.joinResponse = session;
+        repository.rejoinResponse = session;
         repository.connection = connection;
         repository.onLeaveRoom = () async {
           connection.add(
@@ -728,6 +744,8 @@ void main() {
         final storedSession = await container
             .read(groupListeningSessionCredentialStoreProvider)
             .read();
+        expect(repository.leaveCalls, 2);
+        expect(repository.rejoinCalls, 1);
         expect(state.status, GroupListeningSessionStatus.idle);
         expect(state.room, isNull);
         expect(state.failure, isNull);

@@ -487,7 +487,14 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                                     format: choice.format,
                                                   );
                                               if (context.mounted) {
-                                                showAppNotice(context, message: l10n.downloadAlbumQueued(count), level: AppNoticeLevel.success);
+                                                showAppNotice(
+                                                  context,
+                                                  message: l10n
+                                                      .downloadAlbumQueued(
+                                                        count,
+                                                      ),
+                                                  level: AppNoticeLevel.success,
+                                                );
                                               }
                                             },
                                             icon: const Icon(
@@ -1133,7 +1140,11 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
       if (!mounted) {
         return;
       }
-      showAppNotice(context, message: error.toString(), level: AppNoticeLevel.error);
+      showAppNotice(
+        context,
+        message: error.toString(),
+        level: AppNoticeLevel.error,
+      );
     } finally {
       if (mounted) {
         setState(() => _isRefreshingAlbum = false);
@@ -1204,7 +1215,11 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
           label: 'playNext',
         );
     // Optimistic success feedback — the action is non-blocking now.
-    showAppNotice(context, message: l10n.librarySongPlayNextQueued(song.title), level: AppNoticeLevel.success);
+    showAppNotice(
+      context,
+      message: l10n.librarySongPlayNextQueued(song.title),
+      level: AppNoticeLevel.success,
+    );
   }
 
   Future<void> _showSongActions(SongsTableData song) async {
@@ -1241,7 +1256,11 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                             label: 'addToQueue',
                           );
                       // Optimistic success feedback.
-                      showAppNotice(this.context, message: l10n.librarySongAddedToQueue(song.title), level: AppNoticeLevel.success);
+                      showAppNotice(
+                        this.context,
+                        message: l10n.librarySongAddedToQueue(song.title),
+                        level: AppNoticeLevel.success,
+                      );
                     },
                   ),
                   ListTile(
@@ -1271,7 +1290,11 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                           unawaited(
                             toggleSongStar(song.id, ref).catchError((_) {
                               if (this.context.mounted) {
-                                showAppNotice(this.context, message: l10n.albumDetailStarFailure, level: AppNoticeLevel.error);
+                                showAppNotice(
+                                  this.context,
+                                  message: l10n.albumDetailStarFailure,
+                                  level: AppNoticeLevel.error,
+                                );
                               }
                             }),
                           );
@@ -1296,7 +1319,11 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                             unawaited(
                               setSongRating(song.id, next, ref).catchError((_) {
                                 if (this.context.mounted) {
-                                  showAppNotice(this.context, message: l10n.ratingUpdateFailed, level: AppNoticeLevel.error);
+                                  showAppNotice(
+                                    this.context,
+                                    message: l10n.ratingUpdateFailed,
+                                    level: AppNoticeLevel.error,
+                                  );
                                 }
                               }),
                             );
@@ -1418,7 +1445,11 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
     );
     if (!mounted) return;
     final l10n = AppLocalizations.of(context)!;
-    showAppNotice(context, message: l10n.downloadSongQueued, level: AppNoticeLevel.success);
+    showAppNotice(
+      context,
+      message: l10n.downloadSongQueued,
+      level: AppNoticeLevel.success,
+    );
   }
 
   Future<void> _toggleStar({required bool isStarred}) async {
@@ -1474,7 +1505,11 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
         isStarred ? DateTime.now() : null,
       );
       setState(() => _isStarred = isStarred);
-      showAppNotice(context, message: l10n.albumDetailStarFailure, level: AppNoticeLevel.error);
+      showAppNotice(
+        context,
+        message: l10n.albumDetailStarFailure,
+        level: AppNoticeLevel.error,
+      );
     } finally {
       if (mounted) {
         setState(() => _isStarring = false);
@@ -1491,7 +1526,11 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
       if (!mounted) {
         return;
       }
-      showAppNotice(context, message: l10n.ratingUpdateFailed, level: AppNoticeLevel.error);
+      showAppNotice(
+        context,
+        message: l10n.ratingUpdateFailed,
+        level: AppNoticeLevel.error,
+      );
     } finally {
       if (mounted) {
         setState(() => _isUpdatingRating = false);
@@ -1852,7 +1891,11 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
     );
     if (!ctx.mounted) return;
     final l10n = AppLocalizations.of(ctx)!;
-    showAppNotice(ctx, message: l10n.downloadAlbumQueued(count), level: AppNoticeLevel.success);
+    showAppNotice(
+      ctx,
+      message: l10n.downloadAlbumQueued(count),
+      level: AppNoticeLevel.success,
+    );
   }
 
   /// Shows a confirmation dialog and removes all downloaded tracks in [songs].

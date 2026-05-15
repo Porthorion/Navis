@@ -134,6 +134,9 @@ class _ListenTogetherRoomContentState
     extends ConsumerState<_ListenTogetherRoomContent> {
   static final RegExp _inviteCodePattern = RegExp(r'^[A-Za-z0-9_-]{24}$');
   static final RegExp _pinPattern = RegExp(r'^\d{4}$');
+  static const Color _activeMemberStatusColor = Color(0xFF2E7D32);
+  static const Color _staleMemberStatusColor = Color(0xFFED6C02);
+  static const Color _offlineMemberStatusColor = Color(0xFFD32F2F);
 
   final _roomPinController = TextEditingController();
   bool _shotgunModeEnabled = false;
@@ -399,14 +402,6 @@ class _ListenTogetherRoomContentState
     if (mounted) ref.invalidate(groupListeningAvailableRoomsProvider);
   }
 
-  Future<void> _closeRoom() async {
-    FocusScope.of(context).unfocus();
-    await ref
-        .read(groupListeningSessionControllerProvider.notifier)
-        .closeRoom(source: 'settings-ui');
-    if (mounted) ref.invalidate(groupListeningAvailableRoomsProvider);
-  }
-
   Future<void> _rotateInvite() async {
     FocusScope.of(context).unfocus();
     await ref
@@ -643,11 +638,21 @@ class _ListenTogetherRoomContentState
     };
   }
 
-  IconData _presenceIcon(GroupListeningMemberPresenceState presenceState) {
+  IconData _presenceIcon({
+    required GroupListeningMemberPresenceState presenceState,
+    required bool isHost,
+  }) {
+    if (isHost) {
+      return Icons.workspace_premium_rounded;
+    }
+    return Icons.circle;
+  }
+
+  Color _presenceColor(GroupListeningMemberPresenceState presenceState) {
     return switch (presenceState) {
-      GroupListeningMemberPresenceState.active => Icons.circle,
-      GroupListeningMemberPresenceState.stale => Icons.access_time_outlined,
-      GroupListeningMemberPresenceState.offline => Icons.cloud_off_outlined,
+      GroupListeningMemberPresenceState.active => _activeMemberStatusColor,
+      GroupListeningMemberPresenceState.stale => _staleMemberStatusColor,
+      GroupListeningMemberPresenceState.offline => _offlineMemberStatusColor,
     };
   }
 
@@ -790,15 +795,6 @@ class _ListenTogetherRoomContentState
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: <Widget>[
-                  if (room?.self.canManageRoom ?? false) ...<Widget>[
-                    TextButton.icon(
-                      key: const ValueKey('groupListeningCloseRoomButton'),
-                      onPressed: _isBusy(sessionState) ? null : _closeRoom,
-                      icon: const Icon(Icons.cancel_outlined),
-                      label: const Text('Close room'),
-                    ),
-                    const SizedBox(width: 8),
-                  ],
                   TextButton.icon(
                     key: const ValueKey('groupListeningLeaveRoomButton'),
                     onPressed: _isBusy(sessionState) ? null : _leaveRoom,
@@ -996,44 +992,47 @@ class _ListenTogetherRoomContentState
               ],
             ),
             const SizedBox(height: 12),
-            for (var index = 0; index < members.length; index++) ...<Widget>[
-              if (index > 0) const Divider(height: 16),
+            for (final entry in members.asMap().entries) ...<Widget>[
+              if (entry.key > 0) const Divider(height: 16),
               ListTile(
+                key: ValueKey(
+                  'groupListeningMemberTile-${entry.value.memberId}',
+                ),
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(
-                  _presenceIcon(members[index].presenceState),
-                  color:
-                      members[index].presenceState ==
-                          GroupListeningMemberPresenceState.active
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.onSurfaceVariant,
+                  key: ValueKey(
+                    'groupListeningMemberIcon-${entry.value.memberId}',
+                  ),
+                  _presenceIcon(
+                    presenceState: entry.value.presenceState,
+                    isHost: entry.value.memberId == room.hostMemberId,
+                  ),
+                  color: _presenceColor(entry.value.presenceState),
                 ),
                 title: Row(
                   children: <Widget>[
-                    Expanded(child: Text(members[index].displayName)),
-                    if (members[index].memberId == room.self.memberId)
+                    Expanded(child: Text(entry.value.displayName)),
+                    if (entry.value.memberId == room.self.memberId)
                       const _MemberBadge(label: 'You'),
-                    if (members[index].memberId == room.hostMemberId)
-                      const _MemberBadge(label: 'Host'),
                   ],
                 ),
                 subtitle: Text(
                   [
-                    if ((members[index].deviceLabel ?? '').isNotEmpty)
-                      members[index].deviceLabel!,
-                    _presenceLabel(members[index].presenceState),
+                    if ((entry.value.deviceLabel ?? '').isNotEmpty)
+                      entry.value.deviceLabel!,
+                    _presenceLabel(entry.value.presenceState),
                   ].join(' · '),
                 ),
                 trailing:
                     canTransferHost &&
-                        members[index].memberId != room.self.memberId &&
-                        members[index].presenceState ==
+                        entry.value.memberId != room.self.memberId &&
+                        entry.value.presenceState ==
                             GroupListeningMemberPresenceState.active
                     ? TextButton(
                         key: ValueKey(
-                          'groupListeningTransferHostButton-${members[index].memberId}',
+                          'groupListeningTransferHostButton-${entry.value.memberId}',
                         ),
-                        onPressed: () => _transferHost(members[index]),
+                        onPressed: () => _transferHost(entry.value),
                         child: const Text('Make host'),
                       )
                     : null,
