@@ -876,6 +876,7 @@ class VoyageGroupListeningHttpClient implements GroupListeningHttpClient {
     return _joinResponseFromData(
       data,
       voyageBaseUrl: request.configuration.voyageBaseUrl,
+      fallbackRejoinToken: request.session.rejoinToken,
     );
   }
 
@@ -1649,9 +1650,16 @@ GroupListeningRepositoryException _failureFromResponse(
 GroupListeningJoinResponse _joinResponseFromData(
   Map<String, dynamic> data, {
   required Uri voyageBaseUrl,
+  String? fallbackRejoinToken,
 }) {
   final selfMember = _mapValue(data['self_member']);
   final authVersion = _intValue(selfMember['auth_version']);
+  final rejoinToken =
+      _nullableStringValue(data['rejoin_token']) ??
+      _nullableStringValue(fallbackRejoinToken);
+  if (rejoinToken == null) {
+    throw const FormatException('Expected a non-empty string value.');
+  }
   final runtimeContext = GroupListeningSessionRuntimeContext(
     roomId: _stringValue(data['room_id']),
     memberId: _stringValue(selfMember['member_id']),
@@ -1665,7 +1673,7 @@ GroupListeningJoinResponse _joinResponseFromData(
     accessTokenExpiresAt: _dateTimeFromEpochMs(
       data['access_token_expires_at_ms'],
     ),
-    rejoinToken: _stringValue(data['rejoin_token']),
+    rejoinToken: rejoinToken,
   );
   return GroupListeningJoinResponse(
     runtimeContext: runtimeContext,
