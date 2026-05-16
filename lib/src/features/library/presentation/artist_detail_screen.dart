@@ -105,7 +105,9 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final artist = ref.watch(artistByIdProvider(widget.artistId));
-    final albums = ref.watch(albumsByArtistProvider(widget.artistId));
+    final albumSections = ref.watch(
+      artistAlbumSectionsProvider(widget.artistId),
+    );
     final songs = ref.watch(songsByArtistProvider(widget.artistId));
     final artistInfo = ref.watch(artistInfoProvider(widget.artistId));
 
@@ -221,18 +223,9 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                     ],
                   ),
                 ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-                child: Text(
-                  l10n.artistDetailAlbumsSection,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              albums.when(
-                data: (items) {
-                  if (items.isEmpty) {
+              albumSections.when(
+                data: (sections) {
+                  if (sections.isEmpty) {
                     return Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: EmptyState(
@@ -242,58 +235,30 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                       ),
                     );
                   }
-                  return Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final availableWidth = constraints.maxWidth;
-                        final spacing = availableWidth >= 900 ? 12.0 : 8.0;
-                        final minTileWidth = switch (availableWidth) {
-                          >= 1400 => 220.0,
-                          >= 1100 => 200.0,
-                          >= 840 => 180.0,
-                          _ => 160.0,
-                        };
-                        final crossAxisCount =
-                            ((availableWidth + spacing) /
-                                    (minTileWidth + spacing))
-                                .floor()
-                                .clamp(2, 7);
-                        return GridView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: items.length,
-                          gridDelegate:
-                              SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: crossAxisCount,
-                                childAspectRatio: 1,
-                                crossAxisSpacing: spacing,
-                                mainAxisSpacing: spacing,
-                              ),
-                          itemBuilder: (context, index) {
-                            final album = items[index];
-                            return RepaintBoundary(
-                              child: AlbumCard(
-                                album: album,
-                                size: AlbumCardSize.library,
-                                badge: AlbumDownloadBadge(albumId: album.id),
-                                onTap: () => context.push(
-                                  '/library/albums/${album.id}',
-                                ),
-                              ),
-                            );
-                          },
-                        );
-                      },
-                    ),
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      if (sections.albums.isNotEmpty)
+                        _ArtistAlbumSection(
+                          title: l10n.artistDetailAlbumsSection,
+                          albums: sections.albums,
+                        ),
+                      if (sections.featuredIn.isNotEmpty)
+                        _ArtistAlbumSection(
+                          title: l10n.artistDetailFeaturedSection,
+                          albums: sections.featuredIn,
+                        ),
+                    ],
                   );
                 },
                 loading: () => const ShimmerListPage(count: 4, leadingSize: 56),
                 error: (error, _) => ErrorState(
                   title: l10n.artistDetailAlbumsErrorTitle,
                   message: error.toString(),
-                  onRetry: () =>
-                      ref.invalidate(albumsByArtistProvider(widget.artistId)),
+                  onRetry: () => ref.invalidate(
+                    artistAlbumSectionsProvider(widget.artistId),
+                  ),
                 ),
               ),
               // ── Similar Artists (below albums for navigation continuity) ─
@@ -599,6 +564,72 @@ class _ArtistInfoSection extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+class _ArtistAlbumSection extends StatelessWidget {
+  const _ArtistAlbumSection({required this.title, required this.albums});
+
+  final String title;
+  final List<AlbumsTableData> albums;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+          child: Text(
+            title,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final availableWidth = constraints.maxWidth;
+              final spacing = availableWidth >= 900 ? 12.0 : 8.0;
+              final minTileWidth = switch (availableWidth) {
+                >= 1400 => 220.0,
+                >= 1100 => 200.0,
+                >= 840 => 180.0,
+                _ => 160.0,
+              };
+              final crossAxisCount =
+                  ((availableWidth + spacing) / (minTileWidth + spacing))
+                      .floor()
+                      .clamp(2, 7);
+              return GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: albums.length,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: crossAxisCount,
+                  childAspectRatio: 1,
+                  crossAxisSpacing: spacing,
+                  mainAxisSpacing: spacing,
+                ),
+                itemBuilder: (context, index) {
+                  final album = albums[index];
+                  return RepaintBoundary(
+                    child: AlbumCard(
+                      album: album,
+                      size: AlbumCardSize.library,
+                      badge: AlbumDownloadBadge(albumId: album.id),
+                      onTap: () => context.push('/library/albums/${album.id}'),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }

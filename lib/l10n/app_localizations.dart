@@ -1815,6 +1815,12 @@ abstract class AppLocalizations {
   /// **'Albums'**
   String get artistDetailAlbumsSection;
 
+  /// No description provided for @artistDetailFeaturedSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Featured In'**
+  String get artistDetailFeaturedSection;
+
   /// No description provided for @artistDetailUnknownYear.
   ///
   /// In en, this message translates to:

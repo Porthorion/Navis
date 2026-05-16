@@ -197,7 +197,7 @@ void main() {
       await database.close();
     });
 
-    testWidgets('artist detail renders artist info and local albums', (
+    testWidgets('artist detail renders albums and featured appearances', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -214,16 +214,33 @@ void main() {
                 ),
               ),
             ),
-            albumsByArtistProvider('artist-1').overrideWithValue(
-              const AsyncData(<AlbumsTableData>[
-                AlbumsTableData(
-                  id: 'album-1',
-                  name: 'Album 1',
-                  artistId: 'artist-1',
-                  songsHydrated: true,
-                  artists: const <ArtistRef>[],
+            artistAlbumSectionsProvider('artist-1').overrideWithValue(
+              const AsyncData(
+                ArtistAlbumSections(
+                  albums: <AlbumsTableData>[
+                    AlbumsTableData(
+                      id: 'album-1',
+                      name: 'Album 1',
+                      artistId: 'artist-1',
+                      songsHydrated: true,
+                      artists: <ArtistRef>[],
+                    ),
+                  ],
+                  featuredIn: <AlbumsTableData>[
+                    AlbumsTableData(
+                      id: 'album-2',
+                      name: 'Album 2',
+                      artistId: 'artist-2',
+                      artistName: 'Artist 2',
+                      songsHydrated: true,
+                      artists: <ArtistRef>[
+                        ArtistRef(id: 'artist-2', name: 'Artist 2'),
+                        ArtistRef(id: 'artist-1', name: 'Artist 1'),
+                      ],
+                    ),
+                  ],
                 ),
-              ]),
+              ),
             ),
             artistInfoProvider('artist-1').overrideWithValue(
               const AsyncData(ArtistInfo(biography: 'Artist biography')),
@@ -236,9 +253,58 @@ void main() {
       expect(find.text('Artist'), findsOneWidget);
       expect(find.text('Artist 1'), findsOneWidget);
       expect(find.textContaining('1 albums'), findsOneWidget);
+      expect(find.text('Albums'), findsOneWidget);
+      expect(find.text('Featured In'), findsOneWidget);
       expect(find.text('Album 1'), findsAtLeastNWidgets(1));
+      expect(find.text('Album 2'), findsAtLeastNWidgets(1));
       await _disposeApp(tester);
     });
+
+    testWidgets(
+      'artist detail hides featured section when there are no featured albums',
+      (
+        tester,
+      ) async {
+        await tester.pumpWidget(
+          _buildApp(
+            child: const ArtistDetailScreen(artistId: 'artist-only'),
+            database: database,
+            overrides: [
+              artistByIdProvider('artist-only').overrideWithValue(
+                const AsyncData(
+                  ArtistsTableData(
+                    id: 'artist-only',
+                    name: 'Artist Only',
+                    albumCount: 1,
+                  ),
+                ),
+              ),
+              artistAlbumSectionsProvider('artist-only').overrideWithValue(
+                const AsyncData(
+                  ArtistAlbumSections(
+                    albums: <AlbumsTableData>[
+                      AlbumsTableData(
+                        id: 'solo-album',
+                        name: 'Solo Album',
+                        artistId: 'artist-only',
+                        songsHydrated: true,
+                        artists: <ArtistRef>[],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Albums'), findsOneWidget);
+        expect(find.text('Featured In'), findsNothing);
+        expect(find.text('Solo Album'), findsAtLeastNWidgets(1));
+        await _disposeApp(tester);
+      },
+    );
 
     testWidgets('album detail renders album info and local track list', (
       tester,
@@ -371,8 +437,8 @@ void main() {
                 ),
               ),
             ),
-            albumsByArtistProvider('starred-artist').overrideWithValue(
-              const AsyncData(<AlbumsTableData>[]),
+            artistAlbumSectionsProvider('starred-artist').overrideWithValue(
+              const AsyncData(ArtistAlbumSections()),
             ),
           ],
         ),
@@ -402,8 +468,8 @@ void main() {
                 ),
               ),
             ),
-            albumsByArtistProvider('unstarred-artist').overrideWithValue(
-              const AsyncData(<AlbumsTableData>[]),
+            artistAlbumSectionsProvider('unstarred-artist').overrideWithValue(
+              const AsyncData(ArtistAlbumSections()),
             ),
           ],
         ),

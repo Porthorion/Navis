@@ -980,6 +980,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get artistDetailAlbumsSection => 'Albums';
 
   @override
+  String get artistDetailFeaturedSection => 'Featured In';
+
+  @override
   String get artistDetailUnknownYear => 'Unknown year';
 
   @override

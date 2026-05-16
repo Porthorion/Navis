@@ -635,6 +635,18 @@ class AlbumWithSongs {
   final List<SongsTableData> songs;
 }
 
+class ArtistAlbumSections {
+  const ArtistAlbumSections({
+    this.albums = const <AlbumsTableData>[],
+    this.featuredIn = const <AlbumsTableData>[],
+  });
+
+  final List<AlbumsTableData> albums;
+  final List<AlbumsTableData> featuredIn;
+
+  bool get isEmpty => albums.isEmpty && featuredIn.isEmpty;
+}
+
 Future<void> _hydrateArtistFromServer(Ref ref, String artistId) async {
   final api = ref.read(subsonicApiProvider);
   if (api == null) {
@@ -679,6 +691,7 @@ Future<void> _hydrateArtistFromServer(Ref ref, String artistId) async {
           name: album.name,
           artistId: Value(album.artistId ?? detail.id),
           artistName: Value(album.artist ?? detail.name),
+          artists: Value(album.artists),
           songCount: Value(album.songCount),
           duration: Value(album.duration),
           year: Value(album.year),
@@ -805,6 +818,7 @@ Future<void> _hydrateAlbumFromServer(Ref ref, String albumId) async {
       name: detail.name,
       artistId: Value(detail.artistId),
       artistName: Value(detail.artist),
+      artists: Value(detail.artists),
       songCount: Value(effectiveSongCount),
       duration: Value(detail.duration),
       year: Value(detail.year),
@@ -967,6 +981,49 @@ final albumsByArtistProvider =
                   AppLogger.warning(
                     'Artist albums fallback hydration failed for artist=$artistId: '
                     '$error\n$stackTrace',
+                  );
+                }),
+              );
+            },
+            onError: controller.addError,
+            onDone: controller.close,
+          );
+
+      ref.onDispose(() {
+        sub.cancel();
+        controller.close();
+      });
+
+      return controller.stream;
+    });
+
+final artistAlbumSectionsProvider =
+    StreamProvider.family<ArtistAlbumSections, String>((ref, artistId) {
+      final dao = ref.watch(navisDatabaseProvider).libraryDao;
+      final controller = StreamController<ArtistAlbumSections>();
+      var requestedServerFallback = false;
+
+      final sub = dao
+          .watchArtistAlbumBuckets(artistId)
+          .listen(
+            (buckets) {
+              final sections = ArtistAlbumSections(
+                albums: buckets.primaryAlbums,
+                featuredIn: buckets.featuredInAlbums,
+              );
+              controller.add(sections);
+              if (!sections.isEmpty || requestedServerFallback) {
+                return;
+              }
+              requestedServerFallback = true;
+              unawaited(
+                _hydrateArtistFromServer(ref, artistId).catchError((
+                  Object error,
+                  StackTrace stackTrace,
+                ) {
+                  AppLogger.warning(
+                    'Artist album sections fallback hydration failed for '
+                    'artist=$artistId: $error\n$stackTrace',
                   );
                 }),
               );

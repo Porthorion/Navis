@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:navis/src/api/models/artist_ref.dart';
 import 'package:navis/src/database/navis_database.dart';
 import '../../helpers/test_database.dart';
 
@@ -15,6 +16,92 @@ void main() {
     tearDown(() async {
       await database.close();
     });
+
+    test(
+      'watchArtistAlbumBuckets keeps primary albums separate from featured appearances',
+      () async {
+        await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
+          ArtistsTableCompanion.insert(id: 'artist-1', name: 'Artist 1'),
+          ArtistsTableCompanion.insert(id: 'artist-2', name: 'Artist 2'),
+        ]);
+
+        await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+          AlbumsTableCompanion.insert(
+            id: 'album-primary',
+            name: 'Primary Album',
+            artistId: const Value('artist-1'),
+            artistName: const Value('Artist 1'),
+            artists: const Value(<ArtistRef>[
+              ArtistRef(id: 'artist-1', name: 'Artist 1'),
+            ]),
+          ),
+          AlbumsTableCompanion.insert(
+            id: 'album-collab-primary',
+            name: 'Collab Album',
+            artistId: const Value('artist-1'),
+            artistName: const Value('Artist 1'),
+            artists: const Value(<ArtistRef>[
+              ArtistRef(id: 'artist-1', name: 'Artist 1'),
+              ArtistRef(id: 'artist-2', name: 'Artist 2'),
+            ]),
+          ),
+          AlbumsTableCompanion.insert(
+            id: 'album-featured-credit',
+            name: 'Featured Credit Album',
+            artistId: const Value('artist-2'),
+            artistName: const Value('Artist 2'),
+            artists: const Value(<ArtistRef>[
+              ArtistRef(id: 'artist-2', name: 'Artist 2'),
+              ArtistRef(id: 'artist-1', name: 'Artist 1'),
+            ]),
+          ),
+          AlbumsTableCompanion.insert(
+            id: 'album-featured-song',
+            name: 'Featured Song Album',
+            artistId: const Value('artist-2'),
+            artistName: const Value('Artist 2'),
+            artists: const Value(<ArtistRef>[
+              ArtistRef(id: 'artist-2', name: 'Artist 2'),
+            ]),
+          ),
+        ]);
+
+        await database.libraryDao.replaceSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(
+            id: 'song-featured-credit',
+            title: 'Featured Credit Song',
+            albumId: const Value('album-featured-credit'),
+            artistId: const Value('artist-1'),
+            artistName: const Value('Artist 1'),
+          ),
+          SongsTableCompanion.insert(
+            id: 'song-featured-song',
+            title: 'Featured Song',
+            albumId: const Value('album-featured-song'),
+            artistId: const Value('artist-1'),
+            artistName: const Value('Artist 1'),
+          ),
+        ]);
+
+        final buckets = await database.libraryDao
+            .watchArtistAlbumBuckets('artist-1')
+            .firstWhere(
+              (value) =>
+                  value.primaryAlbums.length == 2 &&
+                  value.featuredInAlbums.length == 2,
+            );
+
+        expect(
+          buckets.primaryAlbums.map((album) => album.id),
+          <String>['album-collab-primary', 'album-primary'],
+        );
+        expect(
+          buckets.featuredInAlbums.map((album) => album.id),
+          <String>['album-featured-credit', 'album-featured-song'],
+        );
+      },
+      skip: !sqliteAvailable,
+    );
 
     test(
       'replaceSongsForAlbumsChunk replaces targeted album songs atomically',

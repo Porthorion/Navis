@@ -449,6 +449,7 @@
   "artistDetailAlbumsEmptyTitle": "No albums for this artist",
   "artistDetailAlbumsEmptySubtitle": "Sync your library to load artist albums.",
   "artistDetailAlbumsSection": "Albums",
+  "artistDetailFeaturedSection": "Featured In",
   "artistDetailUnknownYear": "Unknown year",
   "artistDetailBioSection": "Biography",
   "artistDetailSimilarSection": "Similar artists",

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:drift/drift.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/album_info_cache_table.dart';
@@ -12,6 +14,18 @@ part 'library_dao.g.dart';
 enum AlbumSortOrder { recentlyAdded, newest, name, artist }
 
 enum SongSortOrder { newest, oldest, name }
+
+class ArtistAlbumBuckets {
+  const ArtistAlbumBuckets({
+    this.primaryAlbums = const <AlbumsTableData>[],
+    this.featuredInAlbums = const <AlbumsTableData>[],
+  });
+
+  final List<AlbumsTableData> primaryAlbums;
+  final List<AlbumsTableData> featuredInAlbums;
+
+  bool get isEmpty => primaryAlbums.isEmpty && featuredInAlbums.isEmpty;
+}
 
 @DriftAccessor(
   tables: [
@@ -97,6 +111,64 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     ).watch().map(
       (rows) => rows.map((row) => albumsTable.map(row.data)).toList(),
     );
+  }
+
+  Stream<ArtistAlbumBuckets> watchArtistAlbumBuckets(String artistId) {
+    final id = artistId.trim();
+    if (id.isEmpty) {
+      return Stream<ArtistAlbumBuckets>.value(const ArtistAlbumBuckets());
+    }
+
+    final controller = StreamController<ArtistAlbumBuckets>();
+    ArtistsTableData? currentArtist;
+    List<AlbumsTableData> currentAlbums = const <AlbumsTableData>[];
+    Set<String> currentSongAlbumIds = const <String>{};
+
+    void emitBuckets() {
+      controller.add(
+        _buildArtistAlbumBuckets(
+          albums: currentAlbums,
+          artistId: id,
+          artistName: currentArtist?.name,
+          relatedSongAlbumIds: currentSongAlbumIds,
+        ),
+      );
+    }
+
+    final artistSub = watchArtistById(id).listen(
+      (artist) {
+        currentArtist = artist;
+        emitBuckets();
+      },
+      onError: controller.addError,
+    );
+
+    final albumsSub = select(albumsTable).watch().listen(
+      (albums) {
+        currentAlbums = albums;
+        emitBuckets();
+      },
+      onError: controller.addError,
+    );
+
+    final songsSub = watchSongsByArtist(id).listen(
+      (songs) {
+        currentSongAlbumIds = songs
+            .map((song) => song.albumId?.trim() ?? '')
+            .where((albumId) => albumId.isNotEmpty)
+            .toSet();
+        emitBuckets();
+      },
+      onError: controller.addError,
+    );
+
+    controller.onCancel = () async {
+      await artistSub.cancel();
+      await albumsSub.cancel();
+      await songsSub.cancel();
+    };
+
+    return controller.stream;
   }
 
   Stream<ArtistsTableData?> watchArtistById(String artistId) {
@@ -1296,6 +1368,137 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       case AlbumSortOrder.artist:
         return 'artist_name ASC, name ASC, id ASC';
     }
+  }
+
+  ArtistAlbumBuckets _buildArtistAlbumBuckets({
+    required Iterable<AlbumsTableData> albums,
+    required String artistId,
+    required String? artistName,
+    required Set<String> relatedSongAlbumIds,
+  }) {
+    final primaryAlbumsById = <String, AlbumsTableData>{};
+    final featuredAlbumsById = <String, AlbumsTableData>{};
+    final normalizedArtistName = _normalizeMetadataLookup(artistName ?? '');
+
+    for (final album in albums) {
+      final isPrimary = _isPrimaryArtistAlbum(
+        album,
+        artistId: artistId,
+        normalizedArtistName: normalizedArtistName,
+      );
+      final isFeatured =
+          !isPrimary &&
+          (_albumHasFeaturedArtistCredit(
+                album,
+                artistId: artistId,
+                normalizedArtistName: normalizedArtistName,
+              ) ||
+              relatedSongAlbumIds.contains(album.id));
+
+      if (isPrimary) {
+        primaryAlbumsById.putIfAbsent(album.id, () => album);
+        continue;
+      }
+      if (isFeatured) {
+        featuredAlbumsById.putIfAbsent(album.id, () => album);
+      }
+    }
+
+    final primaryAlbums = primaryAlbumsById.values.toList(growable: false)
+      ..sort(_compareArtistAlbums);
+    final featuredInAlbums =
+        featuredAlbumsById.values
+            .where((album) => !primaryAlbumsById.containsKey(album.id))
+            .toList(growable: false)
+          ..sort(_compareArtistAlbums);
+
+    return ArtistAlbumBuckets(
+      primaryAlbums: primaryAlbums,
+      featuredInAlbums: featuredInAlbums,
+    );
+  }
+
+  bool _isPrimaryArtistAlbum(
+    AlbumsTableData album, {
+    required String artistId,
+    required String normalizedArtistName,
+  }) {
+    final albumArtistId = album.artistId?.trim() ?? '';
+    if (albumArtistId.isNotEmpty && albumArtistId == artistId) {
+      return true;
+    }
+
+    if (albumArtistId.isEmpty && normalizedArtistName.isNotEmpty) {
+      return _normalizeMetadataLookup(album.artistName ?? '') ==
+          normalizedArtistName;
+    }
+
+    return false;
+  }
+
+  bool _albumHasFeaturedArtistCredit(
+    AlbumsTableData album, {
+    required String artistId,
+    required String normalizedArtistName,
+  }) {
+    for (final artist in album.artists) {
+      if (artist.id.trim() == artistId) {
+        return true;
+      }
+      if (normalizedArtistName.isNotEmpty &&
+          _normalizeMetadataLookup(artist.name) == normalizedArtistName) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  int _compareArtistAlbums(AlbumsTableData a, AlbumsTableData b) {
+    final yearCompare = _compareNullableIntDesc(a.year, b.year);
+    if (yearCompare != 0) {
+      return yearCompare;
+    }
+
+    final createdCompare = _compareNullableDateTimeDesc(
+      a.serverCreatedAt,
+      b.serverCreatedAt,
+    );
+    if (createdCompare != 0) {
+      return createdCompare;
+    }
+
+    final nameCompare = a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    if (nameCompare != 0) {
+      return nameCompare;
+    }
+
+    return a.id.compareTo(b.id);
+  }
+
+  int _compareNullableIntDesc(int? a, int? b) {
+    if (a == null && b == null) {
+      return 0;
+    }
+    if (a == null) {
+      return 1;
+    }
+    if (b == null) {
+      return -1;
+    }
+    return b.compareTo(a);
+  }
+
+  int _compareNullableDateTimeDesc(DateTime? a, DateTime? b) {
+    if (a == null && b == null) {
+      return 0;
+    }
+    if (a == null) {
+      return 1;
+    }
+    if (b == null) {
+      return -1;
+    }
+    return b.compareTo(a);
   }
 
   String _normalizeMetadataLookup(String value) {
