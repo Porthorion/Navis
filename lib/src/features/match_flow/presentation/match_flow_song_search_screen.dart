@@ -93,7 +93,9 @@ class _MatchFlowSongSearchScreenState
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 250), () {
       if (!mounted) return;
-      setState(() => _results = _load(value));
+      setState(() {
+        _results = _load(value);
+      });
     });
   }
 

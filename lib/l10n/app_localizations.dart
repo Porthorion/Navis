@@ -4413,6 +4413,24 @@ abstract class AppLocalizations {
   /// **'{count, plural, =0{No songs} =1{1 song} other{{count} songs}}'**
   String matchFlowSongCount(int count);
 
+  /// No description provided for @matchFlowContentsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Flow Contents'**
+  String get matchFlowContentsTitle;
+
+  /// No description provided for @matchFlowExpandContents.
+  ///
+  /// In en, this message translates to:
+  /// **'Expand Flow Contents'**
+  String get matchFlowExpandContents;
+
+  /// No description provided for @matchFlowCollapseContents.
+  ///
+  /// In en, this message translates to:
+  /// **'Collapse Flow Contents'**
+  String get matchFlowCollapseContents;
+
   /// No description provided for @matchFlowNoSongs.
   ///
   /// In en, this message translates to:

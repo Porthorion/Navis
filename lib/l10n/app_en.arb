@@ -1121,6 +1121,9 @@
       "count": { "type": "int" }
     }
   },
+  "matchFlowContentsTitle": "Flow Contents",
+  "matchFlowExpandContents": "Expand Flow Contents",
+  "matchFlowCollapseContents": "Collapse Flow Contents",
   "matchFlowNoSongs": "Add a song to set the master.",
   "matchFlowAddSongAction": "Add song",
   "matchFlowAddSongTitle": "Add song",

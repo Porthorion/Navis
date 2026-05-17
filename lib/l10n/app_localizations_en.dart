@@ -2480,6 +2480,15 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get matchFlowContentsTitle => 'Flow Contents';
+
+  @override
+  String get matchFlowExpandContents => 'Expand Flow Contents';
+
+  @override
+  String get matchFlowCollapseContents => 'Collapse Flow Contents';
+
+  @override
   String get matchFlowNoSongs => 'Add a song to set the master.';
 
   @override

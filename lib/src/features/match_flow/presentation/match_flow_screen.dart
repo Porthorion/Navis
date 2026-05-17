@@ -116,15 +116,32 @@ class _EmptyMatchFlowState extends StatelessWidget {
   }
 }
 
-class _MatchFlowCard extends ConsumerWidget {
+class _MatchFlowCard extends ConsumerStatefulWidget {
   const _MatchFlowCard({required this.flow});
 
   final MatchFlowWithSongs flow;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_MatchFlowCard> createState() => _MatchFlowCardState();
+}
+
+class _MatchFlowCardState extends ConsumerState<_MatchFlowCard> {
+  bool _contentsExpanded = false;
+
+  @override
+  void didUpdateWidget(covariant _MatchFlowCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.flow.flow.enabled && _contentsExpanded) {
+      _contentsExpanded = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
+    final flow = widget.flow;
+    final contentsVisible = flow.flow.enabled && _contentsExpanded;
     return Card(
       clipBehavior: Clip.antiAlias,
       child: Padding(
@@ -152,15 +169,22 @@ class _MatchFlowCard extends ConsumerWidget {
                   onChanged: (value) => _run(
                     context,
                     ref,
-                    () => ref
-                        .read(matchFlowDaoProvider)
-                        .setFlowEnabled(flow.flow.id, enabled: value),
+                    () async {
+                      if (!value && mounted) {
+                        setState(() {
+                          _contentsExpanded = false;
+                        });
+                      }
+                      await ref
+                          .read(matchFlowDaoProvider)
+                          .setFlowEnabled(flow.flow.id, enabled: value);
+                    },
                   ),
                 ),
                 PopupMenuButton<_FlowAction>(
                   onSelected: (action) => switch (action) {
-                    _FlowAction.rename => _rename(context, ref),
-                    _FlowAction.delete => _delete(context, ref),
+                    _FlowAction.rename => _rename(context),
+                    _FlowAction.delete => _delete(context),
                   },
                   itemBuilder: (context) => <PopupMenuEntry<_FlowAction>>[
                     PopupMenuItem(
@@ -175,73 +199,58 @@ class _MatchFlowCard extends ConsumerWidget {
                 ),
               ],
             ),
-            if (flow.songs.isEmpty)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(4, 8, 4, 12),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    l10n.matchFlowNoSongs,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
+            ListTile(
+              enabled: flow.flow.enabled,
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.queue_music),
+              title: Text(l10n.matchFlowContentsTitle),
+              trailing: IconButton(
+                tooltip: contentsVisible
+                    ? l10n.matchFlowCollapseContents
+                    : l10n.matchFlowExpandContents,
+                onPressed: flow.flow.enabled ? _toggleContents : null,
+                icon: Icon(
+                  contentsVisible
+                      ? Icons.keyboard_arrow_up
+                      : Icons.keyboard_arrow_down,
                 ),
-              )
-            else
-              ReorderableListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                buildDefaultDragHandles: false,
-                itemCount: flow.songs.length,
-                onReorder: (oldIndex, newIndex) {
-                  final adjusted = oldIndex < newIndex
-                      ? newIndex - 1
-                      : newIndex;
-                  final songId = flow.songs[oldIndex].link.songId;
-                  unawaited(
-                    _run(
-                      context,
-                      ref,
-                      () => ref
-                          .read(matchFlowDaoProvider)
-                          .reorderSong(
-                            flow.flow.id,
-                            songId,
-                            newIndex: adjusted,
-                          ),
-                    ),
-                  );
-                },
-                itemBuilder: (context, index) {
-                  return _MatchFlowSongTile(
-                    key: ValueKey(
-                      '${flow.flow.id}-${flow.songs[index].link.songId}',
-                    ),
-                    entry: flow.songs[index],
-                    index: index,
-                    onRemove: () => _run(
-                      context,
-                      ref,
-                      () => ref
-                          .read(matchFlowDaoProvider)
-                          .removeSong(
-                            flow.flow.id,
-                            flow.songs[index].link.songId,
-                          ),
-                    ),
-                  );
-                },
               ),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed: () => context.push(
-                  '/settings/playback/match-flow/${flow.flow.id}/search',
-                ),
-                icon: const Icon(Icons.add),
-                label: Text(l10n.matchFlowAddSongAction),
-              ),
+              onTap: flow.flow.enabled ? _toggleContents : null,
+            ),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutCubic,
+              child: contentsVisible
+                  ? _MatchFlowContents(
+                      flow: flow,
+                      onReorder: (oldIndex, newIndex) {
+                        final adjusted = oldIndex < newIndex
+                            ? newIndex - 1
+                            : newIndex;
+                        final songId = flow.songs[oldIndex].link.songId;
+                        unawaited(
+                          _run(
+                            context,
+                            ref,
+                            () => ref
+                                .read(matchFlowDaoProvider)
+                                .reorderSong(
+                                  flow.flow.id,
+                                  songId,
+                                  newIndex: adjusted,
+                                ),
+                          ),
+                        );
+                      },
+                      onRemove: (songId) => _run(
+                        context,
+                        ref,
+                        () => ref
+                            .read(matchFlowDaoProvider)
+                            .removeSong(flow.flow.id, songId),
+                      ),
+                    )
+                  : const SizedBox(width: double.infinity),
             ),
           ],
         ),
@@ -249,9 +258,15 @@ class _MatchFlowCard extends ConsumerWidget {
     );
   }
 
-  Future<void> _rename(BuildContext context, WidgetRef ref) async {
+  void _toggleContents() {
+    setState(() {
+      _contentsExpanded = !_contentsExpanded;
+    });
+  }
+
+  Future<void> _rename(BuildContext context) async {
     final l10n = AppLocalizations.of(context)!;
-    final controller = TextEditingController(text: flow.flow.name);
+    final controller = TextEditingController(text: widget.flow.flow.name);
     final name = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
@@ -281,17 +296,18 @@ class _MatchFlowCard extends ConsumerWidget {
     await _run(
       context,
       ref,
-      () => ref.read(matchFlowDaoProvider).renameFlow(flow.flow.id, name),
+      () =>
+          ref.read(matchFlowDaoProvider).renameFlow(widget.flow.flow.id, name),
     );
   }
 
-  Future<void> _delete(BuildContext context, WidgetRef ref) async {
+  Future<void> _delete(BuildContext context) async {
     final l10n = AppLocalizations.of(context)!;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(l10n.matchFlowDeleteTitle),
-        content: Text(l10n.matchFlowDeleteMessage(flow.flow.name)),
+        content: Text(l10n.matchFlowDeleteMessage(widget.flow.flow.name)),
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -309,7 +325,7 @@ class _MatchFlowCard extends ConsumerWidget {
     await _run(
       context,
       ref,
-      () => ref.read(matchFlowDaoProvider).deleteFlow(flow.flow.id),
+      () => ref.read(matchFlowDaoProvider).deleteFlow(widget.flow.flow.id),
     );
   }
 
@@ -336,6 +352,68 @@ class _MatchFlowCard extends ConsumerWidget {
         level: AppNoticeLevel.error,
       );
     }
+  }
+}
+
+class _MatchFlowContents extends StatelessWidget {
+  const _MatchFlowContents({
+    required this.flow,
+    required this.onReorder,
+    required this.onRemove,
+  });
+
+  final MatchFlowWithSongs flow;
+  final ReorderCallback onReorder;
+  final ValueChanged<String> onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    return Column(
+      children: <Widget>[
+        if (flow.songs.isEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 8, 4, 12),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                l10n.matchFlowNoSongs,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          )
+        else
+          ReorderableListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            buildDefaultDragHandles: false,
+            itemCount: flow.songs.length,
+            onReorder: onReorder,
+            itemBuilder: (context, index) {
+              final entry = flow.songs[index];
+              return _MatchFlowSongTile(
+                key: ValueKey('${flow.flow.id}-${entry.link.songId}'),
+                entry: entry,
+                index: index,
+                onRemove: () => onRemove(entry.link.songId),
+              );
+            },
+          ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: () => context.push(
+              '/settings/playback/match-flow/${flow.flow.id}/search',
+            ),
+            icon: const Icon(Icons.add),
+            label: Text(l10n.matchFlowAddSongAction),
+          ),
+        ),
+      ],
+    );
   }
 }
 
