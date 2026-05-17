@@ -379,20 +379,41 @@ class _MatchFlowContents extends StatelessWidget {
                 ),
               )
             else
-              ReorderableListView.builder(
-                shrinkWrap: true,
-                primary: false,
-                physics: const NeverScrollableScrollPhysics(),
-                buildDefaultDragHandles: false,
-                itemCount: flow.songs.length,
-                onReorder: onReorder,
-                itemBuilder: (context, index) {
-                  final entry = flow.songs[index];
-                  return _MatchFlowSongTile(
-                    key: ValueKey('${flow.flow.id}-${entry.link.songId}'),
-                    entry: entry,
-                    index: index,
-                    onRemove: () => onRemove(entry.link.songId),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  return ReorderableListView.builder(
+                    shrinkWrap: true,
+                    primary: false,
+                    physics: const NeverScrollableScrollPhysics(),
+                    buildDefaultDragHandles: false,
+                    itemCount: flow.songs.length,
+                    onReorder: onReorder,
+                    proxyDecorator: (child, index, animation) {
+                      return AnimatedBuilder(
+                        animation: animation,
+                        builder: (context, child) {
+                          final elevation = animation.value * 6;
+                          return SizedBox(
+                            width: constraints.maxWidth,
+                            child: Material(
+                              elevation: elevation,
+                              color: Theme.of(context).colorScheme.surface,
+                              child: child,
+                            ),
+                          );
+                        },
+                        child: child,
+                      );
+                    },
+                    itemBuilder: (context, index) {
+                      final entry = flow.songs[index];
+                      return _MatchFlowSongTile(
+                        key: ValueKey('${flow.flow.id}-${entry.link.songId}'),
+                        entry: entry,
+                        index: index,
+                        onRemove: () => onRemove(entry.link.songId),
+                      );
+                    },
                   );
                 },
               ),
@@ -493,15 +514,19 @@ class _MatchFlowSongTile extends StatelessWidget {
               ],
             ),
           ),
-          IconButton(
-            tooltip: l10n.commonRemove,
-            onPressed: onRemove,
-            icon: const Icon(Icons.close),
+          Semantics(
+            button: true,
+            label: l10n.commonRemove,
+            child: IconButton(
+              onPressed: onRemove,
+              icon: const Icon(Icons.close),
+            ),
           ),
           ReorderableDragStartListener(
             index: index,
-            child: Tooltip(
-              message: l10n.commonReorder,
+            child: Semantics(
+              button: true,
+              label: l10n.commonReorder,
               child: const Padding(
                 padding: EdgeInsets.all(12),
                 child: Icon(Icons.drag_handle),
