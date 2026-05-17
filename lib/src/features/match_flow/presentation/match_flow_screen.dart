@@ -129,19 +129,11 @@ class _MatchFlowCardState extends ConsumerState<_MatchFlowCard> {
   bool _contentsExpanded = false;
 
   @override
-  void didUpdateWidget(covariant _MatchFlowCard oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (!widget.flow.flow.enabled && _contentsExpanded) {
-      _contentsExpanded = false;
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final flow = widget.flow;
-    final contentsVisible = flow.flow.enabled && _contentsExpanded;
+    final contentsVisible = _contentsExpanded;
     return Card(
       clipBehavior: Clip.antiAlias,
       child: Padding(
@@ -200,7 +192,6 @@ class _MatchFlowCardState extends ConsumerState<_MatchFlowCard> {
               ],
             ),
             ListTile(
-              enabled: flow.flow.enabled,
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.queue_music),
               title: Text(l10n.matchFlowContentsTitle),
@@ -208,50 +199,28 @@ class _MatchFlowCardState extends ConsumerState<_MatchFlowCard> {
                 tooltip: contentsVisible
                     ? l10n.matchFlowCollapseContents
                     : l10n.matchFlowExpandContents,
-                onPressed: flow.flow.enabled ? _toggleContents : null,
+                onPressed: _toggleContents,
                 icon: Icon(
                   contentsVisible
                       ? Icons.keyboard_arrow_up
                       : Icons.keyboard_arrow_down,
                 ),
               ),
-              onTap: flow.flow.enabled ? _toggleContents : null,
+              onTap: _toggleContents,
             ),
-            AnimatedSize(
-              duration: const Duration(milliseconds: 180),
-              curve: Curves.easeOutCubic,
-              child: contentsVisible
-                  ? _MatchFlowContents(
-                      flow: flow,
-                      onReorder: (oldIndex, newIndex) {
-                        final adjusted = oldIndex < newIndex
-                            ? newIndex - 1
-                            : newIndex;
-                        final songId = flow.songs[oldIndex].link.songId;
-                        unawaited(
-                          _run(
-                            context,
-                            ref,
-                            () => ref
-                                .read(matchFlowDaoProvider)
-                                .reorderSong(
-                                  flow.flow.id,
-                                  songId,
-                                  newIndex: adjusted,
-                                ),
-                          ),
-                        );
-                      },
-                      onRemove: (songId) => _run(
-                        context,
-                        ref,
-                        () => ref
-                            .read(matchFlowDaoProvider)
-                            .removeSong(flow.flow.id, songId),
-                      ),
-                    )
-                  : const SizedBox(width: double.infinity),
-            ),
+            if (contentsVisible)
+              _MatchFlowContents(
+                flow: flow,
+                enabled: flow.flow.enabled,
+                onReorder: _reorderSong,
+                onRemove: (songId) => _run(
+                  context,
+                  ref,
+                  () => ref
+                      .read(matchFlowDaoProvider)
+                      .removeSong(flow.flow.id, songId),
+                ),
+              ),
           ],
         ),
       ),
@@ -261,6 +230,24 @@ class _MatchFlowCardState extends ConsumerState<_MatchFlowCard> {
   void _toggleContents() {
     setState(() {
       _contentsExpanded = !_contentsExpanded;
+    });
+  }
+
+  void _reorderSong(int oldIndex, int newIndex) {
+    final flow = widget.flow;
+    final adjusted = oldIndex < newIndex ? newIndex - 1 : newIndex;
+    final songId = flow.songs[oldIndex].link.songId;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(
+        _run(
+          context,
+          ref,
+          () => ref
+              .read(matchFlowDaoProvider)
+              .reorderSong(flow.flow.id, songId, newIndex: adjusted),
+        ),
+      );
     });
   }
 
@@ -358,11 +345,13 @@ class _MatchFlowCardState extends ConsumerState<_MatchFlowCard> {
 class _MatchFlowContents extends StatelessWidget {
   const _MatchFlowContents({
     required this.flow,
+    required this.enabled,
     required this.onReorder,
     required this.onRemove,
   });
 
   final MatchFlowWithSongs flow;
+  final bool enabled;
   final ReorderCallback onReorder;
   final ValueChanged<String> onRemove;
 
@@ -370,49 +359,56 @@ class _MatchFlowContents extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
-    return Column(
-      children: <Widget>[
-        if (flow.songs.isEmpty)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(4, 8, 4, 12),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                l10n.matchFlowNoSongs,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
+    return Opacity(
+      opacity: enabled ? 1 : 0.5,
+      child: IgnorePointer(
+        ignoring: !enabled,
+        child: Column(
+          children: <Widget>[
+            if (flow.songs.isEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 8, 4, 12),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    l10n.matchFlowNoSongs,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
                 ),
+              )
+            else
+              ReorderableListView.builder(
+                shrinkWrap: true,
+                primary: false,
+                physics: const NeverScrollableScrollPhysics(),
+                buildDefaultDragHandles: false,
+                itemCount: flow.songs.length,
+                onReorder: onReorder,
+                itemBuilder: (context, index) {
+                  final entry = flow.songs[index];
+                  return _MatchFlowSongTile(
+                    key: ValueKey('${flow.flow.id}-${entry.link.songId}'),
+                    entry: entry,
+                    index: index,
+                    onRemove: () => onRemove(entry.link.songId),
+                  );
+                },
+              ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () => context.push(
+                  '/settings/playback/match-flow/${flow.flow.id}/search',
+                ),
+                icon: const Icon(Icons.add),
+                label: Text(l10n.matchFlowAddSongAction),
               ),
             ),
-          )
-        else
-          ReorderableListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            buildDefaultDragHandles: false,
-            itemCount: flow.songs.length,
-            onReorder: onReorder,
-            itemBuilder: (context, index) {
-              final entry = flow.songs[index];
-              return _MatchFlowSongTile(
-                key: ValueKey('${flow.flow.id}-${entry.link.songId}'),
-                entry: entry,
-                index: index,
-                onRemove: () => onRemove(entry.link.songId),
-              );
-            },
-          ),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: TextButton.icon(
-            onPressed: () => context.push(
-              '/settings/playback/match-flow/${flow.flow.id}/search',
-            ),
-            icon: const Icon(Icons.add),
-            label: Text(l10n.matchFlowAddSongAction),
-          ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
@@ -441,10 +437,18 @@ class _MatchFlowSongTile extends StatelessWidget {
             song.artistName,
             song.albumName,
           ].where((value) => value != null && value.isNotEmpty).join(' · ');
-    return ListTile(
-      leading: song == null
-          ? const Icon(Icons.music_note_outlined)
-          : SizedBox(
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: <Widget>[
+          if (song == null)
+            const SizedBox(
+              width: 44,
+              height: 44,
+              child: Icon(Icons.music_note_outlined),
+            )
+          else
+            SizedBox(
               width: 44,
               height: 44,
               child: CoverArtImage(
@@ -453,28 +457,42 @@ class _MatchFlowSongTile extends StatelessWidget {
                 borderRadius: BorderRadius.circular(6),
               ),
             ),
-      title: Row(
-        children: <Widget>[
+          const SizedBox(width: 16),
           Expanded(
-            child: Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodyLarge,
+                      ),
+                    ),
+                    if (index == 0) ...<Widget>[
+                      const SizedBox(width: 8),
+                      Chip(
+                        label: Text(l10n.matchFlowMasterLabel),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ],
+                  ],
+                ),
+                if (subtitle.isNotEmpty)
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+              ],
             ),
           ),
-          if (index == 0) ...<Widget>[
-            const SizedBox(width: 8),
-            Chip(
-              label: Text(l10n.matchFlowMasterLabel),
-              visualDensity: VisualDensity.compact,
-            ),
-          ],
-        ],
-      ),
-      subtitle: subtitle.isEmpty ? null : Text(subtitle),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
           IconButton(
             tooltip: l10n.commonRemove,
             onPressed: onRemove,
@@ -482,10 +500,12 @@ class _MatchFlowSongTile extends StatelessWidget {
           ),
           ReorderableDragStartListener(
             index: index,
-            child: IconButton(
-              tooltip: l10n.commonReorder,
-              onPressed: () {},
-              icon: const Icon(Icons.drag_handle),
+            child: Tooltip(
+              message: l10n.commonReorder,
+              child: const Padding(
+                padding: EdgeInsets.all(12),
+                child: Icon(Icons.drag_handle),
+              ),
             ),
           ),
         ],

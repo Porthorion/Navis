@@ -18,7 +18,7 @@ void main() {
       await database.close();
     });
 
-    testWidgets('expands, collapses, and locks contents while disabled', (
+    testWidgets('expands disabled contents with muted controls', (
       tester,
     ) async {
       await database.libraryDao.upsertSongs(<SongsTableCompanion>[
@@ -49,7 +49,45 @@ void main() {
       await tester.tap(find.text('Flow Contents'));
       await tester.pump(const Duration(milliseconds: 250));
 
-      expect(find.text('Song A'), findsNothing);
+      expect(find.text('Song A'), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (widget) => widget is Opacity && widget.opacity < 1,
+        ),
+        findsOneWidget,
+      );
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 1));
+      await tester.pump(const Duration(milliseconds: 1));
+    });
+
+    testWidgets('reorders songs without widget exceptions', (tester) async {
+      await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+        SongsTableCompanion.insert(id: 'song-a', title: 'Song A'),
+        SongsTableCompanion.insert(id: 'song-b', title: 'Song B'),
+        SongsTableCompanion.insert(id: 'song-c', title: 'Song C'),
+      ]);
+      final flowId = await database.matchFlowDao.createFlow(name: 'Warmup');
+      await database.matchFlowDao.addSong(flowId, 'song-a');
+      await database.matchFlowDao.addSong(flowId, 'song-b');
+      await database.matchFlowDao.addSong(flowId, 'song-c');
+
+      await tester.pumpWidget(_buildTestApp(database));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.tap(find.text('Flow Contents'));
+      await tester.pump(const Duration(milliseconds: 250));
+
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byIcon(Icons.drag_handle).first),
+      );
+      await tester.pump();
+      await gesture.moveBy(const Offset(0, 120));
+      await tester.pump(const Duration(milliseconds: 500));
+      await gesture.up();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(tester.takeException(), isNull);
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump(const Duration(milliseconds: 1));
