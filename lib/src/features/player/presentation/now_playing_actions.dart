@@ -12,6 +12,7 @@ class _ActionRow extends ConsumerStatefulWidget {
     this.onOpenSettingsPanel,
     this.onOpenSettingsSheet,
     this.onOpenMixPanel,
+    this.showListenTogetherButton = true,
   });
 
   final SongsTableData? song;
@@ -24,6 +25,7 @@ class _ActionRow extends ConsumerStatefulWidget {
   final VoidCallback? onOpenSettingsPanel;
   final VoidCallback? onOpenSettingsSheet;
   final VoidCallback? onOpenMixPanel;
+  final bool showListenTogetherButton;
 
   @override
   ConsumerState<_ActionRow> createState() => _ActionRowState();
@@ -112,7 +114,8 @@ class _ActionRowState extends ConsumerState<_ActionRow>
             ? widget.onOpenQueuePanel
             : () => NavService.showQueue(context, ref),
       ),
-      if (showListenTogether) const GroupListeningSessionButton(),
+      if (showListenTogether && widget.showListenTogetherButton)
+        const GroupListeningSessionButton(),
       _NowPlayingActionButton(
         icon: mixIcon,
         label: l10n.nowPlayingInstantMixLabel,

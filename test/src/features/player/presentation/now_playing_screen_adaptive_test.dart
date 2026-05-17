@@ -163,4 +163,53 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets(
+    'compact-wide player moves Listen Together into settings without overflow',
+    (tester) async {
+      if (!sqliteAvailable) {
+        return;
+      }
+      setAdaptiveTestViewport(tester, const Size(560, 360));
+      final container = _createContainer(
+        overrides: <Override>[
+          groupListeningSettingsProvider.overrideWithValue(
+            const GroupListeningSettings(enabled: true, autoFollowHost: true),
+          ),
+        ],
+      );
+      container.read(_testPlaybackProvider.notifier).state = _songPlayback;
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            theme: ThemeData(platform: TargetPlatform.linux),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const Scaffold(
+              body: NowPlayingScreen(
+                wideEmbeddedMode: true,
+                compactWideLandscapeMode: true,
+                onCollapse: _noopCollapse,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('groupListeningSessionButton')),
+        findsNothing,
+      );
+      expect(tester.takeException(), isNull);
+
+      await tester.tap(find.byTooltip('Settings').first);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Listen Together'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }

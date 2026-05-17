@@ -634,6 +634,7 @@ class _NowPlayingSettingsPanel extends ConsumerWidget {
     this.fullscreenLyricsSongId,
     this.fullscreenLyricsTitle,
     this.onOpenFullscreenLyrics,
+    this.showListenTogetherEntry = false,
   });
 
   final SongsTableData? song;
@@ -641,6 +642,7 @@ class _NowPlayingSettingsPanel extends ConsumerWidget {
   final String? fullscreenLyricsSongId;
   final String? fullscreenLyricsTitle;
   final VoidCallback? onOpenFullscreenLyrics;
+  final bool showListenTogetherEntry;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -654,6 +656,11 @@ class _NowPlayingSettingsPanel extends ConsumerWidget {
     final songDownloadState = song == null
         ? SongDownloadState.none
         : ref.watch(songDownloadStateProvider(song!.id));
+    final showListenTogether =
+        showListenTogetherEntry &&
+        ref.watch(
+          groupListeningSettingsProvider.select((settings) => settings.enabled),
+        );
     final disabledColor = Theme.of(
       context,
     ).colorScheme.onSurface.withValues(alpha: 0.38);
@@ -667,6 +674,12 @@ class _NowPlayingSettingsPanel extends ConsumerWidget {
           subtitle: Text(formatPlaybackSpeed(playbackSpeed)),
           onTap: () => _showPlaybackSpeedSheet(context, ref, playbackSpeed),
         ),
+        if (showListenTogether)
+          ListTile(
+            leading: const Icon(Icons.people_alt_outlined),
+            title: const Text('Listen Together'),
+            onTap: () => unawaited(showListenTogetherSheet(context)),
+          ),
         if (song != null)
           ListTile(
             iconColor: isRemote ? disabledColor : null,
