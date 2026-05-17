@@ -19,6 +19,7 @@ abstract class NavisPlaybackHandler {
     List<String> songIds, {
     int startIndex,
     bool autoPlay,
+    bool expandMatchFlows,
   });
 
   /// Like [replaceQueue] but accepts pre-fetched [SongsTableData] rows,
@@ -29,10 +30,11 @@ abstract class NavisPlaybackHandler {
     List<SongsTableData> songs, {
     int startIndex,
     bool autoPlay,
+    bool expandMatchFlows,
   });
 
-  Future<void> addToQueue(List<String> songIds);
-  Future<void> playNext(List<String> songIds);
+  Future<void> addToQueue(List<String> songIds, {bool expandMatchFlows});
+  Future<void> playNext(List<String> songIds, {bool expandMatchFlows});
   Future<void> playFromIndex(int index);
   Future<void> removeAt(int index);
   Future<void> reorderQueue(int oldIndex, int newIndex);
@@ -123,6 +125,7 @@ class PlaybackRuntimeSettings {
     required this.replayGainPreamp,
     required this.playbackSpeed,
     required this.albumQueueEnabled,
+    required this.matchFlowEnabled,
   });
 
   const PlaybackRuntimeSettings.defaults()
@@ -137,7 +140,8 @@ class PlaybackRuntimeSettings {
       replayGainMode = 'off',
       replayGainPreamp = 0.0,
       playbackSpeed = 1.0,
-      albumQueueEnabled = false;
+      albumQueueEnabled = false,
+      matchFlowEnabled = false;
 
   final bool gaplessEnabled;
   final bool equalizerEnabled;
@@ -160,4 +164,7 @@ class PlaybackRuntimeSettings {
   /// When true, tapping a song in Android Auto queues the full album and
   /// starts at the selected track (mirrors the mobile albumQueueEnabled setting).
   final bool albumQueueEnabled;
+
+  /// When true, user queue actions expand configured Match Flows.
+  final bool matchFlowEnabled;
 }

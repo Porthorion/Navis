@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -51,6 +52,7 @@ class _PlaybackSettingsScreenState
   bool _fullscreenModeLyrics = false;
   bool _albumQueueEnabled = false;
   bool _likedQueueEnabled = false;
+  bool _matchFlowEnabled = false;
   bool _equalizerEnabled = false;
   List<double> _equalizerBandGains = List<double>.filled(5, 0);
   bool _loudnessEnabled = false;
@@ -106,9 +108,8 @@ class _PlaybackSettingsScreenState
   Widget _buildForm(BuildContext context, AppLocalizations l10n) {
     _scheduleAutosave();
     final legacyInstantMixLocked = ref.watch(legacyInstantMixLockedProvider);
-    final effectiveLegacyInstantMix = legacyInstantMixLocked
-        ? true
-        : _legacyInstantMixEnabled;
+    final effectiveLegacyInstantMix =
+        legacyInstantMixLocked || _legacyInstantMixEnabled;
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -463,10 +464,8 @@ class _PlaybackSettingsScreenState
                   color: Theme.of(context).colorScheme.outline,
                 ),
               ),
-              if (_supportsAndroidDsp) ...<Widget>[
-                const SizedBox(height: 24),
-                _buildExperimentalSection(context, l10n),
-              ],
+              const SizedBox(height: 24),
+              _buildExperimentalSection(context, l10n),
               const SizedBox(height: 20),
               Row(
                 children: <Widget>[
@@ -572,7 +571,7 @@ class _PlaybackSettingsScreenState
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(8, 0, 8, 10),
                   child: Column(
-                    children: _buildAndroidDspControls(context, l10n),
+                    children: _buildExperimentalControls(context, l10n),
                   ),
                 ),
               ),
@@ -583,76 +582,95 @@ class _PlaybackSettingsScreenState
     );
   }
 
-  List<Widget> _buildAndroidDspControls(
+  List<Widget> _buildExperimentalControls(
     BuildContext context,
     AppLocalizations l10n,
   ) {
     return <Widget>[
-      Padding(
-        padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-        child: Text(
-          l10n.playbackSettingsAndroidDspSectionTitle,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
+      SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        value: _matchFlowEnabled,
+        onChanged: _isSaving
+            ? null
+            : (value) => setState(() => _matchFlowEnabled = value),
+        title: Text(l10n.matchFlowTitle),
+        subtitle: Text(l10n.matchFlowPlaybackSettingsSubtitle),
+      ),
+      if (_matchFlowEnabled)
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.account_tree_outlined),
+          title: Text(l10n.matchFlowManageTitle),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => context.push('/settings/playback/match-flow'),
+        ),
+      if (_supportsAndroidDsp) ...<Widget>[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+          child: Text(
+            l10n.playbackSettingsAndroidDspSectionTitle,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
         ),
-      ),
-      SwitchListTile(
-        contentPadding: EdgeInsets.zero,
-        value: _equalizerEnabled,
-        onChanged: _isSaving
-            ? null
-            : (value) => setState(() => _equalizerEnabled = value),
-        title: Text(l10n.playbackSettingsEqualizerTitle),
-        subtitle: Text(l10n.playbackSettingsEqualizerSubtitle),
-      ),
-      if (_equalizerEnabled)
-        ...List<Widget>.generate(_equalizerBandGains.length, (index) {
-          final value = _equalizerBandGains[index];
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(
-                l10n.playbackSettingsEqualizerBandLabel(index + 1),
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              Slider(
-                value: value.clamp(-12, 12),
-                min: -12,
-                max: 12,
-                divisions: 24,
-                label: value.toStringAsFixed(1),
-                onChanged: _isSaving
-                    ? null
-                    : (nextValue) {
-                        setState(() {
-                          _equalizerBandGains[index] = nextValue;
-                        });
-                      },
-              ),
-            ],
-          );
-        }),
-      SwitchListTile(
-        contentPadding: EdgeInsets.zero,
-        value: _loudnessEnabled,
-        onChanged: _isSaving
-            ? null
-            : (value) => setState(() => _loudnessEnabled = value),
-        title: Text(l10n.playbackSettingsLoudnessTitle),
-        subtitle: Text(l10n.playbackSettingsLoudnessSubtitle),
-      ),
-      if (_loudnessEnabled)
-        Slider(
-          value: _loudnessTargetGainDb.clamp(0, 20),
-          min: 0,
-          max: 20,
-          divisions: 20,
-          label: _loudnessTargetGainDb.toStringAsFixed(0),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          value: _equalizerEnabled,
           onChanged: _isSaving
               ? null
-              : (value) => setState(() => _loudnessTargetGainDb = value),
+              : (value) => setState(() => _equalizerEnabled = value),
+          title: Text(l10n.playbackSettingsEqualizerTitle),
+          subtitle: Text(l10n.playbackSettingsEqualizerSubtitle),
         ),
+        if (_equalizerEnabled)
+          ...List<Widget>.generate(_equalizerBandGains.length, (index) {
+            final value = _equalizerBandGains[index];
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  l10n.playbackSettingsEqualizerBandLabel(index + 1),
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                Slider(
+                  value: value.clamp(-12, 12),
+                  min: -12,
+                  max: 12,
+                  divisions: 24,
+                  label: value.toStringAsFixed(1),
+                  onChanged: _isSaving
+                      ? null
+                      : (nextValue) {
+                          setState(() {
+                            _equalizerBandGains[index] = nextValue;
+                          });
+                        },
+                ),
+              ],
+            );
+          }),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          value: _loudnessEnabled,
+          onChanged: _isSaving
+              ? null
+              : (value) => setState(() => _loudnessEnabled = value),
+          title: Text(l10n.playbackSettingsLoudnessTitle),
+          subtitle: Text(l10n.playbackSettingsLoudnessSubtitle),
+        ),
+        if (_loudnessEnabled)
+          Slider(
+            value: _loudnessTargetGainDb.clamp(0, 20),
+            min: 0,
+            max: 20,
+            divisions: 20,
+            label: _loudnessTargetGainDb.toStringAsFixed(0),
+            onChanged: _isSaving
+                ? null
+                : (value) => setState(() => _loudnessTargetGainDb = value),
+          ),
+      ],
     ];
   }
 
@@ -668,6 +686,7 @@ class _PlaybackSettingsScreenState
     _fullscreenModeLyrics = settings.skipSilenceEnabled;
     _albumQueueEnabled = settings.albumQueueEnabled;
     _likedQueueEnabled = settings.likedQueueEnabled;
+    _matchFlowEnabled = settings.matchFlowEnabled;
     _equalizerEnabled = settings.equalizerEnabled;
     _equalizerBandGains = _normalizeBandGains(settings.equalizerBandGains);
     _loudnessEnabled = settings.loudnessEnabled;
@@ -719,6 +738,7 @@ class _PlaybackSettingsScreenState
       _playbackSpeed,
       _albumQueueEnabled,
       _likedQueueEnabled,
+      _matchFlowEnabled,
     ].join('|');
   }
 
@@ -771,9 +791,8 @@ class _PlaybackSettingsScreenState
         audioMuseEnabled: currentSettings.audioMuseEnabled,
         syncIntervalMinutes: currentSettings.syncIntervalMinutes,
         useLrclib: _useLrclib,
-        legacyInstantMixEnabled: legacyInstantMixLocked
-            ? true
-            : _legacyInstantMixEnabled,
+        legacyInstantMixEnabled:
+            legacyInstantMixLocked || _legacyInstantMixEnabled,
         replayGainMode: _replayGainMode,
         replayGainPreamp: _normalizeReplayGainPreamp(_replayGainPreamp),
         playbackSpeed: _normalizePlaybackSpeed(_playbackSpeed),
@@ -782,10 +801,21 @@ class _PlaybackSettingsScreenState
         nowPlayingArtShape: currentSettings.nowPlayingArtShape,
         artistCardShape: currentSettings.artistCardShape,
         artistViewMode: currentSettings.artistViewMode,
+        desktopFocusPlayerModeEnabled:
+            currentSettings.desktopFocusPlayerModeEnabled,
         homeSectionOrder: currentSettings.homeSectionOrder,
         homeSectionsHidden: currentSettings.homeSectionsHidden,
+        desktopNavbarStyle: currentSettings.desktopNavbarStyle,
+        desktopNavbarAutohide: currentSettings.desktopNavbarAutohide,
         albumQueueEnabled: _albumQueueEnabled,
+        matchFlowEnabled: _matchFlowEnabled,
         likedQueueEnabled: _likedQueueEnabled,
+        lastFmApiKey: currentSettings.lastFmApiKey,
+        groupListeningEnabled: currentSettings.groupListeningEnabled,
+        voyageServerUrl: currentSettings.voyageServerUrl,
+        voyageDisplayName: currentSettings.voyageDisplayName,
+        voyageDeviceLabel: currentSettings.voyageDeviceLabel,
+        voyageAutoFollowHost: currentSettings.voyageAutoFollowHost,
       );
       await ref.read(settingsRepositoryProvider).saveSettings(settings);
       final handler = ref.read(audioHandlerProvider);

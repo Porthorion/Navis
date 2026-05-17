@@ -215,6 +215,7 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
     List<String> songIds, {
     int startIndex = 0,
     bool autoPlay = true,
+    bool expandMatchFlows = true,
   }) async {
     _activeReplaceQueueCalls += 1;
     if (_activeReplaceQueueCalls > maxConcurrentReplaceQueueCalls) {
@@ -271,6 +272,7 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
     List<SongsTableData> songs, {
     int startIndex = 0,
     bool autoPlay = true,
+    bool expandMatchFlows = true,
   }) {
     return replaceQueue(
       songs.map((song) => song.id).toList(growable: false),
@@ -280,10 +282,16 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
   }
 
   @override
-  Future<void> addToQueue(List<String> songIds) async {}
+  Future<void> addToQueue(
+    List<String> songIds, {
+    bool expandMatchFlows = true,
+  }) async {}
 
   @override
-  Future<void> playNext(List<String> songIds) async {}
+  Future<void> playNext(
+    List<String> songIds, {
+    bool expandMatchFlows = true,
+  }) async {}
 
   @override
   Future<void> playFromIndex(int index) async {

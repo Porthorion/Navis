@@ -15,6 +15,7 @@ import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
+import 'package:navis/src/database/daos/match_flow_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/audiomuse/data/audiomuse_api_client.dart';
@@ -188,6 +189,17 @@ final likedQueueEnabledProvider = Provider<bool>((ref) {
   return settings.likedQueueEnabled;
 });
 
+final matchFlowEnabledProvider = Provider<bool>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.matchFlowEnabled;
+});
+
+final matchFlowDaoProvider = Provider<MatchFlowDao>((ref) {
+  return ref.watch(navisDatabaseProvider).matchFlowDao;
+});
+
 final activeStreamingQualityProvider = Provider<StreamingQuality>((ref) {
   final networkType = ref.watch(networkTypeProvider);
   final settings =
@@ -346,6 +358,7 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
       libraryDao: database.libraryDao,
       playlistDao: database.playlistDao,
       playQueueDao: database.playQueueDao,
+      matchFlowDao: database.matchFlowDao,
       historyDao: database.historyDao,
       sourceResolver: PlaybackSourceResolver(
         cacheDao: database.cacheDao,
@@ -377,6 +390,7 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
           replayGainPreamp: settings.replayGainPreamp,
           playbackSpeed: settings.playbackSpeed,
           albumQueueEnabled: settings.albumQueueEnabled,
+          matchFlowEnabled: settings.matchFlowEnabled,
         );
       },
     );

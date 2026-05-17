@@ -113,6 +113,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     String desktopNavbarStyle = 'comfortable',
     bool desktopNavbarAutohide = false,
     bool albumQueueEnabled = false,
+    bool matchFlowEnabled = false,
     bool likedQueueEnabled = false,
     String? lastFmApiKey,
   }) {
@@ -167,6 +168,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         desktopNavbarStyle: Value(desktopNavbarStyle),
         desktopNavbarAutohide: Value(desktopNavbarAutohide),
         albumQueueEnabled: Value(albumQueueEnabled),
+        matchFlowEnabled: Value(matchFlowEnabled),
         likedQueueEnabled: Value(likedQueueEnabled),
         lastFmApiKey: Value(lastFmApiKey),
         updatedAt: DateTime.now(),
@@ -262,6 +264,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       desktopNavbarStyle: 'comfortable',
       desktopNavbarAutohide: false,
       albumQueueEnabled: false,
+      matchFlowEnabled: false,
       likedQueueEnabled: false,
       lastFmApiKey: null,
     );

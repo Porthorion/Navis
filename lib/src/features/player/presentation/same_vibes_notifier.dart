@@ -216,7 +216,9 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
               if (chunk.isEmpty || !state.active) {
                 return 0;
               }
-              await ref.read(queueProvider.notifier).addWithSongs(chunk);
+              await ref
+                  .read(queueProvider.notifier)
+                  .addWithSongs(chunk, expandMatchFlows: false);
               for (final song in chunk) {
                 final id = song.id.trim();
                 if (id.isNotEmpty) {
@@ -335,7 +337,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
             if (fallbackSongs.isNotEmpty) {
               await ref
                   .read(queueProvider.notifier)
-                  .addWithSongs(fallbackSongs);
+                  .addWithSongs(fallbackSongs, expandMatchFlows: false);
               for (final song in fallbackSongs) {
                 final id = song.id.trim();
                 if (id.isNotEmpty) {

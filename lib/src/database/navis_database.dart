@@ -7,6 +7,7 @@ import 'package:navis/src/database/daos/cache_dao.dart';
 import 'package:navis/src/database/daos/download_queue_dao.dart';
 import 'package:navis/src/database/daos/history_dao.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
+import 'package:navis/src/database/daos/match_flow_dao.dart';
 import 'package:navis/src/database/daos/play_queue_dao.dart';
 import 'package:navis/src/database/daos/playlist_dao.dart';
 import 'package:navis/src/database/daos/scrobble_dao.dart';
@@ -20,6 +21,8 @@ import 'package:navis/src/database/tables/cached_tracks_table.dart';
 import 'package:navis/src/database/tables/download_queue_table.dart';
 import 'package:navis/src/database/tables/external_lyrics_cache_table.dart';
 import 'package:navis/src/database/tables/genres_table.dart';
+import 'package:navis/src/database/tables/match_flow_songs_table.dart';
+import 'package:navis/src/database/tables/match_flows_table.dart';
 import 'package:navis/src/database/tables/play_history_table.dart';
 import 'package:navis/src/database/tables/play_queue_items_table.dart';
 import 'package:navis/src/database/tables/play_queue_table.dart';
@@ -52,6 +55,8 @@ part 'navis_database.g.dart';
     RecentSearchesTable,
     PlayQueueTable,
     PlayQueueItemsTable,
+    MatchFlowsTable,
+    MatchFlowSongsTable,
     ScrobbleQueueTable,
     StarSyncQueueTable,
   ],
@@ -64,6 +69,7 @@ part 'navis_database.g.dart';
     DownloadQueueDao,
     HistoryDao,
     PlayQueueDao,
+    MatchFlowDao,
     ScrobbleDao,
     StarSyncDao,
   ],
@@ -75,7 +81,7 @@ class NavisDatabase extends _$NavisDatabase {
   static QueryExecutor _openConnection() => driftDatabase(name: 'navis.sqlite');
 
   @override
-  int get schemaVersion => 41;
+  int get schemaVersion => 42;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -218,6 +224,9 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 41 && to >= 41) {
       await from40To41(migrator);
+    }
+    if (from < 42 && to >= 42) {
+      await from41To42(migrator);
     }
   }
 
@@ -778,6 +787,10 @@ class NavisDatabase extends _$NavisDatabase {
     await _ensureGroupListeningColumns();
   }
 
+  Future<void> from41To42(Migrator migrator) async {
+    await _ensureMatchFlowStorage(migrator);
+  }
+
   Future<void> _ensureGroupListeningColumns() async {
     if (!await _columnExists('app_settings', 'group_listening_enabled')) {
       await customStatement('''
@@ -811,6 +824,42 @@ class NavisDatabase extends _$NavisDatabase {
     }
   }
 
+  Future<void> _ensureMatchFlowStorage([Migrator? migrator]) async {
+    if (!await _tableExists('match_flows')) {
+      await (migrator?.createTable(matchFlowsTable) ??
+          customStatement('''
+            CREATE TABLE match_flows (
+              id TEXT NOT NULL PRIMARY KEY,
+              name TEXT NOT NULL,
+              enabled INTEGER NOT NULL DEFAULT 1,
+              created_at INTEGER NOT NULL,
+              updated_at INTEGER NOT NULL
+            );
+          '''));
+    }
+    if (!await _tableExists('match_flow_songs')) {
+      await (migrator?.createTable(matchFlowSongsTable) ??
+          customStatement('''
+            CREATE TABLE match_flow_songs (
+              flow_id TEXT NOT NULL,
+              song_id TEXT NOT NULL,
+              sort_order INTEGER NOT NULL,
+              added_at INTEGER NOT NULL,
+              PRIMARY KEY (flow_id, song_id),
+              FOREIGN KEY (flow_id)
+                REFERENCES match_flows(id)
+                ON DELETE CASCADE
+            );
+          '''));
+    }
+    if (!await _columnExists('app_settings', 'match_flow_enabled')) {
+      await customStatement('''
+        ALTER TABLE app_settings
+        ADD COLUMN match_flow_enabled INTEGER NOT NULL DEFAULT 0;
+      ''');
+    }
+  }
+
   Future<void> _ensureAppSettingsDefaults() {
     return into(appSettingsTable).insert(
       AppSettingsTableCompanion.insert(
@@ -838,6 +887,7 @@ class NavisDatabase extends _$NavisDatabase {
         useLrclib: const Value(true),
         themeMode: const Value('dark'),
         colorSchemeSeed: const Value(null),
+        matchFlowEnabled: const Value(false),
         updatedAt: DateTime.now(),
       ),
       mode: InsertMode.insertOrIgnore,
@@ -886,6 +936,12 @@ class NavisDatabase extends _$NavisDatabase {
     );
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_play_queue_items_order ON play_queue_items(queue_id, sort_order);',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_match_flow_songs_order ON match_flow_songs(flow_id, sort_order);',
+    );
+    await customStatement(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_match_flow_unique_master ON match_flow_songs(song_id) WHERE sort_order = 0;',
     );
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_scrobble_queue_due ON scrobble_queue(next_attempt_at, expires_at);',

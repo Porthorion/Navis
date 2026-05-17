@@ -139,7 +139,10 @@ class QueueController extends Notifier<List<String>> {
 
   /// Like [add], but accepts multiple [Song] API model objects and queues
   /// them in one call after persisting all rows locally.
-  Future<void> addWithSongs(List<Song> songs) async {
+  Future<void> addWithSongs(
+    List<Song> songs, {
+    bool expandMatchFlows = true,
+  }) async {
     if (songs.isEmpty) {
       return;
     }
@@ -152,7 +155,7 @@ class QueueController extends Notifier<List<String>> {
       return;
     }
     final handler = _requireHandler();
-    await handler.addToQueue(ids);
+    await handler.addToQueue(ids, expandMatchFlows: expandMatchFlows);
   }
 
   /// Like [playNext], but accepts a [Song] API model object.

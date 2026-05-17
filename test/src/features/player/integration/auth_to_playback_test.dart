@@ -52,6 +52,7 @@ class _RecordingPlaybackHandler implements NavisPlaybackHandler {
     List<String> songIds, {
     int startIndex = 0,
     bool autoPlay = true,
+    bool expandMatchFlows = true,
   }) async {
     replaceQueueCalls += 1;
     lastQueue = List<String>.from(songIds);
@@ -62,6 +63,7 @@ class _RecordingPlaybackHandler implements NavisPlaybackHandler {
     List<SongsTableData> songs, {
     int startIndex = 0,
     bool autoPlay = true,
+    bool expandMatchFlows = true,
   }) async {
     replaceQueueCalls += 1;
     lastQueue = songs.map((s) => s.id).toList();
@@ -73,7 +75,10 @@ class _RecordingPlaybackHandler implements NavisPlaybackHandler {
   }
 
   @override
-  Future<void> addToQueue(List<String> songIds) async {}
+  Future<void> addToQueue(
+    List<String> songIds, {
+    bool expandMatchFlows = true,
+  }) async {}
 
   @override
   Future<void> applyRuntimeSettings() async {}
@@ -88,7 +93,10 @@ class _RecordingPlaybackHandler implements NavisPlaybackHandler {
   Future<void> playFromIndex(int index) async {}
 
   @override
-  Future<void> playNext(List<String> songIds) async {}
+  Future<void> playNext(
+    List<String> songIds, {
+    bool expandMatchFlows = true,
+  }) async {}
 
   @override
   Future<void> removeAt(int index) async {}

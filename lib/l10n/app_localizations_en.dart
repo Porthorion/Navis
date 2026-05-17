@@ -2421,4 +2421,103 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get remoteSourceInstantMixUnavailable =>
       'Instant Mix requires a locally scanned track.';
+
+  @override
+  String get commonSave => 'Save';
+
+  @override
+  String get commonDelete => 'Delete';
+
+  @override
+  String get commonRename => 'Rename';
+
+  @override
+  String get commonRemove => 'Remove';
+
+  @override
+  String get commonReorder => 'Reorder';
+
+  @override
+  String get matchFlowTitle => 'Match Flow';
+
+  @override
+  String get matchFlowPlaybackSettingsSubtitle =>
+      'Expand a selected master song into a saved local playback flow.';
+
+  @override
+  String get matchFlowManageTitle => 'Manage Match Flows';
+
+  @override
+  String get matchFlowCreateAction => 'New Flow';
+
+  @override
+  String get matchFlowEmptyTitle => 'No Match Flows yet';
+
+  @override
+  String get matchFlowEmptySubtitle =>
+      'Create a flow, choose a master song, then add the songs that should follow it.';
+
+  @override
+  String matchFlowLoadError(String error) {
+    return 'Could not load Match Flow: $error';
+  }
+
+  @override
+  String matchFlowSaveError(String error) {
+    return 'Could not save Match Flow: $error';
+  }
+
+  @override
+  String matchFlowSongCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count songs',
+      one: '1 song',
+      zero: 'No songs',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get matchFlowNoSongs => 'Add a song to set the master.';
+
+  @override
+  String get matchFlowAddSongAction => 'Add song';
+
+  @override
+  String get matchFlowAddSongTitle => 'Add song';
+
+  @override
+  String get matchFlowSearchHint => 'Search songs';
+
+  @override
+  String get matchFlowNoSearchResults => 'No songs found';
+
+  @override
+  String get matchFlowRenameTitle => 'Rename flow';
+
+  @override
+  String get matchFlowNameLabel => 'Flow name';
+
+  @override
+  String get matchFlowDeleteTitle => 'Delete flow?';
+
+  @override
+  String matchFlowDeleteMessage(String name) {
+    return 'Delete “$name” and its song order?';
+  }
+
+  @override
+  String get matchFlowMasterLabel => 'Master';
+
+  @override
+  String matchFlowUnresolvedSong(String songId) {
+    return 'Unresolved song $songId';
+  }
+
+  @override
+  String matchFlowSongAdded(String title) {
+    return 'Added $title.';
+  }
 }

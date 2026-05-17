@@ -30,7 +30,10 @@ class _FakeQueueController extends QueueController {
   List<String> build() => const <String>[];
 
   @override
-  Future<void> addWithSongs(List<Song> songs) async {
+  Future<void> addWithSongs(
+    List<Song> songs, {
+    bool expandMatchFlows = true,
+  }) async {
     queuedSongs.addAll(songs);
   }
 }

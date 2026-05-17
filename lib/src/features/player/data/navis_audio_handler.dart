@@ -11,6 +11,7 @@ import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/database/daos/history_dao.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
+import 'package:navis/src/database/daos/match_flow_dao.dart';
 import 'package:navis/src/database/daos/playlist_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/daos/play_queue_dao.dart';
@@ -42,6 +43,7 @@ class NavisAudioHandler extends BaseAudioHandler
     required LibraryDao libraryDao,
     required PlaylistDao playlistDao,
     required PlayQueueDao playQueueDao,
+    required MatchFlowDao matchFlowDao,
     required HistoryDao historyDao,
     required PlaybackSourceResolver sourceResolver,
     required SubsonicApiClient? Function() readApiClient,
@@ -54,6 +56,7 @@ class NavisAudioHandler extends BaseAudioHandler
   }) : _libraryDao = libraryDao,
        _playlistDao = playlistDao,
        _playQueueDao = playQueueDao,
+       _matchFlowDao = matchFlowDao,
        _historyDao = historyDao,
        _sourceResolver = sourceResolver,
        _readApiClient = readApiClient,
@@ -100,6 +103,7 @@ class NavisAudioHandler extends BaseAudioHandler
   final LibraryDao _libraryDao;
   final PlaylistDao _playlistDao;
   final PlayQueueDao _playQueueDao;
+  final MatchFlowDao _matchFlowDao;
   final HistoryDao _historyDao;
   final PlaybackSourceResolver _sourceResolver;
   final SubsonicApiClient? Function() _readApiClient;
@@ -2571,7 +2575,15 @@ class NavisAudioHandler extends BaseAudioHandler
     List<String> songIds, {
     int startIndex = 0,
     bool autoPlay = true,
-  }) {
+    bool expandMatchFlows = true,
+  }) async {
+    final expansion = await _expandMatchFlowIds(
+      songIds,
+      startIndex: startIndex,
+      expandMatchFlows: expandMatchFlows,
+    );
+    songIds = expansion.songIds;
+    startIndex = expansion.startIndex;
     final normalizedStartIndex = songIds.isEmpty
         ? 0
         : startIndex.clamp(0, songIds.length - 1);
@@ -2643,7 +2655,12 @@ class NavisAudioHandler extends BaseAudioHandler
           );
           if (nextIndex != null) {
             unawaited(
-              replaceQueue(songIds, startIndex: nextIndex, autoPlay: autoPlay),
+              replaceQueue(
+                songIds,
+                startIndex: nextIndex,
+                autoPlay: autoPlay,
+                expandMatchFlows: false,
+              ),
             );
           }
         }
@@ -2680,7 +2697,22 @@ class NavisAudioHandler extends BaseAudioHandler
     List<SongsTableData> songs, {
     int startIndex = 0,
     bool autoPlay = true,
-  }) {
+    bool expandMatchFlows = true,
+  }) async {
+    if (expandMatchFlows && songs.isNotEmpty) {
+      final expansion = await _expandMatchFlowIds(
+        songs.map((song) => song.id).toList(growable: false),
+        startIndex: startIndex,
+        expandMatchFlows: true,
+      );
+      final expandedSongs = await _libraryDao.getSongsByIds(expansion.songIds);
+      return replaceQueueWithData(
+        expandedSongs,
+        startIndex: expansion.startIndex,
+        autoPlay: autoPlay,
+        expandMatchFlows: false,
+      );
+    }
     final normalizedStartIndex = songs.isEmpty
         ? 0
         : startIndex.clamp(0, songs.length - 1);
@@ -2734,6 +2766,7 @@ class NavisAudioHandler extends BaseAudioHandler
                 songs,
                 startIndex: nextIndex,
                 autoPlay: autoPlay,
+                expandMatchFlows: false,
               ),
             );
           }
@@ -2750,9 +2783,17 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   @override
-  Future<void> addToQueue(List<String> songIds) {
+  Future<void> addToQueue(
+    List<String> songIds, {
+    bool expandMatchFlows = true,
+  }) {
     return _queueLane.run((token) async {
       await _ready;
+      songIds = (await _expandMatchFlowIds(
+        songIds,
+        startIndex: 0,
+        expandMatchFlows: expandMatchFlows,
+      )).songIds;
       if (songIds.isEmpty) {
         return;
       }
@@ -2765,6 +2806,7 @@ class NavisAudioHandler extends BaseAudioHandler
           startIndex: 0,
           autoPlay: true,
           persist: true,
+          expandMatchFlows: false,
         );
         return;
       }
@@ -2801,10 +2843,18 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   @override
-  Future<void> playNext(List<String> songIds) {
+  Future<void> playNext(
+    List<String> songIds, {
+    bool expandMatchFlows = true,
+  }) {
     return _queueLane.run((token) async {
       await _ready;
-      final incoming = songIds
+      final expanded = (await _expandMatchFlowIds(
+        songIds,
+        startIndex: 0,
+        expandMatchFlows: expandMatchFlows,
+      )).songIds;
+      final incoming = expanded
           .map((id) => id.trim())
           .where((id) => id.isNotEmpty)
           .toList(growable: false);
@@ -2818,6 +2868,7 @@ class NavisAudioHandler extends BaseAudioHandler
           startIndex: 0,
           autoPlay: true,
           persist: true,
+          expandMatchFlows: false,
         );
         return;
       }
@@ -3812,7 +3863,9 @@ class NavisAudioHandler extends BaseAudioHandler
     try {
       final songs = await api.getSimilarSongs(seedId, count: 50);
       final songIds = songs.map((s) => s.id).toList(growable: false);
-      if (songIds.isNotEmpty) await replaceQueue(songIds);
+      if (songIds.isNotEmpty) {
+        await replaceQueue(songIds, expandMatchFlows: false);
+      }
     } on Object catch (e, st) {
       AppLogger.warning(
         'Instant Mix (fallback) failed for song $seedId: $e\n$st',
@@ -3849,7 +3902,7 @@ class NavisAudioHandler extends BaseAudioHandler
         final songs = await api.getRandomSongs(size: 50);
         final songIds = songs.map((s) => s.id).toList(growable: false);
         if (songIds.isNotEmpty) {
-          await replaceQueue(songIds);
+          await replaceQueue(songIds, expandMatchFlows: false);
           return;
         }
       } on Object catch (e, st) {
@@ -3859,7 +3912,10 @@ class NavisAudioHandler extends BaseAudioHandler
     final all = await _libraryDao.watchAllSongs().first;
     if (all.isNotEmpty) {
       final shuffled = List.of(all)..shuffle();
-      await replaceQueueWithData(shuffled.take(50).toList(growable: false));
+      await replaceQueueWithData(
+        shuffled.take(50).toList(growable: false),
+        expandMatchFlows: false,
+      );
     }
   }
 
@@ -4291,7 +4347,15 @@ class NavisAudioHandler extends BaseAudioHandler
     required int startIndex,
     required bool autoPlay,
     required bool persist,
+    bool expandMatchFlows = true,
   }) async {
+    final expansion = await _expandMatchFlowIds(
+      songIds,
+      startIndex: startIndex,
+      expandMatchFlows: expandMatchFlows,
+    );
+    songIds = expansion.songIds;
+    startIndex = expansion.startIndex;
     final songs = await _libraryDao.getSongsByIds(songIds);
     if (songs.isEmpty) {
       await _clearQueueInternal(persist: persist);
@@ -4302,6 +4366,18 @@ class NavisAudioHandler extends BaseAudioHandler
       startIndex: startIndex,
       autoPlay: autoPlay,
       persist: persist,
+    );
+  }
+
+  Future<MatchFlowExpansionResult> _expandMatchFlowIds(
+    List<String> songIds, {
+    required int startIndex,
+    required bool expandMatchFlows,
+  }) {
+    return _matchFlowDao.expandQueueSongIds(
+      songIds,
+      startIndex: startIndex,
+      enabled: expandMatchFlows && _readRuntimeSettings().matchFlowEnabled,
     );
   }
 

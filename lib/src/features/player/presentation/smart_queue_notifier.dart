@@ -136,7 +136,7 @@ class SmartQueueNotifier extends Notifier<SmartQueueState> {
   }) async {
     final ids = songs.map((s) => s.id).toList(growable: false);
     final handler = ref.read(audioHandlerProvider);
-    await handler?.addToQueue(ids);
+    await handler?.addToQueue(ids, expandMatchFlows: false);
 
     // Track artists for deduplication (used by discovery profile).
     final artists = Set<String>.from(state.queuedArtists);

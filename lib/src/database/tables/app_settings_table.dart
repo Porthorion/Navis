@@ -186,6 +186,10 @@ class AppSettingsTable extends Table {
   BoolColumn get albumQueueEnabled =>
       boolean().withDefault(const Constant(false))();
 
+  /// When true, user queue actions expand configured Match Flows.
+  BoolColumn get matchFlowEnabled =>
+      boolean().withDefault(const Constant(false))();
+
   /// When true (and albumQueueEnabled is also true), tapping a track on the
   /// Liked page queues all liked songs and starts at the selected track.
   /// Default false.

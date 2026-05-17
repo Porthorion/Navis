@@ -1089,5 +1089,63 @@
   "actionLike": "Like",
   "actionLiked": "Liked",
   "remoteSourceActionUnavailable": "Not available for remote tracks.",
-  "remoteSourceInstantMixUnavailable": "Instant Mix requires a locally scanned track."
+  "remoteSourceInstantMixUnavailable": "Instant Mix requires a locally scanned track.",
+
+  "commonSave": "Save",
+  "commonDelete": "Delete",
+  "commonRename": "Rename",
+  "commonRemove": "Remove",
+  "commonReorder": "Reorder",
+
+  "matchFlowTitle": "Match Flow",
+  "matchFlowPlaybackSettingsSubtitle": "Expand a selected master song into a saved local playback flow.",
+  "matchFlowManageTitle": "Manage Match Flows",
+  "matchFlowCreateAction": "New Flow",
+  "matchFlowEmptyTitle": "No Match Flows yet",
+  "matchFlowEmptySubtitle": "Create a flow, choose a master song, then add the songs that should follow it.",
+  "matchFlowLoadError": "Could not load Match Flow: {error}",
+  "@matchFlowLoadError": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "matchFlowSaveError": "Could not save Match Flow: {error}",
+  "@matchFlowSaveError": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "matchFlowSongCount": "{count, plural, =0{No songs} =1{1 song} other{{count} songs}}",
+  "@matchFlowSongCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "matchFlowNoSongs": "Add a song to set the master.",
+  "matchFlowAddSongAction": "Add song",
+  "matchFlowAddSongTitle": "Add song",
+  "matchFlowSearchHint": "Search songs",
+  "matchFlowNoSearchResults": "No songs found",
+  "matchFlowRenameTitle": "Rename flow",
+  "matchFlowNameLabel": "Flow name",
+  "matchFlowDeleteTitle": "Delete flow?",
+  "matchFlowDeleteMessage": "Delete “{name}” and its song order?",
+  "@matchFlowDeleteMessage": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "matchFlowMasterLabel": "Master",
+  "matchFlowUnresolvedSong": "Unresolved song {songId}",
+  "@matchFlowUnresolvedSong": {
+    "placeholders": {
+      "songId": { "type": "String" }
+    }
+  },
+  "matchFlowSongAdded": "Added {title}.",
+  "@matchFlowSongAdded": {
+    "placeholders": {
+      "title": { "type": "String" }
+    }
+  }
 }

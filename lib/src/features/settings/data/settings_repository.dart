@@ -74,6 +74,7 @@ class SettingsRepository {
       desktopNavbarStyle: settings.desktopNavbarStyle,
       desktopNavbarAutohide: settings.desktopNavbarAutohide,
       albumQueueEnabled: settings.albumQueueEnabled,
+      matchFlowEnabled: settings.matchFlowEnabled,
       likedQueueEnabled: settings.likedQueueEnabled,
       lastFmApiKey: settings.lastFmApiKey,
     );
@@ -153,6 +154,7 @@ class SettingsRepository {
       desktopNavbarStyle: row.desktopNavbarStyle,
       desktopNavbarAutohide: row.desktopNavbarAutohide,
       albumQueueEnabled: row.albumQueueEnabled,
+      matchFlowEnabled: row.matchFlowEnabled,
       likedQueueEnabled: row.likedQueueEnabled,
       lastFmApiKey: row.lastFmApiKey,
       groupListeningEnabled: effectiveGroupListening.groupListeningEnabled,

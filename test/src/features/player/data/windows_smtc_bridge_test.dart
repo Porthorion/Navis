@@ -236,7 +236,10 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
   Stream<PlaybackSnapshot> get snapshotStream => _snapshotController.stream;
 
   @override
-  Future<void> addToQueue(List<String> songIds) async {}
+  Future<void> addToQueue(
+    List<String> songIds, {
+    bool expandMatchFlows = true,
+  }) async {}
 
   @override
   Future<void> applyRuntimeSettings() async {}
@@ -258,7 +261,10 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
   Future<void> playFromIndex(int index) async {}
 
   @override
-  Future<void> playNext(List<String> songIds) async {}
+  Future<void> playNext(
+    List<String> songIds, {
+    bool expandMatchFlows = true,
+  }) async {}
 
   @override
   Future<void> playRadioStream({
@@ -279,6 +285,7 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
     List<String> songIds, {
     int startIndex = 0,
     bool autoPlay = true,
+    bool expandMatchFlows = true,
   }) async {}
 
   @override
@@ -286,6 +293,7 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
     List<SongsTableData> songs, {
     int startIndex = 0,
     bool autoPlay = true,
+    bool expandMatchFlows = true,
   }) async {}
 
   @override

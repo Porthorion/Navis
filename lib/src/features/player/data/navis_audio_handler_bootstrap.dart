@@ -60,6 +60,7 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
   required LibraryDao libraryDao,
   required PlaylistDao playlistDao,
   required PlayQueueDao playQueueDao,
+  required MatchFlowDao matchFlowDao,
   required HistoryDao historyDao,
   required PlaybackSourceResolver sourceResolver,
   required SubsonicApiClient? Function() readApiClient,
@@ -79,6 +80,7 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
       libraryDao: libraryDao,
       playlistDao: playlistDao,
       playQueueDao: playQueueDao,
+      matchFlowDao: matchFlowDao,
       historyDao: historyDao,
       sourceResolver: sourceResolver,
       readApiClient: readApiClient,
@@ -190,10 +192,12 @@ class WindowsNavisPlaybackHandler implements NavisPlaybackHandler {
     List<String> songIds, {
     int startIndex = 0,
     bool autoPlay = true,
+    bool expandMatchFlows = true,
   }) => _delegate.replaceQueue(
     songIds,
     startIndex: startIndex,
     autoPlay: autoPlay,
+    expandMatchFlows: expandMatchFlows,
   );
 
   @override
@@ -201,18 +205,25 @@ class WindowsNavisPlaybackHandler implements NavisPlaybackHandler {
     List<SongsTableData> songs, {
     int startIndex = 0,
     bool autoPlay = true,
+    bool expandMatchFlows = true,
   }) => _delegate.replaceQueueWithData(
     songs,
     startIndex: startIndex,
     autoPlay: autoPlay,
+    expandMatchFlows: expandMatchFlows,
   );
 
   @override
-  Future<void> addToQueue(List<String> songIds) =>
-      _delegate.addToQueue(songIds);
+  Future<void> addToQueue(
+    List<String> songIds, {
+    bool expandMatchFlows = true,
+  }) => _delegate.addToQueue(songIds, expandMatchFlows: expandMatchFlows);
 
   @override
-  Future<void> playNext(List<String> songIds) => _delegate.playNext(songIds);
+  Future<void> playNext(
+    List<String> songIds, {
+    bool expandMatchFlows = true,
+  }) => _delegate.playNext(songIds, expandMatchFlows: expandMatchFlows);
 
   @override
   Future<void> playFromIndex(int index) => _delegate.playFromIndex(index);
@@ -357,10 +368,12 @@ class LinuxNavisPlaybackHandler implements NavisPlaybackHandler {
     List<String> songIds, {
     int startIndex = 0,
     bool autoPlay = true,
+    bool expandMatchFlows = true,
   }) => _delegate.replaceQueue(
     songIds,
     startIndex: startIndex,
     autoPlay: autoPlay,
+    expandMatchFlows: expandMatchFlows,
   );
 
   @override
@@ -368,18 +381,25 @@ class LinuxNavisPlaybackHandler implements NavisPlaybackHandler {
     List<SongsTableData> songs, {
     int startIndex = 0,
     bool autoPlay = true,
+    bool expandMatchFlows = true,
   }) => _delegate.replaceQueueWithData(
     songs,
     startIndex: startIndex,
     autoPlay: autoPlay,
+    expandMatchFlows: expandMatchFlows,
   );
 
   @override
-  Future<void> addToQueue(List<String> songIds) =>
-      _delegate.addToQueue(songIds);
+  Future<void> addToQueue(
+    List<String> songIds, {
+    bool expandMatchFlows = true,
+  }) => _delegate.addToQueue(songIds, expandMatchFlows: expandMatchFlows);
 
   @override
-  Future<void> playNext(List<String> songIds) => _delegate.playNext(songIds);
+  Future<void> playNext(
+    List<String> songIds, {
+    bool expandMatchFlows = true,
+  }) => _delegate.playNext(songIds, expandMatchFlows: expandMatchFlows);
 
   @override
   Future<void> playFromIndex(int index) => _delegate.playFromIndex(index);

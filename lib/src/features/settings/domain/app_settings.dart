@@ -52,6 +52,7 @@ class AppSettingsModel {
     this.desktopNavbarStyle = 'comfortable',
     this.desktopNavbarAutohide = false,
     this.albumQueueEnabled = false,
+    this.matchFlowEnabled = false,
     this.likedQueueEnabled = false,
     this.lastFmApiKey,
     this.groupListeningEnabled = false,
@@ -110,6 +111,7 @@ class AppSettingsModel {
       desktopNavbarStyle = 'comfortable',
       desktopNavbarAutohide = false,
       albumQueueEnabled = false,
+      matchFlowEnabled = false,
       likedQueueEnabled = false,
       lastFmApiKey = null,
       groupListeningEnabled = false,
@@ -200,6 +202,9 @@ class AppSettingsModel {
   /// at the selected track instead of queuing only that track.
   final bool albumQueueEnabled;
 
+  /// When true, user queue actions expand configured Match Flows.
+  final bool matchFlowEnabled;
+
   /// When true (and [albumQueueEnabled] is also true), tapping a track on the
   /// Liked page queues all liked songs and starts at the selected track.
   final bool likedQueueEnabled;
@@ -275,6 +280,7 @@ class AppSettingsModel {
     String? desktopNavbarStyle,
     bool? desktopNavbarAutohide,
     bool? albumQueueEnabled,
+    bool? matchFlowEnabled,
     bool? likedQueueEnabled,
     String? lastFmApiKey,
     bool? groupListeningEnabled,
@@ -372,6 +378,7 @@ class AppSettingsModel {
       desktopNavbarAutohide:
           desktopNavbarAutohide ?? this.desktopNavbarAutohide,
       albumQueueEnabled: albumQueueEnabled ?? this.albumQueueEnabled,
+      matchFlowEnabled: matchFlowEnabled ?? this.matchFlowEnabled,
       likedQueueEnabled: likedQueueEnabled ?? this.likedQueueEnabled,
       lastFmApiKey: clearLastFmApiKey
           ? null

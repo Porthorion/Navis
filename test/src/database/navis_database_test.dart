@@ -33,6 +33,8 @@ void main() {
       expect(names, contains('albums'));
       expect(names, contains('songs'));
       expect(names, contains('play_queue'));
+      expect(names, contains('match_flows'));
+      expect(names, contains('match_flow_songs'));
     },
     skip: !sqliteAvailable,
   );

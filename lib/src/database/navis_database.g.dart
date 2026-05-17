@@ -1216,6 +1216,21 @@ class $AppSettingsTableTable extends AppSettingsTable
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _matchFlowEnabledMeta = const VerificationMeta(
+    'matchFlowEnabled',
+  );
+  @override
+  late final GeneratedColumn<bool> matchFlowEnabled = GeneratedColumn<bool>(
+    'match_flow_enabled',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("match_flow_enabled" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _likedQueueEnabledMeta = const VerificationMeta(
     'likedQueueEnabled',
   );
@@ -1320,6 +1335,7 @@ class $AppSettingsTableTable extends AppSettingsTable
     desktopNavbarStyle,
     desktopNavbarAutohide,
     albumQueueEnabled,
+    matchFlowEnabled,
     likedQueueEnabled,
     lastFmApiKey,
     lastFullSyncAppBuild,
@@ -1805,6 +1821,15 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
       );
     }
+    if (data.containsKey('match_flow_enabled')) {
+      context.handle(
+        _matchFlowEnabledMeta,
+        matchFlowEnabled.isAcceptableOrUnknown(
+          data['match_flow_enabled']!,
+          _matchFlowEnabledMeta,
+        ),
+      );
+    }
     if (data.containsKey('liked_queue_enabled')) {
       context.handle(
         _likedQueueEnabledMeta,
@@ -2065,6 +2090,10 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.bool,
         data['${effectivePrefix}album_queue_enabled'],
       )!,
+      matchFlowEnabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}match_flow_enabled'],
+      )!,
       likedQueueEnabled: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}liked_queue_enabled'],
@@ -2228,6 +2257,9 @@ class AppSettingsTableData extends DataClass
   /// at the selected track instead of queuing only that track. Default false.
   final bool albumQueueEnabled;
 
+  /// When true, user queue actions expand configured Match Flows.
+  final bool matchFlowEnabled;
+
   /// When true (and albumQueueEnabled is also true), tapping a track on the
   /// Liked page queues all liked songs and starts at the selected track.
   /// Default false.
@@ -2297,6 +2329,7 @@ class AppSettingsTableData extends DataClass
     required this.desktopNavbarStyle,
     required this.desktopNavbarAutohide,
     required this.albumQueueEnabled,
+    required this.matchFlowEnabled,
     required this.likedQueueEnabled,
     this.lastFmApiKey,
     this.lastFullSyncAppBuild,
@@ -2395,6 +2428,7 @@ class AppSettingsTableData extends DataClass
     map['desktop_navbar_style'] = Variable<String>(desktopNavbarStyle);
     map['desktop_navbar_autohide'] = Variable<bool>(desktopNavbarAutohide);
     map['album_queue_enabled'] = Variable<bool>(albumQueueEnabled);
+    map['match_flow_enabled'] = Variable<bool>(matchFlowEnabled);
     map['liked_queue_enabled'] = Variable<bool>(likedQueueEnabled);
     if (!nullToAbsent || lastFmApiKey != null) {
       map['last_fm_api_key'] = Variable<String>(lastFmApiKey);
@@ -2490,6 +2524,7 @@ class AppSettingsTableData extends DataClass
       desktopNavbarStyle: Value(desktopNavbarStyle),
       desktopNavbarAutohide: Value(desktopNavbarAutohide),
       albumQueueEnabled: Value(albumQueueEnabled),
+      matchFlowEnabled: Value(matchFlowEnabled),
       likedQueueEnabled: Value(likedQueueEnabled),
       lastFmApiKey: lastFmApiKey == null && nullToAbsent
           ? const Value.absent()
@@ -2599,6 +2634,7 @@ class AppSettingsTableData extends DataClass
         json['desktopNavbarAutohide'],
       ),
       albumQueueEnabled: serializer.fromJson<bool>(json['albumQueueEnabled']),
+      matchFlowEnabled: serializer.fromJson<bool>(json['matchFlowEnabled']),
       likedQueueEnabled: serializer.fromJson<bool>(json['likedQueueEnabled']),
       lastFmApiKey: serializer.fromJson<String?>(json['lastFmApiKey']),
       lastFullSyncAppBuild: serializer.fromJson<String?>(
@@ -2679,6 +2715,7 @@ class AppSettingsTableData extends DataClass
       'desktopNavbarStyle': serializer.toJson<String>(desktopNavbarStyle),
       'desktopNavbarAutohide': serializer.toJson<bool>(desktopNavbarAutohide),
       'albumQueueEnabled': serializer.toJson<bool>(albumQueueEnabled),
+      'matchFlowEnabled': serializer.toJson<bool>(matchFlowEnabled),
       'likedQueueEnabled': serializer.toJson<bool>(likedQueueEnabled),
       'lastFmApiKey': serializer.toJson<String?>(lastFmApiKey),
       'lastFullSyncAppBuild': serializer.toJson<String?>(lastFullSyncAppBuild),
@@ -2741,6 +2778,7 @@ class AppSettingsTableData extends DataClass
     String? desktopNavbarStyle,
     bool? desktopNavbarAutohide,
     bool? albumQueueEnabled,
+    bool? matchFlowEnabled,
     bool? likedQueueEnabled,
     Value<String?> lastFmApiKey = const Value.absent(),
     Value<String?> lastFullSyncAppBuild = const Value.absent(),
@@ -2831,6 +2869,7 @@ class AppSettingsTableData extends DataClass
     desktopNavbarStyle: desktopNavbarStyle ?? this.desktopNavbarStyle,
     desktopNavbarAutohide: desktopNavbarAutohide ?? this.desktopNavbarAutohide,
     albumQueueEnabled: albumQueueEnabled ?? this.albumQueueEnabled,
+    matchFlowEnabled: matchFlowEnabled ?? this.matchFlowEnabled,
     likedQueueEnabled: likedQueueEnabled ?? this.likedQueueEnabled,
     lastFmApiKey: lastFmApiKey.present ? lastFmApiKey.value : this.lastFmApiKey,
     lastFullSyncAppBuild: lastFullSyncAppBuild.present
@@ -2994,6 +3033,9 @@ class AppSettingsTableData extends DataClass
       albumQueueEnabled: data.albumQueueEnabled.present
           ? data.albumQueueEnabled.value
           : this.albumQueueEnabled,
+      matchFlowEnabled: data.matchFlowEnabled.present
+          ? data.matchFlowEnabled.value
+          : this.matchFlowEnabled,
       likedQueueEnabled: data.likedQueueEnabled.present
           ? data.likedQueueEnabled.value
           : this.likedQueueEnabled,
@@ -3066,6 +3108,7 @@ class AppSettingsTableData extends DataClass
           ..write('desktopNavbarStyle: $desktopNavbarStyle, ')
           ..write('desktopNavbarAutohide: $desktopNavbarAutohide, ')
           ..write('albumQueueEnabled: $albumQueueEnabled, ')
+          ..write('matchFlowEnabled: $matchFlowEnabled, ')
           ..write('likedQueueEnabled: $likedQueueEnabled, ')
           ..write('lastFmApiKey: $lastFmApiKey, ')
           ..write('lastFullSyncAppBuild: $lastFullSyncAppBuild, ')
@@ -3130,6 +3173,7 @@ class AppSettingsTableData extends DataClass
     desktopNavbarStyle,
     desktopNavbarAutohide,
     albumQueueEnabled,
+    matchFlowEnabled,
     likedQueueEnabled,
     lastFmApiKey,
     lastFullSyncAppBuild,
@@ -3194,6 +3238,7 @@ class AppSettingsTableData extends DataClass
           other.desktopNavbarStyle == this.desktopNavbarStyle &&
           other.desktopNavbarAutohide == this.desktopNavbarAutohide &&
           other.albumQueueEnabled == this.albumQueueEnabled &&
+          other.matchFlowEnabled == this.matchFlowEnabled &&
           other.likedQueueEnabled == this.likedQueueEnabled &&
           other.lastFmApiKey == this.lastFmApiKey &&
           other.lastFullSyncAppBuild == this.lastFullSyncAppBuild &&
@@ -3255,6 +3300,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<String> desktopNavbarStyle;
   final Value<bool> desktopNavbarAutohide;
   final Value<bool> albumQueueEnabled;
+  final Value<bool> matchFlowEnabled;
   final Value<bool> likedQueueEnabled;
   final Value<String?> lastFmApiKey;
   final Value<String?> lastFullSyncAppBuild;
@@ -3314,6 +3360,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.desktopNavbarStyle = const Value.absent(),
     this.desktopNavbarAutohide = const Value.absent(),
     this.albumQueueEnabled = const Value.absent(),
+    this.matchFlowEnabled = const Value.absent(),
     this.likedQueueEnabled = const Value.absent(),
     this.lastFmApiKey = const Value.absent(),
     this.lastFullSyncAppBuild = const Value.absent(),
@@ -3374,6 +3421,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.desktopNavbarStyle = const Value.absent(),
     this.desktopNavbarAutohide = const Value.absent(),
     this.albumQueueEnabled = const Value.absent(),
+    this.matchFlowEnabled = const Value.absent(),
     this.likedQueueEnabled = const Value.absent(),
     this.lastFmApiKey = const Value.absent(),
     this.lastFullSyncAppBuild = const Value.absent(),
@@ -3434,6 +3482,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<String>? desktopNavbarStyle,
     Expression<bool>? desktopNavbarAutohide,
     Expression<bool>? albumQueueEnabled,
+    Expression<bool>? matchFlowEnabled,
     Expression<bool>? likedQueueEnabled,
     Expression<String>? lastFmApiKey,
     Expression<String>? lastFullSyncAppBuild,
@@ -3516,6 +3565,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       if (desktopNavbarAutohide != null)
         'desktop_navbar_autohide': desktopNavbarAutohide,
       if (albumQueueEnabled != null) 'album_queue_enabled': albumQueueEnabled,
+      if (matchFlowEnabled != null) 'match_flow_enabled': matchFlowEnabled,
       if (likedQueueEnabled != null) 'liked_queue_enabled': likedQueueEnabled,
       if (lastFmApiKey != null) 'last_fm_api_key': lastFmApiKey,
       if (lastFullSyncAppBuild != null)
@@ -3579,6 +3629,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<String>? desktopNavbarStyle,
     Value<bool>? desktopNavbarAutohide,
     Value<bool>? albumQueueEnabled,
+    Value<bool>? matchFlowEnabled,
     Value<bool>? likedQueueEnabled,
     Value<String?>? lastFmApiKey,
     Value<String?>? lastFullSyncAppBuild,
@@ -3647,6 +3698,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       desktopNavbarAutohide:
           desktopNavbarAutohide ?? this.desktopNavbarAutohide,
       albumQueueEnabled: albumQueueEnabled ?? this.albumQueueEnabled,
+      matchFlowEnabled: matchFlowEnabled ?? this.matchFlowEnabled,
       likedQueueEnabled: likedQueueEnabled ?? this.likedQueueEnabled,
       lastFmApiKey: lastFmApiKey ?? this.lastFmApiKey,
       lastFullSyncAppBuild: lastFullSyncAppBuild ?? this.lastFullSyncAppBuild,
@@ -3841,6 +3893,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     if (albumQueueEnabled.present) {
       map['album_queue_enabled'] = Variable<bool>(albumQueueEnabled.value);
     }
+    if (matchFlowEnabled.present) {
+      map['match_flow_enabled'] = Variable<bool>(matchFlowEnabled.value);
+    }
     if (likedQueueEnabled.present) {
       map['liked_queue_enabled'] = Variable<bool>(likedQueueEnabled.value);
     }
@@ -3917,6 +3972,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('desktopNavbarStyle: $desktopNavbarStyle, ')
           ..write('desktopNavbarAutohide: $desktopNavbarAutohide, ')
           ..write('albumQueueEnabled: $albumQueueEnabled, ')
+          ..write('matchFlowEnabled: $matchFlowEnabled, ')
           ..write('likedQueueEnabled: $likedQueueEnabled, ')
           ..write('lastFmApiKey: $lastFmApiKey, ')
           ..write('lastFullSyncAppBuild: $lastFullSyncAppBuild, ')
@@ -11059,6 +11115,687 @@ class PlayQueueItemsTableCompanion
   }
 }
 
+class $MatchFlowsTableTable extends MatchFlowsTable
+    with TableInfo<$MatchFlowsTableTable, MatchFlowsTableData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $MatchFlowsTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _enabledMeta = const VerificationMeta(
+    'enabled',
+  );
+  @override
+  late final GeneratedColumn<bool> enabled = GeneratedColumn<bool>(
+    'enabled',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("enabled" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    enabled,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'match_flows';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<MatchFlowsTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('enabled')) {
+      context.handle(
+        _enabledMeta,
+        enabled.isAcceptableOrUnknown(data['enabled']!, _enabledMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  MatchFlowsTableData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return MatchFlowsTableData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      enabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}enabled'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $MatchFlowsTableTable createAlias(String alias) {
+    return $MatchFlowsTableTable(attachedDatabase, alias);
+  }
+}
+
+class MatchFlowsTableData extends DataClass
+    implements Insertable<MatchFlowsTableData> {
+  final String id;
+  final String name;
+  final bool enabled;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const MatchFlowsTableData({
+    required this.id,
+    required this.name,
+    required this.enabled,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['enabled'] = Variable<bool>(enabled);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  MatchFlowsTableCompanion toCompanion(bool nullToAbsent) {
+    return MatchFlowsTableCompanion(
+      id: Value(id),
+      name: Value(name),
+      enabled: Value(enabled),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory MatchFlowsTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return MatchFlowsTableData(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      enabled: serializer.fromJson<bool>(json['enabled']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'enabled': serializer.toJson<bool>(enabled),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  MatchFlowsTableData copyWith({
+    String? id,
+    String? name,
+    bool? enabled,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) => MatchFlowsTableData(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    enabled: enabled ?? this.enabled,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  MatchFlowsTableData copyWithCompanion(MatchFlowsTableCompanion data) {
+    return MatchFlowsTableData(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      enabled: data.enabled.present ? data.enabled.value : this.enabled,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MatchFlowsTableData(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('enabled: $enabled, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, name, enabled, createdAt, updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is MatchFlowsTableData &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.enabled == this.enabled &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class MatchFlowsTableCompanion extends UpdateCompanion<MatchFlowsTableData> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<bool> enabled;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const MatchFlowsTableCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.enabled = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  MatchFlowsTableCompanion.insert({
+    required String id,
+    required String name,
+    this.enabled = const Value.absent(),
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       name = Value(name),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<MatchFlowsTableData> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<bool>? enabled,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (enabled != null) 'enabled': enabled,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  MatchFlowsTableCompanion copyWith({
+    Value<String>? id,
+    Value<String>? name,
+    Value<bool>? enabled,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return MatchFlowsTableCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      enabled: enabled ?? this.enabled,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (enabled.present) {
+      map['enabled'] = Variable<bool>(enabled.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MatchFlowsTableCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('enabled: $enabled, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $MatchFlowSongsTableTable extends MatchFlowSongsTable
+    with TableInfo<$MatchFlowSongsTableTable, MatchFlowSongsTableData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $MatchFlowSongsTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _flowIdMeta = const VerificationMeta('flowId');
+  @override
+  late final GeneratedColumn<String> flowId = GeneratedColumn<String>(
+    'flow_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES match_flows (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _songIdMeta = const VerificationMeta('songId');
+  @override
+  late final GeneratedColumn<String> songId = GeneratedColumn<String>(
+    'song_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sortOrderMeta = const VerificationMeta(
+    'sortOrder',
+  );
+  @override
+  late final GeneratedColumn<int> sortOrder = GeneratedColumn<int>(
+    'sort_order',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _addedAtMeta = const VerificationMeta(
+    'addedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> addedAt = GeneratedColumn<DateTime>(
+    'added_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [flowId, songId, sortOrder, addedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'match_flow_songs';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<MatchFlowSongsTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('flow_id')) {
+      context.handle(
+        _flowIdMeta,
+        flowId.isAcceptableOrUnknown(data['flow_id']!, _flowIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_flowIdMeta);
+    }
+    if (data.containsKey('song_id')) {
+      context.handle(
+        _songIdMeta,
+        songId.isAcceptableOrUnknown(data['song_id']!, _songIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_songIdMeta);
+    }
+    if (data.containsKey('sort_order')) {
+      context.handle(
+        _sortOrderMeta,
+        sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sortOrderMeta);
+    }
+    if (data.containsKey('added_at')) {
+      context.handle(
+        _addedAtMeta,
+        addedAt.isAcceptableOrUnknown(data['added_at']!, _addedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_addedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {flowId, songId};
+  @override
+  MatchFlowSongsTableData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return MatchFlowSongsTableData(
+      flowId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}flow_id'],
+      )!,
+      songId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}song_id'],
+      )!,
+      sortOrder: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sort_order'],
+      )!,
+      addedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}added_at'],
+      )!,
+    );
+  }
+
+  @override
+  $MatchFlowSongsTableTable createAlias(String alias) {
+    return $MatchFlowSongsTableTable(attachedDatabase, alias);
+  }
+}
+
+class MatchFlowSongsTableData extends DataClass
+    implements Insertable<MatchFlowSongsTableData> {
+  final String flowId;
+  final String songId;
+  final int sortOrder;
+  final DateTime addedAt;
+  const MatchFlowSongsTableData({
+    required this.flowId,
+    required this.songId,
+    required this.sortOrder,
+    required this.addedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['flow_id'] = Variable<String>(flowId);
+    map['song_id'] = Variable<String>(songId);
+    map['sort_order'] = Variable<int>(sortOrder);
+    map['added_at'] = Variable<DateTime>(addedAt);
+    return map;
+  }
+
+  MatchFlowSongsTableCompanion toCompanion(bool nullToAbsent) {
+    return MatchFlowSongsTableCompanion(
+      flowId: Value(flowId),
+      songId: Value(songId),
+      sortOrder: Value(sortOrder),
+      addedAt: Value(addedAt),
+    );
+  }
+
+  factory MatchFlowSongsTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return MatchFlowSongsTableData(
+      flowId: serializer.fromJson<String>(json['flowId']),
+      songId: serializer.fromJson<String>(json['songId']),
+      sortOrder: serializer.fromJson<int>(json['sortOrder']),
+      addedAt: serializer.fromJson<DateTime>(json['addedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'flowId': serializer.toJson<String>(flowId),
+      'songId': serializer.toJson<String>(songId),
+      'sortOrder': serializer.toJson<int>(sortOrder),
+      'addedAt': serializer.toJson<DateTime>(addedAt),
+    };
+  }
+
+  MatchFlowSongsTableData copyWith({
+    String? flowId,
+    String? songId,
+    int? sortOrder,
+    DateTime? addedAt,
+  }) => MatchFlowSongsTableData(
+    flowId: flowId ?? this.flowId,
+    songId: songId ?? this.songId,
+    sortOrder: sortOrder ?? this.sortOrder,
+    addedAt: addedAt ?? this.addedAt,
+  );
+  MatchFlowSongsTableData copyWithCompanion(MatchFlowSongsTableCompanion data) {
+    return MatchFlowSongsTableData(
+      flowId: data.flowId.present ? data.flowId.value : this.flowId,
+      songId: data.songId.present ? data.songId.value : this.songId,
+      sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
+      addedAt: data.addedAt.present ? data.addedAt.value : this.addedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MatchFlowSongsTableData(')
+          ..write('flowId: $flowId, ')
+          ..write('songId: $songId, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('addedAt: $addedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(flowId, songId, sortOrder, addedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is MatchFlowSongsTableData &&
+          other.flowId == this.flowId &&
+          other.songId == this.songId &&
+          other.sortOrder == this.sortOrder &&
+          other.addedAt == this.addedAt);
+}
+
+class MatchFlowSongsTableCompanion
+    extends UpdateCompanion<MatchFlowSongsTableData> {
+  final Value<String> flowId;
+  final Value<String> songId;
+  final Value<int> sortOrder;
+  final Value<DateTime> addedAt;
+  final Value<int> rowid;
+  const MatchFlowSongsTableCompanion({
+    this.flowId = const Value.absent(),
+    this.songId = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.addedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  MatchFlowSongsTableCompanion.insert({
+    required String flowId,
+    required String songId,
+    required int sortOrder,
+    required DateTime addedAt,
+    this.rowid = const Value.absent(),
+  }) : flowId = Value(flowId),
+       songId = Value(songId),
+       sortOrder = Value(sortOrder),
+       addedAt = Value(addedAt);
+  static Insertable<MatchFlowSongsTableData> custom({
+    Expression<String>? flowId,
+    Expression<String>? songId,
+    Expression<int>? sortOrder,
+    Expression<DateTime>? addedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (flowId != null) 'flow_id': flowId,
+      if (songId != null) 'song_id': songId,
+      if (sortOrder != null) 'sort_order': sortOrder,
+      if (addedAt != null) 'added_at': addedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  MatchFlowSongsTableCompanion copyWith({
+    Value<String>? flowId,
+    Value<String>? songId,
+    Value<int>? sortOrder,
+    Value<DateTime>? addedAt,
+    Value<int>? rowid,
+  }) {
+    return MatchFlowSongsTableCompanion(
+      flowId: flowId ?? this.flowId,
+      songId: songId ?? this.songId,
+      sortOrder: sortOrder ?? this.sortOrder,
+      addedAt: addedAt ?? this.addedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (flowId.present) {
+      map['flow_id'] = Variable<String>(flowId.value);
+    }
+    if (songId.present) {
+      map['song_id'] = Variable<String>(songId.value);
+    }
+    if (sortOrder.present) {
+      map['sort_order'] = Variable<int>(sortOrder.value);
+    }
+    if (addedAt.present) {
+      map['added_at'] = Variable<DateTime>(addedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MatchFlowSongsTableCompanion(')
+          ..write('flowId: $flowId, ')
+          ..write('songId: $songId, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('addedAt: $addedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $ScrobbleQueueTableTable extends ScrobbleQueueTable
     with TableInfo<$ScrobbleQueueTableTable, ScrobbleQueueTableData> {
   @override
@@ -12017,6 +12754,11 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
   late final $PlayQueueTableTable playQueueTable = $PlayQueueTableTable(this);
   late final $PlayQueueItemsTableTable playQueueItemsTable =
       $PlayQueueItemsTableTable(this);
+  late final $MatchFlowsTableTable matchFlowsTable = $MatchFlowsTableTable(
+    this,
+  );
+  late final $MatchFlowSongsTableTable matchFlowSongsTable =
+      $MatchFlowSongsTableTable(this);
   late final $ScrobbleQueueTableTable scrobbleQueueTable =
       $ScrobbleQueueTableTable(this);
   late final $StarSyncQueueTableTable starSyncQueueTable =
@@ -12033,6 +12775,7 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
   );
   late final HistoryDao historyDao = HistoryDao(this as NavisDatabase);
   late final PlayQueueDao playQueueDao = PlayQueueDao(this as NavisDatabase);
+  late final MatchFlowDao matchFlowDao = MatchFlowDao(this as NavisDatabase);
   late final ScrobbleDao scrobbleDao = ScrobbleDao(this as NavisDatabase);
   late final StarSyncDao starSyncDao = StarSyncDao(this as NavisDatabase);
   @override
@@ -12056,6 +12799,8 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
     recentSearchesTable,
     playQueueTable,
     playQueueItemsTable,
+    matchFlowsTable,
+    matchFlowSongsTable,
     scrobbleQueueTable,
     starSyncQueueTable,
   ];
@@ -12116,6 +12861,13 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('play_queue_items', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'match_flows',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('match_flow_songs', kind: UpdateKind.delete)],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
@@ -12455,6 +13207,7 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<String> desktopNavbarStyle,
       Value<bool> desktopNavbarAutohide,
       Value<bool> albumQueueEnabled,
+      Value<bool> matchFlowEnabled,
       Value<bool> likedQueueEnabled,
       Value<String?> lastFmApiKey,
       Value<String?> lastFullSyncAppBuild,
@@ -12516,6 +13269,7 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<String> desktopNavbarStyle,
       Value<bool> desktopNavbarAutohide,
       Value<bool> albumQueueEnabled,
+      Value<bool> matchFlowEnabled,
       Value<bool> likedQueueEnabled,
       Value<String?> lastFmApiKey,
       Value<String?> lastFullSyncAppBuild,
@@ -12798,6 +13552,11 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<bool> get albumQueueEnabled => $composableBuilder(
     column: $table.albumQueueEnabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get matchFlowEnabled => $composableBuilder(
+    column: $table.matchFlowEnabled,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -13101,6 +13860,11 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get matchFlowEnabled => $composableBuilder(
+    column: $table.matchFlowEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get likedQueueEnabled => $composableBuilder(
     column: $table.likedQueueEnabled,
     builder: (column) => ColumnOrderings(column),
@@ -13393,6 +14157,11 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get matchFlowEnabled => $composableBuilder(
+    column: $table.matchFlowEnabled,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<bool> get likedQueueEnabled => $composableBuilder(
     column: $table.likedQueueEnabled,
     builder: (column) => column,
@@ -13504,6 +14273,7 @@ class $$AppSettingsTableTableTableManager
                 Value<String> desktopNavbarStyle = const Value.absent(),
                 Value<bool> desktopNavbarAutohide = const Value.absent(),
                 Value<bool> albumQueueEnabled = const Value.absent(),
+                Value<bool> matchFlowEnabled = const Value.absent(),
                 Value<bool> likedQueueEnabled = const Value.absent(),
                 Value<String?> lastFmApiKey = const Value.absent(),
                 Value<String?> lastFullSyncAppBuild = const Value.absent(),
@@ -13563,6 +14333,7 @@ class $$AppSettingsTableTableTableManager
                 desktopNavbarStyle: desktopNavbarStyle,
                 desktopNavbarAutohide: desktopNavbarAutohide,
                 albumQueueEnabled: albumQueueEnabled,
+                matchFlowEnabled: matchFlowEnabled,
                 likedQueueEnabled: likedQueueEnabled,
                 lastFmApiKey: lastFmApiKey,
                 lastFullSyncAppBuild: lastFullSyncAppBuild,
@@ -13625,6 +14396,7 @@ class $$AppSettingsTableTableTableManager
                 Value<String> desktopNavbarStyle = const Value.absent(),
                 Value<bool> desktopNavbarAutohide = const Value.absent(),
                 Value<bool> albumQueueEnabled = const Value.absent(),
+                Value<bool> matchFlowEnabled = const Value.absent(),
                 Value<bool> likedQueueEnabled = const Value.absent(),
                 Value<String?> lastFmApiKey = const Value.absent(),
                 Value<String?> lastFullSyncAppBuild = const Value.absent(),
@@ -13684,6 +14456,7 @@ class $$AppSettingsTableTableTableManager
                 desktopNavbarStyle: desktopNavbarStyle,
                 desktopNavbarAutohide: desktopNavbarAutohide,
                 albumQueueEnabled: albumQueueEnabled,
+                matchFlowEnabled: matchFlowEnabled,
                 likedQueueEnabled: likedQueueEnabled,
                 lastFmApiKey: lastFmApiKey,
                 lastFullSyncAppBuild: lastFullSyncAppBuild,
@@ -19218,6 +19991,652 @@ typedef $$PlayQueueItemsTableTableProcessedTableManager =
       PlayQueueItemsTableData,
       PrefetchHooks Function({bool queueId, bool songId})
     >;
+typedef $$MatchFlowsTableTableCreateCompanionBuilder =
+    MatchFlowsTableCompanion Function({
+      required String id,
+      required String name,
+      Value<bool> enabled,
+      required DateTime createdAt,
+      required DateTime updatedAt,
+      Value<int> rowid,
+    });
+typedef $$MatchFlowsTableTableUpdateCompanionBuilder =
+    MatchFlowsTableCompanion Function({
+      Value<String> id,
+      Value<String> name,
+      Value<bool> enabled,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+final class $$MatchFlowsTableTableReferences
+    extends
+        BaseReferences<
+          _$NavisDatabase,
+          $MatchFlowsTableTable,
+          MatchFlowsTableData
+        > {
+  $$MatchFlowsTableTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static MultiTypedResultKey<
+    $MatchFlowSongsTableTable,
+    List<MatchFlowSongsTableData>
+  >
+  _matchFlowSongsTableRefsTable(_$NavisDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.matchFlowSongsTable,
+        aliasName: $_aliasNameGenerator(
+          db.matchFlowsTable.id,
+          db.matchFlowSongsTable.flowId,
+        ),
+      );
+
+  $$MatchFlowSongsTableTableProcessedTableManager get matchFlowSongsTableRefs {
+    final manager = $$MatchFlowSongsTableTableTableManager(
+      $_db,
+      $_db.matchFlowSongsTable,
+    ).filter((f) => f.flowId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _matchFlowSongsTableRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$MatchFlowsTableTableFilterComposer
+    extends Composer<_$NavisDatabase, $MatchFlowsTableTable> {
+  $$MatchFlowsTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get enabled => $composableBuilder(
+    column: $table.enabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  Expression<bool> matchFlowSongsTableRefs(
+    Expression<bool> Function($$MatchFlowSongsTableTableFilterComposer f) f,
+  ) {
+    final $$MatchFlowSongsTableTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.matchFlowSongsTable,
+      getReferencedColumn: (t) => t.flowId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MatchFlowSongsTableTableFilterComposer(
+            $db: $db,
+            $table: $db.matchFlowSongsTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$MatchFlowsTableTableOrderingComposer
+    extends Composer<_$NavisDatabase, $MatchFlowsTableTable> {
+  $$MatchFlowsTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get enabled => $composableBuilder(
+    column: $table.enabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$MatchFlowsTableTableAnnotationComposer
+    extends Composer<_$NavisDatabase, $MatchFlowsTableTable> {
+  $$MatchFlowsTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<bool> get enabled =>
+      $composableBuilder(column: $table.enabled, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  Expression<T> matchFlowSongsTableRefs<T extends Object>(
+    Expression<T> Function($$MatchFlowSongsTableTableAnnotationComposer a) f,
+  ) {
+    final $$MatchFlowSongsTableTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.matchFlowSongsTable,
+          getReferencedColumn: (t) => t.flowId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$MatchFlowSongsTableTableAnnotationComposer(
+                $db: $db,
+                $table: $db.matchFlowSongsTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+}
+
+class $$MatchFlowsTableTableTableManager
+    extends
+        RootTableManager<
+          _$NavisDatabase,
+          $MatchFlowsTableTable,
+          MatchFlowsTableData,
+          $$MatchFlowsTableTableFilterComposer,
+          $$MatchFlowsTableTableOrderingComposer,
+          $$MatchFlowsTableTableAnnotationComposer,
+          $$MatchFlowsTableTableCreateCompanionBuilder,
+          $$MatchFlowsTableTableUpdateCompanionBuilder,
+          (MatchFlowsTableData, $$MatchFlowsTableTableReferences),
+          MatchFlowsTableData,
+          PrefetchHooks Function({bool matchFlowSongsTableRefs})
+        > {
+  $$MatchFlowsTableTableTableManager(
+    _$NavisDatabase db,
+    $MatchFlowsTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$MatchFlowsTableTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$MatchFlowsTableTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$MatchFlowsTableTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<bool> enabled = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => MatchFlowsTableCompanion(
+                id: id,
+                name: name,
+                enabled: enabled,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String name,
+                Value<bool> enabled = const Value.absent(),
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => MatchFlowsTableCompanion.insert(
+                id: id,
+                name: name,
+                enabled: enabled,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$MatchFlowsTableTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({matchFlowSongsTableRefs = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [
+                if (matchFlowSongsTableRefs) db.matchFlowSongsTable,
+              ],
+              addJoins: null,
+              getPrefetchedDataCallback: (items) async {
+                return [
+                  if (matchFlowSongsTableRefs)
+                    await $_getPrefetchedData<
+                      MatchFlowsTableData,
+                      $MatchFlowsTableTable,
+                      MatchFlowSongsTableData
+                    >(
+                      currentTable: table,
+                      referencedTable: $$MatchFlowsTableTableReferences
+                          ._matchFlowSongsTableRefsTable(db),
+                      managerFromTypedResult: (p0) =>
+                          $$MatchFlowsTableTableReferences(
+                            db,
+                            table,
+                            p0,
+                          ).matchFlowSongsTableRefs,
+                      referencedItemsForCurrentItem: (item, referencedItems) =>
+                          referencedItems.where((e) => e.flowId == item.id),
+                      typedResults: items,
+                    ),
+                ];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$MatchFlowsTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NavisDatabase,
+      $MatchFlowsTableTable,
+      MatchFlowsTableData,
+      $$MatchFlowsTableTableFilterComposer,
+      $$MatchFlowsTableTableOrderingComposer,
+      $$MatchFlowsTableTableAnnotationComposer,
+      $$MatchFlowsTableTableCreateCompanionBuilder,
+      $$MatchFlowsTableTableUpdateCompanionBuilder,
+      (MatchFlowsTableData, $$MatchFlowsTableTableReferences),
+      MatchFlowsTableData,
+      PrefetchHooks Function({bool matchFlowSongsTableRefs})
+    >;
+typedef $$MatchFlowSongsTableTableCreateCompanionBuilder =
+    MatchFlowSongsTableCompanion Function({
+      required String flowId,
+      required String songId,
+      required int sortOrder,
+      required DateTime addedAt,
+      Value<int> rowid,
+    });
+typedef $$MatchFlowSongsTableTableUpdateCompanionBuilder =
+    MatchFlowSongsTableCompanion Function({
+      Value<String> flowId,
+      Value<String> songId,
+      Value<int> sortOrder,
+      Value<DateTime> addedAt,
+      Value<int> rowid,
+    });
+
+final class $$MatchFlowSongsTableTableReferences
+    extends
+        BaseReferences<
+          _$NavisDatabase,
+          $MatchFlowSongsTableTable,
+          MatchFlowSongsTableData
+        > {
+  $$MatchFlowSongsTableTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $MatchFlowsTableTable _flowIdTable(_$NavisDatabase db) =>
+      db.matchFlowsTable.createAlias(
+        $_aliasNameGenerator(
+          db.matchFlowSongsTable.flowId,
+          db.matchFlowsTable.id,
+        ),
+      );
+
+  $$MatchFlowsTableTableProcessedTableManager get flowId {
+    final $_column = $_itemColumn<String>('flow_id')!;
+
+    final manager = $$MatchFlowsTableTableTableManager(
+      $_db,
+      $_db.matchFlowsTable,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_flowIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$MatchFlowSongsTableTableFilterComposer
+    extends Composer<_$NavisDatabase, $MatchFlowSongsTableTable> {
+  $$MatchFlowSongsTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get songId => $composableBuilder(
+    column: $table.songId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get addedAt => $composableBuilder(
+    column: $table.addedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$MatchFlowsTableTableFilterComposer get flowId {
+    final $$MatchFlowsTableTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.flowId,
+      referencedTable: $db.matchFlowsTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MatchFlowsTableTableFilterComposer(
+            $db: $db,
+            $table: $db.matchFlowsTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$MatchFlowSongsTableTableOrderingComposer
+    extends Composer<_$NavisDatabase, $MatchFlowSongsTableTable> {
+  $$MatchFlowSongsTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get songId => $composableBuilder(
+    column: $table.songId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get addedAt => $composableBuilder(
+    column: $table.addedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$MatchFlowsTableTableOrderingComposer get flowId {
+    final $$MatchFlowsTableTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.flowId,
+      referencedTable: $db.matchFlowsTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MatchFlowsTableTableOrderingComposer(
+            $db: $db,
+            $table: $db.matchFlowsTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$MatchFlowSongsTableTableAnnotationComposer
+    extends Composer<_$NavisDatabase, $MatchFlowSongsTableTable> {
+  $$MatchFlowSongsTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get songId =>
+      $composableBuilder(column: $table.songId, builder: (column) => column);
+
+  GeneratedColumn<int> get sortOrder =>
+      $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get addedAt =>
+      $composableBuilder(column: $table.addedAt, builder: (column) => column);
+
+  $$MatchFlowsTableTableAnnotationComposer get flowId {
+    final $$MatchFlowsTableTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.flowId,
+      referencedTable: $db.matchFlowsTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MatchFlowsTableTableAnnotationComposer(
+            $db: $db,
+            $table: $db.matchFlowsTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$MatchFlowSongsTableTableTableManager
+    extends
+        RootTableManager<
+          _$NavisDatabase,
+          $MatchFlowSongsTableTable,
+          MatchFlowSongsTableData,
+          $$MatchFlowSongsTableTableFilterComposer,
+          $$MatchFlowSongsTableTableOrderingComposer,
+          $$MatchFlowSongsTableTableAnnotationComposer,
+          $$MatchFlowSongsTableTableCreateCompanionBuilder,
+          $$MatchFlowSongsTableTableUpdateCompanionBuilder,
+          (MatchFlowSongsTableData, $$MatchFlowSongsTableTableReferences),
+          MatchFlowSongsTableData,
+          PrefetchHooks Function({bool flowId})
+        > {
+  $$MatchFlowSongsTableTableTableManager(
+    _$NavisDatabase db,
+    $MatchFlowSongsTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$MatchFlowSongsTableTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$MatchFlowSongsTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$MatchFlowSongsTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> flowId = const Value.absent(),
+                Value<String> songId = const Value.absent(),
+                Value<int> sortOrder = const Value.absent(),
+                Value<DateTime> addedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => MatchFlowSongsTableCompanion(
+                flowId: flowId,
+                songId: songId,
+                sortOrder: sortOrder,
+                addedAt: addedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String flowId,
+                required String songId,
+                required int sortOrder,
+                required DateTime addedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => MatchFlowSongsTableCompanion.insert(
+                flowId: flowId,
+                songId: songId,
+                sortOrder: sortOrder,
+                addedAt: addedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$MatchFlowSongsTableTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({flowId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (flowId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.flowId,
+                                referencedTable:
+                                    $$MatchFlowSongsTableTableReferences
+                                        ._flowIdTable(db),
+                                referencedColumn:
+                                    $$MatchFlowSongsTableTableReferences
+                                        ._flowIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$MatchFlowSongsTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NavisDatabase,
+      $MatchFlowSongsTableTable,
+      MatchFlowSongsTableData,
+      $$MatchFlowSongsTableTableFilterComposer,
+      $$MatchFlowSongsTableTableOrderingComposer,
+      $$MatchFlowSongsTableTableAnnotationComposer,
+      $$MatchFlowSongsTableTableCreateCompanionBuilder,
+      $$MatchFlowSongsTableTableUpdateCompanionBuilder,
+      (MatchFlowSongsTableData, $$MatchFlowSongsTableTableReferences),
+      MatchFlowSongsTableData,
+      PrefetchHooks Function({bool flowId})
+    >;
 typedef $$ScrobbleQueueTableTableCreateCompanionBuilder =
     ScrobbleQueueTableCompanion Function({
       Value<int> id,
@@ -19875,6 +21294,10 @@ class $NavisDatabaseManager {
       $$PlayQueueTableTableTableManager(_db, _db.playQueueTable);
   $$PlayQueueItemsTableTableTableManager get playQueueItemsTable =>
       $$PlayQueueItemsTableTableTableManager(_db, _db.playQueueItemsTable);
+  $$MatchFlowsTableTableTableManager get matchFlowsTable =>
+      $$MatchFlowsTableTableTableManager(_db, _db.matchFlowsTable);
+  $$MatchFlowSongsTableTableTableManager get matchFlowSongsTable =>
+      $$MatchFlowSongsTableTableTableManager(_db, _db.matchFlowSongsTable);
   $$ScrobbleQueueTableTableTableManager get scrobbleQueueTable =>
       $$ScrobbleQueueTableTableTableManager(_db, _db.scrobbleQueueTable);
   $$StarSyncQueueTableTableTableManager get starSyncQueueTable =>

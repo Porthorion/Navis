@@ -18,8 +18,8 @@ void main() {
         .customSelect('PRAGMA user_version;')
         .getSingle();
 
-    expect(database.schemaVersion, 41);
-    expect(pragmaRow.read<int>("user_version"), 41);
+    expect(database.schemaVersion, 42);
+    expect(pragmaRow.read<int>("user_version"), 42);
   }, skip: !sqliteAvailable);
 
   test('latest schema creates app settings defaults', () async {
@@ -53,6 +53,7 @@ void main() {
     expect(settings.updateCheckEnabled, isTrue);
     expect(settings.updateChannel, 'stable');
     expect(settings.homeDensity, 'comfortable');
+    expect(settings.matchFlowEnabled, isFalse);
     final groupListening = await database.appSettingsDao
         .getGroupListeningSettings();
     final columns = await database
@@ -67,6 +68,7 @@ void main() {
         'voyage_display_name',
         'voyage_device_label',
         'voyage_auto_follow_host',
+        'match_flow_enabled',
       }),
     );
     expect(groupListening.groupListeningEnabled, isFalse);
@@ -219,7 +221,7 @@ void main() {
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>("user_version"), 41);
+      expect(versionRow.read<int>("user_version"), 42);
 
       final albums = await migrated.select(migrated.albumsTable).get();
       final albumsById = {for (final album in albums) album.id: album};
@@ -268,6 +270,20 @@ void main() {
       expect(settings.homeSectionOrder, isNull);
       expect(settings.homeSectionsHidden, isNull);
       expect(settings.useLrclib, isTrue);
+      expect(settings.matchFlowEnabled, isFalse);
+      final tables = await migrated
+          .customSelect("SELECT name FROM sqlite_master WHERE type = 'table';")
+          .get();
+      final tableNames = tables.map((row) => row.read<String>('name')).toSet();
+      expect(
+        tableNames,
+        containsAll(<String>['match_flows', 'match_flow_songs']),
+      );
+      final indexes = await migrated
+          .customSelect("SELECT name FROM sqlite_master WHERE type = 'index';")
+          .get();
+      final indexNames = indexes.map((row) => row.read<String>('name')).toSet();
+      expect(indexNames, contains('idx_match_flow_unique_master'));
       final groupListening = await migrated.appSettingsDao
           .getGroupListeningSettings();
       expect(groupListening.groupListeningEnabled, isFalse);

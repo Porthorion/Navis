@@ -10,6 +10,8 @@ import 'package:navis/src/features/home/presentation/home_screen.dart';
 import 'package:navis/src/features/library/presentation/album_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/artist_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/library_screen.dart';
+import 'package:navis/src/features/match_flow/presentation/match_flow_screen.dart';
+import 'package:navis/src/features/match_flow/presentation/match_flow_song_search_screen.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_detail_screen.dart';
 import 'package:navis/src/features/search/presentation/search_screen.dart';
 import 'package:navis/src/features/settings/presentation/appearance_settings_screen.dart';
@@ -195,6 +197,26 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                       key: state.pageKey,
                       child: const PlaybackSettingsScreen(),
                     ),
+                    routes: <RouteBase>[
+                      GoRoute(
+                        path: 'match-flow',
+                        pageBuilder: (context, state) => _slideFadePage(
+                          key: state.pageKey,
+                          child: const MatchFlowScreen(),
+                        ),
+                        routes: <RouteBase>[
+                          GoRoute(
+                            path: ':flowId/search',
+                            pageBuilder: (context, state) => _slideFadePage(
+                              key: state.pageKey,
+                              child: MatchFlowSongSearchScreen(
+                                flowId: state.pathParameters['flowId']!,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                   GoRoute(
                     path: 'sync',

@@ -58,7 +58,10 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
   Future<void> waitUntilReady() async {}
 
   @override
-  Future<void> addToQueue(List<String> songIds) async {
+  Future<void> addToQueue(
+    List<String> songIds, {
+    bool expandMatchFlows = true,
+  }) async {
     _snapshot = _snapshot.copyWith(
       queueSongIds: <String>[..._snapshot.queueSongIds, ...songIds],
     );
@@ -81,7 +84,10 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
   Future<void> applyRuntimeSettings() async {}
 
   @override
-  Future<void> playNext(List<String> songIds) async {
+  Future<void> playNext(
+    List<String> songIds, {
+    bool expandMatchFlows = true,
+  }) async {
     if (songIds.isEmpty) {
       return;
     }
@@ -146,6 +152,7 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
     List<String> songIds, {
     int startIndex = 0,
     bool autoPlay = true,
+    bool expandMatchFlows = true,
   }) async {
     final current = songIds.isEmpty
         ? null
@@ -170,6 +177,7 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
     List<SongsTableData> songs, {
     int startIndex = 0,
     bool autoPlay = true,
+    bool expandMatchFlows = true,
   }) async {
     final ids = songs.map((s) => s.id).toList(growable: false);
     await replaceQueue(ids, startIndex: startIndex, autoPlay: autoPlay);

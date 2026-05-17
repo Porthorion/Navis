@@ -163,7 +163,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
           if (recs.isNotEmpty && state.active) {
             final ids = recs.map((r) => r.id).toList(growable: false);
             final handler = ref.read(audioHandlerProvider);
-            await handler?.addToQueue(ids);
+            await handler?.addToQueue(ids, expandMatchFlows: false);
             AppLogger.debug(
               'InstantMix: queued ${ids.length} tracks via AudioMuse',
             );
@@ -200,7 +200,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
 
       final ids = songs.map((s) => s.id).toList(growable: false);
       final handler = ref.read(audioHandlerProvider);
-      await handler?.addToQueue(ids);
+      await handler?.addToQueue(ids, expandMatchFlows: false);
 
       state = state.copyWith(
         refilling: false,

@@ -4328,6 +4328,162 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Instant Mix requires a locally scanned track.'**
   String get remoteSourceInstantMixUnavailable;
+
+  /// No description provided for @commonSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get commonSave;
+
+  /// No description provided for @commonDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get commonDelete;
+
+  /// No description provided for @commonRename.
+  ///
+  /// In en, this message translates to:
+  /// **'Rename'**
+  String get commonRename;
+
+  /// No description provided for @commonRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get commonRemove;
+
+  /// No description provided for @commonReorder.
+  ///
+  /// In en, this message translates to:
+  /// **'Reorder'**
+  String get commonReorder;
+
+  /// No description provided for @matchFlowTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Match Flow'**
+  String get matchFlowTitle;
+
+  /// No description provided for @matchFlowPlaybackSettingsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Expand a selected master song into a saved local playback flow.'**
+  String get matchFlowPlaybackSettingsSubtitle;
+
+  /// No description provided for @matchFlowManageTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage Match Flows'**
+  String get matchFlowManageTitle;
+
+  /// No description provided for @matchFlowCreateAction.
+  ///
+  /// In en, this message translates to:
+  /// **'New Flow'**
+  String get matchFlowCreateAction;
+
+  /// No description provided for @matchFlowEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No Match Flows yet'**
+  String get matchFlowEmptyTitle;
+
+  /// No description provided for @matchFlowEmptySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Create a flow, choose a master song, then add the songs that should follow it.'**
+  String get matchFlowEmptySubtitle;
+
+  /// No description provided for @matchFlowLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load Match Flow: {error}'**
+  String matchFlowLoadError(String error);
+
+  /// No description provided for @matchFlowSaveError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save Match Flow: {error}'**
+  String matchFlowSaveError(String error);
+
+  /// No description provided for @matchFlowSongCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{No songs} =1{1 song} other{{count} songs}}'**
+  String matchFlowSongCount(int count);
+
+  /// No description provided for @matchFlowNoSongs.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a song to set the master.'**
+  String get matchFlowNoSongs;
+
+  /// No description provided for @matchFlowAddSongAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Add song'**
+  String get matchFlowAddSongAction;
+
+  /// No description provided for @matchFlowAddSongTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Add song'**
+  String get matchFlowAddSongTitle;
+
+  /// No description provided for @matchFlowSearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search songs'**
+  String get matchFlowSearchHint;
+
+  /// No description provided for @matchFlowNoSearchResults.
+  ///
+  /// In en, this message translates to:
+  /// **'No songs found'**
+  String get matchFlowNoSearchResults;
+
+  /// No description provided for @matchFlowRenameTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Rename flow'**
+  String get matchFlowRenameTitle;
+
+  /// No description provided for @matchFlowNameLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Flow name'**
+  String get matchFlowNameLabel;
+
+  /// No description provided for @matchFlowDeleteTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete flow?'**
+  String get matchFlowDeleteTitle;
+
+  /// No description provided for @matchFlowDeleteMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete “{name}” and its song order?'**
+  String matchFlowDeleteMessage(String name);
+
+  /// No description provided for @matchFlowMasterLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Master'**
+  String get matchFlowMasterLabel;
+
+  /// No description provided for @matchFlowUnresolvedSong.
+  ///
+  /// In en, this message translates to:
+  /// **'Unresolved song {songId}'**
+  String matchFlowUnresolvedSong(String songId);
+
+  /// No description provided for @matchFlowSongAdded.
+  ///
+  /// In en, this message translates to:
+  /// **'Added {title}.'**
+  String matchFlowSongAdded(String title);
 }
 
 class _AppLocalizationsDelegate
