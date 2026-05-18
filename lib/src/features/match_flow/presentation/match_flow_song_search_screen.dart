@@ -110,7 +110,7 @@ class _MatchFlowSongSearchScreenState
             (songs) => songs.take(80).toList(growable: false),
           );
     }
-    return libraryDao.searchSongsLocal(trimmed, limit: 80);
+    return libraryDao.searchCachedSongs(trimmed, limit: 80);
   }
 
   Future<void> _addSong(SongsTableData song) async {

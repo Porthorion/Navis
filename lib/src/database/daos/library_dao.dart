@@ -1164,25 +1164,154 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         .get();
   }
 
-  /// Search songs by title, artist name, or album name.
+  /// Search songs by title, artist name, or album name using cached metadata.
   Future<List<SongsTableData>> searchSongsLocal(
     String query, {
     int limit = 20,
   }) {
-    final pattern = '%${query.toLowerCase()}%';
-    return (select(songsTable)
-          ..where(
-            (t) =>
-                t.title.lower().like(pattern) |
-                t.artistName.lower().like(pattern) |
-                t.albumName.lower().like(pattern),
-          )
-          ..orderBy([
-            (t) => OrderingTerm.asc(t.title),
-            (t) => OrderingTerm.asc(t.id),
-          ])
-          ..limit(limit))
-        .get();
+    return searchCachedSongs(query, limit: limit);
+  }
+
+  /// Search cached songs with ranked substring, token, and fuzzy matching.
+  Future<List<SongsTableData>> searchCachedSongs(
+    String query, {
+    int limit = 20,
+  }) async {
+    if (limit < 1) return const <SongsTableData>[];
+    final normalizedQuery = _normalizeSearchText(query);
+    if (normalizedQuery.isEmpty) {
+      return (select(songsTable)
+            ..orderBy([
+              (t) => OrderingTerm.asc(t.title),
+              (t) => OrderingTerm.asc(t.id),
+            ])
+            ..limit(limit))
+          .get();
+    }
+
+    final songs =
+        await (select(songsTable)..orderBy([
+              (t) => OrderingTerm.asc(t.title),
+              (t) => OrderingTerm.asc(t.id),
+            ]))
+            .get();
+    final tokens = normalizedQuery
+        .split(' ')
+        .where((token) => token.isNotEmpty)
+        .toList(growable: false);
+    final matches = <_SongSearchMatch>[];
+
+    for (final song in songs) {
+      final score = _songSearchScore(song, normalizedQuery, tokens);
+      if (score == null) continue;
+      matches.add(_SongSearchMatch(song: song, score: score));
+    }
+
+    matches.sort((a, b) {
+      final scoreDiff = a.score.compareTo(b.score);
+      if (scoreDiff != 0) return scoreDiff;
+      final titleDiff = a.song.title.toLowerCase().compareTo(
+        b.song.title.toLowerCase(),
+      );
+      if (titleDiff != 0) return titleDiff;
+      return a.song.id.compareTo(b.song.id);
+    });
+
+    return matches
+        .take(limit)
+        .map((match) => match.song)
+        .toList(growable: false);
+  }
+
+  int? _songSearchScore(
+    SongsTableData song,
+    String query,
+    List<String> tokens,
+  ) {
+    final scores = <int>[];
+    final title = _normalizeSearchText(song.title);
+    final artist = _normalizeSearchText(song.artistName ?? '');
+    final album = _normalizeSearchText(song.albumName ?? '');
+    final combined = <String>[
+      title,
+      artist,
+      album,
+    ].where((field) => field.isNotEmpty).join(' ');
+
+    void addScore(String field, int weight) {
+      final score = _searchFieldScore(field, query, tokens);
+      if (score != null) scores.add(weight + score);
+    }
+
+    addScore(title, 0);
+    addScore(artist, 8);
+    addScore(album, 12);
+    addScore(combined, 18);
+
+    if (scores.isEmpty) return null;
+    scores.sort();
+    return scores.first;
+  }
+
+  int? _searchFieldScore(String field, String query, List<String> tokens) {
+    if (field.isEmpty) return null;
+    if (field == query) return 0;
+    if (field.startsWith(query)) return 10;
+
+    final containsIndex = field.indexOf(query);
+    if (containsIndex >= 0) return 20 + containsIndex.clamp(0, 20);
+
+    if (tokens.length > 1 && tokens.every(field.contains)) {
+      final firstIndex = field.indexOf(tokens.first).clamp(0, 30);
+      return 45 + firstIndex;
+    }
+
+    final fuzzyScore = _fuzzySubsequenceScore(field, query);
+    if (fuzzyScore != null) return 80 + fuzzyScore;
+
+    if (tokens.length > 1) {
+      var total = 0;
+      for (final token in tokens) {
+        final tokenScore = _fuzzySubsequenceScore(field, token);
+        if (tokenScore == null) return null;
+        total += tokenScore;
+      }
+      return 110 + total;
+    }
+
+    return null;
+  }
+
+  int? _fuzzySubsequenceScore(String field, String query) {
+    if (query.length < 3 || field.length < query.length) return null;
+    var fieldIndex = 0;
+    var previousMatch = -1;
+    var gapPenalty = 0;
+
+    for (var queryIndex = 0; queryIndex < query.length; queryIndex += 1) {
+      final char = query[queryIndex];
+      final matchIndex = field.indexOf(char, fieldIndex);
+      if (matchIndex < 0) return null;
+      if (previousMatch >= 0) {
+        gapPenalty += matchIndex - previousMatch - 1;
+      } else {
+        gapPenalty += matchIndex.clamp(0, 20);
+      }
+      previousMatch = matchIndex;
+      fieldIndex = matchIndex + 1;
+    }
+
+    final compactnessLimit = query.length * 3;
+    if (gapPenalty > compactnessLimit) return null;
+    return gapPenalty;
+  }
+
+  String _normalizeSearchText(String value) {
+    return value
+        .toLowerCase()
+        .replaceAll(RegExp('[^a-z0-9]+'), ' ')
+        .trim()
+        .replaceAll(RegExp(r'\s+'), ' ');
   }
 
   Future<List<AlbumsTableData>> getPendingHydrationAlbums({
@@ -1511,4 +1640,11 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     final withoutPunct = withoutFeat.replaceAll(RegExp(r'[^a-z0-9\s]'), ' ');
     return withoutPunct.replaceAll(RegExp(r'\s+'), ' ').trim();
   }
+}
+
+class _SongSearchMatch {
+  const _SongSearchMatch({required this.song, required this.score});
+
+  final SongsTableData song;
+  final int score;
 }

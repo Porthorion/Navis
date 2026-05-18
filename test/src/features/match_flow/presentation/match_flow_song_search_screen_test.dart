@@ -40,6 +40,30 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();
     });
+
+    testWidgets('uses cached fuzzy song search', (tester) async {
+      await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+        SongsTableCompanion.insert(
+          id: 'bohemian-rhapsody',
+          title: 'Bohemian Rhapsody',
+        ),
+        SongsTableCompanion.insert(id: 'another-song', title: 'Another Song'),
+      ]);
+
+      await tester.pumpWidget(_buildTestApp(database));
+      await tester.pump(const Duration(milliseconds: 100));
+
+      await tester.enterText(find.byType(SearchBar), 'boh rhap');
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Bohemian Rhapsody'), findsOneWidget);
+      expect(find.text('Another Song'), findsNothing);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    });
   });
 }
 
