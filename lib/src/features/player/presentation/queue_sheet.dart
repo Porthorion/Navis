@@ -86,8 +86,15 @@ class QueueSheet extends ConsumerWidget {
                       isCurrentSong: isCurrentSong,
                       sheetDragActive: sheetDragActive,
                       onSwipeActiveChanged: onItemSwipeActiveChanged,
-                      onRemove: () async {
-                        await ref.read(queueProvider.notifier).removeAt(index);
+                      onRemove: () {
+                        ref
+                            .read(queueProvider.notifier)
+                            .fireAndForget(
+                              () => ref
+                                  .read(queueProvider.notifier)
+                                  .removeAt(index),
+                              label: 'remove queue item',
+                            );
                       },
                       onTap: () async {
                         await ref
@@ -404,18 +411,28 @@ class _QueueItemState extends ConsumerState<_QueueItem> {
                   : null,
             ),
             subtitle: Text(song.artistName ?? l10n.queueUnknownArtist),
-            trailing: ReorderableDragStartListener(
-              index: widget.index,
-              child: SizedBox(
-                width: 28,
-                child: Center(
-                  child: Icon(
-                    Icons.drag_indicator_rounded,
-                    size: 18,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                IconButton(
+                  tooltip: l10n.commonRemove,
+                  onPressed: widget.onRemove,
+                  icon: const Icon(Icons.delete_outline),
+                ),
+                ReorderableDragStartListener(
+                  index: widget.index,
+                  child: SizedBox(
+                    width: 28,
+                    child: Center(
+                      child: Icon(
+                        Icons.drag_indicator_rounded,
+                        size: 18,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                   ),
                 ),
-              ),
+              ],
             ),
             onTap: widget.onTap,
           ),

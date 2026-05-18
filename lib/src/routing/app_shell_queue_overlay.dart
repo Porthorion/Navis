@@ -107,11 +107,26 @@ class _QueueOverlayState extends State<_QueueOverlay>
 
   void _setQueueItemSwiping(bool value) {
     if (_queueItemSwiping == value) return;
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          _queueItemSwiping = value;
+          return;
+        }
+        _setQueueItemSwiping(value);
+      });
+      return;
+    }
     // If an item swipe starts while the sheet was tracking a drag, reset it.
     if (value) {
       _activePointer = null;
       _velocityTracker = null;
       _setDraggingSheet(false);
+    }
+    if (!mounted) {
+      _queueItemSwiping = value;
+      return;
     }
     setState(() => _queueItemSwiping = value);
   }
