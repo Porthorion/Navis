@@ -81,7 +81,7 @@ class NavisDatabase extends _$NavisDatabase {
   static QueryExecutor _openConnection() => driftDatabase(name: 'navis.sqlite');
 
   @override
-  int get schemaVersion => 42;
+  int get schemaVersion => 43;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -227,6 +227,9 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 42 && to >= 42) {
       await from41To42(migrator);
+    }
+    if (from < 43 && to >= 43) {
+      await from42To43(migrator);
     }
   }
 
@@ -791,6 +794,12 @@ class NavisDatabase extends _$NavisDatabase {
     await _ensureMatchFlowStorage(migrator);
   }
 
+  Future<void> from42To43(Migrator migrator) async {
+    if (!await _columnExists('songs', 'server_deleted_at')) {
+      await migrator.addColumn(songsTable, songsTable.serverDeletedAt);
+    }
+  }
+
   Future<void> _ensureGroupListeningColumns() async {
     if (!await _columnExists('app_settings', 'group_listening_enabled')) {
       await customStatement('''
@@ -930,6 +939,9 @@ class NavisDatabase extends _$NavisDatabase {
     );
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_songs_created_at ON songs(created_at DESC, id ASC);',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_songs_server_deleted_at ON songs(server_deleted_at, id);',
     );
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_playlist_songs_order ON playlist_songs(playlist_id, sort_order);',

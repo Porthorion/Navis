@@ -60,7 +60,9 @@ Future<void> showSongContextMenu(
               .watch(songRatingProvider(song.id))
               .asData
               ?.value;
-          final isRemote = !isServerAddressableSongId(song.id);
+          final isServerActionUnavailable =
+              !isServerAddressableSongId(song.id) ||
+              song.serverDeletedAt != null;
           final disabledColor = Theme.of(
             context,
           ).colorScheme.onSurface.withValues(alpha: 0.38);
@@ -136,8 +138,12 @@ Future<void> showSongContextMenu(
                       },
                     ),
                     ListTile(
-                      iconColor: isRemote ? disabledColor : null,
-                      textColor: isRemote ? disabledColor : null,
+                      iconColor: isServerActionUnavailable
+                          ? disabledColor
+                          : null,
+                      textColor: isServerActionUnavailable
+                          ? disabledColor
+                          : null,
                       leading: Icon(
                         isLiked ? Icons.favorite : Icons.favorite_border,
                       ),
@@ -145,7 +151,7 @@ Future<void> showSongContextMenu(
                         isLiked ? l10n.actionLiked : l10n.actionLike,
                       ),
                       onTap: () {
-                        if (isRemote) {
+                        if (isServerActionUnavailable) {
                           showAppNotice(
                             context,
                             message: l10n.remoteSourceActionUnavailable,
@@ -167,12 +173,16 @@ Future<void> showSongContextMenu(
                       },
                     ),
                     ListTile(
-                      iconColor: isRemote ? disabledColor : null,
-                      textColor: isRemote ? disabledColor : null,
+                      iconColor: isServerActionUnavailable
+                          ? disabledColor
+                          : null,
+                      textColor: isServerActionUnavailable
+                          ? disabledColor
+                          : null,
                       leading: const Icon(Icons.star_outline),
                       title: Text(l10n.ratingTitle),
                       subtitle: Text(l10n.ratingHint),
-                      trailing: isRemote
+                      trailing: isServerActionUnavailable
                           ? IgnorePointer(
                               child: Opacity(
                                 opacity: 0.38,
@@ -204,7 +214,7 @@ Future<void> showSongContextMenu(
                                 );
                               },
                             ),
-                      onTap: isRemote
+                      onTap: isServerActionUnavailable
                           ? () => showAppNotice(
                               context,
                               message: l10n.remoteSourceActionUnavailable,
@@ -259,12 +269,16 @@ Future<void> showSongContextMenu(
                       )
                     else if (canDownload)
                       ListTile(
-                        iconColor: isRemote ? disabledColor : null,
-                        textColor: isRemote ? disabledColor : null,
+                        iconColor: isServerActionUnavailable
+                            ? disabledColor
+                            : null,
+                        textColor: isServerActionUnavailable
+                            ? disabledColor
+                            : null,
                         leading: const Icon(Icons.download_outlined),
                         title: Text(l10n.downloadAction),
                         onTap: () {
-                          if (isRemote) {
+                          if (isServerActionUnavailable) {
                             showAppNotice(
                               context,
                               message: l10n.remoteSourceActionUnavailable,
@@ -316,7 +330,8 @@ Future<void> _showDesktopSongContextMenu(
   final isLiked =
       ref.read(songStarredProvider(song.id)).asData?.value ??
       song.starred != null;
-  final isRemote = !isServerAddressableSongId(song.id);
+  final isServerActionUnavailable =
+      !isServerAddressableSongId(song.id) || song.serverDeletedAt != null;
 
   final action = await showDesktopContextMenu<_SongContextAction>(
     context: context,
@@ -336,7 +351,7 @@ Future<void> _showDesktopSongContextMenu(
       ),
       PopupMenuItem<_SongContextAction>(
         value: _SongContextAction.toggleLike,
-        enabled: !isRemote,
+        enabled: !isServerActionUnavailable,
         child: Text(isLiked ? l10n.actionLiked : l10n.actionLike),
       ),
       if (song.artistId != null && song.artistId!.isNotEmpty)
@@ -357,7 +372,7 @@ Future<void> _showDesktopSongContextMenu(
         value: isDownloaded
             ? _SongContextAction.deleteDownload
             : _SongContextAction.download,
-        enabled: isDownloaded || (canDownload && !isRemote),
+        enabled: isDownloaded || (canDownload && !isServerActionUnavailable),
         child: Text(
           isDownloaded ? l10n.deleteDownloadAction : l10n.downloadAction,
         ),

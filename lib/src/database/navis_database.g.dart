@@ -5494,6 +5494,18 @@ class $SongsTableTable extends SongsTable
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _serverDeletedAtMeta = const VerificationMeta(
+    'serverDeletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> serverDeletedAt =
+      GeneratedColumn<DateTime>(
+        'server_deleted_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _replayGainTrackGainMeta =
       const VerificationMeta('replayGainTrackGain');
   @override
@@ -5559,6 +5571,7 @@ class $SongsTableTable extends SongsTable
     userRating,
     playCount,
     createdAt,
+    serverDeletedAt,
     replayGainTrackGain,
     replayGainAlbumGain,
     replayGainTrackPeak,
@@ -5694,6 +5707,15 @@ class $SongsTableTable extends SongsTable
         createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
       );
     }
+    if (data.containsKey('server_deleted_at')) {
+      context.handle(
+        _serverDeletedAtMeta,
+        serverDeletedAt.isAcceptableOrUnknown(
+          data['server_deleted_at']!,
+          _serverDeletedAtMeta,
+        ),
+      );
+    }
     if (data.containsKey('replay_gain_track_gain')) {
       context.handle(
         _replayGainTrackGainMeta,
@@ -5815,6 +5837,10 @@ class $SongsTableTable extends SongsTable
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
       ),
+      serverDeletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}server_deleted_at'],
+      ),
       replayGainTrackGain: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}replay_gain_track_gain'],
@@ -5861,6 +5887,10 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
   final int? playCount;
   final DateTime? createdAt;
 
+  /// Local-only retention marker for songs deleted from the server but kept
+  /// because a complete permanent download still exists on disk.
+  final DateTime? serverDeletedAt;
+
   /// ReplayGain track gain in dB (from OpenSubsonic replayGain object).
   final double? replayGainTrackGain;
 
@@ -5892,6 +5922,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     this.userRating,
     this.playCount,
     this.createdAt,
+    this.serverDeletedAt,
     this.replayGainTrackGain,
     this.replayGainAlbumGain,
     this.replayGainTrackPeak,
@@ -5952,6 +5983,9 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     }
     if (!nullToAbsent || createdAt != null) {
       map['created_at'] = Variable<DateTime>(createdAt);
+    }
+    if (!nullToAbsent || serverDeletedAt != null) {
+      map['server_deleted_at'] = Variable<DateTime>(serverDeletedAt);
     }
     if (!nullToAbsent || replayGainTrackGain != null) {
       map['replay_gain_track_gain'] = Variable<double>(replayGainTrackGain);
@@ -6021,6 +6055,9 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       createdAt: createdAt == null && nullToAbsent
           ? const Value.absent()
           : Value(createdAt),
+      serverDeletedAt: serverDeletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(serverDeletedAt),
       replayGainTrackGain: replayGainTrackGain == null && nullToAbsent
           ? const Value.absent()
           : Value(replayGainTrackGain),
@@ -6061,6 +6098,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       userRating: serializer.fromJson<int?>(json['userRating']),
       playCount: serializer.fromJson<int?>(json['playCount']),
       createdAt: serializer.fromJson<DateTime?>(json['createdAt']),
+      serverDeletedAt: serializer.fromJson<DateTime?>(json['serverDeletedAt']),
       replayGainTrackGain: serializer.fromJson<double?>(
         json['replayGainTrackGain'],
       ),
@@ -6098,6 +6136,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       'userRating': serializer.toJson<int?>(userRating),
       'playCount': serializer.toJson<int?>(playCount),
       'createdAt': serializer.toJson<DateTime?>(createdAt),
+      'serverDeletedAt': serializer.toJson<DateTime?>(serverDeletedAt),
       'replayGainTrackGain': serializer.toJson<double?>(replayGainTrackGain),
       'replayGainAlbumGain': serializer.toJson<double?>(replayGainAlbumGain),
       'replayGainTrackPeak': serializer.toJson<double?>(replayGainTrackPeak),
@@ -6125,6 +6164,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     Value<int?> userRating = const Value.absent(),
     Value<int?> playCount = const Value.absent(),
     Value<DateTime?> createdAt = const Value.absent(),
+    Value<DateTime?> serverDeletedAt = const Value.absent(),
     Value<double?> replayGainTrackGain = const Value.absent(),
     Value<double?> replayGainAlbumGain = const Value.absent(),
     Value<double?> replayGainTrackPeak = const Value.absent(),
@@ -6149,6 +6189,9 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     userRating: userRating.present ? userRating.value : this.userRating,
     playCount: playCount.present ? playCount.value : this.playCount,
     createdAt: createdAt.present ? createdAt.value : this.createdAt,
+    serverDeletedAt: serverDeletedAt.present
+        ? serverDeletedAt.value
+        : this.serverDeletedAt,
     replayGainTrackGain: replayGainTrackGain.present
         ? replayGainTrackGain.value
         : this.replayGainTrackGain,
@@ -6193,6 +6236,9 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
           : this.userRating,
       playCount: data.playCount.present ? data.playCount.value : this.playCount,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      serverDeletedAt: data.serverDeletedAt.present
+          ? data.serverDeletedAt.value
+          : this.serverDeletedAt,
       replayGainTrackGain: data.replayGainTrackGain.present
           ? data.replayGainTrackGain.value
           : this.replayGainTrackGain,
@@ -6230,6 +6276,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
           ..write('userRating: $userRating, ')
           ..write('playCount: $playCount, ')
           ..write('createdAt: $createdAt, ')
+          ..write('serverDeletedAt: $serverDeletedAt, ')
           ..write('replayGainTrackGain: $replayGainTrackGain, ')
           ..write('replayGainAlbumGain: $replayGainAlbumGain, ')
           ..write('replayGainTrackPeak: $replayGainTrackPeak, ')
@@ -6259,6 +6306,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     userRating,
     playCount,
     createdAt,
+    serverDeletedAt,
     replayGainTrackGain,
     replayGainAlbumGain,
     replayGainTrackPeak,
@@ -6287,6 +6335,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
           other.userRating == this.userRating &&
           other.playCount == this.playCount &&
           other.createdAt == this.createdAt &&
+          other.serverDeletedAt == this.serverDeletedAt &&
           other.replayGainTrackGain == this.replayGainTrackGain &&
           other.replayGainAlbumGain == this.replayGainAlbumGain &&
           other.replayGainTrackPeak == this.replayGainTrackPeak &&
@@ -6313,6 +6362,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
   final Value<int?> userRating;
   final Value<int?> playCount;
   final Value<DateTime?> createdAt;
+  final Value<DateTime?> serverDeletedAt;
   final Value<double?> replayGainTrackGain;
   final Value<double?> replayGainAlbumGain;
   final Value<double?> replayGainTrackPeak;
@@ -6338,6 +6388,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     this.userRating = const Value.absent(),
     this.playCount = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.serverDeletedAt = const Value.absent(),
     this.replayGainTrackGain = const Value.absent(),
     this.replayGainAlbumGain = const Value.absent(),
     this.replayGainTrackPeak = const Value.absent(),
@@ -6364,6 +6415,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     this.userRating = const Value.absent(),
     this.playCount = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.serverDeletedAt = const Value.absent(),
     this.replayGainTrackGain = const Value.absent(),
     this.replayGainAlbumGain = const Value.absent(),
     this.replayGainTrackPeak = const Value.absent(),
@@ -6391,6 +6443,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     Expression<int>? userRating,
     Expression<int>? playCount,
     Expression<DateTime>? createdAt,
+    Expression<DateTime>? serverDeletedAt,
     Expression<double>? replayGainTrackGain,
     Expression<double>? replayGainAlbumGain,
     Expression<double>? replayGainTrackPeak,
@@ -6417,6 +6470,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
       if (userRating != null) 'user_rating': userRating,
       if (playCount != null) 'play_count': playCount,
       if (createdAt != null) 'created_at': createdAt,
+      if (serverDeletedAt != null) 'server_deleted_at': serverDeletedAt,
       if (replayGainTrackGain != null)
         'replay_gain_track_gain': replayGainTrackGain,
       if (replayGainAlbumGain != null)
@@ -6449,6 +6503,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     Value<int?>? userRating,
     Value<int?>? playCount,
     Value<DateTime?>? createdAt,
+    Value<DateTime?>? serverDeletedAt,
     Value<double?>? replayGainTrackGain,
     Value<double?>? replayGainAlbumGain,
     Value<double?>? replayGainTrackPeak,
@@ -6475,6 +6530,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
       userRating: userRating ?? this.userRating,
       playCount: playCount ?? this.playCount,
       createdAt: createdAt ?? this.createdAt,
+      serverDeletedAt: serverDeletedAt ?? this.serverDeletedAt,
       replayGainTrackGain: replayGainTrackGain ?? this.replayGainTrackGain,
       replayGainAlbumGain: replayGainAlbumGain ?? this.replayGainAlbumGain,
       replayGainTrackPeak: replayGainTrackPeak ?? this.replayGainTrackPeak,
@@ -6543,6 +6599,9 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
+    if (serverDeletedAt.present) {
+      map['server_deleted_at'] = Variable<DateTime>(serverDeletedAt.value);
+    }
     if (replayGainTrackGain.present) {
       map['replay_gain_track_gain'] = Variable<double>(
         replayGainTrackGain.value,
@@ -6591,6 +6650,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
           ..write('userRating: $userRating, ')
           ..write('playCount: $playCount, ')
           ..write('createdAt: $createdAt, ')
+          ..write('serverDeletedAt: $serverDeletedAt, ')
           ..write('replayGainTrackGain: $replayGainTrackGain, ')
           ..write('replayGainAlbumGain: $replayGainAlbumGain, ')
           ..write('replayGainTrackPeak: $replayGainTrackPeak, ')
@@ -15540,6 +15600,7 @@ typedef $$SongsTableTableCreateCompanionBuilder =
       Value<int?> userRating,
       Value<int?> playCount,
       Value<DateTime?> createdAt,
+      Value<DateTime?> serverDeletedAt,
       Value<double?> replayGainTrackGain,
       Value<double?> replayGainAlbumGain,
       Value<double?> replayGainTrackPeak,
@@ -15567,6 +15628,7 @@ typedef $$SongsTableTableUpdateCompanionBuilder =
       Value<int?> userRating,
       Value<int?> playCount,
       Value<DateTime?> createdAt,
+      Value<DateTime?> serverDeletedAt,
       Value<double?> replayGainTrackGain,
       Value<double?> replayGainAlbumGain,
       Value<double?> replayGainTrackPeak,
@@ -15813,6 +15875,11 @@ class $$SongsTableTableFilterComposer
 
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get serverDeletedAt => $composableBuilder(
+    column: $table.serverDeletedAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -16077,6 +16144,11 @@ class $$SongsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<DateTime> get serverDeletedAt => $composableBuilder(
+    column: $table.serverDeletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<double> get replayGainTrackGain => $composableBuilder(
     column: $table.replayGainTrackGain,
     builder: (column) => ColumnOrderings(column),
@@ -16213,6 +16285,11 @@ class $$SongsTableTableAnnotationComposer
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get serverDeletedAt => $composableBuilder(
+    column: $table.serverDeletedAt,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<double> get replayGainTrackGain => $composableBuilder(
     column: $table.replayGainTrackGain,
@@ -16438,6 +16515,7 @@ class $$SongsTableTableTableManager
                 Value<int?> userRating = const Value.absent(),
                 Value<int?> playCount = const Value.absent(),
                 Value<DateTime?> createdAt = const Value.absent(),
+                Value<DateTime?> serverDeletedAt = const Value.absent(),
                 Value<double?> replayGainTrackGain = const Value.absent(),
                 Value<double?> replayGainAlbumGain = const Value.absent(),
                 Value<double?> replayGainTrackPeak = const Value.absent(),
@@ -16463,6 +16541,7 @@ class $$SongsTableTableTableManager
                 userRating: userRating,
                 playCount: playCount,
                 createdAt: createdAt,
+                serverDeletedAt: serverDeletedAt,
                 replayGainTrackGain: replayGainTrackGain,
                 replayGainAlbumGain: replayGainAlbumGain,
                 replayGainTrackPeak: replayGainTrackPeak,
@@ -16490,6 +16569,7 @@ class $$SongsTableTableTableManager
                 Value<int?> userRating = const Value.absent(),
                 Value<int?> playCount = const Value.absent(),
                 Value<DateTime?> createdAt = const Value.absent(),
+                Value<DateTime?> serverDeletedAt = const Value.absent(),
                 Value<double?> replayGainTrackGain = const Value.absent(),
                 Value<double?> replayGainAlbumGain = const Value.absent(),
                 Value<double?> replayGainTrackPeak = const Value.absent(),
@@ -16515,6 +16595,7 @@ class $$SongsTableTableTableManager
                 userRating: userRating,
                 playCount: playCount,
                 createdAt: createdAt,
+                serverDeletedAt: serverDeletedAt,
                 replayGainTrackGain: replayGainTrackGain,
                 replayGainAlbumGain: replayGainAlbumGain,
                 replayGainTrackPeak: replayGainTrackPeak,

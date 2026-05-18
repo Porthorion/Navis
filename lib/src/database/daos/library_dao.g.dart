@@ -12,6 +12,13 @@ mixin _$LibraryDaoMixin on DatabaseAccessor<NavisDatabase> {
       attachedDatabase.albumInfoCacheTable;
   $ExternalLyricsCacheTableTable get externalLyricsCacheTable =>
       attachedDatabase.externalLyricsCacheTable;
+  $CachedTracksTableTable get cachedTracksTable =>
+      attachedDatabase.cachedTracksTable;
+  $DownloadQueueTableTable get downloadQueueTable =>
+      attachedDatabase.downloadQueueTable;
+  $MatchFlowsTableTable get matchFlowsTable => attachedDatabase.matchFlowsTable;
+  $MatchFlowSongsTableTable get matchFlowSongsTable =>
+      attachedDatabase.matchFlowSongsTable;
   LibraryDaoManager get managers => LibraryDaoManager(this);
 }
 
@@ -35,5 +42,25 @@ class LibraryDaoManager {
       $$ExternalLyricsCacheTableTableTableManager(
         _db.attachedDatabase,
         _db.externalLyricsCacheTable,
+      );
+  $$CachedTracksTableTableTableManager get cachedTracksTable =>
+      $$CachedTracksTableTableTableManager(
+        _db.attachedDatabase,
+        _db.cachedTracksTable,
+      );
+  $$DownloadQueueTableTableTableManager get downloadQueueTable =>
+      $$DownloadQueueTableTableTableManager(
+        _db.attachedDatabase,
+        _db.downloadQueueTable,
+      );
+  $$MatchFlowsTableTableTableManager get matchFlowsTable =>
+      $$MatchFlowsTableTableTableManager(
+        _db.attachedDatabase,
+        _db.matchFlowsTable,
+      );
+  $$MatchFlowSongsTableTableTableManager get matchFlowSongsTable =>
+      $$MatchFlowSongsTableTableTableManager(
+        _db.attachedDatabase,
+        _db.matchFlowSongsTable,
       );
 }

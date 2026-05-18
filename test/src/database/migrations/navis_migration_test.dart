@@ -18,8 +18,8 @@ void main() {
         .customSelect('PRAGMA user_version;')
         .getSingle();
 
-    expect(database.schemaVersion, 42);
-    expect(pragmaRow.read<int>("user_version"), 42);
+    expect(database.schemaVersion, 43);
+    expect(pragmaRow.read<int>('user_version'), 43);
   }, skip: !sqliteAvailable);
 
   test('latest schema creates app settings defaults', () async {
@@ -104,7 +104,7 @@ void main() {
     );
   }, skip: !sqliteAvailable);
 
-  test('latest schema includes songs.created_at column', () async {
+  test('latest schema includes local-only song columns', () async {
     final database = NavisDatabase(NativeDatabase.memory());
     addTearDown(database.close);
 
@@ -114,7 +114,51 @@ void main() {
     final columns = tableInfo.map((row) => row.read<String>('name')).toSet();
 
     expect(columns, contains('created_at'));
+    expect(columns, contains('server_deleted_at'));
   }, skip: !sqliteAvailable);
+
+  test(
+    'migrates v42 schema to v43 with local-only song marker',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'navis_migration_v43_test_',
+      );
+      final dbPath = p.join(tempDir.path, 'navis.sqlite');
+
+      final seedDatabase = NavisDatabase(NativeDatabase(File(dbPath)));
+      await seedDatabase.customSelect('PRAGMA user_version;').getSingle();
+      await seedDatabase.close();
+
+      final raw = sqlite3.open(dbPath);
+      try {
+        raw.execute('DROP INDEX IF EXISTS idx_songs_server_deleted_at;');
+        raw.execute('ALTER TABLE songs DROP COLUMN server_deleted_at;');
+        raw.execute('PRAGMA user_version = 42;');
+      } finally {
+        raw.close();
+      }
+
+      final migrated = NavisDatabase(NativeDatabase(File(dbPath)));
+      addTearDown(() async {
+        await migrated.close();
+        await tempDir.delete(recursive: true);
+      });
+
+      final versionRow = await migrated
+          .customSelect('PRAGMA user_version;')
+          .getSingle();
+      expect(versionRow.read<int>('user_version'), 43);
+
+      final songsInfo = await migrated
+          .customSelect("PRAGMA table_info('songs');")
+          .get();
+      final songColumns = songsInfo
+          .map((row) => row.read<String>('name'))
+          .toSet();
+      expect(songColumns, contains('server_deleted_at'));
+    },
+    skip: !sqliteAvailable,
+  );
 
   test(
     'backfillAlbumHydrationState marks albums with songs as hydrated',
@@ -209,7 +253,7 @@ void main() {
         raw.execute('DROP TABLE IF EXISTS star_sync_queue;');
         raw.execute('PRAGMA user_version = 2;');
       } finally {
-        raw.dispose();
+        raw.close();
       }
 
       final migrated = NavisDatabase(NativeDatabase(File(dbPath)));
@@ -221,7 +265,7 @@ void main() {
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>("user_version"), 42);
+      expect(versionRow.read<int>('user_version'), 43);
 
       final albums = await migrated.select(migrated.albumsTable).get();
       final albumsById = {for (final album in albums) album.id: album};
@@ -242,7 +286,10 @@ void main() {
       final songColumns = songsInfo
           .map((row) => row.read<String>('name'))
           .toSet();
-      expect(songColumns, contains('created_at'));
+      expect(
+        songColumns,
+        containsAll(<String>['created_at', 'server_deleted_at']),
+      );
 
       final settings = await migrated.appSettingsDao.getSettings();
       expect(settings, isNotNull);

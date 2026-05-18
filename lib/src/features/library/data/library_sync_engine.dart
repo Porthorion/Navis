@@ -1572,6 +1572,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     var pageCount = 0;
     String? lastPageSignature;
     final importedSongCountsByAlbum = <String, int>{};
+    final importedSongsByAlbum = <String, Map<String, Song>>{};
 
     Future<void> markHydrated(Iterable<String> albumIds) async {
       final ids = albumIds.toSet().toList(growable: false);
@@ -1583,7 +1584,29 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       await onHydratedChunk(ids);
     }
 
-    await markHydrated(
+    Future<void> reconcileAndMarkHydrated(Iterable<String> albumIds) async {
+      final ids = albumIds.toSet().toList(growable: false);
+      if (ids.isEmpty) {
+        return;
+      }
+      final songsByAlbum = <String, List<SongsTableCompanion>>{};
+      for (final albumId in ids) {
+        final rawSongs =
+            importedSongsByAlbum[albumId]?.values.toList(growable: false) ??
+            const <Song>[];
+        songsByAlbum[albumId] = await _toSongCompanions(
+          rawSongs,
+          defaultAlbumId: albumId,
+          validArtistIds: validArtistIds,
+        );
+      }
+      await _database.libraryDao.reconcileSongsForAlbumsChunk(songsByAlbum);
+      metrics.addDbWriteBatch();
+      await markHydrated(ids);
+      ids.forEach(importedSongsByAlbum.remove);
+    }
+
+    await reconcileAndMarkHydrated(
       _collectHydratedAlbumIds(
         candidateAlbumIds: pendingAlbumIds,
         pendingAlbumIds: pendingAlbumIds,
@@ -1630,35 +1653,17 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
 
       if (rawSongsByAlbum.isNotEmpty) {
         onObservedChunk(rawSongsByAlbum.keys);
-        final chunkSongs = <SongsTableCompanion>[];
         for (final entry in rawSongsByAlbum.entries) {
-          final companions = await _toSongCompanions(
-            entry.value,
-            defaultAlbumId: entry.key,
-            validArtistIds: validArtistIds,
-          );
-          chunkSongs.addAll(companions);
-          importedSongCountsByAlbum.update(
+          final bySongId = importedSongsByAlbum.putIfAbsent(
             entry.key,
-            (count) => count + companions.length,
-            ifAbsent: () => companions.length,
+            () => <String, Song>{},
           );
-        }
-        // Break upserts into 200-song sub-batches so the DB connection is
-        // released between batches and playback reads can interleave.
-        const _kSongSubBatchSize = 200;
-        for (var i = 0; i < chunkSongs.length; i += _kSongSubBatchSize) {
-          final subBatch = chunkSongs.sublist(
-            i,
-            (i + _kSongSubBatchSize).clamp(0, chunkSongs.length),
-          );
-          await _database.libraryDao.upsertSongs(subBatch);
-          metrics.addDbWriteBatch();
-          if (i + _kSongSubBatchSize < chunkSongs.length) {
-            await Future<void>.delayed(Duration.zero);
+          for (final song in entry.value) {
+            bySongId[song.id] = song;
           }
+          importedSongCountsByAlbum[entry.key] = bySongId.length;
         }
-        await markHydrated(
+        await reconcileAndMarkHydrated(
           _collectHydratedAlbumIds(
             candidateAlbumIds: rawSongsByAlbum.keys,
             pendingAlbumIds: pendingAlbumIds,
@@ -1676,11 +1681,11 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       await Future<void>.delayed(Duration.zero);
     }
 
-    if (importedSongCountsByAlbum.isEmpty) {
+    if (importedSongsByAlbum.isEmpty) {
       return;
     }
 
-    await markHydrated(
+    await reconcileAndMarkHydrated(
       _collectHydratedAlbumIds(
         candidateAlbumIds: pendingAlbumIds,
         pendingAlbumIds: pendingAlbumIds,

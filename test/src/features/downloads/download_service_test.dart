@@ -4,6 +4,8 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/api/lrclib_client.dart';
+import 'package:navis/src/api/subsonic_api_client.dart';
+import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/downloads/data/download_service.dart';
@@ -370,6 +372,46 @@ void main() {
           items.first.status,
           anyOf(DownloadStatus.queued, DownloadStatus.failed),
         );
+      },
+      skip: sqliteAvailable ? null : 'sqlite3 not available',
+    );
+
+    test(
+      'stale queued song missing from library is removed instead of retried',
+      () async {
+        final apiClient = SubsonicApiClient(
+          baseUrl: 'https://example.com',
+          authConfig: const SubsonicAuthConfig(
+            username: 'alice',
+            password: 'secret',
+            apiVersion: '1.16.1',
+          ),
+          enableLogging: false,
+        );
+        final staleService = DownloadService(
+          cacheDao: database.cacheDao,
+          downloadQueueDao: database.downloadQueueDao,
+          libraryDao: database.libraryDao,
+          readApiClient: () => apiClient,
+          readWifiOnly: () => false,
+          readIsWifi: () => true,
+          lrclibClient: LrclibClient(),
+          readCoverArtCacheManager: _MockCacheManager.new,
+        );
+        addTearDown(staleService.stop);
+
+        await database.downloadQueueDao.enqueue(
+          DownloadQueueTableCompanion.insert(
+            songId: const Value('missing-song'),
+            status: DownloadStatus.queued,
+            addedAt: DateTime(2025, 1, 1),
+          ),
+        );
+
+        await staleService.start();
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+
+        expect(await database.downloadQueueDao.watchQueue().first, isEmpty);
       },
       skip: sqliteAvailable ? null : 'sqlite3 not available',
     );

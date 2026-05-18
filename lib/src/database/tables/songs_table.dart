@@ -52,6 +52,10 @@ class SongsTable extends Table {
 
   DateTimeColumn get createdAt => dateTime().nullable()();
 
+  /// Local-only retention marker for songs deleted from the server but kept
+  /// because a complete permanent download still exists on disk.
+  DateTimeColumn get serverDeletedAt => dateTime().nullable()();
+
   /// ReplayGain track gain in dB (from OpenSubsonic replayGain object).
   RealColumn get replayGainTrackGain => real().nullable()();
 

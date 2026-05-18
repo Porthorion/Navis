@@ -1,8 +1,13 @@
+import 'dart:io';
+
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/models/artist_ref.dart';
+import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/database/tables/schema_enums.dart';
+import 'package:path/path.dart' as p;
 import '../../helpers/test_database.dart';
 
 void main() {
@@ -166,6 +171,178 @@ void main() {
           songs.where((song) => song.albumId == 'album-2').length,
           2,
         );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'reconcileSongsForAlbumsChunk preserves complete permanent downloads as local-only',
+      () async {
+        final tempDir = Directory.systemTemp.createTempSync(
+          'navis_library_dao_',
+        );
+        addTearDown(() {
+          if (tempDir.existsSync()) {
+            tempDir.deleteSync(recursive: true);
+          }
+        });
+
+        await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
+          ArtistsTableCompanion.insert(id: 'artist-1', name: 'Artist 1'),
+        ]);
+        await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+          AlbumsTableCompanion.insert(id: 'album-1', name: 'Album 1'),
+        ]);
+        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(
+            id: 'deleted-song',
+            title: 'Downloaded Deleted Song',
+            albumId: const Value('album-1'),
+            artistId: const Value('artist-1'),
+            artistName: const Value('Artist 1'),
+            albumName: const Value('Album 1'),
+          ),
+        ]);
+        final audioFile = File(p.join(tempDir.path, 'deleted-song.mp3'));
+        await audioFile.writeAsBytes(<int>[1, 2, 3]);
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: 'deleted-song',
+            filePath: audioFile.path,
+            fileSize: 3,
+            format: 'mp3',
+            cacheType: CacheType.permanent,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
+
+        await database.libraryDao.reconcileSongsForAlbumsChunk(
+          const <String, List<SongsTableCompanion>>{'album-1': []},
+        );
+
+        final allRows = await database.select(database.songsTable).get();
+        expect(allRows, hasLength(1));
+        expect(allRows.single.id, 'deleted-song');
+        expect(allRows.single.albumId, isNull);
+        expect(allRows.single.artistId, isNull);
+        expect(allRows.single.serverDeletedAt, isNotNull);
+        expect(
+          await database.libraryDao.watchSongsByAlbum('album-1').first,
+          isEmpty,
+        );
+        expect(
+          await database.libraryDao.watchSongsSorted(SongSortOrder.name).first,
+          isEmpty,
+        );
+        expect(
+          await database.cacheDao.getCachedTrack('deleted-song'),
+          isNotNull,
+        );
+
+        await database.libraryDao.reconcileSongsForAlbumsChunk(
+          <String, List<SongsTableCompanion>>{
+            'album-1': <SongsTableCompanion>[
+              SongsTableCompanion.insert(
+                id: 'deleted-song',
+                title: 'Downloaded Deleted Song',
+                albumId: const Value('album-1'),
+              ),
+            ],
+          },
+        );
+
+        final restored = await database.libraryDao.getSongById('deleted-song');
+        expect(restored?.albumId, 'album-1');
+        expect(restored?.serverDeletedAt, isNull);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'reconcileSongsForAlbumsChunk removes non-preserved stale state',
+      () async {
+        final tempDir = Directory.systemTemp.createTempSync(
+          'navis_library_dao_',
+        );
+        addTearDown(() {
+          if (tempDir.existsSync()) {
+            tempDir.deleteSync(recursive: true);
+          }
+        });
+
+        await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+          AlbumsTableCompanion.insert(id: 'album-1', name: 'Album 1'),
+        ]);
+        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(
+            id: 'stale-song',
+            title: 'Stale Song',
+            albumId: const Value('album-1'),
+          ),
+        ]);
+        final audioFile = File(p.join(tempDir.path, 'stale-song.mp3'));
+        await audioFile.writeAsBytes(<int>[1, 2, 3]);
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: 'stale-song',
+            filePath: audioFile.path,
+            fileSize: 3,
+            format: 'mp3',
+            cacheType: CacheType.rolling,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
+        await database.downloadQueueDao.enqueue(
+          DownloadQueueTableCompanion.insert(
+            songId: const Value('stale-song'),
+            status: DownloadStatus.queued,
+            addedAt: DateTime.now(),
+          ),
+        );
+        await database.libraryDao.upsertExternalLyricsCache(
+          songId: 'stale-song',
+          source: 'test',
+          plainLyrics: 'lyrics',
+        );
+        await database
+            .into(database.matchFlowsTable)
+            .insert(
+              MatchFlowsTableCompanion.insert(
+                id: 'flow-1',
+                name: 'Flow 1',
+                createdAt: DateTime.now(),
+                updatedAt: DateTime.now(),
+              ),
+            );
+        await database
+            .into(database.matchFlowSongsTable)
+            .insert(
+              MatchFlowSongsTableCompanion.insert(
+                flowId: 'flow-1',
+                songId: 'stale-song',
+                sortOrder: 0,
+                addedAt: DateTime.now(),
+              ),
+            );
+
+        await database.libraryDao.reconcileSongsForAlbumsChunk(
+          const <String, List<SongsTableCompanion>>{'album-1': []},
+        );
+
+        expect(await database.libraryDao.getSongById('stale-song'), isNull);
+        expect(await database.cacheDao.getCachedTrack('stale-song'), isNull);
+        expect(await database.downloadQueueDao.watchQueue().first, isEmpty);
+        expect(
+          await database.libraryDao.getExternalLyricsCache('stale-song'),
+          isNull,
+        );
+        expect(
+          await database.select(database.matchFlowSongsTable).get(),
+          isEmpty,
+        );
+        expect(audioFile.existsSync(), isFalse);
       },
       skip: !sqliteAvailable,
     );

@@ -125,6 +125,13 @@ class DownloadService {
     int priority = 0,
     bool forceRedownload = false,
   }) async {
+    final libraryRows = await _libraryDao.getSongsByIds(<String>[songId]);
+    if (libraryRows.firstOrNull?.serverDeletedAt != null) {
+      AppLogger.info(
+        'DownloadService: Skipping local-only deleted song $songId.',
+      );
+      return;
+    }
     // Dedup: skip if already queued or downloading.
     final existing = await _downloadQueueDao.findBySongId(songId);
     if (existing != null &&
@@ -439,9 +446,11 @@ class DownloadService {
 
       // Resolve destination file.
       final songs = await _libraryDao.getSongsByIds(<String>[songId]);
-      if (songs.isEmpty) {
-        AppLogger.warning('DownloadService: Song $songId not found in library');
-        await _handleFailure(item, 'Song not in library');
+      if (songs.isEmpty || songs.first.serverDeletedAt != null) {
+        AppLogger.warning(
+          'DownloadService: Removing stale queue item for unavailable song $songId',
+        );
+        await _downloadQueueDao.remove(item.id);
         return;
       }
       final song = songs.first;

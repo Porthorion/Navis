@@ -362,6 +362,7 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
       historyDao: database.historyDao,
       sourceResolver: PlaybackSourceResolver(
         cacheDao: database.cacheDao,
+        libraryDao: database.libraryDao,
         rollingCacheManager: ref.read(rollingCacheManagerProvider),
         readApiClient: () => ref.read(subsonicApiProvider),
         readStreamingQuality: () => ref.read(activeStreamingQualityProvider),

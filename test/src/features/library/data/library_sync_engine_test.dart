@@ -786,6 +786,85 @@ void main() {
     );
 
     test(
+      'bulk song fast path reconciles complete album song sets',
+      () async {
+        await saveSession(
+          capabilitiesJson: jsonEncode(<String, Object?>{
+            'navis': <String, Object?>{
+              'bulkSongSearchWildcardQuery': '',
+            },
+          }),
+        );
+        api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
+        await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
+          ArtistsTableCompanion.insert(id: 'artist-1', name: 'Artist 1'),
+        ]);
+        await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+          AlbumsTableCompanion.insert(
+            id: 'album-1',
+            name: 'Album 1',
+            artistId: const Value('artist-1'),
+            songCount: const Value(2),
+            songsHydrated: const Value(true),
+          ),
+          AlbumsTableCompanion.insert(
+            id: 'album-empty',
+            name: 'Album Empty',
+            artistId: const Value('artist-1'),
+            songCount: const Value(1),
+            songsHydrated: const Value(true),
+          ),
+        ]);
+        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(
+            id: 'song-old',
+            title: 'Old Song',
+            albumId: const Value('album-1'),
+          ),
+          SongsTableCompanion.insert(
+            id: 'song-empty-old',
+            title: 'Empty Old Song',
+            albumId: const Value('album-empty'),
+          ),
+        ]);
+        api.fastPathPages[0] = const <Album>[
+          Album(
+            id: 'album-1',
+            name: 'Album 1',
+            artistId: 'artist-1',
+            songCount: 1,
+          ),
+          Album(
+            id: 'album-empty',
+            name: 'Album Empty',
+            artistId: 'artist-1',
+            songCount: 0,
+          ),
+        ];
+        api.bulkSongPages[0] = const <Song>[
+          Song(
+            id: 'song-new',
+            title: 'New Song',
+            albumId: 'album-1',
+            artistId: 'artist-1',
+          ),
+        ];
+
+        final state = await engine.syncNow(forceFull: true);
+        final songs = await database.select(database.songsTable).get();
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(api.calls, contains('searchSongsPage::0:1000'));
+        expect(
+          api.calls.where((call) => call.startsWith('getAlbum:')),
+          isEmpty,
+        );
+        expect(songs.map((song) => song.id).toSet(), <String>{'song-new'});
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'song hydration tolerates unknown artist ids by storing null artistId',
       () async {
         await saveSession();

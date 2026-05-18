@@ -1,12 +1,17 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:drift/drift.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/album_info_cache_table.dart';
 import 'package:navis/src/database/tables/albums_table.dart';
 import 'package:navis/src/database/tables/artists_table.dart';
+import 'package:navis/src/database/tables/cached_tracks_table.dart';
+import 'package:navis/src/database/tables/download_queue_table.dart';
 import 'package:navis/src/database/tables/external_lyrics_cache_table.dart';
 import 'package:navis/src/database/tables/genres_table.dart';
+import 'package:navis/src/database/tables/match_flow_songs_table.dart';
+import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/database/tables/songs_table.dart';
 
 part 'library_dao.g.dart';
@@ -35,6 +40,9 @@ class ArtistAlbumBuckets {
     GenresTable,
     AlbumInfoCacheTable,
     ExternalLyricsCacheTable,
+    CachedTracksTable,
+    DownloadQueueTable,
+    MatchFlowSongsTable,
   ],
 )
 class LibraryDao extends DatabaseAccessor<NavisDatabase>
@@ -360,7 +368,8 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   }
 
   Stream<List<SongsTableData>> watchSongsSorted(SongSortOrder sort) {
-    final query = select(songsTable);
+    final query = select(songsTable)
+      ..where((table) => table.serverDeletedAt.isNull());
     switch (sort) {
       case SongSortOrder.newest:
         query.orderBy([
@@ -494,20 +503,18 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     String albumId,
     List<SongsTableCompanion> songs,
   ) async {
-    await transaction(() async {
-      await (delete(
-        songsTable,
-      )..where((table) => table.albumId.equals(albumId))).go();
-      if (songs.isEmpty) {
-        return;
-      }
-      await batch((batch) {
-        batch.insertAll(songsTable, songs);
-      });
+    await reconcileSongsForAlbumsChunk(<String, List<SongsTableCompanion>>{
+      albumId: songs,
     });
   }
 
   Future<void> replaceSongsForAlbumsChunk(
+    Map<String, List<SongsTableCompanion>> songsByAlbumId,
+  ) {
+    return reconcileSongsForAlbumsChunk(songsByAlbumId);
+  }
+
+  Future<void> reconcileSongsForAlbumsChunk(
     Map<String, List<SongsTableCompanion>> songsByAlbumId,
   ) async {
     final albumIds = songsByAlbumId.keys
@@ -518,16 +525,36 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       return;
     }
 
-    final songs = songsByAlbumId.values.expand((rows) => rows).toList();
     await transaction(() async {
-      await (delete(
+      final existingRows = await (select(
         songsTable,
-      )..where((table) => table.albumId.isIn(albumIds))).go();
-      if (songs.isEmpty) {
+      )..where((table) => table.albumId.isIn(albumIds))).get();
+      final incomingIds = songsByAlbumId.values
+          .expand((rows) => rows)
+          .where((row) => row.id.present)
+          .map((row) => row.id.value)
+          .toSet();
+      final removedRows = existingRows
+          .where((row) => !incomingIds.contains(row.id))
+          .toList(growable: false);
+
+      await _handleRemovedServerSongs(removedRows);
+
+      final currentSongs = songsByAlbumId.values
+          .expand((rows) => rows)
+          .map((song) => song.copyWith(serverDeletedAt: const Value(null)))
+          .toList(growable: false);
+      if (currentSongs.isEmpty) {
         return;
       }
       await batch((batch) {
-        batch.insertAll(songsTable, songs);
+        for (final song in currentSongs) {
+          batch.insert(
+            songsTable,
+            song,
+            mode: InsertMode.insertOrReplace,
+          );
+        }
       });
     });
   }
@@ -540,7 +567,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       for (final song in songs) {
         batch.insert(
           songsTable,
-          song,
+          song.copyWith(serverDeletedAt: const Value(null)),
           mode: InsertMode.insertOrReplace,
         );
       }
@@ -805,7 +832,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   /// (most recently starred first).
   Stream<List<SongsTableData>> watchStarredSongs({int limit = 5}) {
     final query = select(songsTable)
-      ..where((t) => t.starred.isNotNull())
+      ..where((t) => t.starred.isNotNull() & t.serverDeletedAt.isNull())
       ..orderBy([(t) => OrderingTerm.desc(t.starred)])
       ..limit(limit);
     return query.watch();
@@ -814,7 +841,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   /// Watch all starred songs (no limit) for the full liked-tracks view.
   Stream<List<SongsTableData>> watchAllStarredSongs() {
     final query = select(songsTable)
-      ..where((t) => t.starred.isNotNull())
+      ..where((t) => t.starred.isNotNull() & t.serverDeletedAt.isNull())
       ..orderBy([(t) => OrderingTerm.desc(t.starred)]);
     return query.watch();
   }
@@ -822,7 +849,9 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   /// Watch songs ordered by play count descending.
   Stream<List<SongsTableData>> watchMostPlayedSongs({int? limit = 5}) {
     final query = select(songsTable)
-      ..where((t) => t.playCount.isBiggerThanValue(0))
+      ..where(
+        (t) => t.playCount.isBiggerThanValue(0) & t.serverDeletedAt.isNull(),
+      )
       ..orderBy([(t) => OrderingTerm.desc(t.playCount)]);
     if (limit != null) {
       query.limit(limit);
@@ -858,7 +887,9 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   }
 
   Future<List<SongsTableData>> getAllSongs() {
-    return select(songsTable).get();
+    final query = select(songsTable)
+      ..where((table) => table.serverDeletedAt.isNull());
+    return query.get();
   }
 
   Future<Set<String>> getArtistIds() async {
@@ -1030,14 +1061,24 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return result;
   }
 
-  Future<List<SongsTableData>> getSongsByIds(Iterable<String> songIds) async {
+  Future<List<SongsTableData>> getSongsByIds(
+    Iterable<String> songIds, {
+    bool includeLocalOnly = true,
+  }) async {
     final ids = songIds.map((id) => id.trim()).where((id) => id.isNotEmpty);
     final idList = ids.toList(growable: false);
     if (idList.isEmpty) {
       return const <SongsTableData>[];
     }
 
-    final query = select(songsTable)..where((table) => table.id.isIn(idList));
+    final query = select(songsTable)
+      ..where(
+        (table) =>
+            table.id.isIn(idList) &
+            (includeLocalOnly
+                ? const Constant<bool>(true)
+                : table.serverDeletedAt.isNull()),
+      );
     final rows = await query.get();
     final byId = <String, SongsTableData>{for (final row in rows) row.id: row};
     final ordered = <SongsTableData>[];
@@ -1097,18 +1138,20 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       return;
     }
     await transaction(() async {
-      await (delete(
+      final songs = await (select(
         songsTable,
-      )..where((table) => table.albumId.isIn(ids))).go();
+      )..where((table) => table.albumId.isIn(ids))).get();
+      await _handleRemovedServerSongs(songs);
       await (delete(albumsTable)..where((table) => table.id.isIn(ids))).go();
     });
   }
 
   Future<void> removeArtistTree(String artistId) async {
     await transaction(() async {
-      await (delete(
+      final songs = await (select(
         songsTable,
-      )..where((table) => table.artistId.equals(artistId))).go();
+      )..where((table) => table.artistId.equals(artistId))).get();
+      await _handleRemovedServerSongs(songs);
       await (delete(
         albumsTable,
       )..where((table) => table.artistId.equals(artistId))).go();
@@ -1125,6 +1168,83 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       await delete(artistsTable).go();
       await delete(genresTable).go();
     });
+  }
+
+  Future<void> deleteLocalOnlySong(String songId) async {
+    final id = songId.trim();
+    if (id.isEmpty) {
+      return;
+    }
+    await (delete(songsTable)..where(
+          (table) => table.id.equals(id) & table.serverDeletedAt.isNotNull(),
+        ))
+        .go();
+  }
+
+  Future<void> _handleRemovedServerSongs(
+    Iterable<SongsTableData> removedRows,
+  ) async {
+    final now = DateTime.now();
+    for (final song in removedRows) {
+      if (song.serverDeletedAt != null) {
+        continue;
+      }
+      final cache = await (select(
+        cachedTracksTable,
+      )..where((table) => table.songId.equals(song.id))).getSingleOrNull();
+      final preserve =
+          cache != null &&
+          cache.cacheType == CacheType.permanent &&
+          cache.downloadStatus == DownloadStatus.complete &&
+          File(cache.filePath).existsSync();
+
+      if (preserve) {
+        await (update(
+          songsTable,
+        )..where((table) => table.id.equals(song.id))).write(
+          SongsTableCompanion(
+            albumId: const Value(null),
+            artistId: const Value(null),
+            serverDeletedAt: Value(now),
+          ),
+        );
+        continue;
+      }
+
+      if (cache != null) {
+        await _deleteCacheFileBestEffort(cache.filePath);
+        await (delete(
+          cachedTracksTable,
+        )..where((table) => table.songId.equals(song.id))).go();
+      }
+      await (delete(
+        downloadQueueTable,
+      )..where((table) => table.songId.equals(song.id))).go();
+      await (delete(
+        externalLyricsCacheTable,
+      )..where((table) => table.songId.equals(song.id))).go();
+      await (delete(
+        matchFlowSongsTable,
+      )..where((table) => table.songId.equals(song.id))).go();
+      await (delete(
+        songsTable,
+      )..where((table) => table.id.equals(song.id))).go();
+    }
+  }
+
+  Future<void> _deleteCacheFileBestEffort(String path) async {
+    final normalized = path.trim();
+    if (normalized.isEmpty) {
+      return;
+    }
+    try {
+      final file = File(normalized);
+      if (file.existsSync()) {
+        file.deleteSync();
+      }
+    } on FileSystemException {
+      // Cache metadata must not be kept alive by a failed best-effort unlink.
+    }
   }
 
   // ── Local (offline) search ──────────────────────────────────────────────
@@ -1176,11 +1296,17 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   Future<List<SongsTableData>> searchCachedSongs(
     String query, {
     int limit = 20,
+    bool includeLocalOnly = false,
   }) async {
     if (limit < 1) return const <SongsTableData>[];
     final normalizedQuery = _normalizeSearchText(query);
     if (normalizedQuery.isEmpty) {
       return (select(songsTable)
+            ..where(
+              (t) => includeLocalOnly
+                  ? const Constant<bool>(true)
+                  : t.serverDeletedAt.isNull(),
+            )
             ..orderBy([
               (t) => OrderingTerm.asc(t.title),
               (t) => OrderingTerm.asc(t.id),
@@ -1190,10 +1316,16 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     }
 
     final songs =
-        await (select(songsTable)..orderBy([
-              (t) => OrderingTerm.asc(t.title),
-              (t) => OrderingTerm.asc(t.id),
-            ]))
+        await (select(songsTable)
+              ..where(
+                (t) => includeLocalOnly
+                    ? const Constant<bool>(true)
+                    : t.serverDeletedAt.isNull(),
+              )
+              ..orderBy([
+                (t) => OrderingTerm.asc(t.title),
+                (t) => OrderingTerm.asc(t.id),
+              ]))
             .get();
     final tokens = normalizedQuery
         .split(' ')

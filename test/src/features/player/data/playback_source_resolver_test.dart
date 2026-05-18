@@ -97,6 +97,93 @@ void main() {
     );
 
     test(
+      'local-only deleted song resolves only from permanent cached file',
+      () async {
+        final song = await _insertSong(
+          database,
+          id: 'song-local-only',
+          title: 'Local Only Song',
+          serverDeletedAt: DateTime.now(),
+        );
+        final localFile = File(p.join(rollingDir.path, 'song-local-only.mp3'));
+        await localFile.writeAsBytes(<int>[1, 2, 3]);
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: song.id,
+            filePath: localFile.path,
+            fileSize: 3,
+            format: 'mp3',
+            cacheType: CacheType.permanent,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
+
+        final resolver = PlaybackSourceResolver(
+          cacheDao: database.cacheDao,
+          libraryDao: database.libraryDao,
+          rollingCacheManager: DriftRollingCacheManager(
+            cacheDao: database.cacheDao,
+          ),
+          readApiClient: () => null,
+          readStreamingQuality: () =>
+              const StreamingQuality(label: 'wifi', maxBitRate: 320),
+          readRollingCacheDirectory: () async => rollingDir,
+          readIsWifi: () => true,
+        );
+
+        final resolved = await resolver.resolveForSong(song);
+
+        expect(resolved.kind, PlaybackSourceKind.file);
+        expect(resolved.cachedFilePath, localFile.path);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'local-only deleted song with missing file is unavailable and pruned',
+      () async {
+        final song = await _insertSong(
+          database,
+          id: 'song-local-missing',
+          title: 'Local Missing Song',
+          serverDeletedAt: DateTime.now(),
+        );
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: song.id,
+            filePath: p.join(rollingDir.path, 'missing.mp3'),
+            fileSize: 3,
+            format: 'mp3',
+            cacheType: CacheType.permanent,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
+
+        final resolver = PlaybackSourceResolver(
+          cacheDao: database.cacheDao,
+          libraryDao: database.libraryDao,
+          rollingCacheManager: DriftRollingCacheManager(
+            cacheDao: database.cacheDao,
+          ),
+          readApiClient: () => apiClient,
+          readStreamingQuality: () => const StreamingQuality(label: 'wifi'),
+          readRollingCacheDirectory: () async => rollingDir,
+          readIsWifi: () => false,
+        );
+
+        await expectLater(
+          resolver.resolveForSong(song),
+          throwsA(isA<PlaybackSourceUnavailableException>()),
+        );
+        expect(await database.cacheDao.getCachedTrack(song.id), isNull);
+        expect(await database.libraryDao.getSongById(song.id), isNull);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'uses lock-cached stream source when cached file is unavailable',
       () async {
         final song = await _insertSong(database, id: 'song-2', title: 'Song 2');
@@ -646,6 +733,7 @@ Future<SongsTableData> _insertSong(
   String? suffix,
   String? contentType,
   int? bitRate,
+  DateTime? serverDeletedAt,
 }) async {
   await database.libraryDao.upsertSongs(
     <SongsTableCompanion>[
@@ -658,6 +746,13 @@ Future<SongsTableData> _insertSong(
       ),
     ],
   );
+  if (serverDeletedAt != null) {
+    await (database.update(
+      database.songsTable,
+    )..where((table) => table.id.equals(id))).write(
+      SongsTableCompanion(serverDeletedAt: Value(serverDeletedAt)),
+    );
+  }
   final songs = await database.libraryDao.getSongsByIds(<String>[id]);
   return songs.single;
 }

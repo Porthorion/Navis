@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/database/daos/cache_dao.dart';
+import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
@@ -108,12 +109,14 @@ class PlaybackSourceUnavailableException implements Exception {
 class PlaybackSourceResolver {
   const PlaybackSourceResolver({
     required CacheDao cacheDao,
+    LibraryDao? libraryDao,
     required RollingCacheManager rollingCacheManager,
     required SubsonicApiClient? Function() readApiClient,
     required StreamingQuality Function() readStreamingQuality,
     required Future<Directory> Function() readRollingCacheDirectory,
     required bool Function() readIsWifi,
   }) : _cacheDao = cacheDao,
+       _libraryDao = libraryDao,
        _rollingCacheManager = rollingCacheManager,
        _readApiClient = readApiClient,
        _readStreamingQuality = readStreamingQuality,
@@ -121,6 +124,7 @@ class PlaybackSourceResolver {
        _readIsWifi = readIsWifi;
 
   final CacheDao _cacheDao;
+  final LibraryDao? _libraryDao;
   final RollingCacheManager _rollingCacheManager;
   final SubsonicApiClient? Function() _readApiClient;
   final StreamingQuality Function() _readStreamingQuality;
@@ -137,6 +141,31 @@ class PlaybackSourceResolver {
       quality: quality,
     );
     final cachedTrack = await _cacheDao.getCachedTrack(song.id);
+    if (song.serverDeletedAt != null) {
+      if (cachedTrack != null &&
+          cachedTrack.cacheType == CacheType.permanent &&
+          cachedTrack.downloadStatus == DownloadStatus.complete) {
+        final file = File(cachedTrack.filePath);
+        if (file.existsSync()) {
+          await _rollingCacheManager.touchTrack(song.id);
+          return ResolvedPlaybackSource.file(
+            songId: song.id,
+            uri: file.uri,
+            metadata: _resolveCachedTrackMetadata(
+              song: song,
+              cachedTrack: cachedTrack,
+            ),
+            cachedFilePath: cachedTrack.filePath,
+          );
+        }
+      }
+      await _cacheDao.removeCachedTrack(song.id);
+      await _libraryDao?.deleteLocalOnlySong(song.id);
+      throw const PlaybackSourceUnavailableException(
+        'Downloaded file is no longer available.',
+      );
+    }
+
     if (cachedTrack != null && _shouldUseCachedTrack(cachedTrack, quality)) {
       final file = File(cachedTrack.filePath);
       if (file.existsSync()) {
