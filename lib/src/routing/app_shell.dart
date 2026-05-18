@@ -1388,6 +1388,9 @@ class _AppShellState extends ConsumerState<AppShell> {
                                       left: false,
                                       top: false,
                                       right: false,
+                                      bottom:
+                                          !(useCompactWideLandscape &&
+                                              showPlayer),
                                       // viewPadding (not padding) covers AAOS
                                       // car bars that report as gesture-nav
                                       // insets (padding.bottom = 0). On Android
@@ -1395,8 +1398,15 @@ class _AppShellState extends ConsumerState<AppShell> {
                                       // is not reported at all; effectiveCarBottomInset
                                       // falls back to viewPadding.top as a proxy
                                       // since both car bars are typically equal height.
+                                      // In compact-wide playback, the mini
+                                      // player itself owns the bottom edge, so
+                                      // do not reserve a second gap below it.
                                       minimum: EdgeInsets.only(
-                                        bottom: effectiveCarBottomInset,
+                                        bottom:
+                                            useCompactWideLandscape &&
+                                                showPlayer
+                                            ? 0
+                                            : effectiveCarBottomInset,
                                       ),
                                       child: Column(
                                         children: <Widget>[
