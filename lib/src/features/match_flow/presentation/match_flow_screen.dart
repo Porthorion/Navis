@@ -317,32 +317,11 @@ class _MatchFlowCardState extends ConsumerState<_MatchFlowCard> {
   }
 
   Future<void> _rename(BuildContext context) async {
-    final l10n = AppLocalizations.of(context)!;
-    final controller = TextEditingController(text: widget.flow.flow.name);
     final name = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(l10n.matchFlowRenameTitle),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          textInputAction: TextInputAction.done,
-          decoration: InputDecoration(labelText: l10n.matchFlowNameLabel),
-          onSubmitted: (value) => Navigator.of(context).pop(value),
-        ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(l10n.commonCancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(controller.text),
-            child: Text(l10n.commonSave),
-          ),
-        ],
-      ),
+      builder: (context) =>
+          _RenameMatchFlowDialog(initialName: widget.flow.flow.name),
     );
-    controller.dispose();
     if (name == null) return;
     if (!context.mounted) return;
     await _run(
@@ -428,6 +407,56 @@ class _MatchFlowCardState extends ConsumerState<_MatchFlowCard> {
     final optimisticIds = optimistic.toSet();
     return incomingIds.containsAll(optimisticIds) &&
         optimisticIds.containsAll(incomingIds);
+  }
+}
+
+class _RenameMatchFlowDialog extends StatefulWidget {
+  const _RenameMatchFlowDialog({required this.initialName});
+
+  final String initialName;
+
+  @override
+  State<_RenameMatchFlowDialog> createState() => _RenameMatchFlowDialogState();
+}
+
+class _RenameMatchFlowDialogState extends State<_RenameMatchFlowDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialName);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return AlertDialog(
+      title: Text(l10n.matchFlowRenameTitle),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        textInputAction: TextInputAction.done,
+        decoration: InputDecoration(labelText: l10n.matchFlowNameLabel),
+        onSubmitted: (value) => Navigator.of(context).pop(value),
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(l10n.commonCancel),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(_controller.text),
+          child: Text(l10n.commonSave),
+        ),
+      ],
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 }
 
