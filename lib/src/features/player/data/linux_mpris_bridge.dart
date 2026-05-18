@@ -49,10 +49,7 @@ class LinuxMprisBridge {
       _mprisObject = obj;
 
       await client.registerObject(obj);
-      await client.requestName(
-        'org.mpris.MediaPlayer2.navis.instance${pid}',
-        flags: {DBusRequestNameFlag.doNotQueue},
-      );
+      await _requestMprisBusName(client);
 
       // Guard against dispose() being called while we were awaiting above.
       if (_isDisposed) {
@@ -113,7 +110,7 @@ class LinuxMprisBridge {
             await _handler.play();
           }
         case _StopCommand():
-          await _handler.pause();
+          await _handler.stop();
         case _NextCommand():
           await _handler.skipToNext();
         case _PreviousCommand():
@@ -192,6 +189,7 @@ class LinuxMprisBridge {
       position: snapshot.position,
       loopStatus: loopStatus,
       shuffleEnabled: snapshot.shuffleMode == AudioServiceShuffleMode.all,
+      capabilities: navisOsControlCapabilitiesForSnapshot(snapshot),
     );
   }
 
@@ -237,6 +235,21 @@ class LinuxMprisBridge {
 }
 
 bool _defaultIsLinuxRuntime() => !kIsWeb && Platform.isLinux;
+
+Future<void> _requestMprisBusName(DBusClient client) async {
+  final reply = await client.requestName(
+    'org.mpris.MediaPlayer2.navis',
+    flags: {DBusRequestNameFlag.doNotQueue},
+  );
+  if (reply == DBusRequestNameReply.primaryOwner ||
+      reply == DBusRequestNameReply.alreadyOwner) {
+    return;
+  }
+  await client.requestName(
+    'org.mpris.MediaPlayer2.navis.instance${pid}',
+    flags: {DBusRequestNameFlag.doNotQueue},
+  );
+}
 
 /// Converts an arbitrary song ID to a valid D-Bus object path segment.
 /// Object path components must match `[A-Za-z0-9_]+`.
@@ -306,6 +319,7 @@ class _NavisMprisObject extends DBusObject {
   bool _shuffleEnabled = false;
   String _loopStatus = 'None';
   double _rate = 1.0;
+  NavisOsControlCapabilities _capabilities = NavisOsControlCapabilities.idle;
 
   /// Current track D-Bus object path; used to validate `SetPosition` calls.
   String? currentTrackId;
@@ -329,6 +343,7 @@ class _NavisMprisObject extends DBusObject {
     required Duration position,
     required String loopStatus,
     required bool shuffleEnabled,
+    required NavisOsControlCapabilities capabilities,
   }) {
     // Detect position jumps that weren't MPRIS-initiated — e.g. the user
     // seeked via the Navis UI while the media bar was showing. The MPRIS
@@ -375,6 +390,22 @@ class _NavisMprisObject extends DBusObject {
       _shuffleEnabled = shuffleEnabled;
       changed['Shuffle'] = DBusBoolean(shuffleEnabled);
     }
+    if (capabilities.canSkipNext != _capabilities.canSkipNext) {
+      changed['CanGoNext'] = DBusBoolean(capabilities.canSkipNext);
+    }
+    if (capabilities.canSkipPrevious != _capabilities.canSkipPrevious) {
+      changed['CanGoPrevious'] = DBusBoolean(capabilities.canSkipPrevious);
+    }
+    if (capabilities.canPlay != _capabilities.canPlay) {
+      changed['CanPlay'] = DBusBoolean(capabilities.canPlay);
+    }
+    if (capabilities.canPause != _capabilities.canPause) {
+      changed['CanPause'] = DBusBoolean(capabilities.canPause);
+    }
+    if (capabilities.canSeek != _capabilities.canSeek) {
+      changed['CanSeek'] = DBusBoolean(capabilities.canSeek);
+    }
+    _capabilities = capabilities;
 
     if (changed.isNotEmpty) {
       unawaited(
@@ -717,11 +748,21 @@ class _NavisMprisObject extends DBusObject {
         ),
         'MinimumRate' => DBusGetPropertyResponse(const DBusDouble(0.5)),
         'MaximumRate' => DBusGetPropertyResponse(const DBusDouble(2.0)),
-        'CanGoNext' => DBusGetPropertyResponse(const DBusBoolean(true)),
-        'CanGoPrevious' => DBusGetPropertyResponse(const DBusBoolean(true)),
-        'CanPlay' => DBusGetPropertyResponse(const DBusBoolean(true)),
-        'CanPause' => DBusGetPropertyResponse(const DBusBoolean(true)),
-        'CanSeek' => DBusGetPropertyResponse(const DBusBoolean(true)),
+        'CanGoNext' => DBusGetPropertyResponse(
+          DBusBoolean(_capabilities.canSkipNext),
+        ),
+        'CanGoPrevious' => DBusGetPropertyResponse(
+          DBusBoolean(_capabilities.canSkipPrevious),
+        ),
+        'CanPlay' => DBusGetPropertyResponse(
+          DBusBoolean(_capabilities.canPlay),
+        ),
+        'CanPause' => DBusGetPropertyResponse(
+          DBusBoolean(_capabilities.canPause),
+        ),
+        'CanSeek' => DBusGetPropertyResponse(
+          DBusBoolean(_capabilities.canSeek),
+        ),
         'CanControl' => DBusGetPropertyResponse(const DBusBoolean(true)),
         _ => DBusMethodErrorResponse.unknownProperty(),
       };
@@ -786,11 +827,11 @@ class _NavisMprisObject extends DBusObject {
         'Position': DBusInt64(_position.inMicroseconds),
         'MinimumRate': const DBusDouble(0.5),
         'MaximumRate': const DBusDouble(2.0),
-        'CanGoNext': const DBusBoolean(true),
-        'CanGoPrevious': const DBusBoolean(true),
-        'CanPlay': const DBusBoolean(true),
-        'CanPause': const DBusBoolean(true),
-        'CanSeek': const DBusBoolean(true),
+        'CanGoNext': DBusBoolean(_capabilities.canSkipNext),
+        'CanGoPrevious': DBusBoolean(_capabilities.canSkipPrevious),
+        'CanPlay': DBusBoolean(_capabilities.canPlay),
+        'CanPause': DBusBoolean(_capabilities.canPause),
+        'CanSeek': DBusBoolean(_capabilities.canSeek),
         'CanControl': const DBusBoolean(true),
       });
     }

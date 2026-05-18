@@ -81,6 +81,11 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
   }
 
   @override
+  Future<void> stop() async {
+    await pause();
+  }
+
+  @override
   Future<void> applyRuntimeSettings() async {}
 
   @override

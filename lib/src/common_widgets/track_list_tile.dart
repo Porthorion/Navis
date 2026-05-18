@@ -14,6 +14,7 @@ class TrackListTile extends StatelessWidget {
     this.badge,
     this.showAlbumArt = false,
     this.horizontalTitleGap,
+    this.contentPadding,
   });
 
   final SongsTableData song;
@@ -25,6 +26,10 @@ class TrackListTile extends StatelessWidget {
   /// Override the gap between the leading widget and the title.
   /// Defaults to 12 when null.
   final double? horizontalTitleGap;
+
+  /// Override the tile padding.
+  /// Defaults to the Material [ListTile] padding when null.
+  final EdgeInsetsGeometry? contentPadding;
 
   /// When true, show the album art as the leading widget instead of a track
   /// number. Useful in contexts where the track number is meaningless (e.g.,
@@ -117,6 +122,7 @@ class TrackListTile extends StatelessWidget {
 
     return ListTile(
       dense: true,
+      contentPadding: contentPadding,
       minLeadingWidth: showAlbumArt ? 48 : 32,
       horizontalTitleGap: horizontalTitleGap ?? 12,
       leading: leading,

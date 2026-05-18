@@ -333,6 +333,11 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
   }
 
   @override
+  Future<void> stop() async {
+    await pause();
+  }
+
+  @override
   Future<void> seek(Duration position) async {
     seekCalls.add(position);
     _emit(_snapshot.copyWith(position: position));

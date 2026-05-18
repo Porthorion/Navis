@@ -378,6 +378,93 @@ Future<void> _pumpRandomSectionHome(
   await tester.pumpAndSettle();
 }
 
+Future<void> _pumpHomeWithAppSettings(
+  WidgetTester tester, {
+  required NavisDatabase database,
+  AppSettingsModel appSettings = const AppSettingsModel.defaults(),
+  List<SongsTableData> homeLikedSongs = const <SongsTableData>[],
+  List<SongsTableData> likedSongs = const <SongsTableData>[],
+  List<Override> overrides = const <Override>[],
+}) async {
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: withTestDatabase(
+        database,
+        overrides: <Override>[
+          appSettingsProvider.overrideWithValue(AsyncData(appSettings)),
+          groupListeningSessionControllerProvider.overrideWith(
+            () => _StaticGroupListeningSessionController(
+              _disabledGroupListeningSessionState,
+            ),
+          ),
+          serverConfigStateProvider.overrideWithValue(
+            const AsyncData<ServerConfigModel?>(null),
+          ),
+          subsonicApiProvider.overrideWithValue(null),
+          librarySyncControllerProvider.overrideWith(
+            _StaticLibrarySyncController.new,
+          ),
+          homeLikedSongsProvider.overrideWithValue(AsyncData(homeLikedSongs)),
+          likedSongsProvider.overrideWithValue(AsyncData(likedSongs)),
+          downloadedSongIdsProvider.overrideWithValue(
+            const AsyncData(<String>{}),
+          ),
+          downloadedContentIdsProvider.overrideWithValue(
+            const AsyncData((albumIds: <String>{}, artistIds: <String>{})),
+          ),
+          homeRecentlyAddedProvider.overrideWithValue(
+            const AsyncData(<Album>[]),
+          ),
+          homeDownloadedRecentlyAddedAlbumsProvider.overrideWithValue(
+            const AsyncData(<AlbumsTableData>[]),
+          ),
+          homeRecentlyPlayedAlbumsProvider.overrideWithValue(
+            const AsyncData(<AlbumsTableData>[]),
+          ),
+          homeDownloadedRecentlyPlayedAlbumsProvider.overrideWithValue(
+            const AsyncData(<AlbumsTableData>[]),
+          ),
+          homeRandomAlbumsProvider.overrideWithValue(
+            const AsyncData(<Album>[]),
+          ),
+          homeDownloadedRandomAlbumsProvider.overrideWithValue(
+            const AsyncData(<AlbumsTableData>[]),
+          ),
+          homeRandomShowcaseProvider.overrideWith(
+            (ref, filters) async => const <HomeRandomShowcaseAlbum>[],
+          ),
+          homeMostPlayedSongsProvider.overrideWithValue(
+            const AsyncData(<SongsTableData>[]),
+          ),
+          homeDownloadedLikedSongsProvider.overrideWithValue(
+            const AsyncData(<SongsTableData>[]),
+          ),
+          homeDownloadedMostPlayedSongsProvider.overrideWithValue(
+            const AsyncData(<SongsTableData>[]),
+          ),
+          homeRecentlyPlayedProvider.overrideWithValue(
+            const AsyncData(<SongsTableData>[]),
+          ),
+          likedAlbumsRecentProvider.overrideWithValue(
+            const AsyncData(<AlbumsTableData>[]),
+          ),
+          ...overrides,
+        ],
+      ),
+      child: MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        builder: (ctx, child) => MediaQuery(
+          data: MediaQuery.of(ctx).copyWith(disableAnimations: true),
+          child: child!,
+        ),
+        home: const HomeScreen(),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
 void main() {
   late NavisDatabase database;
 
@@ -637,6 +724,119 @@ void main() {
         );
         expect(tester.takeException(), isNull);
       }
+    },
+  );
+
+  testWidgets('home switches header treatment by adaptive mode', (
+    tester,
+  ) async {
+    const desktopBrandRow = ValueKey<String>('homeDesktopBrandRow');
+    const compactWideHeaderRow = ValueKey<String>('homeCompactWideHeaderRow');
+    const centeredLogoHeader = ValueKey<String>('homeCenteredLogoHeader');
+    const mobileActionRow = ValueKey<String>('homeMobileActionRow');
+
+    setAdaptiveTestViewport(tester, const Size(1000, 420));
+    await _pumpHomeWithAppSettings(tester, database: database);
+
+    expect(find.byKey(compactWideHeaderRow), findsOneWidget);
+    expect(find.byKey(centeredLogoHeader), findsNothing);
+    expect(find.byKey(mobileActionRow), findsNothing);
+    expect(find.byKey(desktopBrandRow), findsNothing);
+
+    tester.view.physicalSize = const Size(1200, 900);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(desktopBrandRow), findsOneWidget);
+    expect(find.byKey(compactWideHeaderRow), findsNothing);
+    expect(find.byKey(centeredLogoHeader), findsNothing);
+
+    tester.view.physicalSize = const Size(390, 844);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(centeredLogoHeader), findsOneWidget);
+    expect(find.byKey(mobileActionRow), findsOneWidget);
+    expect(find.byKey(compactWideHeaderRow), findsNothing);
+
+    tester.view.physicalSize = const Size(700, 1000);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(centeredLogoHeader), findsOneWidget);
+    expect(find.byKey(mobileActionRow), findsOneWidget);
+    expect(find.byKey(compactWideHeaderRow), findsNothing);
+  });
+
+  testWidgets('compact-wide home actions toggle filters and disable radio', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(1000, 420));
+    await _pumpHomeWithAppSettings(tester, database: database);
+
+    expect(
+      find.byKey(const ValueKey<String>('homeCompactWideActionRow')),
+      findsOneWidget,
+    );
+    expect(find.byIcon(Icons.favorite_border_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.download_rounded), findsOneWidget);
+
+    final radioButton = tester.widget<IconButton>(
+      find.widgetWithIcon(IconButton, Icons.radio_rounded),
+    );
+    expect(radioButton.onPressed, isNull);
+
+    await tester.tap(find.byIcon(Icons.favorite_border_rounded));
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.favorite_rounded), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.download_rounded));
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.download_done_rounded), findsOneWidget);
+  });
+
+  testWidgets(
+    'compact-wide song sections use two columns only above the width threshold',
+    (tester) async {
+      final songs = List<SongsTableData>.generate(
+        6,
+        (index) => _songRow(
+          id: 'liked-${index + 1}',
+          title: 'Liked Song ${index + 1}',
+          albumId: 'liked-album',
+        ),
+      );
+      final settings = const AppSettingsModel.defaults().copyWith(
+        homeSectionOrder: <String>[HomeSectionIds.likedTracks],
+        homeSectionsHidden: <String>[],
+      );
+
+      setAdaptiveTestViewport(tester, const Size(1000, 420));
+      await _pumpHomeWithAppSettings(
+        tester,
+        database: database,
+        appSettings: settings,
+        homeLikedSongs: songs,
+        likedSongs: songs,
+      );
+
+      expect(
+        find.byKey(const ValueKey<String>('homeSongListTwoColumnGrid')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey<String>('homeSongListSingleColumn')),
+        findsNothing,
+      );
+
+      tester.view.physicalSize = const Size(840, 420);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey<String>('homeSongListTwoColumnGrid')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey<String>('homeSongListSingleColumn')),
+        findsOneWidget,
+      );
     },
   );
 

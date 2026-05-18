@@ -144,7 +144,7 @@ class WindowsSmtcBridge {
         case PressedButton.rewind:
           await _seekRelative(const Duration(seconds: -10));
         case PressedButton.stop:
-          await _handler.pause();
+          await _handler.stop();
         case PressedButton.record ||
             PressedButton.channelUp ||
             PressedButton.channelDown:
@@ -236,6 +236,9 @@ class WindowsSmtcBridge {
         : positionMs;
 
     try {
+      await smtc.setControlsEnabled(
+        navisOsControlCapabilitiesForSnapshot(snapshot),
+      );
       await smtc.setPlaybackStatus(status);
       await smtc.updateTimeline(
         PlaybackTimeline(
@@ -344,6 +347,7 @@ abstract class WindowsSmtcClient {
   Future<void> updateTimeline(PlaybackTimeline timeline);
   Future<void> setShuffleEnabled({required bool enabled});
   Future<void> setRepeatMode(RepeatMode mode);
+  Future<void> setControlsEnabled(NavisOsControlCapabilities capabilities);
   Future<void> updateMetadata(MusicMetadata metadata);
   Future<void> clearMetadata();
   Future<void> dispose();
@@ -378,13 +382,13 @@ class _DirectSmtcClient implements WindowsSmtcClient {
         .smtcUpdateConfig(
           internal: internal,
           config: const SMTCConfig(
-            playEnabled: true,
-            pauseEnabled: true,
+            playEnabled: false,
+            pauseEnabled: false,
             stopEnabled: false,
-            nextEnabled: true,
-            prevEnabled: true,
-            fastForwardEnabled: true,
-            rewindEnabled: true,
+            nextEnabled: false,
+            prevEnabled: false,
+            fastForwardEnabled: false,
+            rewindEnabled: false,
           ),
         )
         .ignore();
@@ -428,6 +432,22 @@ class _DirectSmtcClient implements WindowsSmtcClient {
     internal: _internal,
     repeatMode: mode.asString,
   );
+
+  @override
+  Future<void> setControlsEnabled(NavisOsControlCapabilities capabilities) {
+    return smtc_api.smtcUpdateConfig(
+      internal: _internal,
+      config: SMTCConfig(
+        playEnabled: capabilities.canPlay,
+        pauseEnabled: capabilities.canPause,
+        stopEnabled: capabilities.canStop,
+        nextEnabled: capabilities.canSkipNext,
+        prevEnabled: capabilities.canSkipPrevious,
+        fastForwardEnabled: capabilities.canSeek,
+        rewindEnabled: capabilities.canSeek,
+      ),
+    );
+  }
 
   @override
   Future<void> updateMetadata(MusicMetadata metadata) =>
@@ -484,6 +504,21 @@ class DefaultWindowsSmtcClient implements WindowsSmtcClient {
 
   @override
   Future<void> setRepeatMode(RepeatMode mode) => _delegate.setRepeatMode(mode);
+
+  @override
+  Future<void> setControlsEnabled(NavisOsControlCapabilities capabilities) {
+    return _delegate.updateConfig(
+      SMTCConfig(
+        playEnabled: capabilities.canPlay,
+        pauseEnabled: capabilities.canPause,
+        stopEnabled: capabilities.canStop,
+        nextEnabled: capabilities.canSkipNext,
+        prevEnabled: capabilities.canSkipPrevious,
+        fastForwardEnabled: capabilities.canSeek,
+        rewindEnabled: capabilities.canSeek,
+      ),
+    );
+  }
 
   @override
   Future<void> updateMetadata(MusicMetadata metadata) =>

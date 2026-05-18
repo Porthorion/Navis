@@ -35,7 +35,8 @@ void main() {
       await _flushAsync();
 
       expect(handler.playCalls, 1);
-      expect(handler.pauseCalls, 2);
+      expect(handler.pauseCalls, 1);
+      expect(handler.stopCalls, 1);
       expect(handler.skipNextCalls, 1);
       expect(handler.skipPreviousCalls, 1);
       expect(handler.seekCalls, <Duration>[
@@ -70,6 +71,9 @@ void main() {
 
       handler.emitSnapshot(
         const PlaybackSnapshot.idle().copyWith(
+          queueSongIds: <String>['song-0', 'song-1', 'song-2'],
+          currentSongId: 'song-1',
+          currentIndex: 1,
           processingState: AudioProcessingState.ready,
           playing: true,
           duration: Duration(seconds: 100),
@@ -88,11 +92,63 @@ void main() {
       expect(client.lastTimeline?.positionMs, 40000);
       expect(client.lastShuffleEnabled, isTrue);
       expect(client.lastRepeatMode, RepeatMode.track);
+      expect(client.lastConfig?.playEnabled, isFalse);
+      expect(client.lastConfig?.pauseEnabled, isTrue);
+      expect(client.lastConfig?.stopEnabled, isTrue);
+      expect(client.lastConfig?.nextEnabled, isTrue);
+      expect(client.lastConfig?.prevEnabled, isTrue);
+      expect(client.lastConfig?.fastForwardEnabled, isTrue);
+      expect(client.lastConfig?.rewindEnabled, isTrue);
       expect(client.lastMetadata?.title, 'Track 2');
 
       handler.emitMediaItem(null);
       await _flushAsync();
       expect(client.clearMetadataCalls, greaterThanOrEqualTo(1));
+
+      await bridge.dispose();
+    });
+
+    test('disables unavailable controls for radio snapshots', () async {
+      final handler = _FakePlaybackHandler(
+        initialSnapshot: const PlaybackSnapshot.idle(),
+      );
+      final client = _FakeWindowsSmtcClient();
+
+      final bridge = WindowsSmtcBridge(
+        handler: handler,
+        createClient: () async => client,
+        isWindowsRuntime: () => true,
+      );
+      await _flushAsync();
+
+      handler.emitSnapshot(
+        const PlaybackSnapshot(
+          queueSongIds: <String>[],
+          currentSongId: null,
+          currentIndex: null,
+          playing: true,
+          processingState: AudioProcessingState.ready,
+          position: Duration.zero,
+          duration: Duration.zero,
+          bufferedPosition: Duration.zero,
+          shuffleMode: AudioServiceShuffleMode.none,
+          repeatMode: AudioServiceRepeatMode.none,
+          radioStation: RadioStationMetadata(
+            stationId: 'radio-1',
+            stationName: 'Radio',
+            streamUrl: 'https://example.com/stream',
+          ),
+        ),
+      );
+      await _flushAsync();
+
+      expect(client.lastConfig?.playEnabled, isFalse);
+      expect(client.lastConfig?.pauseEnabled, isTrue);
+      expect(client.lastConfig?.stopEnabled, isTrue);
+      expect(client.lastConfig?.nextEnabled, isFalse);
+      expect(client.lastConfig?.prevEnabled, isFalse);
+      expect(client.lastConfig?.fastForwardEnabled, isFalse);
+      expect(client.lastConfig?.rewindEnabled, isFalse);
 
       await bridge.dispose();
     });
@@ -115,6 +171,7 @@ class _FakeWindowsSmtcClient implements WindowsSmtcClient {
   PlaybackTimeline? lastTimeline;
   bool? lastShuffleEnabled;
   RepeatMode? lastRepeatMode;
+  SMTCConfig? lastConfig;
   MusicMetadata? lastMetadata;
   int clearMetadataCalls = 0;
   bool disposed = false;
@@ -159,6 +216,21 @@ class _FakeWindowsSmtcClient implements WindowsSmtcClient {
   }
 
   @override
+  Future<void> setControlsEnabled(
+    NavisOsControlCapabilities capabilities,
+  ) async {
+    lastConfig = SMTCConfig(
+      playEnabled: capabilities.canPlay,
+      pauseEnabled: capabilities.canPause,
+      stopEnabled: capabilities.canStop,
+      nextEnabled: capabilities.canSkipNext,
+      prevEnabled: capabilities.canSkipPrevious,
+      fastForwardEnabled: capabilities.canSeek,
+      rewindEnabled: capabilities.canSeek,
+    );
+  }
+
+  @override
   Future<void> setShuffleEnabled({required bool enabled}) async {
     lastShuffleEnabled = enabled;
   }
@@ -195,6 +267,7 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
 
   int playCalls = 0;
   int pauseCalls = 0;
+  int stopCalls = 0;
   int skipNextCalls = 0;
   int skipPreviousCalls = 0;
   final List<Duration> seekCalls = <Duration>[];
@@ -250,6 +323,11 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
   @override
   Future<void> pause() async {
     pauseCalls += 1;
+  }
+
+  @override
+  Future<void> stop() async {
+    stopCalls += 1;
   }
 
   @override

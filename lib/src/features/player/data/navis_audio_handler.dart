@@ -980,6 +980,7 @@ class NavisAudioHandler extends BaseAudioHandler
       }
       _updateScrobbleSession(item);
       _applyReplayGainVolume();
+      _broadcastPlaybackState();
       _emitSnapshot();
       unawaited(
         _persistSafely(
@@ -3138,6 +3139,25 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   @override
+  Future<void> click([MediaButton button = MediaButton.media]) async {
+    switch (button) {
+      case MediaButton.media:
+        if (_player.playing) {
+          await pause();
+        } else {
+          await play();
+        }
+        return;
+      case MediaButton.next:
+        await skipToNext();
+        return;
+      case MediaButton.previous:
+        await skipToPrevious();
+        return;
+    }
+  }
+
+  @override
   Future<void> applyRuntimeSettings() async {
     final runtime = _readRuntimeSettings();
     _gaplessEnabled = navisEffectiveGaplessEnabled(
@@ -3393,15 +3413,23 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> stop() async {
-    _cancelCrossfade();
-    await _persistSafely(_persistPosition, context: 'stop');
-    await _player.stop();
-    final inactiveDeck = _crossfadePlayer;
-    if (inactiveDeck != null) {
-      await inactiveDeck.pause();
-      await _setVolumeIfChanged(inactiveDeck, 0);
-    }
-    await super.stop();
+    await _playbackLane.run(() async {
+      await _ready;
+      _cancelCrossfade();
+      await navisRunTransportWithPersistence(
+        transportOperation: _player.pause,
+        persistOperation: _persistPosition,
+        persistSafely: _persistSafely,
+        persistenceContext: 'stop',
+      );
+      final inactiveDeck = _crossfadePlayer;
+      if (inactiveDeck != null) {
+        await inactiveDeck.pause();
+        await _setVolumeIfChanged(inactiveDeck, 0);
+      }
+      _broadcastPlaybackState();
+      _emitSnapshot();
+    });
   }
 
   Future<void> _persistSafely(
@@ -3465,21 +3493,26 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   void _broadcastPlaybackState() {
+    final processingState = _mapProcessingState(_player.processingState);
+    final currentItem = _mediaItemForIndex(_player.currentIndex);
+    final capabilities = navisOsControlCapabilities(
+      queueLength: _radioStation == null ? _queueItems.length : 0,
+      currentIndex: _radioStation == null ? _player.currentIndex : null,
+      isRadioMode: _radioStation != null,
+      duration: _player.duration ?? currentItem?.duration ?? Duration.zero,
+      processingState: processingState,
+      playing: _player.playing,
+    );
+    final controls = navisNotificationControls(
+      isPlaying: _player.playing,
+      capabilities: capabilities,
+    );
     final state = playbackState.value.copyWith(
-      controls: navisNotificationControls(isPlaying: _player.playing),
-      systemActions: const <MediaAction>{
-        MediaAction.seek,
-        MediaAction.seekForward,
-        MediaAction.seekBackward,
-        MediaAction.play,
-        MediaAction.pause,
-        MediaAction.skipToNext,
-        MediaAction.skipToPrevious,
-        MediaAction.playFromMediaId,
-        MediaAction.playFromSearch,
-      },
-      androidCompactActionIndices: navisNotificationCompactActionIndices,
-      processingState: _mapProcessingState(_player.processingState),
+      controls: controls,
+      systemActions: navisSystemActionsForCapabilities(capabilities),
+      androidCompactActionIndices:
+          navisNotificationCompactActionIndicesForControls(controls),
+      processingState: processingState,
       playing: _player.playing,
       updatePosition: _player.position,
       bufferedPosition: _player.bufferedPosition,

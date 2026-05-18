@@ -145,13 +145,143 @@ bool navisShouldRetryQueueApplyWithDirectSources({
 @visibleForTesting
 const List<int> navisNotificationCompactActionIndices = <int>[0, 1, 2];
 
+@immutable
+class NavisOsControlCapabilities {
+  const NavisOsControlCapabilities({
+    required this.canPlay,
+    required this.canPause,
+    required this.canStop,
+    required this.canSeek,
+    required this.canSkipNext,
+    required this.canSkipPrevious,
+    required this.isLive,
+  });
+
+  final bool canPlay;
+  final bool canPause;
+  final bool canStop;
+  final bool canSeek;
+  final bool canSkipNext;
+  final bool canSkipPrevious;
+  final bool isLive;
+
+  static const idle = NavisOsControlCapabilities(
+    canPlay: false,
+    canPause: false,
+    canStop: false,
+    canSeek: false,
+    canSkipNext: false,
+    canSkipPrevious: false,
+    isLive: false,
+  );
+}
+
 @visibleForTesting
-List<MediaControl> navisNotificationControls({required bool isPlaying}) {
+NavisOsControlCapabilities navisOsControlCapabilities({
+  required int queueLength,
+  required int? currentIndex,
+  required bool isRadioMode,
+  required Duration duration,
+  required AudioProcessingState processingState,
+  required bool playing,
+}) {
+  final hasValidQueueIndex =
+      currentIndex != null && currentIndex >= 0 && currentIndex < queueLength;
+  final hasActivePlayback = isRadioMode || hasValidQueueIndex;
+  if (!hasActivePlayback) {
+    return NavisOsControlCapabilities.idle;
+  }
+
+  final hasKnownDuration = duration > Duration.zero;
+  final isLive = isRadioMode || !hasKnownDuration;
+  final isLoading =
+      processingState == AudioProcessingState.loading ||
+      processingState == AudioProcessingState.buffering;
+
+  return NavisOsControlCapabilities(
+    canPlay: !playing && !isLoading,
+    canPause: playing,
+    canStop: true,
+    canSeek: !isRadioMode && hasKnownDuration,
+    canSkipNext:
+        !isRadioMode &&
+        navisCanSkipQueueItem(
+          queueLength: queueLength,
+          currentIndex: currentIndex,
+          forward: true,
+        ),
+    canSkipPrevious:
+        !isRadioMode &&
+        navisCanSkipQueueItem(
+          queueLength: queueLength,
+          currentIndex: currentIndex,
+          forward: false,
+        ),
+    isLive: isLive,
+  );
+}
+
+NavisOsControlCapabilities navisOsControlCapabilitiesForSnapshot(
+  PlaybackSnapshot snapshot,
+) {
+  return navisOsControlCapabilities(
+    queueLength: snapshot.queueSongIds.length,
+    currentIndex: snapshot.currentIndex,
+    isRadioMode: snapshot.isRadioMode,
+    duration: snapshot.duration,
+    processingState: snapshot.processingState,
+    playing: snapshot.playing,
+  );
+}
+
+@visibleForTesting
+List<MediaControl> navisNotificationControls({
+  required bool isPlaying,
+  NavisOsControlCapabilities? capabilities,
+}) {
+  if (capabilities == null) {
+    return <MediaControl>[
+      MediaControl.skipToPrevious,
+      if (isPlaying) MediaControl.pause else MediaControl.play,
+      MediaControl.skipToNext,
+    ];
+  }
+
   return <MediaControl>[
-    MediaControl.skipToPrevious,
-    if (isPlaying) MediaControl.pause else MediaControl.play,
-    MediaControl.skipToNext,
+    if (capabilities.canSkipPrevious) MediaControl.skipToPrevious,
+    if (capabilities.canPause)
+      MediaControl.pause
+    else if (capabilities.canPlay)
+      MediaControl.play,
+    if (capabilities.canSkipNext) MediaControl.skipToNext,
   ];
+}
+
+@visibleForTesting
+List<int> navisNotificationCompactActionIndicesForControls(
+  List<MediaControl> controls,
+) {
+  return List<int>.generate(controls.length, (index) => index);
+}
+
+@visibleForTesting
+Set<MediaAction> navisSystemActionsForCapabilities(
+  NavisOsControlCapabilities capabilities,
+) {
+  return <MediaAction>{
+    if (capabilities.canSeek) ...<MediaAction>{
+      MediaAction.seek,
+      MediaAction.seekForward,
+      MediaAction.seekBackward,
+    },
+    if (capabilities.canPlay) MediaAction.play,
+    if (capabilities.canPause) MediaAction.pause,
+    if (capabilities.canStop) MediaAction.stop,
+    if (capabilities.canSkipNext) MediaAction.skipToNext,
+    if (capabilities.canSkipPrevious) MediaAction.skipToPrevious,
+    MediaAction.playFromMediaId,
+    MediaAction.playFromSearch,
+  };
 }
 
 @visibleForTesting

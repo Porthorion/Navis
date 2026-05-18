@@ -302,12 +302,47 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     ),
                   ),
                 ),
-                const _DesktopHomeQuickActions(),
+                const _HomeActionRow(variant: _HomeActionRowVariant.desktop),
+              ],
+            ),
+          )
+        else if (compactWideLandscapeMode)
+          Padding(
+            key: const ValueKey<String>('homeCompactWideHeaderRow'),
+            padding: const EdgeInsets.fromLTRB(2, 8, 2, 10),
+            child: Row(
+              children: <Widget>[
+                _HomeSyncLogo(
+                  size: 60,
+                  syncState: syncState,
+                  pullProgress: useCustomHomePullRefresh
+                      ? _homePullProgress
+                      : 0,
+                  showImmediateRefreshRing:
+                      useCustomHomePullRefresh &&
+                      _homeImmediateTriggerRingVisible &&
+                      !syncState.isRunning,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    l10n.appName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const _HomeActionRow(
+                  variant: _HomeActionRowVariant.compactWide,
+                ),
               ],
             ),
           )
         else ...<Widget>[
           Padding(
+            key: const ValueKey<String>('homeCenteredLogoHeader'),
             padding: const EdgeInsets.fromLTRB(0, 48, 0, 14),
             child: Center(
               child: _HomeSyncLogo(
@@ -321,7 +356,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               ),
             ),
           ),
-          const _HomeFilterChipRow(),
+          const _HomeActionRow(variant: _HomeActionRowVariant.mobile),
           const SizedBox(height: 10),
         ],
         const _UpdateBanner(),
@@ -459,7 +494,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         return <Widget>[
           _HomeSection<List<SongsTableData>>(
             title: l10n.homeStarredTitle,
-            desktopMode: desktopRuntime,
+            desktopMode: desktopRuntime && !compactWideLandscapeMode,
             adaptiveLayoutClass: adaptiveLayoutClass,
             compactWideLandscapeMode: compactWideLandscapeMode,
             template: _HomeSectionTemplate.compactList,
@@ -473,8 +508,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             builder: (context, songs) => _SongListSection(
               songs: songs,
               density: sectionDensity,
-              desktopMode: desktopRuntime,
+              desktopMode: desktopRuntime && !compactWideLandscapeMode,
               adaptiveLayoutClass: adaptiveLayoutClass,
+              compactWideLandscapeMode: compactWideLandscapeMode,
               onTap: (song) {
                 ref.read(queueProvider.notifier).replaceWithTableData(
                   <SongsTableData>[song],
@@ -651,7 +687,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         return <Widget>[
           _HomeSection<List<SongsTableData>>(
             title: l10n.homeMostPlayedTracksTitle,
-            desktopMode: desktopRuntime,
+            desktopMode: desktopRuntime && !compactWideLandscapeMode,
             adaptiveLayoutClass: adaptiveLayoutClass,
             compactWideLandscapeMode: compactWideLandscapeMode,
             template: _HomeSectionTemplate.compactList,
@@ -673,8 +709,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             builder: (context, songs) => _SongListSection(
               songs: songs,
               density: sectionDensity,
-              desktopMode: desktopRuntime,
+              desktopMode: desktopRuntime && !compactWideLandscapeMode,
               adaptiveLayoutClass: adaptiveLayoutClass,
+              compactWideLandscapeMode: compactWideLandscapeMode,
               onTap: (song) {
                 ref.read(queueProvider.notifier).replaceWithTableData(
                   <SongsTableData>[song],
@@ -696,7 +733,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         return <Widget>[
           _HomeSection<List<SongsTableData>>(
             title: l10n.homeRecentlyPlayedTracksTitle,
-            desktopMode: desktopRuntime,
+            desktopMode: desktopRuntime && !compactWideLandscapeMode,
             adaptiveLayoutClass: adaptiveLayoutClass,
             compactWideLandscapeMode: compactWideLandscapeMode,
             template: _HomeSectionTemplate.compactList,
@@ -720,8 +757,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             builder: (context, songs) => _SongListSection(
               songs: songs,
               density: sectionDensity,
-              desktopMode: desktopRuntime,
+              desktopMode: desktopRuntime && !compactWideLandscapeMode,
               adaptiveLayoutClass: adaptiveLayoutClass,
+              compactWideLandscapeMode: compactWideLandscapeMode,
               onTap: (song) {
                 ref.read(queueProvider.notifier).replaceWithTableData(
                   <SongsTableData>[song],
@@ -2822,13 +2860,18 @@ class _SongListSection extends ConsumerWidget {
     this.density = _HomeSectionDensity.comfortable,
     this.desktopMode = false,
     this.adaptiveLayoutClass = AdaptiveLayoutClass.phoneCompact,
+    this.compactWideLandscapeMode = false,
   });
+
+  static const double _compactWideTwoColumnMinWidth = 900;
+  static const double _compactWideColumnGap = 8;
 
   final List<SongsTableData> songs;
   final void Function(SongsTableData song) onTap;
   final _HomeSectionDensity density;
   final bool desktopMode;
   final AdaptiveLayoutClass adaptiveLayoutClass;
+  final bool compactWideLandscapeMode;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -2863,59 +2906,89 @@ class _SongListSection extends ConsumerWidget {
       );
     }
     final tabletMode = adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact;
+
+    Widget songTile(SongsTableData song) {
+      return ListTile(
+        leading: SizedBox(
+          width: tabletMode
+              ? (compactDensity ? 48 : 52)
+              : (compactDensity ? 44 : 48),
+          height: tabletMode
+              ? (compactDensity ? 48 : 52)
+              : (compactDensity ? 44 : 48),
+          child: CoverArtImage(
+            coverArtId: song.coverArt,
+            size: 160,
+            borderRadius: BorderRadius.circular(6),
+            placeholderIcon: Icons.music_note_outlined,
+          ),
+        ),
+        title: Text(
+          song.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: Text(
+          song.artistName ?? '',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        dense: compactDensity || !tabletMode,
+        visualDensity: compactDensity
+            ? const VisualDensity(horizontal: -1, vertical: -2)
+            : null,
+        contentPadding: EdgeInsets.symmetric(horizontal: tabletMode ? 12 : 8),
+        onTap: () => onTap(song),
+        onLongPress: () => showSongContextMenu(context, ref, song),
+      );
+    }
+
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: tabletMode ? 4 : 8),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          for (int i = 0; i < songs.length; i++)
-            ListTile(
-              leading: SizedBox(
-                width: tabletMode
-                    ? (compactDensity ? 48 : 52)
-                    : (compactDensity ? 44 : 48),
-                height: tabletMode
-                    ? (compactDensity ? 48 : 52)
-                    : (compactDensity ? 44 : 48),
-                child: CoverArtImage(
-                  coverArtId: songs[i].coverArt,
-                  size: 160,
-                  borderRadius: BorderRadius.circular(6),
-                  placeholderIcon: Icons.music_note_outlined,
-                ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final useTwoColumns =
+              compactWideLandscapeMode &&
+              constraints.maxWidth >= _compactWideTwoColumnMinWidth;
+          if (useTwoColumns) {
+            return GridView.builder(
+              key: const ValueKey<String>('homeSongListTwoColumnGrid'),
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              padding: EdgeInsets.zero,
+              itemCount: songs.length,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: _compactWideColumnGap,
+                mainAxisSpacing: compactDensity ? 2 : 4,
+                mainAxisExtent: compactDensity ? 56 : 64,
               ),
-              title: Text(
-                songs[i].title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              subtitle: Text(
-                songs[i].artistName ?? '',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              dense: compactDensity || !tabletMode,
-              visualDensity: compactDensity
-                  ? const VisualDensity(horizontal: -1, vertical: -2)
-                  : null,
-              contentPadding: EdgeInsets.symmetric(
-                horizontal: tabletMode ? 12 : 8,
-              ),
-              onTap: () => onTap(songs[i]),
-              onLongPress: () => showSongContextMenu(context, ref, songs[i]),
-            ),
-        ],
+              itemBuilder: (context, index) => songTile(songs[index]),
+            );
+          }
+          return Column(
+            key: const ValueKey<String>('homeSongListSingleColumn'),
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              for (final song in songs) songTile(song),
+            ],
+          );
+        },
       ),
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Mobile filter chip row (below logo)
+// Home action row
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _HomeFilterChipRow extends ConsumerWidget {
-  const _HomeFilterChipRow();
+enum _HomeActionRowVariant { mobile, desktop, compactWide }
+
+class _HomeActionRow extends ConsumerWidget {
+  const _HomeActionRow({required this.variant});
+
+  final _HomeActionRowVariant variant;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -2939,11 +3012,84 @@ class _HomeFilterChipRow extends ConsumerWidget {
             .map((s) => s.id)
             .toList(growable: false);
 
+    void toggleLikedOnly() {
+      ref.read(homeLikedOnlyFilterProvider.notifier).enabled = !likedOnly;
+    }
+
+    void toggleDownloadedOnly() {
+      ref.read(downloadedOnlyFilterProvider.notifier).enabled = !downloadedOnly;
+    }
+
+    void startInstantRadio() {
+      final seedSongId = likedIds[math.Random().nextInt(likedIds.length)];
+      ref
+          .read(queueProvider.notifier)
+          .replace(<String>[seedSongId], autoPlay: true)
+          .then((_) async {
+            await activatePreferredMixMode(ref, seedSongId: seedSongId);
+            ref.read(playerOverlayStackProvider.notifier).expand();
+          })
+          .ignore();
+    }
+
     // Icon button constraints: pin to 40×40 so the extra 48×48 tap-target
     // padding doesn't consume layout space inside the Row.
     const iconConstraints = BoxConstraints.tightFor(width: 40, height: 40);
 
+    if (variant == _HomeActionRowVariant.desktop ||
+        variant == _HomeActionRowVariant.compactWide) {
+      return Row(
+        key: variant == _HomeActionRowVariant.compactWide
+            ? const ValueKey<String>('homeCompactWideActionRow')
+            : null,
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          IconButton(
+            tooltip: l10n.libraryLikedOnlyFilter,
+            constraints: variant == _HomeActionRowVariant.compactWide
+                ? iconConstraints
+                : null,
+            icon: Icon(
+              likedOnly
+                  ? Icons.favorite_rounded
+                  : Icons.favorite_border_rounded,
+            ),
+            color: likedOnly ? colorScheme.primary : null,
+            onPressed: toggleLikedOnly,
+          ),
+          IconButton(
+            tooltip: l10n.libraryDownloadedOnlyFilter,
+            constraints: variant == _HomeActionRowVariant.compactWide
+                ? iconConstraints
+                : null,
+            icon: Icon(
+              downloadedOnly
+                  ? Icons.download_done_rounded
+                  : Icons.download_rounded,
+            ),
+            color: downloadedOnly ? colorScheme.primary : null,
+            onPressed: toggleDownloadedOnly,
+          ),
+          if (listenTogetherEnabled)
+            GroupListeningSessionButton(
+              constraints: variant == _HomeActionRowVariant.compactWide
+                  ? iconConstraints
+                  : null,
+            ),
+          IconButton(
+            tooltip: 'Instant Radio',
+            constraints: variant == _HomeActionRowVariant.compactWide
+                ? iconConstraints
+                : null,
+            icon: const Icon(Icons.radio_rounded),
+            onPressed: likedIds.isEmpty ? null : startInstantRadio,
+          ),
+        ],
+      );
+    }
+
     return Padding(
+      key: const ValueKey<String>('homeMobileActionRow'),
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: <Widget>[
@@ -2953,10 +3099,7 @@ class _HomeFilterChipRow extends ConsumerWidget {
             icon: const Icon(Icons.favorite_border_rounded),
             selectedIcon: const Icon(Icons.favorite_rounded),
             tooltip: l10n.libraryLikedOnlyFilter,
-            onPressed: () {
-              ref.read(homeLikedOnlyFilterProvider.notifier).enabled =
-                  !likedOnly;
-            },
+            onPressed: toggleLikedOnly,
           ),
           const SizedBox(width: 4),
           IconButton.filledTonal(
@@ -2965,10 +3108,7 @@ class _HomeFilterChipRow extends ConsumerWidget {
             icon: const Icon(Icons.download_rounded),
             selectedIcon: const Icon(Icons.download_done_rounded),
             tooltip: l10n.libraryDownloadedOnlyFilter,
-            onPressed: () {
-              ref.read(downloadedOnlyFilterProvider.notifier).enabled =
-                  !downloadedOnly;
-            },
+            onPressed: toggleDownloadedOnly,
           ),
           Expanded(
             child: Row(
@@ -2995,27 +3135,7 @@ class _HomeFilterChipRow extends ConsumerWidget {
                       ),
                       iconSize: 18,
                     ),
-                    onPressed: likedIds.isEmpty
-                        ? null
-                        : () {
-                            final seedSongId =
-                                likedIds[math.Random().nextInt(
-                                  likedIds.length,
-                                )];
-                            ref
-                                .read(queueProvider.notifier)
-                                .replace(<String>[seedSongId], autoPlay: true)
-                                .then((_) async {
-                                  await activatePreferredMixMode(
-                                    ref,
-                                    seedSongId: seedSongId,
-                                  );
-                                  ref
-                                      .read(playerOverlayStackProvider.notifier)
-                                      .expand();
-                                })
-                                .ignore();
-                          },
+                    onPressed: likedIds.isEmpty ? null : startInstantRadio,
                     icon: const Icon(Icons.radio_rounded),
                     label: const Text(
                       'Instant Radio',
@@ -3028,89 +3148,6 @@ class _HomeFilterChipRow extends ConsumerWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Desktop quick-action icon buttons (brand row, right side)
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _DesktopHomeQuickActions extends ConsumerWidget {
-  const _DesktopHomeQuickActions();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final likedOnly = ref.watch(homeLikedOnlyFilterProvider);
-    final listenTogetherEnabled = ref.watch(
-      groupListeningSettingsProvider.select((settings) => settings.enabled),
-    );
-    final downloadedOnly = ref.watch(downloadedOnlyFilterProvider);
-    final downloadedSongIds = downloadedOnly
-        ? (ref.watch(downloadedSongIdsProvider).asData?.value ??
-              const <String>{})
-        : const <String>{};
-    final likedSongs =
-        ref.watch(likedSongsProvider).asData?.value ?? const <SongsTableData>[];
-    final likedIds =
-        (downloadedOnly
-                ? likedSongs.where(
-                    (s) => downloadedSongIds.contains(s.id),
-                  )
-                : likedSongs)
-            .map((s) => s.id)
-            .toList(growable: false);
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-        IconButton(
-          tooltip: AppLocalizations.of(context)!.libraryLikedOnlyFilter,
-          icon: Icon(
-            likedOnly ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-          ),
-          color: likedOnly ? colorScheme.primary : null,
-          onPressed: () {
-            ref.read(homeLikedOnlyFilterProvider.notifier).enabled = !likedOnly;
-          },
-        ),
-        IconButton(
-          tooltip: AppLocalizations.of(context)!.libraryDownloadedOnlyFilter,
-          icon: Icon(
-            downloadedOnly
-                ? Icons.download_done_rounded
-                : Icons.download_rounded,
-          ),
-          color: downloadedOnly ? colorScheme.primary : null,
-          onPressed: () {
-            ref.read(downloadedOnlyFilterProvider.notifier).enabled =
-                !downloadedOnly;
-          },
-        ),
-        if (listenTogetherEnabled) const GroupListeningSessionButton(),
-        IconButton(
-          tooltip: 'Instant Radio',
-          icon: const Icon(Icons.radio_rounded),
-          onPressed: likedIds.isEmpty
-              ? null
-              : () {
-                  final seedSongId =
-                      likedIds[math.Random().nextInt(likedIds.length)];
-                  ref
-                      .read(queueProvider.notifier)
-                      .replace(<String>[seedSongId], autoPlay: true)
-                      .then((_) async {
-                        await activatePreferredMixMode(
-                          ref,
-                          seedSongId: seedSongId,
-                        );
-                        ref.read(playerOverlayStackProvider.notifier).expand();
-                      })
-                      .ignore();
-                },
-        ),
-      ],
     );
   }
 }

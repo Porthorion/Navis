@@ -1,6 +1,14 @@
 part of 'navis_audio_handler.dart';
 
-Future<NavisPlaybackHandler>? _audioHandlerInitFuture;
+_NavisAudioHandlerInitCacheEntry? _audioHandlerInitCache;
+
+class _NavisAudioHandlerInitCacheEntry {
+  _NavisAudioHandlerInitCacheEntry(this.future);
+
+  final Future<NavisPlaybackHandler> future;
+  NavisPlaybackHandler? handler;
+  bool invalidated = false;
+}
 
 typedef NavisRegisterLinuxMpris = void Function();
 
@@ -29,6 +37,7 @@ bool navisRegisterLinuxMprisIfSupported({
 }
 
 Future<void> disposeNavisPlaybackHandler(NavisPlaybackHandler handler) async {
+  _invalidateNavisAudioHandlerCache(handler);
   if (handler is WindowsNavisPlaybackHandler) {
     await handler.dispose();
     return;
@@ -43,6 +52,7 @@ Future<void> disposeNavisPlaybackHandler(NavisPlaybackHandler handler) async {
 }
 
 void beginNavisPlaybackHandlerTeardown(NavisPlaybackHandler handler) {
+  _invalidateNavisAudioHandlerCache(handler);
   if (handler is WindowsNavisPlaybackHandler) {
     handler.beginTeardown();
     return;
@@ -53,6 +63,19 @@ void beginNavisPlaybackHandlerTeardown(NavisPlaybackHandler handler) {
   }
   if (handler is NavisAudioHandler) {
     handler.beginTeardown();
+  }
+}
+
+void _invalidateNavisAudioHandlerCache(NavisPlaybackHandler handler) {
+  final cache = _audioHandlerInitCache;
+  if (cache == null) {
+    return;
+  }
+  if (cache.handler == null || identical(cache.handler, handler)) {
+    cache.invalidated = true;
+    if (identical(_audioHandlerInitCache, cache)) {
+      _audioHandlerInitCache = null;
+    }
   }
 }
 
@@ -70,9 +93,9 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
   required PlaybackRuntimeSettings Function() readRuntimeSettings,
   required StarSyncDao starSyncDao,
 }) {
-  final cachedFuture = _audioHandlerInitFuture;
-  if (cachedFuture != null) {
-    return cachedFuture;
+  final cached = _audioHandlerInitCache;
+  if (cached != null && !cached.invalidated) {
+    return cached.future;
   }
 
   NavisAudioHandler createBaseHandler() {
@@ -126,13 +149,18 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
     ).then<NavisPlaybackHandler>((handler) => handler);
   }
 
-  _audioHandlerInitFuture = initFuture;
+  final cache = _NavisAudioHandlerInitCacheEntry(initFuture);
+  _audioHandlerInitCache = cache;
   unawaited(
     initFuture.then<void>(
-      (_) {},
+      (handler) {
+        if (identical(_audioHandlerInitCache, cache) && !cache.invalidated) {
+          cache.handler = handler;
+        }
+      },
       onError: (Object error, StackTrace stackTrace) {
-        if (identical(_audioHandlerInitFuture, initFuture)) {
-          _audioHandlerInitFuture = null;
+        if (identical(_audioHandlerInitCache, cache)) {
+          _audioHandlerInitCache = null;
         }
       },
     ),
@@ -243,6 +271,9 @@ class WindowsNavisPlaybackHandler implements NavisPlaybackHandler {
 
   @override
   Future<void> pause() => _delegate.pause();
+
+  @override
+  Future<void> stop() => _delegate.stop();
 
   @override
   Future<void> seek(Duration position) => _delegate.seek(position);
@@ -419,6 +450,9 @@ class LinuxNavisPlaybackHandler implements NavisPlaybackHandler {
 
   @override
   Future<void> pause() => _delegate.pause();
+
+  @override
+  Future<void> stop() => _delegate.stop();
 
   @override
   Future<void> seek(Duration position) => _delegate.seek(position);

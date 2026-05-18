@@ -90,6 +90,9 @@ class _RecordingPlaybackHandler implements NavisPlaybackHandler {
   Future<void> pause() async {}
 
   @override
+  Future<void> stop() async {}
+
+  @override
   Future<void> playFromIndex(int index) async {}
 
   @override

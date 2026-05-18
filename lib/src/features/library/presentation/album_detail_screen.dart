@@ -97,7 +97,9 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
         : const <String>{};
     final coverShape = ref.watch(coverArtShapeProvider);
     final coverRadius = coverArtShapeToRadius(coverShape);
-    final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
+    final adaptiveContext = resolveAdaptiveContextFor(context);
+    final desktopMode = adaptiveContext.useDesktopShell;
+    final compactWideMode = adaptiveContext.useCompactWideLandscape;
 
     return Scaffold(
       // AppBar is only shown on desktop or when album data is still loading/errored.
@@ -221,6 +223,12 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                             ),
                           _SongItem(:final song) => TrackListTile(
                             song: song,
+                            contentPadding: compactWideMode
+                                ? const EdgeInsetsDirectional.only(
+                                    start: 8,
+                                    end: 4,
+                                  )
+                                : null,
                             horizontalTitleGap: 6,
                             onTap: () => _playNow(song),
                             onLongPress: () =>
@@ -344,6 +352,9 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                       children: <Widget>[
                         // ── Spotify-style header: tinted background ──
                         ColoredBox(
+                          key: const ValueKey<String>(
+                            'albumDetailDesktopHeader',
+                          ),
                           color: colors.surfaceContainerHigh,
                           child: Padding(
                             padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
@@ -618,6 +629,407 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                 );
               }
 
+              if (compactWideMode) {
+                final colors = Theme.of(context).colorScheme;
+                final textTheme = Theme.of(context).textTheme;
+                final albumInfoSliver = albumInfoAsync.when<Widget>(
+                  data: (info) {
+                    if (info == null) return const SliverToBoxAdapter();
+                    final notes = _stripHtml(info.notes ?? '');
+                    final hasNotes = notes.trim().isNotEmpty;
+                    final hasLinks =
+                        (info.lastFmUrl ?? '').trim().isNotEmpty ||
+                        (info.musicBrainzId ?? '').trim().isNotEmpty;
+                    if (!hasNotes && !hasLinks) {
+                      return const SliverToBoxAdapter();
+                    }
+
+                    return SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            const Divider(height: 1),
+                            const SizedBox(height: 12),
+                            Text(
+                              l10n.albumDetailAboutSection,
+                              style: textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            if (hasNotes) ...<Widget>[
+                              const SizedBox(height: 8),
+                              Text(
+                                notes,
+                                style: textTheme.bodyMedium?.copyWith(
+                                  height: 1.5,
+                                  color: colors.onSurface.withValues(
+                                    alpha: 0.82,
+                                  ),
+                                ),
+                              ),
+                            ],
+                            if (hasLinks) ...<Widget>[
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: <Widget>[
+                                  if ((info.lastFmUrl ?? '').trim().isNotEmpty)
+                                    ActionChip(
+                                      avatar: const Icon(
+                                        Icons.open_in_new,
+                                        size: 16,
+                                      ),
+                                      label: Text(l10n.albumDetailLastFm),
+                                      onPressed: () => unawaited(
+                                        _openExternalLink(info.lastFmUrl!),
+                                      ),
+                                    ),
+                                  if ((info.musicBrainzId ?? '')
+                                      .trim()
+                                      .isNotEmpty)
+                                    ActionChip(
+                                      avatar: const Icon(
+                                        Icons.album_outlined,
+                                        size: 16,
+                                      ),
+                                      label: Text(l10n.albumDetailMusicBrainz),
+                                      onPressed: () => unawaited(
+                                        _openExternalLink(
+                                          'https://musicbrainz.org/release-group/${info.musicBrainzId}',
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                  loading: () => const SliverToBoxAdapter(),
+                  error: (_, _) => const SliverToBoxAdapter(),
+                );
+                final toolbarSliver = SliverToBoxAdapter(
+                  child: Material(
+                    key: const ValueKey<String>(
+                      'albumDetailCompactWideToolbar',
+                    ),
+                    color: colors.surface,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(4, 6, 8, 2),
+                      child: Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: <Widget>[
+                          IconButton(
+                            tooltip: l10n.albumDetailPlayAction,
+                            icon: const Icon(Icons.play_arrow),
+                            onPressed: filteredSongs.isEmpty
+                                ? null
+                                : () => _queueAlbum(
+                                    filteredSongs,
+                                    shuffle: false,
+                                  ),
+                          ),
+                          IconButton(
+                            tooltip: l10n.albumDetailShuffleAction,
+                            icon: const Icon(Icons.shuffle),
+                            onPressed: filteredSongs.isEmpty
+                                ? null
+                                : () => _queueAlbum(
+                                    filteredSongs,
+                                    shuffle: true,
+                                  ),
+                          ),
+                          _RatingButton(
+                            rating: albumRating,
+                            loading: _isUpdatingRating,
+                            onChanged: (next) =>
+                                unawaited(_updateAlbumRating(next)),
+                          ),
+                          IconButton(
+                            tooltip: isStarred
+                                ? l10n.actionLiked
+                                : l10n.actionLike,
+                            icon: Icon(
+                              isStarred
+                                  ? Icons.favorite
+                                  : Icons.favorite_border,
+                            ),
+                            color: isStarred ? colors.error : null,
+                            onPressed: _isStarring
+                                ? null
+                                : () => _toggleStar(isStarred: isStarred),
+                          ),
+                          IconButton(
+                            tooltip: MaterialLocalizations.of(
+                              context,
+                            ).showMenuTooltip,
+                            icon: const Icon(Icons.more_vert),
+                            onPressed: () => unawaited(
+                              _showMobileAlbumContextMenu(
+                                details,
+                                filteredSongs,
+                                albumRating,
+                                coverArtHeroTag,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+                final filterSliver = SliverToBoxAdapter(
+                  child: Material(
+                    key: const ValueKey<String>(
+                      'albumDetailCompactWideFilterRow',
+                    ),
+                    color: colors.surface,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: <Widget>[
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              Icon(
+                                Icons.filter_list,
+                                size: 16,
+                                color: colors.onSurfaceVariant,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                l10n.albumDetailFilterLabel,
+                                style: textTheme.labelSmall?.copyWith(
+                                  color: colors.onSurfaceVariant,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                          FilterChip(
+                            visualDensity: VisualDensity.compact,
+                            label: Text(l10n.libraryLikedOnlyFilter),
+                            avatar: Icon(
+                              _showLikedOnly
+                                  ? Icons.favorite
+                                  : Icons.favorite_border,
+                              size: 16,
+                            ),
+                            selected: _showLikedOnly,
+                            onSelected: (value) =>
+                                setState(() => _showLikedOnly = value),
+                          ),
+                          FilterChip(
+                            visualDensity: VisualDensity.compact,
+                            label: Text(l10n.libraryDownloadedOnlyFilter),
+                            avatar: Icon(
+                              _showDownloadedOnly
+                                  ? Icons.download_done
+                                  : Icons.download_outlined,
+                              size: 16,
+                            ),
+                            selected: _showDownloadedOnly,
+                            onSelected: (value) =>
+                                setState(() => _showDownloadedOnly = value),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+
+                return SafeArea(
+                  left: false,
+                  right: false,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final panelWidthValue = (constraints.maxWidth * 0.28)
+                          .clamp(208, 256);
+                      final panelWidth = panelWidthValue.toDouble();
+                      final artSize = min<double>(
+                        168,
+                        max<double>(148, panelWidth - 56),
+                      );
+
+                      return Row(
+                        key: const ValueKey<String>(
+                          'albumDetailCompactWideSplitPane',
+                        ),
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: <Widget>[
+                          SizedBox(
+                            width: panelWidth,
+                            child: Material(
+                              color: colors.surfaceContainerHigh,
+                              child: SingleChildScrollView(
+                                padding: const EdgeInsets.fromLTRB(
+                                  10,
+                                  8,
+                                  10,
+                                  12,
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: <Widget>[
+                                    Row(
+                                      children: <Widget>[
+                                        IconButton(
+                                          tooltip: MaterialLocalizations.of(
+                                            context,
+                                          ).backButtonTooltip,
+                                          onPressed: () => context.pop(),
+                                          icon: const Icon(Icons.arrow_back),
+                                        ),
+                                        const Spacer(),
+                                        IconButton(
+                                          tooltip: l10n.commonRetry,
+                                          onPressed: _isRefreshingAlbum
+                                              ? null
+                                              : _refreshAlbum,
+                                          icon: AnimatedSwitcher(
+                                            duration: const Duration(
+                                              milliseconds: 180,
+                                            ),
+                                            child: _isRefreshingAlbum
+                                                ? const SizedBox(
+                                                    key: ValueKey<String>(
+                                                      'album-refresh-loading',
+                                                    ),
+                                                    width: 20,
+                                                    height: 20,
+                                                    child:
+                                                        CircularProgressIndicator(
+                                                          strokeWidth: 2.2,
+                                                        ),
+                                                  )
+                                                : const Icon(
+                                                    Icons.refresh,
+                                                    key: ValueKey<String>(
+                                                      'album-refresh-idle',
+                                                    ),
+                                                  ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Center(
+                                      child: InkWell(
+                                        borderRadius: coverRadius,
+                                        onTap: () => unawaited(
+                                          showCoverArtViewer(
+                                            context,
+                                            coverArtId: details.coverArt,
+                                            heroTag: coverArtHeroTag,
+                                            previewSize: 160,
+                                          ),
+                                        ),
+                                        child: HeroCoverArt(
+                                          coverArtId: details.coverArt,
+                                          heroTag: coverArtHeroTag,
+                                          size: 168,
+                                          width: artSize,
+                                          height: artSize,
+                                          borderRadius: coverRadius,
+                                          placeholderIcon: Icons.album_outlined,
+                                          loadPriority:
+                                              CoverArtLoadPriority.critical,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      details.name,
+                                      style: textTheme.titleMedium?.copyWith(
+                                        fontWeight: FontWeight.w800,
+                                        height: 1.15,
+                                      ),
+                                      maxLines: 3,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Wrap(
+                                      crossAxisAlignment:
+                                          WrapCrossAlignment.center,
+                                      runSpacing: 2,
+                                      children: <Widget>[
+                                        ..._buildArtistChips(
+                                          context: context,
+                                          artists: _resolveArtists(details),
+                                          textStyle: textTheme.bodyMedium
+                                              ?.copyWith(
+                                                color: colors.primary,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                          dimStyle: textTheme.bodyMedium
+                                              ?.copyWith(
+                                                color: colors.onSurfaceVariant,
+                                              ),
+                                        ),
+                                        if (details.year != null)
+                                          Text(
+                                            ' • ${details.year}',
+                                            style: textTheme.bodySmall
+                                                ?.copyWith(
+                                                  color:
+                                                      colors.onSurfaceVariant,
+                                                ),
+                                          ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      l10n.playlistsSongCount(songs.length),
+                                      style: textTheme.labelSmall?.copyWith(
+                                        color: colors.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          VerticalDivider(
+                            width: 1,
+                            thickness: 1,
+                            color: colors.outlineVariant,
+                          ),
+                          Expanded(
+                            child: CustomScrollView(
+                              slivers: <Widget>[
+                                toolbarSliver,
+                                filterSliver,
+                                tracksSliver,
+                                albumInfoSliver,
+                                if (ref.watch(audioMuseAvailableProvider))
+                                  SliverToBoxAdapter(
+                                    child: _AudioMuseSimilarAlbums(
+                                      albumId: widget.albumId,
+                                    ),
+                                  ),
+                                const SliverToBoxAdapter(
+                                  child: SizedBox(height: 16),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                );
+              }
+
               final screenWidth = MediaQuery.of(context).size.width;
               final mobileColors = Theme.of(context).colorScheme;
               final mobileTextTheme = Theme.of(context).textTheme;
@@ -640,6 +1052,9 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                 slivers: <Widget>[
                   // Full-bleed album art with scroll-driven collapsed toolbar.
                   SliverAppBar(
+                    key: const ValueKey<String>(
+                      'albumDetailMobileExpandedArtAppBar',
+                    ),
                     automaticallyImplyLeading: false,
                     pinned: true,
                     toolbarHeight: kToolbarHeight,

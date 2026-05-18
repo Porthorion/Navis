@@ -14,6 +14,7 @@ import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/library/presentation/album_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/artist_detail_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 import '../../../../helpers/test_database.dart';
 
 class _DelayedReplaceHandler implements NavisPlaybackHandler {
@@ -105,6 +106,9 @@ class _DelayedReplaceHandler implements NavisPlaybackHandler {
   Future<void> pause() async {}
 
   @override
+  Future<void> stop() async {}
+
+  @override
   Future<void> seek(Duration position) async {}
 
   @override
@@ -169,6 +173,7 @@ Widget _buildApp({
   required Widget child,
   required NavisDatabase database,
   required List<dynamic> overrides,
+  AdaptiveContext? adaptiveContext,
 }) {
   return ProviderScope(
     overrides: [
@@ -180,9 +185,89 @@ Widget _buildApp({
     child: MaterialApp(
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
-      home: child,
+      home: adaptiveContext == null
+          ? child
+          : AdaptiveContextScope(
+              adaptiveContext: adaptiveContext,
+              child: child,
+            ),
     ),
   );
+}
+
+const _compactWideContext = AdaptiveContext(
+  desktopRuntime: true,
+  desktopWide: false,
+  desktopLayoutClass: DesktopLayoutClass.compactDesktop,
+  adaptiveLayoutClass: AdaptiveLayoutClass.tabletExpanded,
+  adaptiveShellMode: AdaptiveShellMode.compactWideLandscape,
+  isPhoneFormFactor: true,
+  useDesktopShell: false,
+  useStandardRailNavigation: false,
+  useCompactWideLandscape: true,
+  useRailNavigation: true,
+);
+
+const _mobileContext = AdaptiveContext(
+  desktopRuntime: false,
+  desktopWide: false,
+  desktopLayoutClass: DesktopLayoutClass.compactDesktop,
+  adaptiveLayoutClass: AdaptiveLayoutClass.phoneCompact,
+  adaptiveShellMode: AdaptiveShellMode.phoneBottomNav,
+  isPhoneFormFactor: true,
+  useDesktopShell: false,
+  useStandardRailNavigation: false,
+  useCompactWideLandscape: false,
+  useRailNavigation: false,
+);
+
+const _desktopContext = AdaptiveContext(
+  desktopRuntime: true,
+  desktopWide: true,
+  desktopLayoutClass: DesktopLayoutClass.standardDesktop,
+  adaptiveLayoutClass: AdaptiveLayoutClass.tabletExpanded,
+  adaptiveShellMode: AdaptiveShellMode.standardRail,
+  isPhoneFormFactor: false,
+  useDesktopShell: true,
+  useStandardRailNavigation: false,
+  useCompactWideLandscape: false,
+  useRailNavigation: false,
+);
+
+AlbumWithSongs _albumWithSongs(List<SongsTableData> songs) {
+  return AlbumWithSongs(
+    album: const AlbumsTableData(
+      id: 'album-1',
+      name: 'Album 1',
+      artistName: 'Artist 1',
+      artistId: 'artist-1',
+      year: 2025,
+      songsHydrated: true,
+      artists: <ArtistRef>[],
+    ),
+    songs: songs,
+  );
+}
+
+Future<void> _pumpAlbumDetail(
+  WidgetTester tester, {
+  required NavisDatabase database,
+  required AdaptiveContext adaptiveContext,
+  required AlbumWithSongs album,
+  List<dynamic> overrides = const <dynamic>[],
+}) async {
+  await tester.pumpWidget(
+    _buildApp(
+      child: const AlbumDetailScreen(albumId: 'album-1'),
+      database: database,
+      adaptiveContext: adaptiveContext,
+      overrides: [
+        albumProvider('album-1').overrideWithValue(AsyncData(album)),
+        ...overrides.cast(),
+      ],
+    ),
+  );
+  await tester.pump();
 }
 
 Future<void> _disposeApp(WidgetTester tester) async {
@@ -354,6 +439,249 @@ void main() {
       expect(find.text('Song 1'), findsOneWidget);
       await _disposeApp(tester);
     });
+
+    testWidgets(
+      'compact-wide album detail uses split pane instead of mobile art app bar',
+      (tester) async {
+        await _pumpAlbumDetail(
+          tester,
+          database: database,
+          adaptiveContext: _compactWideContext,
+          album: _albumWithSongs(
+            const <SongsTableData>[
+              SongsTableData(
+                id: 'visible-track',
+                title: 'Visible Track',
+                track: 1,
+              ),
+            ],
+          ),
+        );
+
+        expect(
+          find.byKey(const ValueKey<String>('albumDetailCompactWideSplitPane')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(
+            const ValueKey<String>('albumDetailMobileExpandedArtAppBar'),
+          ),
+          findsNothing,
+        );
+        final toolbar = find.byKey(
+          const ValueKey<String>('albumDetailCompactWideToolbar'),
+        );
+        expect(toolbar, findsOneWidget);
+        expect(
+          find.descendant(
+            of: toolbar,
+            matching: find.widgetWithIcon(IconButton, Icons.play_arrow),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: toolbar,
+            matching: find.widgetWithIcon(IconButton, Icons.shuffle),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: toolbar,
+            matching: find.widgetWithText(FilterChip, 'Liked'),
+          ),
+          findsNothing,
+        );
+        final filterRow = find.byKey(
+          const ValueKey<String>('albumDetailCompactWideFilterRow'),
+        );
+        expect(filterRow, findsOneWidget);
+        expect(
+          find.descendant(
+            of: filterRow,
+            matching: find.text('Filters'),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: filterRow,
+            matching: find.widgetWithText(FilterChip, 'Liked'),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: filterRow,
+            matching: find.widgetWithText(FilterChip, 'Downloaded'),
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('Visible Track'), findsOneWidget);
+        await _disposeApp(tester);
+      },
+    );
+
+    testWidgets('mobile album detail keeps expanded art app bar', (
+      tester,
+    ) async {
+      await _pumpAlbumDetail(
+        tester,
+        database: database,
+        adaptiveContext: _mobileContext,
+        album: _albumWithSongs(
+          const <SongsTableData>[
+            SongsTableData(id: 'mobile-track', title: 'Mobile Track', track: 1),
+          ],
+        ),
+      );
+
+      expect(
+        find.byKey(
+          const ValueKey<String>('albumDetailMobileExpandedArtAppBar'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey<String>('albumDetailCompactWideSplitPane')),
+        findsNothing,
+      );
+      await _disposeApp(tester);
+    });
+
+    testWidgets('desktop-wide album detail keeps desktop header', (
+      tester,
+    ) async {
+      await _pumpAlbumDetail(
+        tester,
+        database: database,
+        adaptiveContext: _desktopContext,
+        album: _albumWithSongs(
+          const <SongsTableData>[
+            SongsTableData(
+              id: 'desktop-track',
+              title: 'Desktop Track',
+              track: 1,
+            ),
+          ],
+        ),
+      );
+
+      expect(
+        find.byKey(const ValueKey<String>('albumDetailDesktopHeader')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey<String>('albumDetailCompactWideSplitPane')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(
+          const ValueKey<String>('albumDetailMobileExpandedArtAppBar'),
+        ),
+        findsNothing,
+      );
+      await _disposeApp(tester);
+    });
+
+    testWidgets(
+      'compact-wide filter chips toggle liked and downloaded empty states',
+      (tester) async {
+        await _pumpAlbumDetail(
+          tester,
+          database: database,
+          adaptiveContext: _compactWideContext,
+          album: _albumWithSongs(
+            <SongsTableData>[
+              SongsTableData(
+                id: 'liked-track',
+                title: 'Liked Track',
+                track: 1,
+                starred: DateTime(2025),
+              ),
+              const SongsTableData(
+                id: 'downloaded-track',
+                title: 'Downloaded Track',
+                track: 2,
+              ),
+            ],
+          ),
+          overrides: [
+            downloadedSongIdsProvider.overrideWithValue(
+              const AsyncData(<String>{'downloaded-track'}),
+            ),
+          ],
+        );
+
+        expect(find.text('Liked Track'), findsOneWidget);
+        expect(find.text('Downloaded Track'), findsOneWidget);
+
+        await tester.tap(find.widgetWithText(FilterChip, 'Liked'));
+        await tester.pump();
+
+        expect(find.text('Liked Track'), findsOneWidget);
+        expect(find.text('Downloaded Track'), findsNothing);
+
+        await tester.tap(find.widgetWithText(FilterChip, 'Liked'));
+        await tester.pump();
+        await tester.tap(find.widgetWithText(FilterChip, 'Downloaded'));
+        await tester.pump();
+
+        expect(find.text('Liked Track'), findsNothing);
+        expect(find.text('Downloaded Track'), findsOneWidget);
+
+        await tester.tap(find.widgetWithText(FilterChip, 'Liked'));
+        await tester.pump();
+
+        expect(find.text('Liked Track'), findsNothing);
+        expect(find.text('Downloaded Track'), findsNothing);
+        expect(find.text('No downloaded content'), findsOneWidget);
+        await _disposeApp(tester);
+      },
+    );
+
+    testWidgets(
+      'compact-wide album detail keeps first tracks visible without overflow',
+      (tester) async {
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        final album = _albumWithSongs(
+          List<SongsTableData>.generate(
+            8,
+            (index) => SongsTableData(
+              id: 'viewport-track-${index + 1}',
+              title: 'Viewport Track ${index + 1}',
+              track: index + 1,
+            ),
+          ),
+        );
+        const sizes = <Size>[
+          Size(840, 420),
+          Size(900, 420),
+          Size(1408, 792),
+        ];
+
+        for (final size in sizes) {
+          tester.view.physicalSize = size;
+          await _pumpAlbumDetail(
+            tester,
+            database: database,
+            adaptiveContext: _compactWideContext,
+            album: album,
+          );
+
+          expect(find.text('Viewport Track 1'), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        }
+
+        await _disposeApp(tester);
+      },
+    );
 
     // NOTE: This test is currently skipped because the AlbumDetailScreen
     // test infrastructure has a pre-existing pumpAndSettle timeout issue

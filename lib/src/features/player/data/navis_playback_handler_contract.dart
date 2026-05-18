@@ -41,6 +41,7 @@ abstract class NavisPlaybackHandler {
   Future<void> clearQueue();
   Future<void> play();
   Future<void> pause();
+  Future<void> stop();
   Future<void> seek(Duration position);
   Future<void> skipToNext();
   Future<void> skipToPrevious();

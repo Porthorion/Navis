@@ -5,6 +5,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auto/domain/android_auto_constants.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
+import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 
 void main() {
   group('NavisAudioHandler fallback helpers', () {
@@ -34,6 +35,135 @@ void main() {
 
     test('notification compact indices align to transport controls', () {
       expect(navisNotificationCompactActionIndices, const <int>[0, 1, 2]);
+    });
+
+    group('OS media control capabilities', () {
+      test('idle exposes no transport controls', () {
+        final capabilities = navisOsControlCapabilitiesForSnapshot(
+          const PlaybackSnapshot.idle(),
+        );
+
+        expect(capabilities.canPlay, isFalse);
+        expect(capabilities.canPause, isFalse);
+        expect(capabilities.canStop, isFalse);
+        expect(capabilities.canSeek, isFalse);
+        expect(capabilities.canSkipNext, isFalse);
+        expect(capabilities.canSkipPrevious, isFalse);
+        expect(capabilities.isLive, isFalse);
+        expect(
+          navisNotificationControls(
+            isPlaying: false,
+            capabilities: capabilities,
+          ),
+          isEmpty,
+        );
+      });
+
+      test('loading queue disables play until ready', () {
+        final capabilities = navisOsControlCapabilities(
+          queueLength: 1,
+          currentIndex: 0,
+          isRadioMode: false,
+          duration: const Duration(minutes: 3),
+          processingState: AudioProcessingState.loading,
+          playing: false,
+        );
+
+        expect(capabilities.canPlay, isFalse);
+        expect(capabilities.canPause, isFalse);
+        expect(capabilities.canStop, isTrue);
+        expect(capabilities.canSeek, isTrue);
+      });
+
+      test('radio is live and not seekable or skippable', () {
+        final capabilities = navisOsControlCapabilities(
+          queueLength: 0,
+          currentIndex: null,
+          isRadioMode: true,
+          duration: Duration.zero,
+          processingState: AudioProcessingState.ready,
+          playing: true,
+        );
+
+        expect(capabilities.isLive, isTrue);
+        expect(capabilities.canPause, isTrue);
+        expect(capabilities.canStop, isTrue);
+        expect(capabilities.canSeek, isFalse);
+        expect(capabilities.canSkipNext, isFalse);
+        expect(capabilities.canSkipPrevious, isFalse);
+      });
+
+      test('single-track queue only exposes play/pause, stop, and seek', () {
+        final capabilities = navisOsControlCapabilities(
+          queueLength: 1,
+          currentIndex: 0,
+          isRadioMode: false,
+          duration: const Duration(minutes: 4),
+          processingState: AudioProcessingState.ready,
+          playing: false,
+        );
+
+        expect(capabilities.canPlay, isTrue);
+        expect(capabilities.canPause, isFalse);
+        expect(capabilities.canStop, isTrue);
+        expect(capabilities.canSeek, isTrue);
+        expect(capabilities.canSkipNext, isFalse);
+        expect(capabilities.canSkipPrevious, isFalse);
+      });
+
+      test('middle and edge queue positions expose valid skip directions', () {
+        final middle = navisOsControlCapabilities(
+          queueLength: 3,
+          currentIndex: 1,
+          isRadioMode: false,
+          duration: const Duration(minutes: 4),
+          processingState: AudioProcessingState.ready,
+          playing: true,
+        );
+        expect(middle.canSkipPrevious, isTrue);
+        expect(middle.canSkipNext, isTrue);
+
+        final end = navisOsControlCapabilities(
+          queueLength: 3,
+          currentIndex: 2,
+          isRadioMode: false,
+          duration: const Duration(minutes: 4),
+          processingState: AudioProcessingState.ready,
+          playing: true,
+        );
+        expect(end.canSkipPrevious, isTrue);
+        expect(end.canSkipNext, isFalse);
+      });
+
+      test('completed playback can be played again and seeked', () {
+        final capabilities = navisOsControlCapabilities(
+          queueLength: 2,
+          currentIndex: 1,
+          isRadioMode: false,
+          duration: const Duration(minutes: 4),
+          processingState: AudioProcessingState.completed,
+          playing: false,
+        );
+
+        expect(capabilities.canPlay, isTrue);
+        expect(capabilities.canPause, isFalse);
+        expect(capabilities.canSeek, isTrue);
+        expect(capabilities.canStop, isTrue);
+      });
+
+      test('unknown duration media is treated as non-seekable live media', () {
+        final capabilities = navisOsControlCapabilities(
+          queueLength: 1,
+          currentIndex: 0,
+          isRadioMode: false,
+          duration: Duration.zero,
+          processingState: AudioProcessingState.ready,
+          playing: true,
+        );
+
+        expect(capabilities.canSeek, isFalse);
+        expect(capabilities.isLive, isTrue);
+      });
     });
 
     test('linux MPRIS helper registers only on Linux runtime', () {
