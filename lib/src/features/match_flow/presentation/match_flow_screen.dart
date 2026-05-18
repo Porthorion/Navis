@@ -127,12 +127,46 @@ class _MatchFlowCard extends ConsumerStatefulWidget {
 
 class _MatchFlowCardState extends ConsumerState<_MatchFlowCard> {
   bool _contentsExpanded = false;
+  List<MatchFlowSongEntry>? _optimisticSongs;
+  List<String>? _pendingSongOrder;
+
+  @override
+  void didUpdateWidget(covariant _MatchFlowCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.flow.flow.id != widget.flow.flow.id) {
+      _optimisticSongs = null;
+      _pendingSongOrder = null;
+      return;
+    }
+
+    final incomingOrder = _songOrder(widget.flow.songs);
+    final pendingOrder = _pendingSongOrder;
+    if (pendingOrder == null) {
+      _optimisticSongs = null;
+      return;
+    }
+    if (_sameOrder(incomingOrder, pendingOrder)) {
+      _optimisticSongs = null;
+      _pendingSongOrder = null;
+      return;
+    }
+    final optimistic = _optimisticSongs;
+    if (optimistic != null && !_sameSongMembers(incomingOrder, optimistic)) {
+      _optimisticSongs = null;
+      _pendingSongOrder = null;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final flow = widget.flow;
+    final visibleSongs = _optimisticSongs ?? flow.songs;
+    final visibleFlow = MatchFlowWithSongs(
+      flow: flow.flow,
+      songs: visibleSongs,
+    );
     final contentsVisible = _contentsExpanded;
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -152,7 +186,7 @@ class _MatchFlowCardState extends ConsumerState<_MatchFlowCard> {
                       style: theme.textTheme.titleMedium,
                     ),
                     subtitle: Text(
-                      l10n.matchFlowSongCount(flow.songs.length),
+                      l10n.matchFlowSongCount(visibleSongs.length),
                     ),
                   ),
                 ),
@@ -210,7 +244,7 @@ class _MatchFlowCardState extends ConsumerState<_MatchFlowCard> {
             ),
             if (contentsVisible)
               _MatchFlowContents(
-                flow: flow,
+                flow: visibleFlow,
                 enabled: flow.flow.enabled,
                 onReorder: _reorderSong,
                 onRemove: (songId) => _run(
@@ -236,7 +270,25 @@ class _MatchFlowCardState extends ConsumerState<_MatchFlowCard> {
   void _reorderSong(int oldIndex, int newIndex) {
     final flow = widget.flow;
     final adjusted = oldIndex < newIndex ? newIndex - 1 : newIndex;
-    final songId = flow.songs[oldIndex].link.songId;
+    final currentSongs = List<MatchFlowSongEntry>.of(
+      _optimisticSongs ?? flow.songs,
+    );
+    if (oldIndex < 0 ||
+        oldIndex >= currentSongs.length ||
+        adjusted < 0 ||
+        adjusted >= currentSongs.length) {
+      return;
+    }
+    final previousSongs = List<MatchFlowSongEntry>.of(currentSongs);
+    final moved = currentSongs.removeAt(oldIndex);
+    currentSongs.insert(adjusted, moved);
+    final pendingOrder = _songOrder(currentSongs);
+    setState(() {
+      _optimisticSongs = List<MatchFlowSongEntry>.unmodifiable(currentSongs);
+      _pendingSongOrder = pendingOrder;
+    });
+
+    final songId = moved.link.songId;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       unawaited(
@@ -246,7 +298,20 @@ class _MatchFlowCardState extends ConsumerState<_MatchFlowCard> {
           () => ref
               .read(matchFlowDaoProvider)
               .reorderSong(flow.flow.id, songId, newIndex: adjusted),
-        ),
+        ).then((success) {
+          if (success || !mounted) return;
+          final activePendingOrder = _pendingSongOrder;
+          if (activePendingOrder == null ||
+              !_sameOrder(activePendingOrder, pendingOrder)) {
+            return;
+          }
+          setState(() {
+            _optimisticSongs = List<MatchFlowSongEntry>.unmodifiable(
+              previousSongs,
+            );
+            _pendingSongOrder = null;
+          });
+        }),
       );
     });
   }
@@ -316,7 +381,7 @@ class _MatchFlowCardState extends ConsumerState<_MatchFlowCard> {
     );
   }
 
-  Future<void> _run(
+  Future<bool> _run(
     BuildContext context,
     WidgetRef ref,
     Future<void> Function() action,
@@ -324,21 +389,45 @@ class _MatchFlowCardState extends ConsumerState<_MatchFlowCard> {
     final l10n = AppLocalizations.of(context)!;
     try {
       await action();
+      return true;
     } on MatchFlowException catch (error) {
-      if (!context.mounted) return;
+      if (!context.mounted) return false;
       showAppNotice(
         context,
         message: error.message,
         level: AppNoticeLevel.info,
       );
+      return false;
     } on Object catch (error) {
-      if (!context.mounted) return;
+      if (!context.mounted) return false;
       showAppNotice(
         context,
         message: l10n.matchFlowSaveError(error.toString()),
         level: AppNoticeLevel.error,
       );
+      return false;
     }
+  }
+
+  List<String> _songOrder(List<MatchFlowSongEntry> songs) {
+    return songs.map((entry) => entry.link.songId).toList(growable: false);
+  }
+
+  bool _sameOrder(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i += 1) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  bool _sameSongMembers(List<String> incoming, List<MatchFlowSongEntry> songs) {
+    final optimistic = _songOrder(songs);
+    if (incoming.length != optimistic.length) return false;
+    final incomingIds = incoming.toSet();
+    final optimisticIds = optimistic.toSet();
+    return incomingIds.containsAll(optimisticIds) &&
+        optimisticIds.containsAll(incomingIds);
   }
 }
 
