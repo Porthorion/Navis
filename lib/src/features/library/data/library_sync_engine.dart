@@ -2045,7 +2045,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
           (row) => SongsTableCompanion.insert(
             id: row.id,
             title: row.title,
-            albumId: Value(row.albumId ?? defaultAlbumId),
+            albumId: Value(defaultAlbumId ?? row.albumId),
             artistId: Value(
               _sanitizeArtistId(
                 artistId: row.artistId,

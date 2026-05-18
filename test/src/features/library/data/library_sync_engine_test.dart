@@ -285,6 +285,41 @@ void main() {
     );
 
     test(
+      'album detail hydration binds child songs to the fetched album id',
+      () async {
+        await saveSession();
+        api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
+        api.fastPathPages[0] = const <Album>[
+          Album(
+            id: 'album-1',
+            name: 'Album 1',
+            artist: 'Artist 1',
+            artistId: 'artist-1',
+          ),
+        ];
+        api.albumDetails['album-1'] = const Album(
+          id: 'album-1',
+          name: 'Album 1',
+          songs: <Song>[
+            Song(
+              id: 'song-1',
+              title: 'Song 1',
+              albumId: 'missing-album-id',
+              artistId: 'artist-1',
+            ),
+          ],
+        );
+
+        final state = await engine.syncNow(forceFull: true);
+        final songRows = await database.select(database.songsTable).get();
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(songRows.single.albumId, 'album-1');
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'fast-path metadata sync emits incremental album discovery progress',
       () async {
         await saveSession();
