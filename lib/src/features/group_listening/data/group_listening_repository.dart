@@ -49,6 +49,7 @@ class GroupListeningCapabilityDiscovery {
     required this.websocketPath,
     required this.heartbeatInterval,
     required this.memberStaleTimeout,
+    this.capabilities = const <String>{},
   });
 
   final String service;
@@ -61,10 +62,20 @@ class GroupListeningCapabilityDiscovery {
   final String websocketPath;
   final Duration heartbeatInterval;
   final Duration memberStaleTimeout;
+  final Set<String> capabilities;
 
   bool get supportsCurrentProtocol =>
-      latestProtocolVersion == voyageProtocolVersion &&
-      supportedProtocolVersions.contains(voyageProtocolVersion);
+      (latestProtocolVersion == voyageProtocolVersion &&
+          supportedProtocolVersions.contains(voyageProtocolVersion)) ||
+      supportsReplayResume;
+
+  bool get supportsReplayResume =>
+      supportedProtocolVersions.contains(voyageProtocolVersionV1Alpha2) &&
+      capabilities.contains(voyageReplayResumeCapability);
+
+  String get preferredProtocolVersion => supportsReplayResume
+      ? voyageProtocolVersionV1Alpha2
+      : voyageProtocolVersion;
 }
 
 @immutable
@@ -104,6 +115,7 @@ class GroupListeningSessionRuntimeContext {
     required this.accessToken,
     required this.accessTokenExpiresAt,
     required this.rejoinToken,
+    this.protocolVersion = voyageProtocolVersion,
   });
 
   final String roomId;
@@ -115,6 +127,7 @@ class GroupListeningSessionRuntimeContext {
   final String accessToken;
   final DateTime accessTokenExpiresAt;
   final String rejoinToken;
+  final String protocolVersion;
 }
 
 @immutable
@@ -129,6 +142,8 @@ class GroupListeningStoredSession {
     required this.rejoinToken,
     required this.client,
     this.lastAppliedRoomVersion = 0,
+    this.lastAppliedEventId = 0,
+    this.protocolVersion = voyageProtocolVersion,
   });
 
   final String roomId;
@@ -140,12 +155,16 @@ class GroupListeningStoredSession {
   final String rejoinToken;
   final GroupListeningClientDescriptor client;
   final int lastAppliedRoomVersion;
+  final int lastAppliedEventId;
+  final String protocolVersion;
 
   GroupListeningStoredSession copyWith({
     Uri? voyageBaseUrl,
     int? authVersion,
     String? rejoinToken,
     int? lastAppliedRoomVersion,
+    int? lastAppliedEventId,
+    String? protocolVersion,
   }) {
     return GroupListeningStoredSession(
       roomId: roomId,
@@ -158,6 +177,8 @@ class GroupListeningStoredSession {
       client: client,
       lastAppliedRoomVersion:
           lastAppliedRoomVersion ?? this.lastAppliedRoomVersion,
+      lastAppliedEventId: lastAppliedEventId ?? this.lastAppliedEventId,
+      protocolVersion: protocolVersion ?? this.protocolVersion,
     );
   }
 }
@@ -275,10 +296,16 @@ class GroupListeningTransportConnectRequest {
   const GroupListeningTransportConnectRequest({
     required this.session,
     required this.lastAppliedRoomVersion,
+    this.lastAppliedEventId = 0,
+    this.lastAppliedQueueVersion = 0,
+    this.lastAppliedPresenceVersion = 0,
   });
 
   final GroupListeningSessionRuntimeContext session;
   final int lastAppliedRoomVersion;
+  final int lastAppliedEventId;
+  final int lastAppliedQueueVersion;
+  final int lastAppliedPresenceVersion;
 }
 
 abstract class GroupListeningOutboundTransportMessage {
@@ -361,6 +388,37 @@ class GroupListeningConnectionWelcomeMessage
   final Duration heartbeatInterval;
   final Duration memberStaleTimeout;
   final DateTime serverTime;
+}
+
+class GroupListeningConnectionReadyMessage
+    extends GroupListeningTransportMessage {
+  const GroupListeningConnectionReadyMessage({
+    required this.clientConnectionId,
+    required this.resumeStatus,
+    required this.serverTime,
+    required this.latestEventId,
+    required this.minAvailableEventId,
+    required this.roomVersion,
+    required this.queueVersion,
+    required this.presenceVersion,
+    required this.authVersion,
+    required this.heartbeatInterval,
+    required this.memberStaleTimeout,
+  });
+
+  final String clientConnectionId;
+  final String resumeStatus;
+  final DateTime serverTime;
+  final int latestEventId;
+  final int minAvailableEventId;
+  final int roomVersion;
+  final int queueVersion;
+  final int presenceVersion;
+  final int authVersion;
+  final Duration heartbeatInterval;
+  final Duration memberStaleTimeout;
+
+  bool get requiresSnapshot => resumeStatus == 'snapshot_required';
 }
 
 class GroupListeningRoomSnapshotMessage extends GroupListeningTransportMessage {
@@ -583,7 +641,7 @@ class VoyageGroupListeningHttpClient implements GroupListeningHttpClient {
         'rooms',
       ]),
       body: <String, Object?>{
-        'protocol_version': voyageProtocolVersion,
+        'protocol_version': request.configuration.protocolVersion,
         'client': _clientPayload(request.client),
         'member': <String, Object?>{
           'display_name': request.configuration.displayName,
@@ -635,6 +693,7 @@ class VoyageGroupListeningHttpClient implements GroupListeningHttpClient {
       memberStaleTimeout: Duration(
         milliseconds: _intValue(data['member_stale_timeout_ms']),
       ),
+      capabilities: _capabilitySetFromWire(data['capabilities']),
     );
     _ensureDiscoverySupportsCurrentProtocol(discovery);
     return discovery;
@@ -652,6 +711,7 @@ class VoyageGroupListeningHttpClient implements GroupListeningHttpClient {
         'rooms',
       ]),
       includeProtocolHeader: true,
+      protocolVersion: configuration.protocolVersion,
       sourceServerFingerprint: configuration.sourceServerFingerprint,
       fallbackMessage: 'Unable to load available Voyage rooms.',
       fallbackCode: GroupListeningErrorCode.transportUnavailable,
@@ -675,6 +735,7 @@ class VoyageGroupListeningHttpClient implements GroupListeningHttpClient {
       ]),
       accessToken: session.accessToken,
       includeProtocolHeader: true,
+      protocolVersion: session.protocolVersion,
       fallbackMessage: 'Unable to refresh Voyage room snapshot.',
       fallbackCode: GroupListeningErrorCode.transportUnavailable,
     );
@@ -703,7 +764,7 @@ class VoyageGroupListeningHttpClient implements GroupListeningHttpClient {
         'join',
       ]),
       body: <String, Object?>{
-        'protocol_version': voyageProtocolVersion,
+        'protocol_version': configuration.protocolVersion,
         'client': _clientPayload(client),
         'member': <String, Object?>{
           'display_name': configuration.displayName,
@@ -733,7 +794,7 @@ class VoyageGroupListeningHttpClient implements GroupListeningHttpClient {
         'join',
       ]),
       body: <String, Object?>{
-        'protocol_version': voyageProtocolVersion,
+        'protocol_version': request.configuration.protocolVersion,
         'invite_code': request.inviteCode,
         if (request.pinCode != null && request.pinCode!.isNotEmpty)
           'pin_code': request.pinCode,
@@ -769,6 +830,7 @@ class VoyageGroupListeningHttpClient implements GroupListeningHttpClient {
       ]),
       accessToken: session.accessToken,
       includeProtocolHeader: true,
+      protocolVersion: session.protocolVersion,
       body: <String, Object?>{
         if (lastAppliedRoomVersion != null)
           'last_applied_room_version': lastAppliedRoomVersion,
@@ -800,6 +862,7 @@ class VoyageGroupListeningHttpClient implements GroupListeningHttpClient {
       ]),
       accessToken: session.accessToken,
       includeProtocolHeader: true,
+      protocolVersion: session.protocolVersion,
       body: <String, Object?>{
         if (expectedRoomVersion != null)
           'expected_room_version': expectedRoomVersion,
@@ -831,6 +894,7 @@ class VoyageGroupListeningHttpClient implements GroupListeningHttpClient {
       ]),
       accessToken: session.accessToken,
       includeProtocolHeader: true,
+      protocolVersion: session.protocolVersion,
       body: <String, Object?>{
         if (expectedRoomVersion != null)
           'expected_room_version': expectedRoomVersion,
@@ -862,13 +926,15 @@ class VoyageGroupListeningHttpClient implements GroupListeningHttpClient {
         ],
       ),
       body: <String, Object?>{
-        'protocol_version': voyageProtocolVersion,
+        'protocol_version': request.configuration.protocolVersion,
         'rejoin_token': request.session.rejoinToken,
         'client': _clientPayload(request.session.client),
         'source_server_fingerprint':
             request.configuration.sourceServerFingerprint,
         if (request.session.lastAppliedRoomVersion > 0)
           'last_applied_room_version': request.session.lastAppliedRoomVersion,
+        if (request.session.lastAppliedEventId > 0)
+          'last_event_id': request.session.lastAppliedEventId,
       },
       fallbackMessage: 'Unable to rejoin Voyage room.',
       fallbackCode: GroupListeningErrorCode.transportUnavailable,
@@ -889,6 +955,7 @@ class VoyageGroupListeningHttpClient implements GroupListeningHttpClient {
     String? accessToken,
     bool includeProtocolHeader = false,
     String? sourceServerFingerprint,
+    String protocolVersion = voyageProtocolVersion,
   }) async {
     Response<Object?> response;
     try {
@@ -900,7 +967,7 @@ class VoyageGroupListeningHttpClient implements GroupListeningHttpClient {
           validateStatus: (_) => true,
           headers: <String, Object?>{
             if (includeProtocolHeader)
-              'X-Voyage-Protocol-Version': voyageProtocolVersion,
+              'X-Voyage-Protocol-Version': protocolVersion,
             if (sourceServerFingerprint != null)
               'X-Voyage-Source-Server-Fingerprint': sourceServerFingerprint,
             if (accessToken != null)
@@ -952,8 +1019,23 @@ class IOWebSocketGroupListeningRealtimeTransportClient
           HttpHeaders.authorizationHeader:
               'Bearer ${request.session.accessToken}',
         },
-        protocols: const <String>[voyageProtocolVersion],
+        protocols: <String>[request.session.protocolVersion],
       );
+      if (request.session.protocolVersion == voyageProtocolVersionV1Alpha2) {
+        socket.add(
+          jsonEncode(<String, Object?>{
+            'type': 'connection.init',
+            'data': <String, Object?>{
+              'last_event_id': request.lastAppliedEventId,
+              'last_applied_room_version': request.lastAppliedRoomVersion,
+              'last_applied_queue_version': request.lastAppliedQueueVersion,
+              'last_applied_presence_version':
+                  request.lastAppliedPresenceVersion,
+              'client_time_ms': DateTime.now().toUtc().millisecondsSinceEpoch,
+            },
+          }),
+        );
+      }
       return _IOWebSocketGroupListeningRealtimeConnection(socket);
     } on WebSocketException catch (error) {
       throw GroupListeningRepositoryException(
@@ -1072,6 +1154,34 @@ class _IOWebSocketGroupListeningRealtimeConnection
                 milliseconds: _intValue(payload['member_stale_timeout_ms']),
               ),
               serverTime: _dateTimeFromEpochMs(payload['server_time_ms']),
+            ),
+          );
+          return;
+        case 'connection.ready':
+          final payload = _mapValue(data);
+          final heartbeatPolicy = _mapValue(payload['heartbeat_policy']);
+          _messagesController.add(
+            GroupListeningConnectionReadyMessage(
+              clientConnectionId: _stringValue(
+                payload['client_connection_id'],
+              ),
+              resumeStatus: _stringValue(payload['resume_status']),
+              serverTime: _dateTimeFromEpochMs(payload['server_time_ms']),
+              latestEventId: _intValue(payload['latest_event_id']),
+              minAvailableEventId:
+                  _nullableIntValue(payload['min_available_event_id']) ?? 0,
+              roomVersion: _intValue(payload['room_version']),
+              queueVersion: _intValue(payload['queue_version']),
+              presenceVersion: _intValue(payload['presence_version']),
+              authVersion: _intValue(payload['auth_version']),
+              heartbeatInterval: Duration(
+                milliseconds: _intValue(heartbeatPolicy['interval_ms']),
+              ),
+              memberStaleTimeout: Duration(
+                milliseconds: _intValue(
+                  heartbeatPolicy['member_stale_timeout_ms'],
+                ),
+              ),
             ),
           );
           return;
@@ -1539,6 +1649,8 @@ Map<String, dynamic> _storedSessionToJson(GroupListeningStoredSession session) {
     'source_server_fingerprint': session.sourceServerFingerprint,
     'rejoin_token': session.rejoinToken,
     'last_applied_room_version': session.lastAppliedRoomVersion,
+    'last_applied_event_id': session.lastAppliedEventId,
+    'protocol_version': session.protocolVersion,
     'client': <String, dynamic>{
       'app_version': session.client.appVersion,
       'platform': session.client.platform,
@@ -1560,6 +1672,9 @@ GroupListeningStoredSession _storedSessionFromJson(Map<String, dynamic> json) {
     sourceServerFingerprint: _stringValue(json['source_server_fingerprint']),
     rejoinToken: _stringValue(json['rejoin_token']),
     lastAppliedRoomVersion: _intValue(json['last_applied_room_version']),
+    lastAppliedEventId: _nullableIntValue(json['last_applied_event_id']) ?? 0,
+    protocolVersion:
+        _nullableStringValue(json['protocol_version']) ?? voyageProtocolVersion,
     client: GroupListeningClientDescriptor(
       appVersion: _stringValue(client['app_version']),
       platform: _stringValue(client['platform']),
@@ -1674,6 +1789,9 @@ GroupListeningJoinResponse _joinResponseFromData(
       data['access_token_expires_at_ms'],
     ),
     rejoinToken: rejoinToken,
+    protocolVersion: _stringValue(
+      _mapValue(data['room_snapshot'])['protocol_version'],
+    ),
   );
   return GroupListeningJoinResponse(
     runtimeContext: runtimeContext,
@@ -1764,6 +1882,7 @@ GroupListeningRoomState _roomStateFromJson(
     roomMode: _roomModeFromWire(json['room_mode']),
     requiresPin: _boolValue(json['requires_pin']),
     roomVersion: roomVersion,
+    latestEventId: _nullableIntValue(json['latest_event_id']) ?? 0,
     presenceVersion: _intValue(json['presence_version']),
     authVersion: authVersion,
     serverTime: _dateTimeFromEpochMs(json['server_time_ms']),
@@ -1805,6 +1924,7 @@ GroupListeningRoomEvent _roomEventFromJson(Map<String, dynamic> json) {
   final causedBy = _nullableMapValue(json['caused_by']);
   return GroupListeningRoomEvent(
     eventId: _stringValue(json['event_id']),
+    eventCursor: _nullableIntValue(json['event_id']),
     eventType: eventType,
     roomId: _stringValue(json['room_id']),
     previousRoomVersion: _intValue(json['previous_room_version']),
@@ -2319,7 +2439,8 @@ GroupListeningRepositoryException _protocolFormatFailure(String message) {
 
 void _validateProtocolVersion(Object? value) {
   final protocolVersion = _nullableStringValue(value) ?? '';
-  if (protocolVersion == voyageProtocolVersion) {
+  if (protocolVersion == voyageProtocolVersion ||
+      protocolVersion == voyageProtocolVersionV1Alpha2) {
     return;
   }
   throw GroupListeningRepositoryException(

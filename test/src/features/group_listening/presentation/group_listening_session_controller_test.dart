@@ -46,6 +46,7 @@ class _FakeGroupListeningRepository implements GroupListeningRepository {
   Object? closeError;
   Object? rotateInviteError;
   int connectCalls = 0;
+  GroupListeningTransportConnectRequest? lastConnectRequest;
   int leaveCalls = 0;
   int rejoinCalls = 0;
   int snapshotCalls = 0;
@@ -58,6 +59,7 @@ class _FakeGroupListeningRepository implements GroupListeningRepository {
     GroupListeningTransportConnectRequest request,
   ) async {
     connectCalls++;
+    lastConnectRequest = request;
     if (connectError != null) {
       throw connectError!;
     }
@@ -421,6 +423,61 @@ void main() {
       expect(state.connection.clientConnectionId, 'conn-1');
     });
 
+    test('connects with stored v1alpha2 replay cursor state', () async {
+      final repository = _FakeGroupListeningRepository();
+      final connection = _FakeRealtimeConnection();
+      final fingerprint = computeSourceServerFingerprint(activeServer.url);
+      repository.discovery = const GroupListeningCapabilityDiscovery(
+        service: 'voyage',
+        apiVersion: 'v1',
+        serverVersion: '1.0.0',
+        buildCommit: 'test',
+        buildTime: 'test',
+        supportedProtocolVersions: <String>[
+          voyageProtocolVersion,
+          voyageProtocolVersionV1Alpha2,
+        ],
+        latestProtocolVersion: voyageProtocolVersionV1Alpha2,
+        websocketPath: '/api/v1/rooms/ws',
+        heartbeatInterval: Duration(seconds: 10),
+        memberStaleTimeout: Duration(seconds: 45),
+        capabilities: <String>{voyageReplayResumeCapability},
+      );
+      repository.joinResponse = GroupListeningJoinResponse(
+        runtimeContext: _runtimeContext(
+          fingerprint: fingerprint,
+          protocolVersion: voyageProtocolVersionV1Alpha2,
+        ),
+        roomSnapshot: _roomState(
+          fingerprint: fingerprint,
+          roomVersion: 3,
+          latestEventId: 7,
+          protocolVersion: voyageProtocolVersionV1Alpha2,
+        ),
+      );
+      repository.connection = connection;
+
+      final container = createContainer(repository: repository);
+      final controller = container.read(
+        groupListeningSessionControllerProvider.notifier,
+      );
+
+      await controller.joinRoom(
+        inviteCode: 'INVITE',
+        client: client,
+        connectAfterJoin: false,
+      );
+      await controller.connect();
+
+      final request = repository.lastConnectRequest;
+      expect(request, isNotNull);
+      expect(request!.session.protocolVersion, voyageProtocolVersionV1Alpha2);
+      expect(request.lastAppliedRoomVersion, 3);
+      expect(request.lastAppliedEventId, 7);
+      expect(request.lastAppliedQueueVersion, 3);
+      expect(request.lastAppliedPresenceVersion, 1);
+    });
+
     test(
       'connects and marks snapshot required when a room version gap appears',
       () async {
@@ -496,6 +553,133 @@ void main() {
         final state = container.read(groupListeningSessionControllerProvider);
         expect(state.snapshotRequired, isTrue);
         expect(state.failure?.code, GroupListeningErrorCode.snapshotRequired);
+      },
+    );
+
+    test('uses event cursors as the v1alpha2 replay ordering signal', () async {
+      final repository = _FakeGroupListeningRepository();
+      final fingerprint = computeSourceServerFingerprint(activeServer.url);
+      repository.joinResponse = GroupListeningJoinResponse(
+        runtimeContext: _runtimeContext(
+          fingerprint: fingerprint,
+          protocolVersion: voyageProtocolVersionV1Alpha2,
+        ),
+        roomSnapshot: _roomState(
+          fingerprint: fingerprint,
+          roomVersion: 1,
+          latestEventId: 10,
+          protocolVersion: voyageProtocolVersionV1Alpha2,
+        ),
+      );
+
+      final container = createContainer(repository: repository);
+      final controller = container.read(
+        groupListeningSessionControllerProvider.notifier,
+      );
+
+      await controller.joinRoom(
+        inviteCode: 'INVITE',
+        client: client,
+        connectAfterJoin: false,
+      );
+
+      controller.applyRealtimeEvent(
+        _roomEvent(
+          roomVersion: 5,
+          previousRoomVersion: 4,
+          eventCursor: 11,
+        ),
+      );
+
+      final state = container.read(groupListeningSessionControllerProvider);
+      expect(state.snapshotRequired, isFalse);
+      expect(state.lastAppliedEventId, 11);
+      expect(state.lastAppliedRoomVersion, 5);
+    });
+
+    test('ignores duplicate v1alpha2 replay events by event cursor', () async {
+      final repository = _FakeGroupListeningRepository();
+      final fingerprint = computeSourceServerFingerprint(activeServer.url);
+      repository.joinResponse = GroupListeningJoinResponse(
+        runtimeContext: _runtimeContext(
+          fingerprint: fingerprint,
+          protocolVersion: voyageProtocolVersionV1Alpha2,
+        ),
+        roomSnapshot: _roomState(
+          fingerprint: fingerprint,
+          roomVersion: 1,
+          latestEventId: 10,
+          protocolVersion: voyageProtocolVersionV1Alpha2,
+        ),
+      );
+
+      final container = createContainer(repository: repository);
+      final controller = container.read(
+        groupListeningSessionControllerProvider.notifier,
+      );
+
+      await controller.joinRoom(
+        inviteCode: 'INVITE',
+        client: client,
+        connectAfterJoin: false,
+      );
+
+      controller.applyRealtimeEvent(
+        _roomEvent(
+          roomVersion: 2,
+          previousRoomVersion: 1,
+          eventCursor: 10,
+        ),
+      );
+
+      final state = container.read(groupListeningSessionControllerProvider);
+      expect(state.snapshotRequired, isFalse);
+      expect(state.lastAppliedEventId, 10);
+      expect(state.lastAppliedRoomVersion, 1);
+    });
+
+    test(
+      'marks snapshot required when a v1alpha2 event cursor gap appears',
+      () async {
+        final repository = _FakeGroupListeningRepository();
+        final fingerprint = computeSourceServerFingerprint(activeServer.url);
+        repository.joinResponse = GroupListeningJoinResponse(
+          runtimeContext: _runtimeContext(
+            fingerprint: fingerprint,
+            protocolVersion: voyageProtocolVersionV1Alpha2,
+          ),
+          roomSnapshot: _roomState(
+            fingerprint: fingerprint,
+            roomVersion: 1,
+            latestEventId: 10,
+            protocolVersion: voyageProtocolVersionV1Alpha2,
+          ),
+        );
+
+        final container = createContainer(repository: repository);
+        final controller = container.read(
+          groupListeningSessionControllerProvider.notifier,
+        );
+
+        await controller.joinRoom(
+          inviteCode: 'INVITE',
+          client: client,
+          connectAfterJoin: false,
+        );
+
+        controller.applyRealtimeEvent(
+          _roomEvent(
+            roomVersion: 2,
+            previousRoomVersion: 1,
+            eventCursor: 12,
+          ),
+        );
+
+        final state = container.read(groupListeningSessionControllerProvider);
+        expect(state.snapshotRequired, isTrue);
+        expect(state.failure?.code, GroupListeningErrorCode.snapshotRequired);
+        expect(state.failure!.details['last_applied_event_id'], 10);
+        expect(state.failure!.details['incoming_event_id'], 12);
       },
     );
 
@@ -1482,6 +1666,7 @@ void main() {
 GroupListeningSessionRuntimeContext _runtimeContext({
   required String fingerprint,
   GroupListeningMemberRole role = GroupListeningMemberRole.host,
+  String protocolVersion = voyageProtocolVersion,
 }) {
   final memberId = role == GroupListeningMemberRole.host
       ? 'member-1'
@@ -1496,6 +1681,7 @@ GroupListeningSessionRuntimeContext _runtimeContext({
     accessToken: 'access-token',
     accessTokenExpiresAt: DateTime.now().toUtc().add(const Duration(hours: 1)),
     rejoinToken: 'rejoin-token',
+    protocolVersion: protocolVersion,
   );
 }
 
@@ -1504,16 +1690,19 @@ GroupListeningRoomState _roomState({
   required int roomVersion,
   GroupListeningMemberRole selfRole = GroupListeningMemberRole.host,
   bool selfCanControl = true,
+  int latestEventId = 0,
+  String protocolVersion = voyageProtocolVersion,
 }) {
   final joinedAt = DateTime.utc(2026, 4, 21, 12);
   final selfMemberId = selfRole == GroupListeningMemberRole.host
       ? 'member-1'
       : 'member-2';
   return GroupListeningRoomState(
-    protocolVersion: voyageProtocolVersion,
+    protocolVersion: protocolVersion,
     roomId: 'room-1',
     roomStatus: GroupListeningRoomStatus.active,
     roomVersion: roomVersion,
+    latestEventId: latestEventId,
     presenceVersion: 1,
     authVersion: 1,
     serverTime: joinedAt,
@@ -1579,10 +1768,12 @@ GroupListeningRoomState _roomState({
 GroupListeningRoomEvent _roomEvent({
   required int roomVersion,
   required int previousRoomVersion,
+  int? eventCursor,
 }) {
   final eventTime = DateTime.utc(2026, 4, 21, 12, 0, roomVersion);
   return GroupListeningRoomEvent(
-    eventId: 'event-$roomVersion',
+    eventId: eventCursor?.toString() ?? 'event-$roomVersion',
+    eventCursor: eventCursor,
     eventType: GroupListeningRoomEventType.seek,
     roomId: 'room-1',
     previousRoomVersion: previousRoomVersion,

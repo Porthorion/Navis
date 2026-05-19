@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 
 const String voyageProtocolVersion = 'voyage-sync.v1alpha1';
+const String voyageProtocolVersionV1Alpha2 = 'voyage-sync.v1alpha2';
+const String voyageReplayResumeCapability = 'replay_resume';
 
 enum GroupListeningAvailability { disabled, unconfigured, ready }
 
@@ -96,6 +98,7 @@ class GroupListeningClientConfiguration {
     this.deviceLabel,
     required this.autoFollowHost,
     this.allowInsecureTransport = false,
+    this.protocolVersion = voyageProtocolVersion,
   });
 
   final Uri voyageBaseUrl;
@@ -105,6 +108,7 @@ class GroupListeningClientConfiguration {
   final String? deviceLabel;
   final bool autoFollowHost;
   final bool allowInsecureTransport;
+  final String protocolVersion;
 
   bool get usesSecureTransport => voyageBaseUrl.scheme == 'https';
 
@@ -124,7 +128,8 @@ class GroupListeningClientConfiguration {
           displayName == other.displayName &&
           deviceLabel == other.deviceLabel &&
           autoFollowHost == other.autoFollowHost &&
-          allowInsecureTransport == other.allowInsecureTransport;
+          allowInsecureTransport == other.allowInsecureTransport &&
+          protocolVersion == other.protocolVersion;
 
   @override
   int get hashCode => Object.hash(
@@ -135,6 +140,7 @@ class GroupListeningClientConfiguration {
     deviceLabel,
     autoFollowHost,
     allowInsecureTransport,
+    protocolVersion,
   );
 }
 
@@ -575,6 +581,7 @@ class GroupListeningPlaybackAnchor {
 class GroupListeningRoomEvent {
   const GroupListeningRoomEvent({
     required this.eventId,
+    this.eventCursor,
     required this.eventType,
     required this.roomId,
     required this.previousRoomVersion,
@@ -593,6 +600,7 @@ class GroupListeningRoomEvent {
   });
 
   final String eventId;
+  final int? eventCursor;
   final GroupListeningRoomEventType eventType;
   final String roomId;
   final int previousRoomVersion;
@@ -619,6 +627,7 @@ class GroupListeningRoomState {
     this.roomMode = GroupListeningRoomMode.collaborative,
     this.requiresPin = false,
     required this.roomVersion,
+    this.latestEventId = 0,
     required this.presenceVersion,
     required this.authVersion,
     required this.serverTime,
@@ -636,6 +645,7 @@ class GroupListeningRoomState {
   final GroupListeningRoomMode roomMode;
   final bool requiresPin;
   final int roomVersion;
+  final int latestEventId;
   final int presenceVersion;
   final int authVersion;
   final DateTime serverTime;
@@ -676,6 +686,7 @@ class GroupListeningRoomState {
     GroupListeningRoomMode? roomMode,
     bool? requiresPin,
     int? roomVersion,
+    int? latestEventId,
     int? presenceVersion,
     int? authVersion,
     DateTime? serverTime,
@@ -693,6 +704,7 @@ class GroupListeningRoomState {
       roomMode: roomMode ?? this.roomMode,
       requiresPin: requiresPin ?? this.requiresPin,
       roomVersion: roomVersion ?? this.roomVersion,
+      latestEventId: latestEventId ?? this.latestEventId,
       presenceVersion: presenceVersion ?? this.presenceVersion,
       authVersion: authVersion ?? this.authVersion,
       serverTime: serverTime ?? this.serverTime,
@@ -747,6 +759,7 @@ class GroupListeningRoomState {
     return copyWith(
       roomStatus: nextRoomStatus,
       roomVersion: event.roomVersion,
+      latestEventId: event.eventCursor ?? latestEventId,
       presenceVersion: event.presenceVersion,
       authVersion: event.authVersion,
       hostMemberId: nextHostMemberId,
@@ -768,6 +781,7 @@ class GroupListeningRoomState {
           roomMode == other.roomMode &&
           requiresPin == other.requiresPin &&
           roomVersion == other.roomVersion &&
+          latestEventId == other.latestEventId &&
           presenceVersion == other.presenceVersion &&
           authVersion == other.authVersion &&
           serverTime == other.serverTime &&
@@ -786,6 +800,7 @@ class GroupListeningRoomState {
     roomMode,
     requiresPin,
     roomVersion,
+    latestEventId,
     presenceVersion,
     authVersion,
     serverTime,
@@ -826,6 +841,7 @@ class GroupListeningSessionState {
     this.configuration,
     this.room,
     this.lastAppliedRoomVersion = 0,
+    this.lastAppliedEventId = 0,
     this.snapshotRequired = false,
     this.lastSnapshotAt,
     this.activeInviteCode,
@@ -839,6 +855,7 @@ class GroupListeningSessionState {
       configuration = null,
       room = null,
       lastAppliedRoomVersion = 0,
+      lastAppliedEventId = 0,
       snapshotRequired = false,
       lastSnapshotAt = null,
       activeInviteCode = null,
@@ -850,6 +867,7 @@ class GroupListeningSessionState {
   final GroupListeningClientConfiguration? configuration;
   final GroupListeningRoomState? room;
   final int lastAppliedRoomVersion;
+  final int lastAppliedEventId;
   final bool snapshotRequired;
   final DateTime? lastSnapshotAt;
   final String? activeInviteCode;
@@ -870,6 +888,7 @@ class GroupListeningSessionState {
     GroupListeningClientConfiguration? configuration,
     GroupListeningRoomState? room,
     int? lastAppliedRoomVersion,
+    int? lastAppliedEventId,
     bool? snapshotRequired,
     DateTime? lastSnapshotAt,
     GroupListeningErrorState? failure,
@@ -889,6 +908,7 @@ class GroupListeningSessionState {
       room: clearRoom ? null : room ?? this.room,
       lastAppliedRoomVersion:
           lastAppliedRoomVersion ?? this.lastAppliedRoomVersion,
+      lastAppliedEventId: lastAppliedEventId ?? this.lastAppliedEventId,
       snapshotRequired: snapshotRequired ?? this.snapshotRequired,
       lastSnapshotAt: lastSnapshotAt ?? this.lastSnapshotAt,
       activeInviteCode: clearRoom || clearActiveInviteCode
@@ -909,6 +929,7 @@ class GroupListeningSessionState {
           configuration == other.configuration &&
           room == other.room &&
           lastAppliedRoomVersion == other.lastAppliedRoomVersion &&
+          lastAppliedEventId == other.lastAppliedEventId &&
           snapshotRequired == other.snapshotRequired &&
           lastSnapshotAt == other.lastSnapshotAt &&
           activeInviteCode == other.activeInviteCode &&
@@ -922,6 +943,7 @@ class GroupListeningSessionState {
     configuration,
     room,
     lastAppliedRoomVersion,
+    lastAppliedEventId,
     snapshotRequired,
     lastSnapshotAt,
     activeInviteCode,

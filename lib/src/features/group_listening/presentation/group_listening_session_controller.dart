@@ -193,8 +193,9 @@ Future<GroupListeningResolvedVoyageServer?> _resolveBestBundledVoyageServer(
 
 GroupListeningClientConfiguration _configurationWithVoyageBaseUrl(
   GroupListeningClientConfiguration configuration,
-  Uri voyageBaseUrl,
-) {
+  Uri voyageBaseUrl, {
+  String? protocolVersion,
+}) {
   return GroupListeningClientConfiguration(
     voyageBaseUrl: voyageBaseUrl,
     sourceServerOrigin: configuration.sourceServerOrigin,
@@ -203,6 +204,7 @@ GroupListeningClientConfiguration _configurationWithVoyageBaseUrl(
     deviceLabel: configuration.deviceLabel,
     autoFollowHost: configuration.autoFollowHost,
     allowInsecureTransport: voyageBaseUrl.scheme == 'http',
+    protocolVersion: protocolVersion ?? configuration.protocolVersion,
   );
 }
 
@@ -647,6 +649,9 @@ class GroupListeningSessionController
             GroupListeningTransportConnectRequest(
               session: freshSession,
               lastAppliedRoomVersion: state.lastAppliedRoomVersion,
+              lastAppliedEventId: state.lastAppliedEventId,
+              lastAppliedQueueVersion: state.room?.queue.queueVersion ?? 0,
+              lastAppliedPresenceVersion: state.room?.presenceVersion ?? 0,
             ),
           );
       _connection = connection;
@@ -751,6 +756,7 @@ class GroupListeningSessionController
       lastAppliedRoomVersion: preserveSession
           ? state.lastAppliedRoomVersion
           : 0,
+      lastAppliedEventId: preserveSession ? state.lastAppliedEventId : 0,
       snapshotRequired: preserveSession ? state.snapshotRequired : false,
     );
     return state;
@@ -868,6 +874,7 @@ class GroupListeningSessionController
             serverTime: result.closedAt,
           ),
           lastAppliedRoomVersion: result.roomVersion,
+          lastAppliedEventId: latestRoom.latestEventId,
           snapshotRequired: false,
           clearActiveInviteCode: true,
           clearFailure: true,
@@ -915,6 +922,7 @@ class GroupListeningSessionController
           room: latestRoom,
           clearRoom: latestRoom == null,
           lastAppliedRoomVersion: latestRoom?.roomVersion ?? 0,
+          lastAppliedEventId: latestRoom?.latestEventId ?? 0,
           snapshotRequired: false,
           clearActiveInviteCode: true,
           clearFailure: true,
@@ -962,6 +970,7 @@ class GroupListeningSessionController
       state = state.copyWith(
         room: state.room?.copyWith(roomVersion: result.roomVersion),
         lastAppliedRoomVersion: result.roomVersion,
+        lastAppliedEventId: state.lastAppliedEventId,
         activeInviteCode: result.inviteCode,
         clearFailure: true,
       );
@@ -1091,6 +1100,7 @@ class GroupListeningSessionController
               configuration: configuration,
               session: storedSession.copyWith(
                 lastAppliedRoomVersion: state.lastAppliedRoomVersion,
+                lastAppliedEventId: state.lastAppliedEventId,
               ),
             ),
           );
@@ -1253,6 +1263,7 @@ class GroupListeningSessionController
           : state.connection,
       room: snapshot,
       lastAppliedRoomVersion: snapshot.roomVersion,
+      lastAppliedEventId: snapshot.latestEventId,
       snapshotRequired: false,
       lastSnapshotAt: DateTime.now(),
       clearActiveInviteCode:
@@ -1267,8 +1278,9 @@ class GroupListeningSessionController
       unawaited(ref.read(groupListeningSessionCredentialStoreProvider).clear());
     }
     unawaited(
-      _persistLastAppliedVersion(
-        snapshot.roomVersion,
+      _persistLastAppliedCursor(
+        roomVersion: snapshot.roomVersion,
+        eventId: snapshot.latestEventId,
         expectedSession: _runtimeSession,
       ),
     );
@@ -1286,11 +1298,32 @@ class GroupListeningSessionController
         ),
       );
     }
-    if (event.roomVersion <= state.lastAppliedRoomVersion) {
+    final eventCursor = event.eventCursor;
+    if (eventCursor != null) {
+      if (eventCursor <= state.lastAppliedEventId) {
+        return state;
+      }
+      if (eventCursor != state.lastAppliedEventId + 1) {
+        return _requestSnapshotRecovery(
+          'room-event-cursor-gap',
+          GroupListeningErrorState(
+            code: GroupListeningErrorCode.snapshotRequired,
+            message: 'Voyage event cursor gap detected.',
+            retryable: true,
+            roomVersion: event.roomVersion,
+            details: <String, Object?>{
+              'last_applied_event_id': state.lastAppliedEventId,
+              'incoming_event_id': eventCursor,
+            },
+          ),
+        );
+      }
+    } else if (event.roomVersion <= state.lastAppliedRoomVersion) {
       return state;
     }
-    if (event.previousRoomVersion != state.lastAppliedRoomVersion ||
-        event.roomVersion != state.lastAppliedRoomVersion + 1) {
+    if (eventCursor == null &&
+        (event.previousRoomVersion != state.lastAppliedRoomVersion ||
+            event.roomVersion != state.lastAppliedRoomVersion + 1)) {
       return _requestSnapshotRecovery(
         'room-event-gap',
         GroupListeningErrorState(
@@ -1309,13 +1342,15 @@ class GroupListeningSessionController
     state = state.copyWith(
       room: room.applyEvent(event),
       lastAppliedRoomVersion: event.roomVersion,
+      lastAppliedEventId: eventCursor ?? state.lastAppliedEventId,
       snapshotRequired: false,
       clearFailure: true,
     );
     _clearAckLagRecovery(upToRoomVersion: event.roomVersion);
     unawaited(
-      _persistLastAppliedVersion(
-        event.roomVersion,
+      _persistLastAppliedCursor(
+        roomVersion: event.roomVersion,
+        eventId: eventCursor ?? state.lastAppliedEventId,
         expectedSession: _runtimeSession,
       ),
     );
@@ -1447,10 +1482,6 @@ class GroupListeningSessionController
   Future<GroupListeningSessionRuntimeContext> _rejoinCurrentSession(
     GroupListeningSessionRuntimeContext expectedSession,
   ) async {
-    final configuration = _configurationWithVoyageBaseUrl(
-      _requireConfiguration(),
-      expectedSession.voyageBaseUrl,
-    );
     final store = ref.read(groupListeningSessionCredentialStoreProvider);
     final storedSession = await store.read();
     if (storedSession == null ||
@@ -1462,6 +1493,11 @@ class GroupListeningSessionController
         ),
       );
     }
+    final configuration = _configurationWithVoyageBaseUrl(
+      _requireConfiguration(),
+      expectedSession.voyageBaseUrl,
+      protocolVersion: storedSession.protocolVersion,
+    );
     final result = await ref
         .read(groupListeningRepositoryProvider)
         .rejoinRoom(
@@ -1469,6 +1505,7 @@ class GroupListeningSessionController
             configuration: configuration,
             session: storedSession.copyWith(
               lastAppliedRoomVersion: state.lastAppliedRoomVersion,
+              lastAppliedEventId: state.lastAppliedEventId,
             ),
           ),
         );
@@ -1489,6 +1526,8 @@ class GroupListeningSessionController
         rejoinToken: result.runtimeContext.rejoinToken,
         client: storedSession.client,
         lastAppliedRoomVersion: result.roomSnapshot.roomVersion,
+        lastAppliedEventId: result.roomSnapshot.latestEventId,
+        protocolVersion: result.runtimeContext.protocolVersion,
       ),
     );
     return result.runtimeContext;
@@ -1510,6 +1549,8 @@ class GroupListeningSessionController
       rejoinToken: result.runtimeContext.rejoinToken,
       client: client,
       lastAppliedRoomVersion: result.roomSnapshot.roomVersion,
+      lastAppliedEventId: result.roomSnapshot.latestEventId,
+      protocolVersion: result.runtimeContext.protocolVersion,
     );
     applySnapshot(result.roomSnapshot);
     state = state.copyWith(
@@ -1531,32 +1572,36 @@ class GroupListeningSessionController
 
   void _handleTransportMessage(GroupListeningTransportMessage message) {
     if (message is GroupListeningConnectionWelcomeMessage) {
-      _scheduleHeartbeat(after: message.heartbeatInterval);
-      // Successful connection — cancel any pending auto-reconnect and reset
-      // the attempt counter so the next drop starts fresh.
-      _reconnectTimer?.cancel();
-      _reconnectTimer = null;
-      _reconnectAttempts = 0;
-      _clearAckLagRecovery();
-      final connectedDiscovery = _connectingDiscovery;
-      _connectingDiscovery = null;
-      final connectedSession = _runtimeSession;
-      state = state.copyWith(
-        status: GroupListeningSessionStatus.connected,
-        connection: state.connection.copyWith(
-          status: GroupListeningConnectionStatus.connected,
-          clientConnectionId: message.clientConnectionId,
-          heartbeatInterval: message.heartbeatInterval,
-          memberStaleTimeout: message.memberStaleTimeout,
-          connectedAt: DateTime.now(),
-          lastServerTime: message.serverTime,
-          connectedServerUrl: connectedSession?.voyageBaseUrl,
-          connectedServerVersion: connectedDiscovery?.serverVersion,
-          clearDisconnectReason: true,
-        ),
-        clearFailure: true,
+      _markTransportReady(
+        clientConnectionId: message.clientConnectionId,
+        heartbeatInterval: message.heartbeatInterval,
+        memberStaleTimeout: message.memberStaleTimeout,
+        serverTime: message.serverTime,
       );
-      _scheduleServerUpgradeCheck();
+      return;
+    }
+    if (message is GroupListeningConnectionReadyMessage) {
+      _markTransportReady(
+        clientConnectionId: message.clientConnectionId,
+        heartbeatInterval: message.heartbeatInterval,
+        memberStaleTimeout: message.memberStaleTimeout,
+        serverTime: message.serverTime,
+      );
+      if (message.requiresSnapshot) {
+        _requestSnapshotRecovery(
+          'replay-snapshot-required',
+          GroupListeningErrorState(
+            code: GroupListeningErrorCode.snapshotRequired,
+            message: 'Voyage replay resume requires a fresh snapshot.',
+            retryable: true,
+            roomVersion: message.roomVersion,
+            details: <String, Object?>{
+              'latest_event_id': message.latestEventId,
+              'last_applied_event_id': state.lastAppliedEventId,
+            },
+          ),
+        );
+      }
       return;
     }
     if (message is GroupListeningRoomSnapshotMessage) {
@@ -1662,6 +1707,38 @@ class GroupListeningSessionController
     if (message is GroupListeningTransportErrorMessage) {
       _handleTransportFailure(message.error);
     }
+  }
+
+  void _markTransportReady({
+    required String clientConnectionId,
+    required Duration heartbeatInterval,
+    required Duration memberStaleTimeout,
+    required DateTime serverTime,
+  }) {
+    _scheduleHeartbeat(after: heartbeatInterval);
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+    _reconnectAttempts = 0;
+    _clearAckLagRecovery();
+    final connectedDiscovery = _connectingDiscovery;
+    _connectingDiscovery = null;
+    final connectedSession = _runtimeSession;
+    state = state.copyWith(
+      status: GroupListeningSessionStatus.connected,
+      connection: state.connection.copyWith(
+        status: GroupListeningConnectionStatus.connected,
+        clientConnectionId: clientConnectionId,
+        heartbeatInterval: heartbeatInterval,
+        memberStaleTimeout: memberStaleTimeout,
+        connectedAt: DateTime.now(),
+        lastServerTime: serverTime,
+        connectedServerUrl: connectedSession?.voyageBaseUrl,
+        connectedServerVersion: connectedDiscovery?.serverVersion,
+        clearDisconnectReason: true,
+      ),
+      clearFailure: true,
+    );
+    _scheduleServerUpgradeCheck();
   }
 
   void _handleTransportFailure(
@@ -1818,12 +1895,14 @@ class GroupListeningSessionController
       clearRoom: true,
       clearFailure: true,
       lastAppliedRoomVersion: 0,
+      lastAppliedEventId: 0,
       snapshotRequired: false,
     );
   }
 
-  Future<void> _persistLastAppliedVersion(
-    int roomVersion, {
+  Future<void> _persistLastAppliedCursor({
+    required int roomVersion,
+    required int eventId,
     required GroupListeningSessionRuntimeContext? expectedSession,
   }) async {
     if (expectedSession == null || !_matchesRuntimeSession(expectedSession)) {
@@ -1836,7 +1915,12 @@ class GroupListeningSessionController
         !_matchesRuntimeSession(expectedSession)) {
       return;
     }
-    await store.save(current.copyWith(lastAppliedRoomVersion: roomVersion));
+    await store.save(
+      current.copyWith(
+        lastAppliedRoomVersion: roomVersion,
+        lastAppliedEventId: eventId,
+      ),
+    );
   }
 
   bool _matchesRuntimeSession(GroupListeningSessionRuntimeContext expected) {
@@ -1908,11 +1992,19 @@ class GroupListeningSessionController
           : null,
     );
     if (resolved == null) {
-      return configuration;
+      final discovery = await ref
+          .read(groupListeningRepositoryProvider)
+          .discover(configuration);
+      return _configurationWithVoyageBaseUrl(
+        configuration,
+        configuration.voyageBaseUrl,
+        protocolVersion: discovery.preferredProtocolVersion,
+      );
     }
     return _configurationWithVoyageBaseUrl(
       configuration,
       Uri.parse(resolved.option.url),
+      protocolVersion: resolved.discovery.preferredProtocolVersion,
     );
   }
 
@@ -1987,6 +2079,7 @@ class GroupListeningSessionController
       clearRoom: true,
       clearFailure: true,
       lastAppliedRoomVersion: 0,
+      lastAppliedEventId: 0,
       snapshotRequired: false,
     );
     return state;
@@ -2055,6 +2148,7 @@ class GroupListeningSessionController
       connection: const GroupListeningConnectionState.disconnected(),
       clearRoom: true,
       lastAppliedRoomVersion: 0,
+      lastAppliedEventId: 0,
       snapshotRequired: false,
       clearActiveInviteCode: true,
       failure: failure,
@@ -2247,6 +2341,9 @@ class GroupListeningSessionController
             GroupListeningTransportConnectRequest(
               session: result.runtimeContext,
               lastAppliedRoomVersion: state.lastAppliedRoomVersion,
+              lastAppliedEventId: state.lastAppliedEventId,
+              lastAppliedQueueVersion: state.room?.queue.queueVersion ?? 0,
+              lastAppliedPresenceVersion: state.room?.presenceVersion ?? 0,
             ),
           );
 
