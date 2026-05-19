@@ -29,39 +29,40 @@ const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
     version: '1.0.0',
     entries: [
-      // New — Listen Together
+      // New
       ChangelogEntry(
-        'Listen Together — join or host a real-time group listening room; the host controls playback while all members follow along in sync with shared queue editing',
+        'Listen Together — host or join Voyage-backed synced rooms with shared queue control, live room status in the player bar, and collaborative or host-only room setups',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Compact session button in the player bar across all surfaces shows your current room state and opens the Listen Together sheet to create, join, or leave a room',
+        'Experimental Match Flow — create song chains in Playback Settings so starting one track can automatically expand into follow-up songs',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Settings badge lights up when you are in an active group session — easy to find even when the player is hidden',
-        type: ChangelogEntryType.newFeature,
-      ),
-      ChangelogEntry(
-        'Join and leave toasts confirm room transitions without interrupting playback or navigation',
+        'Artist pages now split main releases from featured appearances for easier browsing',
         type: ChangelogEntryType.newFeature,
       ),
       // Improvements
       ChangelogEntry(
-        'Library sync is faster — song pages are fetched and committed in parallel',
+        'Now Playing, the mini player, and compact layouts are more polished, with richer metadata navigation and better desktop media integration',
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
-        'Queue appends are pure-append — songs added while playback is running are never reordered',
+        'Library sync is faster and smarter — song pages load in parallel and tracks deleted from the server are reconciled locally',
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
-        'Listeners in a group session can now seek within the current track; the host retains exclusive control over skip and previous',
+        'Android Auto media browsing and projection support are more reliable, and cover art loading now prioritizes visible items for smoother scrolling',
         type: ChangelogEntryType.improvement,
       ),
+      // Fixes
       ChangelogEntry(
-        'Leaving a room from an error state now cleans up immediately without requiring a manual disconnect step',
-        type: ChangelogEntryType.improvement,
+        'Listen Together recovery is much more resilient — rejoin/resume, room exits, sync recovery, and listener seeking behave more reliably during disconnects',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Queue appends stay in order, cached-source seek recovery is more reliable, and compact wide mini-player layout glitches are fixed',
+        type: ChangelogEntryType.fix,
       ),
     ],
   ),
