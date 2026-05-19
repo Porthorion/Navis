@@ -1209,6 +1209,11 @@ final likedSongsProvider = StreamProvider<List<SongsTableData>>((ref) {
   return dao.watchAllStarredSongs();
 });
 
+final likedAlbumSongsProvider = StreamProvider<List<SongsTableData>>((ref) {
+  final dao = ref.watch(navisDatabaseProvider).libraryDao;
+  return dao.watchSongsFromLikedAlbums();
+});
+
 final songsBySortProvider =
     StreamProvider.family<List<SongsTableData>, SongSortOrder>((ref, sort) {
       final dao = ref.watch(navisDatabaseProvider).libraryDao;

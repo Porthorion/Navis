@@ -13,6 +13,7 @@ import 'package:navis/src/features/auth/presentation/server_config_provider.dart
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_screen.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
+import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
@@ -44,6 +45,66 @@ class _FakeLibrarySyncController extends LibrarySyncController {
 class _ShowRadioToggle extends Notifier<bool> {
   @override
   bool build() => true;
+}
+
+class _DownloadedOnlyEnabledController extends DownloadedOnlyFilterController {
+  @override
+  bool build() => true;
+}
+
+class _QueueSpyController extends QueueController {
+  List<String>? lastReplaceIds;
+  int? lastStartIndex;
+  bool? lastAutoPlay;
+
+  @override
+  List<String> build() => const <String>[];
+
+  @override
+  Future<void> replaceWithTableData(
+    List<SongsTableData> songs, {
+    int startIndex = 0,
+    bool autoPlay = true,
+  }) async {
+    lastReplaceIds = songs.map((song) => song.id).toList(growable: false);
+    lastStartIndex = startIndex;
+    lastAutoPlay = autoPlay;
+    state = List<String>.unmodifiable(lastReplaceIds!);
+  }
+}
+
+AlbumsTableData _likedAlbum({
+  required String id,
+  required String name,
+  String artistName = 'Artist',
+}) {
+  return AlbumsTableData(
+    id: id,
+    name: name,
+    artistName: artistName,
+    songsHydrated: true,
+    artists: const <ArtistRef>[],
+  );
+}
+
+SongsTableData _likedSong({
+  required String id,
+  required String title,
+  required String albumId,
+  String artistName = 'Artist',
+  String albumName = 'Album',
+  int track = 1,
+}) {
+  return SongsTableData(
+    id: id,
+    title: title,
+    albumId: albumId,
+    artistName: artistName,
+    albumName: albumName,
+    track: track,
+    duration: 210,
+    coverArt: 'cover-$albumId',
+  );
 }
 
 Widget _buildLibraryScreen({required List<Object?> overrides}) {
@@ -726,6 +787,264 @@ void main() {
         expect(find.byType(DesktopListRow), findsOneWidget);
         expect(find.byType(TrackListTile), findsNothing);
         expect(find.text('Desktop Liked Song'), findsOneWidget);
+      },
+    );
+
+    _testWidgetsWithCleanup(
+      'liked tab play renders and queues songs from liked albums only',
+      (
+        tester,
+      ) async {
+        await _pumpLibraryScreen(
+          tester,
+          overrides: [
+            showLikedPageProvider.overrideWithValue(true),
+            queueProvider.overrideWith(_QueueSpyController.new),
+            librarySyncControllerProvider.overrideWith(
+              () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+            ),
+            artistsProvider.overrideWithValue(
+              const AsyncData(<ArtistsTableData>[]),
+            ),
+            albumCountProvider.overrideWithValue(const AsyncData(0)),
+            pagedAlbumsProvider.overrideWith(
+              (ref, request) => Stream.value(const <AlbumsTableData>[]),
+            ),
+            likedArtistsProvider.overrideWithValue(
+              const AsyncData(<ArtistsTableData>[]),
+            ),
+            likedAlbumsRecentProvider.overrideWithValue(
+              AsyncData(<AlbumsTableData>[
+                _likedAlbum(id: 'liked-album-1', name: 'Liked Album 1'),
+              ]),
+            ),
+            likedAlbumsProvider.overrideWithValue(
+              AsyncData(<AlbumsTableData>[
+                _likedAlbum(id: 'liked-album-1', name: 'Liked Album 1'),
+              ]),
+            ),
+            likedSongsProvider.overrideWithValue(
+              const AsyncData(<SongsTableData>[]),
+            ),
+            likedAlbumSongsProvider.overrideWithValue(
+              AsyncData(<SongsTableData>[
+                _likedSong(
+                  id: 'album-song-1',
+                  title: 'Album Song 1',
+                  albumId: 'liked-album-1',
+                  albumName: 'Liked Album 1',
+                  track: 1,
+                ),
+                _likedSong(
+                  id: 'album-song-2',
+                  title: 'Album Song 2',
+                  albumId: 'liked-album-1',
+                  albumName: 'Liked Album 1',
+                  track: 2,
+                ),
+              ]),
+            ),
+          ],
+        );
+
+        await tester.tap(find.text('Liked'));
+        await tester.pumpAndSettle();
+
+        expect(find.widgetWithText(FilledButton, 'Play'), findsOneWidget);
+        expect(find.widgetWithText(OutlinedButton, 'Shuffle'), findsOneWidget);
+
+        await tester.tap(find.widgetWithText(FilledButton, 'Play'));
+        await tester.pumpAndSettle();
+
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(LibraryScreen)),
+        );
+        final queueSpy =
+            container.read(queueProvider.notifier) as _QueueSpyController;
+        expect(queueSpy.lastReplaceIds, <String>[
+          'album-song-1',
+          'album-song-2',
+        ]);
+        expect(queueSpy.lastStartIndex, 0);
+        expect(queueSpy.lastAutoPlay, isTrue);
+      },
+    );
+
+    _testWidgetsWithCleanup(
+      'liked song tap queues combined deduplicated liked playback list',
+      (
+        tester,
+      ) async {
+        await _pumpLibraryScreen(
+          tester,
+          overrides: [
+            showLikedPageProvider.overrideWithValue(true),
+            albumQueueEnabledProvider.overrideWithValue(true),
+            likedQueueEnabledProvider.overrideWithValue(true),
+            queueProvider.overrideWith(_QueueSpyController.new),
+            librarySyncControllerProvider.overrideWith(
+              () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+            ),
+            artistsProvider.overrideWithValue(
+              const AsyncData(<ArtistsTableData>[]),
+            ),
+            albumCountProvider.overrideWithValue(const AsyncData(0)),
+            pagedAlbumsProvider.overrideWith(
+              (ref, request) => Stream.value(const <AlbumsTableData>[]),
+            ),
+            likedArtistsProvider.overrideWithValue(
+              const AsyncData(<ArtistsTableData>[]),
+            ),
+            likedAlbumsRecentProvider.overrideWithValue(
+              AsyncData(<AlbumsTableData>[
+                _likedAlbum(id: 'liked-album-overlap', name: 'Overlap Album'),
+              ]),
+            ),
+            likedAlbumsProvider.overrideWithValue(
+              AsyncData(<AlbumsTableData>[
+                _likedAlbum(id: 'liked-album-overlap', name: 'Overlap Album'),
+              ]),
+            ),
+            likedSongsProvider.overrideWithValue(
+              AsyncData(<SongsTableData>[
+                _likedSong(
+                  id: 'liked-song-1',
+                  title: 'Visible Song',
+                  albumId: 'liked-album-overlap',
+                  albumName: 'Overlap Album',
+                  track: 1,
+                ),
+                _likedSong(
+                  id: 'shared-song',
+                  title: 'Shared Song',
+                  albumId: 'liked-album-overlap',
+                  albumName: 'Overlap Album',
+                  track: 2,
+                ),
+              ]),
+            ),
+            likedAlbumSongsProvider.overrideWithValue(
+              AsyncData(<SongsTableData>[
+                _likedSong(
+                  id: 'shared-song',
+                  title: 'Shared Song',
+                  albumId: 'liked-album-overlap',
+                  albumName: 'Overlap Album',
+                  track: 2,
+                ),
+                _likedSong(
+                  id: 'album-only-song',
+                  title: 'Album Only Song',
+                  albumId: 'liked-album-overlap',
+                  albumName: 'Overlap Album',
+                  track: 3,
+                ),
+              ]),
+            ),
+          ],
+        );
+
+        await tester.tap(find.text('Liked'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Shared Song'));
+        await tester.pumpAndSettle();
+
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(LibraryScreen)),
+        );
+        final queueSpy =
+            container.read(queueProvider.notifier) as _QueueSpyController;
+        expect(
+          queueSpy.lastReplaceIds,
+          <String>['liked-song-1', 'shared-song', 'album-only-song'],
+        );
+        expect(queueSpy.lastStartIndex, 1);
+        expect(queueSpy.lastAutoPlay, isTrue);
+      },
+    );
+
+    _testWidgetsWithCleanup(
+      'liked shuffle respects downloaded-only filtering for liked album tracks',
+      (
+        tester,
+      ) async {
+        await _pumpLibraryScreen(
+          tester,
+          overrides: [
+            showLikedPageProvider.overrideWithValue(true),
+            downloadedOnlyFilterProvider.overrideWith(
+              _DownloadedOnlyEnabledController.new,
+            ),
+            queueProvider.overrideWith(_QueueSpyController.new),
+            librarySyncControllerProvider.overrideWith(
+              () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+            ),
+            artistsProvider.overrideWithValue(
+              const AsyncData(<ArtistsTableData>[]),
+            ),
+            albumCountProvider.overrideWithValue(const AsyncData(0)),
+            pagedAlbumsProvider.overrideWith(
+              (ref, request) => Stream.value(const <AlbumsTableData>[]),
+            ),
+            likedArtistsProvider.overrideWithValue(
+              const AsyncData(<ArtistsTableData>[]),
+            ),
+            downloadedSongIdsProvider.overrideWithValue(
+              const AsyncData(<String>{'downloaded-album-song'}),
+            ),
+            downloadedContentIdsProvider.overrideWithValue(
+              const AsyncData(
+                (
+                  albumIds: <String>{'liked-album-filter'},
+                  artistIds: <String>{},
+                ),
+              ),
+            ),
+            likedAlbumsRecentProvider.overrideWithValue(
+              AsyncData(<AlbumsTableData>[
+                _likedAlbum(id: 'liked-album-filter', name: 'Filtered Album'),
+              ]),
+            ),
+            likedAlbumsProvider.overrideWithValue(
+              AsyncData(<AlbumsTableData>[
+                _likedAlbum(id: 'liked-album-filter', name: 'Filtered Album'),
+              ]),
+            ),
+            likedSongsProvider.overrideWithValue(
+              const AsyncData(<SongsTableData>[]),
+            ),
+            likedAlbumSongsProvider.overrideWithValue(
+              AsyncData(<SongsTableData>[
+                _likedSong(
+                  id: 'downloaded-album-song',
+                  title: 'Downloaded Album Song',
+                  albumId: 'liked-album-filter',
+                  albumName: 'Filtered Album',
+                  track: 1,
+                ),
+                _likedSong(
+                  id: 'stream-only-song',
+                  title: 'Stream Only Song',
+                  albumId: 'liked-album-filter',
+                  albumName: 'Filtered Album',
+                  track: 2,
+                ),
+              ]),
+            ),
+          ],
+        );
+
+        await tester.tap(find.text('Liked'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(OutlinedButton, 'Shuffle'));
+        await tester.pumpAndSettle();
+
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(LibraryScreen)),
+        );
+        final queueSpy =
+            container.read(queueProvider.notifier) as _QueueSpyController;
+        expect(queueSpy.lastReplaceIds, <String>['downloaded-album-song']);
       },
     );
   });

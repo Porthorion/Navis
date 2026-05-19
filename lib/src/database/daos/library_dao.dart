@@ -846,6 +846,36 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return query.watch();
   }
 
+  /// Watch all songs that belong to explicitly liked albums.
+  ///
+  /// Songs are ordered deterministically by liked-album recency, then album,
+  /// then track position within each album.
+  Stream<List<SongsTableData>> watchSongsFromLikedAlbums() {
+    return customSelect(
+      '''
+      SELECT s.*
+      FROM songs s
+      INNER JOIN albums al ON al.id = s.album_id
+      WHERE ${_likedAlbumPredicate('al')}
+        AND s.server_deleted_at IS NULL
+      ORDER BY
+        al.starred DESC NULLS LAST,
+        LOWER(COALESCE(al.name, '')) ASC,
+        al.id ASC,
+        s.disc_number IS NULL ASC,
+        s.disc_number ASC,
+        s.track IS NULL ASC,
+        s.track ASC,
+        LOWER(COALESCE(s.title, '')) ASC,
+        s.id ASC
+      ''',
+      readsFrom: {songsTable, albumsTable},
+    ).watch().map(
+      (rows) =>
+          rows.map((row) => songsTable.map(row.data)).toList(growable: false),
+    );
+  }
+
   /// Watch songs ordered by play count descending.
   Stream<List<SongsTableData>> watchMostPlayedSongs({int? limit = 5}) {
     final query = select(songsTable)

@@ -23,6 +23,64 @@ void main() {
     });
 
     test(
+      'watchSongsFromLikedAlbums returns liked album tracks in stable order',
+      () async {
+        await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+          AlbumsTableCompanion.insert(
+            id: 'liked-album-newer',
+            name: 'Newest Album',
+            starred: Value(DateTime(2024, 2, 1)),
+          ),
+          AlbumsTableCompanion.insert(
+            id: 'liked-album-older',
+            name: 'Older Album',
+            starred: Value(DateTime(2024, 1, 1)),
+          ),
+          AlbumsTableCompanion.insert(
+            id: 'unliked-album',
+            name: 'Unliked Album',
+          ),
+        ]);
+
+        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(
+            id: 'newer-track-2',
+            title: 'Track 2',
+            albumId: const Value('liked-album-newer'),
+            track: const Value(2),
+          ),
+          SongsTableCompanion.insert(
+            id: 'newer-track-1',
+            title: 'Track 1',
+            albumId: const Value('liked-album-newer'),
+            track: const Value(1),
+          ),
+          SongsTableCompanion.insert(
+            id: 'older-track-1',
+            title: 'Track 1',
+            albumId: const Value('liked-album-older'),
+            track: const Value(1),
+          ),
+          SongsTableCompanion.insert(
+            id: 'unliked-track-1',
+            title: 'Track 1',
+            albumId: const Value('unliked-album'),
+            track: const Value(1),
+          ),
+        ]);
+
+        final songs = await database.libraryDao
+            .watchSongsFromLikedAlbums()
+            .first;
+        expect(
+          songs.map((song) => song.id),
+          <String>['newer-track-1', 'newer-track-2', 'older-track-1'],
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'watchArtistAlbumBuckets keeps primary albums separate from featured appearances',
       () async {
         await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[

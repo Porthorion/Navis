@@ -27,6 +27,15 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
+    version: '1.0.1',
+    entries: [
+      ChangelogEntry(
+        'Liked-tab play, shuffle, and queue-all actions now include tracks from liked albums, while deduplicating overlaps with individually liked songs and respecting current filters',
+        type: ChangelogEntryType.fix,
+      ),
+    ],
+  ),
+  ChangelogVersion(
     version: '1.0.0',
     entries: [
       // New

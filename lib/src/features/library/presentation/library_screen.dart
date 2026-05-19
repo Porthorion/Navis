@@ -64,6 +64,47 @@ int computeArtistGridCrossAxisCount(double availableWidth) {
   return (usableWidth / 150).floor().clamp(2, 6);
 }
 
+final _likedPlaybackSongsProvider = Provider<List<SongsTableData>>((ref) {
+  final likedSongs =
+      ref.watch(likedSongsProvider).asData?.value ?? const <SongsTableData>[];
+  final likedAlbumSongs =
+      ref.watch(likedAlbumSongsProvider).asData?.value ??
+      const <SongsTableData>[];
+  final dedupedSongs = <String, SongsTableData>{};
+
+  for (final song in <SongsTableData>[...likedSongs, ...likedAlbumSongs]) {
+    dedupedSongs.putIfAbsent(song.id, () => song);
+  }
+
+  return List<SongsTableData>.unmodifiable(dedupedSongs.values);
+});
+
+bool _likedSongMatchesTypeFilter(SongsTableData song, String queryLower) {
+  return song.title.toLowerCase().contains(queryLower) ||
+      (song.artistName?.toLowerCase().contains(queryLower) ?? false) ||
+      (song.albumName?.toLowerCase().contains(queryLower) ?? false);
+}
+
+List<SongsTableData> _filterLikedSongs(
+  List<SongsTableData> songs, {
+  Set<String>? downloadedSongIds,
+  String typeFilterQuery = '',
+}) {
+  final downloadFiltered = downloadedSongIds == null
+      ? songs
+      : songs
+            .where((song) => downloadedSongIds.contains(song.id))
+            .toList(growable: false);
+  if (typeFilterQuery.isEmpty) {
+    return downloadFiltered;
+  }
+
+  final queryLower = typeFilterQuery.toLowerCase();
+  return downloadFiltered
+      .where((song) => _likedSongMatchesTypeFilter(song, queryLower))
+      .toList(growable: false);
+}
+
 class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
 
@@ -1560,8 +1601,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     final likedAlbumsRecentAsync = ref.watch(likedAlbumsRecentProvider);
     // Full list used only for the total count; data is not rendered directly.
     final likedAlbumsAllAsync = ref.watch(likedAlbumsProvider);
+    final likedAlbumSongsAsync = ref.watch(likedAlbumSongsProvider);
     final likedArtistsAsync = ref.watch(likedArtistsProvider);
     final likedSongsAsync = ref.watch(likedSongsProvider);
+    final likedPlaybackSongs = ref.watch(_likedPlaybackSongsProvider);
     final downloadedContentIds = _downloadedOnly
         ? ref.watch(downloadedContentIdsProvider).asData?.value
         : null;
@@ -1571,6 +1614,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
     final isLoading =
         likedAlbumsRecentAsync.isLoading ||
+        likedAlbumSongsAsync.isLoading ||
         likedArtistsAsync.isLoading ||
         likedSongsAsync.isLoading;
     final albums = _downloadedOnly
@@ -1589,11 +1633,15 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
               )
               .length
         : likedAlbumsAllAsync.asData?.value.length ?? albums.length;
-    final songs = _downloadedOnly
-        ? (likedSongsAsync.asData?.value ?? const <SongsTableData>[])
-              .where((song) => downloadedSongIds?.contains(song.id) ?? false)
-              .toList(growable: false)
-        : likedSongsAsync.asData?.value ?? const <SongsTableData>[];
+    final songs = _filterLikedSongs(
+      likedSongsAsync.asData?.value ?? const <SongsTableData>[],
+      downloadedSongIds: _downloadedOnly ? downloadedSongIds : null,
+    );
+    final filteredPlaybackSongs = _filterLikedSongs(
+      likedPlaybackSongs,
+      downloadedSongIds: _downloadedOnly ? downloadedSongIds : null,
+      typeFilterQuery: _typeFilterQuery,
+    );
     final artists = _downloadedOnly
         ? (likedArtistsAsync.asData?.value ?? const <ArtistsTableData>[])
               .where(
@@ -1604,32 +1652,34 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
               .toList(growable: false)
         : likedArtistsAsync.asData?.value ?? const <ArtistsTableData>[];
     // Apply type-to-filter if active.
-    final queryLower = _typeFilterQuery.toLowerCase();
     final filteredAlbums = _typeFilterQuery.isEmpty
         ? albums
         : albums
               .where(
                 (a) =>
-                    a.name.toLowerCase().contains(queryLower) ||
-                    (a.artistName?.toLowerCase().contains(queryLower) ?? false),
+                    a.name.toLowerCase().contains(
+                      _typeFilterQuery.toLowerCase(),
+                    ) ||
+                    (a.artistName?.toLowerCase().contains(
+                          _typeFilterQuery.toLowerCase(),
+                        ) ??
+                        false),
               )
               .toList(growable: false);
     final filteredArtists = _typeFilterQuery.isEmpty
         ? artists
         : artists
-              .where((a) => a.name.toLowerCase().contains(queryLower))
-              .toList(growable: false);
-    final filteredSongs = _typeFilterQuery.isEmpty
-        ? songs
-        : songs
               .where(
-                (s) =>
-                    s.title.toLowerCase().contains(queryLower) ||
-                    (s.artistName?.toLowerCase().contains(queryLower) ??
-                        false) ||
-                    (s.albumName?.toLowerCase().contains(queryLower) ?? false),
+                (a) => a.name.toLowerCase().contains(
+                  _typeFilterQuery.toLowerCase(),
+                ),
               )
               .toList(growable: false);
+    final filteredSongs = _filterLikedSongs(
+      likedSongsAsync.asData?.value ?? const <SongsTableData>[],
+      downloadedSongIds: _downloadedOnly ? downloadedSongIds : null,
+      typeFilterQuery: _typeFilterQuery,
+    );
     const likedArtistsPreviewLimit = 14;
     final artistPreview = filteredArtists
         .take(likedArtistsPreviewLimit)
@@ -1637,6 +1687,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     final hasMoreLikedArtists = filteredArtists.length > artistPreview.length;
     final error =
         likedAlbumsRecentAsync.error ??
+        likedAlbumSongsAsync.error ??
         likedArtistsAsync.error ??
         likedSongsAsync.error;
 
@@ -1683,7 +1734,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
             slivers: <Widget>[
               if (filteredAlbums.isEmpty &&
                   filteredArtists.isEmpty &&
-                  filteredSongs.isEmpty)
+                  filteredSongs.isEmpty &&
+                  filteredPlaybackSongs.isEmpty)
                 SliverFillRemaining(
                   hasScrollBody: false,
                   child: EmptyState(
@@ -1751,7 +1803,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                       ),
                     ),
                   ),
-                if (filteredSongs.isNotEmpty)
+                if (filteredPlaybackSongs.isNotEmpty)
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
@@ -1760,14 +1812,18 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                         runSpacing: 10,
                         children: <Widget>[
                           FilledButton.icon(
-                            onPressed: () =>
-                                unawaited(_queueLikedSongs(filteredSongs)),
+                            onPressed: () => unawaited(
+                              _queueLikedSongs(filteredPlaybackSongs),
+                            ),
                             icon: const Icon(Icons.play_arrow_rounded),
                             label: Text(l10n.albumDetailPlayAction),
                           ),
                           OutlinedButton.icon(
                             onPressed: () => unawaited(
-                              _queueLikedSongs(filteredSongs, shuffle: true),
+                              _queueLikedSongs(
+                                filteredPlaybackSongs,
+                                shuffle: true,
+                              ),
                             ),
                             icon: const Icon(Icons.shuffle_rounded),
                             label: Text(l10n.albumDetailShuffleAction),
@@ -1925,32 +1981,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                               ],
                             ),
                             onTap: () {
-                              final queueLiked =
-                                  ref.read(albumQueueEnabledProvider) &&
-                                  ref.read(likedQueueEnabledProvider);
-                              if (queueLiked && filteredSongs.length > 1) {
-                                final startIndex = filteredSongs.indexWhere(
-                                  (s) => s.id == song.id,
-                                );
-                                ref
-                                    .read(queueProvider.notifier)
-                                    .replaceWithTableData(
-                                      filteredSongs,
-                                      startIndex: startIndex < 0
-                                          ? 0
-                                          : startIndex,
-                                      autoPlay: true,
-                                    )
-                                    .ignore();
-                              } else {
-                                ref
-                                    .read(queueProvider.notifier)
-                                    .replaceWithTableData(
-                                      <SongsTableData>[song],
-                                      autoPlay: true,
-                                    )
-                                    .ignore();
-                              }
+                              _handleLikedSongTap(
+                                song,
+                                playbackSongs: filteredPlaybackSongs,
+                              );
                             },
                             onSecondaryTapDown: (details) =>
                                 showSongContextMenu(
@@ -1981,30 +2015,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                           ],
                         ),
                         onTap: () {
-                          final queueLiked =
-                              ref.read(albumQueueEnabledProvider) &&
-                              ref.read(likedQueueEnabledProvider);
-                          if (queueLiked && filteredSongs.length > 1) {
-                            final startIndex = filteredSongs.indexWhere(
-                              (s) => s.id == song.id,
-                            );
-                            ref
-                                .read(queueProvider.notifier)
-                                .replaceWithTableData(
-                                  filteredSongs,
-                                  startIndex: startIndex < 0 ? 0 : startIndex,
-                                  autoPlay: true,
-                                )
-                                .ignore();
-                          } else {
-                            ref
-                                .read(queueProvider.notifier)
-                                .replaceWithTableData(
-                                  <SongsTableData>[song],
-                                  autoPlay: true,
-                                )
-                                .ignore();
-                          }
+                          _handleLikedSongTap(
+                            song,
+                            playbackSongs: filteredPlaybackSongs,
+                          );
                         },
                         onLongPress: () =>
                             showSongContextMenu(this.context, ref, song),
@@ -2017,6 +2031,33 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         },
       ),
     );
+  }
+
+  void _handleLikedSongTap(
+    SongsTableData song, {
+    required List<SongsTableData> playbackSongs,
+  }) {
+    final queueLiked =
+        ref.read(albumQueueEnabledProvider) &&
+        ref.read(likedQueueEnabledProvider);
+    if (queueLiked && playbackSongs.length > 1) {
+      final startIndex = playbackSongs.indexWhere(
+        (candidate) => candidate.id == song.id,
+      );
+      ref
+          .read(queueProvider.notifier)
+          .replaceWithTableData(
+            playbackSongs,
+            startIndex: startIndex < 0 ? 0 : startIndex,
+            autoPlay: true,
+          )
+          .ignore();
+      return;
+    }
+
+    ref.read(queueProvider.notifier).replaceWithTableData(<SongsTableData>[
+      song,
+    ], autoPlay: true).ignore();
   }
 
   void _openLikedArtistsAll() {

@@ -55,6 +55,12 @@ String _label(_EntryType t) {
 // Newest version first.
 // ---------------------------------------------------------------------------
 const List<_Version> _changelogs = [
+  _Version('1.0.1', [
+    _Entry(
+      'Liked-tab play, shuffle, and queue-all actions now include tracks from liked albums, while deduplicating overlaps with individually liked songs and respecting current filters',
+      type: _EntryType.fix,
+    ),
+  ]),
   _Version('0.9.7', [
     // Fixed
     _Entry(
