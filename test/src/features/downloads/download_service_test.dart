@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
@@ -21,12 +23,15 @@ void main() {
     setUp(() {
       database = NavisDatabase(NativeDatabase.memory());
       service = DownloadService(
+        appSettingsDao: database.appSettingsDao,
         cacheDao: database.cacheDao,
         downloadQueueDao: database.downloadQueueDao,
         libraryDao: database.libraryDao,
         readApiClient: () => null, // No API client — will skip actual HTTP.
         readWifiOnly: () => false,
         readIsWifi: () => true,
+        readCustomDownloadFolderEnabled: () => false,
+        readCustomDownloadFolderPath: () => null,
         lrclibClient: LrclibClient(),
         readCoverArtCacheManager: _MockCacheManager.new,
       );
@@ -290,12 +295,15 @@ void main() {
       () async {
         // Build a service that claims wifi-only + not on wifi.
         final wifiOnlyOfflineService = DownloadService(
+          appSettingsDao: database.appSettingsDao,
           cacheDao: database.cacheDao,
           downloadQueueDao: database.downloadQueueDao,
           libraryDao: database.libraryDao,
           readApiClient: () => null,
           readWifiOnly: () => true,
           readIsWifi: () => false,
+          readCustomDownloadFolderEnabled: () => false,
+          readCustomDownloadFolderPath: () => null,
           lrclibClient: LrclibClient(),
           readCoverArtCacheManager: _MockCacheManager.new,
         );
@@ -389,12 +397,15 @@ void main() {
           enableLogging: false,
         );
         final staleService = DownloadService(
+          appSettingsDao: database.appSettingsDao,
           cacheDao: database.cacheDao,
           downloadQueueDao: database.downloadQueueDao,
           libraryDao: database.libraryDao,
           readApiClient: () => apiClient,
           readWifiOnly: () => false,
           readIsWifi: () => true,
+          readCustomDownloadFolderEnabled: () => false,
+          readCustomDownloadFolderPath: () => null,
           lrclibClient: LrclibClient(),
           readCoverArtCacheManager: _MockCacheManager.new,
         );
@@ -412,6 +423,222 @@ void main() {
         await Future<void>.delayed(const Duration(milliseconds: 50));
 
         expect(await database.downloadQueueDao.watchQueue().first, isEmpty);
+      },
+      skip: sqliteAvailable ? null : 'sqlite3 not available',
+    );
+
+    test(
+      'start normalizes hashed permanent downloads into artist folders',
+      () async {
+        final supportDir = await Directory.systemTemp.createTemp(
+          'navis_support_',
+        );
+        addTearDown(() => supportDir.delete(recursive: true));
+        final legacyDir = Directory(
+          '${supportDir.path}/audio/permanent',
+        )..createSync(recursive: true);
+        final legacyFile = File('${legacyDir.path}/song-1_legacy.mp3')
+          ..writeAsBytesSync(<int>[1, 2, 3]);
+
+        final normalizingService = DownloadService(
+          appSettingsDao: database.appSettingsDao,
+          cacheDao: database.cacheDao,
+          downloadQueueDao: database.downloadQueueDao,
+          libraryDao: database.libraryDao,
+          readApiClient: () => null,
+          readWifiOnly: () => false,
+          readIsWifi: () => true,
+          readCustomDownloadFolderEnabled: () => false,
+          readCustomDownloadFolderPath: () => null,
+          lrclibClient: LrclibClient(),
+          readCoverArtCacheManager: _MockCacheManager.new,
+          readApplicationSupportDirectory: () async => supportDir,
+        );
+        addTearDown(normalizingService.stop);
+
+        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(
+            id: 'song-1',
+            title: 'Duality',
+            artistName: const Value('Slipknot'),
+          ),
+        ]);
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: 'song-1',
+            filePath: legacyFile.path,
+            fileSize: 3,
+            format: 'mp3',
+            cacheType: CacheType.permanent,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
+
+        await normalizingService.start();
+
+        final track = await database.cacheDao.getCachedTrack('song-1');
+        expect(
+          track?.filePath,
+          '${legacyDir.path}/Slipknot/Duality.mp3',
+        );
+        expect(File(track!.filePath).existsSync(), isTrue);
+        expect(legacyFile.existsSync(), isFalse);
+      },
+      skip: sqliteAvailable ? null : 'sqlite3 not available',
+    );
+
+    test(
+      'configureCustomDownloadFolder moves permanent downloads to custom root',
+      () async {
+        final supportDir = await Directory.systemTemp.createTemp(
+          'navis_default_support_',
+        );
+        final customDir = await Directory.systemTemp.createTemp(
+          'navis_custom_downloads_',
+        );
+        addTearDown(() => supportDir.delete(recursive: true));
+        addTearDown(() => customDir.delete(recursive: true));
+
+        var customEnabled = false;
+        String? customPath;
+        final legacyDir = Directory(
+          '${supportDir.path}/audio/permanent',
+        )..createSync(recursive: true);
+        final legacyFile = File('${legacyDir.path}/song-1_legacy.mp3')
+          ..writeAsBytesSync(<int>[7, 8, 9]);
+
+        final movingService = DownloadService(
+          appSettingsDao: database.appSettingsDao,
+          cacheDao: database.cacheDao,
+          downloadQueueDao: database.downloadQueueDao,
+          libraryDao: database.libraryDao,
+          readApiClient: () => null,
+          readWifiOnly: () => false,
+          readIsWifi: () => true,
+          readCustomDownloadFolderEnabled: () => customEnabled,
+          readCustomDownloadFolderPath: () => customPath,
+          lrclibClient: LrclibClient(),
+          readCoverArtCacheManager: _MockCacheManager.new,
+          readApplicationSupportDirectory: () async => supportDir,
+        );
+        addTearDown(movingService.stop);
+
+        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(
+            id: 'song-1',
+            title: 'Duality',
+            artistName: const Value('Slipknot'),
+          ),
+        ]);
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: 'song-1',
+            filePath: legacyFile.path,
+            fileSize: 3,
+            format: 'mp3',
+            cacheType: CacheType.permanent,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
+
+        await movingService.configureCustomDownloadFolder(
+          enabled: true,
+          path: customDir.path,
+        );
+        customEnabled = true;
+        customPath = customDir.path;
+
+        final track = await database.cacheDao.getCachedTrack('song-1');
+        expect(
+          track?.filePath,
+          '${customDir.path}/Slipknot/Duality.mp3',
+        );
+        expect(File(track!.filePath).existsSync(), isTrue);
+        expect(legacyFile.existsSync(), isFalse);
+
+        final settings = await database.appSettingsDao.getSettings();
+        expect(settings?.customDownloadFolderEnabled, isTrue);
+        expect(settings?.customDownloadFolderPath, customDir.path);
+      },
+      skip: sqliteAvailable ? null : 'sqlite3 not available',
+    );
+
+    test(
+      'configureCustomDownloadFolder rolls back moved files when relocation fails',
+      () async {
+        final supportDir = await Directory.systemTemp.createTemp(
+          'navis_default_support_',
+        );
+        final customDir = await Directory.systemTemp.createTemp(
+          'navis_custom_downloads_',
+        );
+        addTearDown(() => supportDir.delete(recursive: true));
+        addTearDown(() => customDir.delete(recursive: true));
+
+        final blockingFile = File('${customDir.path}/Slipknot')
+          ..writeAsStringSync('not a directory');
+
+        var customEnabled = false;
+        String? customPath;
+        final legacyDir = Directory(
+          '${supportDir.path}/audio/permanent',
+        )..createSync(recursive: true);
+        final legacyFile = File('${legacyDir.path}/song-1_legacy.mp3')
+          ..writeAsBytesSync(<int>[4, 5, 6]);
+
+        final movingService = DownloadService(
+          appSettingsDao: database.appSettingsDao,
+          cacheDao: database.cacheDao,
+          downloadQueueDao: database.downloadQueueDao,
+          libraryDao: database.libraryDao,
+          readApiClient: () => null,
+          readWifiOnly: () => false,
+          readIsWifi: () => true,
+          readCustomDownloadFolderEnabled: () => customEnabled,
+          readCustomDownloadFolderPath: () => customPath,
+          lrclibClient: LrclibClient(),
+          readCoverArtCacheManager: _MockCacheManager.new,
+          readApplicationSupportDirectory: () async => supportDir,
+        );
+        addTearDown(movingService.stop);
+
+        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(
+            id: 'song-1',
+            title: 'Duality',
+            artistName: const Value('Slipknot'),
+          ),
+        ]);
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: 'song-1',
+            filePath: legacyFile.path,
+            fileSize: 3,
+            format: 'mp3',
+            cacheType: CacheType.permanent,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
+
+        await expectLater(
+          () => movingService.configureCustomDownloadFolder(
+            enabled: true,
+            path: customDir.path,
+          ),
+          throwsA(isA<FileSystemException>()),
+        );
+
+        final track = await database.cacheDao.getCachedTrack('song-1');
+        expect(track?.filePath, legacyFile.path);
+        expect(legacyFile.existsSync(), isTrue);
+        expect(blockingFile.existsSync(), isTrue);
+
+        final settings = await database.appSettingsDao.getSettings();
+        expect(settings?.customDownloadFolderEnabled, isFalse);
+        expect(settings?.customDownloadFolderPath, isNull);
       },
       skip: sqliteAvailable ? null : 'sqlite3 not available',
     );

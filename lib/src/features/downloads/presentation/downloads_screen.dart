@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -607,6 +609,14 @@ class _DownloadSettingsTab extends ConsumerStatefulWidget {
 
 class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
   bool _clearing = false;
+  bool _updatingFolder = false;
+
+  bool get _supportsCustomDownloadFolderSelection =>
+      Platform.isAndroid ||
+      Platform.isIOS ||
+      Platform.isLinux ||
+      Platform.isMacOS ||
+      Platform.isWindows;
 
   Future<bool> _confirmCellularAutoDownload() async {
     final l10n = AppLocalizations.of(context)!;
@@ -708,13 +718,88 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
     }
   }
 
+  Future<void> _toggleCustomDownloadFolder(bool enabled) async {
+    if (enabled) {
+      await _pickCustomDownloadFolder();
+      return;
+    }
+    await _applyCustomDownloadFolder(enabled: false);
+  }
+
+  Future<void> _pickCustomDownloadFolder() async {
+    final l10n = AppLocalizations.of(context)!;
+    final selectedPath = await FilePicker.platform.getDirectoryPath(
+      dialogTitle: l10n.downloadsCustomFolderChooseAction,
+    );
+    if (!mounted || selectedPath == null) {
+      return;
+    }
+    await _applyCustomDownloadFolder(enabled: true, path: selectedPath);
+  }
+
+  Future<void> _applyCustomDownloadFolder({
+    required bool enabled,
+    String? path,
+  }) async {
+    final l10n = AppLocalizations.of(context)!;
+    setState(() => _updatingFolder = true);
+    try {
+      await ref
+          .read(downloadServiceProvider)
+          .configureCustomDownloadFolder(
+            enabled: enabled,
+            path: path,
+          );
+      if (!mounted) {
+        return;
+      }
+      AppNoticeMessenger.of(context).clearSnackBars();
+      showAppNotice(
+        context,
+        message: enabled
+            ? l10n.downloadsCustomFolderSaved
+            : l10n.downloadsCustomFolderDisabled,
+        level: AppNoticeLevel.success,
+      );
+    } on FileSystemException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      AppNoticeMessenger.of(context).clearSnackBars();
+      showAppNotice(
+        context,
+        message: l10n.downloadsCustomFolderError(error.message),
+        level: AppNoticeLevel.error,
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _updatingFolder = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final permanentStats = ref.watch(permanentCacheStatsProvider);
+    final customFolderEnabled = ref.watch(customDownloadFolderEnabledProvider);
+    final customFolderPath = ref.watch(customDownloadFolderPathProvider);
 
-    if (_clearing) {
-      return const Center(child: CircularProgressIndicator());
+    if (_clearing || _updatingFolder) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            const CircularProgressIndicator(),
+            const SizedBox(height: 12),
+            Text(
+              _updatingFolder
+                  ? l10n.downloadsCustomFolderUpdating
+                  : l10n.cacheSettingsClearPermanent,
+            ),
+          ],
+        ),
+      );
     }
 
     return ListView(
@@ -732,6 +817,27 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
           value: ref.watch(autoDownloadStarredOnWifiProvider),
           onChanged: _updateAutoDownloadLiked,
         ),
+        SwitchListTile(
+          title: Text(l10n.downloadsCustomFolderTitle),
+          subtitle: Text(
+            _supportsCustomDownloadFolderSelection
+                ? customFolderEnabled && customFolderPath != null
+                      ? customFolderPath
+                      : l10n.downloadsCustomFolderSubtitle
+                : l10n.downloadsCustomFolderUnsupported,
+          ),
+          value: customFolderEnabled,
+          onChanged: _supportsCustomDownloadFolderSelection
+              ? _toggleCustomDownloadFolder
+              : null,
+        ),
+        if (_supportsCustomDownloadFolderSelection && customFolderEnabled)
+          ListTile(
+            leading: const Icon(Icons.folder_open_outlined),
+            title: Text(l10n.downloadsCustomFolderChooseAction),
+            subtitle: Text(customFolderPath ?? ''),
+            onTap: _pickCustomDownloadFolder,
+          ),
         const Divider(),
         permanentStats.when(
           data: (stats) => Padding(

@@ -18,8 +18,8 @@ void main() {
         .customSelect('PRAGMA user_version;')
         .getSingle();
 
-    expect(database.schemaVersion, 43);
-    expect(pragmaRow.read<int>('user_version'), 43);
+    expect(database.schemaVersion, 44);
+    expect(pragmaRow.read<int>('user_version'), 44);
   }, skip: !sqliteAvailable);
 
   test('latest schema creates app settings defaults', () async {
@@ -49,6 +49,8 @@ void main() {
       AppSettingsDao.defaultRollingCacheBudgetMb,
     );
     expect(settings.autoDownloadStarredOnWifi, isFalse);
+    expect(settings.customDownloadFolderEnabled, isFalse);
+    expect(settings.customDownloadFolderPath, isNull);
     expect(settings.useLrclib, isTrue);
     expect(settings.updateCheckEnabled, isTrue);
     expect(settings.updateChannel, 'stable');
@@ -69,6 +71,8 @@ void main() {
         'voyage_device_label',
         'voyage_auto_follow_host',
         'match_flow_enabled',
+        'custom_download_folder_enabled',
+        'custom_download_folder_path',
       }),
     );
     expect(groupListening.groupListeningEnabled, isFalse);
@@ -118,10 +122,10 @@ void main() {
   }, skip: !sqliteAvailable);
 
   test(
-    'migrates v42 schema to v43 with local-only song marker',
+    'migrates v43 schema to v44 with custom download folder settings',
     () async {
       final tempDir = await Directory.systemTemp.createTemp(
-        'navis_migration_v43_test_',
+        'navis_migration_v44_test_',
       );
       final dbPath = p.join(tempDir.path, 'navis.sqlite');
 
@@ -131,9 +135,13 @@ void main() {
 
       final raw = sqlite3.open(dbPath);
       try {
-        raw.execute('DROP INDEX IF EXISTS idx_songs_server_deleted_at;');
-        raw.execute('ALTER TABLE songs DROP COLUMN server_deleted_at;');
-        raw.execute('PRAGMA user_version = 42;');
+        raw.execute(
+          'ALTER TABLE app_settings DROP COLUMN custom_download_folder_enabled;',
+        );
+        raw.execute(
+          'ALTER TABLE app_settings DROP COLUMN custom_download_folder_path;',
+        );
+        raw.execute('PRAGMA user_version = 43;');
       } finally {
         raw.close();
       }
@@ -147,15 +155,16 @@ void main() {
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 43);
+      expect(versionRow.read<int>('user_version'), 44);
 
-      final songsInfo = await migrated
-          .customSelect("PRAGMA table_info('songs');")
+      final settingsInfo = await migrated
+          .customSelect("PRAGMA table_info('app_settings');")
           .get();
-      final songColumns = songsInfo
+      final settingColumns = settingsInfo
           .map((row) => row.read<String>('name'))
           .toSet();
-      expect(songColumns, contains('server_deleted_at'));
+      expect(settingColumns, contains('custom_download_folder_enabled'));
+      expect(settingColumns, contains('custom_download_folder_path'));
     },
     skip: !sqliteAvailable,
   );
@@ -265,7 +274,7 @@ void main() {
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 43);
+      expect(versionRow.read<int>('user_version'), 44);
 
       final albums = await migrated.select(migrated.albumsTable).get();
       final albumsById = {for (final album in albums) album.id: album};
@@ -308,6 +317,8 @@ void main() {
         AppSettingsDao.defaultRollingCacheBudgetMb,
       );
       expect(settings.autoDownloadStarredOnWifi, isFalse);
+      expect(settings.customDownloadFolderEnabled, isFalse);
+      expect(settings.customDownloadFolderPath, isNull);
       expect(settings.albumGridDensity, isNull);
       expect(settings.coverArtShape, 'square');
       expect(settings.nowPlayingArtShape, 'rounded');

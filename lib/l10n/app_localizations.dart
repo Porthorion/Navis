@@ -3147,6 +3147,54 @@ abstract class AppLocalizations {
   /// **'Search downloads...'**
   String get downloadsSearchHint;
 
+  /// No description provided for @downloadsCustomFolderTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom Folder'**
+  String get downloadsCustomFolderTitle;
+
+  /// No description provided for @downloadsCustomFolderSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Store permanent downloads in a folder you choose. Existing downloads will be moved and renamed into artist folders.'**
+  String get downloadsCustomFolderSubtitle;
+
+  /// No description provided for @downloadsCustomFolderUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom download folders are not available on this platform.'**
+  String get downloadsCustomFolderUnsupported;
+
+  /// No description provided for @downloadsCustomFolderChooseAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose folder'**
+  String get downloadsCustomFolderChooseAction;
+
+  /// No description provided for @downloadsCustomFolderSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Download folder updated.'**
+  String get downloadsCustomFolderSaved;
+
+  /// No description provided for @downloadsCustomFolderDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom download folder disabled.'**
+  String get downloadsCustomFolderDisabled;
+
+  /// No description provided for @downloadsCustomFolderUpdating.
+  ///
+  /// In en, this message translates to:
+  /// **'Moving downloaded tracks...'**
+  String get downloadsCustomFolderUpdating;
+
+  /// No description provided for @downloadsCustomFolderError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not update download folder: {message}'**
+  String downloadsCustomFolderError(String message);
+
   /// No description provided for @downloadsSearchNoResults.
   ///
   /// In en, this message translates to:

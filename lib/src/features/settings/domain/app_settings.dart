@@ -21,6 +21,8 @@ class AppSettingsModel {
     required this.loudnessTargetGainDb,
     required this.wifiOnlyDownloads,
     required this.autoDownloadStarredOnWifi,
+    required this.customDownloadFolderEnabled,
+    required this.customDownloadFolderPath,
     required this.themeMode,
     required this.colorSchemeSeed,
     required this.appLocale,
@@ -80,6 +82,8 @@ class AppSettingsModel {
       loudnessTargetGainDb = 0,
       wifiOnlyDownloads = true,
       autoDownloadStarredOnWifi = false,
+      customDownloadFolderEnabled = false,
+      customDownloadFolderPath = null,
       themeMode = 'dark',
       colorSchemeSeed = null,
       appLocale = null,
@@ -139,6 +143,8 @@ class AppSettingsModel {
   final double loudnessTargetGainDb;
   final bool wifiOnlyDownloads;
   final bool autoDownloadStarredOnWifi;
+  final bool customDownloadFolderEnabled;
+  final String? customDownloadFolderPath;
   final String themeMode;
   final int? colorSchemeSeed;
   final String? appLocale;
@@ -249,6 +255,8 @@ class AppSettingsModel {
     double? loudnessTargetGainDb,
     bool? wifiOnlyDownloads,
     bool? autoDownloadStarredOnWifi,
+    bool? customDownloadFolderEnabled,
+    String? customDownloadFolderPath,
     String? themeMode,
     int? colorSchemeSeed,
     String? appLocale,
@@ -294,6 +302,7 @@ class AppSettingsModel {
     bool clearCellularFormat = false,
     bool clearColorSchemeSeed = false,
     bool clearAppLocale = false,
+    bool clearCustomDownloadFolderPath = false,
     bool clearAudioMuseServerUrl = false,
     bool clearAudioMuseApiKey = false,
     bool clearAlbumGridDensity = false,
@@ -330,6 +339,11 @@ class AppSettingsModel {
       wifiOnlyDownloads: wifiOnlyDownloads ?? this.wifiOnlyDownloads,
       autoDownloadStarredOnWifi:
           autoDownloadStarredOnWifi ?? this.autoDownloadStarredOnWifi,
+      customDownloadFolderEnabled:
+          customDownloadFolderEnabled ?? this.customDownloadFolderEnabled,
+      customDownloadFolderPath: clearCustomDownloadFolderPath
+          ? null
+          : customDownloadFolderPath ?? this.customDownloadFolderPath,
       themeMode: themeMode ?? this.themeMode,
       colorSchemeSeed: clearColorSchemeSeed
           ? null

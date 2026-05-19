@@ -82,6 +82,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     double? loudnessTargetGainDb,
     required bool wifiOnlyDownloads,
     required bool autoDownloadStarredOnWifi,
+    required bool customDownloadFolderEnabled,
+    String? customDownloadFolderPath,
     required String themeMode,
     int? colorSchemeSeed,
     String? appLocale,
@@ -137,6 +139,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         loudnessTargetGainDb: Value(loudnessTargetGainDb),
         wifiOnlyDownloads: Value(wifiOnlyDownloads),
         autoDownloadStarredOnWifi: Value(autoDownloadStarredOnWifi),
+        customDownloadFolderEnabled: Value(customDownloadFolderEnabled),
+        customDownloadFolderPath: Value(customDownloadFolderPath),
         themeMode: Value(themeMode),
         colorSchemeSeed: Value(colorSchemeSeed),
         appLocale: Value(appLocale),
@@ -235,6 +239,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       loudnessTargetGainDb: 0,
       wifiOnlyDownloads: true,
       autoDownloadStarredOnWifi: false,
+      customDownloadFolderEnabled: false,
+      customDownloadFolderPath: null,
       themeMode: 'dark',
       colorSchemeSeed: null,
       appLocale: null,
@@ -388,6 +394,30 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
+  /// Targeted update for the custom permanent-download-folder toggle.
+  Future<void> updateCustomDownloadFolderEnabled({required bool enabled}) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        customDownloadFolderEnabled: Value(enabled),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Targeted update for the custom permanent-download-folder path.
+  Future<void> updateCustomDownloadFolderPath(String? path) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        customDownloadFolderPath: Value(path),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
   /// Stream the Wi-Fi-only downloads setting.
   Stream<bool> watchWifiOnlyDownloads() {
     return watchSettings().map((s) => s?.wifiOnlyDownloads ?? true);
@@ -401,6 +431,16 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   /// Stream the auto-download liked on Wi-Fi setting.
   Stream<bool> watchAutoDownloadStarredOnWifi() {
     return watchSettings().map((s) => s?.autoDownloadStarredOnWifi ?? false);
+  }
+
+  /// Stream the custom permanent-download-folder toggle.
+  Stream<bool> watchCustomDownloadFolderEnabled() {
+    return watchSettings().map((s) => s?.customDownloadFolderEnabled ?? false);
+  }
+
+  /// Stream the custom permanent-download-folder path.
+  Stream<String?> watchCustomDownloadFolderPath() {
+    return watchSettings().map((s) => s?.customDownloadFolderPath);
   }
 
   // ---------------------------------------------------------------------------

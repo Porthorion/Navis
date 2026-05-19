@@ -1993,6 +1993,7 @@ final permanentCachedTracksProvider =
 final downloadServiceProvider = Provider<DownloadService>((ref) {
   final db = ref.watch(navisDatabaseProvider);
   final service = DownloadService(
+    appSettingsDao: db.appSettingsDao,
     cacheDao: db.cacheDao,
     downloadQueueDao: db.downloadQueueDao,
     libraryDao: db.libraryDao,
@@ -2001,6 +2002,10 @@ final downloadServiceProvider = Provider<DownloadService>((ref) {
         ref.read(appSettingsProvider).asData?.value.wifiOnlyDownloads ?? false,
     readIsWifi: () =>
         isDesktopRuntime || ref.read(networkTypeProvider) == NetworkType.wifi,
+    readCustomDownloadFolderEnabled: () =>
+        ref.read(customDownloadFolderEnabledProvider),
+    readCustomDownloadFolderPath: () =>
+        ref.read(customDownloadFolderPathProvider),
     lrclibClient: ref.read(lrclibClientProvider),
     readCoverArtCacheManager: () => ref.read(coverArtCacheManagerProvider),
   );
@@ -2030,6 +2035,20 @@ final autoDownloadStarredOnWifiProvider = Provider<bool>((ref) {
       ref.watch(appSettingsProvider).asData?.value ??
       const AppSettingsModel.defaults();
   return settings.autoDownloadStarredOnWifi;
+});
+
+final customDownloadFolderEnabledProvider = Provider<bool>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.customDownloadFolderEnabled;
+});
+
+final customDownloadFolderPathProvider = Provider<String?>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.customDownloadFolderPath;
 });
 
 /// Current theme mode string ('light', 'dark', 'oled', 'system').

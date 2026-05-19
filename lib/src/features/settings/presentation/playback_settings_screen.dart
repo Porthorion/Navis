@@ -776,6 +776,9 @@ class _PlaybackSettingsScreenState
         loudnessTargetGainDb: _loudnessTargetGainDb,
         wifiOnlyDownloads: ref.read(wifiOnlyDownloadsProvider),
         autoDownloadStarredOnWifi: currentSettings.autoDownloadStarredOnWifi,
+        customDownloadFolderEnabled:
+            currentSettings.customDownloadFolderEnabled,
+        customDownloadFolderPath: currentSettings.customDownloadFolderPath,
         themeMode: ref.read(themeModeProvider),
         colorSchemeSeed: ref.read(colorSchemeSeedProvider),
         appLocale: ref.read(appLocaleProvider),

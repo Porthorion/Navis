@@ -10,6 +10,7 @@ import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
+import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/database/daos/cache_dao.dart';
 import 'package:navis/src/database/daos/download_queue_dao.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
@@ -17,14 +18,20 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart'
     show BaseCacheManager;
+import 'package:navis/src/features/downloads/data/permanent_download_path_resolver.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/file_utils.dart';
 import 'package:navis/src/utils/notifications/download_notifier.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 
 /// Maximum number of automatic retries before marking a download as failed.
 const int maxRetries = 3;
+
+typedef _RelocatedPermanentDownload = ({
+  CachedTracksTableData entry,
+  String storedFormat,
+  String targetPath,
+});
 
 /// Orchestrates permanent downloads of tracks from a Subsonic server.
 ///
@@ -44,37 +51,54 @@ const int maxRetries = 3;
 ///   event loop.
 class DownloadService {
   DownloadService({
+    required AppSettingsDao appSettingsDao,
     required CacheDao cacheDao,
     required DownloadQueueDao downloadQueueDao,
     required LibraryDao libraryDao,
     required SubsonicApiClient? Function() readApiClient,
     required bool Function() readWifiOnly,
     required bool Function() readIsWifi,
+    required bool Function() readCustomDownloadFolderEnabled,
+    required String? Function() readCustomDownloadFolderPath,
     required LrclibClient lrclibClient,
     required BaseCacheManager Function() readCoverArtCacheManager,
+    Future<Directory> Function()? readApplicationSupportDirectory,
     Dio? dio,
-  }) : _cacheDao = cacheDao,
+  }) : _appSettingsDao = appSettingsDao,
+       _cacheDao = cacheDao,
        _downloadQueueDao = downloadQueueDao,
        _libraryDao = libraryDao,
        _readApiClient = readApiClient,
        _readWifiOnly = readWifiOnly,
        _readIsWifi = readIsWifi,
+       _readCustomDownloadFolderEnabled = readCustomDownloadFolderEnabled,
+       _readCustomDownloadFolderPath = readCustomDownloadFolderPath,
        _lrclibClient = lrclibClient,
        _readCoverArtCacheManager = readCoverArtCacheManager,
-       _dio = dio ?? Dio();
+       _dio = dio ?? Dio(),
+       _permanentPathResolver = PermanentDownloadPathResolver(
+         readCustomDownloadFolderEnabled: readCustomDownloadFolderEnabled,
+         readCustomDownloadFolderPath: readCustomDownloadFolderPath,
+         readApplicationSupportDirectory: readApplicationSupportDirectory,
+       );
 
+  final AppSettingsDao _appSettingsDao;
   final CacheDao _cacheDao;
   final DownloadQueueDao _downloadQueueDao;
   final LibraryDao _libraryDao;
   final SubsonicApiClient? Function() _readApiClient;
   final bool Function() _readWifiOnly;
   final bool Function() _readIsWifi;
+  final bool Function() _readCustomDownloadFolderEnabled;
+  final String? Function() _readCustomDownloadFolderPath;
   final LrclibClient _lrclibClient;
   final BaseCacheManager Function() _readCoverArtCacheManager;
   final Dio _dio;
+  final PermanentDownloadPathResolver _permanentPathResolver;
 
   StreamSubscription<List<DownloadQueueTableData>>? _queueSubscription;
   bool _processing = false;
+  bool _maintenanceInProgress = false;
   CancelToken? _activeCancelToken;
 
   /// Start listening to the download queue and automatically process items.
@@ -85,15 +109,15 @@ class DownloadService {
     await _downloadQueueDao.requeueStuckDownloads();
 
     // Best-effort cleanup of orphaned permanent files on startup.
-    unawaited(_cleanupOrphanedFiles());
+    await _cleanupOrphanedFiles();
+
+    // Normalize older hashed permanent downloads into the current folder layout.
+    await _normalizePermanentDownloads();
 
     // Best-effort lyrics backfill for already-downloaded songs.
     unawaited(_backfillLyricsForDownloadedSongs());
 
-    await _queueSubscription?.cancel();
-    _queueSubscription = _downloadQueueDao.watchQueue().listen((_) {
-      unawaited(_processNext());
-    });
+    await _startQueueSubscription();
   }
 
   /// Stop the service and cancel any active download.
@@ -103,6 +127,74 @@ class DownloadService {
     _activeCancelToken?.cancel('Service stopped');
     _activeCancelToken = null;
     _processing = false;
+  }
+
+  Future<void> configureCustomDownloadFolder({
+    required bool enabled,
+    String? path,
+  }) async {
+    final normalizedPath = path?.trim();
+    if (enabled && (normalizedPath == null || normalizedPath.isEmpty)) {
+      throw FileSystemException(
+        'A custom download folder path is required when enabling the feature.',
+      );
+    }
+
+    await _runWithQueuePaused(() async {
+      final targetDirectory = await _permanentDirectory(
+        customDownloadFolderEnabled: enabled,
+        customDownloadFolderPath: enabled ? normalizedPath : null,
+      );
+      await _relocatePermanentDownloads(
+        targetDirectory: targetDirectory,
+        customDownloadFolderEnabled: enabled,
+        customDownloadFolderPath: enabled ? normalizedPath : null,
+        rollbackOnFailure: true,
+      );
+      await _appSettingsDao.updateCustomDownloadFolderPath(
+        enabled ? normalizedPath : null,
+      );
+      await _appSettingsDao.updateCustomDownloadFolderEnabled(enabled: enabled);
+    });
+  }
+
+  Future<String> resolveActivePermanentDownloadPath() async {
+    final directory = await _permanentDirectory();
+    return directory.path;
+  }
+
+  Future<void> _startQueueSubscription() async {
+    await _queueSubscription?.cancel();
+    _queueSubscription = _downloadQueueDao.watchQueue().listen((_) {
+      unawaited(_processNext());
+    });
+    unawaited(_processNext());
+  }
+
+  Future<T> _runWithQueuePaused<T>(Future<T> Function() action) async {
+    if (_maintenanceInProgress) {
+      throw StateError('Download maintenance is already in progress.');
+    }
+    _maintenanceInProgress = true;
+    final hadSubscription = _queueSubscription != null;
+    await _queueSubscription?.cancel();
+    _queueSubscription = null;
+    _activeCancelToken?.cancel('Download maintenance');
+    await _waitForCurrentWorkToStop();
+    try {
+      return await action();
+    } finally {
+      _maintenanceInProgress = false;
+      if (hadSubscription) {
+        await _startQueueSubscription();
+      }
+    }
+  }
+
+  Future<void> _waitForCurrentWorkToStop() async {
+    while (_processing || _activeCancelToken != null) {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -303,11 +395,17 @@ class DownloadService {
     final file = File(track.filePath);
     if (!await file.exists()) return false;
 
-    // Copy to permanent directory.
-    final permDir = await _permanentDirectory();
-    final newPath = p.join(permDir.path, p.basename(track.filePath));
+    final song = (await _libraryDao.getSongsByIds(<String>[
+      songId,
+    ])).firstOrNull;
+    final newPath = await _resolvePermanentPathForEntry(
+      songId: songId,
+      song: song,
+      format: _resolveStoredFormat(track, song: song),
+    );
     final destination = File(newPath);
     try {
+      await Directory(p.dirname(newPath)).create(recursive: true);
       if (!await destination.exists()) {
         await file.copy(newPath);
       }
@@ -388,7 +486,7 @@ class DownloadService {
   // ---------------------------------------------------------------------------
 
   Future<void> _processNext() async {
-    if (_processing) return;
+    if (_processing || _maintenanceInProgress) return;
 
     // Respect Wi-Fi-only setting.
     if (_readWifiOnly() && !_readIsWifi()) {
@@ -625,12 +723,19 @@ class DownloadService {
       final knownEntries = await _cacheDao.getPermanentEntries();
       final knownPaths = knownEntries.map((e) => e.filePath).toSet();
 
-      await for (final entity in permDir.list()) {
-        if (entity is File && !knownPaths.contains(entity.path)) {
+      await for (final entity in permDir.list(recursive: true)) {
+        if (entity is! File) {
+          continue;
+        }
+        final path = entity.path;
+        final basePath = path.endsWith('.mime')
+            ? path.substring(0, path.length - '.mime'.length)
+            : path;
+        if (!knownPaths.contains(basePath)) {
           AppLogger.info(
-            'DownloadService: Removing orphaned file ${entity.path}',
+            'DownloadService: Removing orphaned file $path',
           );
-          await entity.delete();
+          await deleteFileWithSuffixes(basePath);
         }
       }
     } on Object catch (e) {
@@ -862,30 +967,301 @@ class DownloadService {
     return buf.toString().trimRight();
   }
 
+  Future<void> _normalizePermanentDownloads() async {
+    try {
+      final targetDirectory = await _permanentDirectory();
+      await _relocatePermanentDownloads(
+        targetDirectory: targetDirectory,
+        customDownloadFolderEnabled: _readCustomDownloadFolderEnabled(),
+        customDownloadFolderPath: _readCustomDownloadFolderPath(),
+      );
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning(
+        'DownloadService: Permanent download normalization failed: '
+        '$error\n$stackTrace',
+      );
+    }
+  }
+
+  Future<void> _relocatePermanentDownloads({
+    required Directory targetDirectory,
+    required bool customDownloadFolderEnabled,
+    required String? customDownloadFolderPath,
+    bool rollbackOnFailure = false,
+  }) async {
+    final currentRootDirectory = await _permanentDirectory(
+      customDownloadFolderEnabled: _readCustomDownloadFolderEnabled(),
+      customDownloadFolderPath: _readCustomDownloadFolderPath(),
+    );
+    final entries = await _cacheDao.getPermanentEntries();
+    if (entries.isEmpty) {
+      return;
+    }
+
+    final songs = await _libraryDao.getSongsByIds(
+      entries.map((entry) => entry.songId).toSet(),
+    );
+    final songsById = <String, SongsTableData>{
+      for (final song in songs) song.id: song,
+    };
+    final reservedTargetPaths = <String>{};
+    final movedEntries = <_RelocatedPermanentDownload>[];
+
+    try {
+      for (final entry in entries) {
+        final sourceFile = File(entry.filePath);
+        if (!await sourceFile.exists()) {
+          AppLogger.warning(
+            'DownloadService: Skipping permanent relocation for ${entry.songId} '
+            'because the file is missing: ${entry.filePath}',
+          );
+          continue;
+        }
+
+        final song = songsById[entry.songId];
+        final storedFormat = _resolveStoredFormat(entry, song: song);
+        final targetPath = await _resolvePermanentPathForEntry(
+          songId: entry.songId,
+          song: song,
+          format: storedFormat,
+          existingPath: entry.filePath,
+          reservedPaths: reservedTargetPaths,
+          customDownloadFolderEnabled: customDownloadFolderEnabled,
+          customDownloadFolderPath: customDownloadFolderPath,
+        );
+        reservedTargetPaths.add(targetPath);
+        if (p.equals(entry.filePath, targetPath)) {
+          continue;
+        }
+
+        final previousParent = File(entry.filePath).parent;
+        await _movePermanentFileSet(entry.filePath, targetPath);
+        await _cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: entry.songId,
+            filePath: targetPath,
+            fileSize: entry.fileSize,
+            format: storedFormat,
+            bitRate: entry.bitRate == null
+                ? const Value.absent()
+                : Value(entry.bitRate),
+            cacheType: CacheType.permanent,
+            downloadStatus: entry.downloadStatus,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
+        movedEntries.add((
+          entry: entry,
+          storedFormat: storedFormat,
+          targetPath: targetPath,
+        ));
+        await _deleteEmptyDirectoriesUpwards(
+          startDirectory: previousParent,
+          stopAtDirectory: currentRootDirectory.path,
+        );
+      }
+    } on Object {
+      if (rollbackOnFailure) {
+        await _rollbackRelocatedPermanentDownloads(
+          movedEntries,
+          currentRootDirectoryPath: currentRootDirectory.path,
+          targetRootDirectoryPath: targetDirectory.path,
+        );
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> _rollbackRelocatedPermanentDownloads(
+    List<_RelocatedPermanentDownload> movedEntries, {
+    required String currentRootDirectoryPath,
+    required String targetRootDirectoryPath,
+  }) async {
+    for (final moved in movedEntries.reversed) {
+      await _movePermanentFileSet(moved.targetPath, moved.entry.filePath);
+      await _cacheDao.upsertCachedTrack(
+        CachedTracksTableCompanion.insert(
+          songId: moved.entry.songId,
+          filePath: moved.entry.filePath,
+          fileSize: moved.entry.fileSize,
+          format: moved.storedFormat,
+          bitRate: moved.entry.bitRate == null
+              ? const Value.absent()
+              : Value(moved.entry.bitRate),
+          cacheType: CacheType.permanent,
+          downloadStatus: moved.entry.downloadStatus,
+          lastAccessedAt: moved.entry.lastAccessedAt,
+        ),
+      );
+      await _deleteEmptyDirectoriesUpwards(
+        startDirectory: File(moved.targetPath).parent,
+        stopAtDirectory: targetRootDirectoryPath,
+      );
+      await _deleteEmptyDirectoriesUpwards(
+        startDirectory: File(moved.entry.filePath).parent,
+        stopAtDirectory: currentRootDirectoryPath,
+      );
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // File utilities
   // ---------------------------------------------------------------------------
 
-  Future<Directory> _permanentDirectory() async {
-    final root = await getApplicationSupportDirectory();
-    final dir = Directory(p.join(root.path, 'audio', 'permanent'));
-    if (!await dir.exists()) {
-      await dir.create(recursive: true);
+  Future<String> _resolvePermanentPathForEntry({
+    required String songId,
+    required String format,
+    SongsTableData? song,
+    String? existingPath,
+    Set<String> reservedPaths = const <String>{},
+    bool? customDownloadFolderEnabled,
+    String? customDownloadFolderPath,
+  }) async {
+    if (song != null) {
+      return _permanentPathResolver.resolveSongPath(
+        song: song,
+        extension: format,
+        existingPath: existingPath,
+        reservedPaths: reservedPaths,
+        customDownloadFolderEnabled: customDownloadFolderEnabled,
+        customDownloadFolderPath: customDownloadFolderPath,
+      );
     }
-    return dir;
+
+    final rootDirectory = await _permanentDirectory(
+      customDownloadFolderEnabled: customDownloadFolderEnabled,
+      customDownloadFolderPath: customDownloadFolderPath,
+    );
+    final artistDirectory = PermanentDownloadPathResolver.sanitizePathComponent(
+      null,
+      fallback: PermanentDownloadPathResolver.unknownArtistDirectory,
+    );
+    final fileStem = PermanentDownloadPathResolver.sanitizePathComponent(
+      p.basenameWithoutExtension(existingPath ?? songId),
+      fallback: songId,
+    );
+    final extension = format.trim().replaceFirst('.', '');
+    final basePath = p.join(
+      rootDirectory.path,
+      artistDirectory,
+      '$fileStem.${extension.isEmpty ? 'bin' : extension}',
+    );
+    if (existingPath != null && p.equals(basePath, existingPath)) {
+      return basePath;
+    }
+    if (!reservedPaths.contains(basePath) && !File(basePath).existsSync()) {
+      return basePath;
+    }
+    final suffix = sha1.convert(utf8.encode(songId)).toString().substring(0, 8);
+    return p.join(
+      rootDirectory.path,
+      artistDirectory,
+      '$fileStem [$suffix].${extension.isEmpty ? 'bin' : extension}',
+    );
+  }
+
+  String _resolveStoredFormat(
+    CachedTracksTableData track, {
+    SongsTableData? song,
+  }) {
+    final stored = track.format.trim();
+    if (stored.isNotEmpty) {
+      return stored;
+    }
+    final suffix = song?.suffix?.trim();
+    if (suffix != null && suffix.isNotEmpty) {
+      return suffix;
+    }
+    final ext = p.extension(track.filePath).replaceFirst('.', '').trim();
+    return ext.isEmpty ? 'bin' : ext;
+  }
+
+  Future<void> _movePermanentFileSet(
+    String sourcePath,
+    String targetPath,
+  ) async {
+    await Directory(p.dirname(targetPath)).create(recursive: true);
+    await _moveFile(File(sourcePath), File(targetPath));
+    await _moveFile(
+      File('$sourcePath.mime'),
+      File('$targetPath.mime'),
+      missingIsOk: true,
+    );
+  }
+
+  Future<void> _moveFile(
+    File source,
+    File destination, {
+    bool missingIsOk = false,
+  }) async {
+    if (!await source.exists()) {
+      if (missingIsOk) {
+        return;
+      }
+      throw FileSystemException(
+        'Source file does not exist.',
+        source.path,
+      );
+    }
+
+    if (await destination.exists()) {
+      await destination.delete();
+    }
+
+    try {
+      await source.rename(destination.path);
+    } on FileSystemException {
+      await source.copy(destination.path);
+      await source.delete();
+    }
+  }
+
+  Future<void> _deleteEmptyDirectoriesUpwards({
+    required Directory startDirectory,
+    required String stopAtDirectory,
+  }) async {
+    final stopAt = p.normalize(stopAtDirectory);
+    var current = startDirectory;
+    while (true) {
+      final currentPath = p.normalize(current.path);
+      if (currentPath == stopAt) {
+        return;
+      }
+      final entries = await current.list().toList();
+      if (entries.isNotEmpty) {
+        return;
+      }
+      await current.delete();
+      final parent = current.parent;
+      if (p.normalize(parent.path) == currentPath) {
+        return;
+      }
+      current = parent;
+    }
+  }
+
+  Future<Directory> _permanentDirectory({
+    bool? customDownloadFolderEnabled,
+    String? customDownloadFolderPath,
+  }) {
+    return _permanentPathResolver.resolveRootFor(
+      customDownloadFolderEnabled:
+          customDownloadFolderEnabled ?? _readCustomDownloadFolderEnabled(),
+      customDownloadFolderPath:
+          customDownloadFolderPath ?? _readCustomDownloadFolderPath(),
+    );
   }
 
   Future<File> _resolveDownloadFile(
     SongsTableData song,
     DownloadQueueTableData item,
   ) async {
-    final dir = await _permanentDirectory();
-    final qualitySig = '${item.quality ?? 'original'}-${item.format ?? 'raw'}';
-    final digest = sha1
-        .convert(utf8.encode('${song.id}::$qualitySig'))
-        .toString();
     final ext = _resolveFormat(song, item);
-    return File(p.join(dir.path, '${song.id}_$digest.$ext'));
+    final targetPath = await _permanentPathResolver.resolveSongPath(
+      song: song,
+      extension: ext,
+    );
+    return File(targetPath);
   }
 
   Uri _resolveDownloadUri({

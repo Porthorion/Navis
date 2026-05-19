@@ -37,6 +37,8 @@ void main() {
           loudnessTargetGainDb: 8,
           wifiOnlyDownloads: false,
           autoDownloadStarredOnWifi: false,
+          customDownloadFolderEnabled: false,
+          customDownloadFolderPath: null,
           themeMode: 'dark',
           colorSchemeSeed: null,
           crossfadeEnabled: false,
@@ -75,6 +77,8 @@ void main() {
         expect(first.equalizerBandGains, '[1,2,3,4,5]');
         expect(first.loudnessEnabled, isTrue);
         expect(first.loudnessTargetGainDb, 8);
+        expect(first.customDownloadFolderEnabled, isFalse);
+        expect(first.customDownloadFolderPath, isNull);
 
         await database.appSettingsDao.saveSettings(
           wifiMaxBitRate: null,
@@ -94,6 +98,8 @@ void main() {
           loudnessTargetGainDb: 0,
           wifiOnlyDownloads: false,
           autoDownloadStarredOnWifi: false,
+          customDownloadFolderEnabled: false,
+          customDownloadFolderPath: null,
           themeMode: 'dark',
           colorSchemeSeed: null,
           crossfadeEnabled: false,
@@ -132,6 +138,8 @@ void main() {
         expect(second.equalizerBandGains, isNull);
         expect(second.loudnessEnabled, isFalse);
         expect(second.loudnessTargetGainDb, 0);
+        expect(second.customDownloadFolderEnabled, isFalse);
+        expect(second.customDownloadFolderPath, isNull);
       },
       skip: !sqliteAvailable,
     );
@@ -155,6 +163,8 @@ void main() {
         loudnessTargetGainDb: 6,
         wifiOnlyDownloads: true,
         autoDownloadStarredOnWifi: false,
+        customDownloadFolderEnabled: false,
+        customDownloadFolderPath: null,
         themeMode: 'oled',
         colorSchemeSeed: 4283215696,
         crossfadeEnabled: false,
@@ -204,6 +214,8 @@ void main() {
       expect(settings.equalizerBandGains, isNull);
       expect(settings.loudnessEnabled, isFalse);
       expect(settings.loudnessTargetGainDb, 0);
+      expect(settings.customDownloadFolderEnabled, isFalse);
+      expect(settings.customDownloadFolderPath, isNull);
       expect(settings.dynamicAlbumColorEnabled, isFalse);
       expect(settings.homeDensity, 'comfortable');
       final groupListening = await database.appSettingsDao

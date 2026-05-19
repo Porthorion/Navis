@@ -13,6 +13,7 @@ import 'package:navis/src/database/tables/genres_table.dart';
 import 'package:navis/src/database/tables/match_flow_songs_table.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/database/tables/songs_table.dart';
+import 'package:navis/src/utils/file_utils.dart';
 
 part 'library_dao.g.dart';
 
@@ -1268,10 +1269,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       return;
     }
     try {
-      final file = File(normalized);
-      if (file.existsSync()) {
-        file.deleteSync();
-      }
+      await deleteFileWithSuffixes(normalized);
     } on FileSystemException {
       // Cache metadata must not be kept alive by a failed best-effort unlink.
     }

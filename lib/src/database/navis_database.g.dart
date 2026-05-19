@@ -777,6 +777,32 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
         defaultValue: const Constant(false),
       );
+  static const VerificationMeta _customDownloadFolderEnabledMeta =
+      const VerificationMeta('customDownloadFolderEnabled');
+  @override
+  late final GeneratedColumn<bool> customDownloadFolderEnabled =
+      GeneratedColumn<bool>(
+        'custom_download_folder_enabled',
+        aliasedName,
+        false,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("custom_download_folder_enabled" IN (0, 1))',
+        ),
+        defaultValue: const Constant(false),
+      );
+  static const VerificationMeta _customDownloadFolderPathMeta =
+      const VerificationMeta('customDownloadFolderPath');
+  @override
+  late final GeneratedColumn<String> customDownloadFolderPath =
+      GeneratedColumn<String>(
+        'custom_download_folder_path',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _themeModeMeta = const VerificationMeta(
     'themeMode',
   );
@@ -1300,6 +1326,8 @@ class $AppSettingsTableTable extends AppSettingsTable
     rollingCacheBudgetMb,
     wifiOnlyDownloads,
     autoDownloadStarredOnWifi,
+    customDownloadFolderEnabled,
+    customDownloadFolderPath,
     themeMode,
     colorSchemeSeed,
     customColorPresets,
@@ -1512,6 +1540,24 @@ class $AppSettingsTableTable extends AppSettingsTable
         autoDownloadStarredOnWifi.isAcceptableOrUnknown(
           data['auto_download_starred_on_wifi']!,
           _autoDownloadStarredOnWifiMeta,
+        ),
+      );
+    }
+    if (data.containsKey('custom_download_folder_enabled')) {
+      context.handle(
+        _customDownloadFolderEnabledMeta,
+        customDownloadFolderEnabled.isAcceptableOrUnknown(
+          data['custom_download_folder_enabled']!,
+          _customDownloadFolderEnabledMeta,
+        ),
+      );
+    }
+    if (data.containsKey('custom_download_folder_path')) {
+      context.handle(
+        _customDownloadFolderPathMeta,
+        customDownloadFolderPath.isAcceptableOrUnknown(
+          data['custom_download_folder_path']!,
+          _customDownloadFolderPathMeta,
         ),
       );
     }
@@ -1950,6 +1996,14 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.bool,
         data['${effectivePrefix}auto_download_starred_on_wifi'],
       )!,
+      customDownloadFolderEnabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}custom_download_folder_enabled'],
+      )!,
+      customDownloadFolderPath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}custom_download_folder_path'],
+      ),
       themeMode: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}theme_mode'],
@@ -2147,6 +2201,13 @@ class AppSettingsTableData extends DataClass
   /// When true, liked albums and songs enqueue for permanent download on Wi-Fi.
   final bool autoDownloadStarredOnWifi;
 
+  /// When true, permanently-downloaded tracks are written into a user-selected
+  /// custom folder instead of the default app-managed support directory.
+  final bool customDownloadFolderEnabled;
+
+  /// Absolute path to the user-selected permanent-download folder.
+  final String? customDownloadFolderPath;
+
   /// Theme mode: 'light', 'dark', 'oled', or 'system'. Defaults to 'dark'.
   final String themeMode;
 
@@ -2294,6 +2355,8 @@ class AppSettingsTableData extends DataClass
     required this.rollingCacheBudgetMb,
     required this.wifiOnlyDownloads,
     required this.autoDownloadStarredOnWifi,
+    required this.customDownloadFolderEnabled,
+    this.customDownloadFolderPath,
     required this.themeMode,
     this.colorSchemeSeed,
     this.customColorPresets,
@@ -2371,6 +2434,14 @@ class AppSettingsTableData extends DataClass
     map['auto_download_starred_on_wifi'] = Variable<bool>(
       autoDownloadStarredOnWifi,
     );
+    map['custom_download_folder_enabled'] = Variable<bool>(
+      customDownloadFolderEnabled,
+    );
+    if (!nullToAbsent || customDownloadFolderPath != null) {
+      map['custom_download_folder_path'] = Variable<String>(
+        customDownloadFolderPath,
+      );
+    }
     map['theme_mode'] = Variable<String>(themeMode);
     if (!nullToAbsent || colorSchemeSeed != null) {
       map['color_scheme_seed'] = Variable<int>(colorSchemeSeed);
@@ -2473,6 +2544,10 @@ class AppSettingsTableData extends DataClass
       rollingCacheBudgetMb: Value(rollingCacheBudgetMb),
       wifiOnlyDownloads: Value(wifiOnlyDownloads),
       autoDownloadStarredOnWifi: Value(autoDownloadStarredOnWifi),
+      customDownloadFolderEnabled: Value(customDownloadFolderEnabled),
+      customDownloadFolderPath: customDownloadFolderPath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(customDownloadFolderPath),
       themeMode: Value(themeMode),
       colorSchemeSeed: colorSchemeSeed == null && nullToAbsent
           ? const Value.absent()
@@ -2568,6 +2643,12 @@ class AppSettingsTableData extends DataClass
       wifiOnlyDownloads: serializer.fromJson<bool>(json['wifiOnlyDownloads']),
       autoDownloadStarredOnWifi: serializer.fromJson<bool>(
         json['autoDownloadStarredOnWifi'],
+      ),
+      customDownloadFolderEnabled: serializer.fromJson<bool>(
+        json['customDownloadFolderEnabled'],
+      ),
+      customDownloadFolderPath: serializer.fromJson<String?>(
+        json['customDownloadFolderPath'],
       ),
       themeMode: serializer.fromJson<String>(json['themeMode']),
       colorSchemeSeed: serializer.fromJson<int?>(json['colorSchemeSeed']),
@@ -2668,6 +2749,12 @@ class AppSettingsTableData extends DataClass
       'autoDownloadStarredOnWifi': serializer.toJson<bool>(
         autoDownloadStarredOnWifi,
       ),
+      'customDownloadFolderEnabled': serializer.toJson<bool>(
+        customDownloadFolderEnabled,
+      ),
+      'customDownloadFolderPath': serializer.toJson<String?>(
+        customDownloadFolderPath,
+      ),
       'themeMode': serializer.toJson<String>(themeMode),
       'colorSchemeSeed': serializer.toJson<int?>(colorSchemeSeed),
       'customColorPresets': serializer.toJson<String?>(customColorPresets),
@@ -2743,6 +2830,8 @@ class AppSettingsTableData extends DataClass
     int? rollingCacheBudgetMb,
     bool? wifiOnlyDownloads,
     bool? autoDownloadStarredOnWifi,
+    bool? customDownloadFolderEnabled,
+    Value<String?> customDownloadFolderPath = const Value.absent(),
     String? themeMode,
     Value<int?> colorSchemeSeed = const Value.absent(),
     Value<String?> customColorPresets = const Value.absent(),
@@ -2814,6 +2903,11 @@ class AppSettingsTableData extends DataClass
     wifiOnlyDownloads: wifiOnlyDownloads ?? this.wifiOnlyDownloads,
     autoDownloadStarredOnWifi:
         autoDownloadStarredOnWifi ?? this.autoDownloadStarredOnWifi,
+    customDownloadFolderEnabled:
+        customDownloadFolderEnabled ?? this.customDownloadFolderEnabled,
+    customDownloadFolderPath: customDownloadFolderPath.present
+        ? customDownloadFolderPath.value
+        : this.customDownloadFolderPath,
     themeMode: themeMode ?? this.themeMode,
     colorSchemeSeed: colorSchemeSeed.present
         ? colorSchemeSeed.value
@@ -2934,6 +3028,12 @@ class AppSettingsTableData extends DataClass
       autoDownloadStarredOnWifi: data.autoDownloadStarredOnWifi.present
           ? data.autoDownloadStarredOnWifi.value
           : this.autoDownloadStarredOnWifi,
+      customDownloadFolderEnabled: data.customDownloadFolderEnabled.present
+          ? data.customDownloadFolderEnabled.value
+          : this.customDownloadFolderEnabled,
+      customDownloadFolderPath: data.customDownloadFolderPath.present
+          ? data.customDownloadFolderPath.value
+          : this.customDownloadFolderPath,
       themeMode: data.themeMode.present ? data.themeMode.value : this.themeMode,
       colorSchemeSeed: data.colorSchemeSeed.present
           ? data.colorSchemeSeed.value
@@ -3071,6 +3171,8 @@ class AppSettingsTableData extends DataClass
           ..write('rollingCacheBudgetMb: $rollingCacheBudgetMb, ')
           ..write('wifiOnlyDownloads: $wifiOnlyDownloads, ')
           ..write('autoDownloadStarredOnWifi: $autoDownloadStarredOnWifi, ')
+          ..write('customDownloadFolderEnabled: $customDownloadFolderEnabled, ')
+          ..write('customDownloadFolderPath: $customDownloadFolderPath, ')
           ..write('themeMode: $themeMode, ')
           ..write('colorSchemeSeed: $colorSchemeSeed, ')
           ..write('customColorPresets: $customColorPresets, ')
@@ -3138,6 +3240,8 @@ class AppSettingsTableData extends DataClass
     rollingCacheBudgetMb,
     wifiOnlyDownloads,
     autoDownloadStarredOnWifi,
+    customDownloadFolderEnabled,
+    customDownloadFolderPath,
     themeMode,
     colorSchemeSeed,
     customColorPresets,
@@ -3202,6 +3306,9 @@ class AppSettingsTableData extends DataClass
           other.rollingCacheBudgetMb == this.rollingCacheBudgetMb &&
           other.wifiOnlyDownloads == this.wifiOnlyDownloads &&
           other.autoDownloadStarredOnWifi == this.autoDownloadStarredOnWifi &&
+          other.customDownloadFolderEnabled ==
+              this.customDownloadFolderEnabled &&
+          other.customDownloadFolderPath == this.customDownloadFolderPath &&
           other.themeMode == this.themeMode &&
           other.colorSchemeSeed == this.colorSchemeSeed &&
           other.customColorPresets == this.customColorPresets &&
@@ -3265,6 +3372,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<int> rollingCacheBudgetMb;
   final Value<bool> wifiOnlyDownloads;
   final Value<bool> autoDownloadStarredOnWifi;
+  final Value<bool> customDownloadFolderEnabled;
+  final Value<String?> customDownloadFolderPath;
   final Value<String> themeMode;
   final Value<int?> colorSchemeSeed;
   final Value<String?> customColorPresets;
@@ -3325,6 +3434,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.rollingCacheBudgetMb = const Value.absent(),
     this.wifiOnlyDownloads = const Value.absent(),
     this.autoDownloadStarredOnWifi = const Value.absent(),
+    this.customDownloadFolderEnabled = const Value.absent(),
+    this.customDownloadFolderPath = const Value.absent(),
     this.themeMode = const Value.absent(),
     this.colorSchemeSeed = const Value.absent(),
     this.customColorPresets = const Value.absent(),
@@ -3386,6 +3497,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.rollingCacheBudgetMb = const Value.absent(),
     this.wifiOnlyDownloads = const Value.absent(),
     this.autoDownloadStarredOnWifi = const Value.absent(),
+    this.customDownloadFolderEnabled = const Value.absent(),
+    this.customDownloadFolderPath = const Value.absent(),
     this.themeMode = const Value.absent(),
     this.colorSchemeSeed = const Value.absent(),
     this.customColorPresets = const Value.absent(),
@@ -3447,6 +3560,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<int>? rollingCacheBudgetMb,
     Expression<bool>? wifiOnlyDownloads,
     Expression<bool>? autoDownloadStarredOnWifi,
+    Expression<bool>? customDownloadFolderEnabled,
+    Expression<String>? customDownloadFolderPath,
     Expression<String>? themeMode,
     Expression<int>? colorSchemeSeed,
     Expression<String>? customColorPresets,
@@ -3514,6 +3629,10 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       if (wifiOnlyDownloads != null) 'wifi_only_downloads': wifiOnlyDownloads,
       if (autoDownloadStarredOnWifi != null)
         'auto_download_starred_on_wifi': autoDownloadStarredOnWifi,
+      if (customDownloadFolderEnabled != null)
+        'custom_download_folder_enabled': customDownloadFolderEnabled,
+      if (customDownloadFolderPath != null)
+        'custom_download_folder_path': customDownloadFolderPath,
       if (themeMode != null) 'theme_mode': themeMode,
       if (colorSchemeSeed != null) 'color_scheme_seed': colorSchemeSeed,
       if (customColorPresets != null)
@@ -3594,6 +3713,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<int>? rollingCacheBudgetMb,
     Value<bool>? wifiOnlyDownloads,
     Value<bool>? autoDownloadStarredOnWifi,
+    Value<bool>? customDownloadFolderEnabled,
+    Value<String?>? customDownloadFolderPath,
     Value<String>? themeMode,
     Value<int?>? colorSchemeSeed,
     Value<String?>? customColorPresets,
@@ -3656,6 +3777,10 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       wifiOnlyDownloads: wifiOnlyDownloads ?? this.wifiOnlyDownloads,
       autoDownloadStarredOnWifi:
           autoDownloadStarredOnWifi ?? this.autoDownloadStarredOnWifi,
+      customDownloadFolderEnabled:
+          customDownloadFolderEnabled ?? this.customDownloadFolderEnabled,
+      customDownloadFolderPath:
+          customDownloadFolderPath ?? this.customDownloadFolderPath,
       themeMode: themeMode ?? this.themeMode,
       colorSchemeSeed: colorSchemeSeed ?? this.colorSchemeSeed,
       customColorPresets: customColorPresets ?? this.customColorPresets,
@@ -3770,6 +3895,16 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     if (autoDownloadStarredOnWifi.present) {
       map['auto_download_starred_on_wifi'] = Variable<bool>(
         autoDownloadStarredOnWifi.value,
+      );
+    }
+    if (customDownloadFolderEnabled.present) {
+      map['custom_download_folder_enabled'] = Variable<bool>(
+        customDownloadFolderEnabled.value,
+      );
+    }
+    if (customDownloadFolderPath.present) {
+      map['custom_download_folder_path'] = Variable<String>(
+        customDownloadFolderPath.value,
       );
     }
     if (themeMode.present) {
@@ -3935,6 +4070,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('rollingCacheBudgetMb: $rollingCacheBudgetMb, ')
           ..write('wifiOnlyDownloads: $wifiOnlyDownloads, ')
           ..write('autoDownloadStarredOnWifi: $autoDownloadStarredOnWifi, ')
+          ..write('customDownloadFolderEnabled: $customDownloadFolderEnabled, ')
+          ..write('customDownloadFolderPath: $customDownloadFolderPath, ')
           ..write('themeMode: $themeMode, ')
           ..write('colorSchemeSeed: $colorSchemeSeed, ')
           ..write('customColorPresets: $customColorPresets, ')
@@ -13232,6 +13369,8 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<int> rollingCacheBudgetMb,
       Value<bool> wifiOnlyDownloads,
       Value<bool> autoDownloadStarredOnWifi,
+      Value<bool> customDownloadFolderEnabled,
+      Value<String?> customDownloadFolderPath,
       Value<String> themeMode,
       Value<int?> colorSchemeSeed,
       Value<String?> customColorPresets,
@@ -13294,6 +13433,8 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<int> rollingCacheBudgetMb,
       Value<bool> wifiOnlyDownloads,
       Value<bool> autoDownloadStarredOnWifi,
+      Value<bool> customDownloadFolderEnabled,
+      Value<String?> customDownloadFolderPath,
       Value<String> themeMode,
       Value<int?> colorSchemeSeed,
       Value<String?> customColorPresets,
@@ -13437,6 +13578,16 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<bool> get autoDownloadStarredOnWifi => $composableBuilder(
     column: $table.autoDownloadStarredOnWifi,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get customDownloadFolderEnabled => $composableBuilder(
+    column: $table.customDownloadFolderEnabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get customDownloadFolderPath => $composableBuilder(
+    column: $table.customDownloadFolderPath,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -13745,6 +13896,16 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get customDownloadFolderEnabled => $composableBuilder(
+    column: $table.customDownloadFolderEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get customDownloadFolderPath => $composableBuilder(
+    column: $table.customDownloadFolderPath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get themeMode => $composableBuilder(
     column: $table.themeMode,
     builder: (column) => ColumnOrderings(column),
@@ -14048,6 +14209,16 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get customDownloadFolderEnabled => $composableBuilder(
+    column: $table.customDownloadFolderEnabled,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get customDownloadFolderPath => $composableBuilder(
+    column: $table.customDownloadFolderPath,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get themeMode =>
       $composableBuilder(column: $table.themeMode, builder: (column) => column);
 
@@ -14297,6 +14468,8 @@ class $$AppSettingsTableTableTableManager
                 Value<int> rollingCacheBudgetMb = const Value.absent(),
                 Value<bool> wifiOnlyDownloads = const Value.absent(),
                 Value<bool> autoDownloadStarredOnWifi = const Value.absent(),
+                Value<bool> customDownloadFolderEnabled = const Value.absent(),
+                Value<String?> customDownloadFolderPath = const Value.absent(),
                 Value<String> themeMode = const Value.absent(),
                 Value<int?> colorSchemeSeed = const Value.absent(),
                 Value<String?> customColorPresets = const Value.absent(),
@@ -14358,6 +14531,8 @@ class $$AppSettingsTableTableTableManager
                 rollingCacheBudgetMb: rollingCacheBudgetMb,
                 wifiOnlyDownloads: wifiOnlyDownloads,
                 autoDownloadStarredOnWifi: autoDownloadStarredOnWifi,
+                customDownloadFolderEnabled: customDownloadFolderEnabled,
+                customDownloadFolderPath: customDownloadFolderPath,
                 themeMode: themeMode,
                 colorSchemeSeed: colorSchemeSeed,
                 customColorPresets: customColorPresets,
@@ -14420,6 +14595,8 @@ class $$AppSettingsTableTableTableManager
                 Value<int> rollingCacheBudgetMb = const Value.absent(),
                 Value<bool> wifiOnlyDownloads = const Value.absent(),
                 Value<bool> autoDownloadStarredOnWifi = const Value.absent(),
+                Value<bool> customDownloadFolderEnabled = const Value.absent(),
+                Value<String?> customDownloadFolderPath = const Value.absent(),
                 Value<String> themeMode = const Value.absent(),
                 Value<int?> colorSchemeSeed = const Value.absent(),
                 Value<String?> customColorPresets = const Value.absent(),
@@ -14481,6 +14658,8 @@ class $$AppSettingsTableTableTableManager
                 rollingCacheBudgetMb: rollingCacheBudgetMb,
                 wifiOnlyDownloads: wifiOnlyDownloads,
                 autoDownloadStarredOnWifi: autoDownloadStarredOnWifi,
+                customDownloadFolderEnabled: customDownloadFolderEnabled,
+                customDownloadFolderPath: customDownloadFolderPath,
                 themeMode: themeMode,
                 colorSchemeSeed: colorSchemeSeed,
                 customColorPresets: customColorPresets,

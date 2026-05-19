@@ -81,7 +81,7 @@ class NavisDatabase extends _$NavisDatabase {
   static QueryExecutor _openConnection() => driftDatabase(name: 'navis.sqlite');
 
   @override
-  int get schemaVersion => 43;
+  int get schemaVersion => 44;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -230,6 +230,9 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 43 && to >= 43) {
       await from42To43(migrator);
+    }
+    if (from < 44 && to >= 44) {
+      await from43To44(migrator);
     }
   }
 
@@ -800,6 +803,24 @@ class NavisDatabase extends _$NavisDatabase {
     }
   }
 
+  Future<void> from43To44(Migrator migrator) async {
+    if (!await _columnExists(
+      'app_settings',
+      'custom_download_folder_enabled',
+    )) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.customDownloadFolderEnabled,
+      );
+    }
+    if (!await _columnExists('app_settings', 'custom_download_folder_path')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.customDownloadFolderPath,
+      );
+    }
+  }
+
   Future<void> _ensureGroupListeningColumns() async {
     if (!await _columnExists('app_settings', 'group_listening_enabled')) {
       await customStatement('''
@@ -893,6 +914,8 @@ class NavisDatabase extends _$NavisDatabase {
         ),
         wifiOnlyDownloads: const Value(true),
         autoDownloadStarredOnWifi: const Value(false),
+        customDownloadFolderEnabled: const Value(false),
+        customDownloadFolderPath: const Value(null),
         useLrclib: const Value(true),
         themeMode: const Value('dark'),
         colorSchemeSeed: const Value(null),

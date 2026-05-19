@@ -55,6 +55,14 @@ class AppSettingsTable extends Table {
   BoolColumn get autoDownloadStarredOnWifi =>
       boolean().withDefault(const Constant(false))();
 
+  /// When true, permanently-downloaded tracks are written into a user-selected
+  /// custom folder instead of the default app-managed support directory.
+  BoolColumn get customDownloadFolderEnabled =>
+      boolean().withDefault(const Constant(false))();
+
+  /// Absolute path to the user-selected permanent-download folder.
+  TextColumn get customDownloadFolderPath => text().nullable()();
+
   /// Theme mode: 'light', 'dark', 'oled', or 'system'. Defaults to 'dark'.
   TextColumn get themeMode => text().withDefault(const Constant('dark'))();
 

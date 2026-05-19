@@ -336,6 +336,8 @@ void main() {
                   loudnessTargetGainDb: 0,
                   wifiOnlyDownloads: false,
                   autoDownloadStarredOnWifi: false,
+                  customDownloadFolderEnabled: false,
+                  customDownloadFolderPath: null,
                   themeMode: 'dark',
                   colorSchemeSeed: null,
                   appLocale: null,

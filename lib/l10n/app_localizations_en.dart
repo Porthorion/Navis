@@ -1763,6 +1763,35 @@ class AppLocalizationsEn extends AppLocalizations {
   String get downloadsSearchHint => 'Search downloads...';
 
   @override
+  String get downloadsCustomFolderTitle => 'Custom Folder';
+
+  @override
+  String get downloadsCustomFolderSubtitle =>
+      'Store permanent downloads in a folder you choose. Existing downloads will be moved and renamed into artist folders.';
+
+  @override
+  String get downloadsCustomFolderUnsupported =>
+      'Custom download folders are not available on this platform.';
+
+  @override
+  String get downloadsCustomFolderChooseAction => 'Choose folder';
+
+  @override
+  String get downloadsCustomFolderSaved => 'Download folder updated.';
+
+  @override
+  String get downloadsCustomFolderDisabled =>
+      'Custom download folder disabled.';
+
+  @override
+  String get downloadsCustomFolderUpdating => 'Moving downloaded tracks...';
+
+  @override
+  String downloadsCustomFolderError(String message) {
+    return 'Could not update download folder: $message';
+  }
+
+  @override
   String downloadsSearchNoResults(String query) {
     return 'No results for \"$query\"';
   }

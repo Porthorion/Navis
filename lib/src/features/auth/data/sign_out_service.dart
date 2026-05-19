@@ -1,11 +1,10 @@
-import 'dart:io';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/file_utils.dart';
 
 final signOutServiceProvider = Provider<SignOutService>((ref) {
   final repository = ref.watch(serverConfigRepositoryProvider);
@@ -47,7 +46,7 @@ class SignOutService {
 
     for (final track in cachedTracks) {
       try {
-        await File(track.filePath).delete();
+        await deleteFileWithSuffixes(track.filePath);
       } on Object catch (error) {
         AppLogger.warning(
           'Unable to delete cached track file during sign out: ${track.filePath}. '
