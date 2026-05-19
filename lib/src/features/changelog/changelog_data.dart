@@ -27,6 +27,27 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
+    version: '1.0.2',
+    entries: [
+      ChangelogEntry(
+        'Custom download folders for permanent downloads — pick your own destination and Navis will move existing downloads there automatically',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Permanent downloads now use readable artist folders and song filenames instead of cache-style names, and existing downloads are migrated to match',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Downloaded-song actions now support desktop right-click and include a direct shortcut to open the containing download folder',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Removing downloads now cleans up empty artist folders without deleting your configured top-level download folder',
+        type: ChangelogEntryType.fix,
+      ),
+    ],
+  ),
+  ChangelogVersion(
     version: '1.0.1',
     entries: [
       ChangelogEntry(

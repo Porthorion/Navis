@@ -55,9 +55,61 @@ String _label(_EntryType t) {
 // Newest version first.
 // ---------------------------------------------------------------------------
 const List<_Version> _changelogs = [
+  _Version('1.0.2', [
+    _Entry(
+      'Custom download folders for permanent downloads — pick your own destination and Navis will move existing downloads there automatically',
+      type: _EntryType.newFeature,
+    ),
+    _Entry(
+      'Permanent downloads now use readable artist folders and song filenames instead of cache-style names, and existing downloads are migrated to match',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Downloaded-song actions now support desktop right-click and include a direct shortcut to open the containing download folder',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Removing downloads now cleans up empty artist folders without deleting your configured top-level download folder',
+      type: _EntryType.fix,
+    ),
+  ]),
   _Version('1.0.1', [
     _Entry(
       'Liked-tab play, shuffle, and queue-all actions now include tracks from liked albums, while deduplicating overlaps with individually liked songs and respecting current filters',
+      type: _EntryType.fix,
+    ),
+  ]),
+  _Version('1.0.0', [
+    _Entry(
+      'Listen Together — host or join Voyage-backed synced rooms with shared queue control, live room status in the player bar, and collaborative or host-only room setups',
+      type: _EntryType.newFeature,
+    ),
+    _Entry(
+      'Experimental Match Flow — create song chains in Playback Settings so starting one track can automatically expand into follow-up songs',
+      type: _EntryType.newFeature,
+    ),
+    _Entry(
+      'Artist pages now split main releases from featured appearances for easier browsing',
+      type: _EntryType.newFeature,
+    ),
+    _Entry(
+      'Now Playing, the mini player, and compact layouts are more polished, with richer metadata navigation and better desktop media integration',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Library sync is faster and smarter — song pages load in parallel and tracks deleted from the server are reconciled locally',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Android Auto media browsing and projection support are more reliable, and cover art loading now prioritizes visible items for smoother scrolling',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Listen Together recovery is much more resilient — rejoin/resume, room exits, sync recovery, and listener seeking behave more reliably during disconnects',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Queue appends stay in order, cached-source seek recovery is more reliable, and compact wide mini-player layout glitches are fixed',
       type: _EntryType.fix,
     ),
   ]),
