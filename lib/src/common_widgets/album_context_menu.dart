@@ -14,7 +14,6 @@ import 'package:navis/src/features/library/presentation/library_sync_provider.da
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
-import 'package:navis/src/utils/file_utils.dart';
 
 /// Shows a bottom sheet context menu for an album identified by [albumId].
 ///
@@ -330,14 +329,9 @@ Future<void> _deleteAlbumDownloads(
   );
   if (confirmed != true || !context.mounted) return;
 
-  final cacheDao = ref.read(navisDatabaseProvider).cacheDao;
-  for (final song in songs) {
-    final track = await cacheDao.getCachedTrack(song.id);
-    if (track != null) {
-      await deleteFileWithSuffixes(track.filePath);
-    }
-    await cacheDao.removeCachedTrack(song.id);
-  }
+  await ref
+      .read(downloadServiceProvider)
+      .removeDownloadedTracks(songs.map((song) => song.id));
 }
 
 Future<void> _toggleAlbumStar(

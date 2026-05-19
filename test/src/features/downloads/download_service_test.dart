@@ -642,5 +642,55 @@ void main() {
       },
       skip: sqliteAvailable ? null : 'sqlite3 not available',
     );
+
+    test(
+      'removeDownloadedTrack prunes empty artist folders but keeps root folder',
+      () async {
+        final customDir = await Directory.systemTemp.createTemp(
+          'navis_custom_downloads_',
+        );
+        addTearDown(() => customDir.delete(recursive: true));
+
+        final artistDir = Directory('${customDir.path}/Slipknot')
+          ..createSync(recursive: true);
+        final trackFile = File('${artistDir.path}/Duality.mp3')
+          ..writeAsBytesSync(<int>[1, 2, 3]);
+
+        final pruningService = DownloadService(
+          appSettingsDao: database.appSettingsDao,
+          cacheDao: database.cacheDao,
+          downloadQueueDao: database.downloadQueueDao,
+          libraryDao: database.libraryDao,
+          readApiClient: () => null,
+          readWifiOnly: () => false,
+          readIsWifi: () => true,
+          readCustomDownloadFolderEnabled: () => true,
+          readCustomDownloadFolderPath: () => customDir.path,
+          lrclibClient: LrclibClient(),
+          readCoverArtCacheManager: _MockCacheManager.new,
+        );
+        addTearDown(pruningService.stop);
+
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: 'song-1',
+            filePath: trackFile.path,
+            fileSize: 3,
+            format: 'mp3',
+            cacheType: CacheType.permanent,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
+
+        await pruningService.removeDownloadedTrack('song-1');
+
+        expect(trackFile.existsSync(), isFalse);
+        expect(artistDir.existsSync(), isFalse);
+        expect(customDir.existsSync(), isTrue);
+        expect(await database.cacheDao.getCachedTrack('song-1'), isNull);
+      },
+      skip: sqliteAvailable ? null : 'sqlite3 not available',
+    );
   });
 }

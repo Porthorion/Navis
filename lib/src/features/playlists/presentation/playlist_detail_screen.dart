@@ -20,7 +20,6 @@ import 'package:navis/src/features/playlists/presentation/playlist_providers.dar
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
-import 'package:navis/src/utils/file_utils.dart';
 
 class PlaylistDetailScreen extends ConsumerStatefulWidget {
   const PlaylistDetailScreen({required this.playlistId, super.key});
@@ -711,12 +710,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
       ),
     );
     if (confirmed != true || !mounted) return;
-    final cacheDao = ref.read(navisDatabaseProvider).cacheDao;
-    final track = await cacheDao.getCachedTrack(song.id);
-    if (track != null) {
-      await deleteFileWithSuffixes(track.filePath);
-    }
-    await cacheDao.removeCachedTrack(song.id);
+    await ref.read(downloadServiceProvider).removeDownloadedTrack(song.id);
   }
 
   Future<void> _downloadSong(SongsTableData song) async {

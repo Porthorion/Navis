@@ -25,7 +25,6 @@ import 'package:navis/src/features/library/domain/set_rating.dart';
 import 'package:navis/src/features/library/domain/toggle_song_star.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
-import 'package:navis/src/utils/file_utils.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -1836,12 +1835,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
       ),
     );
     if (confirmed != true || !mounted) return;
-    final cacheDao = ref.read(navisDatabaseProvider).cacheDao;
-    final track = await cacheDao.getCachedTrack(song.id);
-    if (track != null) {
-      await deleteFileWithSuffixes(track.filePath);
-    }
-    await cacheDao.removeCachedTrack(song.id);
+    await ref.read(downloadServiceProvider).removeDownloadedTrack(song.id);
   }
 
   Future<void> _downloadSong(SongsTableData song) async {
@@ -2342,14 +2336,9 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
       ),
     );
     if (confirmed != true || !mounted) return;
-    final cacheDao = ref.read(navisDatabaseProvider).cacheDao;
-    for (final song in songs) {
-      final track = await cacheDao.getCachedTrack(song.id);
-      if (track != null) {
-        await deleteFileWithSuffixes(track.filePath);
-      }
-      await cacheDao.removeCachedTrack(song.id);
-    }
+    await ref
+        .read(downloadServiceProvider)
+        .removeDownloadedTracks(songs.map((song) => song.id));
   }
 
   Widget _buildDiscHeader(

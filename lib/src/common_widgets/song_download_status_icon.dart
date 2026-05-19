@@ -4,7 +4,6 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
-import 'package:navis/src/utils/file_utils.dart';
 
 /// The resolved download/cache state of a single song.
 enum SongDownloadStatus {
@@ -231,10 +230,5 @@ Future<void> confirmAndDeleteDownload(
 
   if (confirmed != true || !context.mounted) return;
 
-  final cacheDao = ref.read(navisDatabaseProvider).cacheDao;
-  final track = await cacheDao.getCachedTrack(songId);
-  if (track != null) {
-    await deleteFileWithSuffixes(track.filePath);
-  }
-  await cacheDao.removeCachedTrack(songId);
+  await ref.read(downloadServiceProvider).removeDownloadedTrack(songId);
 }

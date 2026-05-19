@@ -3057,6 +3057,18 @@ abstract class AppLocalizations {
   /// **'Remove download'**
   String get downloadsRemoveAction;
 
+  /// No description provided for @downloadsOpenFolderAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Open downloaded folder'**
+  String get downloadsOpenFolderAction;
+
+  /// No description provided for @downloadsOpenFolderError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open the downloaded folder.'**
+  String get downloadsOpenFolderError;
+
   /// No description provided for @downloadsRedownloadOriginal.
   ///
   /// In en, this message translates to:

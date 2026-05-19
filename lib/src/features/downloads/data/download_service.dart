@@ -163,6 +163,38 @@ class DownloadService {
     return directory.path;
   }
 
+  Future<void> removeDownloadedTrack(String songId) async {
+    final track = await _cacheDao.getCachedTrack(songId);
+    if (track == null || track.cacheType != CacheType.permanent) {
+      await _cacheDao.removeCachedTrack(songId);
+      return;
+    }
+    final rootPath = await resolveActivePermanentDownloadPath();
+    await deleteFileWithSuffixes(track.filePath);
+    await pruneEmptyParentDirectories(
+      startDirectoryPath: File(track.filePath).parent.path,
+      stopAtDirectoryPath: rootPath,
+    );
+    await _cacheDao.removeCachedTrack(songId);
+  }
+
+  Future<void> removeDownloadedTracks(Iterable<String> songIds) async {
+    final rootPath = await resolveActivePermanentDownloadPath();
+    for (final songId in songIds) {
+      final track = await _cacheDao.getCachedTrack(songId);
+      if (track == null || track.cacheType != CacheType.permanent) {
+        await _cacheDao.removeCachedTrack(songId);
+        continue;
+      }
+      await deleteFileWithSuffixes(track.filePath);
+      await pruneEmptyParentDirectories(
+        startDirectoryPath: File(track.filePath).parent.path,
+        stopAtDirectoryPath: rootPath,
+      );
+      await _cacheDao.removeCachedTrack(songId);
+    }
+  }
+
   Future<void> _startQueueSubscription() async {
     await _queueSubscription?.cancel();
     _queueSubscription = _downloadQueueDao.watchQueue().listen((_) {

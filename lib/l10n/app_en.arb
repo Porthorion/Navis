@@ -782,6 +782,8 @@
   "downloadsDownloadedEmpty": "No downloaded tracks",
   "downloadsDownloadedEmptySubtitle": "Downloaded tracks will appear here.",
   "downloadsRemoveAction": "Remove download",
+  "downloadsOpenFolderAction": "Open downloaded folder",
+  "downloadsOpenFolderError": "Could not open the downloaded folder.",
   "downloadsRedownloadOriginal": "Re-download in original quality",
   "downloadsRedownloadOriginalSub": "Replace with an untranscoded copy from server",
   "downloadsRedownloadQueued": "Queued for re-download",

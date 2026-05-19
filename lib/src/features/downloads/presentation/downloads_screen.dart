@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
+import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
@@ -404,7 +405,7 @@ class _DownloadedTrackTile extends ConsumerWidget {
     final title = song?.title ?? track.songId;
     final artist = song?.artistName ?? '';
 
-    return ListTile(
+    final tile = ListTile(
       leading: SizedBox(
         width: 48,
         height: 48,
@@ -443,6 +444,22 @@ class _DownloadedTrackTile extends ConsumerWidget {
       },
       onLongPress: () => _showTrackMenu(context, ref, track, l10n),
     );
+    if (!isDesktopRuntime) {
+      return tile;
+    }
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onSecondaryTapDown: (details) => unawaited(
+        _showTrackMenu(
+          context,
+          ref,
+          track,
+          l10n,
+          anchor: details.globalPosition,
+        ),
+      ),
+      child: tile,
+    );
   }
 
   Future<void> _confirmAndDelete(
@@ -473,20 +490,51 @@ class _DownloadedTrackTile extends ConsumerWidget {
       ),
     );
     if (confirmed != true) return;
-    await deleteFileWithSuffixes(track.filePath);
-    await ref
-        .read(navisDatabaseProvider)
-        .cacheDao
-        .removeCachedTrack(track.songId);
+    await ref.read(downloadServiceProvider).removeDownloadedTrack(track.songId);
   }
 
-  void _showTrackMenu(
+  Future<void> _showTrackMenu(
     BuildContext context,
     WidgetRef ref,
     CachedTracksTableData track,
-    AppLocalizations l10n,
-  ) {
-    showModalBottomSheet<void>(
+    AppLocalizations l10n, {
+    Offset? anchor,
+  }) async {
+    if (anchor != null && isDesktopRuntime) {
+      final action = await showDesktopContextMenu<_DownloadedTrackAction>(
+        context: context,
+        anchor: anchor,
+        items: <PopupMenuEntry<_DownloadedTrackAction>>[
+          PopupMenuItem<_DownloadedTrackAction>(
+            value: _DownloadedTrackAction.playNow,
+            child: Text(l10n.librarySongMenuPlayNow),
+          ),
+          PopupMenuItem<_DownloadedTrackAction>(
+            value: _DownloadedTrackAction.changeQuality,
+            child: Text(l10n.downloadsChangeQuality),
+          ),
+          PopupMenuItem<_DownloadedTrackAction>(
+            value: _DownloadedTrackAction.addQueue,
+            child: Text(l10n.librarySongMenuAddToQueue),
+          ),
+          PopupMenuItem<_DownloadedTrackAction>(
+            value: _DownloadedTrackAction.openFolder,
+            child: Text(l10n.downloadsOpenFolderAction),
+          ),
+          PopupMenuItem<_DownloadedTrackAction>(
+            value: _DownloadedTrackAction.removeDownload,
+            child: Text(l10n.downloadsRemoveAction),
+          ),
+        ],
+      );
+      if (!context.mounted || action == null) {
+        return;
+      }
+      await _handleTrackMenuAction(context, ref, track, l10n, action);
+      return;
+    }
+
+    await showModalBottomSheet<void>(
       context: context,
       builder: (sheetContext) {
         return SafeArea(
@@ -496,15 +544,14 @@ class _DownloadedTrackTile extends ConsumerWidget {
               ListTile(
                 leading: const Icon(Icons.play_arrow_outlined),
                 title: Text(l10n.librarySongMenuPlayNow),
-                onTap: () {
+                onTap: () async {
                   Navigator.of(sheetContext).pop();
-                  final queue = allTracks
-                      .map((t) => t.songId)
-                      .toList(growable: false);
-                  unawaited(
-                    ref
-                        .read(queueProvider.notifier)
-                        .replace(queue, startIndex: trackIndex, autoPlay: true),
+                  await _handleTrackMenuAction(
+                    context,
+                    ref,
+                    track,
+                    l10n,
+                    _DownloadedTrackAction.playNow,
                   );
                 },
               ),
@@ -526,65 +573,55 @@ class _DownloadedTrackTile extends ConsumerWidget {
                 ),
                 onTap: () async {
                   Navigator.of(sheetContext).pop();
-                  final currentChoice = DownloadQualityChoice(
-                    quality: track.bitRate != null ? '${track.bitRate}' : null,
-                    format: track.bitRate != null ? track.format : null,
-                  );
-                  final choice = await showDownloadQualitySheet(
+                  await _handleTrackMenuAction(
                     context,
-                    initialChoice: currentChoice,
+                    ref,
+                    track,
+                    l10n,
+                    _DownloadedTrackAction.changeQuality,
                   );
-                  if (choice == null) return;
-                  await deleteFileWithSuffixes(track.filePath);
-                  await ref
-                      .read(navisDatabaseProvider)
-                      .cacheDao
-                      .removeCachedTrack(track.songId);
-                  final service = ref.read(downloadServiceProvider);
-                  await service.enqueueSong(
-                    track.songId,
-                    forceRedownload: true,
-                    quality: choice.quality,
-                    format: choice.format,
-                  );
-                  if (context.mounted) {
-                    showAppNotice(
-                      context,
-                      message: l10n.downloadsRedownloadQueued,
-                      level: AppNoticeLevel.success,
-                    );
-                  }
                 },
               ),
               ListTile(
                 leading: const Icon(Icons.queue_music),
                 title: Text(l10n.librarySongMenuAddToQueue),
-                onTap: () {
+                onTap: () async {
                   Navigator.of(sheetContext).pop();
-                  final song = ref
-                      .read(songByIdProvider(track.songId))
-                      .asData
-                      ?.value;
-                  unawaited(
-                    ref.read(queueProvider.notifier).add(track.songId),
+                  await _handleTrackMenuAction(
+                    context,
+                    ref,
+                    track,
+                    l10n,
+                    _DownloadedTrackAction.addQueue,
                   );
-                  if (context.mounted) {
-                    showAppNotice(
-                      context,
-                      message: l10n.librarySongAddedToQueue(
-                        song?.title ?? track.songId,
-                      ),
-                      level: AppNoticeLevel.success,
-                    );
-                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.folder_open_outlined),
+                title: Text(l10n.downloadsOpenFolderAction),
+                onTap: () async {
+                  Navigator.of(sheetContext).pop();
+                  await _handleTrackMenuAction(
+                    context,
+                    ref,
+                    track,
+                    l10n,
+                    _DownloadedTrackAction.openFolder,
+                  );
                 },
               ),
               ListTile(
                 leading: const Icon(Icons.delete_outline),
                 title: Text(l10n.downloadsRemoveAction),
-                onTap: () {
+                onTap: () async {
                   Navigator.of(sheetContext).pop();
-                  _confirmAndDelete(context, ref, track, l10n);
+                  await _handleTrackMenuAction(
+                    context,
+                    ref,
+                    track,
+                    l10n,
+                    _DownloadedTrackAction.removeDownload,
+                  );
                 },
               ),
             ],
@@ -593,6 +630,83 @@ class _DownloadedTrackTile extends ConsumerWidget {
       },
     );
   }
+
+  Future<void> _handleTrackMenuAction(
+    BuildContext context,
+    WidgetRef ref,
+    CachedTracksTableData track,
+    AppLocalizations l10n,
+    _DownloadedTrackAction action,
+  ) async {
+    switch (action) {
+      case _DownloadedTrackAction.playNow:
+        final queue = allTracks.map((t) => t.songId).toList(growable: false);
+        await ref
+            .read(queueProvider.notifier)
+            .replace(queue, startIndex: trackIndex, autoPlay: true);
+        return;
+      case _DownloadedTrackAction.changeQuality:
+        final currentChoice = DownloadQualityChoice(
+          quality: track.bitRate != null ? '${track.bitRate}' : null,
+          format: track.bitRate != null ? track.format : null,
+        );
+        final choice = await showDownloadQualitySheet(
+          context,
+          initialChoice: currentChoice,
+        );
+        if (choice == null) return;
+        final service = ref.read(downloadServiceProvider);
+        await service.removeDownloadedTrack(track.songId);
+        await service.enqueueSong(
+          track.songId,
+          forceRedownload: true,
+          quality: choice.quality,
+          format: choice.format,
+        );
+        if (context.mounted) {
+          showAppNotice(
+            context,
+            message: l10n.downloadsRedownloadQueued,
+            level: AppNoticeLevel.success,
+          );
+        }
+        return;
+      case _DownloadedTrackAction.addQueue:
+        final song = ref.read(songByIdProvider(track.songId)).asData?.value;
+        await ref.read(queueProvider.notifier).add(track.songId);
+        if (context.mounted) {
+          showAppNotice(
+            context,
+            message: l10n.librarySongAddedToQueue(song?.title ?? track.songId),
+            level: AppNoticeLevel.success,
+          );
+        }
+        return;
+      case _DownloadedTrackAction.openFolder:
+        final opened = await openDirectoryInFileManager(
+          File(track.filePath).parent.path,
+        );
+        if (!opened && context.mounted) {
+          showAppNotice(
+            context,
+            message: l10n.downloadsOpenFolderError,
+            level: AppNoticeLevel.error,
+          );
+        }
+        return;
+      case _DownloadedTrackAction.removeDownload:
+        await _confirmAndDelete(context, ref, track, l10n);
+        return;
+    }
+  }
+}
+
+enum _DownloadedTrackAction {
+  playNow,
+  changeQuality,
+  addQueue,
+  openFolder,
+  removeDownload,
 }
 
 // ---------------------------------------------------------------------------
@@ -693,18 +807,14 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
 
     setState(() => _clearing = true);
     try {
-      final db = ref.read(navisDatabaseProvider);
-      final tracks = await db.cacheDao
+      final tracks = await ref
+          .read(navisDatabaseProvider)
+          .cacheDao
           .watchCachedTracksByType(CacheType.permanent)
           .first;
-      for (final track in tracks) {
-        await deleteFileWithSuffixes(track.filePath);
-      }
-      if (tracks.isNotEmpty) {
-        await db.cacheDao.deleteCachedTracksBySongIds(
-          tracks.map((t) => t.songId),
-        );
-      }
+      await ref
+          .read(downloadServiceProvider)
+          .removeDownloadedTracks(tracks.map((t) => t.songId));
       if (mounted) {
         AppNoticeMessenger.of(context).clearSnackBars();
         showAppNotice(

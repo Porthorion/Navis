@@ -1714,6 +1714,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get downloadsRemoveAction => 'Remove download';
 
   @override
+  String get downloadsOpenFolderAction => 'Open downloaded folder';
+
+  @override
+  String get downloadsOpenFolderError =>
+      'Could not open the downloaded folder.';
+
+  @override
   String get downloadsRedownloadOriginal => 'Re-download in original quality';
 
   @override

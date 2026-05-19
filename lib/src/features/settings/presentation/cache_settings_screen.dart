@@ -281,6 +281,13 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
     // Fetch only tracks of the given type (avoids loading all tracks).
     final filtered = await cacheDao.watchCachedTracksByType(type).first;
 
+    if (type == CacheType.permanent) {
+      await ref
+          .read(downloadServiceProvider)
+          .removeDownloadedTracks(filtered.map((track) => track.songId));
+      return;
+    }
+
     // Delete files.
     for (final track in filtered) {
       for (final suffix in <String>['', '.part', '.mime']) {
