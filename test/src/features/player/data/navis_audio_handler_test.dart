@@ -111,6 +111,27 @@ void main() {
         expect(capabilities.canSkipPrevious, isFalse);
       });
 
+      test('paused restored queue advertises Auto playback entry points', () {
+        final capabilities = navisOsControlCapabilities(
+          queueLength: 1,
+          currentIndex: 0,
+          isRadioMode: false,
+          duration: const Duration(minutes: 4),
+          processingState: AudioProcessingState.ready,
+          playing: false,
+        );
+        final actions = navisSystemActionsForCapabilities(capabilities);
+
+        expect(capabilities.canPlay, isTrue);
+        expect(actions, contains(MediaAction.play));
+        expect(actions, contains(MediaAction.stop));
+        expect(actions, contains(MediaAction.playFromMediaId));
+        expect(actions, contains(MediaAction.playFromSearch));
+        expect(actions, contains(MediaAction.prepare));
+        expect(actions, contains(MediaAction.prepareFromMediaId));
+        expect(actions, contains(MediaAction.prepareFromSearch));
+      });
+
       test('middle and edge queue positions expose valid skip directions', () {
         final middle = navisOsControlCapabilities(
           queueLength: 3,
@@ -269,6 +290,77 @@ void main() {
         final request = navisAndroidAutoSearchRequest('Queen');
         expect(request.type, NavisAndroidAutoSearchType.general);
         expect(request.term, 'Queen');
+      });
+    });
+
+    group('Android Auto resume source selection', () {
+      test('keeps active queue before any fallback', () {
+        expect(
+          navisChooseAutoResumeSource(
+            hasActiveQueue: true,
+            hasPersistedQueue: true,
+            hasRecentSongs: true,
+            hasLikedSongs: true,
+            canUseRandomFallback: true,
+          ),
+          NavisAutoResumeSource.activeQueue,
+        );
+      });
+
+      test('prefers persisted, recent, liked, then random fallback', () {
+        expect(
+          navisChooseAutoResumeSource(
+            hasActiveQueue: false,
+            hasPersistedQueue: true,
+            hasRecentSongs: true,
+            hasLikedSongs: true,
+            canUseRandomFallback: true,
+          ),
+          NavisAutoResumeSource.persistedQueue,
+        );
+        expect(
+          navisChooseAutoResumeSource(
+            hasActiveQueue: false,
+            hasPersistedQueue: false,
+            hasRecentSongs: true,
+            hasLikedSongs: true,
+            canUseRandomFallback: true,
+          ),
+          NavisAutoResumeSource.recentSong,
+        );
+        expect(
+          navisChooseAutoResumeSource(
+            hasActiveQueue: false,
+            hasPersistedQueue: false,
+            hasRecentSongs: false,
+            hasLikedSongs: true,
+            canUseRandomFallback: true,
+          ),
+          NavisAutoResumeSource.likedSong,
+        );
+        expect(
+          navisChooseAutoResumeSource(
+            hasActiveQueue: false,
+            hasPersistedQueue: false,
+            hasRecentSongs: false,
+            hasLikedSongs: false,
+            canUseRandomFallback: true,
+          ),
+          NavisAutoResumeSource.randomFallback,
+        );
+      });
+
+      test('returns none when no Navis source is available', () {
+        expect(
+          navisChooseAutoResumeSource(
+            hasActiveQueue: false,
+            hasPersistedQueue: false,
+            hasRecentSongs: false,
+            hasLikedSongs: false,
+            canUseRandomFallback: false,
+          ),
+          NavisAutoResumeSource.none,
+        );
       });
     });
 

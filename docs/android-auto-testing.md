@@ -5,6 +5,9 @@ service. Projection discovers the app installed on the phone; it does not
 install Navis onto the car. Android Automotive OS (AAOS) installability is a
 separate target and should not be validated from this DHU checklist.
 
+For default real-car validation, use the Play-installed trusted-source runbook:
+[Android Auto Real-Car Testing](android_auto_real_car_testing.md).
+
 ## Prerequisites
 
 1. **Android Studio** with SDK Manager

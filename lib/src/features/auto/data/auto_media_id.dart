@@ -107,6 +107,24 @@ abstract final class AutoMediaId {
     };
   }
 
+  /// Resolves a media ID that should point at a song.
+  ///
+  /// Android Auto browse leaves use `song/<id>`, while platform queue and
+  /// metadata callbacks can hand back the raw queue item ID. Navis queue items
+  /// intentionally use raw Subsonic song IDs, so playback callbacks must
+  /// accept both forms without rewriting persisted queue data.
+  static String? songIdFrom(String mediaId) {
+    final trimmed = mediaId.trim();
+    if (trimmed.isEmpty) return null;
+
+    final parsed = parse(trimmed);
+    if (parsed != null) {
+      return parsed.type == AutoMediaIdType.song ? parsed.entityId : null;
+    }
+
+    return trimmed;
+  }
+
   static const Set<String> _rootCategories = {
     AutoMediaRoot.playlists,
     AutoMediaRoot.artists,

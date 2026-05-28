@@ -6,9 +6,11 @@
 library;
 
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:audio_service/audio_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:navis/src/api/models/album.dart' as api;
 import 'package:navis/src/api/models/artist.dart' as api;
 import 'package:navis/src/api/models/song.dart' as api;
@@ -31,6 +33,14 @@ const Duration _kRootCacheTtl = Duration(seconds: 30);
 
 /// Cover-art size used for browse-tree thumbnails (smaller than playback art).
 const int _kBrowseArtSize = 256;
+
+bool get _shouldLogAndroidAutoCallbacks => !kIsWeb && Platform.isAndroid;
+
+void _logAndroidAutoCallback(String message) {
+  if (_shouldLogAndroidAutoCallbacks) {
+    AppLogger.debug(message);
+  }
+}
 
 /// Service that builds the Android Auto browse tree from the local database.
 ///
@@ -76,7 +86,14 @@ class AutoMediaTreeService {
     Map<String, dynamic>? options,
   ]) async {
     try {
-      return await _getChildrenImpl(parentMediaId);
+      _logAndroidAutoCallback(
+        'Android Auto getChildren parent=$parentMediaId options=$options',
+      );
+      final items = await _getChildrenImpl(parentMediaId);
+      _logAndroidAutoCallback(
+        'Android Auto getChildren parent=$parentMediaId count=${items.length}',
+      );
+      return items;
     } on Object catch (error, stackTrace) {
       AppLogger.warning(
         'AutoMediaTreeService.getChildren($parentMediaId) failed: '
@@ -343,7 +360,12 @@ class AutoMediaTreeService {
   /// Resolves a single [MediaItem] by its media ID.
   Future<MediaItem?> getMediaItem(String mediaId) async {
     try {
-      return await _getMediaItemImpl(mediaId);
+      _logAndroidAutoCallback('Android Auto getMediaItem id=$mediaId');
+      final item = await _getMediaItemImpl(mediaId);
+      _logAndroidAutoCallback(
+        'Android Auto getMediaItem id=$mediaId found=${item != null}',
+      );
+      return item;
     } on Object catch (error, stackTrace) {
       AppLogger.warning(
         'AutoMediaTreeService.getMediaItem($mediaId) failed: '
@@ -355,7 +377,10 @@ class AutoMediaTreeService {
 
   Future<MediaItem?> _getMediaItemImpl(String mediaId) async {
     final parsed = AutoMediaId.parse(mediaId);
-    if (parsed == null) return null;
+    if (parsed == null) {
+      final rawSongId = AutoMediaId.songIdFrom(mediaId);
+      return rawSongId == null ? null : _getSongMediaItem(rawSongId);
+    }
 
     return switch (parsed.type) {
       AutoMediaIdType.song => _getSongMediaItem(parsed.entityId!),
@@ -409,10 +434,22 @@ class AutoMediaTreeService {
     String query, [
     Map<String, dynamic>? extras,
   ]) async {
-    if (query.trim().isEmpty) return const [];
+    _logAndroidAutoCallback(
+      'Android Auto search query="$query" extras=$extras',
+    );
+    if (query.trim().isEmpty) {
+      _logAndroidAutoCallback(
+        'Android Auto search query is empty; returning no items',
+      );
+      return const [];
+    }
 
     try {
-      return await _searchImpl(query, extras);
+      final items = await _searchImpl(query, extras);
+      _logAndroidAutoCallback(
+        'Android Auto search query="$query" count=${items.length}',
+      );
+      return items;
     } on Object catch (error, stackTrace) {
       AppLogger.warning(
         'AutoMediaTreeService.search($query) failed: '

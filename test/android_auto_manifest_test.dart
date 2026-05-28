@@ -6,13 +6,17 @@ void main() {
   const manifestPath = 'android/app/src/main/AndroidManifest.xml';
   const automotiveDescPath =
       'android/app/src/main/res/xml/automotive_app_desc.xml';
+  const mainActivityPath =
+      'android/app/src/main/kotlin/com/navis/app/navis/MainActivity.kt';
 
   late String manifest;
   late String automotiveDesc;
+  late String mainActivity;
 
   setUpAll(() {
     manifest = File(manifestPath).readAsStringSync();
     automotiveDesc = File(automotiveDescPath).readAsStringSync();
+    mainActivity = File(mainActivityPath).readAsStringSync();
   });
 
   test('declares Android Auto media app metadata at application level', () {
@@ -50,6 +54,17 @@ void main() {
     expect(
       manifest,
       isNot(contains('android.permission.BIND_MEDIA_BROWSER_SERVICE')),
+    );
+  });
+
+  test('main activity hosts audio_service media session callbacks', () {
+    expect(
+      mainActivity,
+      contains('import com.ryanheise.audioservice.AudioServiceActivity'),
+    );
+    expect(
+      mainActivity,
+      contains('class MainActivity : AudioServiceActivity()'),
     );
   });
 }

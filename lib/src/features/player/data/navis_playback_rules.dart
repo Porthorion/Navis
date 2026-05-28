@@ -10,6 +10,15 @@ enum NavisAndroidAutoSearchType {
   title,
 }
 
+enum NavisAutoResumeSource {
+  activeQueue,
+  persistedQueue,
+  recentSong,
+  likedSong,
+  randomFallback,
+  none,
+}
+
 final class NavisAndroidAutoSearchRequest {
   const NavisAndroidAutoSearchRequest({
     required this.type,
@@ -67,6 +76,32 @@ NavisAndroidAutoSearchRequest navisAndroidAutoSearchRequest(
   }
   if (genre != null) return request(NavisAndroidAutoSearchType.genre, genre);
   return request(NavisAndroidAutoSearchType.general, fallback);
+}
+
+@visibleForTesting
+NavisAutoResumeSource navisChooseAutoResumeSource({
+  required bool hasActiveQueue,
+  required bool hasPersistedQueue,
+  required bool hasRecentSongs,
+  required bool hasLikedSongs,
+  required bool canUseRandomFallback,
+}) {
+  if (hasActiveQueue) {
+    return NavisAutoResumeSource.activeQueue;
+  }
+  if (hasPersistedQueue) {
+    return NavisAutoResumeSource.persistedQueue;
+  }
+  if (hasRecentSongs) {
+    return NavisAutoResumeSource.recentSong;
+  }
+  if (hasLikedSongs) {
+    return NavisAutoResumeSource.likedSong;
+  }
+  if (canUseRandomFallback) {
+    return NavisAutoResumeSource.randomFallback;
+  }
+  return NavisAutoResumeSource.none;
 }
 
 String? _stringExtra(Map<String, dynamic>? extras, String key) {
@@ -279,6 +314,9 @@ Set<MediaAction> navisSystemActionsForCapabilities(
     if (capabilities.canStop) MediaAction.stop,
     if (capabilities.canSkipNext) MediaAction.skipToNext,
     if (capabilities.canSkipPrevious) MediaAction.skipToPrevious,
+    MediaAction.prepare,
+    MediaAction.prepareFromMediaId,
+    MediaAction.prepareFromSearch,
     MediaAction.playFromMediaId,
     MediaAction.playFromSearch,
   };

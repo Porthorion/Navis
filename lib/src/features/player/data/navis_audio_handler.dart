@@ -261,17 +261,60 @@ class NavisAudioHandler extends BaseAudioHandler
     String mediaId, [
     Map<String, dynamic>? extras,
   ]) async {
+    AppLogger.info('Android Auto playFromMediaId mediaId=$mediaId');
+    await _loadFromMediaId(mediaId, autoPlay: true);
+  }
+
+  @override
+  Future<void> prepare() async {
+    AppLogger.info('Android Auto prepare requested.');
+    await _ready;
+    await _restorePersistedQueueForPrepareIfEmpty();
+    _broadcastPlaybackState();
+    _emitSnapshot();
+  }
+
+  @override
+  Future<void> prepareFromMediaId(
+    String mediaId, [
+    Map<String, dynamic>? extras,
+  ]) async {
+    AppLogger.info('Android Auto prepareFromMediaId mediaId=$mediaId');
+    await _loadFromMediaId(mediaId, autoPlay: false);
+  }
+
+  @override
+  Future<void> prepareFromSearch(
+    String query, [
+    Map<String, dynamic>? extras,
+  ]) async {
+    AppLogger.info('Android Auto prepareFromSearch query="$query"');
+    await _loadFromSearch(query, extras, autoPlay: false);
+  }
+
+  Future<void> _loadFromMediaId(
+    String mediaId, {
+    required bool autoPlay,
+  }) async {
     // Handle special root-level playable/browsable nodes by raw ID.
     switch (mediaId) {
       case AutoMediaRoot.instantMix:
-        await _playInstantMixFromCurrentSong();
+        if (autoPlay) {
+          await _playInstantMixFromCurrentSong();
+        }
         return;
       case AutoMediaRoot.instantRadio:
-        await _playInstantRadio();
+        if (autoPlay) {
+          await _playInstantRadio();
+        } else {
+          await _queueInstantRadioFallback(autoPlay: false);
+        }
         return;
       case AutoMediaRoot.likedSongs:
         final songs = await _libraryDao.watchAllStarredSongs().first;
-        if (songs.isNotEmpty) await replaceQueueWithData(songs);
+        if (songs.isNotEmpty) {
+          await replaceQueueWithData(songs, autoPlay: autoPlay);
+        }
         return;
       case AutoMediaRoot.likedAlbums:
         final albums = await _libraryDao.watchLikedAlbums().first;
@@ -281,19 +324,37 @@ class NavisAudioHandler extends BaseAudioHandler
             await _libraryDao.watchSongsByAlbum(album.id).first,
           );
         }
-        if (allSongs.isNotEmpty) await replaceQueueWithData(allSongs);
+        if (allSongs.isNotEmpty) {
+          await replaceQueueWithData(allSongs, autoPlay: autoPlay);
+        }
         return;
       case AutoMediaRoot.recent:
         final songs = await _historyDao
             .watchRecentlyPlayedSongs(limit: 50)
             .first;
-        if (songs.isNotEmpty) await replaceQueueWithData(songs);
+        if (songs.isNotEmpty) {
+          await replaceQueueWithData(songs, autoPlay: autoPlay);
+        }
         return;
     }
 
     // Handle entity media IDs (artist/album/playlist/song).
     final parsed = AutoMediaId.parse(mediaId);
-    if (parsed == null || parsed.entityId == null) return;
+    if (parsed == null) {
+      final rawSongId = AutoMediaId.songIdFrom(mediaId);
+      if (rawSongId == null) {
+        AppLogger.debug('Android Auto mediaId ignored: $mediaId');
+        return;
+      }
+      final songs = await _libraryDao.getSongsByIds([rawSongId]);
+      if (songs.isEmpty) {
+        AppLogger.debug('Android Auto raw song mediaId not found: $mediaId');
+        return;
+      }
+      await replaceQueueWithData(songs, autoPlay: autoPlay);
+      return;
+    }
+    if (parsed.entityId == null) return;
 
     switch (parsed.type) {
       case AutoMediaIdType.song:
@@ -311,21 +372,26 @@ class NavisAudioHandler extends BaseAudioHandler
             await replaceQueueWithData(
               albumSongs,
               startIndex: startIndex < 0 ? 0 : startIndex,
+              autoPlay: autoPlay,
             );
             break;
           }
         }
-        await replaceQueue([parsed.entityId!]);
+        await replaceQueue([parsed.entityId!], autoPlay: autoPlay);
       case AutoMediaIdType.album:
         final songs = await _libraryDao
             .watchSongsByAlbum(parsed.entityId!)
             .first;
-        if (songs.isNotEmpty) await replaceQueueWithData(songs);
+        if (songs.isNotEmpty) {
+          await replaceQueueWithData(songs, autoPlay: autoPlay);
+        }
       case AutoMediaIdType.playlist:
         final songs = await _playlistDao
             .watchPlaylistSongs(parsed.entityId!)
             .first;
-        if (songs.isNotEmpty) await replaceQueueWithData(songs);
+        if (songs.isNotEmpty) {
+          await replaceQueueWithData(songs, autoPlay: autoPlay);
+        }
       case AutoMediaIdType.artist:
         final albums = await _libraryDao
             .watchAlbumsByArtist(parsed.entityId!)
@@ -336,7 +402,9 @@ class NavisAudioHandler extends BaseAudioHandler
             await _libraryDao.watchSongsByAlbum(album.id).first,
           );
         }
-        if (allSongs.isNotEmpty) await replaceQueueWithData(allSongs);
+        if (allSongs.isNotEmpty) {
+          await replaceQueueWithData(allSongs, autoPlay: autoPlay);
+        }
       case AutoMediaIdType.root:
       case AutoMediaIdType.rootCategory:
       case AutoMediaIdType.likedSubcategory:
@@ -349,9 +417,22 @@ class NavisAudioHandler extends BaseAudioHandler
     String query, [
     Map<String, dynamic>? extras,
   ]) async {
+    AppLogger.info('Android Auto playFromSearch query="$query"');
+    await _loadFromSearch(query, extras, autoPlay: true);
+  }
+
+  Future<void> _loadFromSearch(
+    String query,
+    Map<String, dynamic>? extras, {
+    required bool autoPlay,
+  }) async {
     final request = navisAndroidAutoSearchRequest(query, extras);
     if (request.type == NavisAndroidAutoSearchType.empty) {
-      await _playInstantRadio();
+      if (autoPlay) {
+        await _playInstantRadio();
+      } else {
+        await _queueInstantRadioFallback(autoPlay: false);
+      }
       return;
     }
 
@@ -362,7 +443,10 @@ class NavisAudioHandler extends BaseAudioHandler
           limit: 1,
         );
         if (artists.isNotEmpty) {
-          await playFromMediaId(AutoMediaId.artist(artists.first.id));
+          await _loadFromMediaId(
+            AutoMediaId.artist(artists.first.id),
+            autoPlay: autoPlay,
+          );
           return;
         }
         break;
@@ -372,7 +456,10 @@ class NavisAudioHandler extends BaseAudioHandler
           limit: 1,
         );
         if (albums.isNotEmpty) {
-          await playFromMediaId(AutoMediaId.album(albums.first.id));
+          await _loadFromMediaId(
+            AutoMediaId.album(albums.first.id),
+            autoPlay: autoPlay,
+          );
           return;
         }
         break;
@@ -382,14 +469,17 @@ class NavisAudioHandler extends BaseAudioHandler
           (playlist) => _containsIgnoreCase(playlist.name, request.term),
         );
         if (matches.isNotEmpty) {
-          await playFromMediaId(AutoMediaId.playlist(matches.first.id));
+          await _loadFromMediaId(
+            AutoMediaId.playlist(matches.first.id),
+            autoPlay: autoPlay,
+          );
           return;
         }
         break;
       case NavisAndroidAutoSearchType.genre:
         final songs = await _libraryDao.watchSongsByGenre(request.term).first;
         if (songs.isNotEmpty) {
-          await replaceQueueWithData(songs);
+          await replaceQueueWithData(songs, autoPlay: autoPlay);
           return;
         }
         break;
@@ -399,7 +489,10 @@ class NavisAudioHandler extends BaseAudioHandler
           limit: 1,
         );
         if (songs.isNotEmpty) {
-          await playFromMediaId(AutoMediaId.song(songs.first.id));
+          await _loadFromMediaId(
+            AutoMediaId.song(songs.first.id),
+            autoPlay: autoPlay,
+          );
           return;
         }
         break;
@@ -416,7 +509,7 @@ class NavisAudioHandler extends BaseAudioHandler
     if (playable.isEmpty && browsable.isEmpty) return;
 
     final target = playable.isNotEmpty ? playable.first : browsable.first;
-    await playFromMediaId(target.id);
+    await _loadFromMediaId(target.id, autoPlay: autoPlay);
   }
 
   void _setCurrentMediaItem(MediaItem? item) {
@@ -1748,6 +1841,129 @@ class NavisAudioHandler extends BaseAudioHandler
     await _player.pause();
     _broadcastPlaybackState();
     _emitSnapshot();
+  }
+
+  Future<void> _restorePersistedQueueForPrepareIfEmpty() async {
+    if (_radioStation != null || _queueItems.isNotEmpty) {
+      AppLogger.debug(
+        'Android Auto prepare: active queue already available '
+        '(queue=${_queueItems.length} radio=${_radioStation != null}).',
+      );
+      return;
+    }
+
+    final queuedSongs = await _playQueueDao.getQueueItems();
+    if (queuedSongs.isEmpty) {
+      AppLogger.debug('Android Auto prepare: no persisted queue to restore.');
+      return;
+    }
+
+    AppLogger.info(
+      'Android Auto prepare: restoring persisted queue without autoplay '
+      '(count=${queuedSongs.length}).',
+    );
+    await _restoreQueueFromDisk();
+  }
+
+  Future<bool> _prepareBestAvailableQueueForUserPlay() async {
+    final activeSource = navisChooseAutoResumeSource(
+      hasActiveQueue: _radioStation != null || _queueItems.isNotEmpty,
+      hasPersistedQueue: false,
+      hasRecentSongs: false,
+      hasLikedSongs: false,
+      canUseRandomFallback: false,
+    );
+    if (activeSource == NavisAutoResumeSource.activeQueue) {
+      AppLogger.debug(
+        'Android Auto resume: using active queue '
+        '(queue=${_queueItems.length} radio=${_radioStation != null}).',
+      );
+      return true;
+    }
+
+    final persistedSongs = await _playQueueDao.getQueueItems();
+    var source = navisChooseAutoResumeSource(
+      hasActiveQueue: false,
+      hasPersistedQueue: persistedSongs.isNotEmpty,
+      hasRecentSongs: false,
+      hasLikedSongs: false,
+      canUseRandomFallback: false,
+    );
+    if (source == NavisAutoResumeSource.persistedQueue) {
+      AppLogger.info(
+        'Android Auto resume: restoring persisted queue '
+        '(count=${persistedSongs.length}).',
+      );
+      await _restoreQueueFromDisk();
+      if (_queueItems.isNotEmpty) {
+        return true;
+      }
+      AppLogger.info(
+        'Android Auto resume: persisted queue could not be restored; '
+        'trying recent and fallback sources.',
+      );
+    }
+
+    final recentSongs = await _historyDao
+        .watchRecentlyPlayedSongs(
+          limit: 50,
+        )
+        .first;
+    source = navisChooseAutoResumeSource(
+      hasActiveQueue: false,
+      hasPersistedQueue: false,
+      hasRecentSongs: recentSongs.isNotEmpty,
+      hasLikedSongs: false,
+      canUseRandomFallback: false,
+    );
+    if (source == NavisAutoResumeSource.recentSong) {
+      AppLogger.info(
+        'Android Auto resume: queueing recently played songs '
+        '(count=${recentSongs.length}).',
+      );
+      await replaceQueueWithData(
+        recentSongs,
+        autoPlay: false,
+        expandMatchFlows: false,
+      );
+      return _queueItems.isNotEmpty;
+    }
+
+    final likedSongs = await _libraryDao.watchAllStarredSongs().first;
+    source = navisChooseAutoResumeSource(
+      hasActiveQueue: false,
+      hasPersistedQueue: false,
+      hasRecentSongs: false,
+      hasLikedSongs: likedSongs.isNotEmpty,
+      canUseRandomFallback: false,
+    );
+    if (source == NavisAutoResumeSource.likedSong) {
+      AppLogger.info(
+        'Android Auto resume: queueing liked songs '
+        '(count=${likedSongs.length}).',
+      );
+      await replaceQueueWithData(
+        likedSongs,
+        autoPlay: false,
+        expandMatchFlows: false,
+      );
+      return _queueItems.isNotEmpty;
+    }
+
+    source = navisChooseAutoResumeSource(
+      hasActiveQueue: false,
+      hasPersistedQueue: false,
+      hasRecentSongs: false,
+      hasLikedSongs: false,
+      canUseRandomFallback: true,
+    );
+    if (source == NavisAutoResumeSource.randomFallback) {
+      AppLogger.info('Android Auto resume: trying random song fallback.');
+      return _queueInstantRadioFallback(autoPlay: false);
+    }
+
+    AppLogger.info('Android Auto resume: no playable source available.');
+    return false;
   }
 
   void _observeLockCachingSource({
@@ -3101,6 +3317,14 @@ class NavisAudioHandler extends BaseAudioHandler
   Future<void> play() async {
     await _ready;
 
+    if (_radioStation == null && _queueItems.isEmpty) {
+      final prepared = await _prepareBestAvailableQueueForUserPlay();
+      if (!prepared || (_radioStation == null && _queueItems.isEmpty)) {
+        AppLogger.info('Android Auto resume: play ignored; queue is empty.');
+        return;
+      }
+    }
+
     // Edge case: when the queue has played to completion (processingState ==
     // completed) and the user presses play, just_audio stays stuck at the end
     // rather than restarting.  Seek back to the beginning of the queue first
@@ -3950,6 +4174,64 @@ class NavisAudioHandler extends BaseAudioHandler
         expandMatchFlows: false,
       );
     }
+  }
+
+  Future<bool> _queueInstantRadioFallback({required bool autoPlay}) async {
+    final liked = await _libraryDao.watchAllStarredSongs().first;
+    if (liked.isNotEmpty) {
+      AppLogger.debug(
+        'Android Auto fallback: queueing liked songs '
+        '(count=${liked.length}, autoPlay=$autoPlay).',
+      );
+      await replaceQueueWithData(
+        liked,
+        autoPlay: autoPlay,
+        expandMatchFlows: false,
+      );
+      return _queueItems.isNotEmpty;
+    }
+
+    final api = _readApiClient();
+    if (api != null) {
+      try {
+        final songs = await api.getRandomSongs(size: 50);
+        final songIds = songs.map((s) => s.id).toList(growable: false);
+        if (songIds.isNotEmpty) {
+          AppLogger.debug(
+            'Android Auto fallback: queueing API random songs '
+            '(count=${songIds.length}, autoPlay=$autoPlay).',
+          );
+          await replaceQueue(
+            songIds,
+            autoPlay: autoPlay,
+            expandMatchFlows: false,
+          );
+          if (_queueItems.isNotEmpty) {
+            return true;
+          }
+        }
+      } on Object catch (e, st) {
+        AppLogger.warning('Android Auto random API fallback failed: $e\n$st');
+      }
+    }
+
+    final all = await _libraryDao.watchAllSongs().first;
+    if (all.isEmpty) {
+      AppLogger.debug('Android Auto fallback: local library is empty.');
+      return false;
+    }
+
+    final shuffled = List.of(all)..shuffle();
+    AppLogger.debug(
+      'Android Auto fallback: queueing local random songs '
+      '(count=${shuffled.length}, autoPlay=$autoPlay).',
+    );
+    await replaceQueueWithData(
+      shuffled.take(50).toList(growable: false),
+      autoPlay: autoPlay,
+      expandMatchFlows: false,
+    );
+    return _queueItems.isNotEmpty;
   }
 
   Future<void> Function(String)? _preferredMixCallback;

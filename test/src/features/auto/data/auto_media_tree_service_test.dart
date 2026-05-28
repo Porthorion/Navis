@@ -675,6 +675,26 @@ void main() {
 
   // ── search ────────────────────────────────────────────────────────────────
 
+  group('getMediaItem', () {
+    test(
+      'resolves both prefixed and raw song IDs',
+      () async {
+        await database.libraryDao.upsertSongs([
+          SongsTableCompanion.insert(id: 'song-1', title: 'Aurora Song'),
+        ]);
+
+        final prefixed = await service.getMediaItem('song/song-1');
+        final raw = await service.getMediaItem('song-1');
+
+        expect(prefixed, isNotNull);
+        expect(prefixed!.id, 'song/song-1');
+        expect(raw, isNotNull);
+        expect(raw!.id, 'song/song-1');
+      },
+      skip: !sqliteAvailable,
+    );
+  });
+
   group('search', () {
     test(
       'returns empty list for empty query',

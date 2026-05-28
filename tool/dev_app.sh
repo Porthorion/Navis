@@ -122,13 +122,54 @@ case "${MODE}" in
     # launches, then open the Desktop Head Unit (DHU) for Android Auto testing.
     #
     # Usage:  ./tool/dev_app.sh dhu
-    # Requires: one Android device connected via adb, DHU installed in SDK.
+    # Requires: one target Android device connected via adb, DHU installed in SDK.
     #
     # The DHU binary is resolved from $ANDROID_SDK_ROOT, $ANDROID_HOME, or
     # ~/Android/Sdk in that order.
     ANDROID_SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-${HOME}/Android/Sdk}}"
     DHU_BIN="${ANDROID_SDK}/extras/google/auto/desktop-head-unit"
     APP_PKG="com.navis.app.navis${NAVIS_APP_ID_SUFFIX}"
+    ADB_SERIAL="${ANDROID_SERIAL:-}"
+
+    echo ""
+    echo "==> Android Auto visibility note"
+    echo "    DHU validates local projection and browse/playback behavior only."
+    echo "    DHU success does not imply real-car visibility for sideloaded APKs."
+    echo "    For default real-car testing, install both package IDs from Play"
+    echo "    Internal App Sharing or an Internal Test Track:"
+    echo "      - com.navis.app.navis"
+    echo "      - com.navis.app.navis.dev"
+    echo "    Sideloaded APKs require Android Auto developer mode + Unknown sources"
+    echo "    and are not a supported default-user real-car path."
+    echo ""
+
+    if [[ -z "${ADB_SERIAL}" ]]; then
+      mapfile -t ADB_DEVICES < <(adb devices | awk 'NR > 1 && $2 == "device" {print $1}')
+      if [[ ${#ADB_DEVICES[@]} -eq 0 ]]; then
+        echo "ERROR: No adb device found."
+        exit 1
+      elif [[ ${#ADB_DEVICES[@]} -eq 1 ]]; then
+        ADB_SERIAL="${ADB_DEVICES[0]}"
+      else
+        # Android 11+ wireless debugging can expose the same phone twice:
+        # once as the normal USB serial and once as an adb-tls mDNS transport.
+        mapfile -t PREFERRED_ADB_DEVICES < <(
+          printf '%s\n' "${ADB_DEVICES[@]}" \
+            | grep -Ev '^adb-.+\._adb-tls-connect\._tcp$' || true
+        )
+        if [[ ${#PREFERRED_ADB_DEVICES[@]} -eq 1 ]]; then
+          ADB_SERIAL="${PREFERRED_ADB_DEVICES[0]}"
+        else
+          echo "ERROR: Multiple adb devices found. Choose one with ANDROID_SERIAL:"
+          printf '  %s\n' "${ADB_DEVICES[@]}"
+          echo "Example: ANDROID_SERIAL=${ADB_DEVICES[0]} ./tool/dev_app.sh dhu"
+          exit 1
+        fi
+      fi
+    fi
+
+    ADB_ARGS=(-s "${ADB_SERIAL}")
+    echo "==> Using adb device ${ADB_SERIAL}"
 
     if [[ ! -x "${DHU_BIN}" ]]; then
       echo "ERROR: DHU not found at ${DHU_BIN}"
@@ -149,16 +190,17 @@ case "${MODE}" in
 
     # ── 2. Install on phone ─────────────────────────────────────────────────
     echo "==> Installing ${APP_PKG} on device…"
-    adb install -r "${APK_PATH}"
+    adb "${ADB_ARGS[@]}" install -r "${APK_PATH}"
 
     # ── 3. Launch app + verify it is running ────────────────────────────────
     echo "==> Launching ${APP_PKG}…"
-    adb shell am start -n "${APP_PKG}/com.navis.app.navis.MainActivity" > /dev/null
+    adb "${ADB_ARGS[@]}" shell am start -n "${APP_PKG}/com.navis.app.navis.MainActivity" > /dev/null
 
     echo "==> Waiting for app to start…"
     for _i in {1..10}; do
-      if adb shell pidof "${APP_PKG}" > /dev/null 2>&1; then
-        echo "    App is running (PID $(adb shell pidof "${APP_PKG}" | tr -d '\r'))"
+      if adb "${ADB_ARGS[@]}" shell pidof "${APP_PKG}" > /dev/null 2>&1; then
+        _pid="$(adb "${ADB_ARGS[@]}" shell pidof "${APP_PKG}" | tr -d '\r')"
+        echo "    App is running (PID ${_pid})"
         break
       fi
       if [[ ${_i} -eq 10 ]]; then
@@ -170,12 +212,15 @@ case "${MODE}" in
 
     # ── 4. Forward Android Auto port ────────────────────────────────────────
     echo "==> Forwarding Android Auto port (tcp:5277)…"
-    adb forward --remove-all
-    adb forward tcp:5277 tcp:5277
+    adb "${ADB_ARGS[@]}" forward --remove-all
+    adb "${ADB_ARGS[@]}" forward tcp:5277 tcp:5277
 
     echo ""
     echo "  On your phone: Android Auto → Settings → tap Version 10× to unlock"
     echo "  Developer settings → tap ⋮ → Developer settings → Start head unit server"
+    echo "  If this sideloaded build does not appear in DHU, enable Unknown sources"
+    echo "  in Android Auto developer settings. Keep Unknown sources off for the"
+    echo "  real-car Play-installed validation path."
     echo ""
 
     # ── 5. Launch Desktop Head Unit ─────────────────────────────────────────

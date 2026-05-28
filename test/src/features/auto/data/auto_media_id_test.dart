@@ -127,6 +127,27 @@ void main() {
     });
   });
 
+  group('AutoMediaId.songIdFrom', () {
+    test('accepts prefixed song browse IDs', () {
+      expect(AutoMediaId.songIdFrom('song/s1'), 's1');
+    });
+
+    test('accepts raw queue song IDs', () {
+      expect(AutoMediaId.songIdFrom('s1'), 's1');
+      expect(AutoMediaId.songIdFrom(' song-42 '), 'song-42');
+    });
+
+    test('rejects known non-song browse IDs', () {
+      expect(AutoMediaId.songIdFrom('album/a1'), isNull);
+      expect(AutoMediaId.songIdFrom(AutoMediaRoot.recent), isNull);
+    });
+
+    test('rejects empty IDs', () {
+      expect(AutoMediaId.songIdFrom(''), isNull);
+      expect(AutoMediaId.songIdFrom('   '), isNull);
+    });
+  });
+
   group('Roundtrip encoding/decoding', () {
     test('artist roundtrips', () {
       const id = 'art-42';
