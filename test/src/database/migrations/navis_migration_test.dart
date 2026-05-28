@@ -18,8 +18,8 @@ void main() {
         .customSelect('PRAGMA user_version;')
         .getSingle();
 
-    expect(database.schemaVersion, 45);
-    expect(pragmaRow.read<int>('user_version'), 45);
+    expect(database.schemaVersion, 46);
+    expect(pragmaRow.read<int>('user_version'), 46);
   }, skip: !sqliteAvailable);
 
   test('latest schema creates app settings defaults', () async {
@@ -115,7 +115,7 @@ void main() {
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 45);
+      expect(versionRow.read<int>('user_version'), 46);
 
       final settingsInfo = await migrated
           .customSelect("PRAGMA table_info('app_settings');")
@@ -156,6 +156,93 @@ void main() {
       }),
     );
   }, skip: !sqliteAvailable);
+
+  test(
+    'migrates v45 scrobble queue to provider-aware uniqueness',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'navis_scrobble_queue_v46_test_',
+      );
+      final dbPath = p.join(tempDir.path, 'navis.sqlite');
+
+      final seedDatabase = NavisDatabase(NativeDatabase(File(dbPath)));
+      await seedDatabase
+          .into(seedDatabase.songsTable)
+          .insert(SongsTableCompanion.insert(id: 'song-1', title: 'Song 1'));
+      await seedDatabase.close();
+
+      final createdAt = DateTime.utc(2026, 1, 1).millisecondsSinceEpoch;
+      final expiresAt = DateTime.utc(2026, 1, 2).millisecondsSinceEpoch;
+      final raw = sqlite3.open(dbPath);
+      try {
+        raw.execute('DROP TABLE scrobble_queue;');
+        raw.execute('''
+CREATE TABLE scrobble_queue (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  song_id TEXT NOT NULL REFERENCES songs(id) ON DELETE CASCADE,
+  submission INTEGER NOT NULL CHECK (submission IN (0, 1)),
+  created_at INTEGER NOT NULL,
+  next_attempt_at INTEGER NOT NULL,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  expires_at INTEGER NOT NULL,
+  session_key TEXT NOT NULL,
+  last_error TEXT NULL,
+  UNIQUE (song_id, submission, session_key)
+);
+''');
+        raw.execute(
+          'INSERT INTO scrobble_queue (song_id, submission, created_at, next_attempt_at, expires_at, session_key) '
+          "VALUES ('song-1', 1, $createdAt, $createdAt, $expiresAt, 'session-1');",
+        );
+        raw.execute('PRAGMA user_version = 45;');
+      } finally {
+        raw.close();
+      }
+
+      final migrated = NavisDatabase(NativeDatabase(File(dbPath)));
+      addTearDown(() async {
+        await migrated.close();
+        await tempDir.delete(recursive: true);
+      });
+
+      final versionRow = await migrated
+          .customSelect('PRAGMA user_version;')
+          .getSingle();
+      expect(versionRow.read<int>('user_version'), 46);
+
+      final now = DateTime.utc(2026, 1, 1, 1);
+      await migrated.scrobbleDao.enqueue(
+        songId: 'song-1',
+        provider: 'lastfm',
+        submission: true,
+        sessionKey: 'session-1',
+        trackTitle: 'Song 1',
+        artistName: 'Artist',
+        createdAt: now,
+        nextAttemptAt: now,
+        expiresAt: now.add(const Duration(days: 1)),
+      );
+      await migrated.scrobbleDao.enqueue(
+        songId: 'song-1',
+        provider: 'listenbrainz',
+        submission: true,
+        sessionKey: 'session-1',
+        trackTitle: 'Song 1',
+        artistName: 'Artist',
+        createdAt: now,
+        nextAttemptAt: now,
+        expiresAt: now.add(const Duration(days: 1)),
+      );
+
+      final rows = await migrated.select(migrated.scrobbleQueueTable).get();
+      expect(rows.map((row) => row.provider).toSet(), {
+        'subsonic',
+        'lastfm',
+        'listenbrainz',
+      });
+    },
+    skip: !sqliteAvailable,
+  );
 
   test('latest schema includes local-only song columns', () async {
     final database = NavisDatabase(NativeDatabase.memory());
@@ -204,7 +291,7 @@ void main() {
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 45);
+      expect(versionRow.read<int>('user_version'), 46);
 
       final settingsInfo = await migrated
           .customSelect("PRAGMA table_info('app_settings');")
@@ -323,7 +410,7 @@ void main() {
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 45);
+      expect(versionRow.read<int>('user_version'), 46);
 
       final albums = await migrated.select(migrated.albumsTable).get();
       final albumsById = {for (final album in albums) album.id: album};

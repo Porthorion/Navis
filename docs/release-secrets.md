@@ -12,8 +12,9 @@ This document defines the recommended secret handling model for Navis multi-OS r
 
 1. Forgejo release API token
 2. Android signing keystore and passwords
-3. Apple signing identity + notarization credentials
-4. Optional Linux package metadata (maintainer identity)
+3. Google Play service account JSON for AAB upload automation
+4. Apple signing identity + notarization credentials
+5. Optional Linux package metadata (maintainer identity)
 
 ## Storage policy
 
@@ -22,6 +23,9 @@ This document defines the recommended secret handling model for Navis multi-OS r
   - `tool/release.env` (already git-ignored)
   - macOS Keychain for Apple notarytool profile
   - local `android/key.properties` and keystore files (never committed)
+- In-app Last.fm shared secrets, Last.fm session keys, and ListenBrainz tokens
+  are runtime user credentials. They must stay in platform secure storage, not
+  Drift or logs.
 
 ## Forgejo token
 
@@ -44,6 +48,23 @@ Required local files:
 - referenced keystore path from `storeFile=...`
 
 Keep keystore + passwords in password manager and only provision on trusted release hosts.
+
+For Google Play continuity, the initial Play App Signing setup must use the
+existing release signing key as the app signing key. If a separate upload key is
+introduced later, keep it outside git and rotate it independently from the app
+signing key.
+
+## Google Play service account
+
+Put only the local path in `tool/release.env`:
+
+```bash
+PLAY_SERVICE_ACCOUNT_JSON="/absolute/path/google-play-service-account.json"
+PLAY_PACKAGE_NAME="com.navis.app.navis"
+```
+
+Use `tool/play_release.sh --dry-run` before creating a Play edit. Service
+account JSON files must never be copied into the repository.
 
 ## macOS notarization
 

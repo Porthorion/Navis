@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,7 +8,6 @@ import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/features/settings/presentation/update_dialog.dart';
 import 'package:navis/src/providers/app_providers.dart';
-import 'package:navis/src/utils/constants.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Displays app version, open-source licenses, and repository links.
@@ -32,6 +32,10 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
     final settings = settingsAsync.asData?.value;
     final packageInfo = ref.watch(packageInfoProvider).asData?.value;
     final version = packageInfo?.version ?? '';
+    final showDesktopUpdateControls =
+        !kIsWeb &&
+        defaultTargetPlatform != TargetPlatform.android &&
+        defaultTargetPlatform != TargetPlatform.iOS;
 
     // Show a snackbar when a user-triggered check resolves as up to date,
     // or auto-show the update dialog when an update is found.
@@ -93,85 +97,82 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
             },
           ),
           ListTile(
-            leading: const Icon(Icons.code),
-            title: Text(l10n.aboutSourceCode),
-            subtitle: Text(l10n.aboutSourceCodeSub),
-            trailing: const Icon(Icons.open_in_new),
-            onTap: () async {
-              final uri = Uri.parse(AppConstants.repoUrl);
-              if (await canLaunchUrl(uri)) {
-                await launchUrl(uri, mode: LaunchMode.externalApplication);
-              }
-            },
-          ),
-          ListTile(
             leading: const Icon(Icons.history_outlined),
             title: Text(l10n.aboutChangelog),
             subtitle: Text(l10n.aboutChangelogSub),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push('/settings/about/changelog'),
           ),
-          const Divider(),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: Text(
-              l10n.updatesSettingsSectionLabel,
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: theme.colorScheme.primary,
-              ),
-            ),
-          ),
-          SwitchListTile(
-            secondary: const Icon(Icons.system_update_outlined),
-            title: Text(l10n.updateAutoCheckTitle),
-            subtitle: Text(l10n.updateAutoCheckSubtitle),
-            value: settings?.updateCheckEnabled ?? true,
-            onChanged: (value) {
-              if (settings == null) return;
-              final repo = ref.read(settingsRepositoryProvider);
-              repo.saveSettings(settings.copyWith(updateCheckEnabled: value));
-            },
-          ),
           ListTile(
-            leading: const Icon(Icons.system_update_outlined),
-            title: Text(l10n.updateCheckTitle),
-            subtitle: Text(
-              updateAsync.when(
-                data: (info) => info != null
-                    ? l10n.updateAvailableBody(info.tagName)
-                    : l10n.updateUpToDate,
-                loading: () => l10n.updateCheckSub(version),
-                error: (_, _) => l10n.updateCheckSub(version),
+            leading: const Icon(Icons.privacy_tip_outlined),
+            title: Text(l10n.privacyTitle),
+            subtitle: Text(l10n.privacySub),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/settings/about/privacy'),
+          ),
+          if (showDesktopUpdateControls) ...<Widget>[
+            const Divider(),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              child: Text(
+                l10n.updatesSettingsSectionLabel,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: theme.colorScheme.primary,
+                ),
               ),
             ),
-            trailing: updateAsync.isLoading
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : updateAsync.asData?.value != null
-                ? FilledButton.icon(
-                    onPressed: () {
-                      final info = updateAsync.asData!.value!;
-                      if (info.downloadUrl != null) {
-                        showUpdateDialog(context, info);
-                      } else {
-                        launchUrl(
-                          Uri.parse(info.htmlUrl),
-                          mode: LaunchMode.externalApplication,
-                        );
-                      }
-                    },
-                    icon: const Icon(Icons.install_mobile, size: 18),
-                    label: Text(l10n.updateInstall),
-                  )
-                : const Icon(Icons.refresh),
-            onTap: () {
-              setState(() => _userTriggeredCheck = true);
-              ref.invalidate(updateProvider);
-            },
-          ),
+            SwitchListTile(
+              secondary: const Icon(Icons.system_update_outlined),
+              title: Text(l10n.updateAutoCheckTitle),
+              subtitle: Text(l10n.updateAutoCheckSubtitle),
+              value: settings?.updateCheckEnabled ?? true,
+              onChanged: (value) {
+                if (settings == null) return;
+                final repo = ref.read(settingsRepositoryProvider);
+                repo.saveSettings(settings.copyWith(updateCheckEnabled: value));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.system_update_outlined),
+              title: Text(l10n.updateCheckTitle),
+              subtitle: Text(
+                updateAsync.when(
+                  data: (info) => info != null
+                      ? l10n.updateAvailableBody(info.tagName)
+                      : l10n.updateUpToDate,
+                  loading: () => l10n.updateCheckSub(version),
+                  error: (_, _) => l10n.updateCheckSub(version),
+                ),
+              ),
+              trailing: updateAsync.isLoading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : updateAsync.asData?.value != null
+                  ? FilledButton.icon(
+                      onPressed: () {
+                        final info = updateAsync.asData!.value!;
+                        if (info.downloadUrl != null) {
+                          showUpdateDialog(context, info);
+                        } else {
+                          launchUrl(
+                            Uri.parse(info.htmlUrl),
+                            mode: LaunchMode.externalApplication,
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.install_mobile, size: 18),
+                      label: Text(l10n.updateInstall),
+                    )
+                  : const Icon(Icons.refresh),
+              onTap: () {
+                setState(() => _userTriggeredCheck = true);
+                ref.invalidate(updateProvider);
+              },
+            ),
+          ],
         ],
       ),
     );

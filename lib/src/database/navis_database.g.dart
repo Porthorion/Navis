@@ -1297,6 +1297,77 @@ class $AppSettingsTableTable extends AppSettingsTable
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _lastFmScrobblingEnabledMeta =
+      const VerificationMeta('lastFmScrobblingEnabled');
+  @override
+  late final GeneratedColumn<bool> lastFmScrobblingEnabled =
+      GeneratedColumn<bool>(
+        'last_fm_scrobbling_enabled',
+        aliasedName,
+        false,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("last_fm_scrobbling_enabled" IN (0, 1))',
+        ),
+        defaultValue: const Constant(false),
+      );
+  static const VerificationMeta _lastFmSessionConnectedMeta =
+      const VerificationMeta('lastFmSessionConnected');
+  @override
+  late final GeneratedColumn<bool> lastFmSessionConnected =
+      GeneratedColumn<bool>(
+        'last_fm_session_connected',
+        aliasedName,
+        false,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("last_fm_session_connected" IN (0, 1))',
+        ),
+        defaultValue: const Constant(false),
+      );
+  static const VerificationMeta _listenBrainzScrobblingEnabledMeta =
+      const VerificationMeta('listenBrainzScrobblingEnabled');
+  @override
+  late final GeneratedColumn<bool> listenBrainzScrobblingEnabled =
+      GeneratedColumn<bool>(
+        'listen_brainz_scrobbling_enabled',
+        aliasedName,
+        false,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("listen_brainz_scrobbling_enabled" IN (0, 1))',
+        ),
+        defaultValue: const Constant(false),
+      );
+  static const VerificationMeta _listenBrainzTokenValidMeta =
+      const VerificationMeta('listenBrainzTokenValid');
+  @override
+  late final GeneratedColumn<bool> listenBrainzTokenValid =
+      GeneratedColumn<bool>(
+        'listen_brainz_token_valid',
+        aliasedName,
+        false,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("listen_brainz_token_valid" IN (0, 1))',
+        ),
+        defaultValue: const Constant(false),
+      );
+  static const VerificationMeta _customVoyageServersMeta =
+      const VerificationMeta('customVoyageServers');
+  @override
+  late final GeneratedColumn<String> customVoyageServers =
+      GeneratedColumn<String>(
+        'custom_voyage_servers',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _lastFullSyncAppBuildMeta =
       const VerificationMeta('lastFullSyncAppBuild');
   @override
@@ -1381,6 +1452,11 @@ class $AppSettingsTableTable extends AppSettingsTable
     matchFlowEnabled,
     likedQueueEnabled,
     lastFmApiKey,
+    lastFmScrobblingEnabled,
+    lastFmSessionConnected,
+    listenBrainzScrobblingEnabled,
+    listenBrainzTokenValid,
+    customVoyageServers,
     lastFullSyncAppBuild,
     updatedAt,
   ];
@@ -1918,6 +1994,51 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
       );
     }
+    if (data.containsKey('last_fm_scrobbling_enabled')) {
+      context.handle(
+        _lastFmScrobblingEnabledMeta,
+        lastFmScrobblingEnabled.isAcceptableOrUnknown(
+          data['last_fm_scrobbling_enabled']!,
+          _lastFmScrobblingEnabledMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_fm_session_connected')) {
+      context.handle(
+        _lastFmSessionConnectedMeta,
+        lastFmSessionConnected.isAcceptableOrUnknown(
+          data['last_fm_session_connected']!,
+          _lastFmSessionConnectedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('listen_brainz_scrobbling_enabled')) {
+      context.handle(
+        _listenBrainzScrobblingEnabledMeta,
+        listenBrainzScrobblingEnabled.isAcceptableOrUnknown(
+          data['listen_brainz_scrobbling_enabled']!,
+          _listenBrainzScrobblingEnabledMeta,
+        ),
+      );
+    }
+    if (data.containsKey('listen_brainz_token_valid')) {
+      context.handle(
+        _listenBrainzTokenValidMeta,
+        listenBrainzTokenValid.isAcceptableOrUnknown(
+          data['listen_brainz_token_valid']!,
+          _listenBrainzTokenValidMeta,
+        ),
+      );
+    }
+    if (data.containsKey('custom_voyage_servers')) {
+      context.handle(
+        _customVoyageServersMeta,
+        customVoyageServers.isAcceptableOrUnknown(
+          data['custom_voyage_servers']!,
+          _customVoyageServersMeta,
+        ),
+      );
+    }
     if (data.containsKey('last_full_sync_app_build')) {
       context.handle(
         _lastFullSyncAppBuildMeta,
@@ -2184,6 +2305,26 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.string,
         data['${effectivePrefix}last_fm_api_key'],
       ),
+      lastFmScrobblingEnabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}last_fm_scrobbling_enabled'],
+      )!,
+      lastFmSessionConnected: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}last_fm_session_connected'],
+      )!,
+      listenBrainzScrobblingEnabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}listen_brainz_scrobbling_enabled'],
+      )!,
+      listenBrainzTokenValid: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}listen_brainz_token_valid'],
+      )!,
+      customVoyageServers: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}custom_voyage_servers'],
+      ),
       lastFullSyncAppBuild: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}last_full_sync_app_build'],
@@ -2362,6 +2503,25 @@ class AppSettingsTableData extends DataClass
   /// build-time key (NAVIS_LASTFM_API_KEY) is bundled instead.
   final String? lastFmApiKey;
 
+  /// Whether Last.fm scrobbling is enabled. Secrets/session stay in secure
+  /// storage; this only controls non-sensitive dispatch state.
+  final bool lastFmScrobblingEnabled;
+
+  /// True after Last.fm session auth succeeds. Cleared on invalid-session
+  /// responses so the UI can ask the user to reconnect.
+  final bool lastFmSessionConnected;
+
+  /// Whether ListenBrainz scrobbling is enabled. The token stays in secure
+  /// storage.
+  final bool listenBrainzScrobblingEnabled;
+
+  /// True after ListenBrainz token validation succeeds. Cleared on 401/403.
+  final bool listenBrainzTokenValid;
+
+  /// JSON-encoded custom Voyage server entries:
+  /// [{"label":"Home","url":"https://voyage.example.com"}]
+  final String? customVoyageServers;
+
   /// The app version+build string (e.g. "1.2.3+100") that was current when
   /// the last forced full sync was triggered. Null means no version-triggered
   /// full sync has run yet. Used to auto-force a full resync on app updates.
@@ -2428,6 +2588,11 @@ class AppSettingsTableData extends DataClass
     required this.matchFlowEnabled,
     required this.likedQueueEnabled,
     this.lastFmApiKey,
+    required this.lastFmScrobblingEnabled,
+    required this.lastFmSessionConnected,
+    required this.listenBrainzScrobblingEnabled,
+    required this.listenBrainzTokenValid,
+    this.customVoyageServers,
     this.lastFullSyncAppBuild,
     required this.updatedAt,
   });
@@ -2538,6 +2703,15 @@ class AppSettingsTableData extends DataClass
     if (!nullToAbsent || lastFmApiKey != null) {
       map['last_fm_api_key'] = Variable<String>(lastFmApiKey);
     }
+    map['last_fm_scrobbling_enabled'] = Variable<bool>(lastFmScrobblingEnabled);
+    map['last_fm_session_connected'] = Variable<bool>(lastFmSessionConnected);
+    map['listen_brainz_scrobbling_enabled'] = Variable<bool>(
+      listenBrainzScrobblingEnabled,
+    );
+    map['listen_brainz_token_valid'] = Variable<bool>(listenBrainzTokenValid);
+    if (!nullToAbsent || customVoyageServers != null) {
+      map['custom_voyage_servers'] = Variable<String>(customVoyageServers);
+    }
     if (!nullToAbsent || lastFullSyncAppBuild != null) {
       map['last_full_sync_app_build'] = Variable<String>(lastFullSyncAppBuild);
     }
@@ -2639,6 +2813,13 @@ class AppSettingsTableData extends DataClass
       lastFmApiKey: lastFmApiKey == null && nullToAbsent
           ? const Value.absent()
           : Value(lastFmApiKey),
+      lastFmScrobblingEnabled: Value(lastFmScrobblingEnabled),
+      lastFmSessionConnected: Value(lastFmSessionConnected),
+      listenBrainzScrobblingEnabled: Value(listenBrainzScrobblingEnabled),
+      listenBrainzTokenValid: Value(listenBrainzTokenValid),
+      customVoyageServers: customVoyageServers == null && nullToAbsent
+          ? const Value.absent()
+          : Value(customVoyageServers),
       lastFullSyncAppBuild: lastFullSyncAppBuild == null && nullToAbsent
           ? const Value.absent()
           : Value(lastFullSyncAppBuild),
@@ -2756,6 +2937,21 @@ class AppSettingsTableData extends DataClass
       matchFlowEnabled: serializer.fromJson<bool>(json['matchFlowEnabled']),
       likedQueueEnabled: serializer.fromJson<bool>(json['likedQueueEnabled']),
       lastFmApiKey: serializer.fromJson<String?>(json['lastFmApiKey']),
+      lastFmScrobblingEnabled: serializer.fromJson<bool>(
+        json['lastFmScrobblingEnabled'],
+      ),
+      lastFmSessionConnected: serializer.fromJson<bool>(
+        json['lastFmSessionConnected'],
+      ),
+      listenBrainzScrobblingEnabled: serializer.fromJson<bool>(
+        json['listenBrainzScrobblingEnabled'],
+      ),
+      listenBrainzTokenValid: serializer.fromJson<bool>(
+        json['listenBrainzTokenValid'],
+      ),
+      customVoyageServers: serializer.fromJson<String?>(
+        json['customVoyageServers'],
+      ),
       lastFullSyncAppBuild: serializer.fromJson<String?>(
         json['lastFullSyncAppBuild'],
       ),
@@ -2844,6 +3040,15 @@ class AppSettingsTableData extends DataClass
       'matchFlowEnabled': serializer.toJson<bool>(matchFlowEnabled),
       'likedQueueEnabled': serializer.toJson<bool>(likedQueueEnabled),
       'lastFmApiKey': serializer.toJson<String?>(lastFmApiKey),
+      'lastFmScrobblingEnabled': serializer.toJson<bool>(
+        lastFmScrobblingEnabled,
+      ),
+      'lastFmSessionConnected': serializer.toJson<bool>(lastFmSessionConnected),
+      'listenBrainzScrobblingEnabled': serializer.toJson<bool>(
+        listenBrainzScrobblingEnabled,
+      ),
+      'listenBrainzTokenValid': serializer.toJson<bool>(listenBrainzTokenValid),
+      'customVoyageServers': serializer.toJson<String?>(customVoyageServers),
       'lastFullSyncAppBuild': serializer.toJson<String?>(lastFullSyncAppBuild),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
@@ -2910,6 +3115,11 @@ class AppSettingsTableData extends DataClass
     bool? matchFlowEnabled,
     bool? likedQueueEnabled,
     Value<String?> lastFmApiKey = const Value.absent(),
+    bool? lastFmScrobblingEnabled,
+    bool? lastFmSessionConnected,
+    bool? listenBrainzScrobblingEnabled,
+    bool? listenBrainzTokenValid,
+    Value<String?> customVoyageServers = const Value.absent(),
     Value<String?> lastFullSyncAppBuild = const Value.absent(),
     DateTime? updatedAt,
   }) => AppSettingsTableData(
@@ -3007,6 +3217,17 @@ class AppSettingsTableData extends DataClass
     matchFlowEnabled: matchFlowEnabled ?? this.matchFlowEnabled,
     likedQueueEnabled: likedQueueEnabled ?? this.likedQueueEnabled,
     lastFmApiKey: lastFmApiKey.present ? lastFmApiKey.value : this.lastFmApiKey,
+    lastFmScrobblingEnabled:
+        lastFmScrobblingEnabled ?? this.lastFmScrobblingEnabled,
+    lastFmSessionConnected:
+        lastFmSessionConnected ?? this.lastFmSessionConnected,
+    listenBrainzScrobblingEnabled:
+        listenBrainzScrobblingEnabled ?? this.listenBrainzScrobblingEnabled,
+    listenBrainzTokenValid:
+        listenBrainzTokenValid ?? this.listenBrainzTokenValid,
+    customVoyageServers: customVoyageServers.present
+        ? customVoyageServers.value
+        : this.customVoyageServers,
     lastFullSyncAppBuild: lastFullSyncAppBuild.present
         ? lastFullSyncAppBuild.value
         : this.lastFullSyncAppBuild,
@@ -3186,6 +3407,21 @@ class AppSettingsTableData extends DataClass
       lastFmApiKey: data.lastFmApiKey.present
           ? data.lastFmApiKey.value
           : this.lastFmApiKey,
+      lastFmScrobblingEnabled: data.lastFmScrobblingEnabled.present
+          ? data.lastFmScrobblingEnabled.value
+          : this.lastFmScrobblingEnabled,
+      lastFmSessionConnected: data.lastFmSessionConnected.present
+          ? data.lastFmSessionConnected.value
+          : this.lastFmSessionConnected,
+      listenBrainzScrobblingEnabled: data.listenBrainzScrobblingEnabled.present
+          ? data.listenBrainzScrobblingEnabled.value
+          : this.listenBrainzScrobblingEnabled,
+      listenBrainzTokenValid: data.listenBrainzTokenValid.present
+          ? data.listenBrainzTokenValid.value
+          : this.listenBrainzTokenValid,
+      customVoyageServers: data.customVoyageServers.present
+          ? data.customVoyageServers.value
+          : this.customVoyageServers,
       lastFullSyncAppBuild: data.lastFullSyncAppBuild.present
           ? data.lastFullSyncAppBuild.value
           : this.lastFullSyncAppBuild,
@@ -3258,6 +3494,13 @@ class AppSettingsTableData extends DataClass
           ..write('matchFlowEnabled: $matchFlowEnabled, ')
           ..write('likedQueueEnabled: $likedQueueEnabled, ')
           ..write('lastFmApiKey: $lastFmApiKey, ')
+          ..write('lastFmScrobblingEnabled: $lastFmScrobblingEnabled, ')
+          ..write('lastFmSessionConnected: $lastFmSessionConnected, ')
+          ..write(
+            'listenBrainzScrobblingEnabled: $listenBrainzScrobblingEnabled, ',
+          )
+          ..write('listenBrainzTokenValid: $listenBrainzTokenValid, ')
+          ..write('customVoyageServers: $customVoyageServers, ')
           ..write('lastFullSyncAppBuild: $lastFullSyncAppBuild, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -3326,6 +3569,11 @@ class AppSettingsTableData extends DataClass
     matchFlowEnabled,
     likedQueueEnabled,
     lastFmApiKey,
+    lastFmScrobblingEnabled,
+    lastFmSessionConnected,
+    listenBrainzScrobblingEnabled,
+    listenBrainzTokenValid,
+    customVoyageServers,
     lastFullSyncAppBuild,
     updatedAt,
   ]);
@@ -3395,6 +3643,12 @@ class AppSettingsTableData extends DataClass
           other.matchFlowEnabled == this.matchFlowEnabled &&
           other.likedQueueEnabled == this.likedQueueEnabled &&
           other.lastFmApiKey == this.lastFmApiKey &&
+          other.lastFmScrobblingEnabled == this.lastFmScrobblingEnabled &&
+          other.lastFmSessionConnected == this.lastFmSessionConnected &&
+          other.listenBrainzScrobblingEnabled ==
+              this.listenBrainzScrobblingEnabled &&
+          other.listenBrainzTokenValid == this.listenBrainzTokenValid &&
+          other.customVoyageServers == this.customVoyageServers &&
           other.lastFullSyncAppBuild == this.lastFullSyncAppBuild &&
           other.updatedAt == this.updatedAt);
 }
@@ -3460,6 +3714,11 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<bool> matchFlowEnabled;
   final Value<bool> likedQueueEnabled;
   final Value<String?> lastFmApiKey;
+  final Value<bool> lastFmScrobblingEnabled;
+  final Value<bool> lastFmSessionConnected;
+  final Value<bool> listenBrainzScrobblingEnabled;
+  final Value<bool> listenBrainzTokenValid;
+  final Value<String?> customVoyageServers;
   final Value<String?> lastFullSyncAppBuild;
   final Value<DateTime> updatedAt;
   const AppSettingsTableCompanion({
@@ -3523,6 +3782,11 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.matchFlowEnabled = const Value.absent(),
     this.likedQueueEnabled = const Value.absent(),
     this.lastFmApiKey = const Value.absent(),
+    this.lastFmScrobblingEnabled = const Value.absent(),
+    this.lastFmSessionConnected = const Value.absent(),
+    this.listenBrainzScrobblingEnabled = const Value.absent(),
+    this.listenBrainzTokenValid = const Value.absent(),
+    this.customVoyageServers = const Value.absent(),
     this.lastFullSyncAppBuild = const Value.absent(),
     this.updatedAt = const Value.absent(),
   });
@@ -3587,6 +3851,11 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.matchFlowEnabled = const Value.absent(),
     this.likedQueueEnabled = const Value.absent(),
     this.lastFmApiKey = const Value.absent(),
+    this.lastFmScrobblingEnabled = const Value.absent(),
+    this.lastFmSessionConnected = const Value.absent(),
+    this.listenBrainzScrobblingEnabled = const Value.absent(),
+    this.listenBrainzTokenValid = const Value.absent(),
+    this.customVoyageServers = const Value.absent(),
     this.lastFullSyncAppBuild = const Value.absent(),
     required DateTime updatedAt,
   }) : updatedAt = Value(updatedAt);
@@ -3651,6 +3920,11 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<bool>? matchFlowEnabled,
     Expression<bool>? likedQueueEnabled,
     Expression<String>? lastFmApiKey,
+    Expression<bool>? lastFmScrobblingEnabled,
+    Expression<bool>? lastFmSessionConnected,
+    Expression<bool>? listenBrainzScrobblingEnabled,
+    Expression<bool>? listenBrainzTokenValid,
+    Expression<String>? customVoyageServers,
     Expression<String>? lastFullSyncAppBuild,
     Expression<DateTime>? updatedAt,
   }) {
@@ -3740,6 +4014,16 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       if (matchFlowEnabled != null) 'match_flow_enabled': matchFlowEnabled,
       if (likedQueueEnabled != null) 'liked_queue_enabled': likedQueueEnabled,
       if (lastFmApiKey != null) 'last_fm_api_key': lastFmApiKey,
+      if (lastFmScrobblingEnabled != null)
+        'last_fm_scrobbling_enabled': lastFmScrobblingEnabled,
+      if (lastFmSessionConnected != null)
+        'last_fm_session_connected': lastFmSessionConnected,
+      if (listenBrainzScrobblingEnabled != null)
+        'listen_brainz_scrobbling_enabled': listenBrainzScrobblingEnabled,
+      if (listenBrainzTokenValid != null)
+        'listen_brainz_token_valid': listenBrainzTokenValid,
+      if (customVoyageServers != null)
+        'custom_voyage_servers': customVoyageServers,
       if (lastFullSyncAppBuild != null)
         'last_full_sync_app_build': lastFullSyncAppBuild,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -3807,6 +4091,11 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<bool>? matchFlowEnabled,
     Value<bool>? likedQueueEnabled,
     Value<String?>? lastFmApiKey,
+    Value<bool>? lastFmScrobblingEnabled,
+    Value<bool>? lastFmSessionConnected,
+    Value<bool>? listenBrainzScrobblingEnabled,
+    Value<bool>? listenBrainzTokenValid,
+    Value<String?>? customVoyageServers,
     Value<String?>? lastFullSyncAppBuild,
     Value<DateTime>? updatedAt,
   }) {
@@ -3881,6 +4170,15 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       matchFlowEnabled: matchFlowEnabled ?? this.matchFlowEnabled,
       likedQueueEnabled: likedQueueEnabled ?? this.likedQueueEnabled,
       lastFmApiKey: lastFmApiKey ?? this.lastFmApiKey,
+      lastFmScrobblingEnabled:
+          lastFmScrobblingEnabled ?? this.lastFmScrobblingEnabled,
+      lastFmSessionConnected:
+          lastFmSessionConnected ?? this.lastFmSessionConnected,
+      listenBrainzScrobblingEnabled:
+          listenBrainzScrobblingEnabled ?? this.listenBrainzScrobblingEnabled,
+      listenBrainzTokenValid:
+          listenBrainzTokenValid ?? this.listenBrainzTokenValid,
+      customVoyageServers: customVoyageServers ?? this.customVoyageServers,
       lastFullSyncAppBuild: lastFullSyncAppBuild ?? this.lastFullSyncAppBuild,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -4095,6 +4393,31 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     if (lastFmApiKey.present) {
       map['last_fm_api_key'] = Variable<String>(lastFmApiKey.value);
     }
+    if (lastFmScrobblingEnabled.present) {
+      map['last_fm_scrobbling_enabled'] = Variable<bool>(
+        lastFmScrobblingEnabled.value,
+      );
+    }
+    if (lastFmSessionConnected.present) {
+      map['last_fm_session_connected'] = Variable<bool>(
+        lastFmSessionConnected.value,
+      );
+    }
+    if (listenBrainzScrobblingEnabled.present) {
+      map['listen_brainz_scrobbling_enabled'] = Variable<bool>(
+        listenBrainzScrobblingEnabled.value,
+      );
+    }
+    if (listenBrainzTokenValid.present) {
+      map['listen_brainz_token_valid'] = Variable<bool>(
+        listenBrainzTokenValid.value,
+      );
+    }
+    if (customVoyageServers.present) {
+      map['custom_voyage_servers'] = Variable<String>(
+        customVoyageServers.value,
+      );
+    }
     if (lastFullSyncAppBuild.present) {
       map['last_full_sync_app_build'] = Variable<String>(
         lastFullSyncAppBuild.value,
@@ -4171,6 +4494,13 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('matchFlowEnabled: $matchFlowEnabled, ')
           ..write('likedQueueEnabled: $likedQueueEnabled, ')
           ..write('lastFmApiKey: $lastFmApiKey, ')
+          ..write('lastFmScrobblingEnabled: $lastFmScrobblingEnabled, ')
+          ..write('lastFmSessionConnected: $lastFmSessionConnected, ')
+          ..write(
+            'listenBrainzScrobblingEnabled: $listenBrainzScrobblingEnabled, ',
+          )
+          ..write('listenBrainzTokenValid: $listenBrainzTokenValid, ')
+          ..write('customVoyageServers: $customVoyageServers, ')
           ..write('lastFullSyncAppBuild: $lastFullSyncAppBuild, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -12083,6 +12413,18 @@ class $ScrobbleQueueTableTable extends ScrobbleQueueTable
       'REFERENCES songs (id) ON DELETE CASCADE',
     ),
   );
+  static const VerificationMeta _providerMeta = const VerificationMeta(
+    'provider',
+  );
+  @override
+  late final GeneratedColumn<String> provider = GeneratedColumn<String>(
+    'provider',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('subsonic'),
+  );
   static const VerificationMeta _submissionMeta = const VerificationMeta(
     'submission',
   );
@@ -12096,6 +12438,50 @@ class $ScrobbleQueueTableTable extends ScrobbleQueueTable
     defaultConstraints: GeneratedColumn.constraintIsAlways(
       'CHECK ("submission" IN (0, 1))',
     ),
+  );
+  static const VerificationMeta _trackTitleMeta = const VerificationMeta(
+    'trackTitle',
+  );
+  @override
+  late final GeneratedColumn<String> trackTitle = GeneratedColumn<String>(
+    'track_title',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _artistNameMeta = const VerificationMeta(
+    'artistName',
+  );
+  @override
+  late final GeneratedColumn<String> artistName = GeneratedColumn<String>(
+    'artist_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _albumNameMeta = const VerificationMeta(
+    'albumName',
+  );
+  @override
+  late final GeneratedColumn<String> albumName = GeneratedColumn<String>(
+    'album_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _durationSecondsMeta = const VerificationMeta(
+    'durationSeconds',
+  );
+  @override
+  late final GeneratedColumn<int> durationSeconds = GeneratedColumn<int>(
+    'duration_seconds',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
   );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
@@ -12169,7 +12555,12 @@ class $ScrobbleQueueTableTable extends ScrobbleQueueTable
   List<GeneratedColumn> get $columns => [
     id,
     songId,
+    provider,
     submission,
+    trackTitle,
+    artistName,
+    albumName,
+    durationSeconds,
     createdAt,
     nextAttemptAt,
     attempts,
@@ -12200,6 +12591,12 @@ class $ScrobbleQueueTableTable extends ScrobbleQueueTable
     } else if (isInserting) {
       context.missing(_songIdMeta);
     }
+    if (data.containsKey('provider')) {
+      context.handle(
+        _providerMeta,
+        provider.isAcceptableOrUnknown(data['provider']!, _providerMeta),
+      );
+    }
     if (data.containsKey('submission')) {
       context.handle(
         _submissionMeta,
@@ -12207,6 +12604,33 @@ class $ScrobbleQueueTableTable extends ScrobbleQueueTable
       );
     } else if (isInserting) {
       context.missing(_submissionMeta);
+    }
+    if (data.containsKey('track_title')) {
+      context.handle(
+        _trackTitleMeta,
+        trackTitle.isAcceptableOrUnknown(data['track_title']!, _trackTitleMeta),
+      );
+    }
+    if (data.containsKey('artist_name')) {
+      context.handle(
+        _artistNameMeta,
+        artistName.isAcceptableOrUnknown(data['artist_name']!, _artistNameMeta),
+      );
+    }
+    if (data.containsKey('album_name')) {
+      context.handle(
+        _albumNameMeta,
+        albumName.isAcceptableOrUnknown(data['album_name']!, _albumNameMeta),
+      );
+    }
+    if (data.containsKey('duration_seconds')) {
+      context.handle(
+        _durationSecondsMeta,
+        durationSeconds.isAcceptableOrUnknown(
+          data['duration_seconds']!,
+          _durationSecondsMeta,
+        ),
+      );
     }
     if (data.containsKey('created_at')) {
       context.handle(
@@ -12262,7 +12686,7 @@ class $ScrobbleQueueTableTable extends ScrobbleQueueTable
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
   List<Set<GeneratedColumn>> get uniqueKeys => [
-    {songId, submission, sessionKey},
+    {songId, provider, submission, sessionKey},
   ];
   @override
   ScrobbleQueueTableData map(Map<String, dynamic> data, {String? tablePrefix}) {
@@ -12276,10 +12700,30 @@ class $ScrobbleQueueTableTable extends ScrobbleQueueTable
         DriftSqlType.string,
         data['${effectivePrefix}song_id'],
       )!,
+      provider: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}provider'],
+      )!,
       submission: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}submission'],
       )!,
+      trackTitle: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}track_title'],
+      ),
+      artistName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}artist_name'],
+      ),
+      albumName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}album_name'],
+      ),
+      durationSeconds: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}duration_seconds'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -12317,7 +12761,17 @@ class ScrobbleQueueTableData extends DataClass
     implements Insertable<ScrobbleQueueTableData> {
   final int id;
   final String songId;
+
+  /// Dispatch provider: subsonic, lastfm, or listenbrainz.
+  final String provider;
   final bool submission;
+
+  /// Resolved metadata captured at playback time so third-party scrobbles can
+  /// flush later without depending on the current library row.
+  final String? trackTitle;
+  final String? artistName;
+  final String? albumName;
+  final int? durationSeconds;
   final DateTime createdAt;
   final DateTime nextAttemptAt;
   final int attempts;
@@ -12327,7 +12781,12 @@ class ScrobbleQueueTableData extends DataClass
   const ScrobbleQueueTableData({
     required this.id,
     required this.songId,
+    required this.provider,
     required this.submission,
+    this.trackTitle,
+    this.artistName,
+    this.albumName,
+    this.durationSeconds,
     required this.createdAt,
     required this.nextAttemptAt,
     required this.attempts,
@@ -12340,7 +12799,20 @@ class ScrobbleQueueTableData extends DataClass
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
     map['song_id'] = Variable<String>(songId);
+    map['provider'] = Variable<String>(provider);
     map['submission'] = Variable<bool>(submission);
+    if (!nullToAbsent || trackTitle != null) {
+      map['track_title'] = Variable<String>(trackTitle);
+    }
+    if (!nullToAbsent || artistName != null) {
+      map['artist_name'] = Variable<String>(artistName);
+    }
+    if (!nullToAbsent || albumName != null) {
+      map['album_name'] = Variable<String>(albumName);
+    }
+    if (!nullToAbsent || durationSeconds != null) {
+      map['duration_seconds'] = Variable<int>(durationSeconds);
+    }
     map['created_at'] = Variable<DateTime>(createdAt);
     map['next_attempt_at'] = Variable<DateTime>(nextAttemptAt);
     map['attempts'] = Variable<int>(attempts);
@@ -12356,7 +12828,20 @@ class ScrobbleQueueTableData extends DataClass
     return ScrobbleQueueTableCompanion(
       id: Value(id),
       songId: Value(songId),
+      provider: Value(provider),
       submission: Value(submission),
+      trackTitle: trackTitle == null && nullToAbsent
+          ? const Value.absent()
+          : Value(trackTitle),
+      artistName: artistName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(artistName),
+      albumName: albumName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(albumName),
+      durationSeconds: durationSeconds == null && nullToAbsent
+          ? const Value.absent()
+          : Value(durationSeconds),
       createdAt: Value(createdAt),
       nextAttemptAt: Value(nextAttemptAt),
       attempts: Value(attempts),
@@ -12376,7 +12861,12 @@ class ScrobbleQueueTableData extends DataClass
     return ScrobbleQueueTableData(
       id: serializer.fromJson<int>(json['id']),
       songId: serializer.fromJson<String>(json['songId']),
+      provider: serializer.fromJson<String>(json['provider']),
       submission: serializer.fromJson<bool>(json['submission']),
+      trackTitle: serializer.fromJson<String?>(json['trackTitle']),
+      artistName: serializer.fromJson<String?>(json['artistName']),
+      albumName: serializer.fromJson<String?>(json['albumName']),
+      durationSeconds: serializer.fromJson<int?>(json['durationSeconds']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       nextAttemptAt: serializer.fromJson<DateTime>(json['nextAttemptAt']),
       attempts: serializer.fromJson<int>(json['attempts']),
@@ -12391,7 +12881,12 @@ class ScrobbleQueueTableData extends DataClass
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
       'songId': serializer.toJson<String>(songId),
+      'provider': serializer.toJson<String>(provider),
       'submission': serializer.toJson<bool>(submission),
+      'trackTitle': serializer.toJson<String?>(trackTitle),
+      'artistName': serializer.toJson<String?>(artistName),
+      'albumName': serializer.toJson<String?>(albumName),
+      'durationSeconds': serializer.toJson<int?>(durationSeconds),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'nextAttemptAt': serializer.toJson<DateTime>(nextAttemptAt),
       'attempts': serializer.toJson<int>(attempts),
@@ -12404,7 +12899,12 @@ class ScrobbleQueueTableData extends DataClass
   ScrobbleQueueTableData copyWith({
     int? id,
     String? songId,
+    String? provider,
     bool? submission,
+    Value<String?> trackTitle = const Value.absent(),
+    Value<String?> artistName = const Value.absent(),
+    Value<String?> albumName = const Value.absent(),
+    Value<int?> durationSeconds = const Value.absent(),
     DateTime? createdAt,
     DateTime? nextAttemptAt,
     int? attempts,
@@ -12414,7 +12914,14 @@ class ScrobbleQueueTableData extends DataClass
   }) => ScrobbleQueueTableData(
     id: id ?? this.id,
     songId: songId ?? this.songId,
+    provider: provider ?? this.provider,
     submission: submission ?? this.submission,
+    trackTitle: trackTitle.present ? trackTitle.value : this.trackTitle,
+    artistName: artistName.present ? artistName.value : this.artistName,
+    albumName: albumName.present ? albumName.value : this.albumName,
+    durationSeconds: durationSeconds.present
+        ? durationSeconds.value
+        : this.durationSeconds,
     createdAt: createdAt ?? this.createdAt,
     nextAttemptAt: nextAttemptAt ?? this.nextAttemptAt,
     attempts: attempts ?? this.attempts,
@@ -12426,9 +12933,20 @@ class ScrobbleQueueTableData extends DataClass
     return ScrobbleQueueTableData(
       id: data.id.present ? data.id.value : this.id,
       songId: data.songId.present ? data.songId.value : this.songId,
+      provider: data.provider.present ? data.provider.value : this.provider,
       submission: data.submission.present
           ? data.submission.value
           : this.submission,
+      trackTitle: data.trackTitle.present
+          ? data.trackTitle.value
+          : this.trackTitle,
+      artistName: data.artistName.present
+          ? data.artistName.value
+          : this.artistName,
+      albumName: data.albumName.present ? data.albumName.value : this.albumName,
+      durationSeconds: data.durationSeconds.present
+          ? data.durationSeconds.value
+          : this.durationSeconds,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       nextAttemptAt: data.nextAttemptAt.present
           ? data.nextAttemptAt.value
@@ -12447,7 +12965,12 @@ class ScrobbleQueueTableData extends DataClass
     return (StringBuffer('ScrobbleQueueTableData(')
           ..write('id: $id, ')
           ..write('songId: $songId, ')
+          ..write('provider: $provider, ')
           ..write('submission: $submission, ')
+          ..write('trackTitle: $trackTitle, ')
+          ..write('artistName: $artistName, ')
+          ..write('albumName: $albumName, ')
+          ..write('durationSeconds: $durationSeconds, ')
           ..write('createdAt: $createdAt, ')
           ..write('nextAttemptAt: $nextAttemptAt, ')
           ..write('attempts: $attempts, ')
@@ -12462,7 +12985,12 @@ class ScrobbleQueueTableData extends DataClass
   int get hashCode => Object.hash(
     id,
     songId,
+    provider,
     submission,
+    trackTitle,
+    artistName,
+    albumName,
+    durationSeconds,
     createdAt,
     nextAttemptAt,
     attempts,
@@ -12476,7 +13004,12 @@ class ScrobbleQueueTableData extends DataClass
       (other is ScrobbleQueueTableData &&
           other.id == this.id &&
           other.songId == this.songId &&
+          other.provider == this.provider &&
           other.submission == this.submission &&
+          other.trackTitle == this.trackTitle &&
+          other.artistName == this.artistName &&
+          other.albumName == this.albumName &&
+          other.durationSeconds == this.durationSeconds &&
           other.createdAt == this.createdAt &&
           other.nextAttemptAt == this.nextAttemptAt &&
           other.attempts == this.attempts &&
@@ -12489,7 +13022,12 @@ class ScrobbleQueueTableCompanion
     extends UpdateCompanion<ScrobbleQueueTableData> {
   final Value<int> id;
   final Value<String> songId;
+  final Value<String> provider;
   final Value<bool> submission;
+  final Value<String?> trackTitle;
+  final Value<String?> artistName;
+  final Value<String?> albumName;
+  final Value<int?> durationSeconds;
   final Value<DateTime> createdAt;
   final Value<DateTime> nextAttemptAt;
   final Value<int> attempts;
@@ -12499,7 +13037,12 @@ class ScrobbleQueueTableCompanion
   const ScrobbleQueueTableCompanion({
     this.id = const Value.absent(),
     this.songId = const Value.absent(),
+    this.provider = const Value.absent(),
     this.submission = const Value.absent(),
+    this.trackTitle = const Value.absent(),
+    this.artistName = const Value.absent(),
+    this.albumName = const Value.absent(),
+    this.durationSeconds = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.nextAttemptAt = const Value.absent(),
     this.attempts = const Value.absent(),
@@ -12510,7 +13053,12 @@ class ScrobbleQueueTableCompanion
   ScrobbleQueueTableCompanion.insert({
     this.id = const Value.absent(),
     required String songId,
+    this.provider = const Value.absent(),
     required bool submission,
+    this.trackTitle = const Value.absent(),
+    this.artistName = const Value.absent(),
+    this.albumName = const Value.absent(),
+    this.durationSeconds = const Value.absent(),
     required DateTime createdAt,
     required DateTime nextAttemptAt,
     this.attempts = const Value.absent(),
@@ -12526,7 +13074,12 @@ class ScrobbleQueueTableCompanion
   static Insertable<ScrobbleQueueTableData> custom({
     Expression<int>? id,
     Expression<String>? songId,
+    Expression<String>? provider,
     Expression<bool>? submission,
+    Expression<String>? trackTitle,
+    Expression<String>? artistName,
+    Expression<String>? albumName,
+    Expression<int>? durationSeconds,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? nextAttemptAt,
     Expression<int>? attempts,
@@ -12537,7 +13090,12 @@ class ScrobbleQueueTableCompanion
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (songId != null) 'song_id': songId,
+      if (provider != null) 'provider': provider,
       if (submission != null) 'submission': submission,
+      if (trackTitle != null) 'track_title': trackTitle,
+      if (artistName != null) 'artist_name': artistName,
+      if (albumName != null) 'album_name': albumName,
+      if (durationSeconds != null) 'duration_seconds': durationSeconds,
       if (createdAt != null) 'created_at': createdAt,
       if (nextAttemptAt != null) 'next_attempt_at': nextAttemptAt,
       if (attempts != null) 'attempts': attempts,
@@ -12550,7 +13108,12 @@ class ScrobbleQueueTableCompanion
   ScrobbleQueueTableCompanion copyWith({
     Value<int>? id,
     Value<String>? songId,
+    Value<String>? provider,
     Value<bool>? submission,
+    Value<String?>? trackTitle,
+    Value<String?>? artistName,
+    Value<String?>? albumName,
+    Value<int?>? durationSeconds,
     Value<DateTime>? createdAt,
     Value<DateTime>? nextAttemptAt,
     Value<int>? attempts,
@@ -12561,7 +13124,12 @@ class ScrobbleQueueTableCompanion
     return ScrobbleQueueTableCompanion(
       id: id ?? this.id,
       songId: songId ?? this.songId,
+      provider: provider ?? this.provider,
       submission: submission ?? this.submission,
+      trackTitle: trackTitle ?? this.trackTitle,
+      artistName: artistName ?? this.artistName,
+      albumName: albumName ?? this.albumName,
+      durationSeconds: durationSeconds ?? this.durationSeconds,
       createdAt: createdAt ?? this.createdAt,
       nextAttemptAt: nextAttemptAt ?? this.nextAttemptAt,
       attempts: attempts ?? this.attempts,
@@ -12580,8 +13148,23 @@ class ScrobbleQueueTableCompanion
     if (songId.present) {
       map['song_id'] = Variable<String>(songId.value);
     }
+    if (provider.present) {
+      map['provider'] = Variable<String>(provider.value);
+    }
     if (submission.present) {
       map['submission'] = Variable<bool>(submission.value);
+    }
+    if (trackTitle.present) {
+      map['track_title'] = Variable<String>(trackTitle.value);
+    }
+    if (artistName.present) {
+      map['artist_name'] = Variable<String>(artistName.value);
+    }
+    if (albumName.present) {
+      map['album_name'] = Variable<String>(albumName.value);
+    }
+    if (durationSeconds.present) {
+      map['duration_seconds'] = Variable<int>(durationSeconds.value);
     }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
@@ -12609,7 +13192,12 @@ class ScrobbleQueueTableCompanion
     return (StringBuffer('ScrobbleQueueTableCompanion(')
           ..write('id: $id, ')
           ..write('songId: $songId, ')
+          ..write('provider: $provider, ')
           ..write('submission: $submission, ')
+          ..write('trackTitle: $trackTitle, ')
+          ..write('artistName: $artistName, ')
+          ..write('albumName: $albumName, ')
+          ..write('durationSeconds: $durationSeconds, ')
           ..write('createdAt: $createdAt, ')
           ..write('nextAttemptAt: $nextAttemptAt, ')
           ..write('attempts: $attempts, ')
@@ -13469,6 +14057,11 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<bool> matchFlowEnabled,
       Value<bool> likedQueueEnabled,
       Value<String?> lastFmApiKey,
+      Value<bool> lastFmScrobblingEnabled,
+      Value<bool> lastFmSessionConnected,
+      Value<bool> listenBrainzScrobblingEnabled,
+      Value<bool> listenBrainzTokenValid,
+      Value<String?> customVoyageServers,
       Value<String?> lastFullSyncAppBuild,
       required DateTime updatedAt,
     });
@@ -13534,6 +14127,11 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<bool> matchFlowEnabled,
       Value<bool> likedQueueEnabled,
       Value<String?> lastFmApiKey,
+      Value<bool> lastFmScrobblingEnabled,
+      Value<bool> lastFmSessionConnected,
+      Value<bool> listenBrainzScrobblingEnabled,
+      Value<bool> listenBrainzTokenValid,
+      Value<String?> customVoyageServers,
       Value<String?> lastFullSyncAppBuild,
       Value<DateTime> updatedAt,
     });
@@ -13844,6 +14442,31 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<String> get lastFmApiKey => $composableBuilder(
     column: $table.lastFmApiKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get lastFmScrobblingEnabled => $composableBuilder(
+    column: $table.lastFmScrobblingEnabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get lastFmSessionConnected => $composableBuilder(
+    column: $table.lastFmSessionConnected,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get listenBrainzScrobblingEnabled => $composableBuilder(
+    column: $table.listenBrainzScrobblingEnabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get listenBrainzTokenValid => $composableBuilder(
+    column: $table.listenBrainzTokenValid,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get customVoyageServers => $composableBuilder(
+    column: $table.customVoyageServers,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -14167,6 +14790,31 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get lastFmScrobblingEnabled => $composableBuilder(
+    column: $table.lastFmScrobblingEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get lastFmSessionConnected => $composableBuilder(
+    column: $table.lastFmSessionConnected,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get listenBrainzScrobblingEnabled => $composableBuilder(
+    column: $table.listenBrainzScrobblingEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get listenBrainzTokenValid => $composableBuilder(
+    column: $table.listenBrainzTokenValid,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get customVoyageServers => $composableBuilder(
+    column: $table.customVoyageServers,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get lastFullSyncAppBuild => $composableBuilder(
     column: $table.lastFullSyncAppBuild,
     builder: (column) => ColumnOrderings(column),
@@ -14479,6 +15127,31 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get lastFmScrobblingEnabled => $composableBuilder(
+    column: $table.lastFmScrobblingEnabled,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get lastFmSessionConnected => $composableBuilder(
+    column: $table.lastFmSessionConnected,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get listenBrainzScrobblingEnabled => $composableBuilder(
+    column: $table.listenBrainzScrobblingEnabled,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get listenBrainzTokenValid => $composableBuilder(
+    column: $table.listenBrainzTokenValid,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get customVoyageServers => $composableBuilder(
+    column: $table.customVoyageServers,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get lastFullSyncAppBuild => $composableBuilder(
     column: $table.lastFullSyncAppBuild,
     builder: (column) => column,
@@ -14586,6 +15259,12 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> matchFlowEnabled = const Value.absent(),
                 Value<bool> likedQueueEnabled = const Value.absent(),
                 Value<String?> lastFmApiKey = const Value.absent(),
+                Value<bool> lastFmScrobblingEnabled = const Value.absent(),
+                Value<bool> lastFmSessionConnected = const Value.absent(),
+                Value<bool> listenBrainzScrobblingEnabled =
+                    const Value.absent(),
+                Value<bool> listenBrainzTokenValid = const Value.absent(),
+                Value<String?> customVoyageServers = const Value.absent(),
                 Value<String?> lastFullSyncAppBuild = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
               }) => AppSettingsTableCompanion(
@@ -14649,6 +15328,11 @@ class $$AppSettingsTableTableTableManager
                 matchFlowEnabled: matchFlowEnabled,
                 likedQueueEnabled: likedQueueEnabled,
                 lastFmApiKey: lastFmApiKey,
+                lastFmScrobblingEnabled: lastFmScrobblingEnabled,
+                lastFmSessionConnected: lastFmSessionConnected,
+                listenBrainzScrobblingEnabled: listenBrainzScrobblingEnabled,
+                listenBrainzTokenValid: listenBrainzTokenValid,
+                customVoyageServers: customVoyageServers,
                 lastFullSyncAppBuild: lastFullSyncAppBuild,
                 updatedAt: updatedAt,
               ),
@@ -14715,6 +15399,12 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> matchFlowEnabled = const Value.absent(),
                 Value<bool> likedQueueEnabled = const Value.absent(),
                 Value<String?> lastFmApiKey = const Value.absent(),
+                Value<bool> lastFmScrobblingEnabled = const Value.absent(),
+                Value<bool> lastFmSessionConnected = const Value.absent(),
+                Value<bool> listenBrainzScrobblingEnabled =
+                    const Value.absent(),
+                Value<bool> listenBrainzTokenValid = const Value.absent(),
+                Value<String?> customVoyageServers = const Value.absent(),
                 Value<String?> lastFullSyncAppBuild = const Value.absent(),
                 required DateTime updatedAt,
               }) => AppSettingsTableCompanion.insert(
@@ -14778,6 +15468,11 @@ class $$AppSettingsTableTableTableManager
                 matchFlowEnabled: matchFlowEnabled,
                 likedQueueEnabled: likedQueueEnabled,
                 lastFmApiKey: lastFmApiKey,
+                lastFmScrobblingEnabled: lastFmScrobblingEnabled,
+                lastFmSessionConnected: lastFmSessionConnected,
+                listenBrainzScrobblingEnabled: listenBrainzScrobblingEnabled,
+                listenBrainzTokenValid: listenBrainzTokenValid,
+                customVoyageServers: customVoyageServers,
                 lastFullSyncAppBuild: lastFullSyncAppBuild,
                 updatedAt: updatedAt,
               ),
@@ -20981,7 +21676,12 @@ typedef $$ScrobbleQueueTableTableCreateCompanionBuilder =
     ScrobbleQueueTableCompanion Function({
       Value<int> id,
       required String songId,
+      Value<String> provider,
       required bool submission,
+      Value<String?> trackTitle,
+      Value<String?> artistName,
+      Value<String?> albumName,
+      Value<int?> durationSeconds,
       required DateTime createdAt,
       required DateTime nextAttemptAt,
       Value<int> attempts,
@@ -20993,7 +21693,12 @@ typedef $$ScrobbleQueueTableTableUpdateCompanionBuilder =
     ScrobbleQueueTableCompanion Function({
       Value<int> id,
       Value<String> songId,
+      Value<String> provider,
       Value<bool> submission,
+      Value<String?> trackTitle,
+      Value<String?> artistName,
+      Value<String?> albumName,
+      Value<int?> durationSeconds,
       Value<DateTime> createdAt,
       Value<DateTime> nextAttemptAt,
       Value<int> attempts,
@@ -21049,8 +21754,33 @@ class $$ScrobbleQueueTableTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get provider => $composableBuilder(
+    column: $table.provider,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<bool> get submission => $composableBuilder(
     column: $table.submission,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get trackTitle => $composableBuilder(
+    column: $table.trackTitle,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get artistName => $composableBuilder(
+    column: $table.artistName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get albumName => $composableBuilder(
+    column: $table.albumName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get durationSeconds => $composableBuilder(
+    column: $table.durationSeconds,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -21122,8 +21852,33 @@ class $$ScrobbleQueueTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get provider => $composableBuilder(
+    column: $table.provider,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get submission => $composableBuilder(
     column: $table.submission,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get trackTitle => $composableBuilder(
+    column: $table.trackTitle,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get artistName => $composableBuilder(
+    column: $table.artistName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get albumName => $composableBuilder(
+    column: $table.albumName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get durationSeconds => $composableBuilder(
+    column: $table.durationSeconds,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -21193,8 +21948,29 @@ class $$ScrobbleQueueTableTableAnnotationComposer
   GeneratedColumn<int> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
 
+  GeneratedColumn<String> get provider =>
+      $composableBuilder(column: $table.provider, builder: (column) => column);
+
   GeneratedColumn<bool> get submission => $composableBuilder(
     column: $table.submission,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get trackTitle => $composableBuilder(
+    column: $table.trackTitle,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get artistName => $composableBuilder(
+    column: $table.artistName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get albumName =>
+      $composableBuilder(column: $table.albumName, builder: (column) => column);
+
+  GeneratedColumn<int> get durationSeconds => $composableBuilder(
+    column: $table.durationSeconds,
     builder: (column) => column,
   );
 
@@ -21279,7 +22055,12 @@ class $$ScrobbleQueueTableTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 Value<String> songId = const Value.absent(),
+                Value<String> provider = const Value.absent(),
                 Value<bool> submission = const Value.absent(),
+                Value<String?> trackTitle = const Value.absent(),
+                Value<String?> artistName = const Value.absent(),
+                Value<String?> albumName = const Value.absent(),
+                Value<int?> durationSeconds = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> nextAttemptAt = const Value.absent(),
                 Value<int> attempts = const Value.absent(),
@@ -21289,7 +22070,12 @@ class $$ScrobbleQueueTableTableTableManager
               }) => ScrobbleQueueTableCompanion(
                 id: id,
                 songId: songId,
+                provider: provider,
                 submission: submission,
+                trackTitle: trackTitle,
+                artistName: artistName,
+                albumName: albumName,
+                durationSeconds: durationSeconds,
                 createdAt: createdAt,
                 nextAttemptAt: nextAttemptAt,
                 attempts: attempts,
@@ -21301,7 +22087,12 @@ class $$ScrobbleQueueTableTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 required String songId,
+                Value<String> provider = const Value.absent(),
                 required bool submission,
+                Value<String?> trackTitle = const Value.absent(),
+                Value<String?> artistName = const Value.absent(),
+                Value<String?> albumName = const Value.absent(),
+                Value<int?> durationSeconds = const Value.absent(),
                 required DateTime createdAt,
                 required DateTime nextAttemptAt,
                 Value<int> attempts = const Value.absent(),
@@ -21311,7 +22102,12 @@ class $$ScrobbleQueueTableTableTableManager
               }) => ScrobbleQueueTableCompanion.insert(
                 id: id,
                 songId: songId,
+                provider: provider,
                 submission: submission,
+                trackTitle: trackTitle,
+                artistName: artistName,
+                albumName: albumName,
+                durationSeconds: durationSeconds,
                 createdAt: createdAt,
                 nextAttemptAt: nextAttemptAt,
                 attempts: attempts,

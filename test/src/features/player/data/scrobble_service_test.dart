@@ -107,7 +107,7 @@ void main() {
         final queued = await database.select(database.scrobbleQueueTable).get();
         expect(queued.length, 1);
         expect(queued.single.attempts, 1);
-        expect(queued.single.lastError, contains('network timeout'));
+        expect(queued.single.lastError, '_Exception');
         expect(
           queued.single.nextAttemptAt.isAtSameMomentAs(
             now.add(const Duration(seconds: 15)),
@@ -135,5 +135,74 @@ void main() {
       expect(queued, isEmpty);
       expect(apiClient.calls, isEmpty);
     }, skip: !sqliteAvailable);
+
+    test(
+      'flushDue keeps Subsonic events queued when API client is unavailable',
+      () async {
+        final service = DriftScrobbleService(
+          dao: database.scrobbleDao,
+          readApiClient: () => null,
+          readScrobbleEnabled: () => true,
+          readReachable: () => reachable,
+          now: () => now,
+        );
+
+        await service.enqueueSubmission(songId: 'song-1', sessionKey: 's4');
+        await service.flushDue();
+
+        final queued = await database.select(database.scrobbleQueueTable).get();
+        expect(queued.length, 1);
+        expect(queued.single.provider, ScrobbleProvider.subsonic.id);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'enqueueSubmission records all active providers independently',
+      () async {
+        final service = DriftScrobbleService(
+          dao: database.scrobbleDao,
+          readApiClient: () => apiClient,
+          readScrobbleEnabled: () => scrobbleEnabled,
+          readLastFmCredentials: () async => const LastFmScrobbleCredentials(
+            apiKey: 'api-key',
+            sharedSecret: 'shared-secret',
+            sessionKey: 'lastfm-session',
+          ),
+          readListenBrainzCredentials: () async =>
+              const ListenBrainzScrobbleCredentials(
+                userToken: 'listenbrainz-token',
+              ),
+          readReachable: () => reachable,
+          now: () => now,
+        );
+
+        await service.enqueueSubmission(
+          songId: 'song-1',
+          sessionKey: 's5',
+          track: const ScrobbleTrackPayload(
+            songId: 'song-1',
+            title: 'Song 1',
+            artist: 'Artist',
+          ),
+        );
+
+        final queued = await database.select(database.scrobbleQueueTable).get();
+        expect(queued.map((row) => row.provider).toSet(), {
+          ScrobbleProvider.subsonic.id,
+          ScrobbleProvider.lastFm.id,
+          ScrobbleProvider.listenBrainz.id,
+        });
+        expect(
+          queued.where((row) => row.provider != ScrobbleProvider.subsonic.id),
+          everyElement(
+            isA<ScrobbleQueueTableData>()
+                .having((row) => row.trackTitle, 'trackTitle', 'Song 1')
+                .having((row) => row.artistName, 'artistName', 'Artist'),
+          ),
+        );
+      },
+      skip: !sqliteAvailable,
+    );
   });
 }

@@ -33,6 +33,7 @@ import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/library/presentation/library_browse_models.dart';
 import 'package:navis/src/features/settings/data/battery_optimization_service.dart';
+import 'package:navis/src/features/settings/data/external_scrobble_credentials.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/routing/desktop_layout.dart' show isDesktopRuntime;
 import 'package:navis/src/features/settings/data/update_repository.dart';
@@ -289,6 +290,11 @@ final lastFmApiClientProvider = Provider<LastFmApiClient?>((ref) {
   return LastFmApiClient(apiKey: apiKey);
 });
 
+final externalScrobbleCredentialStoreProvider =
+    Provider<ExternalScrobbleCredentialStore>((_) {
+      return const FlutterExternalScrobbleCredentialStore();
+    });
+
 final legacyInstantMixSettingProvider = Provider<bool>((ref) {
   final settings =
       ref.watch(appSettingsProvider).asData?.value ??
@@ -318,6 +324,63 @@ final scrobbleServiceProvider = Provider<ScrobbleService>((ref) {
     readApiClient: () => ref.read(subsonicApiProvider),
     readScrobbleEnabled: () =>
         ref.read(appSettingsProvider).asData?.value.scrobbleEnabled ?? true,
+    readLastFmCredentials: () async {
+      final settings =
+          ref.read(appSettingsProvider).asData?.value ??
+          const AppSettingsModel.defaults();
+      final apiKey = ref.read(lastFmApiKeyProvider).trim();
+      if (!settings.lastFmScrobblingEnabled ||
+          !settings.lastFmSessionConnected ||
+          apiKey.isEmpty) {
+        return null;
+      }
+      final store = ref.read(externalScrobbleCredentialStoreProvider);
+      final sharedSecret = (await store.readLastFmSharedSecret())?.trim() ?? '';
+      final sessionKey = (await store.readLastFmSessionKey())?.trim() ?? '';
+      if (sharedSecret.isEmpty || sessionKey.isEmpty) {
+        return null;
+      }
+      return LastFmScrobbleCredentials(
+        apiKey: apiKey,
+        sharedSecret: sharedSecret,
+        sessionKey: sessionKey,
+      );
+    },
+    readListenBrainzCredentials: () async {
+      final settings =
+          ref.read(appSettingsProvider).asData?.value ??
+          const AppSettingsModel.defaults();
+      if (!settings.listenBrainzScrobblingEnabled ||
+          !settings.listenBrainzTokenValid) {
+        return null;
+      }
+      final token =
+          (await ref
+                  .read(externalScrobbleCredentialStoreProvider)
+                  .readListenBrainzToken())
+              ?.trim() ??
+          '';
+      if (token.isEmpty) {
+        return null;
+      }
+      return ListenBrainzScrobbleCredentials(userToken: token);
+    },
+    onLastFmInvalidSession: () {
+      unawaited(
+        database.appSettingsDao.updateLastFmScrobblingState(
+          enabled: false,
+          connected: false,
+        ),
+      );
+    },
+    onListenBrainzInvalidToken: () {
+      unawaited(
+        database.appSettingsDao.updateListenBrainzScrobblingState(
+          enabled: false,
+          tokenValid: false,
+        ),
+      );
+    },
     readReachable: () => ref.read(networkTypeProvider) != NetworkType.offline,
   );
   service.start();

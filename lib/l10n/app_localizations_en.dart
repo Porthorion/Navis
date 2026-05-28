@@ -1979,10 +1979,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get aboutLicensesSub => 'View third-party software licenses.';
 
   @override
-  String get aboutSourceCode => 'Source code';
+  String get privacyTitle => 'Privacy';
 
   @override
-  String get aboutSourceCodeSub => 'View on Forgejo';
+  String get privacySub =>
+      'How Navis handles app data and optional service sharing.';
 
   @override
   String get aboutCodename => 'Cape Horn';

@@ -126,8 +126,41 @@ Format rules:
 
 When one bundled server is present, Settings exposes a simple enable/health
 check flow. When multiple are present, Settings lets the user pick a server
-before enabling Listen Together. If no bundled servers are supplied, Navis falls
-back to manual Voyage URL entry.
+before enabling Listen Together. Users can also add and delete custom Voyage
+servers from Settings; bundled servers remain selectable but cannot be edited.
+Custom server URLs are normalized and validated before they are stored.
+
+## External Scrobbling
+
+Subsonic/OpenSubsonic server scrobbling remains independent from optional
+third-party scrobbling. Settings > External Services lets users configure:
+
+- Last.fm API key, shared secret, browser authorization, and session
+  connection.
+- ListenBrainz user token validation.
+
+Last.fm shared secrets, Last.fm session keys, and ListenBrainz tokens are stored
+through platform secure storage. Drift stores only non-secret enabled/status
+flags. The scrobble queue stores resolved track metadata so Last.fm and
+ListenBrainz events can flush after reconnect even if the library row changes.
+Invalid Last.fm sessions or ListenBrainz tokens disable that provider until the
+user reconnects or validates a new token.
+
+## Google Play Android Releases
+
+Android updates are Play-only for public/release builds. Forgejo releases remain
+the canonical desktop artifact and release-notes record.
+
+```bash
+tool/play_release.sh --dry-run
+tool/play_release.sh --play-track=internal --play-status=draft
+```
+
+`tool/play_release.sh` builds `build/app/outputs/bundle/release/app-release.aab`
+and uploads it through the Google Play Developer Publishing API when
+`PLAY_SERVICE_ACCOUNT_JSON` is set in local `tool/release.env`. Track aliases
+are `internal`, `closed` (`alpha`), `open` (`beta`), and `production`; staged
+rollouts use `--play-status=inProgress --play-user-fraction=<fraction>`.
 
 ### Listen Together UI
 

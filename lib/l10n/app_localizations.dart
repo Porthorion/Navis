@@ -3531,17 +3531,17 @@ abstract class AppLocalizations {
   /// **'View third-party software licenses.'**
   String get aboutLicensesSub;
 
-  /// No description provided for @aboutSourceCode.
+  /// No description provided for @privacyTitle.
   ///
   /// In en, this message translates to:
-  /// **'Source code'**
-  String get aboutSourceCode;
+  /// **'Privacy'**
+  String get privacyTitle;
 
-  /// No description provided for @aboutSourceCodeSub.
+  /// No description provided for @privacySub.
   ///
   /// In en, this message translates to:
-  /// **'View on Forgejo'**
-  String get aboutSourceCodeSub;
+  /// **'How Navis handles app data and optional service sharing.'**
+  String get privacySub;
 
   /// No description provided for @aboutCodename.
   ///

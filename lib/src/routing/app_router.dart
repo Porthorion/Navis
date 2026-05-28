@@ -19,7 +19,9 @@ import 'package:navis/src/features/settings/presentation/about_screen.dart';
 import 'package:navis/src/features/settings/presentation/cache_settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/desktop_shortcuts_settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/desktop_window_settings_screen.dart';
+import 'package:navis/src/features/settings/presentation/external_services_settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/playback_settings_screen.dart';
+import 'package:navis/src/features/settings/presentation/privacy_screen.dart';
 import 'package:navis/src/features/settings/presentation/server_settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/sync_settings_screen.dart';
@@ -192,6 +194,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     ),
                   ),
                   GoRoute(
+                    path: 'external-services',
+                    pageBuilder: (context, state) => _slideFadePage(
+                      key: state.pageKey,
+                      child: const ExternalServicesSettingsScreen(),
+                    ),
+                  ),
+                  GoRoute(
                     path: 'playback',
                     pageBuilder: (context, state) => _slideFadePage(
                       key: state.pageKey,
@@ -244,6 +253,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                         pageBuilder: (context, state) => _slideFadePage(
                           key: state.pageKey,
                           child: const ChangelogScreen(),
+                        ),
+                      ),
+                      GoRoute(
+                        path: 'privacy',
+                        pageBuilder: (context, state) => _slideFadePage(
+                          key: state.pageKey,
+                          child: const PrivacyScreen(),
                         ),
                       ),
                     ],

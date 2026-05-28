@@ -897,8 +897,8 @@
   "changelogEmpty": "No changelog entries yet.",
   "aboutLicenses": "Open-source licenses",
   "aboutLicensesSub": "View third-party software licenses.",
-  "aboutSourceCode": "Source code",
-  "aboutSourceCodeSub": "View on Forgejo",
+  "privacyTitle": "Privacy",
+  "privacySub": "How Navis handles app data and optional service sharing.",
   "aboutCodename": "Cape Horn",
 
   "updateCheckTitle": "Check for updates",

@@ -80,6 +80,13 @@ class SettingsRepository {
       matchFlowEnabled: settings.matchFlowEnabled,
       likedQueueEnabled: settings.likedQueueEnabled,
       lastFmApiKey: settings.lastFmApiKey,
+      lastFmScrobblingEnabled: settings.lastFmScrobblingEnabled,
+      lastFmSessionConnected: settings.lastFmSessionConnected,
+      listenBrainzScrobblingEnabled: settings.listenBrainzScrobblingEnabled,
+      listenBrainzTokenValid: settings.listenBrainzTokenValid,
+      customVoyageServers: _encodeCustomVoyageServers(
+        settings.customVoyageServers,
+      ),
     );
     await _dao.saveGroupListeningSettings(
       groupListeningEnabled: settings.groupListeningEnabled,
@@ -163,6 +170,13 @@ class SettingsRepository {
       matchFlowEnabled: row.matchFlowEnabled,
       likedQueueEnabled: row.likedQueueEnabled,
       lastFmApiKey: row.lastFmApiKey,
+      lastFmScrobblingEnabled: row.lastFmScrobblingEnabled,
+      lastFmSessionConnected: row.lastFmSessionConnected,
+      listenBrainzScrobblingEnabled: row.listenBrainzScrobblingEnabled,
+      listenBrainzTokenValid: row.listenBrainzTokenValid,
+      customVoyageServers: _decodeCustomVoyageServers(
+        row.customVoyageServers,
+      ),
       groupListeningEnabled: effectiveGroupListening.groupListeningEnabled,
       voyageServerUrl: effectiveGroupListening.voyageServerUrl,
       voyageDisplayName: null,
@@ -215,6 +229,31 @@ class SettingsRepository {
       return decoded.cast<String>().toList(growable: false);
     } on FormatException {
       return null;
+    }
+  }
+
+  String? _encodeCustomVoyageServers(List<CustomVoyageServer> values) {
+    if (values.isEmpty) {
+      return null;
+    }
+    return jsonEncode(values.map((server) => server.toJson()).toList());
+  }
+
+  List<CustomVoyageServer> _decodeCustomVoyageServers(String? raw) {
+    if (raw == null || raw.trim().isEmpty) {
+      return const <CustomVoyageServer>[];
+    }
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) {
+        return const <CustomVoyageServer>[];
+      }
+      return decoded
+          .map(CustomVoyageServer.fromJson)
+          .whereType<CustomVoyageServer>()
+          .toList(growable: false);
+    } on FormatException {
+      return const <CustomVoyageServer>[];
     }
   }
 }

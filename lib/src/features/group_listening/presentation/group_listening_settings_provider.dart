@@ -28,10 +28,12 @@ class GroupListeningVoyageServerOption {
   const GroupListeningVoyageServerOption({
     required this.label,
     required this.url,
+    this.bundled = false,
   });
 
   final String label;
   final String url;
+  final bool bundled;
 }
 
 final groupListeningSettingsProvider = Provider<GroupListeningSettings>((ref) {
@@ -50,23 +52,53 @@ final groupListeningBundledVoyageServersProvider =
       return _parseBundledVoyageServers(AppConstants.voyageServers);
     });
 
+final groupListeningVoyageServersProvider =
+    Provider<List<GroupListeningVoyageServerOption>>((ref) {
+      final bundledServers = ref.watch(
+        groupListeningBundledVoyageServersProvider,
+      );
+      final settings =
+          ref.watch(appSettingsProvider).asData?.value ??
+          const AppSettingsModel.defaults();
+      final seenUrls = bundledServers.map((server) => server.url).toSet();
+      final customServers = <GroupListeningVoyageServerOption>[];
+      for (final server in settings.customVoyageServers) {
+        final normalizedUrl = normalizeVoyageBaseUri(server.url)?.toString();
+        if (normalizedUrl == null || !seenUrls.add(normalizedUrl)) {
+          continue;
+        }
+        customServers.add(
+          GroupListeningVoyageServerOption(
+            label: server.label,
+            url: normalizedUrl,
+          ),
+        );
+      }
+      return List<GroupListeningVoyageServerOption>.unmodifiable(
+        <GroupListeningVoyageServerOption>[
+          ...bundledServers,
+          ...customServers,
+        ],
+      );
+    });
+
 final groupListeningResolvedVoyageServerUrlProvider = Provider<String?>((
   ref,
 ) {
   final settings = ref.watch(groupListeningSettingsProvider);
-  final bundledServers = ref.watch(groupListeningBundledVoyageServersProvider);
+  final servers = ref.watch(groupListeningVoyageServersProvider);
   final configuredUrl = normalizeVoyageBaseUri(
     settings.voyageServerUrl,
   )?.toString();
 
-  if (bundledServers.isEmpty) {
+  if (servers.isEmpty) {
     return configuredUrl;
   }
   if (configuredUrl != null &&
-      bundledServers.any((server) => server.url == configuredUrl)) {
+      servers.any((server) => server.url == configuredUrl)) {
     return configuredUrl;
   }
-  return bundledServers.first.url;
+  return servers.first.url;
 });
 
 final groupListeningSelectedVoyageServerOptionProvider =
@@ -77,10 +109,8 @@ final groupListeningSelectedVoyageServerOptionProvider =
       if (resolvedUrl == null) {
         return null;
       }
-      final bundledServers = ref.watch(
-        groupListeningBundledVoyageServersProvider,
-      );
-      for (final server in bundledServers) {
+      final servers = ref.watch(groupListeningVoyageServersProvider);
+      for (final server in servers) {
         if (server.url == resolvedUrl) {
           return server;
         }
@@ -120,6 +150,7 @@ List<GroupListeningVoyageServerOption> _parseBundledVoyageServers(String raw) {
       GroupListeningVoyageServerOption(
         label: rawLabel.isEmpty ? uri.host : rawLabel,
         url: normalizedUrl,
+        bundled: true,
       ),
     );
   }

@@ -11,8 +11,13 @@ class ScrobbleDao extends DatabaseAccessor<NavisDatabase>
 
   Future<void> enqueue({
     required String songId,
+    required String provider,
     required bool submission,
     required String sessionKey,
+    String? trackTitle,
+    String? artistName,
+    String? albumName,
+    int? durationSeconds,
     required DateTime createdAt,
     required DateTime nextAttemptAt,
     required DateTime expiresAt,
@@ -20,8 +25,13 @@ class ScrobbleDao extends DatabaseAccessor<NavisDatabase>
     return into(scrobbleQueueTable).insert(
       ScrobbleQueueTableCompanion.insert(
         songId: songId,
+        provider: Value(provider),
         submission: submission,
         sessionKey: sessionKey,
+        trackTitle: Value(trackTitle),
+        artistName: Value(artistName),
+        albumName: Value(albumName),
+        durationSeconds: Value(durationSeconds),
         createdAt: createdAt,
         nextAttemptAt: nextAttemptAt,
         expiresAt: expiresAt,

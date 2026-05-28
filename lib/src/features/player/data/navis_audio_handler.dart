@@ -3811,6 +3811,7 @@ class NavisAudioHandler extends BaseAudioHandler
         _scrobbleService.enqueueNowPlaying(
           songId: songId,
           sessionKey: sessionKey,
+          track: _scrobblePayloadFor(currentItem),
         ),
       );
 
@@ -3839,7 +3840,21 @@ class NavisAudioHandler extends BaseAudioHandler
       _scrobbleService.enqueueSubmission(
         songId: songId,
         sessionKey: sessionKey,
+        track: _scrobblePayloadFor(currentItem),
       ),
+    );
+  }
+
+  ScrobbleTrackPayload? _scrobblePayloadFor(MediaItem? item) {
+    if (item == null) {
+      return null;
+    }
+    return ScrobbleTrackPayload(
+      songId: item.id,
+      title: item.title,
+      artist: item.artist,
+      album: item.album,
+      duration: item.duration,
     );
   }
 

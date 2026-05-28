@@ -27,6 +27,7 @@ void main() {
         final now = DateTime.now();
         await database.scrobbleDao.enqueue(
           songId: 'song-1',
+          provider: 'subsonic',
           submission: false,
           sessionKey: 'session-1',
           createdAt: now,
@@ -35,6 +36,7 @@ void main() {
         );
         await database.scrobbleDao.enqueue(
           songId: 'song-1',
+          provider: 'subsonic',
           submission: false,
           sessionKey: 'session-1',
           createdAt: now,
@@ -52,6 +54,7 @@ void main() {
       final now = DateTime.now();
       await database.scrobbleDao.enqueue(
         songId: 'song-1',
+        provider: 'subsonic',
         submission: false,
         sessionKey: 'due',
         createdAt: now.subtract(const Duration(minutes: 2)),
@@ -60,6 +63,7 @@ void main() {
       );
       await database.scrobbleDao.enqueue(
         songId: 'song-2',
+        provider: 'subsonic',
         submission: true,
         sessionKey: 'future',
         createdAt: now,
@@ -78,6 +82,7 @@ void main() {
         final now = DateTime.now();
         await database.scrobbleDao.enqueue(
           songId: 'song-1',
+          provider: 'subsonic',
           submission: true,
           sessionKey: 'retry-me',
           createdAt: now.subtract(const Duration(minutes: 5)),
@@ -86,6 +91,7 @@ void main() {
         );
         await database.scrobbleDao.enqueue(
           songId: 'song-2',
+          provider: 'subsonic',
           submission: false,
           sessionKey: 'expire-me',
           createdAt: now.subtract(const Duration(hours: 3)),

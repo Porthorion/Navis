@@ -1,8 +1,5 @@
-import 'dart:io';
-
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/settings/data/update_install_mode.dart';
@@ -11,8 +8,7 @@ import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-/// Shows a dialog that downloads an APK update and triggers the system
-/// installer when the download completes.
+/// Shows a dialog that downloads and applies a desktop update artifact.
 ///
 /// Call [showUpdateDialog] to display this from anywhere in the widget tree.
 Future<void> showUpdateDialog(BuildContext context, UpdateInfo info) {
@@ -99,11 +95,6 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
         _phase = _DownloadPhase.done;
         _apkPath = path;
       });
-
-      // On Android, immediately trigger the system installer.
-      if (Platform.isAndroid) {
-        await _service.installApk(path);
-      }
     } on DioException catch (e) {
       if (e.type == DioExceptionType.cancel) {
         // User cancelled — just close.
@@ -114,24 +105,6 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
         setState(() {
           _phase = _DownloadPhase.error;
           _error = e.message;
-        });
-      }
-    } on PlatformException catch (e) {
-      // installApk() throws PlatformException for Android install errors such
-      // as a signing-key mismatch (installed and downloaded APKs signed with
-      // different keys — user must uninstall first).
-      AppLogger.error('APK install failed', e);
-      if (mounted) {
-        final isSignatureMismatch =
-            e.code == 'INSTALL_ERROR' &&
-            (e.message ?? '').toLowerCase().contains('signature');
-        setState(() {
-          if (isSignatureMismatch) {
-            _phase = _DownloadPhase.signatureMismatch;
-          } else {
-            _phase = _DownloadPhase.error;
-            _error = e.message ?? e.code;
-          }
         });
       }
     } on Object catch (e) {
@@ -340,21 +313,7 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
             ),
           ];
         }
-        return [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(l10n.updateDismiss),
-          ),
-          FilledButton.icon(
-            onPressed: () async {
-              if (_apkPath != null) {
-                await _service.installApk(_apkPath!);
-              }
-            },
-            icon: const Icon(Icons.install_mobile),
-            label: Text(l10n.updateInstall),
-          ),
-        ];
+        return [];
 
       case _DownloadPhase.applying:
         return const [];

@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:dio/dio.dart';
-import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -11,17 +10,11 @@ import 'package:navis/src/features/settings/data/update_scripts.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/utils/app_logger.dart';
 
-/// Handles downloading a release artifact from Forgejo and applying the update.
-///
-/// On Android the system APK installer is used via a platform MethodChannel.
-/// On desktop platforms a lightweight generated shell/batch script is spawned
-/// detached so it can replace the running binary after the app exits.
+/// Handles downloading a Forgejo desktop release artifact and applying it.
 class UpdateService {
   UpdateService({Dio? dio}) : _dio = dio ?? Dio();
 
   final Dio _dio;
-
-  static const _channel = MethodChannel('com.navis.app/updater');
 
   // ---------------------------------------------------------------------------
   // Download
@@ -67,39 +60,6 @@ class UpdateService {
 
     AppLogger.info('Artifact downloaded to $filePath');
     return filePath;
-  }
-
-  /// Backward-compatible alias used by Android callers.
-  Future<String> downloadApk(
-    UpdateInfo info, {
-    void Function(double progress)? onProgress,
-    CancelToken? cancelToken,
-  }) =>
-      downloadArtifact(info, onProgress: onProgress, cancelToken: cancelToken);
-
-  // ---------------------------------------------------------------------------
-  // Android install
-  // ---------------------------------------------------------------------------
-
-  /// Requests the Android system to install the APK at [filePath] via the
-  /// platform MethodChannel.
-  Future<void> installApk(String filePath) async {
-    AppLogger.info('Requesting APK install for $filePath');
-    await _channel.invokeMethod<bool>('installApk', {'filePath': filePath});
-  }
-
-  /// Convenience: download then install (Android only).
-  Future<void> downloadAndInstall(
-    UpdateInfo info, {
-    void Function(double progress)? onProgress,
-    CancelToken? cancelToken,
-  }) async {
-    final path = await downloadArtifact(
-      info,
-      onProgress: onProgress,
-      cancelToken: cancelToken,
-    );
-    await installApk(path);
   }
 
   // ---------------------------------------------------------------------------
@@ -170,7 +130,6 @@ class UpdateService {
         await _applyLinuxPortable(downloadedPath);
 
       case UpdateInstallMode.androidApk:
-        // Should not reach here — Android uses installApk().
         throw StateError('applyDesktopUpdate called in Android context');
     }
   }

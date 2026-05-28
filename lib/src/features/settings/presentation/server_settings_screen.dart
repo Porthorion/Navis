@@ -8,6 +8,8 @@ import 'package:navis/src/features/auth/data/sign_out_service.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_connection_provider.dart';
+import 'package:navis/src/features/group_listening/data/group_listening_configuration.dart'
+    show isVoyageTransportAllowed, normalizeVoyageBaseUri;
 import 'package:navis/src/features/group_listening/presentation/group_listening_session_controller.dart';
 import 'package:navis/src/features/group_listening/presentation/group_listening_settings_provider.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
@@ -29,6 +31,8 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
 
   final _lastFmApiKeyController = TextEditingController();
   final _voyageServerUrlController = TextEditingController();
+  final _customVoyageLabelController = TextEditingController();
+  final _customVoyageUrlController = TextEditingController();
   bool _lastFmKeyInitialized = false;
   bool _groupListeningInitialized = false;
   bool _obscureApiKey = true;
@@ -53,6 +57,8 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
     _lastFmApiKeyController.removeListener(_onApiKeyTextChanged);
     _lastFmApiKeyController.dispose();
     _voyageServerUrlController.dispose();
+    _customVoyageLabelController.dispose();
+    _customVoyageUrlController.dispose();
     super.dispose();
   }
 
@@ -81,8 +87,8 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
     final configAsync = ref.watch(serverConfigStateProvider);
     final settingsAsync = ref.watch(appSettingsProvider);
     final isBundled = ref.watch(lastFmBundledKeyProvider);
-    final bundledVoyageServers = ref.watch(
-      groupListeningBundledVoyageServersProvider,
+    final voyageServers = ref.watch(
+      groupListeningVoyageServersProvider,
     );
     final resolvedVoyageServerUrl = ref.watch(
       groupListeningResolvedVoyageServerUrlProvider,
@@ -118,10 +124,8 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
           });
           final selectedVoyageServerUrl =
               _selectedVoyageServerUrl ??
-              (bundledVoyageServers.isEmpty
-                  ? null
-                  : bundledVoyageServers.first.url);
-          if (bundledVoyageServers.isNotEmpty &&
+              (voyageServers.isEmpty ? null : voyageServers.first.url);
+          if (voyageServers.isNotEmpty &&
               selectedVoyageServerUrl != null &&
               _voyageServerUrlController.text != selectedVoyageServerUrl) {
             _voyageServerUrlController.text = selectedVoyageServerUrl;
@@ -238,24 +242,28 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
                   const SizedBox(height: 8),
                   _ListenTogetherCard(
                     enabled: _groupListeningEnabled,
-                    bundledServers: bundledVoyageServers,
+                    bundledServers: voyageServers,
+                    customServers:
+                        settingsAsync.asData?.value.customVoyageServers ??
+                        const <CustomVoyageServer>[],
                     selectedServerUrl: selectedVoyageServerUrl,
                     voyageServerUrlController: _voyageServerUrlController,
+                    customVoyageLabelController: _customVoyageLabelController,
+                    customVoyageUrlController: _customVoyageUrlController,
                     connectionStatus: voyageConnectionStatus,
                     onEnabledChanged: (value) {
                       setState(() {
                         _groupListeningEnabled = value;
                         if (value &&
-                            bundledVoyageServers.isNotEmpty &&
+                            voyageServers.isNotEmpty &&
                             (_selectedVoyageServerUrl == null ||
                                 _selectedVoyageServerUrl!.isEmpty)) {
-                          _selectedVoyageServerUrl =
-                              bundledVoyageServers.first.url;
+                          _selectedVoyageServerUrl = voyageServers.first.url;
                           _voyageServerUrlController.text =
-                              bundledVoyageServers.first.url;
+                              voyageServers.first.url;
                         }
                       });
-                      _saveGroupListeningSettings(bundledVoyageServers);
+                      _saveGroupListeningSettings(voyageServers);
                     },
                     onServerSelected: (value) {
                       if (value == null) return;
@@ -263,10 +271,12 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
                         _selectedVoyageServerUrl = value;
                         _voyageServerUrlController.text = value;
                       });
-                      _saveGroupListeningSettings(bundledVoyageServers);
+                      _saveGroupListeningSettings(voyageServers);
                     },
                     onManualServerChanged: (_) =>
-                        _saveGroupListeningSettings(bundledVoyageServers),
+                        _saveGroupListeningSettings(voyageServers),
+                    onAddCustomServer: _addCustomVoyageServer,
+                    onDeleteCustomServer: _deleteCustomVoyageServer,
                   ),
                   const SizedBox(height: 12),
                   _VoyageConnectionStatusCard(status: voyageConnectionStatus),
@@ -422,16 +432,16 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
   }
 
   Future<void> _saveGroupListeningSettings(
-    List<GroupListeningVoyageServerOption> bundledServers,
+    List<GroupListeningVoyageServerOption> voyageServers,
   ) async {
     final repository = ref.read(settingsRepositoryProvider);
     final current =
         ref.read(appSettingsProvider).asData?.value ??
         const AppSettingsModel.defaults();
-    final bundledServerUrl = bundledServers.isEmpty
+    final bundledServerUrl = voyageServers.isEmpty
         ? null
-        : bundledServers.first.url;
-    final voyageServerUrl = bundledServers.isEmpty
+        : voyageServers.first.url;
+    final voyageServerUrl = voyageServers.isEmpty
         ? _voyageServerUrlController.text.trim()
         : (_selectedVoyageServerUrl ?? bundledServerUrl ?? '').trim();
 
@@ -445,6 +455,60 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
         clearVoyageServerUrl: voyageServerUrl.isEmpty,
         clearVoyageDisplayName: true,
         clearVoyageDeviceLabel: true,
+      ),
+    );
+  }
+
+  Future<void> _addCustomVoyageServer() async {
+    final label = _customVoyageLabelController.text.trim();
+    final url = _customVoyageUrlController.text.trim();
+    if (url.isEmpty) {
+      return;
+    }
+    final normalizedUri = normalizeVoyageBaseUri(url);
+    if (normalizedUri == null || !isVoyageTransportAllowed(normalizedUri)) {
+      if (!mounted) {
+        return;
+      }
+      showAppNotice(
+        context,
+        message: 'Enter a valid http or https Voyage server URL.',
+        level: AppNoticeLevel.error,
+      );
+      return;
+    }
+    final normalizedUrl = normalizedUri.toString();
+    final repository = ref.read(settingsRepositoryProvider);
+    final current =
+        ref.read(appSettingsProvider).asData?.value ??
+        const AppSettingsModel.defaults();
+    final existing = current.customVoyageServers
+        .where((server) => server.url != normalizedUrl)
+        .toList();
+    existing.add(
+      CustomVoyageServer(
+        label: label.isEmpty ? normalizedUrl : label,
+        url: normalizedUrl,
+      ),
+    );
+    await repository.saveSettings(
+      current.copyWith(customVoyageServers: existing),
+    );
+    _customVoyageLabelController.clear();
+    _customVoyageUrlController.clear();
+  }
+
+  Future<void> _deleteCustomVoyageServer(CustomVoyageServer server) async {
+    final repository = ref.read(settingsRepositoryProvider);
+    final current =
+        ref.read(appSettingsProvider).asData?.value ??
+        const AppSettingsModel.defaults();
+    await repository.saveSettings(
+      current.copyWith(
+        customVoyageServers: current.customVoyageServers
+            .where((entry) => entry.url != server.url)
+            .toList(),
+        clearVoyageServerUrl: current.voyageServerUrl == server.url,
       ),
     );
   }
@@ -526,22 +590,32 @@ class _ListenTogetherCard extends StatelessWidget {
   const _ListenTogetherCard({
     required this.enabled,
     required this.bundledServers,
+    required this.customServers,
     required this.selectedServerUrl,
     required this.voyageServerUrlController,
+    required this.customVoyageLabelController,
+    required this.customVoyageUrlController,
     required this.connectionStatus,
     required this.onEnabledChanged,
     required this.onServerSelected,
     required this.onManualServerChanged,
+    required this.onAddCustomServer,
+    required this.onDeleteCustomServer,
   });
 
   final bool enabled;
   final List<GroupListeningVoyageServerOption> bundledServers;
+  final List<CustomVoyageServer> customServers;
   final String? selectedServerUrl;
   final TextEditingController voyageServerUrlController;
+  final TextEditingController customVoyageLabelController;
+  final TextEditingController customVoyageUrlController;
   final GroupListeningVoyageConnectionStatus connectionStatus;
   final ValueChanged<bool> onEnabledChanged;
   final ValueChanged<String?> onServerSelected;
   final ValueChanged<String> onManualServerChanged;
+  final VoidCallback onAddCustomServer;
+  final ValueChanged<CustomVoyageServer> onDeleteCustomServer;
 
   String get _enableSubtitle {
     if (enabled) {
@@ -597,22 +671,71 @@ class _ListenTogetherCard extends StatelessWidget {
                 onChanged: onServerSelected,
               ),
             ),
-          if (bundledServers.isEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: TextField(
-                key: const ValueKey('groupListeningVoyageServerUrlField'),
-                controller: voyageServerUrlController,
-                keyboardType: TextInputType.url,
-                decoration: const InputDecoration(
-                  labelText: 'Voyage server URL',
-                  hintText: 'https://voyage.example.com',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.link),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Column(
+              children: <Widget>[
+                if (bundledServers.isEmpty) ...<Widget>[
+                  TextField(
+                    key: const ValueKey('groupListeningVoyageServerUrlField'),
+                    controller: voyageServerUrlController,
+                    keyboardType: TextInputType.url,
+                    decoration: const InputDecoration(
+                      labelText: 'Voyage server URL',
+                      hintText: 'https://voyage.example.com',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.link),
+                    ),
+                    onChanged: onManualServerChanged,
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                TextField(
+                  controller: customVoyageLabelController,
+                  decoration: const InputDecoration(
+                    labelText: 'Custom server label',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.label_outline),
+                  ),
                 ),
-                onChanged: onManualServerChanged,
-              ),
+                const SizedBox(height: 8),
+                TextField(
+                  key: const ValueKey(
+                    'groupListeningCustomVoyageServerUrlField',
+                  ),
+                  controller: customVoyageUrlController,
+                  keyboardType: TextInputType.url,
+                  decoration: const InputDecoration(
+                    labelText: 'Custom server URL',
+                    hintText: 'https://voyage.example.com',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.add_link_outlined),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: FilledButton.icon(
+                    onPressed: onAddCustomServer,
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add custom server'),
+                  ),
+                ),
+                for (final server in customServers)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.cloud_queue_outlined),
+                    title: Text(server.label),
+                    subtitle: Text(server.url),
+                    trailing: IconButton(
+                      tooltip: 'Delete custom server',
+                      onPressed: () => onDeleteCustomServer(server),
+                      icon: const Icon(Icons.delete_outline),
+                    ),
+                  ),
+              ],
             ),
+          ),
         ],
       ),
     );

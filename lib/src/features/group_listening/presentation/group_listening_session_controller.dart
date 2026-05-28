@@ -131,8 +131,8 @@ Future<GroupListeningResolvedVoyageServer?> _resolveBestBundledVoyageServer(
   GroupListeningClientConfiguration configuration, {
   String? preferredUrl,
 }) async {
-  final bundledServers = ref.read(groupListeningBundledVoyageServersProvider);
-  if (bundledServers.isEmpty) {
+  final voyageServers = ref.read(groupListeningVoyageServersProvider);
+  if (voyageServers.isEmpty) {
     return null;
   }
   final settings = ref.read(groupListeningSettingsProvider);
@@ -144,7 +144,7 @@ Future<GroupListeningResolvedVoyageServer?> _resolveBestBundledVoyageServer(
   )?.toString();
   final repository = ref.read(groupListeningRepositoryProvider);
   final probes = await Future.wait(
-    bundledServers.map((server) async {
+    voyageServers.map((server) async {
       final uri = normalizeVoyageBaseUri(server.url);
       if (uri == null || !isVoyageTransportAllowed(uri)) {
         return null;
@@ -182,10 +182,10 @@ Future<GroupListeningResolvedVoyageServer?> _resolveBestBundledVoyageServer(
     if (aSelected != bSelected) {
       return aSelected ? -1 : 1;
     }
-    return bundledServers
+    return voyageServers
         .indexOf(a.option)
         .compareTo(
-          bundledServers.indexOf(b.option),
+          voyageServers.indexOf(b.option),
         );
   });
   return candidates.first;

@@ -10,7 +10,20 @@ class ScrobbleQueueTable extends Table {
   TextColumn get songId =>
       text().references(SongsTable, #id, onDelete: KeyAction.cascade)();
 
+  /// Dispatch provider: subsonic, lastfm, or listenbrainz.
+  TextColumn get provider => text().withDefault(const Constant('subsonic'))();
+
   BoolColumn get submission => boolean()();
+
+  /// Resolved metadata captured at playback time so third-party scrobbles can
+  /// flush later without depending on the current library row.
+  TextColumn get trackTitle => text().nullable()();
+
+  TextColumn get artistName => text().nullable()();
+
+  TextColumn get albumName => text().nullable()();
+
+  IntColumn get durationSeconds => integer().nullable()();
 
   DateTimeColumn get createdAt => dateTime()();
 
@@ -28,6 +41,7 @@ class ScrobbleQueueTable extends Table {
   List<Set<Column<Object>>> get uniqueKeys => <Set<Column<Object>>>[
     <Column<Object>>{
       songId,
+      provider,
       submission,
       sessionKey,
     },

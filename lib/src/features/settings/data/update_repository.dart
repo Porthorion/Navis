@@ -23,6 +23,9 @@ class UpdateRepository {
     bool includePrerelease = false,
     String? updateChannel,
   }) async {
+    if (Platform.isAndroid || Platform.isIOS) {
+      return null;
+    }
     final packageInfo = await PackageInfo.fromPlatform();
     final currentVersion = packageInfo.version; // e.g. "0.1.0"
     final currentSemver = _parseSemverCore(currentVersion);

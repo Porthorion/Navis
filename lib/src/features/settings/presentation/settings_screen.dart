@@ -26,6 +26,7 @@ class SettingsScreen extends ConsumerWidget {
     const groupStorage = 'Storage';
     const groupPlayback = 'Playback';
     const groupAutomation = 'Automation';
+    const groupExternalServices = 'External Services';
     const groupAbout = 'About';
     const groupDesktop = 'Desktop';
     const groupListenTogether = 'Listen Together';
@@ -72,6 +73,13 @@ class SettingsScreen extends ConsumerWidget {
         subtitle: l10n.settingsPlaybackSubtitle,
         route: '/settings/playback',
         group: groupPlayback,
+      ),
+      const _SettingsEntry(
+        icon: Icons.hub_outlined,
+        title: 'External Services',
+        subtitle: 'Connect Last.fm and ListenBrainz scrobbling',
+        route: '/settings/external-services',
+        group: groupExternalServices,
       ),
       _SettingsEntry(
         icon: Icons.palette_outlined,

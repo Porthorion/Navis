@@ -828,6 +828,12 @@ class _PlaybackSettingsScreenState
         matchFlowEnabled: _matchFlowEnabled,
         likedQueueEnabled: _likedQueueEnabled,
         lastFmApiKey: currentSettings.lastFmApiKey,
+        lastFmScrobblingEnabled: currentSettings.lastFmScrobblingEnabled,
+        lastFmSessionConnected: currentSettings.lastFmSessionConnected,
+        listenBrainzScrobblingEnabled:
+            currentSettings.listenBrainzScrobblingEnabled,
+        listenBrainzTokenValid: currentSettings.listenBrainzTokenValid,
+        customVoyageServers: currentSettings.customVoyageServers,
         groupListeningEnabled: currentSettings.groupListeningEnabled,
         voyageServerUrl: currentSettings.voyageServerUrl,
         voyageDisplayName: currentSettings.voyageDisplayName,

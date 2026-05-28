@@ -2,6 +2,34 @@ import 'package:flutter/foundation.dart';
 import 'package:navis/src/database/daos/app_settings_dao.dart';
 
 @immutable
+class CustomVoyageServer {
+  const CustomVoyageServer({
+    required this.label,
+    required this.url,
+  });
+
+  final String label;
+  final String url;
+
+  Map<String, Object> toJson() => <String, Object>{
+    'label': label,
+    'url': url,
+  };
+
+  static CustomVoyageServer? fromJson(Object? raw) {
+    if (raw is! Map) {
+      return null;
+    }
+    final label = raw['label']?.toString().trim() ?? '';
+    final url = raw['url']?.toString().trim() ?? '';
+    if (url.isEmpty) {
+      return null;
+    }
+    return CustomVoyageServer(label: label.isEmpty ? url : label, url: url);
+  }
+}
+
+@immutable
 class AppSettingsModel {
   const AppSettingsModel({
     required this.wifiMaxBitRate,
@@ -58,6 +86,11 @@ class AppSettingsModel {
     this.matchFlowEnabled = false,
     this.likedQueueEnabled = false,
     this.lastFmApiKey,
+    this.lastFmScrobblingEnabled = false,
+    this.lastFmSessionConnected = false,
+    this.listenBrainzScrobblingEnabled = false,
+    this.listenBrainzTokenValid = false,
+    this.customVoyageServers = const <CustomVoyageServer>[],
     this.groupListeningEnabled = false,
     this.voyageServerUrl,
     this.voyageDisplayName,
@@ -120,6 +153,11 @@ class AppSettingsModel {
       matchFlowEnabled = false,
       likedQueueEnabled = false,
       lastFmApiKey = null,
+      lastFmScrobblingEnabled = false,
+      lastFmSessionConnected = false,
+      listenBrainzScrobblingEnabled = false,
+      listenBrainzTokenValid = false,
+      customVoyageServers = const <CustomVoyageServer>[],
       groupListeningEnabled = false,
       voyageServerUrl = null,
       voyageDisplayName = null,
@@ -222,6 +260,21 @@ class AppSettingsModel {
   /// Ignored at runtime if a build-time key (NAVIS_LASTFM_API_KEY) is bundled.
   final String? lastFmApiKey;
 
+  /// Enables third-party Last.fm scrobble dispatch.
+  final bool lastFmScrobblingEnabled;
+
+  /// Whether Last.fm session auth is currently connected.
+  final bool lastFmSessionConnected;
+
+  /// Enables ListenBrainz scrobble dispatch.
+  final bool listenBrainzScrobblingEnabled;
+
+  /// Whether the stored ListenBrainz token has validated successfully.
+  final bool listenBrainzTokenValid;
+
+  /// User-managed Voyage servers stored in Drift as non-sensitive JSON.
+  final List<CustomVoyageServer> customVoyageServers;
+
   /// Whether group listening / Voyage integration is enabled locally.
   final bool groupListeningEnabled;
 
@@ -295,6 +348,11 @@ class AppSettingsModel {
     bool? matchFlowEnabled,
     bool? likedQueueEnabled,
     String? lastFmApiKey,
+    bool? lastFmScrobblingEnabled,
+    bool? lastFmSessionConnected,
+    bool? listenBrainzScrobblingEnabled,
+    bool? listenBrainzTokenValid,
+    List<CustomVoyageServer>? customVoyageServers,
     bool? groupListeningEnabled,
     String? voyageServerUrl,
     String? voyageDisplayName,
@@ -402,6 +460,17 @@ class AppSettingsModel {
       lastFmApiKey: clearLastFmApiKey
           ? null
           : lastFmApiKey ?? this.lastFmApiKey,
+      lastFmScrobblingEnabled:
+          lastFmScrobblingEnabled ?? this.lastFmScrobblingEnabled,
+      lastFmSessionConnected:
+          lastFmSessionConnected ?? this.lastFmSessionConnected,
+      listenBrainzScrobblingEnabled:
+          listenBrainzScrobblingEnabled ?? this.listenBrainzScrobblingEnabled,
+      listenBrainzTokenValid:
+          listenBrainzTokenValid ?? this.listenBrainzTokenValid,
+      customVoyageServers:
+          customVoyageServers ??
+          List<CustomVoyageServer>.from(this.customVoyageServers),
       groupListeningEnabled:
           groupListeningEnabled ?? this.groupListeningEnabled,
       voyageServerUrl: clearVoyageServerUrl

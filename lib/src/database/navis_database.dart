@@ -81,7 +81,7 @@ class NavisDatabase extends _$NavisDatabase {
   static QueryExecutor _openConnection() => driftDatabase(name: 'navis.sqlite');
 
   @override
-  int get schemaVersion => 45;
+  int get schemaVersion => 46;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -237,6 +237,9 @@ class NavisDatabase extends _$NavisDatabase {
     if (from < 45 && to >= 45) {
       await from44To45(migrator);
     }
+    if (from < 46 && to >= 46) {
+      await from45To46(migrator);
+    }
   }
 
   Future<void> from1To2(Migrator migrator) async {
@@ -268,6 +271,100 @@ class NavisDatabase extends _$NavisDatabase {
       return;
     }
     await migrator.createTable(scrobbleQueueTable);
+  }
+
+  Future<void> from45To46(Migrator migrator) async {
+    if (!await _columnExists('app_settings', 'last_fm_scrobbling_enabled')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.lastFmScrobblingEnabled,
+      );
+    }
+    if (!await _columnExists('app_settings', 'last_fm_session_connected')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.lastFmSessionConnected,
+      );
+    }
+    if (!await _columnExists(
+      'app_settings',
+      'listen_brainz_scrobbling_enabled',
+    )) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.listenBrainzScrobblingEnabled,
+      );
+    }
+    if (!await _columnExists('app_settings', 'listen_brainz_token_valid')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.listenBrainzTokenValid,
+      );
+    }
+    if (!await _columnExists('app_settings', 'custom_voyage_servers')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.customVoyageServers,
+      );
+    }
+    await _rebuildScrobbleQueueForProviders();
+  }
+
+  Future<void> _rebuildScrobbleQueueForProviders() async {
+    if (!await _tableExists('scrobble_queue')) {
+      return;
+    }
+
+    await customStatement('DROP TABLE IF EXISTS scrobble_queue_v46;');
+    await customStatement('''
+CREATE TABLE scrobble_queue_v46 (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  song_id TEXT NOT NULL REFERENCES songs(id) ON DELETE CASCADE,
+  provider TEXT NOT NULL DEFAULT 'subsonic',
+  submission INTEGER NOT NULL CHECK (submission IN (0, 1)),
+  track_title TEXT NULL,
+  artist_name TEXT NULL,
+  album_name TEXT NULL,
+  duration_seconds INTEGER NULL,
+  created_at INTEGER NOT NULL,
+  next_attempt_at INTEGER NOT NULL,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  expires_at INTEGER NOT NULL,
+  session_key TEXT NOT NULL,
+  last_error TEXT NULL,
+  UNIQUE (song_id, provider, submission, session_key)
+);
+''');
+    await customStatement('''
+INSERT OR IGNORE INTO scrobble_queue_v46 (
+  id,
+  song_id,
+  provider,
+  submission,
+  created_at,
+  next_attempt_at,
+  attempts,
+  expires_at,
+  session_key,
+  last_error
+)
+SELECT
+  id,
+  song_id,
+  'subsonic',
+  submission,
+  created_at,
+  next_attempt_at,
+  attempts,
+  expires_at,
+  session_key,
+  last_error
+FROM scrobble_queue;
+''');
+    await customStatement('DROP TABLE scrobble_queue;');
+    await customStatement(
+      'ALTER TABLE scrobble_queue_v46 RENAME TO scrobble_queue;',
+    );
   }
 
   Future<void> from5To6(Migrator migrator) async {

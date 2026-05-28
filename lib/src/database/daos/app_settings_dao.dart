@@ -119,6 +119,11 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     bool matchFlowEnabled = false,
     bool likedQueueEnabled = false,
     String? lastFmApiKey,
+    bool lastFmScrobblingEnabled = false,
+    bool lastFmSessionConnected = false,
+    bool listenBrainzScrobblingEnabled = false,
+    bool listenBrainzTokenValid = false,
+    String? customVoyageServers,
   }) {
     return into(appSettingsTable).insertOnConflictUpdate(
       AppSettingsTableCompanion.insert(
@@ -177,6 +182,11 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         matchFlowEnabled: Value(matchFlowEnabled),
         likedQueueEnabled: Value(likedQueueEnabled),
         lastFmApiKey: Value(lastFmApiKey),
+        lastFmScrobblingEnabled: Value(lastFmScrobblingEnabled),
+        lastFmSessionConnected: Value(lastFmSessionConnected),
+        listenBrainzScrobblingEnabled: Value(listenBrainzScrobblingEnabled),
+        listenBrainzTokenValid: Value(listenBrainzTokenValid),
+        customVoyageServers: Value(customVoyageServers),
         updatedAt: DateTime.now(),
       ),
     );
@@ -276,6 +286,11 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       matchFlowEnabled: false,
       likedQueueEnabled: false,
       lastFmApiKey: null,
+      lastFmScrobblingEnabled: false,
+      lastFmSessionConnected: false,
+      listenBrainzScrobblingEnabled: false,
+      listenBrainzTokenValid: false,
+      customVoyageServers: null,
     );
     await saveGroupListeningSettings(
       groupListeningEnabled: false,
@@ -761,6 +776,44 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     )..where((t) => t.id.equals(primarySettingsId))).write(
       AppSettingsTableCompanion(
         lastFullSyncAppBuild: Value(versionBuild),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  Future<void> updateLastFmScrobblingState({
+    bool? enabled,
+    bool? connected,
+  }) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        lastFmScrobblingEnabled: enabled == null
+            ? const Value.absent()
+            : Value(enabled),
+        lastFmSessionConnected: connected == null
+            ? const Value.absent()
+            : Value(connected),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  Future<void> updateListenBrainzScrobblingState({
+    bool? enabled,
+    bool? tokenValid,
+  }) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        listenBrainzScrobblingEnabled: enabled == null
+            ? const Value.absent()
+            : Value(enabled),
+        listenBrainzTokenValid: tokenValid == null
+            ? const Value.absent()
+            : Value(tokenValid),
         updatedAt: Value(DateTime.now()),
       ),
     );

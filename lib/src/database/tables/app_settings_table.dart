@@ -213,6 +213,29 @@ class AppSettingsTable extends Table {
   /// build-time key (NAVIS_LASTFM_API_KEY) is bundled instead.
   TextColumn get lastFmApiKey => text().nullable()();
 
+  /// Whether Last.fm scrobbling is enabled. Secrets/session stay in secure
+  /// storage; this only controls non-sensitive dispatch state.
+  BoolColumn get lastFmScrobblingEnabled =>
+      boolean().withDefault(const Constant(false))();
+
+  /// True after Last.fm session auth succeeds. Cleared on invalid-session
+  /// responses so the UI can ask the user to reconnect.
+  BoolColumn get lastFmSessionConnected =>
+      boolean().withDefault(const Constant(false))();
+
+  /// Whether ListenBrainz scrobbling is enabled. The token stays in secure
+  /// storage.
+  BoolColumn get listenBrainzScrobblingEnabled =>
+      boolean().withDefault(const Constant(false))();
+
+  /// True after ListenBrainz token validation succeeds. Cleared on 401/403.
+  BoolColumn get listenBrainzTokenValid =>
+      boolean().withDefault(const Constant(false))();
+
+  /// JSON-encoded custom Voyage server entries:
+  /// [{"label":"Home","url":"https://voyage.example.com"}]
+  TextColumn get customVoyageServers => text().nullable()();
+
   /// The app version+build string (e.g. "1.2.3+100") that was current when
   /// the last forced full sync was triggered. Null means no version-triggered
   /// full sync has run yet. Used to auto-force a full resync on app updates.
