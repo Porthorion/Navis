@@ -27,6 +27,51 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
+    version: '1.0.3',
+    entries: [
+      ChangelogEntry(
+        'Android releases are now prepared for Google Play, with Android self-updates removed, Play release tooling added, privacy information added, and release safety checks documented',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'External scrobbling now supports Last.fm and ListenBrainz alongside Subsonic/OpenSubsonic, with secure credential storage, validation, reconnect handling, and provider-aware offline retries',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Listen Together now supports custom Voyage servers that can be added, edited, selected, and managed alongside bundled server defaults',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Instant Mix and Same Vibes recommendations now insert after the current track so they keep your queue context instead of replacing what comes next',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Cached-first playback can now prefer downloaded or cached audio before remote streams when a local copy is available',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Android Auto browsing and real-car validation are more robust, with clearer media IDs, safer playback rules, diagnostic tooling, and dedicated test coverage',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Permanent downloads gained custom folders, readable artist/song paths, desktop folder actions, and safer cleanup of empty download directories',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Liked-tab play, shuffle, and queue-all actions include tracks from liked albums while deduplicating overlaps and respecting filters',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Listen Together rooms, Match Flow song chains, split artist releases, player polish, faster sync, and Android Auto reliability improvements from the 1.0 release are included',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Queue appends, cached-source seek recovery, Listen Together reconnects, room exits, and compact mini-player layout edge cases are more reliable',
+        type: ChangelogEntryType.fix,
+      ),
+    ],
+  ),
+  ChangelogVersion(
     version: '1.0.2',
     entries: [
       ChangelogEntry(
