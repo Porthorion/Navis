@@ -116,7 +116,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
     }
   }
 
-  /// Fetches similar songs and appends them to the end of the queue.
+  /// Fetches similar songs and inserts them after the current queue item.
   ///
   /// When AudioMuse is available the AI-powered recommendations are tried
   /// first.  If AudioMuse returns no results (or is not configured) the
@@ -163,7 +163,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
           if (recs.isNotEmpty && state.active) {
             final ids = recs.map((r) => r.id).toList(growable: false);
             final handler = ref.read(audioHandlerProvider);
-            await handler?.addToQueue(ids, expandMatchFlows: false);
+            await handler?.playNext(ids, expandMatchFlows: false);
             AppLogger.debug(
               'InstantMix: queued ${ids.length} tracks via AudioMuse',
             );
@@ -200,7 +200,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
 
       final ids = songs.map((s) => s.id).toList(growable: false);
       final handler = ref.read(audioHandlerProvider);
-      await handler?.addToQueue(ids, expandMatchFlows: false);
+      await handler?.playNext(ids, expandMatchFlows: false);
 
       state = state.copyWith(
         refilling: false,

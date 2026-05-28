@@ -24,7 +24,10 @@ class _MockSubsonicApiClient extends Mock implements SubsonicApiClient {}
 class _MockLastFmApiClient extends Mock implements LastFmApiClient {}
 
 class _FakeQueueController extends QueueController {
-  final List<Song> queuedSongs = <Song>[];
+  final List<List<Song>> playNextSongBatches = <List<Song>>[];
+
+  List<Song> get queuedSongs =>
+      playNextSongBatches.expand((songs) => songs).toList(growable: false);
 
   @override
   List<String> build() => const <String>[];
@@ -34,7 +37,15 @@ class _FakeQueueController extends QueueController {
     List<Song> songs, {
     bool expandMatchFlows = true,
   }) async {
-    queuedSongs.addAll(songs);
+    throw StateError('Same Vibes should insert recommendations with playNext');
+  }
+
+  @override
+  Future<void> playNextWithSongs(
+    List<Song> songs, {
+    bool expandMatchFlows = true,
+  }) async {
+    playNextSongBatches.add(List<Song>.from(songs));
   }
 }
 
@@ -206,6 +217,16 @@ void main() {
           container.read(queueProvider.notifier) as _FakeQueueController;
       final state = container.read(sameVibesProvider);
       expect(queued.queuedSongs, hasLength(4));
+      expect(queued.playNextSongBatches, hasLength(1));
+      expect(
+        queued.playNextSongBatches.single.map((song) => song.id),
+        <String>[
+          'ArtistA-SongA',
+          'ArtistB-SongB',
+          'ArtistC-SongC',
+          'ArtistD-SongD',
+        ],
+      );
       expect(state.active, isTrue);
       expect(state.pendingSnackbar, '4');
       verifyNever(
@@ -324,6 +345,7 @@ void main() {
 
       final queued =
           container.read(queueProvider.notifier) as _FakeQueueController;
+      expect(queued.playNextSongBatches, hasLength(1));
       expect(queued.queuedSongs.map((song) => song.id), contains('fallback-1'));
       expect(queued.queuedSongs.map((song) => song.id), contains('fallback-2'));
       verify(
@@ -897,6 +919,135 @@ void main() {
       expect(
         queued.queuedSongs.any((song) => song.id == 'remote-variant'),
         isFalse,
+      );
+    },
+  );
+
+  test(
+    'batches mapped songs before fallback songs in one play-next insertion',
+    () async {
+      final snapshotState =
+          NotifierProvider<_SnapshotController, PlaybackSnapshot>(
+            _SnapshotController.new,
+          );
+
+      final api = _MockSubsonicApiClient();
+      final lastFm = _MockLastFmApiClient();
+      when(
+        () => api.getSong(
+          any(),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer(
+        (_) async => const Song(
+          id: 'seed',
+          title: 'Seed Song',
+          artist: 'Seed Artist',
+        ),
+      );
+
+      when(
+        () => lastFm.getSimilarTracksResult(
+          artist: any(named: 'artist'),
+          track: any(named: 'track'),
+          limit: any(named: 'limit'),
+        ),
+      ).thenAnswer(
+        (_) async => const LastFmTrackFetchResult(
+          outcome: LastFmFetchOutcome.success,
+          tracks: <LastFmTrackRecommendation>[
+            LastFmTrackRecommendation(
+              artist: 'Mapped Artist',
+              title: 'Mapped Song',
+              match: 1,
+            ),
+          ],
+        ),
+      );
+      when(
+        () => api.search3(
+          query: any(named: 'query'),
+          artistCount: any(named: 'artistCount'),
+          albumCount: any(named: 'albumCount'),
+          songCount: any(named: 'songCount'),
+          artistOffset: any(named: 'artistOffset'),
+          albumOffset: any(named: 'albumOffset'),
+          songOffset: any(named: 'songOffset'),
+        ),
+      ).thenAnswer(
+        (_) async => const SearchResult3(
+          songs: <Song>[
+            Song(
+              id: 'mapped-1',
+              title: 'Mapped Song',
+              artist: 'Mapped Artist',
+            ),
+          ],
+        ),
+      );
+      when(
+        () => api.getSimilarSongs(
+          any(),
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer(
+        (_) async => const <Song>[
+          Song(id: 'mapped-1', title: 'Mapped Song', artist: 'Mapped Artist'),
+          Song(id: 'fallback-1', title: 'Fallback 1', artist: 'Artist 1'),
+          Song(id: 'fallback-2', title: 'Fallback 2', artist: 'Artist 2'),
+        ],
+      );
+
+      final container = ProviderContainer(
+        overrides: [
+          playerStateProvider.overrideWith((ref) => ref.watch(snapshotState)),
+          queueProvider.overrideWith(_FakeQueueController.new),
+          subsonicApiProvider.overrideWithValue(api),
+          lastFmApiClientProvider.overrideWithValue(lastFm),
+          currentMediaItemProvider.overrideWith(
+            (ref) => Stream<MediaItem?>.value(
+              const MediaItem(
+                id: 'seed',
+                title: 'Seed Song',
+                artist: 'Seed Artist',
+              ),
+            ),
+          ),
+          downloadedSongIdsProvider.overrideWithValue(
+            const AsyncData(<String>{}),
+          ),
+          cachedSongIdsProvider.overrideWithValue(
+            const AsyncData(<String>{}),
+          ),
+          sameVibesAlbumSongCountLookupProvider.overrideWithValue(
+            (albumIds) async => const <String, int?>{},
+          ),
+          sameVibesQueueSongKeyLookupProvider.overrideWithValue(
+            (songIds) async => const <String>{},
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container
+          .read(snapshotState.notifier)
+          .setSnapshot(
+            snapshot(
+              queueSongIds: const <String>['seed', 'a', 'b'],
+              currentSongId: 'seed',
+              currentIndex: 0,
+            ),
+          );
+
+      await container.read(sameVibesProvider.notifier).activate('seed');
+
+      final queued =
+          container.read(queueProvider.notifier) as _FakeQueueController;
+      expect(queued.playNextSongBatches, hasLength(1));
+      expect(
+        queued.playNextSongBatches.single.map((song) => song.id),
+        <String>['mapped-1', 'fallback-1', 'fallback-2'],
       );
     },
   );

@@ -40,7 +40,7 @@ const _kRetryBackoffBase = Duration(seconds: 3);
 const _kRetryBackoffMax = Duration(seconds: 45);
 const _kRetryJitterMaxMs = 600;
 
-/// Flush incremental mapped results to queue in this chunk size.
+/// Collect incremental mapped results in this chunk size.
 const _kIncrementalQueueFlushChunkSize = 3;
 
 /// Bounded concurrent `search3` fan-out for Last.fm mapping.
@@ -195,6 +195,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         tracks: <LastFmTrackRecommendation>[],
       );
       var mappedSongCount = 0;
+      final mappedSongs = <Song>[];
       if (seed != null) {
         lastFmResult = await _fetchLastFmRecommendations(
           expectedArtist: seed.artist,
@@ -216,9 +217,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
               if (chunk.isEmpty || !state.active) {
                 return 0;
               }
-              await ref
-                  .read(queueProvider.notifier)
-                  .addWithSongs(chunk, expandMatchFlows: false);
+              mappedSongs.addAll(chunk);
               for (final song in chunk) {
                 final id = song.id.trim();
                 if (id.isNotEmpty) {
@@ -230,7 +229,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
                 }
               }
               AppLogger.debug(
-                'SameVibes diagnostics: queued incremental chunk=${chunk.length}',
+                'SameVibes diagnostics: mapped incremental chunk=${chunk.length}',
               );
               return chunk.length;
             },
@@ -256,6 +255,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       }
 
       var fallbackQueued = 0;
+      List<Song> fallbackSongs = const <Song>[];
       var fallbackDecision = 'skip';
       var fallbackReason = 'not_needed';
       var fallbackSeedEligible = false;
@@ -327,7 +327,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
             AppLogger.debug(
               'SameVibes diagnostics: fallback candidates=${fallback.length}',
             );
-            final fallbackSongs = _mergeUniqueSongs(
+            fallbackSongs = _mergeUniqueSongs(
               primary: const <Song>[],
               fallback: fallback,
               excludedIds: queuedIds,
@@ -335,9 +335,6 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
               targetCount: _kTargetQueueBatchSize - mappedSongCount,
             );
             if (fallbackSongs.isNotEmpty) {
-              await ref
-                  .read(queueProvider.notifier)
-                  .addWithSongs(fallbackSongs, expandMatchFlows: false);
               for (final song in fallbackSongs) {
                 final id = song.id.trim();
                 if (id.isNotEmpty) {
@@ -400,7 +397,14 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         return;
       }
 
-      final totalQueued = mappedSongCount + fallbackQueued;
+      final songsToQueue = <Song>[...mappedSongs, ...fallbackSongs];
+      if (songsToQueue.isNotEmpty) {
+        await ref
+            .read(queueProvider.notifier)
+            .playNextWithSongs(songsToQueue, expandMatchFlows: false);
+      }
+
+      final totalQueued = songsToQueue.length;
       if (totalQueued <= 0) {
         AppLogger.debug(
           'SameVibes diagnostics: no tracks queued (empty result after fallback)',

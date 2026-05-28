@@ -7,6 +7,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -26,6 +27,10 @@ class _MockSettingsRepository extends Mock implements SettingsRepository {}
 class _FakePlaybackHandler implements NavisPlaybackHandler {
   final StreamController<PlaybackSnapshot> _controller =
       StreamController<PlaybackSnapshot>.broadcast();
+  final List<List<String>> addToQueueCalls = <List<String>>[];
+  final List<List<String>> playNextCalls = <List<String>>[];
+  final List<bool> addToQueueExpandFlags = <bool>[];
+  final List<bool> playNextExpandFlags = <bool>[];
   PlaybackSnapshot _snapshot = const PlaybackSnapshot.idle();
 
   @override
@@ -62,6 +67,8 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
     List<String> songIds, {
     bool expandMatchFlows = true,
   }) async {
+    addToQueueCalls.add(List<String>.from(songIds));
+    addToQueueExpandFlags.add(expandMatchFlows);
     _snapshot = _snapshot.copyWith(
       queueSongIds: <String>[..._snapshot.queueSongIds, ...songIds],
     );
@@ -93,6 +100,8 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
     List<String> songIds, {
     bool expandMatchFlows = true,
   }) async {
+    playNextCalls.add(List<String>.from(songIds));
+    playNextExpandFlags.add(expandMatchFlows);
     if (songIds.isEmpty) {
       return;
     }
@@ -667,6 +676,65 @@ void main() {
 
       expect(handler.snapshot.queueSongIds, <String>['song-1']);
     });
+
+    test(
+      'queueProvider playNextWithSongs persists songs and delegates to playNext',
+      () async {
+        final database = NavisDatabase(NativeDatabase.memory());
+        final handler = _FakePlaybackHandler();
+        final container = ProviderContainer(
+          overrides: [
+            navisDatabaseProvider.overrideWithValue(database),
+            audioHandlerProvider.overrideWithValue(handler),
+          ],
+        );
+        addTearDown(() async {
+          container.dispose();
+          await handler.dispose();
+          await database.close();
+        });
+
+        await container.read(queueProvider.notifier).replace(<String>[
+          'current',
+          'later',
+        ], startIndex: 0);
+        await container.read(queueProvider.notifier).playNextWithSongs(
+          const <Song>[
+            Song(
+              id: ' remote-1 ',
+              title: 'Remote 1',
+              artist: 'Remote Artist',
+              artistId: 'remote-artist',
+              album: 'Remote Album',
+              albumId: 'remote-album',
+            ),
+            Song(id: '   ', title: 'Blank ID'),
+            Song(id: 'remote-2', title: 'Remote 2'),
+          ],
+          expandMatchFlows: false,
+        );
+
+        expect(handler.playNextCalls, <List<String>>[
+          <String>['remote-1', 'remote-2'],
+        ]);
+        expect(handler.playNextExpandFlags, <bool>[false]);
+        expect(
+          handler.snapshot.queueSongIds,
+          <String>['current', 'remote-1', 'remote-2', 'later'],
+        );
+
+        final persisted = await database.libraryDao.getSongsByIds(
+          const <String>['remote-1', 'remote-2'],
+        );
+        expect(persisted.map((song) => song.id), <String>[
+          'remote-1',
+          'remote-2',
+        ]);
+        expect(persisted.first.artistId, 'remote-artist');
+        expect(persisted.first.albumId, 'remote-album');
+      },
+      skip: !sqliteAvailable,
+    );
 
     test(
       'queueProvider throws explicit unavailable error when handler missing',

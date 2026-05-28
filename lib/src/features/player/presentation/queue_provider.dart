@@ -158,6 +158,29 @@ class QueueController extends Notifier<List<String>> {
     await handler.addToQueue(ids, expandMatchFlows: expandMatchFlows);
   }
 
+  /// Like [playNext], but accepts multiple [Song] API model objects and
+  /// inserts them after the current item in one call after persisting all rows
+  /// locally.
+  Future<void> playNextWithSongs(
+    List<Song> songs, {
+    bool expandMatchFlows = true,
+  }) async {
+    final normalizedSongs = songs
+        .map((song) {
+          final id = song.id.trim();
+          return id.isEmpty ? null : song.copyWith(id: id);
+        })
+        .nonNulls
+        .toList(growable: false);
+    if (normalizedSongs.isEmpty) {
+      return;
+    }
+    await _ensureSongsInDatabase(normalizedSongs);
+    final ids = normalizedSongs.map((song) => song.id).toList(growable: false);
+    final handler = _requireHandler();
+    await handler.playNext(ids, expandMatchFlows: expandMatchFlows);
+  }
+
   /// Like [playNext], but accepts a [Song] API model object.
   Future<void> playNextWithSong(Song song) async {
     await _ensureSongsInDatabase(<Song>[song]);
