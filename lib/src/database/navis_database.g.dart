@@ -580,6 +580,20 @@ class $AppSettingsTableTable extends AppSettingsTable
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _cachedPlaybackFirstMeta =
+      const VerificationMeta('cachedPlaybackFirst');
+  @override
+  late final GeneratedColumn<bool> cachedPlaybackFirst = GeneratedColumn<bool>(
+    'cached_playback_first',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("cached_playback_first" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _scrobbleEnabledMeta = const VerificationMeta(
     'scrobbleEnabled',
   );
@@ -1312,6 +1326,7 @@ class $AppSettingsTableTable extends AppSettingsTable
     wifiFormat,
     cellularMaxBitRate,
     cellularFormat,
+    cachedPlaybackFirst,
     scrobbleEnabled,
     gaplessEnabled,
     skipSilenceEnabled,
@@ -1414,6 +1429,15 @@ class $AppSettingsTableTable extends AppSettingsTable
         cellularFormat.isAcceptableOrUnknown(
           data['cellular_format']!,
           _cellularFormatMeta,
+        ),
+      );
+    }
+    if (data.containsKey('cached_playback_first')) {
+      context.handle(
+        _cachedPlaybackFirstMeta,
+        cachedPlaybackFirst.isAcceptableOrUnknown(
+          data['cached_playback_first']!,
+          _cachedPlaybackFirstMeta,
         ),
       );
     }
@@ -1940,6 +1964,10 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.string,
         data['${effectivePrefix}cellular_format'],
       ),
+      cachedPlaybackFirst: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}cached_playback_first'],
+      )!,
       scrobbleEnabled: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}scrobble_enabled'],
@@ -2180,6 +2208,10 @@ class AppSettingsTableData extends DataClass
   final String? wifiFormat;
   final int? cellularMaxBitRate;
   final String? cellularFormat;
+
+  /// When true, any complete cached audio file is preferred before streaming
+  /// the active quality profile. Default false keeps playback settings-first.
+  final bool cachedPlaybackFirst;
   final bool scrobbleEnabled;
   final bool gaplessEnabled;
   final bool skipSilenceEnabled;
@@ -2341,6 +2373,7 @@ class AppSettingsTableData extends DataClass
     this.wifiFormat,
     this.cellularMaxBitRate,
     this.cellularFormat,
+    required this.cachedPlaybackFirst,
     required this.scrobbleEnabled,
     required this.gaplessEnabled,
     required this.skipSilenceEnabled,
@@ -2414,6 +2447,7 @@ class AppSettingsTableData extends DataClass
     if (!nullToAbsent || cellularFormat != null) {
       map['cellular_format'] = Variable<String>(cellularFormat);
     }
+    map['cached_playback_first'] = Variable<bool>(cachedPlaybackFirst);
     map['scrobble_enabled'] = Variable<bool>(scrobbleEnabled);
     map['gapless_enabled'] = Variable<bool>(gaplessEnabled);
     map['skip_silence_enabled'] = Variable<bool>(skipSilenceEnabled);
@@ -2526,6 +2560,7 @@ class AppSettingsTableData extends DataClass
       cellularFormat: cellularFormat == null && nullToAbsent
           ? const Value.absent()
           : Value(cellularFormat),
+      cachedPlaybackFirst: Value(cachedPlaybackFirst),
       scrobbleEnabled: Value(scrobbleEnabled),
       gaplessEnabled: Value(gaplessEnabled),
       skipSilenceEnabled: Value(skipSilenceEnabled),
@@ -2622,6 +2657,9 @@ class AppSettingsTableData extends DataClass
       wifiFormat: serializer.fromJson<String?>(json['wifiFormat']),
       cellularMaxBitRate: serializer.fromJson<int?>(json['cellularMaxBitRate']),
       cellularFormat: serializer.fromJson<String?>(json['cellularFormat']),
+      cachedPlaybackFirst: serializer.fromJson<bool>(
+        json['cachedPlaybackFirst'],
+      ),
       scrobbleEnabled: serializer.fromJson<bool>(json['scrobbleEnabled']),
       gaplessEnabled: serializer.fromJson<bool>(json['gaplessEnabled']),
       skipSilenceEnabled: serializer.fromJson<bool>(json['skipSilenceEnabled']),
@@ -2733,6 +2771,7 @@ class AppSettingsTableData extends DataClass
       'wifiFormat': serializer.toJson<String?>(wifiFormat),
       'cellularMaxBitRate': serializer.toJson<int?>(cellularMaxBitRate),
       'cellularFormat': serializer.toJson<String?>(cellularFormat),
+      'cachedPlaybackFirst': serializer.toJson<bool>(cachedPlaybackFirst),
       'scrobbleEnabled': serializer.toJson<bool>(scrobbleEnabled),
       'gaplessEnabled': serializer.toJson<bool>(gaplessEnabled),
       'skipSilenceEnabled': serializer.toJson<bool>(skipSilenceEnabled),
@@ -2816,6 +2855,7 @@ class AppSettingsTableData extends DataClass
     Value<String?> wifiFormat = const Value.absent(),
     Value<int?> cellularMaxBitRate = const Value.absent(),
     Value<String?> cellularFormat = const Value.absent(),
+    bool? cachedPlaybackFirst,
     bool? scrobbleEnabled,
     bool? gaplessEnabled,
     bool? skipSilenceEnabled,
@@ -2884,6 +2924,7 @@ class AppSettingsTableData extends DataClass
     cellularFormat: cellularFormat.present
         ? cellularFormat.value
         : this.cellularFormat,
+    cachedPlaybackFirst: cachedPlaybackFirst ?? this.cachedPlaybackFirst,
     scrobbleEnabled: scrobbleEnabled ?? this.scrobbleEnabled,
     gaplessEnabled: gaplessEnabled ?? this.gaplessEnabled,
     skipSilenceEnabled: skipSilenceEnabled ?? this.skipSilenceEnabled,
@@ -2986,6 +3027,9 @@ class AppSettingsTableData extends DataClass
       cellularFormat: data.cellularFormat.present
           ? data.cellularFormat.value
           : this.cellularFormat,
+      cachedPlaybackFirst: data.cachedPlaybackFirst.present
+          ? data.cachedPlaybackFirst.value
+          : this.cachedPlaybackFirst,
       scrobbleEnabled: data.scrobbleEnabled.present
           ? data.scrobbleEnabled.value
           : this.scrobbleEnabled,
@@ -3157,6 +3201,7 @@ class AppSettingsTableData extends DataClass
           ..write('wifiFormat: $wifiFormat, ')
           ..write('cellularMaxBitRate: $cellularMaxBitRate, ')
           ..write('cellularFormat: $cellularFormat, ')
+          ..write('cachedPlaybackFirst: $cachedPlaybackFirst, ')
           ..write('scrobbleEnabled: $scrobbleEnabled, ')
           ..write('gaplessEnabled: $gaplessEnabled, ')
           ..write('skipSilenceEnabled: $skipSilenceEnabled, ')
@@ -3226,6 +3271,7 @@ class AppSettingsTableData extends DataClass
     wifiFormat,
     cellularMaxBitRate,
     cellularFormat,
+    cachedPlaybackFirst,
     scrobbleEnabled,
     gaplessEnabled,
     skipSilenceEnabled,
@@ -3292,6 +3338,7 @@ class AppSettingsTableData extends DataClass
           other.wifiFormat == this.wifiFormat &&
           other.cellularMaxBitRate == this.cellularMaxBitRate &&
           other.cellularFormat == this.cellularFormat &&
+          other.cachedPlaybackFirst == this.cachedPlaybackFirst &&
           other.scrobbleEnabled == this.scrobbleEnabled &&
           other.gaplessEnabled == this.gaplessEnabled &&
           other.skipSilenceEnabled == this.skipSilenceEnabled &&
@@ -3358,6 +3405,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<String?> wifiFormat;
   final Value<int?> cellularMaxBitRate;
   final Value<String?> cellularFormat;
+  final Value<bool> cachedPlaybackFirst;
   final Value<bool> scrobbleEnabled;
   final Value<bool> gaplessEnabled;
   final Value<bool> skipSilenceEnabled;
@@ -3420,6 +3468,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.wifiFormat = const Value.absent(),
     this.cellularMaxBitRate = const Value.absent(),
     this.cellularFormat = const Value.absent(),
+    this.cachedPlaybackFirst = const Value.absent(),
     this.scrobbleEnabled = const Value.absent(),
     this.gaplessEnabled = const Value.absent(),
     this.skipSilenceEnabled = const Value.absent(),
@@ -3483,6 +3532,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.wifiFormat = const Value.absent(),
     this.cellularMaxBitRate = const Value.absent(),
     this.cellularFormat = const Value.absent(),
+    this.cachedPlaybackFirst = const Value.absent(),
     this.scrobbleEnabled = const Value.absent(),
     this.gaplessEnabled = const Value.absent(),
     this.skipSilenceEnabled = const Value.absent(),
@@ -3546,6 +3596,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<String>? wifiFormat,
     Expression<int>? cellularMaxBitRate,
     Expression<String>? cellularFormat,
+    Expression<bool>? cachedPlaybackFirst,
     Expression<bool>? scrobbleEnabled,
     Expression<bool>? gaplessEnabled,
     Expression<bool>? skipSilenceEnabled,
@@ -3610,6 +3661,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       if (cellularMaxBitRate != null)
         'cellular_max_bit_rate': cellularMaxBitRate,
       if (cellularFormat != null) 'cellular_format': cellularFormat,
+      if (cachedPlaybackFirst != null)
+        'cached_playback_first': cachedPlaybackFirst,
       if (scrobbleEnabled != null) 'scrobble_enabled': scrobbleEnabled,
       if (gaplessEnabled != null) 'gapless_enabled': gaplessEnabled,
       if (skipSilenceEnabled != null)
@@ -3699,6 +3752,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<String?>? wifiFormat,
     Value<int?>? cellularMaxBitRate,
     Value<String?>? cellularFormat,
+    Value<bool>? cachedPlaybackFirst,
     Value<bool>? scrobbleEnabled,
     Value<bool>? gaplessEnabled,
     Value<bool>? skipSilenceEnabled,
@@ -3762,6 +3816,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       wifiFormat: wifiFormat ?? this.wifiFormat,
       cellularMaxBitRate: cellularMaxBitRate ?? this.cellularMaxBitRate,
       cellularFormat: cellularFormat ?? this.cellularFormat,
+      cachedPlaybackFirst: cachedPlaybackFirst ?? this.cachedPlaybackFirst,
       scrobbleEnabled: scrobbleEnabled ?? this.scrobbleEnabled,
       gaplessEnabled: gaplessEnabled ?? this.gaplessEnabled,
       skipSilenceEnabled: skipSilenceEnabled ?? this.skipSilenceEnabled,
@@ -3848,6 +3903,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     }
     if (cellularFormat.present) {
       map['cellular_format'] = Variable<String>(cellularFormat.value);
+    }
+    if (cachedPlaybackFirst.present) {
+      map['cached_playback_first'] = Variable<bool>(cachedPlaybackFirst.value);
     }
     if (scrobbleEnabled.present) {
       map['scrobble_enabled'] = Variable<bool>(scrobbleEnabled.value);
@@ -4056,6 +4114,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('wifiFormat: $wifiFormat, ')
           ..write('cellularMaxBitRate: $cellularMaxBitRate, ')
           ..write('cellularFormat: $cellularFormat, ')
+          ..write('cachedPlaybackFirst: $cachedPlaybackFirst, ')
           ..write('scrobbleEnabled: $scrobbleEnabled, ')
           ..write('gaplessEnabled: $gaplessEnabled, ')
           ..write('skipSilenceEnabled: $skipSilenceEnabled, ')
@@ -13355,6 +13414,7 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<String?> wifiFormat,
       Value<int?> cellularMaxBitRate,
       Value<String?> cellularFormat,
+      Value<bool> cachedPlaybackFirst,
       Value<bool> scrobbleEnabled,
       Value<bool> gaplessEnabled,
       Value<bool> skipSilenceEnabled,
@@ -13419,6 +13479,7 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<String?> wifiFormat,
       Value<int?> cellularMaxBitRate,
       Value<String?> cellularFormat,
+      Value<bool> cachedPlaybackFirst,
       Value<bool> scrobbleEnabled,
       Value<bool> gaplessEnabled,
       Value<bool> skipSilenceEnabled,
@@ -13508,6 +13569,11 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<String> get cellularFormat => $composableBuilder(
     column: $table.cellularFormat,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get cachedPlaybackFirst => $composableBuilder(
+    column: $table.cachedPlaybackFirst,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -13826,6 +13892,11 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get cachedPlaybackFirst => $composableBuilder(
+    column: $table.cachedPlaybackFirst,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get scrobbleEnabled => $composableBuilder(
     column: $table.scrobbleEnabled,
     builder: (column) => ColumnOrderings(column),
@@ -14136,6 +14207,11 @@ class $$AppSettingsTableTableAnnotationComposer
 
   GeneratedColumn<String> get cellularFormat => $composableBuilder(
     column: $table.cellularFormat,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get cachedPlaybackFirst => $composableBuilder(
+    column: $table.cachedPlaybackFirst,
     builder: (column) => column,
   );
 
@@ -14454,6 +14530,7 @@ class $$AppSettingsTableTableTableManager
                 Value<String?> wifiFormat = const Value.absent(),
                 Value<int?> cellularMaxBitRate = const Value.absent(),
                 Value<String?> cellularFormat = const Value.absent(),
+                Value<bool> cachedPlaybackFirst = const Value.absent(),
                 Value<bool> scrobbleEnabled = const Value.absent(),
                 Value<bool> gaplessEnabled = const Value.absent(),
                 Value<bool> skipSilenceEnabled = const Value.absent(),
@@ -14517,6 +14594,7 @@ class $$AppSettingsTableTableTableManager
                 wifiFormat: wifiFormat,
                 cellularMaxBitRate: cellularMaxBitRate,
                 cellularFormat: cellularFormat,
+                cachedPlaybackFirst: cachedPlaybackFirst,
                 scrobbleEnabled: scrobbleEnabled,
                 gaplessEnabled: gaplessEnabled,
                 skipSilenceEnabled: skipSilenceEnabled,
@@ -14581,6 +14659,7 @@ class $$AppSettingsTableTableTableManager
                 Value<String?> wifiFormat = const Value.absent(),
                 Value<int?> cellularMaxBitRate = const Value.absent(),
                 Value<String?> cellularFormat = const Value.absent(),
+                Value<bool> cachedPlaybackFirst = const Value.absent(),
                 Value<bool> scrobbleEnabled = const Value.absent(),
                 Value<bool> gaplessEnabled = const Value.absent(),
                 Value<bool> skipSilenceEnabled = const Value.absent(),
@@ -14644,6 +14723,7 @@ class $$AppSettingsTableTableTableManager
                 wifiFormat: wifiFormat,
                 cellularMaxBitRate: cellularMaxBitRate,
                 cellularFormat: cellularFormat,
+                cachedPlaybackFirst: cachedPlaybackFirst,
                 scrobbleEnabled: scrobbleEnabled,
                 gaplessEnabled: gaplessEnabled,
                 skipSilenceEnabled: skipSilenceEnabled,

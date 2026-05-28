@@ -8,6 +8,7 @@ class AppSettingsModel {
     required this.wifiFormat,
     required this.cellularMaxBitRate,
     required this.cellularFormat,
+    this.cachedPlaybackFirst = false,
     required this.scrobbleEnabled,
     required this.gaplessEnabled,
     required this.skipSilenceEnabled,
@@ -69,6 +70,7 @@ class AppSettingsModel {
       wifiFormat = null,
       cellularMaxBitRate = AppSettingsDao.defaultCellularBitRate,
       cellularFormat = AppSettingsDao.defaultCellularFormat,
+      cachedPlaybackFirst = false,
       scrobbleEnabled = true,
       gaplessEnabled = true,
       skipSilenceEnabled = false,
@@ -128,6 +130,7 @@ class AppSettingsModel {
   final String? wifiFormat;
   final int? cellularMaxBitRate;
   final String? cellularFormat;
+  final bool cachedPlaybackFirst;
   final bool scrobbleEnabled;
   final bool gaplessEnabled;
   // Compatibility-only persisted field retained to keep schema upgrades safe.
@@ -242,6 +245,7 @@ class AppSettingsModel {
     String? wifiFormat,
     int? cellularMaxBitRate,
     String? cellularFormat,
+    bool? cachedPlaybackFirst,
     bool? scrobbleEnabled,
     bool? gaplessEnabled,
     bool? skipSilenceEnabled,
@@ -324,6 +328,7 @@ class AppSettingsModel {
       cellularFormat: clearCellularFormat
           ? null
           : cellularFormat ?? this.cellularFormat,
+      cachedPlaybackFirst: cachedPlaybackFirst ?? this.cachedPlaybackFirst,
       scrobbleEnabled: scrobbleEnabled ?? this.scrobbleEnabled,
       gaplessEnabled: gaplessEnabled ?? this.gaplessEnabled,
       skipSilenceEnabled: skipSilenceEnabled ?? this.skipSilenceEnabled,

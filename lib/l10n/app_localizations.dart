@@ -448,6 +448,18 @@ abstract class AppLocalizations {
   /// **'Preferred format'**
   String get playbackSettingsCellularFormatLabel;
 
+  /// No description provided for @playbackSettingsCachedFirstTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Cached First'**
+  String get playbackSettingsCachedFirstTitle;
+
+  /// No description provided for @playbackSettingsCachedFirstSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Prefer any complete cached file before requesting the active streaming profile.'**
+  String get playbackSettingsCachedFirstSubtitle;
+
   /// No description provided for @playbackSettingsScrobbleTitle.
   ///
   /// In en, this message translates to:

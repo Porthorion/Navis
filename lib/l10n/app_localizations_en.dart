@@ -203,6 +203,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playbackSettingsCellularFormatLabel => 'Preferred format';
 
   @override
+  String get playbackSettingsCachedFirstTitle => 'Cached First';
+
+  @override
+  String get playbackSettingsCachedFirstSubtitle =>
+      'Prefer any complete cached file before requesting the active streaming profile.';
+
+  @override
   String get playbackSettingsScrobbleTitle => 'Enable scrobbling';
 
   @override

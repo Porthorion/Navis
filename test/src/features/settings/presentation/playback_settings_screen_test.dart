@@ -87,6 +87,7 @@ void main() {
 
       expect(find.text('Wi-Fi streaming'), findsOneWidget);
       expect(find.text('Cellular streaming'), findsOneWidget);
+      expect(find.text('Cached First'), findsOneWidget);
       expect(find.text('Enable scrobbling'), findsOneWidget);
       expect(find.text('Enable gapless playback'), findsOneWidget);
       expect(find.text('Show Radio page'), findsNothing);
@@ -130,11 +131,19 @@ void main() {
         SwitchListTile,
         'Enable scrobbling',
       );
+      final cachedFirstToggle = find.widgetWithText(
+        SwitchListTile,
+        'Cached First',
+      );
       final gaplessToggle = find.widgetWithText(
         SwitchListTile,
         'Enable gapless playback',
       );
 
+      await tester.ensureVisible(cachedFirstToggle);
+      await tester.pumpAndSettle();
+      await tester.tap(cachedFirstToggle);
+      await tester.pumpAndSettle();
       await tester.ensureVisible(scrobbleToggle);
       await tester.pumpAndSettle();
       await tester.tap(scrobbleToggle);
@@ -152,6 +161,7 @@ void main() {
       expect(savedModel, isNotNull);
       expect(savedModel!.wifiMaxBitRate, 320);
       expect(savedModel!.wifiFormat, 'opus');
+      expect(savedModel!.cachedPlaybackFirst, isTrue);
       expect(savedModel!.scrobbleEnabled, isFalse);
       expect(savedModel!.gaplessEnabled, isFalse);
       expect(savedModel!.skipSilenceEnabled, isFalse);

@@ -48,6 +48,21 @@ void main() {
       skip: !sqliteAvailable,
     );
 
+    test('persists cached playback preference', () async {
+      await repository.saveSettings(
+        const AppSettingsModel.defaults().copyWith(
+          cachedPlaybackFirst: true,
+        ),
+      );
+
+      final saved = await repository.getSettings();
+      expect(saved.cachedPlaybackFirst, isTrue);
+
+      await repository.resetDefaults();
+      final reset = await repository.getSettings();
+      expect(reset.cachedPlaybackFirst, isFalse);
+    }, skip: !sqliteAvailable);
+
     test('resetDefaults clears group listening settings', () async {
       await repository.saveSettings(
         const AppSettingsModel.defaults().copyWith(

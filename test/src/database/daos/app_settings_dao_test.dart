@@ -24,6 +24,7 @@ void main() {
           wifiFormat: 'opus',
           cellularMaxBitRate: 128,
           cellularFormat: 'aac',
+          cachedPlaybackFirst: true,
           scrobbleEnabled: false,
           gaplessEnabled: false,
           skipSilenceEnabled: true,
@@ -69,6 +70,7 @@ void main() {
         expect(first.wifiFormat, 'opus');
         expect(first.cellularMaxBitRate, 128);
         expect(first.cellularFormat, 'aac');
+        expect(first.cachedPlaybackFirst, isTrue);
         expect(first.scrobbleEnabled, isFalse);
         expect(first.gaplessEnabled, isFalse);
         expect(first.skipSilenceEnabled, isTrue);
@@ -85,6 +87,7 @@ void main() {
           wifiFormat: null,
           cellularMaxBitRate: 192,
           cellularFormat: 'mp3',
+          cachedPlaybackFirst: false,
           scrobbleEnabled: true,
           gaplessEnabled: true,
           skipSilenceEnabled: false,
@@ -130,6 +133,7 @@ void main() {
         expect(second.wifiFormat, isNull);
         expect(second.cellularMaxBitRate, 192);
         expect(second.cellularFormat, 'mp3');
+        expect(second.cachedPlaybackFirst, isFalse);
         expect(second.scrobbleEnabled, isTrue);
         expect(second.gaplessEnabled, isTrue);
         expect(second.skipSilenceEnabled, isFalse);
@@ -150,6 +154,7 @@ void main() {
         wifiFormat: 'opus',
         cellularMaxBitRate: 96,
         cellularFormat: 'aac',
+        cachedPlaybackFirst: true,
         scrobbleEnabled: false,
         gaplessEnabled: false,
         skipSilenceEnabled: true,
@@ -206,6 +211,7 @@ void main() {
         AppSettingsDao.defaultCellularBitRate,
       );
       expect(settings.cellularFormat, AppSettingsDao.defaultCellularFormat);
+      expect(settings.cachedPlaybackFirst, isFalse);
       expect(settings.scrobbleEnabled, isTrue);
       expect(settings.gaplessEnabled, isTrue);
       expect(settings.skipSilenceEnabled, isFalse);

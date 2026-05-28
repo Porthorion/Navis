@@ -45,6 +45,7 @@ class _PlaybackSettingsScreenState
   String? _wifiFormat;
   int? _cellularBitRate;
   String? _cellularFormat;
+  bool _cachedPlaybackFirst = false;
   bool _scrobbleEnabled = true;
   bool _useLrclib = true;
   bool _legacyInstantMixEnabled = false;
@@ -199,6 +200,16 @@ class _PlaybackSettingsScreenState
                 onChanged: _isSaving
                     ? null
                     : (value) => setState(() => _cellularFormat = value),
+              ),
+              const SizedBox(height: 12),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: _cachedPlaybackFirst,
+                onChanged: _isSaving
+                    ? null
+                    : (value) => setState(() => _cachedPlaybackFirst = value),
+                title: Text(l10n.playbackSettingsCachedFirstTitle),
+                subtitle: Text(l10n.playbackSettingsCachedFirstSubtitle),
               ),
               const SizedBox(height: 24),
               SwitchListTile(
@@ -679,6 +690,7 @@ class _PlaybackSettingsScreenState
     _wifiFormat = settings.wifiFormat;
     _cellularBitRate = settings.cellularMaxBitRate;
     _cellularFormat = settings.cellularFormat;
+    _cachedPlaybackFirst = settings.cachedPlaybackFirst;
     _scrobbleEnabled = settings.scrobbleEnabled;
     _useLrclib = settings.useLrclib;
     _legacyInstantMixEnabled = settings.legacyInstantMixEnabled;
@@ -721,6 +733,7 @@ class _PlaybackSettingsScreenState
       _wifiFormat,
       _cellularBitRate,
       _cellularFormat,
+      _cachedPlaybackFirst,
       _scrobbleEnabled,
       _useLrclib,
       _legacyInstantMixEnabled,
@@ -763,6 +776,7 @@ class _PlaybackSettingsScreenState
         wifiFormat: _normalizeFormat(_wifiFormat),
         cellularMaxBitRate: _cellularBitRate,
         cellularFormat: _normalizeFormat(_cellularFormat),
+        cachedPlaybackFirst: _cachedPlaybackFirst,
         scrobbleEnabled: _scrobbleEnabled,
         gaplessEnabled: _gaplessEnabled || _crossfadeEnabled,
         skipSilenceEnabled: _fullscreenModeLyrics,

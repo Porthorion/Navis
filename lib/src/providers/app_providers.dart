@@ -367,7 +367,14 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
         readApiClient: () => ref.read(subsonicApiProvider),
         readStreamingQuality: () => ref.read(activeStreamingQualityProvider),
         readRollingCacheDirectory: getTemporaryDirectory,
-        readIsWifi: () => ref.read(networkTypeProvider) == NetworkType.wifi,
+        readCachedPlaybackFirst: () {
+          final settings =
+              ref.read(appSettingsProvider).asData?.value ??
+              const AppSettingsModel.defaults();
+          return settings.cachedPlaybackFirst;
+        },
+        readCanStream: () =>
+            ref.read(networkTypeProvider) != NetworkType.offline,
       ),
       readApiClient: () => ref.read(subsonicApiProvider),
       rollingCacheManager: ref.read(rollingCacheManagerProvider),

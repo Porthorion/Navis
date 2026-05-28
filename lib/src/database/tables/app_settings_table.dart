@@ -14,6 +14,11 @@ class AppSettingsTable extends Table {
 
   TextColumn get cellularFormat => text().nullable()();
 
+  /// When true, any complete cached audio file is preferred before streaming
+  /// the active quality profile. Default false keeps playback settings-first.
+  BoolColumn get cachedPlaybackFirst =>
+      boolean().withDefault(const Constant(false))();
+
   BoolColumn get scrobbleEnabled =>
       boolean().withDefault(const Constant(true))();
 

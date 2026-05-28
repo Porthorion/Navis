@@ -81,7 +81,7 @@ class NavisDatabase extends _$NavisDatabase {
   static QueryExecutor _openConnection() => driftDatabase(name: 'navis.sqlite');
 
   @override
-  int get schemaVersion => 44;
+  int get schemaVersion => 45;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -233,6 +233,9 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (from < 44 && to >= 44) {
       await from43To44(migrator);
+    }
+    if (from < 45 && to >= 45) {
+      await from44To45(migrator);
     }
   }
 
@@ -821,6 +824,15 @@ class NavisDatabase extends _$NavisDatabase {
     }
   }
 
+  Future<void> from44To45(Migrator migrator) async {
+    if (!await _columnExists('app_settings', 'cached_playback_first')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.cachedPlaybackFirst,
+      );
+    }
+  }
+
   Future<void> _ensureGroupListeningColumns() async {
     if (!await _columnExists('app_settings', 'group_listening_enabled')) {
       await customStatement('''
@@ -898,6 +910,7 @@ class NavisDatabase extends _$NavisDatabase {
         wifiFormat: const Value(null),
         cellularMaxBitRate: const Value(AppSettingsDao.defaultCellularBitRate),
         cellularFormat: const Value(AppSettingsDao.defaultCellularFormat),
+        cachedPlaybackFirst: const Value(false),
         scrobbleEnabled: const Value(true),
         gaplessEnabled: const Value(true),
         skipSilenceEnabled: const Value(false),

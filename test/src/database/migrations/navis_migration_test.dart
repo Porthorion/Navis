@@ -18,8 +18,8 @@ void main() {
         .customSelect('PRAGMA user_version;')
         .getSingle();
 
-    expect(database.schemaVersion, 44);
-    expect(pragmaRow.read<int>('user_version'), 44);
+    expect(database.schemaVersion, 45);
+    expect(pragmaRow.read<int>('user_version'), 45);
   }, skip: !sqliteAvailable);
 
   test('latest schema creates app settings defaults', () async {
@@ -33,6 +33,7 @@ void main() {
     expect(settings.wifiFormat, isNull);
     expect(settings.cellularMaxBitRate, AppSettingsDao.defaultCellularBitRate);
     expect(settings.cellularFormat, AppSettingsDao.defaultCellularFormat);
+    expect(settings.cachedPlaybackFirst, isFalse);
     expect(settings.scrobbleEnabled, isTrue);
     expect(settings.gaplessEnabled, isTrue);
     expect(settings.skipSilenceEnabled, isFalse);
@@ -73,6 +74,7 @@ void main() {
         'match_flow_enabled',
         'custom_download_folder_enabled',
         'custom_download_folder_path',
+        'cached_playback_first',
       }),
     );
     expect(groupListening.groupListeningEnabled, isFalse);
@@ -81,6 +83,53 @@ void main() {
     expect(groupListening.voyageDeviceLabel, isNull);
     expect(groupListening.voyageAutoFollowHost, isTrue);
   }, skip: !sqliteAvailable);
+
+  test(
+    'migrates v44 schema to v45 with cached playback setting',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'navis_migration_v45_test_',
+      );
+      final dbPath = p.join(tempDir.path, 'navis.sqlite');
+
+      final seedDatabase = NavisDatabase(NativeDatabase(File(dbPath)));
+      await seedDatabase.customSelect('PRAGMA user_version;').getSingle();
+      await seedDatabase.close();
+
+      final raw = sqlite3.open(dbPath);
+      try {
+        raw.execute(
+          'ALTER TABLE app_settings DROP COLUMN cached_playback_first;',
+        );
+        raw.execute('PRAGMA user_version = 44;');
+      } finally {
+        raw.close();
+      }
+
+      final migrated = NavisDatabase(NativeDatabase(File(dbPath)));
+      addTearDown(() async {
+        await migrated.close();
+        await tempDir.delete(recursive: true);
+      });
+
+      final versionRow = await migrated
+          .customSelect('PRAGMA user_version;')
+          .getSingle();
+      expect(versionRow.read<int>('user_version'), 45);
+
+      final settingsInfo = await migrated
+          .customSelect("PRAGMA table_info('app_settings');")
+          .get();
+      final settingColumns = settingsInfo
+          .map((row) => row.read<String>('name'))
+          .toSet();
+      expect(settingColumns, contains('cached_playback_first'));
+
+      final settings = await migrated.appSettingsDao.getSettings();
+      expect(settings?.cachedPlaybackFirst, isFalse);
+    },
+    skip: !sqliteAvailable,
+  );
 
   test('latest schema creates scrobble queue table', () async {
     final database = NavisDatabase(NativeDatabase.memory());
@@ -155,7 +204,7 @@ void main() {
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 44);
+      expect(versionRow.read<int>('user_version'), 45);
 
       final settingsInfo = await migrated
           .customSelect("PRAGMA table_info('app_settings');")
@@ -274,7 +323,7 @@ void main() {
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 44);
+      expect(versionRow.read<int>('user_version'), 45);
 
       final albums = await migrated.select(migrated.albumsTable).get();
       final albumsById = {for (final album in albums) album.id: album};
@@ -303,6 +352,7 @@ void main() {
       final settings = await migrated.appSettingsDao.getSettings();
       expect(settings, isNotNull);
       expect(settings!.gaplessEnabled, isTrue);
+      expect(settings.cachedPlaybackFirst, isFalse);
       expect(settings.skipSilenceEnabled, isFalse);
       expect(settings.showRadioPage, isTrue);
       expect(settings.showPlaylistsPage, isTrue);

@@ -114,14 +114,16 @@ class PlaybackSourceResolver {
     required SubsonicApiClient? Function() readApiClient,
     required StreamingQuality Function() readStreamingQuality,
     required Future<Directory> Function() readRollingCacheDirectory,
-    required bool Function() readIsWifi,
+    bool Function()? readCachedPlaybackFirst,
+    bool Function()? readCanStream,
   }) : _cacheDao = cacheDao,
        _libraryDao = libraryDao,
        _rollingCacheManager = rollingCacheManager,
        _readApiClient = readApiClient,
        _readStreamingQuality = readStreamingQuality,
        _readRollingCacheDirectory = readRollingCacheDirectory,
-       _readIsWifi = readIsWifi;
+       _readCachedPlaybackFirst = readCachedPlaybackFirst ?? _readFalse,
+       _readCanStream = readCanStream ?? _readTrue;
 
   final CacheDao _cacheDao;
   final LibraryDao? _libraryDao;
@@ -129,7 +131,8 @@ class PlaybackSourceResolver {
   final SubsonicApiClient? Function() _readApiClient;
   final StreamingQuality Function() _readStreamingQuality;
   final Future<Directory> Function() _readRollingCacheDirectory;
-  final bool Function() _readIsWifi;
+  final bool Function() _readCachedPlaybackFirst;
+  final bool Function() _readCanStream;
 
   Future<ResolvedPlaybackSource> resolveForSong(
     SongsTableData song, {
@@ -166,7 +169,17 @@ class PlaybackSourceResolver {
       );
     }
 
-    if (cachedTrack != null && _shouldUseCachedTrack(cachedTrack, quality)) {
+    final cachePolicy = PlaybackCachePolicy(
+      cachedPlaybackFirst: _readCachedPlaybackFirst(),
+      canStream: _readCanStream(),
+    );
+    if (cachedTrack != null &&
+        _shouldUseCachedTrack(
+          song: song,
+          cachedTrack: cachedTrack,
+          quality: quality,
+          policy: cachePolicy,
+        )) {
       final file = File(cachedTrack.filePath);
       if (file.existsSync()) {
         AppLogger.debug(
@@ -189,12 +202,24 @@ class PlaybackSourceResolver {
       }
     }
 
-    if (cachedTrack != null && !_shouldUseCachedTrack(cachedTrack, quality)) {
+    if (cachedTrack != null &&
+        !_shouldUseCachedTrack(
+          song: song,
+          cachedTrack: cachedTrack,
+          quality: quality,
+          policy: cachePolicy,
+        )) {
       AppLogger.debug(
         'Skipping cached source for song=${song.id} due to active '
         'streaming quality profile. cacheType=${cachedTrack.cacheType.name} '
         'cacheFormat=${cachedTrack.format} requestedFormat=${quality.format} '
         'requestedBitRate=${quality.maxBitRate}',
+      );
+    }
+
+    if (!cachePolicy.canStream) {
+      throw const PlaybackSourceUnavailableException(
+        'No cached playback source available while offline.',
       );
     }
 
@@ -295,7 +320,11 @@ class PlaybackSourceResolver {
       rollingDir.createSync(recursive: true);
     }
 
-    final qualitySignature = '${quality.label}-${quality.maxBitRate ?? 0}';
+    final normalizedBitRate = quality.maxBitRate?.toString() ?? 'original';
+    final normalizedFormat =
+        _canonicalAudioFormat(quality.format) ?? 'original';
+    final qualitySignature =
+        '${quality.label}::$normalizedBitRate::$normalizedFormat';
     final digest = sha1
         .convert(utf8.encode('${song.id}::$qualitySignature'))
         .toString();
@@ -478,83 +507,61 @@ class PlaybackSourceResolver {
     return 'bin';
   }
 
-  bool _shouldUseCachedTrack(
-    CachedTracksTableData cachedTrack,
-    StreamingQuality quality,
-  ) {
-    final requestedFormat = quality.format?.trim().toLowerCase();
-    final hasRequestedFormat =
-        requestedFormat != null && requestedFormat.isNotEmpty;
-    final requestedBitRate = quality.maxBitRate;
-    final hasRequestedBitRate = requestedBitRate != null;
-    final wantsTranscoding = hasRequestedFormat || hasRequestedBitRate;
-    final cachedFormat = cachedTrack.format.trim().toLowerCase();
-    final cachedBitRate = cachedTrack.bitRate;
-
-    if (!wantsTranscoding) {
-      // No transcoding requested — use cache unless on Wi-Fi with a lower-
-      // quality permanent pin where streaming original would be better.
-      if (cachedTrack.cacheType == CacheType.permanent && _readIsWifi()) {
-        // Permanent pin exists but user wants original (no transcoding).
-        // If the pin was transcoded (has limited bitrate), prefer streaming
-        // for higher quality on Wi-Fi.
-        if (cachedBitRate != null && cachedBitRate > 0) {
-          // The pin has a finite bitrate — it was downloaded as a transcode.
-          // Stream original on Wi-Fi for better quality.
-          AppLogger.debug(
-            'Wi-Fi quality preference: skipping permanent cache '
-            '(${cachedBitRate}kbps $cachedFormat) in favour of original '
-            'quality stream for song=${cachedTrack.songId}',
-          );
-          return false;
-        }
-      }
-      return true;
-    }
-
-    if (cachedTrack.cacheType == CacheType.permanent) {
-      // Even for permanent cache, check if Wi-Fi quality is higher.
-      if (_readIsWifi() && hasRequestedBitRate && cachedBitRate != null) {
-        if (requestedBitRate > cachedBitRate) {
-          AppLogger.debug(
-            'Wi-Fi quality preference: skipping permanent cache '
-            '(${cachedBitRate}kbps) in favour of ${requestedBitRate}kbps '
-            'stream for song=${cachedTrack.songId}',
-          );
-          return false;
-        }
-      }
-      return true;
-    }
-
-    if (hasRequestedFormat && cachedFormat != requestedFormat) {
-      return _isLosslessFormat(cachedFormat) &&
-          !_isLosslessFormat(requestedFormat);
-    }
-
-    if (hasRequestedBitRate && cachedBitRate != null) {
-      if (cachedBitRate >= requestedBitRate) {
-        return true;
-      }
-    }
-
-    if (hasRequestedFormat) {
-      return cachedFormat == requestedFormat;
-    }
-
-    return false;
-  }
-
-  bool _isLosslessFormat(String? format) {
-    if (format == null || format.trim().isEmpty) {
+  bool _shouldUseCachedTrack({
+    required SongsTableData song,
+    required CachedTracksTableData cachedTrack,
+    required StreamingQuality quality,
+    required PlaybackCachePolicy policy,
+  }) {
+    if (cachedTrack.downloadStatus != DownloadStatus.complete) {
       return false;
     }
-    return switch (format.trim().toLowerCase()) {
-      'flac' || 'alac' || 'wav' || 'aiff' || 'ape' || 'dsf' || 'dff' => true,
-      _ => false,
-    };
+    if (policy.cachedPlaybackFirst || !policy.canStream) {
+      return true;
+    }
+
+    final cachedMetadata = _resolveCachedTrackMetadata(
+      song: song,
+      cachedTrack: cachedTrack,
+    );
+    final streamingMetadata = _resolveStreamingMetadata(
+      song: song,
+      quality: quality,
+    );
+    return _metadataMatchesActiveProfile(
+      cachedMetadata: cachedMetadata,
+      streamingMetadata: streamingMetadata,
+    );
+  }
+
+  bool _metadataMatchesActiveProfile({
+    required ResolvedPlaybackMetadata cachedMetadata,
+    required ResolvedPlaybackMetadata streamingMetadata,
+  }) {
+    final cachedFormat = _canonicalAudioFormat(cachedMetadata.format);
+    final streamingFormat = _canonicalAudioFormat(streamingMetadata.format);
+    if (cachedFormat != streamingFormat) {
+      return false;
+    }
+
+    return cachedMetadata.bitRate == streamingMetadata.bitRate;
   }
 }
+
+@immutable
+class PlaybackCachePolicy {
+  const PlaybackCachePolicy({
+    required this.cachedPlaybackFirst,
+    required this.canStream,
+  });
+
+  final bool cachedPlaybackFirst;
+  final bool canStream;
+}
+
+bool _readFalse() => false;
+
+bool _readTrue() => true;
 
 bool get _supportsLockCachingRuntime =>
     !kIsWeb && !(Platform.isWindows || Platform.isLinux);

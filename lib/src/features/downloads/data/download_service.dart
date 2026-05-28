@@ -613,6 +613,7 @@ class DownloadService {
         // Register in cached_tracks as permanent.
         final stat = await destFile.stat();
         final format = _resolveFormat(song, item);
+        final bitRate = _resolveBitRate(song, item);
 
         await _cacheDao.upsertCachedTrack(
           CachedTracksTableCompanion.insert(
@@ -620,9 +621,7 @@ class DownloadService {
             filePath: destFile.path,
             fileSize: stat.size,
             format: format,
-            bitRate: song.bitRate == null
-                ? const Value.absent()
-                : Value(song.bitRate),
+            bitRate: bitRate == null ? const Value.absent() : Value(bitRate),
             cacheType: CacheType.permanent,
             downloadStatus: DownloadStatus.complete,
             lastAccessedAt: DateTime.now(),
@@ -1323,5 +1322,13 @@ class DownloadService {
     final suffix = song.suffix?.trim();
     if (suffix != null && suffix.isNotEmpty) return suffix;
     return 'bin';
+  }
+
+  int? _resolveBitRate(SongsTableData song, DownloadQueueTableData item) {
+    final quality = item.quality?.trim();
+    if (quality != null && quality.isNotEmpty) {
+      return int.tryParse(quality);
+    }
+    return song.bitRate;
   }
 }

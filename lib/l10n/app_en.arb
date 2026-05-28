@@ -78,6 +78,8 @@
   "playbackSettingsCellularSectionTitle": "Cellular streaming",
   "playbackSettingsCellularQualityLabel": "Max bitrate",
   "playbackSettingsCellularFormatLabel": "Preferred format",
+  "playbackSettingsCachedFirstTitle": "Cached First",
+  "playbackSettingsCachedFirstSubtitle": "Prefer any complete cached file before requesting the active streaming profile.",
   "playbackSettingsScrobbleTitle": "Enable scrobbling",
   "playbackSettingsScrobbleSubtitle": "Report tracks you play to the server (now-playing and play counts). Disable to listen anonymously.",
   "playbackSettingsLrclibTitle": "Use LRCLIB fallback",
