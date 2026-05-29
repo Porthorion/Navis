@@ -58,7 +58,7 @@ class _NavisAppState extends ConsumerState<NavisApp> {
     final themeModeName = ref.watch(themeModeProvider);
     final colorSeed = ref.watch(effectiveColorSchemeSeedProvider);
     final localeCode = ref.watch(appLocaleProvider);
-    final seedColor = colorSeed != null ? Color(colorSeed) : Colors.blue;
+    final seedColor = colorSeed != null ? Color(colorSeed) : Colors.orange;
     final resolvedThemeMode = resolveThemeMode(themeModeName);
     final isOled = themeModeName == 'oled';
     final appLocale = localeCode == null || localeCode.trim().isEmpty

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -789,17 +790,20 @@ class _ColorSchemeGrid extends StatelessWidget {
         spacing: 12,
         runSpacing: 12,
         children: <Widget>[
-          // Default (blue, null seed) option
+          // Default (orange, null seed) option.
+          // Also highlight when user previously saved explicit orange so the
+          // chip is never visually unselected for that legacy value.
           _ColorChip(
-            color: Colors.blue,
+            color: Colors.orange,
             label: l10n.appearanceColorDefault,
-            isSelected: currentSeed == null,
+            isSelected: currentSeed == null ||
+                currentSeed == Colors.orange.toARGB32(),
             onTap: () => onSelected(null),
             theme: theme,
           ),
-          // Preset colors (skip blue since it's the default)
+          // Preset colors (skip orange since it's the default)
           for (final preset in presetColors)
-            if (preset.color != Colors.blue)
+            if (preset.color != Colors.orange)
               _ColorChip(
                 color: preset.color,
                 label: preset.name,
@@ -823,9 +827,14 @@ class _ColorSchemeGrid extends StatelessWidget {
             theme: theme,
             label: l10n.appearanceColorCustom,
             onTap: () async {
+              // Pre-seed with the active color so the user continues from
+              // their current theme rather than always starting at red.
+              final seedColor = currentSeed != null
+                  ? Color(currentSeed!)
+                  : Colors.orange;
               final result = await showDialog<_ColorPickerResult>(
                 context: context,
-                builder: (_) => const _ColorPickerDialog(),
+                builder: (_) => _ColorPickerDialog(initialColor: seedColor),
               );
               if (result == null) return;
               onCustomColorPicked(result.colorValue);
@@ -974,19 +983,85 @@ class _ColorPickerResult {
 }
 
 class _ColorPickerDialog extends StatefulWidget {
-  const _ColorPickerDialog();
+  const _ColorPickerDialog({this.initialColor});
+
+  /// If provided, the picker opens pre-seeded with this color.
+  final Color? initialColor;
 
   @override
   State<_ColorPickerDialog> createState() => _ColorPickerDialogState();
 }
 
 class _ColorPickerDialogState extends State<_ColorPickerDialog> {
-  double _hue = 0;
-  double _saturation = 1;
-  double _value = 1;
+  late double _hue;
+  late double _saturation;
+  late double _value;
+
+  late final FocusNode _hexFocusNode;
+  late final TextEditingController _hexController;
 
   Color get _currentColor =>
       HSVColor.fromAHSV(1, _hue, _saturation, _value).toColor();
+
+  String get _hexString {
+    final v = _currentColor.toARGB32() & 0xFFFFFF;
+    return v.toRadixString(16).padLeft(6, '0').toUpperCase();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    final initial = widget.initialColor;
+    if (initial != null) {
+      final hsv = HSVColor.fromColor(initial);
+      _hue = hsv.hue;
+      _saturation = hsv.saturation;
+      _value = hsv.value;
+    } else {
+      _hue = 0;
+      _saturation = 1;
+      _value = 1;
+    }
+    _hexFocusNode = FocusNode();
+    _hexController = TextEditingController(text: _hexString);
+    // When the hex field loses focus, re-sync its display to current HSV so
+    // any partial / invalid text is corrected automatically.
+    _hexFocusNode.addListener(() {
+      if (!_hexFocusNode.hasFocus) {
+        _hexController.text = _hexString;
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _hexFocusNode.dispose();
+    _hexController.dispose();
+    super.dispose();
+  }
+
+  /// Update hex display whenever sliders move, but only when the hex field
+  /// is not focused (to avoid clobbering the user's in-progress input).
+  void _syncHexDisplay() {
+    if (!_hexFocusNode.hasFocus) {
+      _hexController.text = _hexString;
+    }
+  }
+
+  /// Parse the hex field text and update HSV state.  No-ops on invalid input.
+  void _onHexChanged(String raw) {
+    final hex = raw.replaceAll('#', '').trim();
+    if (hex.length != 6) return;
+    final parsed = int.tryParse(hex, radix: 16);
+    if (parsed == null) return;
+    final color = Color(0xFF000000 | parsed);
+    final hsv = HSVColor.fromColor(color);
+    setState(() {
+      _hue = hsv.hue;
+      _saturation = hsv.saturation;
+      _value = hsv.value;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1013,11 +1088,41 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
                 ),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
+            // Hex input — only allows valid hex characters; syncs with sliders
+            TextField(
+              controller: _hexController,
+              focusNode: _hexFocusNode,
+              decoration: const InputDecoration(
+                prefixText: '#',
+                labelText: 'Hex',
+                isDense: true,
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 10,
+                ),
+              ),
+              maxLength: 6,
+              buildCounter:
+                  (_, {required currentLength, required isFocused, maxLength}) =>
+                      null,
+              autocorrect: false,
+              textCapitalization: TextCapitalization.characters,
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9a-fA-F]')),
+              ],
+              onChanged: _onHexChanged,
+              onSubmitted: _onHexChanged,
+            ),
+            const SizedBox(height: 12),
             // Hue slider with rainbow gradient
             _HueSlider(
               hue: _hue,
-              onChanged: (value) => setState(() => _hue = value),
+              onChanged: (value) {
+                setState(() => _hue = value);
+                _syncHexDisplay();
+              },
             ),
             const SizedBox(height: 12),
             // Saturation slider
@@ -1027,7 +1132,10 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
                 Expanded(
                   child: Slider(
                     value: _saturation,
-                    onChanged: (value) => setState(() => _saturation = value),
+                    onChanged: (value) {
+                      setState(() => _saturation = value);
+                      _syncHexDisplay();
+                    },
                   ),
                 ),
               ],
@@ -1039,7 +1147,10 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
                 Expanded(
                   child: Slider(
                     value: _value,
-                    onChanged: (value) => setState(() => _value = value),
+                    onChanged: (value) {
+                      setState(() => _value = value);
+                      _syncHexDisplay();
+                    },
                   ),
                 ),
               ],

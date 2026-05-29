@@ -19,7 +19,10 @@ ThemeMode resolveThemeMode(String mode) {
 ThemeData buildLightTheme(Color seedColor) {
   return ThemeData(
     useMaterial3: true,
-    colorScheme: ColorScheme.fromSeed(seedColor: seedColor),
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: seedColor,
+      dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
+    ),
     extensions: const <ThemeExtension<dynamic>>[
       DesktopTokens.defaults,
     ],
@@ -34,6 +37,7 @@ ThemeData buildDarkTheme(Color seedColor) {
     colorScheme: ColorScheme.fromSeed(
       seedColor: seedColor,
       brightness: Brightness.dark,
+      dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
     ),
     extensions: const <ThemeExtension<dynamic>>[
       DesktopTokens.defaults,
@@ -53,6 +57,7 @@ ThemeData buildOledTheme(Color seedColor) {
   final baseScheme = ColorScheme.fromSeed(
     seedColor: seedColor,
     brightness: Brightness.dark,
+    dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
   );
   return ThemeData(
     useMaterial3: true,
@@ -91,14 +96,10 @@ ThemeData buildOledTheme(Color seedColor) {
   );
 }
 
-/// Preset seed colors for the color scheme picker.
+/// Preset seed colors for the color scheme picker, ordered by hue (0°→360°).
 const List<NamedColor> presetColors = <NamedColor>[
-  NamedColor('Blue', Colors.blue),
-  NamedColor('Indigo', Colors.indigo),
-  NamedColor('Deep Purple', Colors.deepPurple),
-  NamedColor('Purple', Colors.purple),
-  NamedColor('Pink', Colors.pink),
   NamedColor('Red', Colors.red),
+  NamedColor('Brown', Colors.brown),
   NamedColor('Orange', Colors.orange),
   NamedColor('Amber', Colors.amber),
   NamedColor('Yellow', Colors.yellow),
@@ -106,8 +107,12 @@ const List<NamedColor> presetColors = <NamedColor>[
   NamedColor('Green', Colors.green),
   NamedColor('Teal', Colors.teal),
   NamedColor('Cyan', Colors.cyan),
-  NamedColor('Brown', Colors.brown),
   NamedColor('Blue Grey', Colors.blueGrey),
+  NamedColor('Blue', Colors.blue),
+  NamedColor('Indigo', Colors.indigo),
+  NamedColor('Deep Purple', Colors.deepPurple),
+  NamedColor('Purple', Colors.purple),
+  NamedColor('Pink', Colors.pink),
 ];
 
 /// A named color for the scheme picker UI.

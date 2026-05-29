@@ -97,6 +97,7 @@ class _DynamicAccentColorCache {
       final scheme = await ColorScheme.fromImageProvider(
         provider: image,
         brightness: Brightness.light,
+        dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
       );
       final seed = scheme.primary.toARGB32();
       _seedBySource[source] = seed;
