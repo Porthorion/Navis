@@ -568,8 +568,8 @@ void main() {
         findsOneWidget,
       );
 
-      // Tapping Settings navigates to the settings screen where Listen
-      // Together is accessible.
+      // Tapping Settings navigates to the canonical Configuration entry;
+      // Listen Together setup no longer appears as a separate settings row.
       await tester.tap(
         find.descendant(
           of: find.byType(NavigationBar),
@@ -578,7 +578,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Listen Together'), findsWidgets);
+      expect(find.text('Listen Together'), findsNothing);
+      expect(find.text('Configuration'), findsOneWidget);
     },
   );
 

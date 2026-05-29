@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
-import 'package:navis/src/features/group_listening/presentation/group_listening_session_controller.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -13,9 +12,6 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final adaptiveContext = resolveAdaptiveContextFor(context);
-    final listenTogetherStatus = ref.watch(
-      groupListeningVoyageConnectionStatusProvider,
-    );
     final adaptiveLayoutClass = adaptiveContext.adaptiveLayoutClass;
     final compactWideLandscapeMode = adaptiveContext.useCompactWideLandscape;
     final compactHorizontalInset = compactWideLandscapeMode ? 10.0 : 12.0;
@@ -26,10 +22,8 @@ class SettingsScreen extends ConsumerWidget {
     const groupStorage = 'Storage';
     const groupPlayback = 'Playback';
     const groupAutomation = 'Automation';
-    const groupExternalServices = 'External Services';
     const groupAbout = 'About';
     const groupDesktop = 'Desktop';
-    const groupListenTogether = 'Listen Together';
     final List<_SettingsEntry> coreEntries = <_SettingsEntry>[
       _SettingsEntry(
         icon: Icons.storage_outlined,
@@ -59,27 +53,12 @@ class SettingsScreen extends ConsumerWidget {
         route: '/settings/sync',
         group: groupAutomation,
       ),
-      if (listenTogetherStatus.isHealthy)
-        const _SettingsEntry(
-          icon: Icons.people_alt_outlined,
-          title: 'Listen Together',
-          subtitle: 'Create groups, join rooms, and manage shared playback',
-          route: '/settings/group-listening',
-          group: groupListenTogether,
-        ),
       _SettingsEntry(
         icon: Icons.graphic_eq_outlined,
         title: l10n.settingsPlaybackTitle,
         subtitle: l10n.settingsPlaybackSubtitle,
         route: '/settings/playback',
         group: groupPlayback,
-      ),
-      const _SettingsEntry(
-        icon: Icons.hub_outlined,
-        title: 'External Services',
-        subtitle: 'Connect Last.fm and ListenBrainz scrobbling',
-        route: '/settings/external-services',
-        group: groupExternalServices,
       ),
       _SettingsEntry(
         icon: Icons.palette_outlined,

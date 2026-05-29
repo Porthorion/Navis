@@ -88,6 +88,20 @@ class LastFmInvalidSessionException extends LastFmApiException {
   const LastFmInvalidSessionException() : super(9, 'Invalid session key');
 }
 
+class LastFmApiKeyValidationResult {
+  const LastFmApiKeyValidationResult({
+    required this.valid,
+    this.message,
+    this.apiErrorCode,
+    this.statusCode,
+  });
+
+  final bool valid;
+  final String? message;
+  final int? apiErrorCode;
+  final int? statusCode;
+}
+
 class LastFmApiClient {
   LastFmApiClient({
     required String apiKey,
@@ -109,6 +123,65 @@ class LastFmApiClient {
   final String _apiKey;
 
   bool get isConfigured => _apiKey.isNotEmpty;
+
+  Future<LastFmApiKeyValidationResult> validateApiKey() async {
+    if (_apiKey.isEmpty) {
+      return const LastFmApiKeyValidationResult(
+        valid: false,
+        message: 'Enter a Last.fm API key.',
+      );
+    }
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '',
+        queryParameters: <String, dynamic>{
+          'method': 'chart.getTopArtists',
+          'api_key': _apiKey,
+          'format': 'json',
+          'limit': 1,
+        },
+      );
+      final data = response.data;
+      if (data == null || data.isEmpty) {
+        return LastFmApiKeyValidationResult(
+          valid: false,
+          message: 'Last.fm returned an empty response.',
+          statusCode: response.statusCode,
+        );
+      }
+      if (data['error'] != null) {
+        final code = switch (data['error']) {
+          final int value => value,
+          final num value => value.toInt(),
+          final String value => int.tryParse(value),
+          _ => null,
+        };
+        return LastFmApiKeyValidationResult(
+          valid: false,
+          message: data['message']?.toString() ?? 'Last.fm rejected this key.',
+          apiErrorCode: code,
+          statusCode: response.statusCode,
+        );
+      }
+      return LastFmApiKeyValidationResult(
+        valid: true,
+        statusCode: response.statusCode,
+      );
+    } on DioException catch (error) {
+      return LastFmApiKeyValidationResult(
+        valid: false,
+        message: error.response?.statusCode == 429
+            ? 'Last.fm is rate limiting validation. Try again later.'
+            : 'Last.fm is unavailable. Check your connection and try again.',
+        statusCode: error.response?.statusCode,
+      );
+    } on FormatException {
+      return const LastFmApiKeyValidationResult(
+        valid: false,
+        message: 'Last.fm returned an unreadable response.',
+      );
+    }
+  }
 
   Future<String> getAuthToken({
     required String sharedSecret,

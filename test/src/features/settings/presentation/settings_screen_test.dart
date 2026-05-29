@@ -86,29 +86,34 @@ void main() {
     }
   });
 
-  testWidgets('shows the Listen Together section after Voyage is connected', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          groupListeningVoyageConnectionStatusProvider.overrideWithValue(
-            const GroupListeningVoyageConnectionStatus(
-              state: GroupListeningVoyageConnectionState.connected,
-              message: 'Successfully connected to Voyage.',
+  testWidgets(
+    'does not show separate Listen Together or External Services entries',
+    (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            groupListeningVoyageConnectionStatusProvider.overrideWithValue(
+              const GroupListeningVoyageConnectionStatus(
+                state: GroupListeningVoyageConnectionState.connected,
+                message: 'Successfully connected to Voyage.',
+              ),
             ),
+          ],
+          child: MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const SettingsScreen(),
           ),
-        ],
-        child: MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: const SettingsScreen(),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
 
-    expect(find.text('Listen Together Configuration'), findsNothing);
-    expect(find.text('Listen Together'), findsWidgets);
-  });
+      expect(find.text('Listen Together Configuration'), findsNothing);
+      expect(find.text('Listen Together'), findsNothing);
+      expect(find.text('External Services'), findsNothing);
+      expect(find.text('Configuration'), findsOneWidget);
+    },
+  );
 }

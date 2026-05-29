@@ -90,6 +90,8 @@ class DriftScrobbleService implements ScrobbleService {
     Future<LastFmScrobbleCredentials?> Function()? readLastFmCredentials,
     Future<ListenBrainzScrobbleCredentials?> Function()?
     readListenBrainzCredentials,
+    LastFmApiClient Function(String apiKey)? createLastFmClient,
+    ListenBrainzApiClient Function()? createListenBrainzClient,
     void Function()? onLastFmInvalidSession,
     void Function()? onListenBrainzInvalidToken,
     required bool Function() readReachable,
@@ -105,6 +107,10 @@ class DriftScrobbleService implements ScrobbleService {
        _readLastFmCredentials = readLastFmCredentials ?? (() async => null),
        _readListenBrainzCredentials =
            readListenBrainzCredentials ?? (() async => null),
+       _createLastFmClient =
+           createLastFmClient ?? ((apiKey) => LastFmApiClient(apiKey: apiKey)),
+       _createListenBrainzClient =
+           createListenBrainzClient ?? (() => ListenBrainzApiClient()),
        _onLastFmInvalidSession = onLastFmInvalidSession,
        _onListenBrainzInvalidToken = onListenBrainzInvalidToken,
        _readReachable = readReachable,
@@ -116,6 +122,8 @@ class DriftScrobbleService implements ScrobbleService {
   final Future<LastFmScrobbleCredentials?> Function() _readLastFmCredentials;
   final Future<ListenBrainzScrobbleCredentials?> Function()
   _readListenBrainzCredentials;
+  final LastFmApiClient Function(String apiKey) _createLastFmClient;
+  final ListenBrainzApiClient Function() _createListenBrainzClient;
   final void Function()? _onLastFmInvalidSession;
   final void Function()? _onListenBrainzInvalidToken;
   final bool Function() _readReachable;
@@ -313,7 +321,7 @@ class DriftScrobbleService implements ScrobbleService {
           title: event.trackTitle,
           artist: event.artistName,
         );
-        final client = LastFmApiClient(apiKey: credentials.apiKey);
+        final client = _createLastFmClient(credentials.apiKey);
         if (event.submission) {
           await client.scrobble(
             artist: track.artist,
@@ -345,7 +353,7 @@ class DriftScrobbleService implements ScrobbleService {
           title: event.trackTitle,
           artist: event.artistName,
         );
-        final client = ListenBrainzApiClient();
+        final client = _createListenBrainzClient();
         if (event.submission) {
           await client.submitSingleListen(
             userToken: credentials.userToken,

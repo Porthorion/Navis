@@ -354,6 +354,7 @@ void main() {
     tester,
   ) async {
     final repository = _MockSettingsRepository();
+    final groupRepository = _FakeGroupListeningRepository();
     AppSettingsModel? savedModel;
 
     when(() => repository.saveSettings(any())).thenAnswer((invocation) async {
@@ -370,6 +371,7 @@ void main() {
           serverConfigStateProvider.overrideWithValue(
             const AsyncData<ServerConfigModel?>(_activeServer),
           ),
+          groupListeningRepositoryProvider.overrideWithValue(groupRepository),
           lastFmBundledKeyProvider.overrideWithValue(true),
         ],
         child: MaterialApp(
@@ -404,6 +406,17 @@ void main() {
     );
     await tester.enterText(voyageServerField, 'https://voyage.example.com');
     await tester.pump();
+    final testServerButton = find.widgetWithText(
+      OutlinedButton,
+      'Test server',
+    );
+    await tester.scrollUntilVisible(
+      testServerButton,
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(testServerButton);
+    await tester.pumpAndSettle();
 
     verify(() => repository.saveSettings(any())).called(greaterThan(0));
     expect(savedModel, isNotNull);

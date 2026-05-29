@@ -1,15 +1,23 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/api/lastfm_api_client.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/features/auth/data/sign_out_service.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_connection_provider.dart';
 import 'package:navis/src/features/group_listening/data/group_listening_configuration.dart'
-    show isVoyageTransportAllowed, normalizeVoyageBaseUri;
+    show
+        buildGroupListeningClientConfiguration,
+        isVoyageTransportAllowed,
+        normalizeVoyageBaseUri;
+import 'package:navis/src/features/group_listening/data/group_listening_repository.dart';
+import 'package:navis/src/features/group_listening/domain/group_listening_session_models.dart';
 import 'package:navis/src/features/group_listening/presentation/group_listening_session_controller.dart';
 import 'package:navis/src/features/group_listening/presentation/group_listening_settings_provider.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
@@ -24,27 +32,64 @@ class ServerSettingsScreen extends ConsumerStatefulWidget {
       _ServerSettingsScreenState();
 }
 
-class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
+class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen>
+    with WidgetsBindingObserver {
+  static const _lastFmAuthTimeout = Duration(minutes: 10);
+  static const _lastFmFastPollWindow = Duration(seconds: 30);
+  static const _lastFmFastPollInterval = Duration(seconds: 2);
+  static const _lastFmSlowPollInterval = Duration(seconds: 5);
+
   bool _isTestingConnection = false;
   bool _isSigningOut = false;
   bool _isSavingApiKey = false;
+  bool _isLastFmAuthBusy = false;
+  bool _isLastFmAuthPolling = false;
+  bool _isListenBrainzBusy = false;
+  bool _isVoyageChecking = false;
 
   final _lastFmApiKeyController = TextEditingController();
+  final _lastFmSecretController = TextEditingController();
+  final _listenBrainzTokenController = TextEditingController();
   final _voyageServerUrlController = TextEditingController();
   final _customVoyageLabelController = TextEditingController();
   final _customVoyageUrlController = TextEditingController();
   bool _lastFmKeyInitialized = false;
+  bool _externalCredentialsHydrated = false;
   bool _groupListeningInitialized = false;
   bool _obscureApiKey = true;
+  bool _obscureLastFmSecret = true;
+  bool _obscureListenBrainzToken = true;
   bool _groupListeningEnabled = false;
   String? _selectedVoyageServerUrl;
+  String? _lastFmAuthToken;
+  String? _lastFmAuthApiKey;
+  String? _lastFmAuthSharedSecret;
+  DateTime? _lastFmAuthStartedAt;
+  DateTime? _lastFmAuthExpiresAt;
+  Timer? _lastFmAuthPollTimer;
+  Timer? _lastFmAuthTimeoutTimer;
+  String? _lastFmApiKeyError;
+  String? _lastFmApiKeySuccess;
+  String? _lastFmScrobbleError;
+  String? _lastFmScrobbleSuccess;
+  String? _listenBrainzError;
+  String? _listenBrainzSuccess;
+  GroupListeningVoyageConnectionStatus _voyageStatus =
+      const GroupListeningVoyageConnectionStatus(
+        state: GroupListeningVoyageConnectionState.disabled,
+        message: 'Listen Together is off.',
+      );
 
   bool get _isBusy => _isTestingConnection || _isSigningOut;
+  bool get _isLastFmAuthPending =>
+      _lastFmAuthToken != null && _lastFmAuthExpiresAt != null;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _lastFmApiKeyController.addListener(_onApiKeyTextChanged);
+    _listenBrainzTokenController.addListener(_onApiKeyTextChanged);
   }
 
   void _onApiKeyTextChanged() {
@@ -54,18 +99,53 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _lastFmAuthPollTimer?.cancel();
+    _lastFmAuthTimeoutTimer?.cancel();
     _lastFmApiKeyController.removeListener(_onApiKeyTextChanged);
+    _listenBrainzTokenController.removeListener(_onApiKeyTextChanged);
     _lastFmApiKeyController.dispose();
+    _lastFmSecretController.dispose();
+    _listenBrainzTokenController.dispose();
     _voyageServerUrlController.dispose();
     _customVoyageLabelController.dispose();
     _customVoyageUrlController.dispose();
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _isLastFmAuthPending) {
+      unawaited(_pollLastFmAuth());
+    }
+  }
+
   void _initLastFmKey(AppSettingsModel settings) {
     if (_lastFmKeyInitialized) return;
     _lastFmKeyInitialized = true;
     _lastFmApiKeyController.text = settings.lastFmApiKey ?? '';
+    if ((settings.lastFmApiKey ?? '').trim().isNotEmpty) {
+      _lastFmApiKeySuccess = 'Last.fm API key saved.';
+    }
+  }
+
+  Future<void> _hydrateExternalCredentials(AppSettingsModel settings) async {
+    if (_externalCredentialsHydrated) return;
+    _externalCredentialsHydrated = true;
+    final store = ref.read(externalScrobbleCredentialStoreProvider);
+    final lastFmSharedSecret = await store.readLastFmSharedSecret() ?? '';
+    final listenBrainzToken = await store.readListenBrainzToken() ?? '';
+    if (!mounted) return;
+    _lastFmSecretController.text = lastFmSharedSecret;
+    _listenBrainzTokenController.text = listenBrainzToken;
+    setState(() {
+      if (settings.lastFmSessionConnected) {
+        _lastFmScrobbleSuccess = 'Last.fm scrobbling connected.';
+      }
+      if (settings.listenBrainzTokenValid) {
+        _listenBrainzSuccess = 'ListenBrainz token validated.';
+      }
+    });
   }
 
   void _initGroupListeningSettings(
@@ -79,6 +159,10 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
     final initialServerUrl = resolvedVoyageServerUrl ?? configuredUrl;
     _selectedVoyageServerUrl = initialServerUrl;
     _voyageServerUrlController.text = initialServerUrl ?? '';
+    _voyageStatus = _statusForVoyageUrl(
+      enabled: _groupListeningEnabled,
+      voyageServerUrl: initialServerUrl,
+    );
   }
 
   @override
@@ -92,9 +176,6 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
     );
     final resolvedVoyageServerUrl = ref.watch(
       groupListeningResolvedVoyageServerUrlProvider,
-    );
-    final voyageConnectionStatus = ref.watch(
-      groupListeningVoyageConnectionStatusProvider,
     );
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
@@ -117,11 +198,14 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
 
           settingsAsync.whenData((settings) {
             _initLastFmKey(settings);
+            unawaited(_hydrateExternalCredentials(settings));
             _initGroupListeningSettings(
               settings,
               resolvedVoyageServerUrl: resolvedVoyageServerUrl,
             );
           });
+          final currentSettings =
+              settingsAsync.asData?.value ?? const AppSettingsModel.defaults();
           final selectedVoyageServerUrl =
               _selectedVoyageServerUrl ??
               (voyageServers.isEmpty ? null : voyageServers.first.url);
@@ -225,15 +309,49 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
 
                   // Last.fm card
                   _LastFmCard(
+                    settings: currentSettings,
                     isBundled: isBundled,
                     isSaving: _isSavingApiKey,
+                    isAuthBusy: _isLastFmAuthBusy,
+                    isAuthPending: _isLastFmAuthPending,
                     obscureApiKey: _obscureApiKey,
+                    obscureSharedSecret: _obscureLastFmSecret,
                     controller: _lastFmApiKeyController,
+                    sharedSecretController: _lastFmSecretController,
+                    apiKeyError: _lastFmApiKeyError,
+                    apiKeySuccess: _lastFmApiKeySuccess,
+                    scrobbleError: _lastFmScrobbleError,
+                    scrobbleSuccess: _lastFmScrobbleSuccess,
                     onToggleObscure: () =>
                         setState(() => _obscureApiKey = !_obscureApiKey),
+                    onToggleSharedSecretObscure: () => setState(
+                      () => _obscureLastFmSecret = !_obscureLastFmSecret,
+                    ),
                     onSave: _saveLastFmKey,
                     onClear: _clearLastFmKey,
                     onGetApiKey: _openLastFmApiPage,
+                    onStartAuth: _startLastFmAuth,
+                    onCancelAuth: _cancelLastFmAuth,
+                    onDisconnectScrobbling: () =>
+                        _disconnectLastFm(currentSettings),
+                  ),
+                  const SizedBox(height: 12),
+                  _ListenBrainzCard(
+                    settings: currentSettings,
+                    isBusy: _isListenBrainzBusy,
+                    obscureToken: _obscureListenBrainzToken,
+                    controller: _listenBrainzTokenController,
+                    errorText: _listenBrainzError,
+                    successText: _listenBrainzSuccess,
+                    onToggleObscure: () => setState(
+                      () => _obscureListenBrainzToken =
+                          !_obscureListenBrainzToken,
+                    ),
+                    onValidate: () => _validateListenBrainz(currentSettings),
+                    onClear: () => _clearListenBrainz(currentSettings),
+                    onOpenTokenSettings: _openListenBrainzTokenPage,
+                    onEnabledChanged: (value) =>
+                        _setListenBrainzEnabled(currentSettings, value),
                   ),
                   const SizedBox(height: 32),
 
@@ -250,7 +368,8 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
                     voyageServerUrlController: _voyageServerUrlController,
                     customVoyageLabelController: _customVoyageLabelController,
                     customVoyageUrlController: _customVoyageUrlController,
-                    connectionStatus: voyageConnectionStatus,
+                    connectionStatus: _voyageStatus,
+                    isChecking: _isVoyageChecking,
                     onEnabledChanged: (value) {
                       setState(() {
                         _groupListeningEnabled = value;
@@ -263,7 +382,12 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
                               voyageServers.first.url;
                         }
                       });
-                      _saveGroupListeningSettings(voyageServers);
+                      unawaited(
+                        _checkAndSaveGroupListeningSettings(
+                          config: config,
+                          voyageServers: voyageServers,
+                        ),
+                      );
                     },
                     onServerSelected: (value) {
                       if (value == null) return;
@@ -271,15 +395,33 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
                         _selectedVoyageServerUrl = value;
                         _voyageServerUrlController.text = value;
                       });
-                      _saveGroupListeningSettings(voyageServers);
+                      unawaited(
+                        _checkAndSaveGroupListeningSettings(
+                          config: config,
+                          voyageServers: voyageServers,
+                        ),
+                      );
                     },
-                    onManualServerChanged: (_) =>
-                        _saveGroupListeningSettings(voyageServers),
-                    onAddCustomServer: _addCustomVoyageServer,
+                    onManualServerChanged: (_) => setState(() {
+                      _voyageStatus = _statusForVoyageUrl(
+                        enabled: _groupListeningEnabled,
+                        voyageServerUrl: _voyageServerUrlController.text,
+                      );
+                    }),
+                    onManualServerSubmitted: (_) =>
+                        _checkAndSaveGroupListeningSettings(
+                          config: config,
+                          voyageServers: voyageServers,
+                        ),
+                    onTestServer: () => _checkAndSaveGroupListeningSettings(
+                      config: config,
+                      voyageServers: voyageServers,
+                    ),
+                    onAddCustomServer: () => _addCustomVoyageServer(config),
                     onDeleteCustomServer: _deleteCustomVoyageServer,
                   ),
                   const SizedBox(height: 12),
-                  _VoyageConnectionStatusCard(status: voyageConnectionStatus),
+                  _VoyageConnectionStatusCard(status: _voyageStatus),
                 ],
               ),
             ),
@@ -400,13 +542,47 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
           ref.read(appSettingsProvider).asData?.value ??
           const AppSettingsModel.defaults();
       final key = _lastFmApiKeyController.text.trim();
+      if (key.isNotEmpty) {
+        final result = await ref
+            .read(lastFmApiClientFactoryProvider)(key)
+            .validateApiKey();
+        if (!result.valid) {
+          if (!mounted) return;
+          setState(() {
+            _lastFmApiKeyError = _lastFmApiKeyFailureMessage(result);
+            _lastFmApiKeySuccess = null;
+          });
+          return;
+        }
+      }
+      if (key.isEmpty) {
+        final store = ref.read(externalScrobbleCredentialStoreProvider);
+        await store.clearLastFmSharedSecret();
+        await store.clearLastFmSessionKey();
+        _lastFmSecretController.clear();
+        _clearLastFmAuthState();
+      }
       await repo.saveSettings(
         current.copyWith(
           lastFmApiKey: key.isEmpty ? null : key,
           clearLastFmApiKey: key.isEmpty,
+          lastFmScrobblingEnabled:
+              key.isNotEmpty && current.lastFmScrobblingEnabled,
+          lastFmSessionConnected:
+              key.isNotEmpty && current.lastFmSessionConnected,
         ),
       );
       if (!mounted) return;
+      setState(() {
+        _lastFmApiKeyError = null;
+        _lastFmApiKeySuccess = key.isEmpty
+            ? null
+            : l10n.configurationLastFmApiKeySaved;
+        if (key.isEmpty) {
+          _lastFmScrobbleError = null;
+          _lastFmScrobbleSuccess = null;
+        }
+      });
       showAppNotice(
         context,
         message: key.isEmpty
@@ -431,35 +607,468 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
     await _saveLastFmKey();
   }
 
-  Future<void> _saveGroupListeningSettings(
-    List<GroupListeningVoyageServerOption> voyageServers,
+  Future<void> _startLastFmAuth() async {
+    final apiKey = _effectiveLastFmApiKey();
+    final secret = _lastFmSecretController.text.trim();
+    if (apiKey.isEmpty) {
+      setState(() {
+        _lastFmApiKeyError = 'Enter a Last.fm API key.';
+        _lastFmApiKeySuccess = null;
+        _lastFmScrobbleError = null;
+        _lastFmScrobbleSuccess = null;
+      });
+      return;
+    }
+    if (secret.isEmpty) {
+      setState(() {
+        _lastFmScrobbleError = 'Enter your Last.fm shared secret.';
+        _lastFmScrobbleSuccess = null;
+      });
+      return;
+    }
+    setState(() {
+      _isLastFmAuthBusy = true;
+      _lastFmApiKeyError = null;
+      _lastFmScrobbleError = null;
+      _lastFmScrobbleSuccess = null;
+    });
+    try {
+      final client = ref.read(lastFmApiClientFactoryProvider)(apiKey);
+      if (!ref.read(lastFmBundledKeyProvider)) {
+        final validation = await client.validateApiKey();
+        if (!validation.valid) {
+          if (!mounted) return;
+          setState(() {
+            _lastFmApiKeyError = _lastFmApiKeyFailureMessage(validation);
+            _lastFmApiKeySuccess = null;
+          });
+          return;
+        }
+      }
+      final token = await client.getAuthToken(sharedSecret: secret);
+      if (token.trim().isEmpty) {
+        throw const LastFmApiException(null, 'Last.fm auth token missing');
+      }
+      await ref
+          .read(externalScrobbleCredentialStoreProvider)
+          .saveLastFmSharedSecret(secret);
+      final launched = await launchUrl(
+        client.authorizationUrl(token),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!launched) {
+        throw const LastFmApiException(
+          null,
+          'Could not open Last.fm authorization.',
+        );
+      }
+      if (!mounted) return;
+      _beginLastFmPendingAuth(
+        token: token,
+        apiKey: apiKey,
+        sharedSecret: secret,
+      );
+      unawaited(_pollLastFmAuth());
+    } on LastFmApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        if (error.code == 10) {
+          _lastFmApiKeyError = 'Invalid Last.fm API key.';
+          _lastFmApiKeySuccess = null;
+          _lastFmScrobbleError = null;
+        } else if (error.code == 13) {
+          _lastFmScrobbleError = 'Invalid Last.fm shared secret.';
+        } else {
+          _lastFmScrobbleError = _lastFmAuthErrorMessage(error);
+        }
+        _lastFmScrobbleSuccess = null;
+      });
+    } on Object {
+      if (!mounted) return;
+      setState(() {
+        _lastFmScrobbleError =
+            'Could not start Last.fm authorization. Check your connection.';
+        _lastFmScrobbleSuccess = null;
+      });
+    } finally {
+      if (mounted) setState(() => _isLastFmAuthBusy = false);
+    }
+  }
+
+  void _beginLastFmPendingAuth({
+    required String token,
+    required String apiKey,
+    required String sharedSecret,
+  }) {
+    _lastFmAuthPollTimer?.cancel();
+    _lastFmAuthTimeoutTimer?.cancel();
+    final now = DateTime.now();
+    setState(() {
+      _lastFmAuthToken = token;
+      _lastFmAuthApiKey = apiKey;
+      _lastFmAuthSharedSecret = sharedSecret;
+      _lastFmAuthStartedAt = now;
+      _lastFmAuthExpiresAt = now.add(_lastFmAuthTimeout);
+      _lastFmScrobbleError = null;
+      _lastFmScrobbleSuccess = null;
+    });
+    _lastFmAuthTimeoutTimer = Timer(_lastFmAuthTimeout, _timeoutLastFmAuth);
+  }
+
+  Future<void> _pollLastFmAuth() async {
+    final token = _lastFmAuthToken;
+    final apiKey = _lastFmAuthApiKey;
+    final secret = _lastFmAuthSharedSecret;
+    if (token == null ||
+        apiKey == null ||
+        secret == null ||
+        apiKey.isEmpty ||
+        secret.isEmpty) {
+      setState(() {
+        _lastFmScrobbleError = 'Last.fm authorization is incomplete.';
+        _lastFmScrobbleSuccess = null;
+      });
+      return;
+    }
+    if (_isLastFmAuthPolling) return;
+    _lastFmAuthPollTimer?.cancel();
+    setState(() {
+      _isLastFmAuthPolling = true;
+      if (!_hasRetryableLastFmAuthMessage(_lastFmScrobbleError)) {
+        _lastFmScrobbleError = null;
+      }
+    });
+    try {
+      final session = await ref
+          .read(lastFmApiClientFactoryProvider)(apiKey)
+          .getSession(token: token, sharedSecret: secret);
+      await ref
+          .read(externalScrobbleCredentialStoreProvider)
+          .saveLastFmSessionKey(session.key);
+      final current =
+          ref.read(appSettingsProvider).asData?.value ??
+          const AppSettingsModel.defaults();
+      await ref
+          .read(settingsRepositoryProvider)
+          .saveSettings(
+            current.copyWith(
+              lastFmApiKey: ref.read(lastFmBundledKeyProvider)
+                  ? current.lastFmApiKey
+                  : apiKey,
+              lastFmSessionConnected: true,
+              lastFmScrobblingEnabled: true,
+            ),
+          );
+      if (!mounted) return;
+      _lastFmAuthPollTimer?.cancel();
+      _lastFmAuthTimeoutTimer?.cancel();
+      setState(() {
+        _clearLastFmAuthState(cancelTimers: false);
+        _isLastFmAuthPolling = false;
+        _lastFmScrobbleError = null;
+        _lastFmScrobbleSuccess = 'Last.fm scrobbling connected.';
+      });
+    } on LastFmApiException catch (error) {
+      if (!mounted) return;
+      if (_isLastFmAuthorizationPendingError(error)) {
+        setState(() {
+          _isLastFmAuthPolling = false;
+          _lastFmScrobbleError = null;
+          _lastFmScrobbleSuccess = null;
+        });
+        _scheduleNextLastFmPoll();
+        return;
+      }
+      _lastFmAuthPollTimer?.cancel();
+      _lastFmAuthTimeoutTimer?.cancel();
+      setState(() {
+        _clearLastFmAuthState(cancelTimers: false);
+        _isLastFmAuthPolling = false;
+        if (error.code == 10) {
+          _lastFmApiKeyError = 'Invalid Last.fm API key.';
+          _lastFmApiKeySuccess = null;
+          _lastFmScrobbleError = null;
+        } else if (error.code == 13) {
+          _lastFmScrobbleError = 'Invalid Last.fm shared secret.';
+        } else {
+          _lastFmScrobbleError = _lastFmAuthErrorMessage(error);
+        }
+        _lastFmScrobbleSuccess = null;
+      });
+    } on Object {
+      if (!mounted) return;
+      setState(() {
+        _isLastFmAuthPolling = false;
+        _lastFmScrobbleError =
+            'Last.fm is unavailable. Still waiting for approval...';
+        _lastFmScrobbleSuccess = null;
+      });
+      _scheduleNextLastFmPoll();
+    }
+  }
+
+  void _scheduleNextLastFmPoll() {
+    if (!_isLastFmAuthPending) return;
+    final startedAt = _lastFmAuthStartedAt;
+    final elapsed = startedAt == null
+        ? Duration.zero
+        : DateTime.now().difference(startedAt);
+    final interval = elapsed < _lastFmFastPollWindow
+        ? _lastFmFastPollInterval
+        : _lastFmSlowPollInterval;
+    _lastFmAuthPollTimer?.cancel();
+    _lastFmAuthPollTimer = Timer(interval, () => unawaited(_pollLastFmAuth()));
+  }
+
+  void _timeoutLastFmAuth() {
+    if (!_isLastFmAuthPending || !mounted) return;
+    _lastFmAuthPollTimer?.cancel();
+    setState(() {
+      _clearLastFmAuthState(cancelTimers: false);
+      _isLastFmAuthBusy = false;
+      _isLastFmAuthPolling = false;
+      _lastFmScrobbleError = 'Last.fm authorization timed out. Try again.';
+      _lastFmScrobbleSuccess = null;
+    });
+  }
+
+  void _cancelLastFmAuth() {
+    setState(() {
+      _clearLastFmAuthState();
+      _isLastFmAuthBusy = false;
+      _isLastFmAuthPolling = false;
+      _lastFmScrobbleError = null;
+      _lastFmScrobbleSuccess = null;
+    });
+  }
+
+  void _clearLastFmAuthState({bool cancelTimers = true}) {
+    if (cancelTimers) {
+      _lastFmAuthPollTimer?.cancel();
+      _lastFmAuthTimeoutTimer?.cancel();
+    }
+    _lastFmAuthToken = null;
+    _lastFmAuthApiKey = null;
+    _lastFmAuthSharedSecret = null;
+    _lastFmAuthStartedAt = null;
+    _lastFmAuthExpiresAt = null;
+  }
+
+  Future<void> _disconnectLastFm(AppSettingsModel settings) async {
+    final store = ref.read(externalScrobbleCredentialStoreProvider);
+    await store.clearLastFmSessionKey();
+    await ref
+        .read(settingsRepositoryProvider)
+        .saveSettings(
+          settings.copyWith(
+            lastFmScrobblingEnabled: false,
+            lastFmSessionConnected: false,
+          ),
+        );
+    if (!mounted) return;
+    setState(() {
+      _clearLastFmAuthState();
+      _lastFmScrobbleError = null;
+      _lastFmScrobbleSuccess = null;
+    });
+  }
+
+  Future<void> _validateListenBrainz(AppSettingsModel settings) async {
+    final token = _listenBrainzTokenController.text.trim();
+    if (token.isEmpty) {
+      setState(() {
+        _listenBrainzError = 'Enter a ListenBrainz user token.';
+        _listenBrainzSuccess = null;
+      });
+      return;
+    }
+    setState(() {
+      _isListenBrainzBusy = true;
+      _listenBrainzError = null;
+      _listenBrainzSuccess = null;
+    });
+    try {
+      final valid = await ref
+          .read(listenBrainzApiClientProvider)
+          .validateToken(token);
+      if (!valid) {
+        await ref
+            .read(externalScrobbleCredentialStoreProvider)
+            .clearListenBrainzToken();
+        await ref
+            .read(settingsRepositoryProvider)
+            .saveSettings(
+              settings.copyWith(
+                listenBrainzTokenValid: false,
+                listenBrainzScrobblingEnabled: false,
+              ),
+            );
+        if (!mounted) return;
+        setState(() {
+          _listenBrainzError = 'Invalid ListenBrainz token.';
+          _listenBrainzSuccess = null;
+        });
+        return;
+      }
+      await ref
+          .read(externalScrobbleCredentialStoreProvider)
+          .saveListenBrainzToken(token);
+      await ref
+          .read(settingsRepositoryProvider)
+          .saveSettings(
+            settings.copyWith(
+              listenBrainzTokenValid: true,
+              listenBrainzScrobblingEnabled: true,
+            ),
+          );
+      if (!mounted) return;
+      setState(() {
+        _listenBrainzError = null;
+        _listenBrainzSuccess = 'ListenBrainz token validated.';
+      });
+    } on Object {
+      if (!mounted) return;
+      setState(() {
+        _listenBrainzError =
+            'ListenBrainz is unavailable. Check your connection and try again.';
+        _listenBrainzSuccess = null;
+      });
+    } finally {
+      if (mounted) setState(() => _isListenBrainzBusy = false);
+    }
+  }
+
+  Future<void> _setListenBrainzEnabled(
+    AppSettingsModel settings,
+    bool enabled,
   ) async {
+    if (!settings.listenBrainzTokenValid) return;
+    await ref
+        .read(settingsRepositoryProvider)
+        .saveSettings(
+          settings.copyWith(listenBrainzScrobblingEnabled: enabled),
+        );
+  }
+
+  Future<void> _clearListenBrainz(AppSettingsModel settings) async {
+    _listenBrainzTokenController.clear();
+    await ref
+        .read(externalScrobbleCredentialStoreProvider)
+        .clearListenBrainzToken();
+    await ref
+        .read(settingsRepositoryProvider)
+        .saveSettings(
+          settings.copyWith(
+            listenBrainzTokenValid: false,
+            listenBrainzScrobblingEnabled: false,
+          ),
+        );
+    if (!mounted) return;
+    setState(() {
+      _listenBrainzError = null;
+      _listenBrainzSuccess = null;
+    });
+  }
+
+  Future<void> _checkAndSaveGroupListeningSettings({
+    required ServerConfigModel config,
+    required List<GroupListeningVoyageServerOption> voyageServers,
+  }) async {
+    final voyageServerUrl = _selectedVoyageUrl(voyageServers);
+    final initialStatus = _statusForVoyageUrl(
+      enabled: _groupListeningEnabled,
+      voyageServerUrl: voyageServerUrl,
+    );
+    setState(() => _voyageStatus = initialStatus);
+    if (!_groupListeningEnabled) {
+      await _saveGroupListeningSettings(
+        voyageServers,
+        voyageServerUrl: voyageServerUrl,
+      );
+      return;
+    }
+    if (voyageServerUrl == null ||
+        initialStatus.state == GroupListeningVoyageConnectionState.failed) {
+      return;
+    }
+    setState(() {
+      _isVoyageChecking = true;
+      _voyageStatus = GroupListeningVoyageConnectionStatus(
+        state: GroupListeningVoyageConnectionState.checking,
+        message: 'Checking Voyage connection...',
+        userActionMessage: voyageServerUrl,
+      );
+    });
+    try {
+      final configuration = buildGroupListeningClientConfiguration(
+        enabled: true,
+        voyageServerUrl: voyageServerUrl,
+        activeServer: config,
+      );
+      if (configuration == null) {
+        throw const FormatException('Invalid Voyage configuration.');
+      }
+      final discovery = await ref
+          .read(groupListeningRepositoryProvider)
+          .discover(configuration);
+      if (!discovery.supportsCurrentProtocol) {
+        throw const GroupListeningRepositoryException(
+          GroupListeningErrorState(
+            code: GroupListeningErrorCode.unsupportedProtocolVersion,
+            message: 'Voyage protocol is not compatible.',
+          ),
+        );
+      }
+      await _saveGroupListeningSettings(
+        voyageServers,
+        voyageServerUrl: voyageServerUrl,
+      );
+      if (!mounted) return;
+      setState(() {
+        _voyageStatus = const GroupListeningVoyageConnectionStatus(
+          state: GroupListeningVoyageConnectionState.connected,
+          message: 'Successfully connected to Voyage.',
+        );
+      });
+    } on Object catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _voyageStatus = GroupListeningVoyageConnectionStatus(
+          state: GroupListeningVoyageConnectionState.failed,
+          message: 'Not connected to Voyage.',
+          userActionMessage: _voyageFailureMessage(error),
+        );
+      });
+    } finally {
+      if (mounted) setState(() => _isVoyageChecking = false);
+    }
+  }
+
+  Future<void> _saveGroupListeningSettings(
+    List<GroupListeningVoyageServerOption> voyageServers, {
+    required String? voyageServerUrl,
+  }) async {
     final repository = ref.read(settingsRepositoryProvider);
     final current =
         ref.read(appSettingsProvider).asData?.value ??
         const AppSettingsModel.defaults();
-    final bundledServerUrl = voyageServers.isEmpty
-        ? null
-        : voyageServers.first.url;
-    final voyageServerUrl = voyageServers.isEmpty
-        ? _voyageServerUrlController.text.trim()
-        : (_selectedVoyageServerUrl ?? bundledServerUrl ?? '').trim();
+    final normalizedUrl = voyageServerUrl?.trim() ?? '';
 
     await repository.saveSettings(
       current.copyWith(
         groupListeningEnabled: _groupListeningEnabled,
-        voyageServerUrl: voyageServerUrl.isEmpty ? null : voyageServerUrl,
+        voyageServerUrl: normalizedUrl.isEmpty ? null : normalizedUrl,
         voyageDisplayName: null,
         voyageDeviceLabel: null,
         voyageAutoFollowHost: true,
-        clearVoyageServerUrl: voyageServerUrl.isEmpty,
+        clearVoyageServerUrl: normalizedUrl.isEmpty,
         clearVoyageDisplayName: true,
         clearVoyageDeviceLabel: true,
       ),
     );
   }
 
-  Future<void> _addCustomVoyageServer() async {
+  Future<void> _addCustomVoyageServer(ServerConfigModel config) async {
     final label = _customVoyageLabelController.text.trim();
     final url = _customVoyageUrlController.text.trim();
     if (url.isEmpty) {
@@ -478,6 +1087,47 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
       return;
     }
     final normalizedUrl = normalizedUri.toString();
+    setState(() {
+      _isVoyageChecking = true;
+      _voyageStatus = GroupListeningVoyageConnectionStatus(
+        state: GroupListeningVoyageConnectionState.checking,
+        message: 'Checking Voyage connection...',
+        userActionMessage: normalizedUrl,
+      );
+    });
+    try {
+      final configuration = buildGroupListeningClientConfiguration(
+        enabled: true,
+        voyageServerUrl: normalizedUrl,
+        activeServer: config,
+      );
+      if (configuration == null) {
+        throw const FormatException('Invalid Voyage configuration.');
+      }
+      final discovery = await ref
+          .read(groupListeningRepositoryProvider)
+          .discover(configuration);
+      if (!discovery.supportsCurrentProtocol) {
+        throw const GroupListeningRepositoryException(
+          GroupListeningErrorState(
+            code: GroupListeningErrorCode.unsupportedProtocolVersion,
+            message: 'Voyage protocol is not compatible.',
+          ),
+        );
+      }
+    } on Object catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _voyageStatus = GroupListeningVoyageConnectionStatus(
+          state: GroupListeningVoyageConnectionState.failed,
+          message: 'Not connected to Voyage.',
+          userActionMessage: _voyageFailureMessage(error),
+        );
+      });
+      return;
+    } finally {
+      if (mounted) setState(() => _isVoyageChecking = false);
+    }
     final repository = ref.read(settingsRepositoryProvider);
     final current =
         ref.read(appSettingsProvider).asData?.value ??
@@ -496,6 +1146,14 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
     );
     _customVoyageLabelController.clear();
     _customVoyageUrlController.clear();
+    setState(() {
+      _selectedVoyageServerUrl = normalizedUrl;
+      _voyageServerUrlController.text = normalizedUrl;
+      _voyageStatus = const GroupListeningVoyageConnectionStatus(
+        state: GroupListeningVoyageConnectionState.connected,
+        message: 'Successfully connected to Voyage.',
+      );
+    });
   }
 
   Future<void> _deleteCustomVoyageServer(CustomVoyageServer server) async {
@@ -518,6 +1176,120 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
+  }
+
+  Future<void> _openListenBrainzTokenPage() async {
+    final uri = Uri.parse('https://listenbrainz.org/settings/');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  String _effectiveLastFmApiKey() {
+    if (ref.read(lastFmBundledKeyProvider)) {
+      return ref.read(lastFmApiKeyProvider).trim();
+    }
+    return _lastFmApiKeyController.text.trim();
+  }
+
+  String _lastFmApiKeyFailureMessage(LastFmApiKeyValidationResult result) {
+    if (result.apiErrorCode == 10 || result.statusCode == 403) {
+      return 'Invalid Last.fm API key.';
+    }
+    if (result.statusCode == 429) {
+      return 'Last.fm is rate limiting validation. Try again later.';
+    }
+    return result.message ?? 'Could not validate this Last.fm API key.';
+  }
+
+  bool _isLastFmAuthorizationPendingError(LastFmApiException error) {
+    final message = error.message.toLowerCase();
+    return error.code == 14 ||
+        message.contains('not authorized') ||
+        message.contains('unauthorized token');
+  }
+
+  bool _hasRetryableLastFmAuthMessage(String? message) {
+    return message?.contains('Still waiting for approval') ?? false;
+  }
+
+  String _lastFmAuthErrorMessage(LastFmApiException error) {
+    if (error.code == 29) {
+      return 'Last.fm is rate limiting authorization. Try again later.';
+    }
+    if (error.code == 16 || error.code == 11) {
+      return 'Last.fm is unavailable. Try again later.';
+    }
+    return error.message.isEmpty
+        ? 'Could not authorize Last.fm scrobbling. Try again later.'
+        : error.message;
+  }
+
+  String? _selectedVoyageUrl(List<GroupListeningVoyageServerOption> servers) {
+    final raw = servers.isEmpty
+        ? _voyageServerUrlController.text.trim()
+        : (_selectedVoyageServerUrl ??
+                  (servers.isEmpty ? null : servers.first.url) ??
+                  '')
+              .trim();
+    return normalizeVoyageBaseUri(raw)?.toString();
+  }
+
+  GroupListeningVoyageConnectionStatus _statusForVoyageUrl({
+    required bool enabled,
+    required String? voyageServerUrl,
+  }) {
+    if (!enabled) {
+      return const GroupListeningVoyageConnectionStatus(
+        state: GroupListeningVoyageConnectionState.disabled,
+        message: 'Listen Together is off.',
+      );
+    }
+    final uri = normalizeVoyageBaseUri(voyageServerUrl);
+    if (uri == null) {
+      return const GroupListeningVoyageConnectionStatus(
+        state: GroupListeningVoyageConnectionState.unconfigured,
+        message: 'Not connected to Voyage.',
+        userActionMessage: 'Enter a valid Voyage server URL.',
+      );
+    }
+    if (!isVoyageTransportAllowed(uri)) {
+      return const GroupListeningVoyageConnectionStatus(
+        state: GroupListeningVoyageConnectionState.failed,
+        message: 'Not connected to Voyage.',
+        userActionMessage:
+            'Use HTTPS for Voyage, or a local HTTP server in debug builds.',
+      );
+    }
+    return GroupListeningVoyageConnectionStatus(
+      state: GroupListeningVoyageConnectionState.unconfigured,
+      message: 'Voyage server ready to test.',
+      userActionMessage: uri.toString(),
+    );
+  }
+
+  String? _voyageFailureMessage(Object error) {
+    final failure = error is GroupListeningRepositoryException
+        ? error.failure
+        : null;
+    if (failure == null) {
+      return 'Voyage is unavailable. Check the URL and try again.';
+    }
+    return switch (failure.code) {
+      GroupListeningErrorCode.unsupportedProtocolVersion =>
+        'Update Navis or choose a Voyage server with a compatible protocol.',
+      GroupListeningErrorCode.validationFailed =>
+        'Check the Voyage server configuration and try again.',
+      GroupListeningErrorCode.insecureTransport =>
+        'Use HTTPS for Voyage, or a local HTTP server in debug builds.',
+      GroupListeningErrorCode.transportUnavailable
+          when failure.message.isNotEmpty =>
+        failure.message,
+      _ =>
+        failure.message.isNotEmpty
+            ? failure.message
+            : 'Voyage is unavailable. Check the URL and try again.',
+    };
   }
 
   String _toUserMessage(Object error, AppLocalizations l10n) {
@@ -596,9 +1368,12 @@ class _ListenTogetherCard extends StatelessWidget {
     required this.customVoyageLabelController,
     required this.customVoyageUrlController,
     required this.connectionStatus,
+    required this.isChecking,
     required this.onEnabledChanged,
     required this.onServerSelected,
     required this.onManualServerChanged,
+    required this.onManualServerSubmitted,
+    required this.onTestServer,
     required this.onAddCustomServer,
     required this.onDeleteCustomServer,
   });
@@ -611,9 +1386,12 @@ class _ListenTogetherCard extends StatelessWidget {
   final TextEditingController customVoyageLabelController;
   final TextEditingController customVoyageUrlController;
   final GroupListeningVoyageConnectionStatus connectionStatus;
+  final bool isChecking;
   final ValueChanged<bool> onEnabledChanged;
   final ValueChanged<String?> onServerSelected;
   final ValueChanged<String> onManualServerChanged;
+  final ValueChanged<String> onManualServerSubmitted;
+  final VoidCallback onTestServer;
   final VoidCallback onAddCustomServer;
   final ValueChanged<CustomVoyageServer> onDeleteCustomServer;
 
@@ -687,6 +1465,7 @@ class _ListenTogetherCard extends StatelessWidget {
                       prefixIcon: Icon(Icons.link),
                     ),
                     onChanged: onManualServerChanged,
+                    onSubmitted: onManualServerSubmitted,
                   ),
                   const SizedBox(height: 8),
                 ],
@@ -715,10 +1494,30 @@ class _ListenTogetherCard extends StatelessWidget {
                 const SizedBox(height: 8),
                 Align(
                   alignment: Alignment.centerRight,
-                  child: FilledButton.icon(
-                    onPressed: onAddCustomServer,
-                    icon: const Icon(Icons.add),
-                    label: const Text('Add custom server'),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    alignment: WrapAlignment.end,
+                    children: <Widget>[
+                      OutlinedButton.icon(
+                        onPressed: isChecking ? null : onTestServer,
+                        icon: isChecking
+                            ? const SizedBox(
+                                height: 18,
+                                width: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.wifi_tethering),
+                        label: const Text('Test server'),
+                      ),
+                      FilledButton.icon(
+                        onPressed: isChecking ? null : onAddCustomServer,
+                        icon: const Icon(Icons.add),
+                        label: const Text('Add custom server'),
+                      ),
+                    ],
                   ),
                 ),
                 for (final server in customServers)
@@ -823,30 +1622,60 @@ class _VoyageConnectionStatusCard extends StatelessWidget {
 
 class _LastFmCard extends StatelessWidget {
   const _LastFmCard({
+    required this.settings,
     required this.isBundled,
     required this.isSaving,
+    required this.isAuthBusy,
+    required this.isAuthPending,
     required this.obscureApiKey,
+    required this.obscureSharedSecret,
     required this.controller,
+    required this.sharedSecretController,
+    required this.apiKeyError,
+    required this.apiKeySuccess,
+    required this.scrobbleError,
+    required this.scrobbleSuccess,
     required this.onToggleObscure,
+    required this.onToggleSharedSecretObscure,
     required this.onSave,
     required this.onClear,
     required this.onGetApiKey,
+    required this.onStartAuth,
+    required this.onCancelAuth,
+    required this.onDisconnectScrobbling,
   });
 
+  final AppSettingsModel settings;
   final bool isBundled;
   final bool isSaving;
+  final bool isAuthBusy;
+  final bool isAuthPending;
   final bool obscureApiKey;
+  final bool obscureSharedSecret;
   final TextEditingController controller;
+  final TextEditingController sharedSecretController;
+  final String? apiKeyError;
+  final String? apiKeySuccess;
+  final String? scrobbleError;
+  final String? scrobbleSuccess;
   final VoidCallback onToggleObscure;
+  final VoidCallback onToggleSharedSecretObscure;
   final VoidCallback onSave;
   final VoidCallback onClear;
   final VoidCallback onGetApiKey;
+  final VoidCallback onStartAuth;
+  final VoidCallback onCancelAuth;
+  final VoidCallback onDisconnectScrobbling;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final apiKeyValid =
+        isBundled || (settings.lastFmApiKey?.trim().isNotEmpty ?? false);
+    final scrobblingConnected =
+        settings.lastFmScrobblingEnabled && settings.lastFmSessionConnected;
 
     return Card(
       child: Padding(
@@ -858,16 +1687,19 @@ class _LastFmCard extends StatelessWidget {
               children: <Widget>[
                 Icon(Icons.music_note_outlined, color: cs.primary),
                 const SizedBox(width: 8),
-                Text(
-                  l10n.configurationLastFmSection,
-                  style: theme.textTheme.titleMedium,
+                Expanded(
+                  child: Text(
+                    l10n.configurationLastFmSection,
+                    style: theme.textTheme.titleMedium,
+                  ),
                 ),
+                if (apiKeyValid)
+                  Icon(Icons.check_circle, color: Colors.green.shade700),
               ],
             ),
             const SizedBox(height: 12),
 
             if (isBundled) ...<Widget>[
-              // ── Bundled key notice ──────────────────────────────────
               Container(
                 decoration: BoxDecoration(
                   color: cs.secondaryContainer,
@@ -908,7 +1740,6 @@ class _LastFmCard extends StatelessWidget {
                 ),
               ),
             ] else ...<Widget>[
-              // ── User-provided key field ─────────────────────────────
               TextField(
                 controller: controller,
                 obscureText: obscureApiKey,
@@ -916,6 +1747,16 @@ class _LastFmCard extends StatelessWidget {
                   labelText: l10n.configurationLastFmApiKeyLabel,
                   hintText: l10n.configurationLastFmApiKeyHint,
                   border: const OutlineInputBorder(),
+                  enabledBorder: apiKeySuccess != null && apiKeyError == null
+                      ? OutlineInputBorder(
+                          borderSide: BorderSide(
+                            color: Colors.green.shade700,
+                          ),
+                        )
+                      : null,
+                  errorText: apiKeyError,
+                  helperText: apiKeyError == null ? apiKeySuccess : null,
+                  helperStyle: TextStyle(color: Colors.green.shade700),
                   prefixIcon: const Icon(Icons.key_outlined),
                   suffixIcon: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -942,14 +1783,12 @@ class _LastFmCard extends StatelessWidget {
               const SizedBox(height: 12),
               Row(
                 children: <Widget>[
-                  // Get API Key link
                   TextButton.icon(
                     onPressed: onGetApiKey,
                     icon: const Icon(Icons.open_in_new, size: 16),
                     label: Text(l10n.configurationLastFmGetApiKey),
                   ),
                   const Spacer(),
-                  // Save button
                   FilledButton.tonal(
                     onPressed: isSaving ? null : onSave,
                     child: isSaving
@@ -963,6 +1802,222 @@ class _LastFmCard extends StatelessWidget {
                 ],
               ),
             ],
+            const Divider(height: 28),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    'Last.fm scrobbling',
+                    style: theme.textTheme.titleSmall,
+                  ),
+                ),
+                if (scrobblingConnected)
+                  Icon(Icons.check_circle, color: Colors.green.shade700),
+              ],
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: sharedSecretController,
+              obscureText: obscureSharedSecret,
+              decoration: InputDecoration(
+                labelText: 'Shared secret',
+                border: const OutlineInputBorder(),
+                errorText: scrobbleError,
+                helperText: scrobbleError == null ? scrobbleSuccess : null,
+                helperStyle: TextStyle(color: Colors.green.shade700),
+                prefixIcon: const Icon(Icons.lock_outline),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    obscureSharedSecret
+                        ? Icons.visibility_outlined
+                        : Icons.visibility_off_outlined,
+                  ),
+                  tooltip: obscureSharedSecret ? 'Show' : 'Hide',
+                  onPressed: onToggleSharedSecretObscure,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (isAuthPending) ...<Widget>[
+              Container(
+                decoration: BoxDecoration(
+                  color: cs.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  children: <Widget>[
+                    const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text('Waiting for Last.fm approval...'),
+                    ),
+                    TextButton(
+                      onPressed: onCancelAuth,
+                      child: const Text('Cancel'),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: <Widget>[
+                FilledButton.icon(
+                  onPressed: isAuthBusy || isAuthPending || !apiKeyValid
+                      ? null
+                      : onStartAuth,
+                  icon: isAuthBusy
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.open_in_browser_outlined),
+                  label: const Text('Authorize with Last.fm'),
+                ),
+                TextButton.icon(
+                  onPressed:
+                      isAuthBusy ||
+                          isAuthPending ||
+                          !settings.lastFmSessionConnected
+                      ? null
+                      : onDisconnectScrobbling,
+                  icon: const Icon(Icons.link_off_outlined),
+                  label: const Text('Clear scrobbling'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ListenBrainzCard extends StatelessWidget {
+  const _ListenBrainzCard({
+    required this.settings,
+    required this.isBusy,
+    required this.obscureToken,
+    required this.controller,
+    required this.errorText,
+    required this.successText,
+    required this.onToggleObscure,
+    required this.onValidate,
+    required this.onClear,
+    required this.onOpenTokenSettings,
+    required this.onEnabledChanged,
+  });
+
+  final AppSettingsModel settings;
+  final bool isBusy;
+  final bool obscureToken;
+  final TextEditingController controller;
+  final String? errorText;
+  final String? successText;
+  final VoidCallback onToggleObscure;
+  final VoidCallback onValidate;
+  final VoidCallback onClear;
+  final VoidCallback onOpenTokenSettings;
+  final ValueChanged<bool> onEnabledChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final valid = settings.listenBrainzTokenValid;
+    final enabled = settings.listenBrainzScrobblingEnabled && valid;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Icon(Icons.hearing_outlined, color: theme.colorScheme.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'ListenBrainz',
+                    style: theme.textTheme.titleMedium,
+                  ),
+                ),
+                if (valid)
+                  Icon(Icons.check_circle, color: Colors.green.shade700),
+                Switch(
+                  value: enabled,
+                  onChanged: valid && !isBusy ? onEnabledChanged : null,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              obscureText: obscureToken,
+              decoration: InputDecoration(
+                labelText: 'User token',
+                border: const OutlineInputBorder(),
+                enabledBorder: successText != null && errorText == null
+                    ? OutlineInputBorder(
+                        borderSide: BorderSide(color: Colors.green.shade700),
+                      )
+                    : null,
+                errorText: errorText,
+                helperText: errorText == null ? successText : null,
+                helperStyle: TextStyle(color: Colors.green.shade700),
+                prefixIcon: const Icon(Icons.token_outlined),
+                suffixIcon: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    IconButton(
+                      icon: Icon(
+                        obscureToken
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                      ),
+                      tooltip: obscureToken ? 'Show' : 'Hide',
+                      onPressed: onToggleObscure,
+                    ),
+                    if (controller.text.isNotEmpty)
+                      IconButton(
+                        tooltip: 'Clear',
+                        onPressed: onClear,
+                        icon: const Icon(Icons.clear),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: <Widget>[
+                FilledButton.icon(
+                  onPressed: isBusy ? null : onValidate,
+                  icon: isBusy
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.verified_outlined),
+                  label: const Text('Validate and save'),
+                ),
+                TextButton.icon(
+                  onPressed: onOpenTokenSettings,
+                  icon: const Icon(Icons.open_in_new),
+                  label: const Text('Token settings'),
+                ),
+              ],
+            ),
           ],
         ),
       ),

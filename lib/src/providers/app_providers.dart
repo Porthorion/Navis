@@ -9,6 +9,7 @@ import 'package:flutter/widgets.dart' show BorderRadius;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:navis/src/api/lastfm_api_client.dart';
+import 'package:navis/src/api/listenbrainz_api_client.dart';
 import 'package:navis/src/api/lrclib_client.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
@@ -290,6 +291,16 @@ final lastFmApiClientProvider = Provider<LastFmApiClient?>((ref) {
   return LastFmApiClient(apiKey: apiKey);
 });
 
+final lastFmApiClientFactoryProvider =
+    Provider<LastFmApiClient Function(String)>(
+      (_) =>
+          (apiKey) => LastFmApiClient(apiKey: apiKey),
+    );
+
+final listenBrainzApiClientProvider = Provider<ListenBrainzApiClient>((_) {
+  return ListenBrainzApiClient();
+});
+
 final externalScrobbleCredentialStoreProvider =
     Provider<ExternalScrobbleCredentialStore>((_) {
       return const FlutterExternalScrobbleCredentialStore();
@@ -365,6 +376,8 @@ final scrobbleServiceProvider = Provider<ScrobbleService>((ref) {
       }
       return ListenBrainzScrobbleCredentials(userToken: token);
     },
+    createLastFmClient: ref.read(lastFmApiClientFactoryProvider),
+    createListenBrainzClient: () => ref.read(listenBrainzApiClientProvider),
     onLastFmInvalidSession: () {
       unawaited(
         database.appSettingsDao.updateLastFmScrobblingState(

@@ -266,19 +266,9 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
           mappedSongCount < _kMinimumMappedTracksBeforeFallback,
         LastFmFetchOutcome.networkError ||
         LastFmFetchOutcome.parseError => false,
-        LastFmFetchOutcome.notConfigured => false,
+        LastFmFetchOutcome.notConfigured =>
+          mappedSongCount < _kMinimumMappedTracksBeforeFallback,
       };
-
-      if (lastFmResult.outcome == LastFmFetchOutcome.notConfigured) {
-        AppLogger.debug(
-          'SameVibes diagnostics: refill decision '
-          'lastfmOutcome=${lastFmResult.outcome.name} mapped=$mappedSongCount '
-          'fallbackDecision=skip fallbackReason=lastfm_not_configured '
-          'seedEligible=false',
-        );
-        state = const SameVibesState(error: SameVibesError.unsupported);
-        return;
-      }
 
       if (shouldAttemptFallback) {
         final fallbackSeedSongId = _resolveFallbackSeedSongId(
@@ -291,7 +281,10 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
           fallbackReason = 'seed_not_server_addressable';
         } else {
           fallbackDecision = 'attempt';
-          fallbackReason = 'mapped_below_threshold';
+          fallbackReason =
+              lastFmResult.outcome == LastFmFetchOutcome.notConfigured
+              ? 'lastfm_not_configured'
+              : 'mapped_below_threshold';
         }
       } else if (lastFmResult.outcome == LastFmFetchOutcome.networkError) {
         fallbackReason = 'lastfm_network_error';
