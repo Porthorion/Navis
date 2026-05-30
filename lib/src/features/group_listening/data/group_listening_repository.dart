@@ -349,6 +349,7 @@ class GroupListeningMutationMessage
     this.playbackAnchor,
     this.queue,
     this.targetQueueEntryId,
+    this.insertIndex,
     this.targetMemberId,
   });
 
@@ -360,6 +361,7 @@ class GroupListeningMutationMessage
   final GroupListeningPlaybackAnchor? playbackAnchor;
   final GroupListeningQueueState? queue;
   final String? targetQueueEntryId;
+  final int? insertIndex;
   final String? targetMemberId;
 }
 
@@ -1957,6 +1959,33 @@ GroupListeningQueueState _queueStateFromJson(Map<String, dynamic> json) {
           songId: _stringValue(entry['song_id']),
           addedByMemberId: _nullableStringValue(entry['added_by_member_id']),
           addedAt: _dateTimeFromEpochMs(entry['added_at_ms']),
+          title: _nullableStringValue(entry['title']),
+          artist: _nullableStringValue(entry['artist']),
+          artistId: _nullableStringValue(entry['artist_id']),
+          album: _nullableStringValue(entry['album']),
+          albumId: _nullableStringValue(entry['album_id']),
+          durationSeconds: _nullableIntValue(entry['duration_seconds']),
+          track: _nullableIntValue(entry['track']),
+          discNumber: _nullableIntValue(entry['disc_number']),
+          year: _nullableIntValue(entry['year']),
+          coverArt: _nullableStringValue(entry['cover_art']),
+          contentType: _nullableStringValue(entry['content_type']),
+          suffix: _nullableStringValue(entry['suffix']),
+          bitRate: _nullableIntValue(entry['bit_rate']),
+          sampleRate: _nullableIntValue(entry['sample_rate']),
+          size: _nullableIntValue(entry['size']),
+          replayGainTrackGain: _nullableDoubleValue(
+            entry['replay_gain_track_gain'],
+          ),
+          replayGainAlbumGain: _nullableDoubleValue(
+            entry['replay_gain_album_gain'],
+          ),
+          replayGainTrackPeak: _nullableDoubleValue(
+            entry['replay_gain_track_peak'],
+          ),
+          replayGainAlbumPeak: _nullableDoubleValue(
+            entry['replay_gain_album_peak'],
+          ),
         ),
       )
       .toList(growable: false);
@@ -2096,6 +2125,7 @@ Map<String, dynamic> _outboundTransportEnvelope(
                 (entry) => <String, Object?>{
                   'queue_entry_id': entry.queueEntryId,
                   'song_id': entry.songId,
+                  ..._queueEntryMetadataPayload(entry),
                 },
               )
               .toList(growable: false),
@@ -2136,6 +2166,8 @@ Map<String, dynamic> _outboundTransportEnvelope(
           'client_seq': message.clientSequence,
           'song_id': queueEntry.songId,
           'queue_entry_id': queueEntry.queueEntryId,
+          if (message.insertIndex != null) 'insert_index': message.insertIndex,
+          ..._queueEntryMetadataPayload(queueEntry),
         },
       };
     case GroupListeningMutationType.queueRemove:
@@ -2232,6 +2264,7 @@ Map<String, Object?> _roomSeedPayload(GroupListeningRoomSeed seed) {
             (entry) => <String, Object?>{
               'queue_entry_id': entry.queueEntryId,
               'song_id': entry.songId,
+              ..._queueEntryMetadataPayload(entry),
               if (entry.addedByMemberId != null)
                 'added_by_member_id': entry.addedByMemberId,
               'added_at_ms': entry.addedAt.toUtc().millisecondsSinceEpoch,
@@ -2255,6 +2288,37 @@ Map<String, Object?> _roomSeedPayload(GroupListeningRoomSeed seed) {
       if (seed.playbackAnchor.issuedByMemberId != null)
         'issued_by_member_id': seed.playbackAnchor.issuedByMemberId,
     },
+  };
+}
+
+Map<String, Object?> _queueEntryMetadataPayload(
+  GroupListeningQueueEntry entry,
+) {
+  return <String, Object?>{
+    if (entry.title != null) 'title': entry.title,
+    if (entry.artist != null) 'artist': entry.artist,
+    if (entry.artistId != null) 'artist_id': entry.artistId,
+    if (entry.album != null) 'album': entry.album,
+    if (entry.albumId != null) 'album_id': entry.albumId,
+    if (entry.durationSeconds != null)
+      'duration_seconds': entry.durationSeconds,
+    if (entry.track != null) 'track': entry.track,
+    if (entry.discNumber != null) 'disc_number': entry.discNumber,
+    if (entry.year != null) 'year': entry.year,
+    if (entry.coverArt != null) 'cover_art': entry.coverArt,
+    if (entry.contentType != null) 'content_type': entry.contentType,
+    if (entry.suffix != null) 'suffix': entry.suffix,
+    if (entry.bitRate != null) 'bit_rate': entry.bitRate,
+    if (entry.sampleRate != null) 'sample_rate': entry.sampleRate,
+    if (entry.size != null) 'size': entry.size,
+    if (entry.replayGainTrackGain != null)
+      'replay_gain_track_gain': entry.replayGainTrackGain,
+    if (entry.replayGainAlbumGain != null)
+      'replay_gain_album_gain': entry.replayGainAlbumGain,
+    if (entry.replayGainTrackPeak != null)
+      'replay_gain_track_peak': entry.replayGainTrackPeak,
+    if (entry.replayGainAlbumPeak != null)
+      'replay_gain_album_peak': entry.replayGainAlbumPeak,
   };
 }
 
@@ -2568,6 +2632,16 @@ double _doubleValue(Object? value) {
     num value => value.toDouble(),
     String value => double.parse(value.trim()),
     _ => 1,
+  };
+}
+
+double? _nullableDoubleValue(Object? value) {
+  return switch (value) {
+    null => null,
+    double value => value,
+    num value => value.toDouble(),
+    String value => double.tryParse(value.trim()),
+    _ => null,
   };
 }
 

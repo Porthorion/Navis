@@ -173,6 +173,7 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
 
   final replaceQueueCalls = <_ReplaceQueueCall>[];
   final seekCalls = <Duration>[];
+  final addToQueueCalls = <List<String>>[];
   int clearQueueCalls = 0;
   int playCalls = 0;
   int pauseCalls = 0;
@@ -285,7 +286,19 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
   Future<void> addToQueue(
     List<String> songIds, {
     bool expandMatchFlows = true,
-  }) async {}
+  }) async {
+    addToQueueCalls.add(List<String>.unmodifiable(songIds));
+    final nextQueue = <String>[..._snapshot.queueSongIds, ...songIds];
+    final currentIndex =
+        _snapshot.currentIndex ?? (nextQueue.isEmpty ? null : 0);
+    _emit(
+      _snapshot.copyWith(
+        queueSongIds: List<String>.unmodifiable(nextQueue),
+        currentIndex: currentIndex,
+        currentSongId: currentIndex == null ? null : nextQueue[currentIndex],
+      ),
+    );
+  }
 
   @override
   Future<void> playNext(
@@ -401,6 +414,7 @@ class _FakePlaybackHandler implements NavisPlaybackHandler {
   void clearInteractionLog() {
     replaceQueueCalls.clear();
     seekCalls.clear();
+    addToQueueCalls.clear();
     clearQueueCalls = 0;
     playCalls = 0;
     pauseCalls = 0;
@@ -616,13 +630,7 @@ void main() {
         await _pumpBridge();
         connection.sentMessages.clear();
 
-        await container
-            .read(queueProvider.notifier)
-            .replace(
-              const <String>['song-1', 'song-2'],
-              startIndex: 0,
-              autoPlay: false,
-            );
+        await container.read(queueProvider.notifier).add('song-2');
         await _pumpBridge();
 
         expect(connection.sentMessages, hasLength(1));
@@ -631,12 +639,13 @@ void main() {
         expect(message.type, GroupListeningMutationType.queueAdd);
         expect(
           message.queue?.entries.map((entry) => entry.songId).toList(),
-          const <String>['song-1', 'song-2'],
+          const <String>['song-2'],
         );
         expect(
           message.targetQueueEntryId,
-          message.queue?.entries.last.queueEntryId,
+          message.queue?.entries.single.queueEntryId,
         );
+        expect(handler.addToQueueCalls, isEmpty);
       },
     );
 
@@ -854,6 +863,165 @@ void main() {
         expect(handler.seekCalls, contains(const Duration(seconds: 25)));
         expect(handler.snapshot.currentSongId, 'song-2');
         expect(handler.snapshot.playing, isTrue);
+      },
+    );
+
+    test(
+      'does not seek when a queue-only event keeps the playback anchor unchanged',
+      () async {
+        final repository = _FakeGroupListeningRepository();
+        final connection = _FakeRealtimeConnection();
+        final fingerprint = computeSourceServerFingerprint(activeServer.url);
+        final room = _roomState(
+          fingerprint: fingerprint,
+          roomVersion: 1,
+          queueSongIds: const <String>['song-1'],
+          currentIndex: 0,
+          playbackState: GroupListeningPlaybackStatus.playing,
+          position: const Duration(seconds: 10),
+          issuedByMemberId: 'member-1',
+        );
+        final handler = _FakePlaybackHandler(_snapshotFromRoom(room));
+        repository.joinResponse = GroupListeningJoinResponse(
+          runtimeContext: _runtimeContext(fingerprint: fingerprint),
+          roomSnapshot: room,
+        );
+        repository.connection = connection;
+        addTearDown(handler.dispose);
+
+        final container = createContainer(
+          repository: repository,
+          handler: handler,
+        );
+        final bridgeSubscription = container.listen(
+          groupListeningPlaybackSyncBridgeProvider,
+          (_, __) {},
+        );
+        addTearDown(bridgeSubscription.close);
+        final controller = container.read(
+          groupListeningSessionControllerProvider.notifier,
+        );
+
+        await controller.joinRoom(
+          inviteCode: 'INVITE',
+          client: client,
+          connectAfterJoin: false,
+        );
+        await controller.connect();
+        connection.add(_welcome(roomVersion: 1));
+        await _pumpBridge();
+        handler.updatePosition(const Duration(seconds: 30));
+        handler.clearInteractionLog();
+
+        connection.add(
+          GroupListeningRoomEventMessage(
+            _roomEvent(
+              roomVersion: 2,
+              previousRoomVersion: 1,
+              queueSongIds: const <String>['song-1', 'song-2'],
+              currentIndex: 0,
+              playbackState: GroupListeningPlaybackStatus.playing,
+              position: const Duration(seconds: 10),
+              issuedByMemberId: 'member-2',
+              includePlaybackAnchor: false,
+              eventType: GroupListeningRoomEventType.queueAdd,
+            ),
+          ),
+        );
+        await _pumpBridge();
+
+        expect(handler.addToQueueCalls, const <List<String>>[
+          <String>['song-2'],
+        ]);
+        expect(handler.replaceQueueCalls, isEmpty);
+        expect(handler.seekCalls, isEmpty);
+        expect(handler.playCalls, 0);
+        expect(handler.pauseCalls, 0);
+        expect(handler.snapshot.queueSongIds, const <String>[
+          'song-1',
+          'song-2',
+        ]);
+      },
+    );
+
+    test(
+      'self-issued queue add echo appends locally without playback correction',
+      () async {
+        final repository = _FakeGroupListeningRepository();
+        final connection = _FakeRealtimeConnection();
+        final fingerprint = computeSourceServerFingerprint(activeServer.url);
+        final room = _roomState(
+          fingerprint: fingerprint,
+          roomVersion: 1,
+          queueSongIds: const <String>['song-1'],
+          currentIndex: 0,
+          playbackState: GroupListeningPlaybackStatus.playing,
+          position: const Duration(seconds: 10),
+          issuedByMemberId: 'member-1',
+          issuedByConnectionId: 'conn-1',
+        );
+        final handler = _FakePlaybackHandler(_snapshotFromRoom(room));
+        repository.joinResponse = GroupListeningJoinResponse(
+          runtimeContext: _runtimeContext(fingerprint: fingerprint),
+          roomSnapshot: room,
+        );
+        repository.connection = connection;
+        addTearDown(handler.dispose);
+
+        final container = createContainer(
+          repository: repository,
+          handler: handler,
+        );
+        final bridgeSubscription = container.listen(
+          groupListeningPlaybackSyncBridgeProvider,
+          (_, __) {},
+        );
+        addTearDown(bridgeSubscription.close);
+        final controller = container.read(
+          groupListeningSessionControllerProvider.notifier,
+        );
+
+        await controller.joinRoom(
+          inviteCode: 'INVITE',
+          client: client,
+          connectAfterJoin: false,
+        );
+        await controller.connect();
+        connection.add(_welcome(roomVersion: 1));
+        await _pumpBridge();
+        connection.sentMessages.clear();
+
+        await container.read(queueProvider.notifier).add('song-2');
+        await _pumpBridge();
+        expect(connection.sentMessages, hasLength(1));
+        handler.updatePosition(const Duration(seconds: 30));
+        handler.clearInteractionLog();
+        connection.sentMessages.clear();
+
+        connection.add(
+          GroupListeningRoomEventMessage(
+            _roomEvent(
+              roomVersion: 2,
+              previousRoomVersion: 1,
+              queueSongIds: const <String>['song-1', 'song-2'],
+              currentIndex: 0,
+              playbackState: GroupListeningPlaybackStatus.playing,
+              position: const Duration(seconds: 10),
+              issuedByMemberId: 'member-1',
+              includePlaybackAnchor: false,
+              eventType: GroupListeningRoomEventType.queueAdd,
+            ),
+          ),
+        );
+        await _pumpBridge();
+
+        expect(handler.addToQueueCalls, const <List<String>>[
+          <String>['song-2'],
+        ]);
+        expect(handler.replaceQueueCalls, isEmpty);
+        expect(handler.seekCalls, isEmpty);
+        expect(handler.playCalls, 0);
+        expect(handler.pauseCalls, 0);
       },
     );
 
@@ -1137,13 +1305,11 @@ void main() {
         connection.add(_welcome(roomVersion: 1));
         await _pumpBridge();
 
-        await container
-            .read(queueProvider.notifier)
-            .replace(
-              const <String>['song-1', 'song-2'],
-              startIndex: 1,
-              autoPlay: true,
-            );
+        await handler.replaceQueue(
+          const <String>['song-1', 'song-2'],
+          startIndex: 1,
+          autoPlay: true,
+        );
         await _pumpBridge();
         handler.clearInteractionLog();
 
@@ -1463,6 +1629,8 @@ GroupListeningRoomEvent _roomEvent({
   required Duration position,
   required String issuedByMemberId,
   String? issuedByConnectionId,
+  bool includePlaybackAnchor = true,
+  GroupListeningRoomEventType? eventType,
 }) {
   final timestamp = DateTime.utc(2026, 4, 21, 12, 0, roomVersion);
   final entries = <GroupListeningQueueEntry>[
@@ -1486,27 +1654,31 @@ GroupListeningRoomEvent _roomEvent({
       : null;
   return GroupListeningRoomEvent(
     eventId: 'event-$roomVersion',
-    eventType: queueSongIds.length == 1
-        ? GroupListeningRoomEventType.seek
-        : GroupListeningRoomEventType.queueReplace,
+    eventType:
+        eventType ??
+        (queueSongIds.length == 1
+            ? GroupListeningRoomEventType.seek
+            : GroupListeningRoomEventType.queueReplace),
     roomId: 'room-1',
     previousRoomVersion: previousRoomVersion,
     roomVersion: roomVersion,
     causedByMemberId: issuedByMemberId,
-    playbackAnchor: GroupListeningPlaybackAnchor(
-      roomVersion: roomVersion,
-      queueVersion: roomVersion,
-      currentIndex: currentIndex,
-      currentQueueEntryId: currentQueueEntryId,
-      currentSongId: currentSongId,
-      playbackState: playbackState,
-      position: position,
-      capturedAt: timestamp,
-      playbackRate: 1,
-      reason: GroupListeningPlaybackAnchorReason.trackChange,
-      issuedByMemberId: issuedByMemberId,
-      issuedByConnectionId: issuedByConnectionId,
-    ),
+    playbackAnchor: includePlaybackAnchor
+        ? GroupListeningPlaybackAnchor(
+            roomVersion: roomVersion,
+            queueVersion: roomVersion,
+            currentIndex: currentIndex,
+            currentQueueEntryId: currentQueueEntryId,
+            currentSongId: currentSongId,
+            playbackState: playbackState,
+            position: position,
+            capturedAt: timestamp,
+            playbackRate: 1,
+            reason: GroupListeningPlaybackAnchorReason.trackChange,
+            issuedByMemberId: issuedByMemberId,
+            issuedByConnectionId: issuedByConnectionId,
+          )
+        : null,
     queue: GroupListeningQueueState(
       queueVersion: roomVersion,
       currentIndex: currentIndex,

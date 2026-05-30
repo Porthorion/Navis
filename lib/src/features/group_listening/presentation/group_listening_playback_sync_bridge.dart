@@ -150,9 +150,10 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
       _lastRemoteAnchorReceivedAt = null;
     }
 
-    if (previousRoomId != nextRoom.roomId ||
-        previous?.room?.roomVersion != nextRoom.roomVersion ||
-        previous?.room?.playbackAnchor != nextRoom.playbackAnchor) {
+    final playbackAnchorChanged =
+        previousRoomId != nextRoom.roomId ||
+        previous?.room?.playbackAnchor != nextRoom.playbackAnchor;
+    if (playbackAnchorChanged) {
       _lastRemoteAnchorReceivedAt = DateTime.now();
     }
 
@@ -247,6 +248,7 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
       _applyInboundState(
         remoteState,
         followPlayback: next.configuration?.autoFollowHost ?? true,
+        forcePositionCorrection: playbackAnchorChanged,
       ),
     );
   }
@@ -255,7 +257,11 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
     _BridgePlaybackState remoteState, {
     required bool followPlayback,
   }) async {
-    await _applyInboundState(remoteState, followPlayback: followPlayback);
+    await _applyInboundState(
+      remoteState,
+      followPlayback: followPlayback,
+      forcePositionCorrection: true,
+    );
     for (var i = 0; i < 4; i++) {
       await Future<void>.delayed(Duration.zero);
       if (_isApplyingRemoteState) {
@@ -271,7 +277,11 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
         return;
       }
 
-      await _applyInboundState(remoteState, followPlayback: followPlayback);
+      await _applyInboundState(
+        remoteState,
+        followPlayback: followPlayback,
+        forcePositionCorrection: true,
+      );
     }
   }
 
@@ -488,6 +498,7 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
   Future<void> _applyInboundState(
     _BridgePlaybackState remoteState, {
     required bool followPlayback,
+    bool forcePositionCorrection = false,
   }) async {
     final handler = ref.read(audioHandlerProvider);
     if (handler == null) {
@@ -508,13 +519,19 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
         remoteState.queueSongIds,
       );
       final trackChanged = beforeApply.currentIndex != remoteState.currentIndex;
+      final remoteRoom = ref.read(groupListeningSessionControllerProvider).room;
+      if (remoteRoom != null && queueChanged) {
+        await queueController.cacheGroupListeningQueueMetadata(
+          remoteRoom.queue.entries,
+        );
+      }
 
       // Whether we performed a full queue replace (requires seek + play/pause sync).
       var didFullQueueReplace = false;
 
       if (remoteState.queueSongIds.isEmpty) {
         if (beforeApply.queueSongIds.isNotEmpty || beforeApply.isRadioMode) {
-          await queueController.clear();
+          await queueController.clear(syncGroupListening: false);
         }
       } else if (queueChanged) {
         // Detect a pure append: old items are unchanged and new items were
@@ -529,7 +546,7 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
             beforeApply.queueSongIds.length,
           );
           for (final id in newIds) {
-            await queueController.add(id);
+            await queueController.add(id, syncGroupListening: false);
           }
           // Notify the UI to show a snackbar without interrupting playback.
           ref.read(groupListeningQueueTrackAddedProvider.notifier).increment();
@@ -546,6 +563,7 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
             autoPlay: followPlayback
                 ? remoteState.playing
                 : beforeApply.playing,
+            syncGroupListening: false,
           );
           didFullQueueReplace = followPlayback;
         }
@@ -559,6 +577,7 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
             remoteState.queueSongIds,
             startIndex: remoteState.currentIndex!,
             autoPlay: false,
+            syncGroupListening: false,
           );
         }
       }
@@ -568,8 +587,12 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
         final shouldSeek =
             didFullQueueReplace ||
             trackChanged ||
-            _durationDistance(afterQueueApply.position, remoteState.position) >
-                _positionTolerance;
+            (forcePositionCorrection &&
+                _durationDistance(
+                      afterQueueApply.position,
+                      remoteState.position,
+                    ) >
+                    _positionTolerance);
         if (shouldSeek) {
           await handler.seek(remoteState.position);
         }
@@ -621,6 +644,7 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
             _applyInboundState(
               queuedState,
               followPlayback: queuedFollowPlayback,
+              forcePositionCorrection: true,
             ),
           );
         }

@@ -357,6 +357,7 @@ final groupListeningClientDescriptorProvider =
         capabilities: const <String>{
           'playback_anchor',
           'queue_add',
+          voyageQueueEntryMetadataCapability,
           'queue_remove',
           'queue_replace',
         },
@@ -694,6 +695,7 @@ class GroupListeningSessionController
     GroupListeningPlaybackAnchor? playbackAnchor,
     GroupListeningQueueState? queue,
     String? targetQueueEntryId,
+    int? insertIndex,
     String? targetMemberId,
   }) async {
     final connection = _connection;
@@ -717,6 +719,7 @@ class GroupListeningSessionController
           playbackAnchor: playbackAnchor,
           queue: queue,
           targetQueueEntryId: targetQueueEntryId,
+          insertIndex: insertIndex,
           targetMemberId: targetMemberId,
         ),
       );
