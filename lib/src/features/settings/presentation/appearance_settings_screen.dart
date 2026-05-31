@@ -796,8 +796,8 @@ class _ColorSchemeGrid extends StatelessWidget {
           _ColorChip(
             color: Colors.orange,
             label: l10n.appearanceColorDefault,
-            isSelected: currentSeed == null ||
-                currentSeed == Colors.orange.toARGB32(),
+            isSelected:
+                currentSeed == null || currentSeed == Colors.orange.toARGB32(),
             onTap: () => onSelected(null),
             theme: theme,
           ),
@@ -1105,8 +1105,12 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
               ),
               maxLength: 6,
               buildCounter:
-                  (_, {required currentLength, required isFocused, maxLength}) =>
-                      null,
+                  (
+                    _, {
+                    required currentLength,
+                    required isFocused,
+                    maxLength,
+                  }) => null,
               autocorrect: false,
               textCapitalization: TextCapitalization.characters,
               inputFormatters: [

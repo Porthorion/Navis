@@ -65,6 +65,7 @@ class _QueueSpyController extends QueueController {
     List<SongsTableData> songs, {
     int startIndex = 0,
     bool autoPlay = true,
+    bool syncGroupListening = true,
   }) async {
     lastReplaceIds = songs.map((song) => song.id).toList(growable: false);
     lastStartIndex = startIndex;

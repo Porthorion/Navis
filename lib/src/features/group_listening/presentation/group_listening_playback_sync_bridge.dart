@@ -219,10 +219,12 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
 
     final remoteState = _playbackStateFromSession(next);
     final localState = _currentLocalPlaybackState();
-    final selfIssued = nextRoom.playbackAnchor.issuedByConnectionId != null
-        ? nextRoom.playbackAnchor.issuedByConnectionId ==
-              next.connection.clientConnectionId
-        : nextRoom.playbackAnchor.issuedByMemberId == nextRoom.self.memberId;
+    final anchor = nextRoom.playbackAnchor;
+    final selfIssued =
+        anchor != null &&
+        (anchor.issuedByConnectionId != null
+            ? anchor.issuedByConnectionId == next.connection.clientConnectionId
+            : anchor.issuedByMemberId == nextRoom.self.memberId);
     if (selfIssued &&
         _playbackStatesEquivalent(
           localState,
@@ -773,6 +775,18 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
   ) {
     final room = session.room!;
     final anchor = room.playbackAnchor;
+    if (anchor == null) {
+      return _BridgePlaybackState(
+        queueSongIds: List<String>.unmodifiable(
+          room.queue.entries.map((entry) => entry.songId),
+        ),
+        currentIndex: room.queue.currentIndex,
+        currentSongId: room.queue.currentSongId,
+        playing: false,
+        position: Duration.zero,
+        isRadioMode: false,
+      );
+    }
     final projectedPosition = _projectedAnchorPosition(anchor);
     return _BridgePlaybackState(
       queueSongIds: List<String>.unmodifiable(

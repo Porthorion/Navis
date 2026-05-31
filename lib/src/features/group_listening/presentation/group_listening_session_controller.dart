@@ -652,6 +652,7 @@ class GroupListeningSessionController
               lastAppliedRoomVersion: state.lastAppliedRoomVersion,
               lastAppliedEventId: state.lastAppliedEventId,
               lastAppliedQueueVersion: state.room?.queue.queueVersion ?? 0,
+              lastAppliedPlaybackVersion: state.room?.playbackVersion ?? 0,
               lastAppliedPresenceVersion: state.room?.presenceVersion ?? 0,
             ),
           );
@@ -1657,6 +1658,7 @@ class GroupListeningSessionController
       return;
     }
     if (message is GroupListeningHeartbeatAckMessage) {
+      _recordServerClockSample(message);
       final receivedAt = DateTime.now();
       state = state.copyWith(
         connection: state.connection.copyWith(
@@ -1670,6 +1672,10 @@ class GroupListeningSessionController
       } else {
         _clearAckLagRecovery(upToRoomVersion: state.lastAppliedRoomVersion);
       }
+      return;
+    }
+    if (message is GroupListeningMutationAckMessage) {
+      _clearAckLagRecovery(upToRoomVersion: message.roomVersion);
       return;
     }
     if (message is GroupListeningRoomClosedMessage) {
@@ -1742,6 +1748,28 @@ class GroupListeningSessionController
       clearFailure: true,
     );
     _scheduleServerUpgradeCheck();
+  }
+
+  void _recordServerClockSample(GroupListeningHeartbeatAckMessage message) {
+    final clientTime = message.clientTime;
+    final serverReceiveTime = message.serverReceiveTime;
+    final serverSendTime = message.serverSendTime;
+    if (clientTime == null ||
+        serverReceiveTime == null ||
+        serverSendTime == null) {
+      return;
+    }
+    final now = DateTime.now().toUtc();
+    final rtt = now.difference(clientTime);
+    if (rtt.isNegative) {
+      return;
+    }
+    AppLogger.debug(
+      'Group listening heartbeat clock sample: '
+      'rtt_ms=${rtt.inMilliseconds}, '
+      'server_receive_ms=${serverReceiveTime.millisecondsSinceEpoch}, '
+      'server_send_ms=${serverSendTime.millisecondsSinceEpoch}',
+    );
   }
 
   void _handleTransportFailure(
@@ -2244,6 +2272,10 @@ class GroupListeningSessionController
           clientConnectionId: clientConnectionId,
           clientTime: DateTime.now().toUtc(),
           lastAppliedRoomVersion: state.lastAppliedRoomVersion,
+          lastAppliedEventId: state.lastAppliedEventId,
+          lastAppliedQueueVersion: state.room?.queue.queueVersion ?? 0,
+          lastAppliedPlaybackVersion: state.room?.playbackVersion ?? 0,
+          lastAppliedPresenceVersion: state.room?.presenceVersion ?? 0,
           observedPosition: observedPosition,
         ),
       );
@@ -2346,6 +2378,7 @@ class GroupListeningSessionController
               lastAppliedRoomVersion: state.lastAppliedRoomVersion,
               lastAppliedEventId: state.lastAppliedEventId,
               lastAppliedQueueVersion: state.room?.queue.queueVersion ?? 0,
+              lastAppliedPlaybackVersion: state.room?.playbackVersion ?? 0,
               lastAppliedPresenceVersion: state.room?.presenceVersion ?? 0,
             ),
           );

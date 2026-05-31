@@ -65,17 +65,14 @@ class GroupListeningCapabilityDiscovery {
   final Set<String> capabilities;
 
   bool get supportsCurrentProtocol =>
-      (latestProtocolVersion == voyageProtocolVersion &&
-          supportedProtocolVersions.contains(voyageProtocolVersion)) ||
-      supportsReplayResume;
+      latestProtocolVersion == voyageProtocolVersion &&
+      supportedProtocolVersions.contains(voyageProtocolVersion);
 
   bool get supportsReplayResume =>
-      supportedProtocolVersions.contains(voyageProtocolVersionV1Alpha2) &&
+      supportedProtocolVersions.contains(voyageProtocolVersion) &&
       capabilities.contains(voyageReplayResumeCapability);
 
-  String get preferredProtocolVersion => supportsReplayResume
-      ? voyageProtocolVersionV1Alpha2
-      : voyageProtocolVersion;
+  String get preferredProtocolVersion => voyageProtocolVersion;
 }
 
 @immutable
@@ -298,6 +295,7 @@ class GroupListeningTransportConnectRequest {
     required this.lastAppliedRoomVersion,
     this.lastAppliedEventId = 0,
     this.lastAppliedQueueVersion = 0,
+    this.lastAppliedPlaybackVersion = 0,
     this.lastAppliedPresenceVersion = 0,
   });
 
@@ -305,6 +303,7 @@ class GroupListeningTransportConnectRequest {
   final int lastAppliedRoomVersion;
   final int lastAppliedEventId;
   final int lastAppliedQueueVersion;
+  final int lastAppliedPlaybackVersion;
   final int lastAppliedPresenceVersion;
 }
 
@@ -318,6 +317,10 @@ class GroupListeningHeartbeatMessage
     required this.clientConnectionId,
     required this.clientTime,
     required this.lastAppliedRoomVersion,
+    this.lastAppliedEventId = 0,
+    this.lastAppliedQueueVersion = 0,
+    this.lastAppliedPlaybackVersion = 0,
+    this.lastAppliedPresenceVersion = 0,
     this.observedPosition,
     this.transportRtt,
   });
@@ -325,6 +328,10 @@ class GroupListeningHeartbeatMessage
   final String clientConnectionId;
   final DateTime clientTime;
   final int lastAppliedRoomVersion;
+  final int lastAppliedEventId;
+  final int lastAppliedQueueVersion;
+  final int lastAppliedPlaybackVersion;
+  final int lastAppliedPresenceVersion;
   final Duration? observedPosition;
   final Duration? transportRtt;
 }
@@ -402,6 +409,7 @@ class GroupListeningConnectionReadyMessage
     required this.minAvailableEventId,
     required this.roomVersion,
     required this.queueVersion,
+    required this.playbackVersion,
     required this.presenceVersion,
     required this.authVersion,
     required this.heartbeatInterval,
@@ -415,6 +423,7 @@ class GroupListeningConnectionReadyMessage
   final int minAvailableEventId;
   final int roomVersion;
   final int queueVersion;
+  final int playbackVersion;
   final int presenceVersion;
   final int authVersion;
   final Duration heartbeatInterval;
@@ -461,14 +470,48 @@ class GroupListeningHeartbeatAckMessage extends GroupListeningTransportMessage {
   const GroupListeningHeartbeatAckMessage({
     required this.serverTime,
     required this.roomVersion,
+    this.latestEventId = 0,
+    this.queueVersion = 0,
+    this.playbackVersion = 0,
     required this.presenceVersion,
+    this.authVersion = 0,
+    this.clientTime,
+    this.serverReceiveTime,
+    this.serverSendTime,
     required this.nextHeartbeatDeadline,
   });
 
   final DateTime serverTime;
   final int roomVersion;
+  final int latestEventId;
+  final int queueVersion;
+  final int playbackVersion;
   final int presenceVersion;
+  final int authVersion;
+  final DateTime? clientTime;
+  final DateTime? serverReceiveTime;
+  final DateTime? serverSendTime;
   final DateTime nextHeartbeatDeadline;
+}
+
+class GroupListeningMutationAckMessage extends GroupListeningTransportMessage {
+  const GroupListeningMutationAckMessage({
+    required this.clientMutationId,
+    required this.eventId,
+    required this.roomVersion,
+    required this.queueVersion,
+    required this.playbackVersion,
+    required this.presenceVersion,
+    required this.authVersion,
+  });
+
+  final String clientMutationId;
+  final int eventId;
+  final int roomVersion;
+  final int queueVersion;
+  final int playbackVersion;
+  final int presenceVersion;
+  final int authVersion;
 }
 
 class GroupListeningRoomClosedMessage extends GroupListeningTransportMessage {
@@ -1023,7 +1066,7 @@ class IOWebSocketGroupListeningRealtimeTransportClient
         },
         protocols: <String>[request.session.protocolVersion],
       );
-      if (request.session.protocolVersion == voyageProtocolVersionV1Alpha2) {
+      if (request.session.protocolVersion == voyageProtocolVersion) {
         socket.add(
           jsonEncode(<String, Object?>{
             'type': 'connection.init',
@@ -1031,6 +1074,8 @@ class IOWebSocketGroupListeningRealtimeTransportClient
               'last_event_id': request.lastAppliedEventId,
               'last_applied_room_version': request.lastAppliedRoomVersion,
               'last_applied_queue_version': request.lastAppliedQueueVersion,
+              'last_applied_playback_version':
+                  request.lastAppliedPlaybackVersion,
               'last_applied_presence_version':
                   request.lastAppliedPresenceVersion,
               'client_time_ms': DateTime.now().toUtc().millisecondsSinceEpoch,
@@ -1174,6 +1219,8 @@ class _IOWebSocketGroupListeningRealtimeConnection
                   _nullableIntValue(payload['min_available_event_id']) ?? 0,
               roomVersion: _intValue(payload['room_version']),
               queueVersion: _intValue(payload['queue_version']),
+              playbackVersion:
+                  _nullableIntValue(payload['playback_version']) ?? 0,
               presenceVersion: _intValue(payload['presence_version']),
               authVersion: _intValue(payload['auth_version']),
               heartbeatInterval: Duration(
@@ -1218,10 +1265,48 @@ class _IOWebSocketGroupListeningRealtimeConnection
             GroupListeningHeartbeatAckMessage(
               serverTime: serverTime,
               roomVersion: _intValue(payload['room_version']),
+              latestEventId: _nullableIntValue(payload['latest_event_id']) ?? 0,
+              queueVersion: _nullableIntValue(payload['queue_version']) ?? 0,
+              playbackVersion:
+                  _nullableIntValue(payload['playback_version']) ?? 0,
               presenceVersion: _intValue(payload['presence_version']),
+              authVersion: _nullableIntValue(payload['auth_version']) ?? 0,
+              clientTime: _nullableDateTimeFromEpochMs(
+                payload['client_time_ms'],
+              ),
+              serverReceiveTime: _nullableDateTimeFromEpochMs(
+                payload['server_receive_time_ms'],
+              ),
+              serverSendTime: _nullableDateTimeFromEpochMs(
+                payload['server_send_time_ms'],
+              ),
               nextHeartbeatDeadline: _dateTimeFromEpochMs(
                 payload['next_heartbeat_deadline_ms'],
               ),
+            ),
+          );
+          return;
+        case 'mutation.ack':
+          final payload = _mapValue(data);
+          _messagesController.add(
+            GroupListeningMutationAckMessage(
+              clientMutationId: _stringValue(payload['client_mutation_id']),
+              eventId: _intValue(payload['event_id']),
+              roomVersion: _intValue(payload['room_version']),
+              queueVersion: _nullableIntValue(payload['queue_version']) ?? 0,
+              playbackVersion:
+                  _nullableIntValue(payload['playback_version']) ?? 0,
+              presenceVersion:
+                  _nullableIntValue(payload['presence_version']) ?? 0,
+              authVersion: _nullableIntValue(payload['auth_version']) ?? 0,
+            ),
+          );
+          return;
+        case 'mutation.nack':
+          final payload = _mapValue(data);
+          _messagesController.add(
+            GroupListeningMutationRejectedMessage(
+              _errorStateFromApiError(_mapValue(payload['error'])),
             ),
           );
           return;
@@ -1863,19 +1948,7 @@ GroupListeningRoomState _roomStateFromJson(
   final queue = _queueStateFromJson(_mapValue(json['queue']));
   final playbackAnchor = _nullableMapValue(json['playback_anchor']) != null
       ? _playbackAnchorFromJson(_mapValue(json['playback_anchor']))
-      : GroupListeningPlaybackAnchor(
-          roomVersion: roomVersion,
-          queueVersion: queue.queueVersion,
-          currentIndex: queue.currentIndex,
-          currentQueueEntryId: queue.currentEntry?.queueEntryId,
-          currentSongId: queue.currentEntry?.songId,
-          playbackState: GroupListeningPlaybackStatus.paused,
-          position: Duration.zero,
-          capturedAt: _dateTimeFromEpochMs(json['server_time_ms']),
-          playbackRate: 1,
-          reason: GroupListeningPlaybackAnchorReason.snapshot,
-          issuedByMemberId: fallbackSelfMemberId,
-        );
+      : null;
   final self = _nullableMapValue(json['self']);
   return GroupListeningRoomState(
     protocolVersion: _stringValue(json['protocol_version']),
@@ -1885,6 +1958,7 @@ GroupListeningRoomState _roomStateFromJson(
     requiresPin: _boolValue(json['requires_pin']),
     roomVersion: roomVersion,
     latestEventId: _nullableIntValue(json['latest_event_id']) ?? 0,
+    playbackVersion: _nullableIntValue(json['playback_version']) ?? 0,
     presenceVersion: _intValue(json['presence_version']),
     authVersion: authVersion,
     serverTime: _dateTimeFromEpochMs(json['server_time_ms']),
@@ -1931,11 +2005,18 @@ GroupListeningRoomEvent _roomEventFromJson(Map<String, dynamic> json) {
     roomId: _stringValue(json['room_id']),
     previousRoomVersion: _intValue(json['previous_room_version']),
     roomVersion: _intValue(json['room_version']),
+    queueVersion: _nullableIntValue(json['queue_version']),
+    playbackVersion: _nullableIntValue(json['playback_version']),
     causedByMemberId: _nullableStringValue(causedBy?['member_id']),
     clientMutationId: _nullableStringValue(causedBy?['client_mutation_id']),
     playbackAnchor: _nullableMapValue(json['playback_anchor']) != null
         ? _playbackAnchorFromJson(_mapValue(json['playback_anchor']))
         : null,
+    playbackAnchorCleared:
+        _nullableBoolValue(
+          json['playback_anchor_cleared'],
+        ) ??
+        false,
     queue: _nullableMapValue(json['queue']) != null
         ? _queueStateFromJson(_mapValue(json['queue']))
         : null,
@@ -2054,6 +2135,10 @@ Map<String, dynamic> _outboundTransportEnvelope(
         'client_connection_id': message.clientConnectionId,
         'client_time_ms': message.clientTime.toUtc().millisecondsSinceEpoch,
         'last_applied_room_version': message.lastAppliedRoomVersion,
+        'last_event_id': message.lastAppliedEventId,
+        'last_applied_queue_version': message.lastAppliedQueueVersion,
+        'last_applied_playback_version': message.lastAppliedPlaybackVersion,
+        'last_applied_presence_version': message.lastAppliedPresenceVersion,
         if (message.observedPosition != null)
           'observed_position_ms': message.observedPosition!.inMilliseconds,
         if (message.transportRtt != null)
@@ -2503,8 +2588,7 @@ GroupListeningRepositoryException _protocolFormatFailure(String message) {
 
 void _validateProtocolVersion(Object? value) {
   final protocolVersion = _nullableStringValue(value) ?? '';
-  if (protocolVersion == voyageProtocolVersion ||
-      protocolVersion == voyageProtocolVersionV1Alpha2) {
+  if (protocolVersion == voyageProtocolVersion) {
     return;
   }
   throw GroupListeningRepositoryException(
@@ -2673,6 +2757,13 @@ List<String> _stringListValue(Object? value) {
 
 DateTime _dateTimeFromEpochMs(Object? value) {
   return DateTime.fromMillisecondsSinceEpoch(_intValue(value), isUtc: true);
+}
+
+DateTime? _nullableDateTimeFromEpochMs(Object? value) {
+  final milliseconds = _nullableIntValue(value);
+  return milliseconds == null
+      ? null
+      : DateTime.fromMillisecondsSinceEpoch(milliseconds, isUtc: true);
 }
 
 Duration? _retryAfterFromHeader(String? rawValue) {

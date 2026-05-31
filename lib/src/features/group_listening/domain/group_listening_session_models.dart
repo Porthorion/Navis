@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 
-const String voyageProtocolVersion = 'voyage-sync.v1alpha1';
-const String voyageProtocolVersionV1Alpha2 = 'voyage-sync.v1alpha2';
+const String voyageProtocolVersion = 'voyage-sync.v2alpha1';
+const String voyageProtocolVersionV1Alpha2 = voyageProtocolVersion;
 const String voyageReplayResumeCapability = 'replay_resume';
 const String voyageQueueEntryMetadataCapability = 'queue_entry_metadata';
 
@@ -688,9 +688,12 @@ class GroupListeningRoomEvent {
     required this.roomId,
     required this.previousRoomVersion,
     required this.roomVersion,
+    this.queueVersion,
+    this.playbackVersion,
     this.causedByMemberId,
     this.clientMutationId,
     this.playbackAnchor,
+    this.playbackAnchorCleared = false,
     this.queue,
     this.members = const <GroupListeningMemberState>[],
     this.removedMemberIds = const <String>[],
@@ -707,9 +710,12 @@ class GroupListeningRoomEvent {
   final String roomId;
   final int previousRoomVersion;
   final int roomVersion;
+  final int? queueVersion;
+  final int? playbackVersion;
   final String? causedByMemberId;
   final String? clientMutationId;
   final GroupListeningPlaybackAnchor? playbackAnchor;
+  final bool playbackAnchorCleared;
   final GroupListeningQueueState? queue;
   final List<GroupListeningMemberState> members;
   final List<String> removedMemberIds;
@@ -730,6 +736,7 @@ class GroupListeningRoomState {
     this.requiresPin = false,
     required this.roomVersion,
     this.latestEventId = 0,
+    this.playbackVersion = 0,
     required this.presenceVersion,
     required this.authVersion,
     required this.serverTime,
@@ -738,7 +745,7 @@ class GroupListeningRoomState {
     required this.self,
     required this.members,
     required this.queue,
-    required this.playbackAnchor,
+    this.playbackAnchor,
   });
 
   final String protocolVersion;
@@ -748,6 +755,7 @@ class GroupListeningRoomState {
   final bool requiresPin;
   final int roomVersion;
   final int latestEventId;
+  final int playbackVersion;
   final int presenceVersion;
   final int authVersion;
   final DateTime serverTime;
@@ -756,7 +764,7 @@ class GroupListeningRoomState {
   final GroupListeningSelfState self;
   final List<GroupListeningMemberState> members;
   final GroupListeningQueueState queue;
-  final GroupListeningPlaybackAnchor playbackAnchor;
+  final GroupListeningPlaybackAnchor? playbackAnchor;
 
   GroupListeningMemberState? get hostMember {
     for (final member in members) {
@@ -789,6 +797,7 @@ class GroupListeningRoomState {
     bool? requiresPin,
     int? roomVersion,
     int? latestEventId,
+    int? playbackVersion,
     int? presenceVersion,
     int? authVersion,
     DateTime? serverTime,
@@ -798,6 +807,7 @@ class GroupListeningRoomState {
     List<GroupListeningMemberState>? members,
     GroupListeningQueueState? queue,
     GroupListeningPlaybackAnchor? playbackAnchor,
+    bool clearPlaybackAnchor = false,
   }) {
     return GroupListeningRoomState(
       protocolVersion: protocolVersion ?? this.protocolVersion,
@@ -807,6 +817,7 @@ class GroupListeningRoomState {
       requiresPin: requiresPin ?? this.requiresPin,
       roomVersion: roomVersion ?? this.roomVersion,
       latestEventId: latestEventId ?? this.latestEventId,
+      playbackVersion: playbackVersion ?? this.playbackVersion,
       presenceVersion: presenceVersion ?? this.presenceVersion,
       authVersion: authVersion ?? this.authVersion,
       serverTime: serverTime ?? this.serverTime,
@@ -816,7 +827,9 @@ class GroupListeningRoomState {
       self: self ?? this.self,
       members: members ?? this.members,
       queue: queue ?? this.queue,
-      playbackAnchor: playbackAnchor ?? this.playbackAnchor,
+      playbackAnchor: clearPlaybackAnchor
+          ? null
+          : playbackAnchor ?? this.playbackAnchor,
     );
   }
 
@@ -862,6 +875,7 @@ class GroupListeningRoomState {
       roomStatus: nextRoomStatus,
       roomVersion: event.roomVersion,
       latestEventId: event.eventCursor ?? latestEventId,
+      playbackVersion: event.playbackVersion ?? playbackVersion,
       presenceVersion: event.presenceVersion,
       authVersion: event.authVersion,
       hostMemberId: nextHostMemberId,
@@ -869,6 +883,7 @@ class GroupListeningRoomState {
       members: updatedMembers,
       queue: event.queue,
       playbackAnchor: event.playbackAnchor,
+      clearPlaybackAnchor: event.playbackAnchorCleared,
     );
   }
 
@@ -884,6 +899,7 @@ class GroupListeningRoomState {
           requiresPin == other.requiresPin &&
           roomVersion == other.roomVersion &&
           latestEventId == other.latestEventId &&
+          playbackVersion == other.playbackVersion &&
           presenceVersion == other.presenceVersion &&
           authVersion == other.authVersion &&
           serverTime == other.serverTime &&
@@ -903,6 +919,7 @@ class GroupListeningRoomState {
     requiresPin,
     roomVersion,
     latestEventId,
+    playbackVersion,
     presenceVersion,
     authVersion,
     serverTime,

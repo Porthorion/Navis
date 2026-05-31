@@ -778,7 +778,7 @@ void main() {
         connection.add(
           _welcome(
             roomVersion: 1,
-            serverTime: room.playbackAnchor.capturedAt.add(
+            serverTime: room.playbackAnchor!.capturedAt.add(
               const Duration(milliseconds: 800),
             ),
           ),
@@ -1693,7 +1693,7 @@ PlaybackSnapshot _snapshotFromRoom(GroupListeningRoomState room) {
     queueSongIds: List<String>.unmodifiable(
       room.queue.entries.map((entry) => entry.songId),
     ),
-    currentSongId: anchor.currentSongId,
+    currentSongId: anchor!.currentSongId,
     currentIndex: anchor.currentIndex,
     playing: anchor.playbackState == GroupListeningPlaybackStatus.playing,
     processingState: AudioProcessingState.ready,

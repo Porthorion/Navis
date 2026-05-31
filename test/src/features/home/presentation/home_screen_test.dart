@@ -118,6 +118,7 @@ class _QueueSpyController extends QueueController {
     List<String> ids, {
     int startIndex = 0,
     bool autoPlay = true,
+    bool syncGroupListening = true,
   }) async {
     lastReplaceIds = List<String>.unmodifiable(ids);
     lastStartIndex = startIndex;
@@ -130,6 +131,7 @@ class _QueueSpyController extends QueueController {
     List<SongsTableData> songs, {
     int startIndex = 0,
     bool autoPlay = true,
+    bool syncGroupListening = true,
   }) async {
     final ids = songs.map((s) => s.id).toList(growable: false);
     lastReplaceIds = List<String>.unmodifiable(ids);
