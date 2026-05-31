@@ -1460,6 +1460,38 @@ void main() {
       expect(state.snapshotRequired, isFalse);
     });
 
+    test('updates server clock offset from applied snapshots', () async {
+      final repository = _FakeGroupListeningRepository();
+      final fingerprint = computeSourceServerFingerprint(activeServer.url);
+      repository.joinResponse = GroupListeningJoinResponse(
+        runtimeContext: _runtimeContext(fingerprint: fingerprint),
+        roomSnapshot: _roomState(fingerprint: fingerprint, roomVersion: 1),
+      );
+
+      final container = createContainer(repository: repository);
+      final controller = container.read(
+        groupListeningSessionControllerProvider.notifier,
+      );
+
+      await controller.joinRoom(
+        inviteCode: 'INVITE',
+        client: client,
+        connectAfterJoin: false,
+      );
+
+      final snapshot = _roomState(fingerprint: fingerprint, roomVersion: 2);
+      controller.applySnapshot(snapshot);
+
+      final state = container.read(groupListeningSessionControllerProvider);
+      final projectedServerNow = DateTime.now().toUtc().add(
+        state.connection.serverClockOffset,
+      );
+      expect(
+        projectedServerNow.difference(snapshot.serverTime).abs(),
+        lessThan(const Duration(seconds: 1)),
+      );
+    });
+
     test(
       'cleans up locally when snapshot refresh is unauthorized while connected',
       () async {

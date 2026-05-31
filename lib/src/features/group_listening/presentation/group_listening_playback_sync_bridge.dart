@@ -806,11 +806,17 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
         anchor.playbackState != GroupListeningPlaybackStatus.playing) {
       return anchor.position;
     }
-    final elapsed = DateTime.now().difference(receivedAt);
-    final projectedAt = anchor.capturedAt.add(
-      elapsed.isNegative ? Duration.zero : elapsed,
+    // Use the NTP-style server clock offset to convert local time to
+    // estimated server time, then compute elapsed directly against
+    // the anchor's capturedAt (which is in server time).  This eliminates
+    // seek jitter caused by clock skew between the client and server.
+    final session = ref.read(groupListeningSessionControllerProvider);
+    final clockOffset = session.connection.serverClockOffset;
+    final serverNow = DateTime.now().toUtc().add(clockOffset);
+    final elapsed = serverNow.difference(anchor.capturedAt);
+    return anchor.expectedPositionAt(
+      anchor.capturedAt.add(elapsed.isNegative ? Duration.zero : elapsed),
     );
-    return anchor.expectedPositionAt(projectedAt);
   }
 
   _BridgePlaybackState _currentLocalPlaybackState() {

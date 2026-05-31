@@ -202,6 +202,7 @@ class GroupListeningConnectionState {
     this.connectedServerVersion,
     this.reconnectAttempt = 0,
     this.lastDisconnectReason,
+    this.serverClockOffset = Duration.zero,
   });
 
   const GroupListeningConnectionState.disconnected()
@@ -215,7 +216,8 @@ class GroupListeningConnectionState {
       connectedServerUrl = null,
       connectedServerVersion = null,
       reconnectAttempt = 0,
-      lastDisconnectReason = null;
+      lastDisconnectReason = null,
+      serverClockOffset = Duration.zero;
 
   final GroupListeningConnectionStatus status;
   final String? clientConnectionId;
@@ -228,6 +230,7 @@ class GroupListeningConnectionState {
   final String? connectedServerVersion;
   final int reconnectAttempt;
   final GroupListeningErrorState? lastDisconnectReason;
+  final Duration serverClockOffset;
 
   bool get isConnected => status == GroupListeningConnectionStatus.connected;
 
@@ -243,6 +246,7 @@ class GroupListeningConnectionState {
     String? connectedServerVersion,
     int? reconnectAttempt,
     GroupListeningErrorState? lastDisconnectReason,
+    Duration? serverClockOffset,
     bool clearClientConnectionId = false,
     bool clearConnectedServer = false,
     bool clearDisconnectReason = false,
@@ -267,6 +271,7 @@ class GroupListeningConnectionState {
       lastDisconnectReason: clearDisconnectReason
           ? null
           : lastDisconnectReason ?? this.lastDisconnectReason,
+      serverClockOffset: serverClockOffset ?? this.serverClockOffset,
     );
   }
 
@@ -285,7 +290,8 @@ class GroupListeningConnectionState {
           connectedServerUrl == other.connectedServerUrl &&
           connectedServerVersion == other.connectedServerVersion &&
           reconnectAttempt == other.reconnectAttempt &&
-          lastDisconnectReason == other.lastDisconnectReason;
+          lastDisconnectReason == other.lastDisconnectReason &&
+          serverClockOffset == other.serverClockOffset;
 
   @override
   int get hashCode => Object.hash(
@@ -300,6 +306,7 @@ class GroupListeningConnectionState {
     connectedServerVersion,
     reconnectAttempt,
     lastDisconnectReason,
+    serverClockOffset,
   );
 }
 

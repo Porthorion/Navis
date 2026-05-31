@@ -7,6 +7,7 @@ import 'package:navis/src/features/group_listening/data/group_listening_configur
 import 'package:navis/src/features/group_listening/data/group_listening_device_name_service.dart';
 import 'package:navis/src/features/group_listening/data/group_listening_repository.dart';
 import 'package:navis/src/features/group_listening/domain/group_listening_session_models.dart';
+import 'package:navis/src/features/group_listening/domain/group_listening_server_clock_estimator.dart';
 import 'package:navis/src/features/group_listening/presentation/group_listening_settings_provider.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -443,6 +444,8 @@ class GroupListeningSessionController
   bool _transportTeardownInProgress = false;
   bool _transportTeardownFailureObserved = false;
   int _clientSequence = 0;
+  final GroupListeningServerClockEstimator _serverClockEstimator =
+      GroupListeningServerClockEstimator();
 
   @override
   GroupListeningSessionState build() {
@@ -1256,15 +1259,23 @@ class GroupListeningSessionController
       return state;
     }
 
+    _serverClockEstimator.recordInstantSample(
+      serverTime: snapshot.serverTime,
+      clientReceiveTime: DateTime.now().toUtc(),
+    );
+    final nextConnection =
+        snapshot.roomStatus == GroupListeningRoomStatus.closed
+        ? const GroupListeningConnectionState.disconnected()
+        : state.connection.copyWith(
+            serverClockOffset: _serverClockEstimator.clockOffset,
+          );
     state = state.copyWith(
       status: snapshot.roomStatus == GroupListeningRoomStatus.closed
           ? GroupListeningSessionStatus.idle
           : state.connection.isConnected
           ? GroupListeningSessionStatus.connected
           : GroupListeningSessionStatus.idle,
-      connection: snapshot.roomStatus == GroupListeningRoomStatus.closed
-          ? const GroupListeningConnectionState.disconnected()
-          : state.connection,
+      connection: nextConnection,
       room: snapshot,
       lastAppliedRoomVersion: snapshot.roomVersion,
       lastAppliedEventId: snapshot.latestEventId,
@@ -1542,6 +1553,7 @@ class GroupListeningSessionController
     required GroupListeningClientDescriptor client,
     required bool connectAfterJoin,
   }) async {
+    _serverClockEstimator.clear();
     _runtimeSession = result.runtimeContext;
     final storedSession = GroupListeningStoredSession(
       roomId: result.runtimeContext.roomId,
@@ -1732,6 +1744,10 @@ class GroupListeningSessionController
     final connectedDiscovery = _connectingDiscovery;
     _connectingDiscovery = null;
     final connectedSession = _runtimeSession;
+    _serverClockEstimator.recordInstantSample(
+      serverTime: serverTime,
+      clientReceiveTime: DateTime.now().toUtc(),
+    );
     state = state.copyWith(
       status: GroupListeningSessionStatus.connected,
       connection: state.connection.copyWith(
@@ -1743,6 +1759,7 @@ class GroupListeningSessionController
         lastServerTime: serverTime,
         connectedServerUrl: connectedSession?.voyageBaseUrl,
         connectedServerVersion: connectedDiscovery?.serverVersion,
+        serverClockOffset: _serverClockEstimator.clockOffset,
         clearDisconnectReason: true,
       ),
       clearFailure: true,
@@ -1759,16 +1776,26 @@ class GroupListeningSessionController
         serverSendTime == null) {
       return;
     }
-    final now = DateTime.now().toUtc();
-    final rtt = now.difference(clientTime);
-    if (rtt.isNegative) {
+    final accepted = _serverClockEstimator.recordSample(
+      clientSendTime: clientTime,
+      serverReceiveTime: serverReceiveTime,
+      serverSendTime: serverSendTime,
+      clientReceiveTime: DateTime.now().toUtc(),
+    );
+    if (!accepted) {
       return;
     }
+    final medianOffset = _serverClockEstimator.clockOffset;
     AppLogger.debug(
       'Group listening heartbeat clock sample: '
-      'rtt_ms=${rtt.inMilliseconds}, '
-      'server_receive_ms=${serverReceiveTime.millisecondsSinceEpoch}, '
-      'server_send_ms=${serverSendTime.millisecondsSinceEpoch}',
+      'rtt_ms=${_serverClockEstimator.lastRoundTripTime?.inMilliseconds}, '
+      'offset_ms=${_serverClockEstimator.lastSampleOffset?.inMilliseconds}, '
+      'median_offset_ms=${medianOffset.inMilliseconds}',
+    );
+    state = state.copyWith(
+      connection: state.connection.copyWith(
+        serverClockOffset: medianOffset,
+      ),
     );
   }
 
@@ -2080,6 +2107,7 @@ class GroupListeningSessionController
   }
 
   Future<void> _disposeTransport() async {
+    _serverClockEstimator.clear();
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
     _serverUpgradeTimer?.cancel();
