@@ -45,6 +45,7 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
   static const Duration _positionTolerance = Duration(milliseconds: 500);
   static const Duration _echoTolerance = Duration(milliseconds: 1500);
   static const Duration _localPositionDebounce = Duration(milliseconds: 250);
+  static const Duration _remoteApplyPublishGate = Duration(milliseconds: 1200);
   static const Uuid _uuid = Uuid();
 
   Timer? _publishTimer;
@@ -56,6 +57,7 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
   DateTime? _lastPublishedAt;
   DateTime? _lastImmediateSnapshotChangeAt;
   DateTime? _lastRemoteAnchorReceivedAt;
+  DateTime? _suppressOutboundUntil;
   bool _isApplyingRemoteState = false;
   bool _isRefreshingSnapshot = false;
   _BridgePlaybackState? _queuedRemoteState;
@@ -140,6 +142,7 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
       _lastPublishedState = null;
       _suppressedEchoState = null;
       _lastRemoteAnchorReceivedAt = null;
+      _suppressOutboundUntil = null;
       return;
     }
 
@@ -148,6 +151,7 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
       _lastPublishedState = null;
       _suppressedEchoState = null;
       _lastRemoteAnchorReceivedAt = null;
+      _suppressOutboundUntil = null;
     }
 
     final playbackAnchorChanged =
@@ -365,6 +369,12 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
   bool _canPublishOutbound(GroupListeningSessionState session) {
     final room = session.room;
     final configuration = session.configuration;
+    final suppressOutboundUntil = _suppressOutboundUntil;
+    if (_isApplyingRemoteState ||
+        (suppressOutboundUntil != null &&
+            DateTime.now().isBefore(suppressOutboundUntil))) {
+      return false;
+    }
     return room != null &&
         configuration != null &&
         session.availability == GroupListeningAvailability.ready &&
@@ -513,6 +523,7 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
     }
 
     _isApplyingRemoteState = true;
+    var shouldGateOutboundAfterApply = false;
     try {
       final queueController = ref.read(queueProvider.notifier);
       final beforeApply = _currentLocalPlaybackState();
@@ -521,6 +532,7 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
         remoteState.queueSongIds,
       );
       final trackChanged = beforeApply.currentIndex != remoteState.currentIndex;
+      shouldGateOutboundAfterApply = queueChanged || trackChanged;
       final remoteRoom = ref.read(groupListeningSessionControllerProvider).room;
       if (remoteRoom != null && queueChanged) {
         await queueController.cacheGroupListeningQueueMetadata(
@@ -596,6 +608,7 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
                     ) >
                     _positionTolerance);
         if (shouldSeek) {
+          shouldGateOutboundAfterApply = true;
           await handler.seek(remoteState.position);
         }
       }
@@ -630,6 +643,9 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
         ),
       );
     } finally {
+      if (shouldGateOutboundAfterApply) {
+        _suppressOutboundUntil = DateTime.now().add(_remoteApplyPublishGate);
+      }
       _isApplyingRemoteState = false;
       final queuedState = _queuedRemoteState;
       final queuedFollowPlayback = _queuedFollowPlayback;

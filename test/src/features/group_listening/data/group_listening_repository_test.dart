@@ -8,47 +8,24 @@ import 'package:navis/src/features/group_listening/domain/group_listening_sessio
 
 void main() {
   group('GroupListeningCapabilityDiscovery', () {
-    test('prefers v1alpha2 only when replay resume is advertised', () {
-      const legacyDiscovery = GroupListeningCapabilityDiscovery(
-        service: 'voyage',
-        apiVersion: 'v1',
-        serverVersion: '1.0.0',
-        buildCommit: 'test',
-        buildTime: 'test',
-        supportedProtocolVersions: <String>[
-          voyageProtocolVersion,
-          voyageProtocolVersionV1Alpha2,
-        ],
-        latestProtocolVersion: voyageProtocolVersionV1Alpha2,
-        websocketPath: '/api/v1/rooms/ws',
-        heartbeatInterval: Duration(seconds: 10),
-        memberStaleTimeout: Duration(seconds: 45),
-      );
-
+    test('detects v2alpha1 replay resume support from capabilities', () {
       const replayDiscovery = GroupListeningCapabilityDiscovery(
         service: 'voyage',
         apiVersion: 'v1',
         serverVersion: '1.0.0',
         buildCommit: 'test',
         buildTime: 'test',
-        supportedProtocolVersions: <String>[
-          voyageProtocolVersion,
-          voyageProtocolVersionV1Alpha2,
-        ],
-        latestProtocolVersion: voyageProtocolVersionV1Alpha2,
+        supportedProtocolVersions: <String>[voyageProtocolVersion],
+        latestProtocolVersion: voyageProtocolVersion,
         websocketPath: '/api/v1/rooms/ws',
         heartbeatInterval: Duration(seconds: 10),
         memberStaleTimeout: Duration(seconds: 45),
         capabilities: <String>{voyageReplayResumeCapability},
       );
 
-      expect(legacyDiscovery.supportsReplayResume, isFalse);
-      expect(legacyDiscovery.preferredProtocolVersion, voyageProtocolVersion);
+      expect(replayDiscovery.supportsCurrentProtocol, isTrue);
       expect(replayDiscovery.supportsReplayResume, isTrue);
-      expect(
-        replayDiscovery.preferredProtocolVersion,
-        voyageProtocolVersionV1Alpha2,
-      );
+      expect(replayDiscovery.preferredProtocolVersion, voyageProtocolVersion);
     });
   });
 
@@ -75,11 +52,8 @@ void main() {
                 'server_version': '1.1.0',
                 'build_commit': 'test',
                 'build_time': 'test',
-                'supported_protocol_versions': <String>[
-                  voyageProtocolVersion,
-                  voyageProtocolVersionV1Alpha2,
-                ],
-                'latest_protocol_version': voyageProtocolVersionV1Alpha2,
+                'supported_protocol_versions': <String>[voyageProtocolVersion],
+                'latest_protocol_version': voyageProtocolVersion,
                 'websocket_path': '/api/v1/rooms/ws',
                 'heartbeat_interval_ms': 10000,
                 'member_stale_timeout_ms': 45000,
@@ -108,7 +82,7 @@ void main() {
       expect(discovery.supportsReplayResume, isTrue);
       expect(
         discovery.preferredProtocolVersion,
-        voyageProtocolVersionV1Alpha2,
+        voyageProtocolVersion,
       );
     });
   });
@@ -134,7 +108,7 @@ void main() {
           expect(requestBody['last_event_id'], 55);
           expect(
             requestBody['protocol_version'],
-            voyageProtocolVersionV1Alpha2,
+            voyageProtocolVersion,
           );
 
           request.response
@@ -223,7 +197,7 @@ void main() {
               deviceLabel: 'Linux box',
               autoFollowHost: true,
               allowInsecureTransport: true,
-              protocolVersion: voyageProtocolVersionV1Alpha2,
+              protocolVersion: voyageProtocolVersion,
             ),
             session: GroupListeningStoredSession(
               roomId: 'room-1',
@@ -242,7 +216,7 @@ void main() {
               ),
               lastAppliedRoomVersion: 41,
               lastAppliedEventId: 55,
-              protocolVersion: voyageProtocolVersionV1Alpha2,
+              protocolVersion: voyageProtocolVersion,
             ),
           ),
         );
@@ -256,7 +230,7 @@ void main() {
   });
 
   group('IOWebSocketGroupListeningRealtimeTransportClient', () {
-    test('sends connection.init when connecting with v1alpha2', () async {
+    test('sends connection.init when connecting with v2alpha1', () async {
       final initCompleter = Completer<Map<String, dynamic>>();
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       addTearDown(() async {
@@ -268,8 +242,8 @@ void main() {
         final socket = await WebSocketTransformer.upgrade(
           request,
           protocolSelector: (protocols) {
-            expect(protocols, contains(voyageProtocolVersionV1Alpha2));
-            return voyageProtocolVersionV1Alpha2;
+            expect(protocols, contains(voyageProtocolVersion));
+            return voyageProtocolVersion;
           },
         );
         final rawInit = await socket.first as String;
@@ -279,12 +253,12 @@ void main() {
         await socket.close();
       });
 
-      final client = const IOWebSocketGroupListeningRealtimeTransportClient();
+      const client = IOWebSocketGroupListeningRealtimeTransportClient();
       final connection = await client.connect(
         GroupListeningTransportConnectRequest(
           session: _runtimeContext(
             Uri.parse('http://127.0.0.1:${server.port}'),
-            protocolVersion: voyageProtocolVersionV1Alpha2,
+            protocolVersion: voyageProtocolVersion,
           ),
           lastAppliedRoomVersion: 12,
           lastAppliedEventId: 34,
@@ -306,8 +280,76 @@ void main() {
       expect(data['client_time_ms'], isA<int>());
     });
 
+    test('serializes mutation domain base versions', () async {
+      final mutationCompleter = Completer<Map<String, dynamic>>();
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() async {
+        await server.close(force: true);
+      });
+
+      server.listen((request) async {
+        final socket = await WebSocketTransformer.upgrade(
+          request,
+          protocolSelector: (_) => voyageProtocolVersion,
+        );
+        final messages = StreamIterator<dynamic>(socket);
+        await messages.moveNext();
+        await messages.moveNext();
+        final rawMutation = messages.current as String;
+        mutationCompleter.complete(
+          jsonDecode(rawMutation) as Map<String, dynamic>,
+        );
+        await socket.close();
+      });
+
+      const client = IOWebSocketGroupListeningRealtimeTransportClient();
+      final connection = await client.connect(
+        GroupListeningTransportConnectRequest(
+          session: _runtimeContext(
+            Uri.parse('http://127.0.0.1:${server.port}'),
+          ),
+          lastAppliedRoomVersion: 12,
+        ),
+      );
+      addTearDown(connection.disconnect);
+
+      await connection.send(
+        GroupListeningMutationMessage(
+          type: GroupListeningMutationType.playbackAnchor,
+          expectedRoomVersion: 12,
+          expectedQueueVersion: 7,
+          expectedPlaybackVersion: 9,
+          clientMutationId: 'mut-1',
+          clientConnectionId: 'conn-1',
+          clientSequence: 1,
+          playbackAnchor: GroupListeningPlaybackAnchor(
+            roomVersion: 12,
+            queueVersion: 7,
+            currentIndex: 0,
+            currentQueueEntryId: 'entry-1',
+            currentSongId: 'song-1',
+            playbackState: GroupListeningPlaybackStatus.playing,
+            position: const Duration(seconds: 4),
+            capturedAt: DateTime.utc(2026, 4, 21, 12),
+            playbackRate: 1,
+            reason: GroupListeningPlaybackAnchorReason.trackChange,
+            issuedByMemberId: 'member-1',
+          ),
+        ),
+      );
+
+      final mutation = await mutationCompleter.future.timeout(
+        const Duration(seconds: 2),
+      );
+      expect(mutation['type'], 'mutation.playback_anchor');
+      final data = mutation['data'] as Map<String, dynamic>;
+      expect(data['expected_room_version'], 12);
+      expect(data['expected_queue_version'], 7);
+      expect(data['expected_playback_version'], 9);
+    });
+
     test(
-      'parses v1alpha2 ready, snapshot, and numeric event cursors',
+      'parses v2alpha1 ready, snapshot, and numeric event cursors',
       () async {
         final readyToSend = Completer<void>();
         final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
@@ -318,7 +360,7 @@ void main() {
         server.listen((request) async {
           final socket = await WebSocketTransformer.upgrade(
             request,
-            protocolSelector: (_) => voyageProtocolVersionV1Alpha2,
+            protocolSelector: (_) => voyageProtocolVersion,
           );
           await socket.first;
           await readyToSend.future;
@@ -363,12 +405,12 @@ void main() {
             );
         });
 
-        final client = const IOWebSocketGroupListeningRealtimeTransportClient();
+        const client = IOWebSocketGroupListeningRealtimeTransportClient();
         final connection = await client.connect(
           GroupListeningTransportConnectRequest(
             session: _runtimeContext(
               Uri.parse('http://127.0.0.1:${server.port}'),
-              protocolVersion: voyageProtocolVersionV1Alpha2,
+              protocolVersion: voyageProtocolVersion,
             ),
             lastAppliedRoomVersion: 3,
             lastAppliedEventId: 8,
@@ -421,7 +463,7 @@ Map<String, Object?> _transportEnvelope(
   Map<String, Object?> data,
 ) {
   return <String, Object?>{
-    'protocol_version': voyageProtocolVersionV1Alpha2,
+    'protocol_version': voyageProtocolVersion,
     'type': type,
     'server_time_ms': 1_720_000_000_000,
     'data': data,
@@ -430,7 +472,7 @@ Map<String, Object?> _transportEnvelope(
 
 Map<String, Object?> _snapshotPayload({required int latestEventId}) {
   return <String, Object?>{
-    'protocol_version': voyageProtocolVersionV1Alpha2,
+    'protocol_version': voyageProtocolVersion,
     'room_id': 'room-1',
     'room_status': 'active',
     'room_mode': 'collaborative',

@@ -717,6 +717,14 @@ class GroupListeningSessionController
         GroupListeningMutationMessage(
           type: type,
           expectedRoomVersion: state.lastAppliedRoomVersion,
+          expectedQueueVersion: _expectedQueueVersionForMutation(
+            type,
+            playbackAnchor: playbackAnchor,
+          ),
+          expectedPlaybackVersion: _expectedPlaybackVersionForMutation(
+            type,
+            playbackAnchor: playbackAnchor,
+          ),
           clientMutationId: mutationId,
           clientConnectionId: clientConnectionId,
           clientSequence: clientSequence,
@@ -738,6 +746,43 @@ class GroupListeningSessionController
         stackTrace: stackTrace,
       );
       return null;
+    }
+  }
+
+  int? _expectedQueueVersionForMutation(
+    GroupListeningMutationType type, {
+    GroupListeningPlaybackAnchor? playbackAnchor,
+  }) {
+    switch (type) {
+      case GroupListeningMutationType.playbackAnchor:
+        return playbackAnchor?.reason ==
+                GroupListeningPlaybackAnchorReason.trackChange
+            ? state.room?.queue.queueVersion
+            : null;
+      case GroupListeningMutationType.queueAdd:
+      case GroupListeningMutationType.queueRemove:
+      case GroupListeningMutationType.queueReplace:
+        return state.room?.queue.queueVersion;
+      case GroupListeningMutationType.transferHost:
+      case GroupListeningMutationType.removeMember:
+        return null;
+    }
+  }
+
+  int? _expectedPlaybackVersionForMutation(
+    GroupListeningMutationType type, {
+    GroupListeningPlaybackAnchor? playbackAnchor,
+  }) {
+    switch (type) {
+      case GroupListeningMutationType.playbackAnchor:
+        return state.room?.playbackVersion;
+      case GroupListeningMutationType.queueReplace:
+        return playbackAnchor == null ? null : state.room?.playbackVersion;
+      case GroupListeningMutationType.queueAdd:
+      case GroupListeningMutationType.queueRemove:
+      case GroupListeningMutationType.transferHost:
+      case GroupListeningMutationType.removeMember:
+        return null;
     }
   }
 

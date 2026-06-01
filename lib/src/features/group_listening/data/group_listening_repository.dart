@@ -350,6 +350,8 @@ class GroupListeningMutationMessage
   const GroupListeningMutationMessage({
     required this.type,
     required this.expectedRoomVersion,
+    this.expectedQueueVersion,
+    this.expectedPlaybackVersion,
     required this.clientMutationId,
     required this.clientConnectionId,
     required this.clientSequence,
@@ -362,6 +364,8 @@ class GroupListeningMutationMessage
 
   final GroupListeningMutationType type;
   final int expectedRoomVersion;
+  final int? expectedQueueVersion;
+  final int? expectedPlaybackVersion;
   final String clientMutationId;
   final String clientConnectionId;
   final int clientSequence;
@@ -2171,6 +2175,10 @@ Map<String, dynamic> _outboundTransportEnvelope(
         'data': <String, Object?>{
           'event_type': _playbackMutationEventType(playbackAnchor.reason),
           'expected_room_version': message.expectedRoomVersion,
+          if (message.expectedQueueVersion != null)
+            'expected_queue_version': message.expectedQueueVersion,
+          if (message.expectedPlaybackVersion != null)
+            'expected_playback_version': message.expectedPlaybackVersion,
           'client_mutation_id': message.clientMutationId,
           'client_connection_id': message.clientConnectionId,
           'client_seq': message.clientSequence,
@@ -2195,6 +2203,10 @@ Map<String, dynamic> _outboundTransportEnvelope(
         'type': 'mutation.queue_replace',
         'data': <String, Object?>{
           'expected_room_version': message.expectedRoomVersion,
+          if (message.expectedQueueVersion != null)
+            'expected_queue_version': message.expectedQueueVersion,
+          if (message.expectedPlaybackVersion != null)
+            'expected_playback_version': message.expectedPlaybackVersion,
           'client_mutation_id': message.clientMutationId,
           'client_connection_id': message.clientConnectionId,
           'client_seq': message.clientSequence,
@@ -2246,6 +2258,8 @@ Map<String, dynamic> _outboundTransportEnvelope(
         'type': 'mutation.queue_add',
         'data': <String, Object?>{
           'expected_room_version': message.expectedRoomVersion,
+          if (message.expectedQueueVersion != null)
+            'expected_queue_version': message.expectedQueueVersion,
           'client_mutation_id': message.clientMutationId,
           'client_connection_id': message.clientConnectionId,
           'client_seq': message.clientSequence,
@@ -2269,6 +2283,8 @@ Map<String, dynamic> _outboundTransportEnvelope(
         'type': 'mutation.queue_remove',
         'data': <String, Object?>{
           'expected_room_version': message.expectedRoomVersion,
+          if (message.expectedQueueVersion != null)
+            'expected_queue_version': message.expectedQueueVersion,
           'client_mutation_id': message.clientMutationId,
           'client_connection_id': message.clientConnectionId,
           'client_seq': message.clientSequence,

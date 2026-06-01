@@ -423,7 +423,7 @@ void main() {
       expect(state.connection.clientConnectionId, 'conn-1');
     });
 
-    test('connects with stored v1alpha2 replay cursor state', () async {
+    test('connects with stored v2alpha1 replay cursor state', () async {
       final repository = _FakeGroupListeningRepository();
       final connection = _FakeRealtimeConnection();
       final fingerprint = computeSourceServerFingerprint(activeServer.url);
@@ -433,11 +433,8 @@ void main() {
         serverVersion: '1.0.0',
         buildCommit: 'test',
         buildTime: 'test',
-        supportedProtocolVersions: <String>[
-          voyageProtocolVersion,
-          voyageProtocolVersionV1Alpha2,
-        ],
-        latestProtocolVersion: voyageProtocolVersionV1Alpha2,
+        supportedProtocolVersions: <String>[voyageProtocolVersion],
+        latestProtocolVersion: voyageProtocolVersion,
         websocketPath: '/api/v1/rooms/ws',
         heartbeatInterval: Duration(seconds: 10),
         memberStaleTimeout: Duration(seconds: 45),
@@ -446,13 +443,13 @@ void main() {
       repository.joinResponse = GroupListeningJoinResponse(
         runtimeContext: _runtimeContext(
           fingerprint: fingerprint,
-          protocolVersion: voyageProtocolVersionV1Alpha2,
+          protocolVersion: voyageProtocolVersion,
         ),
         roomSnapshot: _roomState(
           fingerprint: fingerprint,
           roomVersion: 3,
           latestEventId: 7,
-          protocolVersion: voyageProtocolVersionV1Alpha2,
+          protocolVersion: voyageProtocolVersion,
         ),
       );
       repository.connection = connection;
@@ -471,7 +468,7 @@ void main() {
 
       final request = repository.lastConnectRequest;
       expect(request, isNotNull);
-      expect(request!.session.protocolVersion, voyageProtocolVersionV1Alpha2);
+      expect(request!.session.protocolVersion, voyageProtocolVersion);
       expect(request.lastAppliedRoomVersion, 3);
       expect(request.lastAppliedEventId, 7);
       expect(request.lastAppliedQueueVersion, 3);
@@ -556,19 +553,19 @@ void main() {
       },
     );
 
-    test('uses event cursors as the v1alpha2 replay ordering signal', () async {
+    test('uses event cursors as the v2alpha1 replay ordering signal', () async {
       final repository = _FakeGroupListeningRepository();
       final fingerprint = computeSourceServerFingerprint(activeServer.url);
       repository.joinResponse = GroupListeningJoinResponse(
         runtimeContext: _runtimeContext(
           fingerprint: fingerprint,
-          protocolVersion: voyageProtocolVersionV1Alpha2,
+          protocolVersion: voyageProtocolVersion,
         ),
         roomSnapshot: _roomState(
           fingerprint: fingerprint,
           roomVersion: 1,
           latestEventId: 10,
-          protocolVersion: voyageProtocolVersionV1Alpha2,
+          protocolVersion: voyageProtocolVersion,
         ),
       );
 
@@ -597,19 +594,19 @@ void main() {
       expect(state.lastAppliedRoomVersion, 5);
     });
 
-    test('ignores duplicate v1alpha2 replay events by event cursor', () async {
+    test('ignores duplicate v2alpha1 replay events by event cursor', () async {
       final repository = _FakeGroupListeningRepository();
       final fingerprint = computeSourceServerFingerprint(activeServer.url);
       repository.joinResponse = GroupListeningJoinResponse(
         runtimeContext: _runtimeContext(
           fingerprint: fingerprint,
-          protocolVersion: voyageProtocolVersionV1Alpha2,
+          protocolVersion: voyageProtocolVersion,
         ),
         roomSnapshot: _roomState(
           fingerprint: fingerprint,
           roomVersion: 1,
           latestEventId: 10,
-          protocolVersion: voyageProtocolVersionV1Alpha2,
+          protocolVersion: voyageProtocolVersion,
         ),
       );
 
@@ -639,20 +636,20 @@ void main() {
     });
 
     test(
-      'marks snapshot required when a v1alpha2 event cursor gap appears',
+      'marks snapshot required when a v2alpha1 event cursor gap appears',
       () async {
         final repository = _FakeGroupListeningRepository();
         final fingerprint = computeSourceServerFingerprint(activeServer.url);
         repository.joinResponse = GroupListeningJoinResponse(
           runtimeContext: _runtimeContext(
             fingerprint: fingerprint,
-            protocolVersion: voyageProtocolVersionV1Alpha2,
+            protocolVersion: voyageProtocolVersion,
           ),
           roomSnapshot: _roomState(
             fingerprint: fingerprint,
             roomVersion: 1,
             latestEventId: 10,
-            protocolVersion: voyageProtocolVersionV1Alpha2,
+            protocolVersion: voyageProtocolVersion,
           ),
         );
 
@@ -993,6 +990,70 @@ void main() {
           connection.sentMessages.single as GroupListeningMutationMessage;
       expect(message.type, GroupListeningMutationType.transferHost);
       expect(message.targetMemberId, 'member-2');
+      expect(message.expectedQueueVersion, isNull);
+      expect(message.expectedPlaybackVersion, isNull);
+    });
+
+    test('sends domain base versions with playback track changes', () async {
+      final repository = _FakeGroupListeningRepository();
+      final connection = _FakeRealtimeConnection();
+      final fingerprint = computeSourceServerFingerprint(activeServer.url);
+      repository.joinResponse = GroupListeningJoinResponse(
+        runtimeContext: _runtimeContext(fingerprint: fingerprint),
+        roomSnapshot: _roomState(
+          fingerprint: fingerprint,
+          roomVersion: 9,
+        ).copyWith(playbackVersion: 4),
+      );
+      repository.connection = connection;
+
+      final container = createContainer(repository: repository);
+      final controller = container.read(
+        groupListeningSessionControllerProvider.notifier,
+      );
+
+      await controller.joinRoom(
+        inviteCode: 'INVITE',
+        client: client,
+        connectAfterJoin: false,
+      );
+      await controller.connect();
+      connection.add(
+        GroupListeningConnectionWelcomeMessage(
+          roomId: 'room-1',
+          memberId: 'member-1',
+          clientConnectionId: 'conn-1',
+          roomVersion: 9,
+          presenceVersion: 1,
+          heartbeatInterval: const Duration(seconds: 10),
+          memberStaleTimeout: const Duration(seconds: 45),
+          serverTime: DateTime.utc(2026, 4, 21, 12),
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      final mutationId = await controller.sendMutation(
+        type: GroupListeningMutationType.playbackAnchor,
+        playbackAnchor: GroupListeningPlaybackAnchor(
+          roomVersion: 9,
+          queueVersion: 9,
+          currentIndex: 0,
+          currentQueueEntryId: 'entry-1',
+          currentSongId: 'song-1',
+          playbackState: GroupListeningPlaybackStatus.paused,
+          position: Duration.zero,
+          capturedAt: DateTime.utc(2026, 4, 21, 12),
+          playbackRate: 1,
+          reason: GroupListeningPlaybackAnchorReason.trackChange,
+          issuedByMemberId: 'member-1',
+        ),
+      );
+
+      expect(mutationId, isNotNull);
+      final message =
+          connection.sentMessages.single as GroupListeningMutationMessage;
+      expect(message.expectedQueueVersion, 9);
+      expect(message.expectedPlaybackVersion, 4);
     });
 
     test(

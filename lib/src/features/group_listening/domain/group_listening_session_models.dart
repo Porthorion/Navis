@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 
 const String voyageProtocolVersion = 'voyage-sync.v2alpha1';
-const String voyageProtocolVersionV1Alpha2 = voyageProtocolVersion;
 const String voyageReplayResumeCapability = 'replay_resume';
 const String voyageQueueEntryMetadataCapability = 'queue_entry_metadata';
 
