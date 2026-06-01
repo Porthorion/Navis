@@ -202,6 +202,7 @@ class GroupListeningConnectionState {
     this.reconnectAttempt = 0,
     this.lastDisconnectReason,
     this.serverClockOffset = Duration.zero,
+    this.lastRoundTripTime,
   });
 
   const GroupListeningConnectionState.disconnected()
@@ -216,7 +217,8 @@ class GroupListeningConnectionState {
       connectedServerVersion = null,
       reconnectAttempt = 0,
       lastDisconnectReason = null,
-      serverClockOffset = Duration.zero;
+      serverClockOffset = Duration.zero,
+      lastRoundTripTime = null;
 
   final GroupListeningConnectionStatus status;
   final String? clientConnectionId;
@@ -230,6 +232,7 @@ class GroupListeningConnectionState {
   final int reconnectAttempt;
   final GroupListeningErrorState? lastDisconnectReason;
   final Duration serverClockOffset;
+  final Duration? lastRoundTripTime;
 
   bool get isConnected => status == GroupListeningConnectionStatus.connected;
 
@@ -246,9 +249,11 @@ class GroupListeningConnectionState {
     int? reconnectAttempt,
     GroupListeningErrorState? lastDisconnectReason,
     Duration? serverClockOffset,
+    Duration? lastRoundTripTime,
     bool clearClientConnectionId = false,
     bool clearConnectedServer = false,
     bool clearDisconnectReason = false,
+    bool clearLastRoundTripTime = false,
   }) {
     return GroupListeningConnectionState(
       status: status ?? this.status,
@@ -271,6 +276,9 @@ class GroupListeningConnectionState {
           ? null
           : lastDisconnectReason ?? this.lastDisconnectReason,
       serverClockOffset: serverClockOffset ?? this.serverClockOffset,
+      lastRoundTripTime: clearLastRoundTripTime
+          ? null
+          : lastRoundTripTime ?? this.lastRoundTripTime,
     );
   }
 
@@ -290,7 +298,8 @@ class GroupListeningConnectionState {
           connectedServerVersion == other.connectedServerVersion &&
           reconnectAttempt == other.reconnectAttempt &&
           lastDisconnectReason == other.lastDisconnectReason &&
-          serverClockOffset == other.serverClockOffset;
+          serverClockOffset == other.serverClockOffset &&
+          lastRoundTripTime == other.lastRoundTripTime;
 
   @override
   int get hashCode => Object.hash(
@@ -306,6 +315,7 @@ class GroupListeningConnectionState {
     reconnectAttempt,
     lastDisconnectReason,
     serverClockOffset,
+    lastRoundTripTime,
   );
 }
 
@@ -623,12 +633,14 @@ class GroupListeningPlaybackAnchor {
     required this.capturedAt,
     required this.playbackRate,
     required this.reason,
+    this.playbackApplyId,
     this.issuedByMemberId,
     this.issuedByConnectionId,
   });
 
   final int roomVersion;
   final int queueVersion;
+  final int? playbackApplyId;
   final int? currentIndex;
   final String? currentQueueEntryId;
   final String? currentSongId;
@@ -657,6 +669,7 @@ class GroupListeningPlaybackAnchor {
           runtimeType == other.runtimeType &&
           roomVersion == other.roomVersion &&
           queueVersion == other.queueVersion &&
+          playbackApplyId == other.playbackApplyId &&
           currentIndex == other.currentIndex &&
           currentQueueEntryId == other.currentQueueEntryId &&
           currentSongId == other.currentSongId &&
@@ -672,6 +685,7 @@ class GroupListeningPlaybackAnchor {
   int get hashCode => Object.hash(
     roomVersion,
     queueVersion,
+    playbackApplyId,
     currentIndex,
     currentQueueEntryId,
     currentSongId,
@@ -696,6 +710,7 @@ class GroupListeningRoomEvent {
     required this.roomVersion,
     this.queueVersion,
     this.playbackVersion,
+    this.playbackApplyId,
     this.causedByMemberId,
     this.clientMutationId,
     this.playbackAnchor,
@@ -718,6 +733,7 @@ class GroupListeningRoomEvent {
   final int roomVersion;
   final int? queueVersion;
   final int? playbackVersion;
+  final int? playbackApplyId;
   final String? causedByMemberId;
   final String? clientMutationId;
   final GroupListeningPlaybackAnchor? playbackAnchor;
@@ -743,6 +759,7 @@ class GroupListeningRoomState {
     required this.roomVersion,
     this.latestEventId = 0,
     this.playbackVersion = 0,
+    this.playbackApplyId = 0,
     required this.presenceVersion,
     required this.authVersion,
     required this.serverTime,
@@ -762,6 +779,7 @@ class GroupListeningRoomState {
   final int roomVersion;
   final int latestEventId;
   final int playbackVersion;
+  final int playbackApplyId;
   final int presenceVersion;
   final int authVersion;
   final DateTime serverTime;
@@ -804,6 +822,7 @@ class GroupListeningRoomState {
     int? roomVersion,
     int? latestEventId,
     int? playbackVersion,
+    int? playbackApplyId,
     int? presenceVersion,
     int? authVersion,
     DateTime? serverTime,
@@ -824,6 +843,7 @@ class GroupListeningRoomState {
       roomVersion: roomVersion ?? this.roomVersion,
       latestEventId: latestEventId ?? this.latestEventId,
       playbackVersion: playbackVersion ?? this.playbackVersion,
+      playbackApplyId: playbackApplyId ?? this.playbackApplyId,
       presenceVersion: presenceVersion ?? this.presenceVersion,
       authVersion: authVersion ?? this.authVersion,
       serverTime: serverTime ?? this.serverTime,
@@ -882,6 +902,7 @@ class GroupListeningRoomState {
       roomVersion: event.roomVersion,
       latestEventId: event.eventCursor ?? latestEventId,
       playbackVersion: event.playbackVersion ?? playbackVersion,
+      playbackApplyId: event.playbackApplyId ?? playbackApplyId,
       presenceVersion: event.presenceVersion,
       authVersion: event.authVersion,
       hostMemberId: nextHostMemberId,
@@ -906,6 +927,7 @@ class GroupListeningRoomState {
           roomVersion == other.roomVersion &&
           latestEventId == other.latestEventId &&
           playbackVersion == other.playbackVersion &&
+          playbackApplyId == other.playbackApplyId &&
           presenceVersion == other.presenceVersion &&
           authVersion == other.authVersion &&
           serverTime == other.serverTime &&
@@ -926,6 +948,7 @@ class GroupListeningRoomState {
     roomVersion,
     latestEventId,
     playbackVersion,
+    playbackApplyId,
     presenceVersion,
     authVersion,
     serverTime,

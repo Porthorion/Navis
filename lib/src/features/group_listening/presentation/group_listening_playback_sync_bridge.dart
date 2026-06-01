@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -46,18 +47,23 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
   static const Duration _echoTolerance = Duration(milliseconds: 1500);
   static const Duration _localPositionDebounce = Duration(milliseconds: 250);
   static const Duration _remoteApplyPublishGate = Duration(milliseconds: 1200);
+  static const Duration _remoteApplyStableTimeout = Duration(seconds: 6);
+  static const Duration _recentLocalIntentWindow = Duration(seconds: 3);
   static const Uuid _uuid = Uuid();
 
   Timer? _publishTimer;
   PlaybackSnapshot _latestSnapshot = const PlaybackSnapshot.idle();
   Duration _latestPosition = Duration.zero;
-  int _lastObservedRoomVersion = 0;
+  int _lastObservedQueueVersion = 0;
+  int _lastObservedPlaybackApplyId = 0;
   _BridgePlaybackState? _lastPublishedState;
   _BridgePlaybackState? _suppressedEchoState;
   DateTime? _lastPublishedAt;
   DateTime? _lastImmediateSnapshotChangeAt;
   DateTime? _lastRemoteAnchorReceivedAt;
   DateTime? _suppressOutboundUntil;
+  DateTime? _remoteApplyGateDeadline;
+  _BridgePlaybackState? _remoteApplyGateState;
   bool _isApplyingRemoteState = false;
   bool _isRefreshingSnapshot = false;
   _BridgePlaybackState? _queuedRemoteState;
@@ -69,8 +75,17 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
     _latestPosition =
         ref.read(playbackPositionProvider).asData?.value ??
         _latestSnapshot.position;
-    _lastObservedRoomVersion =
-        ref.read(groupListeningSessionControllerProvider).room?.roomVersion ??
+    _lastObservedQueueVersion =
+        ref
+            .read(groupListeningSessionControllerProvider)
+            .room
+            ?.queue
+            .queueVersion ??
+        0;
+    _lastObservedPlaybackApplyId =
+        _effectivePlaybackApplyId(
+          ref.read(groupListeningSessionControllerProvider).room,
+        ) ??
         0;
 
     ref.listen<PlaybackSnapshot>(
@@ -138,23 +153,35 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
     final nextRoom = next.room;
     if (nextRoom == null) {
       _publishTimer?.cancel();
-      _lastObservedRoomVersion = 0;
+      _lastObservedQueueVersion = 0;
+      _lastObservedPlaybackApplyId = 0;
       _lastPublishedState = null;
       _suppressedEchoState = null;
       _lastRemoteAnchorReceivedAt = null;
       _suppressOutboundUntil = null;
+      _remoteApplyGateDeadline = null;
+      _remoteApplyGateState = null;
       return;
     }
 
     if (previousRoomId != nextRoom.roomId) {
-      _lastObservedRoomVersion = 0;
+      _lastObservedQueueVersion = 0;
+      _lastObservedPlaybackApplyId = 0;
       _lastPublishedState = null;
       _suppressedEchoState = null;
       _lastRemoteAnchorReceivedAt = null;
       _suppressOutboundUntil = null;
+      _remoteApplyGateDeadline = null;
+      _remoteApplyGateState = null;
     }
 
+    final queueVersionChanged =
+        nextRoom.queue.queueVersion > _lastObservedQueueVersion;
+    final nextPlaybackApplyId = _effectivePlaybackApplyId(nextRoom) ?? 0;
+    final playbackApplyChanged =
+        nextPlaybackApplyId > _lastObservedPlaybackApplyId;
     final playbackAnchorChanged =
+        playbackApplyChanged ||
         previousRoomId != nextRoom.roomId ||
         previous?.room?.playbackAnchor != nextRoom.playbackAnchor;
     if (playbackAnchorChanged) {
@@ -210,10 +237,11 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
     }
 
     if (!_shouldApplyInboundState(next) ||
-        nextRoom.roomVersion <= _lastObservedRoomVersion) {
+        (!queueVersionChanged && !playbackApplyChanged)) {
       return;
     }
-    _lastObservedRoomVersion = nextRoom.roomVersion;
+    _lastObservedQueueVersion = nextRoom.queue.queueVersion;
+    _lastObservedPlaybackApplyId = nextPlaybackApplyId;
 
     if (!nextRoom.self.canPlayAudio) {
       _lastPublishedState = _playbackStateFromSession(next);
@@ -244,7 +272,9 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
       unawaited(
         _applyAuthoritativeInboundState(
           remoteState,
-          followPlayback: next.configuration?.autoFollowHost ?? true,
+          followPlayback:
+              playbackApplyChanged &&
+              (next.configuration?.autoFollowHost ?? true),
         ),
       );
       return;
@@ -253,7 +283,9 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
     unawaited(
       _applyInboundState(
         remoteState,
-        followPlayback: next.configuration?.autoFollowHost ?? true,
+        followPlayback:
+            playbackApplyChanged &&
+            (next.configuration?.autoFollowHost ?? true),
         forcePositionCorrection: playbackAnchorChanged,
       ),
     );
@@ -278,7 +310,7 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
       if (_playbackStatesEquivalent(
         localState,
         remoteState,
-        tolerance: _positionTolerance,
+        tolerance: _correctionTolerance(),
       )) {
         return;
       }
@@ -301,6 +333,23 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
       return false;
     }
     return true;
+  }
+
+  int? _effectivePlaybackApplyId(GroupListeningRoomState? room) {
+    if (room == null) {
+      return null;
+    }
+    if (room.playbackApplyId > 0) {
+      return room.playbackApplyId;
+    }
+    final anchorApplyId = room.playbackAnchor?.playbackApplyId;
+    if (anchorApplyId != null && anchorApplyId > 0) {
+      return anchorApplyId;
+    }
+    if (room.playbackVersion > 0) {
+      return room.playbackVersion;
+    }
+    return room.playbackAnchor?.roomVersion ?? 0;
   }
 
   _QueueMutationDiff? _granularQueueMutation({
@@ -420,6 +469,9 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
 
     final room = session.room!;
     final remoteState = _playbackStateFromSession(session);
+    if (_isRemoteApplyGateBlocking(localState, remoteState)) {
+      return;
+    }
     final queueChanged = !listEquals(
       localState.queueSongIds,
       remoteState.queueSongIds,
@@ -432,12 +484,13 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
       localState.position,
       remoteState.position,
     );
+    final correctionTolerance = _correctionTolerance();
 
     if (!queueChanged &&
         !trackChanged &&
         !playingChanged &&
         !force &&
-        positionDelta < _positionTolerance) {
+        positionDelta < correctionTolerance) {
       return;
     }
 
@@ -606,7 +659,7 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
                       afterQueueApply.position,
                       remoteState.position,
                     ) >
-                    _positionTolerance);
+                    _correctionTolerance());
         if (shouldSeek) {
           shouldGateOutboundAfterApply = true;
           await handler.seek(remoteState.position);
@@ -645,6 +698,10 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
     } finally {
       if (shouldGateOutboundAfterApply) {
         _suppressOutboundUntil = DateTime.now().add(_remoteApplyPublishGate);
+        _remoteApplyGateState = remoteState;
+        _remoteApplyGateDeadline = DateTime.now().add(
+          _remoteApplyStableTimeout,
+        );
       }
       _isApplyingRemoteState = false;
       final queuedState = _queuedRemoteState;
@@ -656,7 +713,7 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
         if (!_playbackStatesEquivalent(
           currentState,
           queuedState,
-          tolerance: _positionTolerance,
+          tolerance: _correctionTolerance(),
         )) {
           unawaited(
             _applyInboundState(
@@ -780,7 +837,7 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
           : GroupListeningPlaybackAnchorReason.pause;
     }
     if (_durationDistance(localState.position, remoteState.position) >
-        _positionTolerance) {
+        _correctionTolerance()) {
       return GroupListeningPlaybackAnchorReason.seek;
     }
     return GroupListeningPlaybackAnchorReason.syncTick;
@@ -801,6 +858,9 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
         playing: false,
         position: Duration.zero,
         isRadioMode: false,
+        processingState: AudioProcessingState.ready,
+        isLoading: false,
+        loadingSongId: null,
       );
     }
     final projectedPosition = _projectedAnchorPosition(anchor);
@@ -813,6 +873,9 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
       playing: anchor.playbackState == GroupListeningPlaybackStatus.playing,
       position: projectedPosition,
       isRadioMode: false,
+      processingState: AudioProcessingState.ready,
+      isLoading: false,
+      loadingSongId: null,
     );
   }
 
@@ -856,7 +919,126 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
       playing: snapshot.playing,
       position: position,
       isRadioMode: snapshot.isRadioMode,
+      processingState: snapshot.processingState,
+      isLoading: snapshot.isLoading,
+      loadingSongId: snapshot.loadingSongId,
     );
+  }
+
+  bool _isRemoteApplyGateBlocking(
+    _BridgePlaybackState localState,
+    _BridgePlaybackState latestRemoteState,
+  ) {
+    final gateState = _remoteApplyGateState;
+    final deadline = _remoteApplyGateDeadline;
+    if (gateState == null || deadline == null) {
+      return false;
+    }
+
+    if (_localPlayerReachedRemoteState(localState, gateState)) {
+      _remoteApplyGateState = null;
+      _remoteApplyGateDeadline = null;
+      return false;
+    }
+
+    final now = DateTime.now();
+    final transient = _isTransientLocalPlaybackState(localState, gateState);
+    if (now.isBefore(deadline) || transient) {
+      AppLogger.debug(
+        'Group listening: suppressing outbound playback during remote apply '
+        'gate (transient=$transient, local_index=${localState.currentIndex}, '
+        'expected_index=${gateState.currentIndex}, '
+        'processing=${localState.processingState.name}, '
+        'loading=${localState.isLoading})',
+      );
+      return true;
+    }
+
+    if (!_playbackStatesEquivalent(
+      localState,
+      latestRemoteState,
+      tolerance: _correctionTolerance(),
+    )) {
+      if (_recentLocalIntentMatches(localState)) {
+        _remoteApplyGateState = null;
+        _remoteApplyGateDeadline = null;
+        return false;
+      }
+      _remoteApplyGateDeadline = now.add(_remoteApplyStableTimeout);
+      unawaited(
+        _applyInboundState(
+          latestRemoteState,
+          followPlayback: true,
+          forcePositionCorrection: true,
+        ),
+      );
+      return true;
+    }
+
+    _remoteApplyGateState = null;
+    _remoteApplyGateDeadline = null;
+    return false;
+  }
+
+  bool _localPlayerReachedRemoteState(
+    _BridgePlaybackState localState,
+    _BridgePlaybackState remoteState,
+  ) {
+    return listEquals(localState.queueSongIds, remoteState.queueSongIds) &&
+        localState.currentIndex == remoteState.currentIndex &&
+        localState.currentSongId == remoteState.currentSongId &&
+        !_isTransientLocalPlaybackState(localState, remoteState);
+  }
+
+  bool _recentLocalIntentMatches(_BridgePlaybackState localState) {
+    final lastPublishedAt = _lastPublishedAt;
+    final lastPublishedState = _lastPublishedState;
+    if (lastPublishedAt == null || lastPublishedState == null) {
+      return false;
+    }
+    if (DateTime.now().difference(lastPublishedAt) > _recentLocalIntentWindow) {
+      return false;
+    }
+    return _playbackStatesEquivalent(
+      localState,
+      lastPublishedState,
+      tolerance: _correctionTolerance(),
+    );
+  }
+
+  Duration _correctionTolerance() {
+    final rtt = ref
+        .read(groupListeningSessionControllerProvider)
+        .connection
+        .lastRoundTripTime;
+    if (rtt == null || rtt <= Duration.zero) {
+      return _positionTolerance;
+    }
+    final extraMs = math.min(1500, rtt.inMilliseconds ~/ 2);
+    return Duration(milliseconds: _positionTolerance.inMilliseconds + extraMs);
+  }
+
+  bool _isTransientLocalPlaybackState(
+    _BridgePlaybackState localState,
+    _BridgePlaybackState remoteState,
+  ) {
+    if (localState.isLoading ||
+        localState.processingState == AudioProcessingState.loading ||
+        localState.processingState == AudioProcessingState.buffering ||
+        localState.processingState == AudioProcessingState.idle) {
+      return true;
+    }
+    if (remoteState.queueSongIds.isNotEmpty &&
+        (localState.currentIndex != remoteState.currentIndex ||
+            localState.currentSongId != remoteState.currentSongId)) {
+      return true;
+    }
+    if (remoteState.position > Duration.zero &&
+        localState.position == Duration.zero &&
+        !localState.playing) {
+      return true;
+    }
+    return false;
   }
 
   bool _playbackStatesEquivalent(
@@ -897,6 +1079,9 @@ class _BridgePlaybackState {
     required this.playing,
     required this.position,
     required this.isRadioMode,
+    required this.processingState,
+    required this.isLoading,
+    required this.loadingSongId,
   });
 
   final List<String> queueSongIds;
@@ -905,4 +1090,7 @@ class _BridgePlaybackState {
   final bool playing;
   final Duration position;
   final bool isRadioMode;
+  final AudioProcessingState processingState;
+  final bool isLoading;
+  final String? loadingSongId;
 }

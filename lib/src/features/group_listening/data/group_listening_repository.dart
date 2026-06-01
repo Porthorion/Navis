@@ -336,6 +336,27 @@ class GroupListeningHeartbeatMessage
   final Duration? transportRtt;
 }
 
+class GroupListeningClientStatusMessage
+    extends GroupListeningOutboundTransportMessage {
+  const GroupListeningClientStatusMessage({
+    required this.clientConnectionId,
+    required this.lastAppliedPlaybackApplyId,
+    this.observedQueueEntryId,
+    this.observedCurrentIndex,
+    this.localProcessingState,
+    this.loadingAge,
+    required this.clientTime,
+  });
+
+  final String clientConnectionId;
+  final int lastAppliedPlaybackApplyId;
+  final String? observedQueueEntryId;
+  final int? observedCurrentIndex;
+  final String? localProcessingState;
+  final Duration? loadingAge;
+  final DateTime clientTime;
+}
+
 enum GroupListeningMutationType {
   playbackAnchor,
   queueAdd,
@@ -477,6 +498,7 @@ class GroupListeningHeartbeatAckMessage extends GroupListeningTransportMessage {
     this.latestEventId = 0,
     this.queueVersion = 0,
     this.playbackVersion = 0,
+    this.playbackApplyId = 0,
     required this.presenceVersion,
     this.authVersion = 0,
     this.clientTime,
@@ -490,6 +512,7 @@ class GroupListeningHeartbeatAckMessage extends GroupListeningTransportMessage {
   final int latestEventId;
   final int queueVersion;
   final int playbackVersion;
+  final int playbackApplyId;
   final int presenceVersion;
   final int authVersion;
   final DateTime? clientTime;
@@ -505,6 +528,7 @@ class GroupListeningMutationAckMessage extends GroupListeningTransportMessage {
     required this.roomVersion,
     required this.queueVersion,
     required this.playbackVersion,
+    this.playbackApplyId,
     required this.presenceVersion,
     required this.authVersion,
   });
@@ -514,6 +538,7 @@ class GroupListeningMutationAckMessage extends GroupListeningTransportMessage {
   final int roomVersion;
   final int queueVersion;
   final int playbackVersion;
+  final int? playbackApplyId;
   final int presenceVersion;
   final int authVersion;
 }
@@ -546,9 +571,27 @@ class GroupListeningTransportDisconnectedMessage
 /// be disconnected; the rejection is informational only.
 class GroupListeningMutationRejectedMessage
     extends GroupListeningTransportMessage {
-  const GroupListeningMutationRejectedMessage(this.error);
+  const GroupListeningMutationRejectedMessage({
+    required this.error,
+    this.clientMutationId,
+    this.roomVersion,
+    this.queueVersion,
+    this.playbackVersion,
+    this.playbackApplyId,
+    this.presenceVersion,
+    this.authVersion,
+    this.conflict,
+  });
 
   final GroupListeningErrorState error;
+  final String? clientMutationId;
+  final int? roomVersion;
+  final int? queueVersion;
+  final int? playbackVersion;
+  final int? playbackApplyId;
+  final int? presenceVersion;
+  final int? authVersion;
+  final String? conflict;
 }
 
 abstract class GroupListeningRealtimeConnection {
@@ -1273,6 +1316,8 @@ class _IOWebSocketGroupListeningRealtimeConnection
               queueVersion: _nullableIntValue(payload['queue_version']) ?? 0,
               playbackVersion:
                   _nullableIntValue(payload['playback_version']) ?? 0,
+              playbackApplyId:
+                  _nullableIntValue(payload['playback_apply_id']) ?? 0,
               presenceVersion: _intValue(payload['presence_version']),
               authVersion: _nullableIntValue(payload['auth_version']) ?? 0,
               clientTime: _nullableDateTimeFromEpochMs(
@@ -1300,6 +1345,9 @@ class _IOWebSocketGroupListeningRealtimeConnection
               queueVersion: _nullableIntValue(payload['queue_version']) ?? 0,
               playbackVersion:
                   _nullableIntValue(payload['playback_version']) ?? 0,
+              playbackApplyId: _nullableIntValue(
+                payload['playback_apply_id'],
+              ),
               presenceVersion:
                   _nullableIntValue(payload['presence_version']) ?? 0,
               authVersion: _nullableIntValue(payload['auth_version']) ?? 0,
@@ -1310,7 +1358,19 @@ class _IOWebSocketGroupListeningRealtimeConnection
           final payload = _mapValue(data);
           _messagesController.add(
             GroupListeningMutationRejectedMessage(
-              _errorStateFromApiError(_mapValue(payload['error'])),
+              error: _errorStateFromApiError(_mapValue(payload['error'])),
+              clientMutationId: _nullableStringValue(
+                payload['client_mutation_id'],
+              ),
+              roomVersion: _nullableIntValue(payload['room_version']),
+              queueVersion: _nullableIntValue(payload['queue_version']),
+              playbackVersion: _nullableIntValue(payload['playback_version']),
+              playbackApplyId: _nullableIntValue(
+                payload['playback_apply_id'],
+              ),
+              presenceVersion: _nullableIntValue(payload['presence_version']),
+              authVersion: _nullableIntValue(payload['auth_version']),
+              conflict: _nullableStringValue(payload['conflict']),
             ),
           );
           return;
@@ -1339,7 +1399,7 @@ class _IOWebSocketGroupListeningRealtimeConnection
           };
           if (nonFatalCodes.contains(errorState.code)) {
             _messagesController.add(
-              GroupListeningMutationRejectedMessage(errorState),
+              GroupListeningMutationRejectedMessage(error: errorState),
             );
           } else {
             _messagesController.add(
@@ -1963,6 +2023,7 @@ GroupListeningRoomState _roomStateFromJson(
     roomVersion: roomVersion,
     latestEventId: _nullableIntValue(json['latest_event_id']) ?? 0,
     playbackVersion: _nullableIntValue(json['playback_version']) ?? 0,
+    playbackApplyId: _nullableIntValue(json['playback_apply_id']) ?? 0,
     presenceVersion: _intValue(json['presence_version']),
     authVersion: authVersion,
     serverTime: _dateTimeFromEpochMs(json['server_time_ms']),
@@ -2011,6 +2072,7 @@ GroupListeningRoomEvent _roomEventFromJson(Map<String, dynamic> json) {
     roomVersion: _intValue(json['room_version']),
     queueVersion: _nullableIntValue(json['queue_version']),
     playbackVersion: _nullableIntValue(json['playback_version']),
+    playbackApplyId: _nullableIntValue(json['playback_apply_id']),
     causedByMemberId: _nullableStringValue(causedBy?['member_id']),
     clientMutationId: _nullableStringValue(causedBy?['client_mutation_id']),
     playbackAnchor: _nullableMapValue(json['playback_anchor']) != null
@@ -2094,6 +2156,7 @@ GroupListeningPlaybackAnchor _playbackAnchorFromJson(
   return GroupListeningPlaybackAnchor(
     roomVersion: _intValue(json['room_version']),
     queueVersion: _intValue(json['queue_version']),
+    playbackApplyId: _nullableIntValue(json['playback_apply_id']),
     currentIndex: currentIndex == null || currentIndex < 0
         ? null
         : currentIndex,
@@ -2147,6 +2210,24 @@ Map<String, dynamic> _outboundTransportEnvelope(
           'observed_position_ms': message.observedPosition!.inMilliseconds,
         if (message.transportRtt != null)
           'transport_rtt_ms': message.transportRtt!.inMilliseconds,
+      },
+    };
+  }
+  if (message is GroupListeningClientStatusMessage) {
+    return <String, Object?>{
+      'type': 'client.status',
+      'data': <String, Object?>{
+        'client_connection_id': message.clientConnectionId,
+        'last_applied_playback_apply_id': message.lastAppliedPlaybackApplyId,
+        if (message.observedQueueEntryId != null)
+          'observed_queue_entry_id': message.observedQueueEntryId,
+        if (message.observedCurrentIndex != null)
+          'observed_current_index': message.observedCurrentIndex,
+        if (message.localProcessingState != null)
+          'local_processing_state': message.localProcessingState,
+        if (message.loadingAge != null)
+          'loading_age_ms': message.loadingAge!.inMilliseconds,
+        'client_time_ms': message.clientTime.toUtc().millisecondsSinceEpoch,
       },
     };
   }
@@ -2376,6 +2457,8 @@ Map<String, Object?> _roomSeedPayload(GroupListeningRoomSeed seed) {
     'playback_anchor': <String, Object?>{
       'room_version': seed.playbackAnchor.roomVersion,
       'queue_version': seed.playbackAnchor.queueVersion,
+      if (seed.playbackAnchor.playbackApplyId != null)
+        'playback_apply_id': seed.playbackAnchor.playbackApplyId,
       'current_index': seed.playbackAnchor.currentIndex ?? -1,
       'current_queue_entry_id': seed.playbackAnchor.currentQueueEntryId ?? '',
       'current_song_id': seed.playbackAnchor.currentSongId ?? '',

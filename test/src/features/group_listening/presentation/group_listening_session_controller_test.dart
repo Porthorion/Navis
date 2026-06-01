@@ -1057,6 +1057,109 @@ void main() {
     });
 
     test(
+      'keeps one in-flight mutation and coalesces pending playback',
+      () async {
+        final repository = _FakeGroupListeningRepository();
+        final connection = _FakeRealtimeConnection();
+        final fingerprint = computeSourceServerFingerprint(activeServer.url);
+        repository.joinResponse = GroupListeningJoinResponse(
+          runtimeContext: _runtimeContext(fingerprint: fingerprint),
+          roomSnapshot: _roomState(
+            fingerprint: fingerprint,
+            roomVersion: 9,
+          ).copyWith(playbackVersion: 4),
+        );
+        repository.connection = connection;
+
+        final container = createContainer(repository: repository);
+        final controller = container.read(
+          groupListeningSessionControllerProvider.notifier,
+        );
+
+        await controller.joinRoom(
+          inviteCode: 'INVITE',
+          client: client,
+          connectAfterJoin: false,
+        );
+        await controller.connect();
+        connection.add(
+          GroupListeningConnectionWelcomeMessage(
+            roomId: 'room-1',
+            memberId: 'member-1',
+            clientConnectionId: 'conn-1',
+            roomVersion: 9,
+            presenceVersion: 1,
+            heartbeatInterval: const Duration(seconds: 10),
+            memberStaleTimeout: const Duration(seconds: 45),
+            serverTime: DateTime.utc(2026, 4, 21, 12),
+          ),
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        GroupListeningPlaybackAnchor anchor(Duration position) {
+          return GroupListeningPlaybackAnchor(
+            roomVersion: 9,
+            queueVersion: 9,
+            currentIndex: 0,
+            currentQueueEntryId: 'entry-1',
+            currentSongId: 'song-1',
+            playbackState: GroupListeningPlaybackStatus.playing,
+            position: position,
+            capturedAt: DateTime.utc(2026, 4, 21, 12),
+            playbackRate: 1,
+            reason: GroupListeningPlaybackAnchorReason.seek,
+            issuedByMemberId: 'member-1',
+          );
+        }
+
+        final firstId = await controller.sendMutation(
+          type: GroupListeningMutationType.playbackAnchor,
+          playbackAnchor: anchor(const Duration(seconds: 1)),
+        );
+        final secondId = await controller.sendMutation(
+          type: GroupListeningMutationType.playbackAnchor,
+          playbackAnchor: anchor(const Duration(seconds: 2)),
+        );
+        final thirdId = await controller.sendMutation(
+          type: GroupListeningMutationType.playbackAnchor,
+          playbackAnchor: anchor(const Duration(seconds: 3)),
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        expect(connection.sentMessages, hasLength(1));
+        expect(
+          (connection.sentMessages.single as GroupListeningMutationMessage)
+              .playbackAnchor
+              ?.position,
+          const Duration(seconds: 1),
+        );
+
+        connection.add(
+          GroupListeningMutationAckMessage(
+            clientMutationId: firstId!,
+            eventId: 10,
+            roomVersion: 10,
+            queueVersion: 9,
+            playbackVersion: 5,
+            playbackApplyId: 5,
+            presenceVersion: 1,
+            authVersion: 1,
+          ),
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        expect(secondId, isNot(thirdId));
+        expect(connection.sentMessages, hasLength(2));
+        expect(
+          (connection.sentMessages.last as GroupListeningMutationMessage)
+              .playbackAnchor
+              ?.position,
+          const Duration(seconds: 3),
+        );
+      },
+    );
+
+    test(
       'rejects transfer_host when the target member is no longer present',
       () async {
         final repository = _FakeGroupListeningRepository();

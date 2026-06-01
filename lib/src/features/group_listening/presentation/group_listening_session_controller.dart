@@ -9,6 +9,7 @@ import 'package:navis/src/features/group_listening/data/group_listening_reposito
 import 'package:navis/src/features/group_listening/domain/group_listening_session_models.dart';
 import 'package:navis/src/features/group_listening/domain/group_listening_server_clock_estimator.dart';
 import 'package:navis/src/features/group_listening/presentation/group_listening_settings_provider.dart';
+import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/app_logger.dart';
@@ -444,6 +445,13 @@ class GroupListeningSessionController
   bool _transportTeardownInProgress = false;
   bool _transportTeardownFailureObserved = false;
   int _clientSequence = 0;
+  final List<_PendingGroupListeningMutation> _pendingMutations =
+      <_PendingGroupListeningMutation>[];
+  _PendingGroupListeningMutation? _inFlightMutation;
+  bool _mutationOutboxPaused = false;
+  bool _mutationOutboxDispatching = false;
+  String? _loadingStatusKey;
+  DateTime? _loadingStartedAt;
   final GroupListeningServerClockEstimator _serverClockEstimator =
       GroupListeningServerClockEstimator();
 
@@ -459,6 +467,10 @@ class GroupListeningSessionController
     ref.listen<GroupListeningClientConfiguration?>(
       groupListeningClientConfigurationProvider,
       (_, next) => _handleConfigurationChanged(next),
+    );
+    ref.listen<PlaybackSnapshot>(
+      playerStateProvider,
+      (_, next) => _recordPlaybackLoadingState(next),
     );
     ref.onDispose(() {
       unawaited(_disposeTransport());
@@ -702,51 +714,354 @@ class GroupListeningSessionController
     int? insertIndex,
     String? targetMemberId,
   }) async {
-    final connection = _connection;
-    final clientConnectionId = state.connection.clientConnectionId;
-    if (!_canSendMutationType(type) ||
-        connection == null ||
-        clientConnectionId == null) {
+    if (!_canSendMutationType(type)) {
       return null;
     }
 
     final mutationId = _uuid.v4();
+    _enqueueMutation(
+      _PendingGroupListeningMutation(
+        type: type,
+        clientMutationId: mutationId,
+        playbackAnchor: playbackAnchor,
+        queue: queue,
+        targetQueueEntryId: targetQueueEntryId,
+        insertIndex: insertIndex,
+        targetMemberId: targetMemberId,
+      ),
+    );
+    _dispatchMutationOutbox();
+    return mutationId;
+  }
+
+  void _enqueueMutation(_PendingGroupListeningMutation mutation) {
+    switch (mutation.type) {
+      case GroupListeningMutationType.playbackAnchor:
+        _pendingMutations.removeWhere(
+          (pending) =>
+              pending.type == GroupListeningMutationType.playbackAnchor,
+        );
+      case GroupListeningMutationType.queueReplace:
+        _pendingMutations.removeWhere(
+          (pending) =>
+              pending.type == GroupListeningMutationType.queueAdd ||
+              pending.type == GroupListeningMutationType.queueRemove ||
+              pending.type == GroupListeningMutationType.queueReplace,
+        );
+      case GroupListeningMutationType.queueAdd:
+      case GroupListeningMutationType.queueRemove:
+      case GroupListeningMutationType.transferHost:
+      case GroupListeningMutationType.removeMember:
+    }
+    _pendingMutations.add(mutation);
+    AppLogger.debug(
+      'Group listening mutation queued: '
+      'id=${mutation.clientMutationId}, type=${mutation.type.name}, '
+      'pending=${_pendingMutations.length}, '
+      'in_flight=${_inFlightMutation?.clientMutationId ?? 'none'}',
+    );
+  }
+
+  void _dispatchMutationOutbox() {
+    if (_mutationOutboxDispatching ||
+        _mutationOutboxPaused ||
+        _inFlightMutation != null ||
+        _pendingMutations.isEmpty) {
+      return;
+    }
+    final connection = _connection;
+    final clientConnectionId = state.connection.clientConnectionId;
+    if (connection == null ||
+        clientConnectionId == null ||
+        !state.connection.isConnected) {
+      return;
+    }
+
+    final mutation = _pendingMutations.removeAt(0);
+    if (!_canSendMutationType(mutation.type)) {
+      _dispatchMutationOutbox();
+      return;
+    }
+
     final clientSequence = ++_clientSequence;
-    try {
-      await connection.send(
-        GroupListeningMutationMessage(
-          type: type,
-          expectedRoomVersion: state.lastAppliedRoomVersion,
-          expectedQueueVersion: _expectedQueueVersionForMutation(
-            type,
-            playbackAnchor: playbackAnchor,
-          ),
-          expectedPlaybackVersion: _expectedPlaybackVersionForMutation(
-            type,
-            playbackAnchor: playbackAnchor,
-          ),
-          clientMutationId: mutationId,
-          clientConnectionId: clientConnectionId,
-          clientSequence: clientSequence,
-          playbackAnchor: playbackAnchor,
-          queue: queue,
-          targetQueueEntryId: targetQueueEntryId,
-          insertIndex: insertIndex,
-          targetMemberId: targetMemberId,
+    final message = GroupListeningMutationMessage(
+      type: mutation.type,
+      expectedRoomVersion: state.lastAppliedRoomVersion,
+      expectedQueueVersion: _expectedQueueVersionForMutation(
+        mutation.type,
+        playbackAnchor: mutation.playbackAnchor,
+      ),
+      expectedPlaybackVersion: _expectedPlaybackVersionForMutation(
+        mutation.type,
+        playbackAnchor: mutation.playbackAnchor,
+      ),
+      clientMutationId: mutation.clientMutationId,
+      clientConnectionId: clientConnectionId,
+      clientSequence: clientSequence,
+      playbackAnchor: mutation.playbackAnchor,
+      queue: mutation.queue,
+      targetQueueEntryId: mutation.targetQueueEntryId,
+      insertIndex: mutation.insertIndex,
+      targetMemberId: mutation.targetMemberId,
+    );
+    _inFlightMutation = mutation.copyWith(clientSequence: clientSequence);
+    _mutationOutboxDispatching = true;
+    AppLogger.info(
+      'Group listening mutation sending: '
+      'id=${mutation.clientMutationId}, type=${mutation.type.name}, '
+      'connection=$clientConnectionId, seq=$clientSequence, '
+      'room_version=${message.expectedRoomVersion}, '
+      'queue_version=${message.expectedQueueVersion ?? 0}, '
+      'playback_version=${message.expectedPlaybackVersion ?? 0}',
+    );
+    unawaited(
+      connection
+          .send(message)
+          .catchError((Object error, StackTrace stackTrace) {
+            _inFlightMutation = null;
+            _pendingMutations.insert(0, mutation);
+            _handleTransportFailure(
+              _asFailure(
+                error,
+                fallbackMessage: 'Unable to send Voyage room mutation.',
+                fallbackCode: GroupListeningErrorCode.transportDisconnected,
+              ),
+              stackTrace: stackTrace,
+            );
+          })
+          .whenComplete(() {
+            _mutationOutboxDispatching = false;
+            _dispatchMutationOutbox();
+          }),
+    );
+  }
+
+  void _handleMutationAck(GroupListeningMutationAckMessage message) {
+    final inFlight = _inFlightMutation;
+    if (inFlight == null ||
+        inFlight.clientMutationId != message.clientMutationId) {
+      _pendingMutations.removeWhere(
+        (pending) => pending.clientMutationId == message.clientMutationId,
+      );
+      return;
+    }
+    AppLogger.info(
+      'Group listening mutation ack: '
+      'id=${message.clientMutationId}, type=${inFlight.type.name}, '
+      'event_id=${message.eventId}, room_version=${message.roomVersion}, '
+      'queue_version=${message.queueVersion}, '
+      'playback_version=${message.playbackVersion}, '
+      'playback_apply_id=${message.playbackApplyId ?? 0}',
+    );
+    _inFlightMutation = null;
+    _clearAckLagRecovery(upToRoomVersion: message.roomVersion);
+    _dispatchMutationOutbox();
+  }
+
+  void _handleMutationNack(GroupListeningMutationRejectedMessage message) {
+    final inFlight = _inFlightMutation;
+    final mutationId = message.clientMutationId;
+    if (mutationId != null && mutationId.isNotEmpty) {
+      _pendingMutations.removeWhere(
+        (pending) => pending.clientMutationId == mutationId,
+      );
+    }
+    final appliesToInFlight =
+        inFlight != null &&
+        (mutationId == null ||
+            mutationId.isEmpty ||
+            inFlight.clientMutationId == mutationId);
+    if (!appliesToInFlight) {
+      AppLogger.info(
+        'Group listening mutation nack ignored: '
+        'id=${mutationId ?? 'unknown'}, code=${message.error.code.name}',
+      );
+      return;
+    }
+
+    AppLogger.info(
+      'Group listening mutation nack: '
+      'id=${inFlight.clientMutationId}, type=${inFlight.type.name}, '
+      'code=${message.error.code.name}, conflict=${message.conflict ?? 'none'}, '
+      'room_version=${message.roomVersion ?? message.error.roomVersion ?? 0}, '
+      'queue_version=${message.queueVersion ?? 0}, '
+      'playback_version=${message.playbackVersion ?? 0}, '
+      'playback_apply_id=${message.playbackApplyId ?? 0}',
+    );
+
+    final code = message.error.code;
+    if (code == GroupListeningErrorCode.duplicateMutation) {
+      _inFlightMutation = null;
+      _dispatchMutationOutbox();
+      return;
+    }
+    if (code == GroupListeningErrorCode.staleVersion ||
+        code == GroupListeningErrorCode.snapshotRequired) {
+      _inFlightMutation = null;
+      _pauseMutationOutbox();
+      _dropPendingPlaybackMutations();
+      markSnapshotRequired(message.error);
+      unawaited(
+        refreshSnapshot(reason: 'mutation-${code.name}').whenComplete(
+          _resumeMutationOutbox,
         ),
       );
-      return mutationId;
-    } on Object catch (error, stackTrace) {
-      _handleTransportFailure(
-        _asFailure(
-          error,
-          fallbackMessage: 'Unable to send Voyage room mutation.',
-          fallbackCode: GroupListeningErrorCode.transportDisconnected,
-        ),
-        stackTrace: stackTrace,
+      return;
+    }
+    if (code == GroupListeningErrorCode.sequenceRejected) {
+      _inFlightMutation = null;
+      _pauseMutationOutbox();
+      if (!_isPlaybackOnlyMutation(inFlight.type)) {
+        _pendingMutations.insert(0, inFlight.withoutSequence());
+      }
+      unawaited(reconnect().whenComplete(_resumeMutationOutbox));
+      return;
+    }
+    if (code == GroupListeningErrorCode.forbidden) {
+      _inFlightMutation = null;
+      _pauseMutationOutbox();
+      _pendingMutations.clear();
+      unawaited(
+        refreshSnapshot(
+          reason: 'mutation-forbidden',
+        ).whenComplete(_resumeMutationOutbox),
       );
+      state = state.copyWith(failure: message.error);
+      return;
+    }
+    if (code == GroupListeningErrorCode.removed ||
+        code == GroupListeningErrorCode.roomClosed) {
+      _clearMutationOutbox();
+      _handleTransportFailure(message.error);
+      return;
+    }
+    _inFlightMutation = null;
+    _dispatchMutationOutbox();
+  }
+
+  bool _isPlaybackOnlyMutation(GroupListeningMutationType type) {
+    return type == GroupListeningMutationType.playbackAnchor;
+  }
+
+  void _pauseMutationOutbox() {
+    _mutationOutboxPaused = true;
+  }
+
+  void _resumeMutationOutbox() {
+    _mutationOutboxPaused = false;
+    _dispatchMutationOutbox();
+  }
+
+  void _dropPendingPlaybackMutations() {
+    _pendingMutations.removeWhere(_isObsoletePendingPlaybackMutation);
+  }
+
+  void _revalidatePendingMutations(GroupListeningRoomState snapshot) {
+    _pendingMutations.removeWhere(
+      (mutation) => !_shouldRetainPendingMutation(mutation, snapshot),
+    );
+  }
+
+  bool _shouldRetainPendingMutation(
+    _PendingGroupListeningMutation mutation,
+    GroupListeningRoomState snapshot,
+  ) {
+    switch (mutation.type) {
+      case GroupListeningMutationType.playbackAnchor:
+        return false;
+      case GroupListeningMutationType.queueAdd:
+        final targetQueueEntryId = mutation.targetQueueEntryId;
+        final desiredQueue = mutation.queue;
+        if (targetQueueEntryId == null ||
+            targetQueueEntryId.isEmpty ||
+            desiredQueue == null) {
+          return false;
+        }
+        if (_queueContainsEntry(snapshot.queue, targetQueueEntryId)) {
+          return false;
+        }
+        if (!_queueContainsEntry(desiredQueue, targetQueueEntryId)) {
+          return false;
+        }
+        final insertIndex = mutation.insertIndex;
+        return insertIndex == null ||
+            (insertIndex >= 0 && insertIndex <= snapshot.queue.entries.length);
+      case GroupListeningMutationType.queueRemove:
+        final targetQueueEntryId = mutation.targetQueueEntryId;
+        return targetQueueEntryId != null &&
+            targetQueueEntryId.isNotEmpty &&
+            _queueContainsEntry(snapshot.queue, targetQueueEntryId);
+      case GroupListeningMutationType.queueReplace:
+        final desiredQueue = mutation.queue;
+        if (desiredQueue == null) {
+          return false;
+        }
+        return !_queueEntryOrderMatches(snapshot.queue, desiredQueue);
+      case GroupListeningMutationType.transferHost:
+        final targetMember = _activeMember(snapshot, mutation.targetMemberId);
+        return targetMember != null &&
+            targetMember.memberId != snapshot.hostMemberId;
+      case GroupListeningMutationType.removeMember:
+        final targetMember = _activeMember(snapshot, mutation.targetMemberId);
+        return targetMember != null &&
+            targetMember.memberId != snapshot.self.memberId;
+    }
+  }
+
+  bool _queueContainsEntry(
+    GroupListeningQueueState queue,
+    String queueEntryId,
+  ) {
+    return queue.entries.any((entry) => entry.queueEntryId == queueEntryId);
+  }
+
+  bool _queueEntryOrderMatches(
+    GroupListeningQueueState current,
+    GroupListeningQueueState desired,
+  ) {
+    if (current.entries.length != desired.entries.length) {
+      return false;
+    }
+    for (var i = 0; i < current.entries.length; i++) {
+      final left = current.entries[i];
+      final right = desired.entries[i];
+      if (left.queueEntryId != right.queueEntryId ||
+          left.songId != right.songId) {
+        return false;
+      }
+    }
+    return current.currentIndex == desired.currentIndex;
+  }
+
+  GroupListeningMemberState? _activeMember(
+    GroupListeningRoomState snapshot,
+    String? memberId,
+  ) {
+    if (memberId == null || memberId.isEmpty) {
       return null;
     }
+    for (final member in snapshot.members) {
+      if (member.memberId == memberId &&
+          member.presenceState == GroupListeningMemberPresenceState.active) {
+        return member;
+      }
+    }
+    return null;
+  }
+
+  bool _isObsoletePendingPlaybackMutation(
+    _PendingGroupListeningMutation mutation,
+  ) {
+    return mutation.type == GroupListeningMutationType.playbackAnchor ||
+        (mutation.type == GroupListeningMutationType.queueReplace &&
+            mutation.playbackAnchor != null);
+  }
+
+  void _clearMutationOutbox() {
+    _pendingMutations.clear();
+    _inFlightMutation = null;
+    _mutationOutboxPaused = false;
+    _mutationOutboxDispatching = false;
   }
 
   int? _expectedQueueVersionForMutation(
@@ -798,6 +1113,7 @@ class GroupListeningSessionController
     );
     await _disposeTransport();
     if (!preserveSession) {
+      _clearMutationOutbox();
       _runtimeSession = null;
       await ref.read(groupListeningSessionCredentialStoreProvider).clear();
     }
@@ -1333,6 +1649,9 @@ class GroupListeningSessionController
     _snapshotRetryTimer?.cancel();
     _snapshotRetryTimer = null;
     _clearAckLagRecovery(upToRoomVersion: snapshot.roomVersion);
+    _dropPendingPlaybackMutations();
+    _revalidatePendingMutations(snapshot);
+    _resumeMutationOutbox();
     if (snapshot.roomStatus == GroupListeningRoomStatus.closed) {
       _runtimeSession = null;
       unawaited(ref.read(groupListeningSessionCredentialStoreProvider).clear());
@@ -1429,6 +1748,7 @@ class GroupListeningSessionController
     GroupListeningErrorState? failure,
   ]) {
     _clearAckLagRecovery();
+    _pauseMutationOutbox();
     state = state.copyWith(
       snapshotRequired: true,
       failure:
@@ -1732,7 +2052,7 @@ class GroupListeningSessionController
       return;
     }
     if (message is GroupListeningMutationAckMessage) {
-      _clearAckLagRecovery(upToRoomVersion: message.roomVersion);
+      _handleMutationAck(message);
       return;
     }
     if (message is GroupListeningRoomClosedMessage) {
@@ -1762,12 +2082,7 @@ class GroupListeningSessionController
       return;
     }
     if (message is GroupListeningMutationRejectedMessage) {
-      // Non-fatal mutation rejection (forbidden / sequence_rejected /
-      // duplicate_mutation).  Log it but do NOT tear down the session.
-      AppLogger.info(
-        'Group listening mutation rejected: '
-        '${message.error.code.name} — ${message.error.message}',
-      );
+      _handleMutationNack(message);
       return;
     }
     if (message is GroupListeningTransportErrorMessage) {
@@ -1809,6 +2124,7 @@ class GroupListeningSessionController
       ),
       clearFailure: true,
     );
+    _resumeMutationOutbox();
     _scheduleServerUpgradeCheck();
   }
 
@@ -1840,8 +2156,47 @@ class GroupListeningSessionController
     state = state.copyWith(
       connection: state.connection.copyWith(
         serverClockOffset: medianOffset,
+        lastRoundTripTime: _serverClockEstimator.lastRoundTripTime,
       ),
     );
+  }
+
+  void _recordPlaybackLoadingState(PlaybackSnapshot snapshot) {
+    final loading =
+        snapshot.isLoading ||
+        snapshot.processingState.name == 'loading' ||
+        snapshot.processingState.name == 'buffering';
+    if (!loading) {
+      _loadingStatusKey = null;
+      _loadingStartedAt = null;
+      return;
+    }
+
+    final key =
+        '${snapshot.loadingSongId ?? snapshot.currentSongId ?? ''}'
+        '|${snapshot.processingState.name}';
+    if (_loadingStatusKey == key && _loadingStartedAt != null) {
+      return;
+    }
+    _loadingStatusKey = key;
+    _loadingStartedAt = DateTime.now().toUtc();
+  }
+
+  Duration? _playbackLoadingAge(PlaybackSnapshot snapshot) {
+    final loading =
+        snapshot.isLoading ||
+        snapshot.processingState.name == 'loading' ||
+        snapshot.processingState.name == 'buffering';
+    if (!loading) {
+      return null;
+    }
+    final startedAt = _loadingStartedAt;
+    if (startedAt == null) {
+      _recordPlaybackLoadingState(snapshot);
+      return Duration.zero;
+    }
+    final age = DateTime.now().toUtc().difference(startedAt);
+    return age.isNegative ? Duration.zero : age;
   }
 
   void _handleTransportFailure(
@@ -1990,6 +2345,7 @@ class GroupListeningSessionController
 
   Future<void> _resetForConfigurationLoss() async {
     await _disposeTransport();
+    _clearMutationOutbox();
     _runtimeSession = null;
     await ref.read(groupListeningSessionCredentialStoreProvider).clear();
     state = state.copyWith(
@@ -2168,6 +2524,8 @@ class GroupListeningSessionController
     _transportSubscription = null;
     final connection = _connection;
     _connection = null;
+    _inFlightMutation = null;
+    _mutationOutboxDispatching = false;
     if (connection != null) {
       await connection.disconnect();
     }
@@ -2175,6 +2533,7 @@ class GroupListeningSessionController
 
   Future<GroupListeningSessionState> _finishLocalLeave() async {
     await _disposeTransport();
+    _clearMutationOutbox();
     _runtimeSession = null;
     await ref.read(groupListeningSessionCredentialStoreProvider).clear();
     state = state.copyWith(
@@ -2338,7 +2697,8 @@ class GroupListeningSessionController
       return;
     }
 
-    final observedPosition = ref.read(playerStateProvider).position;
+    final playbackSnapshot = ref.read(playerStateProvider);
+    final observedPosition = playbackSnapshot.position;
     try {
       await connection.send(
         GroupListeningHeartbeatMessage(
@@ -2350,6 +2710,26 @@ class GroupListeningSessionController
           lastAppliedPlaybackVersion: state.room?.playbackVersion ?? 0,
           lastAppliedPresenceVersion: state.room?.presenceVersion ?? 0,
           observedPosition: observedPosition,
+          transportRtt: state.connection.lastRoundTripTime,
+        ),
+      );
+      final loadingAge = _playbackLoadingAge(playbackSnapshot);
+      final observedCurrentIndex = playbackSnapshot.currentIndex;
+      final observedQueueEntryId =
+          observedCurrentIndex != null &&
+              observedCurrentIndex >= 0 &&
+              (state.room?.queue.entries.length ?? 0) > observedCurrentIndex
+          ? state.room!.queue.entries[observedCurrentIndex].queueEntryId
+          : null;
+      await connection.send(
+        GroupListeningClientStatusMessage(
+          clientConnectionId: clientConnectionId,
+          lastAppliedPlaybackApplyId: state.room?.playbackApplyId ?? 0,
+          observedQueueEntryId: observedQueueEntryId,
+          observedCurrentIndex: observedCurrentIndex,
+          localProcessingState: playbackSnapshot.processingState.name,
+          loadingAge: loadingAge,
+          clientTime: DateTime.now().toUtc(),
         ),
       );
       _scheduleHeartbeat(after: interval);
@@ -2637,5 +3017,53 @@ class GroupListeningSessionController
     final merged = byId.values.toList(growable: false)
       ..sort((a, b) => a.joinedAt.compareTo(b.joinedAt));
     return merged;
+  }
+}
+
+@immutable
+class _PendingGroupListeningMutation {
+  const _PendingGroupListeningMutation({
+    required this.type,
+    required this.clientMutationId,
+    this.clientSequence,
+    this.playbackAnchor,
+    this.queue,
+    this.targetQueueEntryId,
+    this.insertIndex,
+    this.targetMemberId,
+  });
+
+  final GroupListeningMutationType type;
+  final String clientMutationId;
+  final int? clientSequence;
+  final GroupListeningPlaybackAnchor? playbackAnchor;
+  final GroupListeningQueueState? queue;
+  final String? targetQueueEntryId;
+  final int? insertIndex;
+  final String? targetMemberId;
+
+  _PendingGroupListeningMutation copyWith({int? clientSequence}) {
+    return _PendingGroupListeningMutation(
+      type: type,
+      clientMutationId: clientMutationId,
+      clientSequence: clientSequence ?? this.clientSequence,
+      playbackAnchor: playbackAnchor,
+      queue: queue,
+      targetQueueEntryId: targetQueueEntryId,
+      insertIndex: insertIndex,
+      targetMemberId: targetMemberId,
+    );
+  }
+
+  _PendingGroupListeningMutation withoutSequence() {
+    return _PendingGroupListeningMutation(
+      type: type,
+      clientMutationId: clientMutationId,
+      playbackAnchor: playbackAnchor,
+      queue: queue,
+      targetQueueEntryId: targetQueueEntryId,
+      insertIndex: insertIndex,
+      targetMemberId: targetMemberId,
+    );
   }
 }

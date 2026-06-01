@@ -348,6 +348,63 @@ void main() {
       expect(data['expected_playback_version'], 9);
     });
 
+    test('serializes client status diagnostics frame', () async {
+      final statusCompleter = Completer<Map<String, dynamic>>();
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() async {
+        await server.close(force: true);
+      });
+
+      server.listen((request) async {
+        final socket = await WebSocketTransformer.upgrade(
+          request,
+          protocolSelector: (_) => voyageProtocolVersion,
+        );
+        final messages = StreamIterator<dynamic>(socket);
+        await messages.moveNext();
+        await messages.moveNext();
+        statusCompleter.complete(
+          jsonDecode(messages.current as String) as Map<String, dynamic>,
+        );
+        await socket.close();
+      });
+
+      const client = IOWebSocketGroupListeningRealtimeTransportClient();
+      final connection = await client.connect(
+        GroupListeningTransportConnectRequest(
+          session: _runtimeContext(
+            Uri.parse('http://127.0.0.1:${server.port}'),
+          ),
+          lastAppliedRoomVersion: 12,
+        ),
+      );
+      addTearDown(connection.disconnect);
+
+      await connection.send(
+        GroupListeningClientStatusMessage(
+          clientConnectionId: 'conn-1',
+          lastAppliedPlaybackApplyId: 7,
+          observedQueueEntryId: 'entry-1',
+          observedCurrentIndex: 2,
+          localProcessingState: 'buffering',
+          loadingAge: const Duration(milliseconds: 250),
+          clientTime: DateTime.utc(2026, 4, 21, 12),
+        ),
+      );
+
+      final status = await statusCompleter.future.timeout(
+        const Duration(seconds: 2),
+      );
+      expect(status['type'], 'client.status');
+      final data = status['data'] as Map<String, dynamic>;
+      expect(data['last_applied_playback_apply_id'], 7);
+      expect(data['observed_queue_entry_id'], 'entry-1');
+      expect(data['observed_current_index'], 2);
+      expect(data['local_processing_state'], 'buffering');
+      expect(data['loading_age_ms'], 250);
+      expect(data['client_time_ms'], isA<int>());
+    });
+
     test(
       'parses v2alpha1 ready, snapshot, and numeric event cursors',
       () async {
@@ -431,10 +488,12 @@ void main() {
 
         final snapshot = messages[1] as GroupListeningRoomSnapshotMessage;
         expect(snapshot.snapshot.latestEventId, 8);
+        expect(snapshot.snapshot.playbackApplyId, 11);
 
         final event = messages[2] as GroupListeningRoomEventMessage;
         expect(event.event.eventId, '9');
         expect(event.event.eventCursor, 9);
+        expect(event.event.playbackApplyId, 12);
       },
     );
   });
@@ -479,6 +538,8 @@ Map<String, Object?> _snapshotPayload({required int latestEventId}) {
     'requires_pin': false,
     'room_version': 4,
     'latest_event_id': latestEventId,
+    'playback_version': 10,
+    'playback_apply_id': 11,
     'presence_version': 5,
     'auth_version': 6,
     'server_time_ms': 1_720_000_000_000,
@@ -519,6 +580,10 @@ Map<String, Object?> _eventPayload({required int eventId}) {
     'room_id': 'room-1',
     'previous_room_version': 4,
     'room_version': 5,
+    'playback_version': 12,
+    'playback_apply_id': 12,
+    'presence_version': 5,
+    'auth_version': 6,
     'members': <Object?>[
       <String, Object?>{
         'member_id': 'member-1',
