@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/network_usage_meter.dart';
 
 /// Shared cover art cache key used by both the cache manager and clear logic.
 const String coverArtCacheKey = 'navis_cover_art_cache';
@@ -338,16 +339,19 @@ class _ScheduledCoverArtRequest {
 class CoverArtHttpFileService implements FileService {
   CoverArtHttpFileService({
     CoverArtLoadCoordinator? loadCoordinator,
+    NetworkUsageReporter? reportNetworkUsage,
     Duration connectionTimeout = const Duration(seconds: 15),
     Duration responseTimeout = const Duration(seconds: 20),
     Duration bodyReadTimeout = const Duration(seconds: 20),
   }) : _loadCoordinator = loadCoordinator ?? CoverArtLoadCoordinator(),
+       _reportNetworkUsage = reportNetworkUsage,
        _connectionTimeout = connectionTimeout,
        _responseTimeout = responseTimeout,
        _bodyReadTimeout = bodyReadTimeout;
 
   late HttpClient _client = _createClient();
   final CoverArtLoadCoordinator _loadCoordinator;
+  final NetworkUsageReporter? _reportNetworkUsage;
   final Duration _connectionTimeout;
   final Duration _responseTimeout;
   final Duration _bodyReadTimeout;
@@ -389,6 +393,12 @@ class CoverArtHttpFileService implements FileService {
         diagnosticUri: diagnosticUri,
         onTimeout: _resetClientAfterTimeout,
         onDone: lease.release,
+        onBytesRead: (bytes) {
+          _reportNetworkUsage?.call(
+            category: NetworkUsageCategory.coverArt,
+            bytes: bytes,
+          );
+        },
       );
     } on TimeoutException catch (error) {
       AppLogger.warning(
@@ -451,24 +461,28 @@ class _CoverArtHttpFileServiceResponse implements FileServiceResponse {
     required Uri diagnosticUri,
     required void Function() onTimeout,
     required void Function() onDone,
+    required void Function(int bytes) onBytesRead,
   }) : _bodyReadTimeout = bodyReadTimeout,
        _diagnosticUri = diagnosticUri,
        _onTimeout = onTimeout,
-       _onDone = onDone;
+       _onDone = onDone,
+       _onBytesRead = onBytesRead;
 
   final HttpClientResponse _response;
   final Duration _bodyReadTimeout;
   final Uri _diagnosticUri;
   final void Function() _onTimeout;
   final void Function() _onDone;
+  final void Function(int bytes) _onBytesRead;
 
   @override
   int get statusCode => _response.statusCode;
 
   @override
   Stream<List<int>> get content async* {
+    var bytesRead = 0;
     try {
-      yield* _response.timeout(
+      await for (final chunk in _response.timeout(
         _bodyReadTimeout,
         onTimeout: (sink) {
           final error = TimeoutException(
@@ -481,8 +495,14 @@ class _CoverArtHttpFileServiceResponse implements FileServiceResponse {
             ..close();
           scheduleMicrotask(_onTimeout);
         },
-      );
+      )) {
+        bytesRead += chunk.length;
+        yield chunk;
+      }
     } finally {
+      if (bytesRead > 0) {
+        _onBytesRead(bytesRead);
+      }
       _onDone();
     }
   }
@@ -544,6 +564,7 @@ CacheManager createCoverArtCacheManager({
   int maxNrOfCacheObjects = 0,
   CoverArtHttpFileService? fileService,
   CoverArtLoadCoordinator? loadCoordinator,
+  NetworkUsageReporter? reportNetworkUsage,
 }) {
   final cap = maxNrOfCacheObjects <= 0
       ? _coverArtCacheUnlimited
@@ -555,7 +576,10 @@ CacheManager createCoverArtCacheManager({
       maxNrOfCacheObjects: cap,
       fileService:
           fileService ??
-          CoverArtHttpFileService(loadCoordinator: loadCoordinator),
+          CoverArtHttpFileService(
+            loadCoordinator: loadCoordinator,
+            reportNetworkUsage: reportNetworkUsage,
+          ),
     ),
   );
 }

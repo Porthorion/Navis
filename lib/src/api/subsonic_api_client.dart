@@ -10,6 +10,7 @@ import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/api/subsonic_logging_interceptor.dart';
 import 'package:navis/src/api/subsonic_retry_interceptor.dart';
+import 'package:navis/src/utils/network_usage_meter.dart';
 import 'package:uuid/uuid.dart';
 
 /// Typed Subsonic/OpenSubsonic API wrapper.
@@ -20,7 +21,9 @@ class SubsonicApiClient {
     Dio? dio,
     this.enableLogging = true,
     this.maxConnectionsPerHost,
+    NetworkUsageReporter? reportNetworkUsage,
   }) : _uuid = const Uuid(),
+       _reportNetworkUsage = reportNetworkUsage,
        _dio =
            dio ??
            Dio(
@@ -44,6 +47,7 @@ class SubsonicApiClient {
   final SubsonicAuthConfig authConfig;
   final bool enableLogging;
   final int? maxConnectionsPerHost;
+  final NetworkUsageReporter? _reportNetworkUsage;
 
   static String _normalizeBaseUrl(String baseUrl) => baseUrl.endsWith('/')
       ? baseUrl.substring(0, baseUrl.length - 1)
@@ -640,10 +644,47 @@ class SubsonicApiClient {
         queryParameters: query,
         cancelToken: cancelToken,
       );
+      _recordUsageForResponse(path, response);
       final payload = _asMap(response.data);
       return _extractRoot(payload);
     } on DioException catch (err) {
       throw _mapDioException(err);
+    }
+  }
+
+  void _recordUsageForResponse(
+    String path,
+    Response<Map<String, dynamic>> response,
+  ) {
+    final reporter = _reportNetworkUsage;
+    if (reporter == null) {
+      return;
+    }
+    final bytes = _responseBodyBytes(response);
+    if (bytes <= 0) {
+      return;
+    }
+    reporter(
+      category: networkUsageCategoryForSubsonicPath(path),
+      bytes: bytes,
+    );
+  }
+
+  int _responseBodyBytes(Response<Map<String, dynamic>> response) {
+    final contentLength = int.tryParse(
+      response.headers.value(HttpHeaders.contentLengthHeader) ?? '',
+    );
+    if (contentLength != null && contentLength > 0) {
+      return contentLength;
+    }
+    final data = response.data;
+    if (data == null) {
+      return 0;
+    }
+    try {
+      return utf8.encode(jsonEncode(data)).length;
+    } on Object {
+      return utf8.encode(data.toString()).length;
     }
   }
 

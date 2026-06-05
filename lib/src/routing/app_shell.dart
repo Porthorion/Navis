@@ -55,6 +55,7 @@ import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/desktop_tokens.dart';
 import 'package:navis/src/utils/artist_utils.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/format_utils.dart';
 import 'package:navis/src/utils/song_id_utils.dart';
 
@@ -222,6 +223,9 @@ class _AppShellState extends ConsumerState<AppShell> {
 
     final snapshot = ref.read(playerStateProvider);
     if (snapshot.isRadioMode || snapshot.queueSongIds.isEmpty) {
+      return;
+    }
+    if (ref.read(networkTypeProvider) == NetworkType.cellular) {
       return;
     }
 

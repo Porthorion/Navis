@@ -12,6 +12,7 @@ import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/notifications/library_sync_notifier.dart';
 
 /// Sync interval in minutes from user settings (0 = manual only).
@@ -125,6 +126,18 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       syncIntervalMinutesProvider,
       (previous, next) => _onSyncIntervalChanged(next),
     );
+    ref.listen<NetworkType>(networkTypeProvider, (previous, next) {
+      final becameAvailable =
+          previous == NetworkType.offline && next != NetworkType.offline;
+      final becameWifi =
+          next == NetworkType.wifi && previous != NetworkType.wifi;
+      if (becameWifi) {
+        _startupSyncDoneFingerprint = null;
+      }
+      if (becameAvailable || becameWifi) {
+        _maybeRunStartupSync();
+      }
+    });
 
     // Kick off the periodic timer with the current interval.
     final intervalMinutes = ref.read(syncIntervalMinutesProvider);
@@ -219,14 +232,13 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       return;
     }
 
+    // Detect app updates: force a full resync whenever the version changes.
     final fingerprint = _toSessionFingerprint(config);
     if (_startupSyncDoneFingerprint == fingerprint) {
       return;
     }
 
     _startupSyncInFlight = true;
-
-    // Detect app updates: force a full resync whenever the version changes.
     final database = ref.read(navisDatabaseProvider);
     final packageInfo = await ref.read(packageInfoProvider.future);
     final currentBuild = '${packageInfo.version}+${packageInfo.buildNumber}';
@@ -234,20 +246,31 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         .getLastFullSyncAppBuild();
     final isNewVersion = lastSyncBuild != currentBuild;
 
-    final hasBeenSyncedBefore = config.lastSynced != null;
+    final networkType = ref.read(networkTypeProvider);
+    final deferFullResyncOnMobile =
+        isNewVersion && networkType == NetworkType.cellular;
+    if (deferFullResyncOnMobile) {
+      AppLogger.debug(
+        'Startup full library resync deferred on cellular for app build '
+        '$currentBuild.',
+      );
+    }
     unawaited(
-      (isNewVersion
+      (isNewVersion && !deferFullResyncOnMobile
               ? syncNow(forceFull: true)
-              : hasBeenSyncedBefore
-              ? syncNow(preferIncremental: true)
               : syncIfStale())
           .then((result) {
-            if (result.status == LibrarySyncStatus.succeeded ||
-                result.status == LibrarySyncStatus.skipped) {
+            final completedStartupPass =
+                result.status == LibrarySyncStatus.succeeded ||
+                (!deferFullResyncOnMobile &&
+                    result.status == LibrarySyncStatus.skipped);
+            if (completedStartupPass) {
               _startupSyncDoneFingerprint = fingerprint;
             }
             // Record the version so subsequent startups skip the forced resync.
-            if (isNewVersion && result.status == LibrarySyncStatus.succeeded) {
+            if (isNewVersion &&
+                !deferFullResyncOnMobile &&
+                result.status == LibrarySyncStatus.succeeded) {
               database.appSettingsDao.setLastFullSyncAppBuild(currentBuild);
             }
           })
@@ -371,7 +394,11 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       // independently so the periodic interval actually fires on resume.
       _maybeRunStartupSync();
       if (intervalMinutes > 0 && !state.isRunning) {
-        unawaited(syncIfStale());
+        if (ref.read(networkTypeProvider) == NetworkType.cellular) {
+          AppLogger.debug('Resume stale sync skipped on cellular.');
+        } else {
+          unawaited(syncIfStale());
+        }
       }
     }
   }
@@ -395,6 +422,13 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         'Periodic sync timer fired (interval: ${minutes}m, '
         'foreground=$_isForeground).',
       );
+      if (!_isForeground) {
+        return;
+      }
+      if (ref.read(networkTypeProvider) == NetworkType.cellular) {
+        AppLogger.debug('Periodic sync skipped on cellular.');
+        return;
+      }
       unawaited(syncIfStale());
     });
   }

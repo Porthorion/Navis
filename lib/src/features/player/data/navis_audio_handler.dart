@@ -29,6 +29,7 @@ import 'package:navis/src/features/player/data/linux_mpris_bridge.dart';
 import 'package:navis/src/features/player/data/windows_smtc_bridge.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/network_usage_meter.dart';
 
 part 'navis_playback_handler_contract.dart';
 part 'navis_playback_rules.dart';
@@ -52,6 +53,7 @@ class NavisAudioHandler extends BaseAudioHandler
     required ScrobbleService scrobbleService,
     required PlaybackRuntimeSettings Function() readRuntimeSettings,
     required StarSyncDao starSyncDao,
+    NetworkUsageReporter? reportNetworkUsage,
     AudioPlayer? player,
   }) : _libraryDao = libraryDao,
        _playlistDao = playlistDao,
@@ -64,7 +66,11 @@ class NavisAudioHandler extends BaseAudioHandler
        _rollingCacheBudgetBytes = rollingCacheBudgetBytes,
        _scrobbleService = scrobbleService,
        _readRuntimeSettings = readRuntimeSettings,
-       _starSyncDao = starSyncDao {
+       _starSyncDao = starSyncDao,
+       _reportNetworkUsage = reportNetworkUsage,
+       _artCache = _isAndroidRuntime
+           ? PlaybackArtCache(reportNetworkUsage: reportNetworkUsage)
+           : null {
     final runtime = _readRuntimeSettings();
     if (player != null) {
       _androidDspPipelineEnabled = false;
@@ -112,13 +118,12 @@ class NavisAudioHandler extends BaseAudioHandler
   final ScrobbleService _scrobbleService;
   final PlaybackRuntimeSettings Function() _readRuntimeSettings;
   final StarSyncDao _starSyncDao;
+  final NetworkUsageReporter? _reportNetworkUsage;
   late final AutoMediaTreeService _autoMediaTreeService;
   // Only instantiated on Android: downloads cover art to local files so that
   // audio_service can populate METADATA_KEY_ALBUM_ART on the MediaSession,
   // which AAOS uses for the background art behind playback controls.
-  final PlaybackArtCache? _artCache = _isAndroidRuntime
-      ? PlaybackArtCache()
-      : null;
+  final PlaybackArtCache? _artCache;
   late AudioPlayer _player;
   AndroidEqualizer? _androidEqualizer;
   AndroidLoudnessEnhancer? _androidLoudnessEnhancer;
@@ -2017,6 +2022,13 @@ class NavisAudioHandler extends BaseAudioHandler
     }
 
     try {
+      final bytes = await file.length();
+      if (bytes > 0) {
+        _reportNetworkUsage?.call(
+          category: NetworkUsageCategory.audioStream,
+          bytes: bytes,
+        );
+      }
       await _rollingCacheManager.registerTrack(
         songId: song.id,
         filePath: cacheFilePath,
@@ -2897,18 +2909,10 @@ class NavisAudioHandler extends BaseAudioHandler
   /// song data in memory (album detail, liked songs) so the song list does not
   /// need to be re-fetched from the database.
   ///
-  /// Unlike the two-phase approach used by [replaceQueue], this method resolves
-  /// all audio sources in a single pass and then calls [_setAudioSourcesWithFallback]
-  /// atomically via [_setQueueFromSongs].  This avoids the incremental
-  /// `insertAudioSource` / `playlist-move` path that `just_audio_media_kit`
-  /// uses when inserting items before the currently-playing position — a path
-  /// that fails on Linux because the underlying MPV `playlist-move` command
-  /// receives an out-of-bounds source index (off-by-one in
-  /// `just_audio_media_kit`'s `concatenatingInsertAll` implementation).
-  ///
-  /// Source resolution is purely local (URL construction + cache lookup) and
-  /// completes in < 10 ms even for large song lists, so the latency cost over
-  /// the two-phase approach is imperceptible.
+  /// Uses the same two-phase/lazy source-resolution path as [replaceQueue]:
+  /// load the requested start item first, then resolve the rest in small
+  /// batches. This keeps queue replacement from eagerly preparing hundreds of
+  /// remote stream URLs on mobile data.
   @override
   Future<void> replaceQueueWithData(
     List<SongsTableData> songs, {
@@ -2954,11 +2958,30 @@ class NavisAudioHandler extends BaseAudioHandler
         _radioMetadataService.stop();
         _radioStation = null;
 
-        await _setQueueFromSongs(
-          songs,
+        final startItem = await _replaceQueuePhase1(
+          songs: songs,
           startIndex: normalizedStartIndex,
           autoPlay: autoPlay,
+          persist: false,
+          generation: generation,
+          token: token,
+        );
+
+        if (startItem == null || songs.length <= 1) {
+          await _persistSafely(
+            () => _persistQueueState(includeQueueItems: true),
+            context: 'queue replacement with data (single song)',
+          );
+          _completeQueueLoad(generation);
+          return;
+        }
+
+        await _replaceQueuePhase2(
+          songs: songs,
+          startIndex: normalizedStartIndex,
+          startItem: startItem,
           persist: true,
+          token: token,
           generation: generation,
         );
         _completeQueueLoad(generation);

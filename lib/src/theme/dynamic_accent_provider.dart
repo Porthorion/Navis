@@ -1,6 +1,9 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
+import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
 final dynamicAccentEnabledProvider = Provider<bool>((ref) {
@@ -62,7 +65,11 @@ final dynamicAccentSeedColorProvider = FutureProvider<int?>((ref) async {
 
   final cache = ref.watch(_dynamicAccentColorCacheProvider);
   final api = ref.watch(subsonicApiProvider);
-  return cache.resolve(source: source, api: api);
+  return cache.resolve(
+    source: source,
+    api: api,
+    cacheManager: ref.watch(coverArtCacheManagerProvider),
+  );
 });
 
 /// Effective app theme seed: dynamic art-based seed with user-selected fallback.
@@ -82,13 +89,18 @@ class _DynamicAccentColorCache {
   Future<int?> resolve({
     required String source,
     required SubsonicApiClient? api,
+    required BaseCacheManager cacheManager,
   }) async {
     final cached = _seedBySource[source];
     if (cached != null) {
       return cached;
     }
 
-    final image = _toImageProvider(source: source, api: api);
+    final image = _toImageProvider(
+      source: source,
+      api: api,
+      cacheManager: cacheManager,
+    );
     if (image == null) {
       return null;
     }
@@ -110,13 +122,14 @@ class _DynamicAccentColorCache {
   ImageProvider<Object>? _toImageProvider({
     required String source,
     required SubsonicApiClient? api,
+    required BaseCacheManager cacheManager,
   }) {
     if (source.startsWith('url:')) {
       final url = source.substring(4).trim();
       if (url.isEmpty) {
         return null;
       }
-      return NetworkImage(url);
+      return CachedNetworkImageProvider(url, cacheManager: cacheManager);
     }
 
     if (source.startsWith('id:')) {
@@ -124,8 +137,10 @@ class _DynamicAccentColorCache {
       if (id.isEmpty || api == null) {
         return null;
       }
-      return NetworkImage(
+      return CachedNetworkImageProvider(
         api.getCoverArtUrl(id: id, size: 128).toString(),
+        cacheManager: cacheManager,
+        cacheKey: coverArtImageCacheKey(id, 128),
       );
     }
 

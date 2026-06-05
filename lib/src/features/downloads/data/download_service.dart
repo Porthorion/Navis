@@ -21,6 +21,7 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart'
 import 'package:navis/src/features/downloads/data/permanent_download_path_resolver.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/file_utils.dart';
+import 'package:navis/src/utils/network_usage_meter.dart';
 import 'package:navis/src/utils/notifications/download_notifier.dart';
 import 'package:path/path.dart' as p;
 
@@ -62,6 +63,7 @@ class DownloadService {
     required String? Function() readCustomDownloadFolderPath,
     required LrclibClient lrclibClient,
     required BaseCacheManager Function() readCoverArtCacheManager,
+    NetworkUsageReporter? reportNetworkUsage,
     Future<Directory> Function()? readApplicationSupportDirectory,
     Dio? dio,
   }) : _appSettingsDao = appSettingsDao,
@@ -75,6 +77,7 @@ class DownloadService {
        _readCustomDownloadFolderPath = readCustomDownloadFolderPath,
        _lrclibClient = lrclibClient,
        _readCoverArtCacheManager = readCoverArtCacheManager,
+       _reportNetworkUsage = reportNetworkUsage,
        _dio = dio ?? Dio(),
        _permanentPathResolver = PermanentDownloadPathResolver(
          readCustomDownloadFolderEnabled: readCustomDownloadFolderEnabled,
@@ -93,6 +96,7 @@ class DownloadService {
   final String? Function() _readCustomDownloadFolderPath;
   final LrclibClient _lrclibClient;
   final BaseCacheManager Function() _readCoverArtCacheManager;
+  final NetworkUsageReporter? _reportNetworkUsage;
   final Dio _dio;
   final PermanentDownloadPathResolver _permanentPathResolver;
 
@@ -612,6 +616,10 @@ class DownloadService {
           response.statusCode! < 300) {
         // Register in cached_tracks as permanent.
         final stat = await destFile.stat();
+        _reportNetworkUsage?.call(
+          category: NetworkUsageCategory.download,
+          bytes: stat.size,
+        );
         final format = _resolveFormat(song, item);
         final bitRate = _resolveBitRate(song, item);
 
@@ -789,9 +797,9 @@ class DownloadService {
   /// the server or LrcLib. Never throws.
   Future<void> _backfillLyricsForDownloadedSongs() async {
     try {
-      if (_readWifiOnly() && !_readIsWifi()) {
+      if (!_readIsWifi()) {
         AppLogger.debug(
-          'DownloadService: Lyrics backfill skipped — wifi-only and not on wifi.',
+          'DownloadService: Lyrics backfill skipped — not on wifi.',
         );
         return;
       }

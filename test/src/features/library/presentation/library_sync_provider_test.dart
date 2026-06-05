@@ -11,6 +11,7 @@ import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/utils/connectivity.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../../helpers/test_database.dart';
@@ -351,6 +352,86 @@ void main() {
       },
     );
 
+    test(
+      'app update full resync deferred on cellular runs when Wi-Fi returns',
+      () async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        var networkType = NetworkType.cellular;
+        final engine = _FakeLibrarySyncEngine(
+          ({
+            onProgress,
+          }) async {
+            return const LibrarySyncState(
+              status: LibrarySyncStatus.skipped,
+              stage: LibrarySyncStage.completed,
+            );
+          },
+          ({
+            forceFull = false,
+            onProgress,
+          }) async {
+            return LibrarySyncState(
+              status: LibrarySyncStatus.succeeded,
+              stage: LibrarySyncStage.completed,
+              completedAt: DateTime.now(),
+            );
+          },
+        );
+
+        final container = ProviderContainer(
+          overrides: [
+            _manualSyncInterval,
+            networkTypeProvider.overrideWith(
+              (ref) => networkType,
+            ),
+            serverConfigStateProvider.overrideWithValue(
+              const AsyncData(
+                ServerConfigModel(
+                  url: 'https://example.com',
+                  username: 'alice',
+                  password: 'secret',
+                  apiVersion: '1.16.1',
+                ),
+              ),
+            ),
+            serverReachabilityControllerProvider.overrideWith(
+              () => _StaticReachabilityController(
+                const ServerReachabilityState(
+                  status: ServerReachabilityStatus.online,
+                ),
+              ),
+            ),
+            navisDatabaseProvider.overrideWithValue(database),
+            packageInfoProvider.overrideWithValue(
+              AsyncData<PackageInfo>(_testPackageInfo),
+            ),
+            librarySyncEngineProvider.overrideWithValue(engine),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        container.read(librarySyncControllerProvider);
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+
+        expect(engine.staleCalls, 1);
+        expect(engine.nowCalls, 0);
+        expect(await database.appSettingsDao.getLastFullSyncAppBuild(), isNull);
+
+        networkType = NetworkType.wifi;
+        container.invalidate(networkTypeProvider);
+        expect(container.read(networkTypeProvider), NetworkType.wifi);
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+
+        expect(engine.nowCalls, 1);
+        expect(engine.forceFullCalls.single, isTrue);
+        expect(
+          await database.appSettingsDao.getLastFullSyncAppBuild(),
+          '1.0.0+1',
+        );
+      },
+    );
+
     test('unauthenticated state does not trigger startup sync', () async {
       final engine = _FakeLibrarySyncEngine(
         ({
@@ -462,7 +543,7 @@ void main() {
       expect(finalState.status, LibrarySyncStatus.failed);
     });
 
-    test('periodic sync still fires while backgrounded', () async {
+    test('periodic sync pauses while backgrounded', () async {
       final binding = TestWidgetsFlutterBinding.ensureInitialized();
       binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
 
@@ -510,7 +591,7 @@ void main() {
       container.read(librarySyncControllerProvider);
       await Future<void>.delayed(const Duration(milliseconds: 35));
 
-      expect(engine.staleCalls, greaterThan(0));
+      expect(engine.staleCalls, 0);
     });
   });
 }

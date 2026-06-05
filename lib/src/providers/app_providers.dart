@@ -17,6 +17,7 @@ import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/daos/match_flow_dao.dart';
+import 'package:navis/src/database/daos/network_usage_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/audiomuse/data/audiomuse_api_client.dart';
@@ -45,6 +46,7 @@ import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/constants.dart';
+import 'package:navis/src/utils/network_usage_meter.dart';
 import 'package:path_provider/path_provider.dart';
 
 final navisDatabaseProvider = Provider<NavisDatabase>((ref) {
@@ -89,7 +91,17 @@ final coverArtCacheManagerProvider = Provider<CacheManager>((ref) {
   // would dispose the manager before its internal SQLite DB finishes opening.
   final maxObjects = ref.read(_coverArtMaxObjectsProvider).value ?? 0;
   final coordinator = ref.watch(coverArtLoadCoordinatorProvider);
-  final service = CoverArtHttpFileService(loadCoordinator: coordinator);
+  final service = CoverArtHttpFileService(
+    loadCoordinator: coordinator,
+    reportNetworkUsage: ({required category, required bytes}) {
+      ref
+          .read(networkUsageMeterProvider)
+          .record(
+            category: category,
+            bytes: bytes,
+          );
+    },
+  );
   final manager = createCoverArtCacheManager(
     maxNrOfCacheObjects: maxObjects,
     fileService: service,
@@ -113,6 +125,53 @@ final networkTypeProvider = Provider<NetworkType>((ref) {
     connectivity.asData?.value ?? const <ConnectivityResult>[],
   );
 });
+
+final networkUsageMeterProvider = Provider<NetworkUsageMeter>((ref) {
+  final meter = NetworkUsageMeter(
+    dao: ref.watch(navisDatabaseProvider).networkUsageDao,
+    readNetworkType: () => ref.read(networkTypeProvider),
+  );
+  unawaited(
+    meter.pruneOld().catchError((Object error, StackTrace stackTrace) {
+      AppLogger.debug('Network usage prune failed: $error\n$stackTrace');
+    }),
+  );
+  return meter;
+});
+
+DateTime _networkUsageSinceForDays(int days) {
+  final now = DateTime.now();
+  if (days <= 1) {
+    return DateTime(now.year, now.month, now.day);
+  }
+  return now.subtract(Duration(days: days));
+}
+
+final networkUsageCategoryTotalsProvider =
+    StreamProvider.family<List<NetworkUsageCategoryTotal>, int>((ref, days) {
+      final since = _networkUsageSinceForDays(days);
+      return ref
+          .watch(navisDatabaseProvider)
+          .networkUsageDao
+          .watchCategoryTotalsSince(since);
+    });
+
+final networkUsageTotalProvider = StreamProvider.family<NetworkUsageTotal, int>(
+  (ref, days) {
+    final since = _networkUsageSinceForDays(days);
+    return ref
+        .watch(navisDatabaseProvider)
+        .networkUsageDao
+        .watchTotalSince(
+          since,
+        );
+  },
+);
+
+final networkUsageSessionTotalsProvider =
+    Provider<List<NetworkUsageSessionTotal>>((ref) {
+      return ref.watch(networkUsageMeterProvider).sessionTotals;
+    });
 
 class StreamingQuality {
   const StreamingQuality({required this.label, this.maxBitRate, this.format});
@@ -252,6 +311,15 @@ final subsonicApiProvider = Provider<SubsonicApiClient?>((ref) {
       NetworkType.cellular => 8,
       NetworkType.offline => 4,
       NetworkType.other => 12,
+    },
+    reportNetworkUsage: ({required category, required bytes}) {
+      ref
+          .read(networkUsageMeterProvider)
+          .record(
+            category: category,
+            bytes: bytes,
+            networkType: networkType,
+          );
     },
   );
 });
@@ -449,6 +517,8 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
               const AppSettingsModel.defaults();
           return settings.cachedPlaybackFirst;
         },
+        readPreferAnyCache: () =>
+            ref.read(networkTypeProvider) == NetworkType.cellular,
         readCanStream: () =>
             ref.read(networkTypeProvider) != NetworkType.offline,
       ),
@@ -457,17 +527,27 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
       rollingCacheBudgetBytes: ref.read(rollingCacheBudgetBytesProvider),
       scrobbleService: ref.read(scrobbleServiceProvider),
       starSyncDao: database.starSyncDao,
+      reportNetworkUsage: ({required category, required bytes}) {
+        ref
+            .read(networkUsageMeterProvider)
+            .record(
+              category: category,
+              bytes: bytes,
+            );
+      },
       readRuntimeSettings: () {
         final settings =
             ref.read(appSettingsProvider).asData?.value ??
             const AppSettingsModel.defaults();
+        final onCellular =
+            ref.read(networkTypeProvider) == NetworkType.cellular;
         return PlaybackRuntimeSettings(
-          gaplessEnabled: settings.gaplessEnabled,
+          gaplessEnabled: settings.gaplessEnabled && !onCellular,
           equalizerEnabled: settings.equalizerEnabled,
           equalizerBandGains: settings.equalizerBandGains,
           loudnessEnabled: settings.loudnessEnabled,
           loudnessTargetGainDb: settings.loudnessTargetGainDb,
-          crossfadeEnabled: settings.crossfadeEnabled,
+          crossfadeEnabled: settings.crossfadeEnabled && !onCellular,
           crossfadeDurationSeconds: settings.crossfadeDurationSeconds,
           crossfadeType: settings.crossfadeType,
           replayGainMode: settings.replayGainMode,
@@ -2091,6 +2171,14 @@ final downloadServiceProvider = Provider<DownloadService>((ref) {
         ref.read(customDownloadFolderPathProvider),
     lrclibClient: ref.read(lrclibClientProvider),
     readCoverArtCacheManager: () => ref.read(coverArtCacheManagerProvider),
+    reportNetworkUsage: ({required category, required bytes}) {
+      ref
+          .read(networkUsageMeterProvider)
+          .record(
+            category: category,
+            bytes: bytes,
+          );
+    },
   );
   // Service.start() is async but we fire-and-forget here — the subscription
   // inside start() processes the queue independently.

@@ -19,12 +19,16 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/network_usage_meter.dart';
 import 'package:path_provider/path_provider.dart';
 
 class PlaybackArtCache {
-  PlaybackArtCache();
+  PlaybackArtCache({NetworkUsageReporter? reportNetworkUsage})
+    : _reportNetworkUsage = reportNetworkUsage;
   static const Duration _connectionTimeout = Duration(seconds: 10);
   static const Duration _responseTimeout = Duration(seconds: 15);
+
+  final NetworkUsageReporter? _reportNetworkUsage;
 
   /// In-memory map: coverArtId → absolute file path of the cached file.
   ///
@@ -121,6 +125,10 @@ class PlaybackArtCache {
           return null;
         }
 
+        _reportNetworkUsage?.call(
+          category: NetworkUsageCategory.coverArt,
+          bytes: written,
+        );
         _mem[coverArtId] = file.path;
         AppLogger.debug(
           'PlaybackArtCache: art for $coverArtId → ${file.path} ($written bytes)',

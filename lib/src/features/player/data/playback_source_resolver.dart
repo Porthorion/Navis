@@ -115,6 +115,7 @@ class PlaybackSourceResolver {
     required StreamingQuality Function() readStreamingQuality,
     required Future<Directory> Function() readRollingCacheDirectory,
     bool Function()? readCachedPlaybackFirst,
+    bool Function()? readPreferAnyCache,
     bool Function()? readCanStream,
   }) : _cacheDao = cacheDao,
        _libraryDao = libraryDao,
@@ -123,6 +124,7 @@ class PlaybackSourceResolver {
        _readStreamingQuality = readStreamingQuality,
        _readRollingCacheDirectory = readRollingCacheDirectory,
        _readCachedPlaybackFirst = readCachedPlaybackFirst ?? _readFalse,
+       _readPreferAnyCache = readPreferAnyCache ?? _readFalse,
        _readCanStream = readCanStream ?? _readTrue;
 
   final CacheDao _cacheDao;
@@ -132,6 +134,7 @@ class PlaybackSourceResolver {
   final StreamingQuality Function() _readStreamingQuality;
   final Future<Directory> Function() _readRollingCacheDirectory;
   final bool Function() _readCachedPlaybackFirst;
+  final bool Function() _readPreferAnyCache;
   final bool Function() _readCanStream;
 
   Future<ResolvedPlaybackSource> resolveForSong(
@@ -171,6 +174,7 @@ class PlaybackSourceResolver {
 
     final cachePolicy = PlaybackCachePolicy(
       cachedPlaybackFirst: _readCachedPlaybackFirst(),
+      preferAnyCache: _readPreferAnyCache(),
       canStream: _readCanStream(),
     );
     if (cachedTrack != null &&
@@ -320,17 +324,23 @@ class PlaybackSourceResolver {
       rollingDir.createSync(recursive: true);
     }
 
-    final normalizedBitRate = quality.maxBitRate?.toString() ?? 'original';
+    final metadata = _resolveStreamingMetadata(song: song, quality: quality);
+    final normalizedBitRate =
+        metadata.isTranscoded && metadata.bitRate != song.bitRate
+        ? metadata.bitRate?.toString() ?? 'original'
+        : 'original';
     final normalizedFormat =
-        _canonicalAudioFormat(quality.format) ?? 'original';
+        _resolveRequestedStreamFormat(song: song, quality: quality) ??
+        'original';
+    final sourceFormat = _inferSourceFormat(song) ?? 'unknown';
     final qualitySignature =
-        '${quality.label}::$normalizedBitRate::$normalizedFormat';
+        '$normalizedBitRate::$normalizedFormat::$sourceFormat';
     final digest = sha1
         .convert(utf8.encode('${song.id}::$qualitySignature'))
         .toString();
     final extension = _songFileExtension(
       song,
-      metadata: _resolveStreamingMetadata(song: song, quality: quality),
+      metadata: metadata,
       quality: quality,
     );
 
@@ -516,7 +526,9 @@ class PlaybackSourceResolver {
     if (cachedTrack.downloadStatus != DownloadStatus.complete) {
       return false;
     }
-    if (policy.cachedPlaybackFirst || !policy.canStream) {
+    if (policy.cachedPlaybackFirst ||
+        policy.preferAnyCache ||
+        !policy.canStream) {
       return true;
     }
 
@@ -552,10 +564,12 @@ class PlaybackSourceResolver {
 class PlaybackCachePolicy {
   const PlaybackCachePolicy({
     required this.cachedPlaybackFirst,
+    required this.preferAnyCache,
     required this.canStream,
   });
 
   final bool cachedPlaybackFirst;
+  final bool preferAnyCache;
   final bool canStream;
 }
 

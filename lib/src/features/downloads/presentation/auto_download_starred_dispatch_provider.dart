@@ -5,6 +5,7 @@ import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
+import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart' show isDesktopRuntime;
@@ -74,6 +75,14 @@ class AutoDownloadStarredDispatchController extends Notifier<int> {
     try {
       final db = ref.read(navisDatabaseProvider);
       final service = ref.read(downloadServiceProvider);
+      final settings =
+          ref.read(appSettingsProvider).asData?.value ??
+          const AppSettingsModel.defaults();
+      final useMobileQuality = networkType == NetworkType.cellular;
+      final quality = useMobileQuality
+          ? settings.cellularMaxBitRate?.toString()
+          : null;
+      final format = useMobileQuality ? settings.cellularFormat : null;
       final likedAlbums = await db.libraryDao.getLikedAlbums();
       final likedSongs = await db.libraryDao.getAllStarredSongs();
 
@@ -82,11 +91,13 @@ class AutoDownloadStarredDispatchController extends Notifier<int> {
       // 3n). This also avoids blocking the UI because the service only writes
       // to the DB; actual downloading is handled by the background loop.
       for (final album in likedAlbums) {
-        await service.enqueueAlbum(album.id);
+        await service.enqueueAlbum(album.id, quality: quality, format: format);
       }
       for (final song in likedSongs) {
         // Fire-and-forget individual songs — enqueueSong is lightweight.
-        unawaited(service.enqueueSong(song.id));
+        unawaited(
+          service.enqueueSong(song.id, quality: quality, format: format),
+        );
       }
     } finally {
       _isDispatching = false;

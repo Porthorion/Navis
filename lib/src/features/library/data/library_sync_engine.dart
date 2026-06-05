@@ -231,10 +231,10 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     this.bulkSearchProbeQueries = const <String>['', '*'],
     this.fallbackArtistConcurrency = 4,
     this.wifiAlbumConcurrency = 8,
-    this.cellularAlbumConcurrency = 4,
+    this.cellularAlbumConcurrency = 1,
     this.otherAlbumConcurrency = 6,
     this.wifiMaxAlbumConcurrency = 24,
-    this.cellularMaxAlbumConcurrency = 8,
+    this.cellularMaxAlbumConcurrency = 2,
     this.otherMaxAlbumConcurrency = 12,
     this.writeChunkSize = 48,
     this.isolateThreshold = 100,
@@ -1806,6 +1806,9 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     required _SyncRunMetrics metrics,
     int maxAttempts = 4,
   }) async {
+    final effectiveMaxAttempts = networkType == NetworkType.cellular
+        ? maxAttempts.clamp(1, 2)
+        : maxAttempts;
     var attempt = 0;
     while (true) {
       _checkCancelled();
@@ -1825,7 +1828,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
           elapsed: stopwatch.elapsed,
           isRetryAttempt: attempt > 1,
         );
-        if (!_isTransient(error) || attempt >= maxAttempts) {
+        if (!_isTransient(error) || attempt >= effectiveMaxAttempts) {
           metrics.recordApiFailure();
           rethrow;
         }

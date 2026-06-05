@@ -3549,6 +3549,186 @@ abstract class AppLocalizations {
   /// **'Cape Horn'**
   String get aboutCodename;
 
+  /// No description provided for @aboutDataUsageTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Data Usage'**
+  String get aboutDataUsageTitle;
+
+  /// No description provided for @aboutDataUsageSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Local network usage estimates by feature and network type.'**
+  String get aboutDataUsageSubtitle;
+
+  /// No description provided for @aboutDataUsageToday.
+  ///
+  /// In en, this message translates to:
+  /// **'Today'**
+  String get aboutDataUsageToday;
+
+  /// No description provided for @aboutDataUsageSevenDays.
+  ///
+  /// In en, this message translates to:
+  /// **'Last 7 days'**
+  String get aboutDataUsageSevenDays;
+
+  /// No description provided for @aboutDataUsageThirtyDays.
+  ///
+  /// In en, this message translates to:
+  /// **'Last 30 days'**
+  String get aboutDataUsageThirtyDays;
+
+  /// No description provided for @aboutDataUsageBreakdown.
+  ///
+  /// In en, this message translates to:
+  /// **'Last 7 days by feature'**
+  String get aboutDataUsageBreakdown;
+
+  /// No description provided for @aboutDataUsageEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No usage recorded yet.'**
+  String get aboutDataUsageEmpty;
+
+  /// No description provided for @aboutDataUsageLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading usage stats...'**
+  String get aboutDataUsageLoading;
+
+  /// No description provided for @aboutDataUsageUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Usage stats unavailable.'**
+  String get aboutDataUsageUnavailable;
+
+  /// No description provided for @aboutDataUsageRequests.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{No requests} =1{1 request} other{{count} requests}}'**
+  String aboutDataUsageRequests(int count);
+
+  /// No description provided for @aboutDataUsageReset.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset usage stats'**
+  String get aboutDataUsageReset;
+
+  /// No description provided for @aboutDataUsageResetConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset usage stats?'**
+  String get aboutDataUsageResetConfirmTitle;
+
+  /// No description provided for @aboutDataUsageResetConfirmMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'This clears local network usage totals on this device.'**
+  String get aboutDataUsageResetConfirmMessage;
+
+  /// No description provided for @aboutDataUsageResetCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get aboutDataUsageResetCancel;
+
+  /// No description provided for @aboutDataUsageResetConfirmAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset'**
+  String get aboutDataUsageResetConfirmAction;
+
+  /// No description provided for @aboutDataUsageResetComplete.
+  ///
+  /// In en, this message translates to:
+  /// **'Usage stats reset.'**
+  String get aboutDataUsageResetComplete;
+
+  /// No description provided for @aboutDataUsageResetFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not reset usage stats.'**
+  String get aboutDataUsageResetFailed;
+
+  /// No description provided for @aboutDataUsageNetworkWifi.
+  ///
+  /// In en, this message translates to:
+  /// **'Wi-Fi'**
+  String get aboutDataUsageNetworkWifi;
+
+  /// No description provided for @aboutDataUsageNetworkMobile.
+  ///
+  /// In en, this message translates to:
+  /// **'Mobile'**
+  String get aboutDataUsageNetworkMobile;
+
+  /// No description provided for @aboutDataUsageNetworkOffline.
+  ///
+  /// In en, this message translates to:
+  /// **'Offline'**
+  String get aboutDataUsageNetworkOffline;
+
+  /// No description provided for @aboutDataUsageNetworkOther.
+  ///
+  /// In en, this message translates to:
+  /// **'Other network'**
+  String get aboutDataUsageNetworkOther;
+
+  /// No description provided for @aboutDataUsageCategoryAudioStreaming.
+  ///
+  /// In en, this message translates to:
+  /// **'Audio streaming'**
+  String get aboutDataUsageCategoryAudioStreaming;
+
+  /// No description provided for @aboutDataUsageCategoryDownloads.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloads'**
+  String get aboutDataUsageCategoryDownloads;
+
+  /// No description provided for @aboutDataUsageCategoryCoverArt.
+  ///
+  /// In en, this message translates to:
+  /// **'Cover art'**
+  String get aboutDataUsageCategoryCoverArt;
+
+  /// No description provided for @aboutDataUsageCategoryLibrarySync.
+  ///
+  /// In en, this message translates to:
+  /// **'Library sync'**
+  String get aboutDataUsageCategoryLibrarySync;
+
+  /// No description provided for @aboutDataUsageCategoryLyrics.
+  ///
+  /// In en, this message translates to:
+  /// **'Lyrics'**
+  String get aboutDataUsageCategoryLyrics;
+
+  /// No description provided for @aboutDataUsageCategoryScrobbling.
+  ///
+  /// In en, this message translates to:
+  /// **'Scrobbling'**
+  String get aboutDataUsageCategoryScrobbling;
+
+  /// No description provided for @aboutDataUsageCategoryRecommendations.
+  ///
+  /// In en, this message translates to:
+  /// **'Recommendations'**
+  String get aboutDataUsageCategoryRecommendations;
+
+  /// No description provided for @aboutDataUsageCategoryUpdates.
+  ///
+  /// In en, this message translates to:
+  /// **'Updates'**
+  String get aboutDataUsageCategoryUpdates;
+
+  /// No description provided for @aboutDataUsageCategoryOtherApi.
+  ///
+  /// In en, this message translates to:
+  /// **'Other API'**
+  String get aboutDataUsageCategoryOtherApi;
+
   /// No description provided for @updateCheckTitle.
   ///
   /// In en, this message translates to:

@@ -8,6 +8,7 @@ import 'package:navis/src/database/daos/download_queue_dao.dart';
 import 'package:navis/src/database/daos/history_dao.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/daos/match_flow_dao.dart';
+import 'package:navis/src/database/daos/network_usage_dao.dart';
 import 'package:navis/src/database/daos/play_queue_dao.dart';
 import 'package:navis/src/database/daos/playlist_dao.dart';
 import 'package:navis/src/database/daos/scrobble_dao.dart';
@@ -24,6 +25,7 @@ import 'package:navis/src/database/tables/genres_table.dart';
 import 'package:navis/src/database/tables/match_flow_songs_table.dart';
 import 'package:navis/src/database/tables/match_flows_table.dart';
 import 'package:navis/src/database/tables/play_history_table.dart';
+import 'package:navis/src/database/tables/network_usage_table.dart';
 import 'package:navis/src/database/tables/play_queue_items_table.dart';
 import 'package:navis/src/database/tables/play_queue_table.dart';
 import 'package:navis/src/database/tables/playlist_songs_table.dart';
@@ -59,6 +61,7 @@ part 'navis_database.g.dart';
     MatchFlowSongsTable,
     ScrobbleQueueTable,
     StarSyncQueueTable,
+    NetworkUsageTable,
   ],
   daos: [
     AppSettingsDao,
@@ -72,6 +75,7 @@ part 'navis_database.g.dart';
     MatchFlowDao,
     ScrobbleDao,
     StarSyncDao,
+    NetworkUsageDao,
   ],
 )
 class NavisDatabase extends _$NavisDatabase {
@@ -81,7 +85,7 @@ class NavisDatabase extends _$NavisDatabase {
   static QueryExecutor _openConnection() => driftDatabase(name: 'navis.sqlite');
 
   @override
-  int get schemaVersion => 46;
+  int get schemaVersion => 47;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -240,6 +244,9 @@ class NavisDatabase extends _$NavisDatabase {
     if (from < 46 && to >= 46) {
       await from45To46(migrator);
     }
+    if (from < 47 && to >= 47) {
+      await from46To47(migrator);
+    }
   }
 
   Future<void> from1To2(Migrator migrator) async {
@@ -308,6 +315,12 @@ class NavisDatabase extends _$NavisDatabase {
       );
     }
     await _rebuildScrobbleQueueForProviders();
+  }
+
+  Future<void> from46To47(Migrator migrator) async {
+    if (!await _tableExists('network_usage_events')) {
+      await migrator.createTable(networkUsageTable);
+    }
   }
 
   Future<void> _rebuildScrobbleQueueForProviders() async {
@@ -1090,6 +1103,12 @@ FROM scrobble_queue;
     );
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_scrobble_queue_due ON scrobble_queue(next_attempt_at, expires_at);',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_network_usage_occurred_at ON network_usage_events(occurred_at);',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_network_usage_category_network ON network_usage_events(category, network_type);',
     );
   }
 

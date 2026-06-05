@@ -1989,6 +1989,107 @@ class AppLocalizationsEn extends AppLocalizations {
   String get aboutCodename => 'Cape Horn';
 
   @override
+  String get aboutDataUsageTitle => 'Data Usage';
+
+  @override
+  String get aboutDataUsageSubtitle =>
+      'Local network usage estimates by feature and network type.';
+
+  @override
+  String get aboutDataUsageToday => 'Today';
+
+  @override
+  String get aboutDataUsageSevenDays => 'Last 7 days';
+
+  @override
+  String get aboutDataUsageThirtyDays => 'Last 30 days';
+
+  @override
+  String get aboutDataUsageBreakdown => 'Last 7 days by feature';
+
+  @override
+  String get aboutDataUsageEmpty => 'No usage recorded yet.';
+
+  @override
+  String get aboutDataUsageLoading => 'Loading usage stats...';
+
+  @override
+  String get aboutDataUsageUnavailable => 'Usage stats unavailable.';
+
+  @override
+  String aboutDataUsageRequests(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count requests',
+      one: '1 request',
+      zero: 'No requests',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get aboutDataUsageReset => 'Reset usage stats';
+
+  @override
+  String get aboutDataUsageResetConfirmTitle => 'Reset usage stats?';
+
+  @override
+  String get aboutDataUsageResetConfirmMessage =>
+      'This clears local network usage totals on this device.';
+
+  @override
+  String get aboutDataUsageResetCancel => 'Cancel';
+
+  @override
+  String get aboutDataUsageResetConfirmAction => 'Reset';
+
+  @override
+  String get aboutDataUsageResetComplete => 'Usage stats reset.';
+
+  @override
+  String get aboutDataUsageResetFailed => 'Could not reset usage stats.';
+
+  @override
+  String get aboutDataUsageNetworkWifi => 'Wi-Fi';
+
+  @override
+  String get aboutDataUsageNetworkMobile => 'Mobile';
+
+  @override
+  String get aboutDataUsageNetworkOffline => 'Offline';
+
+  @override
+  String get aboutDataUsageNetworkOther => 'Other network';
+
+  @override
+  String get aboutDataUsageCategoryAudioStreaming => 'Audio streaming';
+
+  @override
+  String get aboutDataUsageCategoryDownloads => 'Downloads';
+
+  @override
+  String get aboutDataUsageCategoryCoverArt => 'Cover art';
+
+  @override
+  String get aboutDataUsageCategoryLibrarySync => 'Library sync';
+
+  @override
+  String get aboutDataUsageCategoryLyrics => 'Lyrics';
+
+  @override
+  String get aboutDataUsageCategoryScrobbling => 'Scrobbling';
+
+  @override
+  String get aboutDataUsageCategoryRecommendations => 'Recommendations';
+
+  @override
+  String get aboutDataUsageCategoryUpdates => 'Updates';
+
+  @override
+  String get aboutDataUsageCategoryOtherApi => 'Other API';
+
+  @override
   String get updateCheckTitle => 'Check for updates';
 
   @override

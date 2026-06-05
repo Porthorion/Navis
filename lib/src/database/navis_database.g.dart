@@ -13567,6 +13567,418 @@ class StarSyncQueueTableCompanion
   }
 }
 
+class $NetworkUsageTableTable extends NetworkUsageTable
+    with TableInfo<$NetworkUsageTableTable, NetworkUsageTableData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $NetworkUsageTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _categoryMeta = const VerificationMeta(
+    'category',
+  );
+  @override
+  late final GeneratedColumn<String> category = GeneratedColumn<String>(
+    'category',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _networkTypeMeta = const VerificationMeta(
+    'networkType',
+  );
+  @override
+  late final GeneratedColumn<String> networkType = GeneratedColumn<String>(
+    'network_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _bytesMeta = const VerificationMeta('bytes');
+  @override
+  late final GeneratedColumn<int> bytes = GeneratedColumn<int>(
+    'bytes',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _requestCountMeta = const VerificationMeta(
+    'requestCount',
+  );
+  @override
+  late final GeneratedColumn<int> requestCount = GeneratedColumn<int>(
+    'request_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _occurredAtMeta = const VerificationMeta(
+    'occurredAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> occurredAt = GeneratedColumn<DateTime>(
+    'occurred_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    category,
+    networkType,
+    bytes,
+    requestCount,
+    occurredAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'network_usage_events';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<NetworkUsageTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('category')) {
+      context.handle(
+        _categoryMeta,
+        category.isAcceptableOrUnknown(data['category']!, _categoryMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_categoryMeta);
+    }
+    if (data.containsKey('network_type')) {
+      context.handle(
+        _networkTypeMeta,
+        networkType.isAcceptableOrUnknown(
+          data['network_type']!,
+          _networkTypeMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_networkTypeMeta);
+    }
+    if (data.containsKey('bytes')) {
+      context.handle(
+        _bytesMeta,
+        bytes.isAcceptableOrUnknown(data['bytes']!, _bytesMeta),
+      );
+    }
+    if (data.containsKey('request_count')) {
+      context.handle(
+        _requestCountMeta,
+        requestCount.isAcceptableOrUnknown(
+          data['request_count']!,
+          _requestCountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('occurred_at')) {
+      context.handle(
+        _occurredAtMeta,
+        occurredAt.isAcceptableOrUnknown(data['occurred_at']!, _occurredAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_occurredAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  NetworkUsageTableData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return NetworkUsageTableData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      category: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}category'],
+      )!,
+      networkType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}network_type'],
+      )!,
+      bytes: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}bytes'],
+      )!,
+      requestCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}request_count'],
+      )!,
+      occurredAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}occurred_at'],
+      )!,
+    );
+  }
+
+  @override
+  $NetworkUsageTableTable createAlias(String alias) {
+    return $NetworkUsageTableTable(attachedDatabase, alias);
+  }
+}
+
+class NetworkUsageTableData extends DataClass
+    implements Insertable<NetworkUsageTableData> {
+  final int id;
+
+  /// Stable category key such as `audio_stream`, `cover_art`, or `library_sync`.
+  final String category;
+
+  /// `wifi`, `cellular`, `offline`, or `other`.
+  final String networkType;
+  final int bytes;
+  final int requestCount;
+  final DateTime occurredAt;
+  const NetworkUsageTableData({
+    required this.id,
+    required this.category,
+    required this.networkType,
+    required this.bytes,
+    required this.requestCount,
+    required this.occurredAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['category'] = Variable<String>(category);
+    map['network_type'] = Variable<String>(networkType);
+    map['bytes'] = Variable<int>(bytes);
+    map['request_count'] = Variable<int>(requestCount);
+    map['occurred_at'] = Variable<DateTime>(occurredAt);
+    return map;
+  }
+
+  NetworkUsageTableCompanion toCompanion(bool nullToAbsent) {
+    return NetworkUsageTableCompanion(
+      id: Value(id),
+      category: Value(category),
+      networkType: Value(networkType),
+      bytes: Value(bytes),
+      requestCount: Value(requestCount),
+      occurredAt: Value(occurredAt),
+    );
+  }
+
+  factory NetworkUsageTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return NetworkUsageTableData(
+      id: serializer.fromJson<int>(json['id']),
+      category: serializer.fromJson<String>(json['category']),
+      networkType: serializer.fromJson<String>(json['networkType']),
+      bytes: serializer.fromJson<int>(json['bytes']),
+      requestCount: serializer.fromJson<int>(json['requestCount']),
+      occurredAt: serializer.fromJson<DateTime>(json['occurredAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'category': serializer.toJson<String>(category),
+      'networkType': serializer.toJson<String>(networkType),
+      'bytes': serializer.toJson<int>(bytes),
+      'requestCount': serializer.toJson<int>(requestCount),
+      'occurredAt': serializer.toJson<DateTime>(occurredAt),
+    };
+  }
+
+  NetworkUsageTableData copyWith({
+    int? id,
+    String? category,
+    String? networkType,
+    int? bytes,
+    int? requestCount,
+    DateTime? occurredAt,
+  }) => NetworkUsageTableData(
+    id: id ?? this.id,
+    category: category ?? this.category,
+    networkType: networkType ?? this.networkType,
+    bytes: bytes ?? this.bytes,
+    requestCount: requestCount ?? this.requestCount,
+    occurredAt: occurredAt ?? this.occurredAt,
+  );
+  NetworkUsageTableData copyWithCompanion(NetworkUsageTableCompanion data) {
+    return NetworkUsageTableData(
+      id: data.id.present ? data.id.value : this.id,
+      category: data.category.present ? data.category.value : this.category,
+      networkType: data.networkType.present
+          ? data.networkType.value
+          : this.networkType,
+      bytes: data.bytes.present ? data.bytes.value : this.bytes,
+      requestCount: data.requestCount.present
+          ? data.requestCount.value
+          : this.requestCount,
+      occurredAt: data.occurredAt.present
+          ? data.occurredAt.value
+          : this.occurredAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('NetworkUsageTableData(')
+          ..write('id: $id, ')
+          ..write('category: $category, ')
+          ..write('networkType: $networkType, ')
+          ..write('bytes: $bytes, ')
+          ..write('requestCount: $requestCount, ')
+          ..write('occurredAt: $occurredAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, category, networkType, bytes, requestCount, occurredAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is NetworkUsageTableData &&
+          other.id == this.id &&
+          other.category == this.category &&
+          other.networkType == this.networkType &&
+          other.bytes == this.bytes &&
+          other.requestCount == this.requestCount &&
+          other.occurredAt == this.occurredAt);
+}
+
+class NetworkUsageTableCompanion
+    extends UpdateCompanion<NetworkUsageTableData> {
+  final Value<int> id;
+  final Value<String> category;
+  final Value<String> networkType;
+  final Value<int> bytes;
+  final Value<int> requestCount;
+  final Value<DateTime> occurredAt;
+  const NetworkUsageTableCompanion({
+    this.id = const Value.absent(),
+    this.category = const Value.absent(),
+    this.networkType = const Value.absent(),
+    this.bytes = const Value.absent(),
+    this.requestCount = const Value.absent(),
+    this.occurredAt = const Value.absent(),
+  });
+  NetworkUsageTableCompanion.insert({
+    this.id = const Value.absent(),
+    required String category,
+    required String networkType,
+    this.bytes = const Value.absent(),
+    this.requestCount = const Value.absent(),
+    required DateTime occurredAt,
+  }) : category = Value(category),
+       networkType = Value(networkType),
+       occurredAt = Value(occurredAt);
+  static Insertable<NetworkUsageTableData> custom({
+    Expression<int>? id,
+    Expression<String>? category,
+    Expression<String>? networkType,
+    Expression<int>? bytes,
+    Expression<int>? requestCount,
+    Expression<DateTime>? occurredAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (category != null) 'category': category,
+      if (networkType != null) 'network_type': networkType,
+      if (bytes != null) 'bytes': bytes,
+      if (requestCount != null) 'request_count': requestCount,
+      if (occurredAt != null) 'occurred_at': occurredAt,
+    });
+  }
+
+  NetworkUsageTableCompanion copyWith({
+    Value<int>? id,
+    Value<String>? category,
+    Value<String>? networkType,
+    Value<int>? bytes,
+    Value<int>? requestCount,
+    Value<DateTime>? occurredAt,
+  }) {
+    return NetworkUsageTableCompanion(
+      id: id ?? this.id,
+      category: category ?? this.category,
+      networkType: networkType ?? this.networkType,
+      bytes: bytes ?? this.bytes,
+      requestCount: requestCount ?? this.requestCount,
+      occurredAt: occurredAt ?? this.occurredAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (category.present) {
+      map['category'] = Variable<String>(category.value);
+    }
+    if (networkType.present) {
+      map['network_type'] = Variable<String>(networkType.value);
+    }
+    if (bytes.present) {
+      map['bytes'] = Variable<int>(bytes.value);
+    }
+    if (requestCount.present) {
+      map['request_count'] = Variable<int>(requestCount.value);
+    }
+    if (occurredAt.present) {
+      map['occurred_at'] = Variable<DateTime>(occurredAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('NetworkUsageTableCompanion(')
+          ..write('id: $id, ')
+          ..write('category: $category, ')
+          ..write('networkType: $networkType, ')
+          ..write('bytes: $bytes, ')
+          ..write('requestCount: $requestCount, ')
+          ..write('occurredAt: $occurredAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$NavisDatabase extends GeneratedDatabase {
   _$NavisDatabase(QueryExecutor e) : super(e);
   $NavisDatabaseManager get managers => $NavisDatabaseManager(this);
@@ -13607,6 +14019,8 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
       $ScrobbleQueueTableTable(this);
   late final $StarSyncQueueTableTable starSyncQueueTable =
       $StarSyncQueueTableTable(this);
+  late final $NetworkUsageTableTable networkUsageTable =
+      $NetworkUsageTableTable(this);
   late final AppSettingsDao appSettingsDao = AppSettingsDao(
     this as NavisDatabase,
   );
@@ -13622,6 +14036,9 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
   late final MatchFlowDao matchFlowDao = MatchFlowDao(this as NavisDatabase);
   late final ScrobbleDao scrobbleDao = ScrobbleDao(this as NavisDatabase);
   late final StarSyncDao starSyncDao = StarSyncDao(this as NavisDatabase);
+  late final NetworkUsageDao networkUsageDao = NetworkUsageDao(
+    this as NavisDatabase,
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -13647,6 +14064,7 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
     matchFlowSongsTable,
     scrobbleQueueTable,
     starSyncQueueTable,
+    networkUsageTable,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -22391,6 +22809,238 @@ typedef $$StarSyncQueueTableTableProcessedTableManager =
       StarSyncQueueTableData,
       PrefetchHooks Function()
     >;
+typedef $$NetworkUsageTableTableCreateCompanionBuilder =
+    NetworkUsageTableCompanion Function({
+      Value<int> id,
+      required String category,
+      required String networkType,
+      Value<int> bytes,
+      Value<int> requestCount,
+      required DateTime occurredAt,
+    });
+typedef $$NetworkUsageTableTableUpdateCompanionBuilder =
+    NetworkUsageTableCompanion Function({
+      Value<int> id,
+      Value<String> category,
+      Value<String> networkType,
+      Value<int> bytes,
+      Value<int> requestCount,
+      Value<DateTime> occurredAt,
+    });
+
+class $$NetworkUsageTableTableFilterComposer
+    extends Composer<_$NavisDatabase, $NetworkUsageTableTable> {
+  $$NetworkUsageTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get category => $composableBuilder(
+    column: $table.category,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get networkType => $composableBuilder(
+    column: $table.networkType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get bytes => $composableBuilder(
+    column: $table.bytes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get requestCount => $composableBuilder(
+    column: $table.requestCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get occurredAt => $composableBuilder(
+    column: $table.occurredAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$NetworkUsageTableTableOrderingComposer
+    extends Composer<_$NavisDatabase, $NetworkUsageTableTable> {
+  $$NetworkUsageTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get category => $composableBuilder(
+    column: $table.category,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get networkType => $composableBuilder(
+    column: $table.networkType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get bytes => $composableBuilder(
+    column: $table.bytes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get requestCount => $composableBuilder(
+    column: $table.requestCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get occurredAt => $composableBuilder(
+    column: $table.occurredAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$NetworkUsageTableTableAnnotationComposer
+    extends Composer<_$NavisDatabase, $NetworkUsageTableTable> {
+  $$NetworkUsageTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get category =>
+      $composableBuilder(column: $table.category, builder: (column) => column);
+
+  GeneratedColumn<String> get networkType => $composableBuilder(
+    column: $table.networkType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get bytes =>
+      $composableBuilder(column: $table.bytes, builder: (column) => column);
+
+  GeneratedColumn<int> get requestCount => $composableBuilder(
+    column: $table.requestCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get occurredAt => $composableBuilder(
+    column: $table.occurredAt,
+    builder: (column) => column,
+  );
+}
+
+class $$NetworkUsageTableTableTableManager
+    extends
+        RootTableManager<
+          _$NavisDatabase,
+          $NetworkUsageTableTable,
+          NetworkUsageTableData,
+          $$NetworkUsageTableTableFilterComposer,
+          $$NetworkUsageTableTableOrderingComposer,
+          $$NetworkUsageTableTableAnnotationComposer,
+          $$NetworkUsageTableTableCreateCompanionBuilder,
+          $$NetworkUsageTableTableUpdateCompanionBuilder,
+          (
+            NetworkUsageTableData,
+            BaseReferences<
+              _$NavisDatabase,
+              $NetworkUsageTableTable,
+              NetworkUsageTableData
+            >,
+          ),
+          NetworkUsageTableData,
+          PrefetchHooks Function()
+        > {
+  $$NetworkUsageTableTableTableManager(
+    _$NavisDatabase db,
+    $NetworkUsageTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$NetworkUsageTableTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$NetworkUsageTableTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$NetworkUsageTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> category = const Value.absent(),
+                Value<String> networkType = const Value.absent(),
+                Value<int> bytes = const Value.absent(),
+                Value<int> requestCount = const Value.absent(),
+                Value<DateTime> occurredAt = const Value.absent(),
+              }) => NetworkUsageTableCompanion(
+                id: id,
+                category: category,
+                networkType: networkType,
+                bytes: bytes,
+                requestCount: requestCount,
+                occurredAt: occurredAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String category,
+                required String networkType,
+                Value<int> bytes = const Value.absent(),
+                Value<int> requestCount = const Value.absent(),
+                required DateTime occurredAt,
+              }) => NetworkUsageTableCompanion.insert(
+                id: id,
+                category: category,
+                networkType: networkType,
+                bytes: bytes,
+                requestCount: requestCount,
+                occurredAt: occurredAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$NetworkUsageTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NavisDatabase,
+      $NetworkUsageTableTable,
+      NetworkUsageTableData,
+      $$NetworkUsageTableTableFilterComposer,
+      $$NetworkUsageTableTableOrderingComposer,
+      $$NetworkUsageTableTableAnnotationComposer,
+      $$NetworkUsageTableTableCreateCompanionBuilder,
+      $$NetworkUsageTableTableUpdateCompanionBuilder,
+      (
+        NetworkUsageTableData,
+        BaseReferences<
+          _$NavisDatabase,
+          $NetworkUsageTableTable,
+          NetworkUsageTableData
+        >,
+      ),
+      NetworkUsageTableData,
+      PrefetchHooks Function()
+    >;
 
 class $NavisDatabaseManager {
   final _$NavisDatabase _db;
@@ -22438,4 +23088,6 @@ class $NavisDatabaseManager {
       $$ScrobbleQueueTableTableTableManager(_db, _db.scrobbleQueueTable);
   $$StarSyncQueueTableTableTableManager get starSyncQueueTable =>
       $$StarSyncQueueTableTableTableManager(_db, _db.starSyncQueueTable);
+  $$NetworkUsageTableTableTableManager get networkUsageTable =>
+      $$NetworkUsageTableTableTableManager(_db, _db.networkUsageTable);
 }

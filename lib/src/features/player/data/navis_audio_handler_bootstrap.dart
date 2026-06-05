@@ -92,6 +92,7 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
   required ScrobbleService scrobbleService,
   required PlaybackRuntimeSettings Function() readRuntimeSettings,
   required StarSyncDao starSyncDao,
+  NetworkUsageReporter? reportNetworkUsage,
 }) {
   final cached = _audioHandlerInitCache;
   if (cached != null && !cached.invalidated) {
@@ -112,6 +113,7 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
       scrobbleService: scrobbleService,
       readRuntimeSettings: readRuntimeSettings,
       starSyncDao: starSyncDao,
+      reportNetworkUsage: reportNetworkUsage,
     );
   }
 
