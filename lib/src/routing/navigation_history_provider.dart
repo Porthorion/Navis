@@ -1,9 +1,8 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
-import 'app_router.dart';
-import '../features/library/presentation/library_scroll_provider.dart';
+import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
+import 'package:navis/src/routing/app_router.dart';
 
 /// Immutable snapshot of the navigation history.
 ///
@@ -47,15 +46,7 @@ class NavigationHistoryNotifier extends Notifier<NavigationHistoryState> {
     // --- GoRouter route changes ---
     void onRouteChanged() {
       if (_suppressRecord) return;
-      final uri = router.state.uri.toString();
-      // When landing on the library root, encode the active section so the
-      // history entry is fully specific (e.g. back from album detail).
-      if (uri == '/library') {
-        final section = ref.read(librarySectionProvider);
-        _record('/library#${section.name}');
-      } else {
-        _record(uri);
-      }
+      _record(_currentLocation(router));
     }
 
     router.routerDelegate.addListener(onRouteChanged);
@@ -67,8 +58,7 @@ class NavigationHistoryNotifier extends Notifier<NavigationHistoryState> {
     // the section, so this listener stays quiet during detail navigation.
     ref.listen(librarySectionProvider, (prev, next) {
       if (_suppressRecord) return;
-      final uri = router.state.uri.toString();
-      if (uri == '/library') {
+      if (_isLibraryRoot(router.state.uri)) {
         _record('/library#${next.name}');
       }
     });
@@ -77,17 +67,21 @@ class NavigationHistoryNotifier extends Notifier<NavigationHistoryState> {
   }
 
   void _record(String location) {
+    final normalized = _normalizeLocation(location);
+    if (normalized == null) {
+      return;
+    }
     // Drop consecutive duplicates (e.g. same URL re-emitted on rebuild).
     if (state.index >= 0 &&
         state.stack.isNotEmpty &&
-        state.stack[state.index] == location) {
+        state.stack[state.index] == normalized) {
       return;
     }
     // Everything after the current index is discarded on new navigation,
     // exactly like a browser.
     final newStack = [
       ...state.stack.sublist(0, state.index + 1),
-      location,
+      normalized,
     ];
     state = NavigationHistoryState(
       stack: newStack,
@@ -131,21 +125,64 @@ class NavigationHistoryNotifier extends Notifier<NavigationHistoryState> {
   /// back into a router navigation + section provider update. All other
   /// entries are a plain [GoRouter.go] call.
   void _applyLocation(GoRouter router, String location) {
-    if (location.startsWith('/library#')) {
-      final sectionName = location.substring('/library#'.length);
+    final normalized = _normalizeLocation(location);
+    if (normalized == null) {
+      return;
+    }
+    if (normalized.startsWith('/library#')) {
+      final sectionName = normalized.substring('/library#'.length);
       final section = LibrarySection.values.firstWhere(
         (s) => s.name == sectionName,
         orElse: () => LibrarySection.albums,
       );
       // Navigate to the library root if not already there.
-      final currentUri = router.state.uri.toString();
-      if (currentUri != '/library') {
+      if (!_isLibraryRoot(router.state.uri)) {
         router.go('/library');
       }
       ref.read(librarySectionProvider.notifier).setSection(section);
     } else {
-      router.go(location);
+      router.go(normalized);
     }
+  }
+
+  String _currentLocation(GoRouter router) {
+    final uri = router.state.uri;
+    if (_isLibraryRoot(uri)) {
+      final section = uri.fragment.isNotEmpty
+          ? _librarySectionFromName(uri.fragment)
+          : ref.read(librarySectionProvider);
+      return '/library#${section.name}';
+    }
+    return uri.toString();
+  }
+
+  String? _normalizeLocation(String location) {
+    final uri = Uri.tryParse(location);
+    if (uri == null) {
+      return null;
+    }
+    if (_isLibraryRoot(uri)) {
+      final section = uri.fragment.isNotEmpty
+          ? _librarySectionFromName(uri.fragment)
+          : ref.read(librarySectionProvider);
+      return '/library#${section.name}';
+    }
+    if (uri.path == '/library' && uri.fragment.isNotEmpty) {
+      final section = _librarySectionFromName(uri.fragment);
+      return '/library#${section.name}';
+    }
+    return uri.toString();
+  }
+
+  bool _isLibraryRoot(Uri uri) {
+    return uri.path == '/library' && uri.query.isEmpty;
+  }
+
+  LibrarySection _librarySectionFromName(String name) {
+    return LibrarySection.values.firstWhere(
+      (section) => section.name == name,
+      orElse: () => LibrarySection.albums,
+    );
   }
 }
 

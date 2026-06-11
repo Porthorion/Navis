@@ -2084,15 +2084,11 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                           ? (radioMeta?.nowPlayingTitle != null &&
                                     radioMeta!.nowPlayingTitle!.isNotEmpty
                                 ? () {
-                                    ref
-                                        .read(
-                                          searchFilterProvider.notifier,
-                                        )
-                                        .select(SearchResultType.songs);
-                                    NavService.goToSearch(
+                                    NavService.openSearch(
                                       context,
                                       ref,
                                       radioMeta.nowPlayingTitle!,
+                                      filter: SearchResultType.songs,
                                     );
                                   }
                                 : null)
@@ -2105,17 +2101,11 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                                         (name) => (
                                           name: name,
                                           onTap: () {
-                                            ref
-                                                .read(
-                                                  searchFilterProvider.notifier,
-                                                )
-                                                .select(
-                                                  SearchResultType.artists,
-                                                );
-                                            NavService.goToSearch(
+                                            NavService.openSearch(
                                               context,
                                               ref,
                                               name,
+                                              filter: SearchResultType.artists,
                                             );
                                           },
                                         ),
@@ -2520,13 +2510,11 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                   ? (radioMeta?.nowPlayingTitle != null &&
                             radioMeta!.nowPlayingTitle!.isNotEmpty
                         ? () {
-                            ref
-                                .read(searchFilterProvider.notifier)
-                                .select(SearchResultType.songs);
-                            NavService.goToSearch(
+                            NavService.openSearch(
                               context,
                               ref,
                               radioMeta.nowPlayingTitle!,
+                              filter: SearchResultType.songs,
                             );
                           }
                         : null)
@@ -2539,10 +2527,12 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                                 (name) => (
                                   name: name,
                                   onTap: () {
-                                    ref
-                                        .read(searchFilterProvider.notifier)
-                                        .select(SearchResultType.artists);
-                                    NavService.goToSearch(context, ref, name);
+                                    NavService.openSearch(
+                                      context,
+                                      ref,
+                                      name,
+                                      filter: SearchResultType.artists,
+                                    );
                                   },
                                 ),
                               )
@@ -2845,13 +2835,11 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                     ? (radioMeta?.nowPlayingTitle != null &&
                               radioMeta!.nowPlayingTitle!.isNotEmpty
                           ? () {
-                              ref
-                                  .read(searchFilterProvider.notifier)
-                                  .select(SearchResultType.songs);
-                              NavService.goToSearch(
+                              NavService.openSearch(
                                 context,
                                 ref,
                                 radioMeta.nowPlayingTitle!,
+                                filter: SearchResultType.songs,
                               );
                             }
                           : null)
@@ -2864,10 +2852,12 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                                   (name) => (
                                     name: name,
                                     onTap: () {
-                                      ref
-                                          .read(searchFilterProvider.notifier)
-                                          .select(SearchResultType.artists);
-                                      NavService.goToSearch(context, ref, name);
+                                      NavService.openSearch(
+                                        context,
+                                        ref,
+                                        name,
+                                        filter: SearchResultType.artists,
+                                      );
                                     },
                                   ),
                                 )

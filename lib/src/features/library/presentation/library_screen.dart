@@ -34,6 +34,7 @@ import 'package:navis/src/features/playlists/presentation/playlist_providers.dar
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart'
     show quickSearchOverlayVisibleProvider;
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/utils/format_utils.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
@@ -1061,8 +1062,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                         return RepaintBoundary(
                           child: ArtistCard(
                             artist: artist,
-                            onTap: () =>
-                                context.go('/library/artists/${artist.id}'),
+                            onTap: () => NavService.openArtistDetail(
+                              context,
+                              ref,
+                              artist.id,
+                            ),
                             onLongPress: () => _showArtistMenu(context, artist),
                             onStarToggled: () => _toggleArtistStar(artist),
                           ),
@@ -1325,7 +1329,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                                         librarySyncControllerProvider.notifier,
                                       )
                                       .registerAlbumInteraction(album.id);
-                                  context.push('/library/albums/${album.id}');
+                                  NavService.openAlbumDetail(
+                                    context,
+                                    ref,
+                                    album.id,
+                                  );
                                 },
                                 onLongPress: () => showAlbumContextMenu(
                                   context,
@@ -1582,7 +1590,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           ref
               .read(librarySyncControllerProvider.notifier)
               .registerAlbumInteraction(album.id);
-          context.push('/library/albums/${album.id}');
+          NavService.openAlbumDetail(context, ref, album.id);
         },
         onLongPress: () => showAlbumContextMenu(context, ref, album.id),
         onSecondaryTapDown: (details) => showAlbumContextMenu(
@@ -1793,8 +1801,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                             width: 88,
                             child: _LikedArtistStripTile(
                               artist: artist,
-                              onTap: () =>
-                                  context.go('/library/artists/${artist.id}'),
+                              onTap: () => NavService.openArtistDetail(
+                                context,
+                                ref,
+                                artist.id,
+                              ),
                               onLongPress: () =>
                                   _showArtistMenu(context, artist),
                             ),
@@ -1883,7 +1894,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                               ref
                                   .read(librarySyncControllerProvider.notifier)
                                   .registerAlbumInteraction(album.id);
-                              context.push('/library/albums/${album.id}');
+                              NavService.openAlbumDetail(
+                                context,
+                                ref,
+                                album.id,
+                              );
                             },
                             onLongPress: () =>
                                 showAlbumContextMenu(context, ref, album.id),
@@ -2314,8 +2329,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                       child: ArtistGridCard(
                         key: ValueKey(artist.id),
                         artist: artist,
-                        onTap: () =>
-                            context.go('/library/artists/${artist.id}'),
+                        onTap: () => NavService.openArtistDetail(
+                          context,
+                          ref,
+                          artist.id,
+                        ),
                         onLongPress: () => _showArtistMenu(context, artist),
                       ),
                     );
@@ -2671,7 +2689,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                 title: Text(l10n.libraryArtistMenuOpen),
                 onTap: () {
                   Navigator.of(context).pop();
-                  this.context.go('/library/artists/${artist.id}');
+                  NavService.openArtistDetail(this.context, ref, artist.id);
                 },
               ),
             ],

@@ -3,7 +3,6 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/album_context_menu.dart';
@@ -20,6 +19,7 @@ import 'package:navis/src/features/library/presentation/library_sync_provider.da
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/navigation_service.dart';
 
 class GenreDetailScreen extends ConsumerWidget {
   const GenreDetailScreen({required this.encodedGenre, super.key});
@@ -77,7 +77,8 @@ class GenreDetailScreen extends ConsumerWidget {
                       return AlbumCard(
                         album: album,
                         badge: AlbumDownloadBadge(albumId: album.id),
-                        onTap: () => context.go('/library/albums/${album.id}'),
+                        onTap: () =>
+                            NavService.openAlbumDetail(context, ref, album.id),
                         onLongPress: () =>
                             showAlbumContextMenu(context, ref, album.id),
                         onSecondaryTapDown: (details) => showAlbumContextMenu(

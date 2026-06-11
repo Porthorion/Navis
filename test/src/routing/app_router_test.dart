@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -438,6 +440,47 @@ void main() {
     expect(
       find.text('Connect to your Subsonic or Navidrome server.'),
       findsOneWidget,
+    );
+  });
+
+  test('feature code does not use raw entity or branch replacement routes', () {
+    final libDir = Directory('lib');
+    final violations = <String>[];
+    final directEntityRoute = RegExp(
+      r'''(?:this\.)?context\.(?:go|push)\(\s*['"]/library/(?:albums|artists|playlists)''',
+    );
+    final branchReplacement = RegExp(
+      r'''(?:this\.)?context\.go\(\s*['"]/(?:library|settings)''',
+    );
+    final approvedFiles = <String>{
+      'lib/src/routing/navigation_service.dart',
+      'lib/src/routing/app_router.dart',
+    };
+
+    for (final entity in libDir.listSync(recursive: true)) {
+      if (entity is! File || !entity.path.endsWith('.dart')) {
+        continue;
+      }
+      final path = entity.path;
+      if (approvedFiles.contains(path)) {
+        continue;
+      }
+      final lines = entity.readAsLinesSync();
+      for (var i = 0; i < lines.length; i++) {
+        final line = lines[i];
+        if (directEntityRoute.hasMatch(line) ||
+            branchReplacement.hasMatch(line)) {
+          violations.add('$path:${i + 1}: ${line.trim()}');
+        }
+      }
+    }
+
+    expect(
+      violations,
+      isEmpty,
+      reason:
+          'Use NavService for entity drill-in and tab/branch navigation:\n'
+          '${violations.join('\n')}',
     );
   });
 }

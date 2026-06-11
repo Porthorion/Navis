@@ -222,6 +222,19 @@ based on the current `AdaptiveContext`. On desktop, a persistent side rail and n
 are shown instead of a bottom navigation bar. The expandable player sheet is embedded directly
 in the shell on all platforms — there is no separate `/now-playing` route.
 
+### Navigation Intent
+
+Feature code should call `NavService` from `lib/src/routing/navigation_service.dart` instead
+of raw GoRouter APIs for app-level movement. `push` means the user drilled into an album,
+artist, playlist, or similar entity from the current context, so Back returns to that context.
+`go` means the current route is being replaced, or the user is switching to a canonical shell
+branch such as Home, Library, Search, or Settings. Local dialog and sheet dismissal can continue
+to use `Navigator.pop`.
+
+Desktop mouse back/forward is powered by `navigation_history_provider.dart`. It records
+normalized GoRouter locations, represents Library root sections as `/library#section`, drops
+duplicate emissions, and truncates forward history after new navigation.
+
 ## Adaptive Shell Architecture
 
 The adaptive shell is the central coordination surface between platform, window size, and input

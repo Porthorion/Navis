@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
@@ -14,6 +13,7 @@ import 'package:navis/src/features/library/presentation/library_sync_provider.da
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/routing/navigation_service.dart';
 
 /// Shows a bottom sheet context menu for an album identified by [albumId].
 ///
@@ -64,7 +64,7 @@ Future<void> showAlbumContextMenu(
                     ref
                         .read(librarySyncControllerProvider.notifier)
                         .registerAlbumInteraction(albumId);
-                    unawaited(context.push('/library/albums/$albumId'));
+                    NavService.openAlbumDetail(context, ref, albumId);
                   },
                 ),
                 ListTile(
@@ -233,7 +233,7 @@ Future<void> _showDesktopAlbumContextMenu(
       ref
           .read(librarySyncControllerProvider.notifier)
           .registerAlbumInteraction(albumId);
-      unawaited(context.push('/library/albums/$albumId'));
+      NavService.openAlbumDetail(context, ref, albumId);
       return;
     case _AlbumContextAction.play:
       if (songs.isEmpty) {

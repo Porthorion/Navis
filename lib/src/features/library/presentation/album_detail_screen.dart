@@ -25,6 +25,7 @@ import 'package:navis/src/features/library/domain/set_rating.dart';
 import 'package:navis/src/features/library/domain/toggle_song_star.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -1752,7 +1753,11 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                       title: Text(l10n.librarySongMenuOpenArtist),
                       onTap: () {
                         Navigator.of(context).pop();
-                        this.context.go('/library/artists/${song.artistId}');
+                        NavService.openArtistDetail(
+                          this.context,
+                          ref,
+                          song.artistId!,
+                        );
                       },
                     ),
                   ListTile(
@@ -2043,7 +2048,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
       final artist = artists[i];
       widgets.add(
         InkWell(
-          onTap: () => context.go('/library/artists/${artist.id}'),
+          onTap: () => NavService.openArtistDetail(context, ref, artist.id),
           child: Text(artist.name, style: textStyle),
         ),
       );
@@ -2163,8 +2168,10 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                       title: Text(l10n.librarySongMenuOpenArtist),
                       onTap: () {
                         Navigator.of(sheetContext).pop();
-                        context.go(
-                          '/library/artists/${details.artistId}',
+                        NavService.openArtistDetail(
+                          context,
+                          ref,
+                          details.artistId!,
                         );
                       },
                     ),
@@ -2419,7 +2426,8 @@ class _AudioMuseSimilarAlbums extends ConsumerWidget {
                           : rec.title,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    onPressed: () => context.go('/library/albums/${rec.id}'),
+                    onPressed: () =>
+                        NavService.openAlbumDetail(context, ref, rec.id),
                   );
                 }).toList(),
               ),

@@ -935,8 +935,6 @@ class _AppShellState extends ConsumerState<AppShell> {
     ];
 
     void onDestinationSelected(int index) {
-      NavService.dismissKeyboard(context);
-      NavService.clearExitPrompt();
       final overlay = ref.read(playerOverlayStackProvider.notifier);
       if (showQueueOverlay) {
         _hideQueueImmediately();
@@ -962,15 +960,48 @@ class _AppShellState extends ConsumerState<AppShell> {
           branchIndex == navigationShell.currentIndex) {
         ref.read(libraryScrollToTopRequestProvider.notifier).request();
       }
-      navigationShell.goBranch(
-        branchIndex,
-        initialLocation: branchIndex == navigationShell.currentIndex,
-      );
+      switch (branchIndex) {
+        case _homeBranchIndex:
+          NavService.switchToHome(
+            context,
+            ref,
+            navigationShell,
+            branchIndex: branchIndex,
+            initialLocation: branchIndex == navigationShell.currentIndex,
+          );
+        case _libraryBranchIndex:
+          NavService.switchToLibrary(
+            context,
+            ref,
+            navigationShell,
+            branchIndex: branchIndex,
+            initialLocation: branchIndex == navigationShell.currentIndex,
+          );
+        case _searchBranchIndex:
+          NavService.switchToSearch(
+            context,
+            ref,
+            navigationShell,
+            branchIndex: branchIndex,
+            initialLocation: branchIndex == navigationShell.currentIndex,
+          );
+        case _settingsBranchIndex:
+          NavService.switchToSettings(
+            context,
+            ref,
+            navigationShell,
+            branchIndex: branchIndex,
+            initialLocation: branchIndex == navigationShell.currentIndex,
+          );
+        default:
+          navigationShell.goBranch(
+            branchIndex,
+            initialLocation: branchIndex == navigationShell.currentIndex,
+          );
+      }
     }
 
     void onLibrarySectionSelected(LibrarySection section) {
-      NavService.dismissKeyboard(context);
-      NavService.clearExitPrompt();
       final overlay = ref.read(playerOverlayStackProvider.notifier);
       if (showQueueOverlay) {
         _hideQueueImmediately();
@@ -982,7 +1013,13 @@ class _AppShellState extends ConsumerState<AppShell> {
           navigationShell.currentIndex == _libraryBranchIndex &&
           selectedLibrarySection == section;
       ref.read(librarySectionProvider.notifier).setSection(section);
-      navigationShell.goBranch(_libraryBranchIndex, initialLocation: true);
+      NavService.switchToLibrary(
+        context,
+        ref,
+        navigationShell,
+        branchIndex: _libraryBranchIndex,
+        initialLocation: true,
+      );
       if (wasSameSection) {
         ref.read(libraryScrollToTopRequestProvider.notifier).request();
       }

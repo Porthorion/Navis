@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
 import 'package:navis/src/common_widgets/rating_widget.dart';
@@ -16,6 +15,7 @@ import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/utils/song_id_utils.dart';
 
 /// Shows a generic bottom sheet context menu for a [SongsTableData] song.
@@ -228,7 +228,11 @@ Future<void> showSongContextMenu(
                         title: Text(l10n.librarySongMenuOpenArtist),
                         onTap: () {
                           Navigator.of(sheetContext).pop();
-                          context.push('/library/artists/${song.artistId}');
+                          NavService.openArtistDetail(
+                            context,
+                            ref,
+                            song.artistId!,
+                          );
                         },
                       ),
                     if (song.albumId != null && song.albumId!.isNotEmpty)
@@ -237,7 +241,11 @@ Future<void> showSongContextMenu(
                         title: Text(l10n.librarySongMenuOpenAlbum),
                         onTap: () {
                           Navigator.of(sheetContext).pop();
-                          context.push('/library/albums/${song.albumId}');
+                          NavService.openAlbumDetail(
+                            context,
+                            ref,
+                            song.albumId!,
+                          );
                         },
                       ),
                     ListTile(
@@ -245,7 +253,11 @@ Future<void> showSongContextMenu(
                       title: Text(l10n.librarySongMenuAddToPlaylist),
                       onTap: () {
                         Navigator.of(sheetContext).pop();
-                        showAddToPlaylistSheet(context, ref, <String>[song.id]);
+                        unawaited(
+                          showAddToPlaylistSheet(context, ref, <String>[
+                            song.id,
+                          ]),
+                        );
                       },
                     ),
                     if (isDownloaded)
@@ -422,10 +434,10 @@ Future<void> _showDesktopSongContextMenu(
       }
       return;
     case _SongContextAction.openArtist:
-      unawaited(context.push('/library/artists/${song.artistId}'));
+      NavService.openArtistDetail(context, ref, song.artistId!);
       return;
     case _SongContextAction.openAlbum:
-      unawaited(context.push('/library/albums/${song.albumId}'));
+      NavService.openAlbumDetail(context, ref, song.albumId!);
       return;
     case _SongContextAction.addPlaylist:
       await showAddToPlaylistSheet(context, ref, <String>[song.id]);

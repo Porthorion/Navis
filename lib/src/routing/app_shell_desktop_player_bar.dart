@@ -326,11 +326,11 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                         cursor: SystemMouseCursors.click,
                                         child: GestureDetector(
                                           onTap: () {
-                                            NavService.goToFilteredSearch(
+                                            NavService.openSearch(
                                               context,
                                               ref,
                                               widget.songTitle!.trim(),
-                                              SearchResultType.songs,
+                                              filter: SearchResultType.songs,
                                             );
                                           },
                                           child: Text(
@@ -452,11 +452,12 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                               cursor: SystemMouseCursors.click,
                                               child: GestureDetector(
                                                 onTap: () {
-                                                  NavService.goToFilteredSearch(
+                                                  NavService.openSearch(
                                                     context,
                                                     ref,
                                                     name,
-                                                    SearchResultType.artists,
+                                                    filter: SearchResultType
+                                                        .artists,
                                                   );
                                                 },
                                                 child: Text(

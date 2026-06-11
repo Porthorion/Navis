@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
@@ -12,6 +11,7 @@ import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/navigation_service.dart';
 
 class PlaylistsScreen extends ConsumerStatefulWidget {
   const PlaylistsScreen({super.key});
@@ -71,7 +71,8 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
                 final playlist = playlists[index];
                 return _PlaylistTile(
                   playlist: playlist,
-                  onTap: () => context.push('/playlists/${playlist.id}'),
+                  onTap: () =>
+                      NavService.openPlaylistDetail(context, ref, playlist.id),
                   onLongPress: () => _showPlaylistActions(context, playlist),
                 );
               },

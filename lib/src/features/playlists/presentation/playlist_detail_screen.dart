@@ -601,7 +601,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                 title: Text(l10n.librarySongMenuOpenArtist),
                 onTap: () {
                   Navigator.of(sheetContext).pop();
-                  NavService.goToArtist(context, ref, song.artistId!);
+                  NavService.openArtistDetail(context, ref, song.artistId!);
                 },
               ),
             if (song.albumId != null && song.albumId!.isNotEmpty)
@@ -610,7 +610,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                 title: Text(l10n.nowPlayingGoToAlbum),
                 onTap: () {
                   Navigator.of(sheetContext).pop();
-                  NavService.goToAlbum(context, ref, song.albumId!);
+                  NavService.openAlbumDetail(context, ref, song.albumId!);
                 },
               ),
             Consumer(

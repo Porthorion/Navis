@@ -303,15 +303,15 @@ abstract final class NormalPlaybackMetadataNavigator {
   ) {
     switch (destination.type) {
       case NormalPlaybackMetadataDestinationType.artist:
-        NavService.goToArtist(context, ref, destination.id!);
+        NavService.openArtistDetail(context, ref, destination.id!);
       case NormalPlaybackMetadataDestinationType.album:
-        NavService.goToAlbum(context, ref, destination.id!);
+        NavService.openAlbumDetail(context, ref, destination.id!);
       case NormalPlaybackMetadataDestinationType.filteredSearch:
-        NavService.goToFilteredSearch(
+        NavService.openSearch(
           context,
           ref,
           destination.query!,
-          destination.filter!,
+          filter: destination.filter!,
         );
     }
   }

@@ -171,8 +171,10 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
                     subtitle: playlist.songCount != null
                         ? Text(l10n.playlistsSongCount(playlist.songCount!))
                         : null,
-                    onTap: () => context.push(
-                      '/library/playlists/${playlist.id}',
+                    onTap: () => NavService.openPlaylistDetail(
+                      context,
+                      ref,
+                      playlist.id,
                     ),
                     onLongPress: () => _showPlaylistActions(context, playlist),
                   );
@@ -206,8 +208,10 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
                       subtitle: playlist.songCount != null
                           ? Text(l10n.playlistsSongCount(playlist.songCount!))
                           : null,
-                      onTap: () => context.push(
-                        '/library/playlists/${playlist.id}',
+                      onTap: () => NavService.openPlaylistDetail(
+                        context,
+                        ref,
+                        playlist.id,
                       ),
                       onLongPress: () =>
                           _showPlaylistActions(context, playlist),
@@ -557,7 +561,11 @@ class LikedAlbumsAllScreen extends ConsumerWidget {
                                       librarySyncControllerProvider.notifier,
                                     )
                                     .registerAlbumInteraction(album.id);
-                                context.push('/library/albums/${album.id}');
+                                NavService.openAlbumDetail(
+                                  context,
+                                  ref,
+                                  album.id,
+                                );
                               },
                               onLongPress: () =>
                                   showAlbumContextMenu(context, ref, album.id),

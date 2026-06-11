@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
@@ -38,6 +37,7 @@ import 'package:navis/src/features/player/presentation/smart_queue_sheet.dart';
 import 'package:navis/src/features/settings/presentation/update_dialog.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/utils/format_utils.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -483,7 +483,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact,
               adaptiveLayoutClass: adaptiveLayoutClass,
               compactWideLandscapeMode: compactWideLandscapeMode,
-              onTap: (album) => context.push('/library/albums/${album.id}'),
+              onTap: (album) =>
+                  NavService.openAlbumDetail(context, ref, album.id),
             ),
             emptyTitle: l10n.homeRecentlyLikedAlbumsEmptyTitle,
             emptySubtitle: l10n.homeRecentlyLikedAlbumsEmptySubtitle,
@@ -554,7 +555,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact,
                 adaptiveLayoutClass: adaptiveLayoutClass,
                 compactWideLandscapeMode: compactWideLandscapeMode,
-                onTap: (album) => context.push('/library/albums/${album.id}'),
+                onTap: (album) =>
+                    NavService.openAlbumDetail(context, ref, album.id),
               ),
               emptyTitle: l10n.libraryDownloadedOnlyEmpty,
               emptySubtitle: l10n.libraryDownloadedOnlyEmptySubtitle,
@@ -589,7 +591,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact,
               adaptiveLayoutClass: adaptiveLayoutClass,
               compactWideLandscapeMode: compactWideLandscapeMode,
-              onTap: (album) => context.push('/library/albums/${album.id}'),
+              onTap: (album) =>
+                  NavService.openAlbumDetail(context, ref, album.id),
             ),
             emptyTitle: l10n.homeRecentlyAddedEmptyTitle,
             emptySubtitle: l10n.homeRecentlyAddedEmptySubtitle,
@@ -630,7 +633,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact,
               adaptiveLayoutClass: adaptiveLayoutClass,
               compactWideLandscapeMode: compactWideLandscapeMode,
-              onTap: (album) => context.push('/library/albums/${album.id}'),
+              onTap: (album) =>
+                  NavService.openAlbumDetail(context, ref, album.id),
             ),
             emptyTitle: l10n.homeRecentlyPlayedAlbumsEmptyTitle,
             emptySubtitle: l10n.homeRecentlyPlayedAlbumsEmptySubtitle,
@@ -813,7 +817,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact,
               adaptiveLayoutClass: adaptiveLayoutClass,
               compactWideLandscapeMode: compactWideLandscapeMode,
-              onTap: (album) => context.push('/library/albums/${album.id}'),
+              onTap: (album) =>
+                  NavService.openAlbumDetail(context, ref, album.id),
             ),
             emptyTitle: l10n.homeFrequentEmptyTitle,
             emptySubtitle: l10n.homeFrequentEmptySubtitle,
@@ -1717,7 +1722,7 @@ class _DesktopRandomAlbumVisual extends ConsumerWidget {
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () => context.push('/library/albums/${album.id}'),
+        onTap: () => NavService.openAlbumDetail(context, ref, album.id),
         onLongPress: () => showAlbumContextMenu(context, ref, album.id),
         onSecondaryTapDown: (details) => showAlbumContextMenu(
           context,
@@ -1866,7 +1871,8 @@ class _DesktopRandomAlbumSongList extends ConsumerWidget {
             ),
             const SizedBox(height: 10),
             FilledButton.tonalIcon(
-              onPressed: () => context.push('/library/albums/${album.id}'),
+              onPressed: () =>
+                  NavService.openAlbumDetail(context, ref, album.id),
               icon: const Icon(Icons.album_outlined),
               label: Text(l10n.librarySongMenuOpenAlbum),
             ),
@@ -2640,7 +2646,7 @@ class _RandomAlbumsHeroCard extends ConsumerWidget {
         borderRadius: BorderRadius.circular(20),
       ),
       child: InkWell(
-        onTap: () => context.push('/library/albums/${album.id}'),
+        onTap: () => NavService.openAlbumDetail(context, ref, album.id),
         onLongPress: () => showAlbumContextMenu(context, ref, album.id),
         onSecondaryTapDown: (details) => showAlbumContextMenu(
           context,

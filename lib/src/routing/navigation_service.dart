@@ -8,65 +8,160 @@ import 'package:go_router/go_router.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 
+/// The navigation intent behind a [NavService] operation.
+///
+/// These values are not persisted. They make call sites explicit about whether
+/// a navigation should preserve the current route stack, replace it, switch
+/// shell tabs, or show a transient overlay.
+enum AppNavigationIntent { drillIn, replace, switchTab, modal }
+
 /// Tracks the last back-press timestamp for double-back-to-exit.
 DateTime? _lastBackPress;
 
 /// Centralised navigation helpers that guarantee a consistent UX:
 ///
 /// * Collapsing the player sheet before cross-screen navigation.
-/// * Using `context.go` for branch-aware transitions so the bottom-nav
-///   indicator and back-stack stay correct.
+/// * Using `push` for contextual drill-in and `go` for explicit replacement.
 /// * Dismissing shell-managed player overlays in strict top-first order.
 abstract final class NavService {
   // ---------------------------------------------------------------------------
   // Library
   // ---------------------------------------------------------------------------
 
-  /// Navigate to an album detail screen inside the Library branch.
-  ///
-  /// If the player sheet is expanded it is collapsed first so the destination
-  /// is fully visible.  Any open modal (queue panel, overflow menu) is
-  /// dismissed before navigating.
-  static void goToAlbum(BuildContext context, WidgetRef ref, String albumId) {
+  /// Open an album detail from the current context, preserving back.
+  static void openAlbumDetail(
+    BuildContext context,
+    WidgetRef ref,
+    String albumId,
+  ) {
+    _prepareForNavigation(context, ref, AppNavigationIntent.drillIn);
+    unawaited(context.push<void>('/library/albums/$albumId'));
+  }
+
+  /// Open an artist detail from the current context, preserving back.
+  static void openArtistDetail(
+    BuildContext context,
+    WidgetRef ref,
+    String artistId,
+  ) {
+    _prepareForNavigation(context, ref, AppNavigationIntent.drillIn);
+    unawaited(context.push<void>('/library/artists/$artistId'));
+  }
+
+  /// Open a playlist detail from the current context, preserving back.
+  static void openPlaylistDetail(
+    BuildContext context,
+    WidgetRef ref,
+    String playlistId,
+  ) {
+    _prepareForNavigation(context, ref, AppNavigationIntent.drillIn);
+    unawaited(context.push<void>('/library/playlists/$playlistId'));
+  }
+
+  /// Replace the current route with an album detail.
+  static void replaceWithAlbumDetail(
+    BuildContext context,
+    WidgetRef ref,
+    String albumId,
+  ) {
     clearExitPrompt();
-    _dismissOverlaysAndCollapse(context, ref);
+    _prepareForNavigation(context, ref, AppNavigationIntent.replace);
     context.go('/library/albums/$albumId');
   }
 
-  /// Navigate to an artist detail screen inside the Library branch.
-  static void goToArtist(
+  /// Replace the current route with an artist detail.
+  static void replaceWithArtistDetail(
     BuildContext context,
     WidgetRef ref,
     String artistId,
   ) {
     clearExitPrompt();
-    _dismissOverlaysAndCollapse(context, ref);
+    _prepareForNavigation(context, ref, AppNavigationIntent.replace);
     context.go('/library/artists/$artistId');
   }
 
   /// Navigate to the search screen and pre-fill the query.
   ///
   /// Useful for radio "search for this artist / song" flows.
-  static void goToSearch(
+  static void openSearch(
     BuildContext context,
     WidgetRef ref,
-    String query,
-  ) {
+    String query, {
+    SearchResultType? filter,
+  }) {
     clearExitPrompt();
-    _dismissOverlaysAndCollapse(context, ref);
+    _prepareForNavigation(context, ref, AppNavigationIntent.replace);
+    ref.read(searchFilterProvider.notifier).select(filter);
     ref.read(searchQueryProvider.notifier).submit(query);
     context.go('/search');
   }
 
-  /// Navigate to the search screen with a result type filter pre-selected.
-  static void goToFilteredSearch(
+  /// Switch to the Home tab.
+  static void switchToHome(
     BuildContext context,
     WidgetRef ref,
-    String query,
-    SearchResultType filter,
-  ) {
-    ref.read(searchFilterProvider.notifier).select(filter);
-    goToSearch(context, ref, query);
+    StatefulNavigationShell navigationShell, {
+    int branchIndex = 0,
+    bool initialLocation = false,
+  }) {
+    _switchToBranch(
+      context,
+      ref,
+      navigationShell,
+      branchIndex,
+      initialLocation: initialLocation,
+    );
+  }
+
+  /// Switch to the Library tab.
+  static void switchToLibrary(
+    BuildContext context,
+    WidgetRef ref,
+    StatefulNavigationShell navigationShell, {
+    int branchIndex = 1,
+    bool initialLocation = false,
+  }) {
+    _switchToBranch(
+      context,
+      ref,
+      navigationShell,
+      branchIndex,
+      initialLocation: initialLocation,
+    );
+  }
+
+  /// Switch to the Search tab.
+  static void switchToSearch(
+    BuildContext context,
+    WidgetRef ref,
+    StatefulNavigationShell navigationShell, {
+    int branchIndex = 2,
+    bool initialLocation = false,
+  }) {
+    _switchToBranch(
+      context,
+      ref,
+      navigationShell,
+      branchIndex,
+      initialLocation: initialLocation,
+    );
+  }
+
+  /// Switch to the Settings tab.
+  static void switchToSettings(
+    BuildContext context,
+    WidgetRef ref,
+    StatefulNavigationShell navigationShell, {
+    int branchIndex = 3,
+    bool initialLocation = false,
+  }) {
+    _switchToBranch(
+      context,
+      ref,
+      navigationShell,
+      branchIndex,
+      initialLocation: initialLocation,
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -127,7 +222,7 @@ abstract final class NavService {
     final now = DateTime.now();
     if (_lastBackPress != null &&
         now.difference(_lastBackPress!).inMilliseconds < 2000) {
-      SystemNavigator.pop();
+      unawaited(SystemNavigator.pop());
     } else {
       _lastBackPress = now;
       final controller = noticeController ?? AppNoticeScope.maybeOf(context);
@@ -146,21 +241,37 @@ abstract final class NavService {
   // Private
   // ---------------------------------------------------------------------------
 
-  /// Dismiss any modal routes on the root navigator, then clear the shell's
-  /// own player overlay stack.
-  ///
-  /// Called before [goToAlbum], [goToArtist], [goToSearch] to guarantee a
-  /// clean navigation state.
-  static void _dismissOverlaysAndCollapse(BuildContext context, WidgetRef ref) {
+  static void _switchToBranch(
+    BuildContext context,
+    WidgetRef ref,
+    StatefulNavigationShell navigationShell,
+    int branchIndex, {
+    required bool initialLocation,
+  }) {
+    _prepareForNavigation(context, ref, AppNavigationIntent.switchTab);
+    navigationShell.goBranch(branchIndex, initialLocation: initialLocation);
+  }
+
+  /// Dismiss popup routes and clear the shell's own player overlay stack.
+  static void _prepareForNavigation(
+    BuildContext context,
+    WidgetRef ref,
+    AppNavigationIntent intent,
+  ) {
     dismissKeyboard(context);
 
-    // Pop all modal routes above the shell route so GoRouter navigation
-    // doesn't leave orphan overlays on the navigator.
+    _dismissPopupRoutes(Navigator.of(context));
     final rootNav = Navigator.of(context, rootNavigator: true);
-    rootNav.popUntil((route) => route.isFirst);
+    if (rootNav != Navigator.of(context)) {
+      _dismissPopupRoutes(rootNav);
+    }
 
     // Reset shell-managed player overlays so navigation starts clean.
     ref.read(playerOverlayStackProvider.notifier).clear();
+  }
+
+  static void _dismissPopupRoutes(NavigatorState navigator) {
+    navigator.popUntil((route) => route is! PopupRoute);
   }
 
   /// Dismiss the on-screen keyboard and clear any active text focus.

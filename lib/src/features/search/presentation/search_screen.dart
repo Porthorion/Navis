@@ -187,7 +187,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         !desktopMode && adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact;
 
     // Sync the text controller when the query changes externally
-    // (e.g. NavService.goToSearch sets the provider from radio tap).
+    // (e.g. NavService.openSearch sets the provider from radio tap).
     if (_controller.text != query) {
       _controller.text = query;
       _controller.selection = TextSelection.fromPosition(
@@ -730,7 +730,7 @@ class _ArtistResultsSection extends ConsumerWidget {
                   ? l10n.searchAlbumCount(artist.albumCount!)
                   : null,
               trailing: const Icon(Icons.chevron_right),
-              onTap: () => NavService.goToArtist(context, ref, artist.id),
+              onTap: () => NavService.openArtistDetail(context, ref, artist.id),
             );
           }
           return ListTile(
@@ -739,7 +739,7 @@ class _ArtistResultsSection extends ConsumerWidget {
             subtitle: artist.albumCount != null
                 ? Text(l10n.searchAlbumCount(artist.albumCount!))
                 : null,
-            onTap: () => NavService.goToArtist(context, ref, artist.id),
+            onTap: () => NavService.openArtistDetail(context, ref, artist.id),
           );
         }),
       ],
@@ -790,14 +790,14 @@ class _AlbumResultsSection extends ConsumerWidget {
               title: album.name,
               subtitle: album.artist ?? '',
               trailing: const Icon(Icons.chevron_right),
-              onTap: () => NavService.goToAlbum(context, ref, album.id),
+              onTap: () => NavService.openAlbumDetail(context, ref, album.id),
             );
           }
           return ListTile(
             leading: leading,
             title: Text(album.name),
             subtitle: Text(album.artist ?? ''),
-            onTap: () => NavService.goToAlbum(context, ref, album.id),
+            onTap: () => NavService.openAlbumDetail(context, ref, album.id),
           );
         }),
       ],
@@ -1036,7 +1036,7 @@ class _SongResultsSection extends ConsumerWidget {
                 title: Text(l10n.nowPlayingGoToAlbum),
                 onTap: () {
                   Navigator.of(sheetContext).pop();
-                  NavService.goToAlbum(context, ref, song.albumId!);
+                  NavService.openAlbumDetail(context, ref, song.albumId!);
                 },
               ),
             if (song.artistId != null)
@@ -1045,7 +1045,7 @@ class _SongResultsSection extends ConsumerWidget {
                 title: Text(l10n.nowPlayingGoToArtist),
                 onTap: () {
                   Navigator.of(sheetContext).pop();
-                  NavService.goToArtist(context, ref, song.artistId!);
+                  NavService.openArtistDetail(context, ref, song.artistId!);
                 },
               ),
             ListTile(
