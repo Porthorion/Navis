@@ -27,7 +27,7 @@ class PrivacyScreen extends StatelessWidget {
             title: 'External scrobbling',
             body:
                 'If you enable ListenBrainz, Navis sends listening '
-                'activity for played tracks to that service. This can include '
+                'activity for played tracks to those services. This can include '
                 'track title, artist, album, duration, play time, and now-playing '
                 'status. ListenBrainz user tokens remain on your device.',
           ),

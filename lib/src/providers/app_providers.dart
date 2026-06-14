@@ -359,6 +359,12 @@ final lastFmApiClientProvider = Provider<LastFmApiClient?>((ref) {
   return LastFmApiClient(apiKey: apiKey);
 });
 
+final lastFmApiClientFactoryProvider =
+    Provider<LastFmApiClient Function(String)>(
+      (_) =>
+          (apiKey) => LastFmApiClient(apiKey: apiKey),
+    );
+
 final listenBrainzApiClientProvider = Provider<ListenBrainzApiClient>((_) {
   return ListenBrainzApiClient();
 });

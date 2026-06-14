@@ -5,6 +5,7 @@ import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/api/lastfm_api_client.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/features/auth/data/sign_out_service.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
@@ -34,18 +35,24 @@ class ServerSettingsScreen extends ConsumerStatefulWidget {
 class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
   bool _isTestingConnection = false;
   bool _isSigningOut = false;
+  bool _isSavingApiKey = false;
   bool _isListenBrainzBusy = false;
   bool _isVoyageChecking = false;
 
+  final _lastFmApiKeyController = TextEditingController();
   final _listenBrainzTokenController = TextEditingController();
   final _voyageServerUrlController = TextEditingController();
   final _customVoyageLabelController = TextEditingController();
   final _customVoyageUrlController = TextEditingController();
+  bool _lastFmKeyInitialized = false;
   bool _externalCredentialsHydrated = false;
   bool _groupListeningInitialized = false;
+  bool _obscureApiKey = true;
   bool _obscureListenBrainzToken = true;
   bool _groupListeningEnabled = false;
   String? _selectedVoyageServerUrl;
+  String? _lastFmApiKeyError;
+  String? _lastFmApiKeySuccess;
   String? _listenBrainzError;
   String? _listenBrainzSuccess;
   GroupListeningVoyageConnectionStatus _voyageStatus =
@@ -59,22 +66,34 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
   @override
   void initState() {
     super.initState();
+    _lastFmApiKeyController.addListener(_onApiKeyTextChanged);
     _listenBrainzTokenController.addListener(_onApiKeyTextChanged);
   }
 
   void _onApiKeyTextChanged() {
-    // Triggers rebuild so the clear icon in _ListenBrainzCard stays in sync.
+    // Triggers rebuild so the clear icon in _LastFmCard stays in sync.
     setState(() {});
   }
 
   @override
   void dispose() {
+    _lastFmApiKeyController.removeListener(_onApiKeyTextChanged);
     _listenBrainzTokenController.removeListener(_onApiKeyTextChanged);
+    _lastFmApiKeyController.dispose();
     _listenBrainzTokenController.dispose();
     _voyageServerUrlController.dispose();
     _customVoyageLabelController.dispose();
     _customVoyageUrlController.dispose();
     super.dispose();
+  }
+
+  void _initLastFmKey(AppSettingsModel settings) {
+    if (_lastFmKeyInitialized) return;
+    _lastFmKeyInitialized = true;
+    _lastFmApiKeyController.text = settings.lastFmApiKey ?? '';
+    if ((settings.lastFmApiKey ?? '').trim().isNotEmpty) {
+      _lastFmApiKeySuccess = 'Last.fm API key saved.';
+    }
   }
 
   Future<void> _hydrateExternalCredentials(AppSettingsModel settings) async {
@@ -113,6 +132,7 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
     final l10n = AppLocalizations.of(context)!;
     final configAsync = ref.watch(serverConfigStateProvider);
     final settingsAsync = ref.watch(appSettingsProvider);
+    final isBundled = ref.watch(lastFmBundledKeyProvider);
     final voyageServers = ref.watch(
       groupListeningVoyageServersProvider,
     );
@@ -139,6 +159,7 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
           }
 
           settingsAsync.whenData((settings) {
+            _initLastFmKey(settings);
             unawaited(_hydrateExternalCredentials(settings));
             _initGroupListeningSettings(
               settings,
@@ -248,6 +269,22 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
                   ),
                   const SizedBox(height: 8),
 
+                  // Last.fm card
+                  _LastFmCard(
+                    settings: currentSettings,
+                    isBundled: isBundled,
+                    isSaving: _isSavingApiKey,
+                    obscureApiKey: _obscureApiKey,
+                    controller: _lastFmApiKeyController,
+                    apiKeyError: _lastFmApiKeyError,
+                    apiKeySuccess: _lastFmApiKeySuccess,
+                    onToggleObscure: () =>
+                        setState(() => _obscureApiKey = !_obscureApiKey),
+                    onSave: _saveLastFmKey,
+                    onClear: _clearLastFmKey,
+                    onGetApiKey: _openLastFmApiPage,
+                  ),
+                  const SizedBox(height: 12),
                   _ListenBrainzCard(
                     settings: currentSettings,
                     isBusy: _isListenBrainzBusy,
@@ -443,6 +480,70 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
     } finally {
       if (mounted) setState(() => _isSigningOut = false);
     }
+  }
+
+  Future<void> _saveLastFmKey() async {
+    final l10n = AppLocalizations.of(context)!;
+    setState(() => _isSavingApiKey = true);
+    try {
+      final repo = ref.read(settingsRepositoryProvider);
+      final current =
+          ref.read(appSettingsProvider).asData?.value ??
+          const AppSettingsModel.defaults();
+      final key = _lastFmApiKeyController.text.trim();
+      if (key.isNotEmpty) {
+        final result = await ref
+            .read(lastFmApiClientFactoryProvider)(key)
+            .validateApiKey();
+        if (!result.valid) {
+          if (!mounted) return;
+          setState(() {
+            _lastFmApiKeyError = _lastFmApiKeyFailureMessage(result);
+            _lastFmApiKeySuccess = null;
+          });
+          return;
+        }
+      }
+      if (key.isEmpty) {
+        _lastFmApiKeySuccess = null;
+      }
+      await repo.saveSettings(
+        current.copyWith(
+          lastFmApiKey: key.isEmpty ? null : key,
+          clearLastFmApiKey: key.isEmpty,
+          lastFmScrobblingEnabled: false,
+          lastFmSessionConnected: false,
+        ),
+      );
+      if (!mounted) return;
+      setState(() {
+        _lastFmApiKeyError = null;
+        _lastFmApiKeySuccess = key.isEmpty
+            ? null
+            : l10n.configurationLastFmApiKeySaved;
+      });
+      showAppNotice(
+        context,
+        message: key.isEmpty
+            ? l10n.configurationLastFmApiKeyCleared
+            : l10n.configurationLastFmApiKeySaved,
+        level: AppNoticeLevel.success,
+      );
+    } on Object {
+      if (!mounted) return;
+      showAppNotice(
+        context,
+        message: l10n.serverSettingsSaveError,
+        level: AppNoticeLevel.error,
+      );
+    } finally {
+      if (mounted) setState(() => _isSavingApiKey = false);
+    }
+  }
+
+  Future<void> _clearLastFmKey() async {
+    _lastFmApiKeyController.clear();
+    await _saveLastFmKey();
   }
 
   Future<void> _validateListenBrainz(AppSettingsModel settings) async {
@@ -743,11 +844,28 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
     );
   }
 
+  Future<void> _openLastFmApiPage() async {
+    final uri = Uri.parse('https://www.last.fm/api/accounts');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
   Future<void> _openListenBrainzTokenPage() async {
     final uri = Uri.parse('https://listenbrainz.org/settings/');
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
+  }
+
+  String _lastFmApiKeyFailureMessage(LastFmApiKeyValidationResult result) {
+    if (result.apiErrorCode == 10 || result.statusCode == 403) {
+      return 'Invalid Last.fm API key.';
+    }
+    if (result.statusCode == 429) {
+      return 'Last.fm is rate limiting validation. Try again later.';
+    }
+    return result.message ?? 'Could not validate this Last.fm API key.';
   }
 
   String? _selectedVoyageUrl(List<GroupListeningVoyageServerOption> servers) {
@@ -1136,6 +1254,177 @@ class _VoyageConnectionStatusCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Last.fm card
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _LastFmCard extends StatelessWidget {
+  const _LastFmCard({
+    required this.settings,
+    required this.isBundled,
+    required this.isSaving,
+    required this.obscureApiKey,
+    required this.controller,
+    required this.apiKeyError,
+    required this.apiKeySuccess,
+    required this.onToggleObscure,
+    required this.onSave,
+    required this.onClear,
+    required this.onGetApiKey,
+  });
+
+  final AppSettingsModel settings;
+  final bool isBundled;
+  final bool isSaving;
+  final bool obscureApiKey;
+  final TextEditingController controller;
+  final String? apiKeyError;
+  final String? apiKeySuccess;
+  final VoidCallback onToggleObscure;
+  final VoidCallback onSave;
+  final VoidCallback onClear;
+  final VoidCallback onGetApiKey;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final apiKeyValid =
+        isBundled || (settings.lastFmApiKey?.trim().isNotEmpty ?? false);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Icon(Icons.music_note_outlined, color: cs.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    l10n.configurationLastFmSection,
+                    style: theme.textTheme.titleMedium,
+                  ),
+                ),
+                if (apiKeyValid)
+                  Icon(Icons.check_circle, color: Colors.green.shade700),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            if (isBundled) ...<Widget>[
+              Container(
+                decoration: BoxDecoration(
+                  color: cs.secondaryContainer,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Icon(
+                      Icons.verified_outlined,
+                      size: 20,
+                      color: cs.onSecondaryContainer,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            l10n.configurationLastFmBundledNotice,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: cs.onSecondaryContainer,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            l10n.configurationLastFmBundledSubtitle,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: cs.onSecondaryContainer,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ] else ...<Widget>[
+              TextField(
+                controller: controller,
+                obscureText: obscureApiKey,
+                decoration: InputDecoration(
+                  labelText: l10n.configurationLastFmApiKeyLabel,
+                  hintText: l10n.configurationLastFmApiKeyHint,
+                  border: const OutlineInputBorder(),
+                  enabledBorder: apiKeySuccess != null && apiKeyError == null
+                      ? OutlineInputBorder(
+                          borderSide: BorderSide(
+                            color: Colors.green.shade700,
+                          ),
+                        )
+                      : null,
+                  errorText: apiKeyError,
+                  helperText: apiKeyError == null ? apiKeySuccess : null,
+                  helperStyle: TextStyle(color: Colors.green.shade700),
+                  prefixIcon: const Icon(Icons.key_outlined),
+                  suffixIcon: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      IconButton(
+                        icon: Icon(
+                          obscureApiKey
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                        ),
+                        tooltip: obscureApiKey ? 'Show' : 'Hide',
+                        onPressed: onToggleObscure,
+                      ),
+                      if (controller.text.isNotEmpty)
+                        IconButton(
+                          icon: const Icon(Icons.clear),
+                          tooltip: 'Clear',
+                          onPressed: onClear,
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: <Widget>[
+                  TextButton.icon(
+                    onPressed: onGetApiKey,
+                    icon: const Icon(Icons.open_in_new, size: 16),
+                    label: Text(l10n.configurationLastFmGetApiKey),
+                  ),
+                  const Spacer(),
+                  FilledButton.tonal(
+                    onPressed: isSaving ? null : onSave,
+                    child: isSaving
+                        ? const SizedBox(
+                            height: 18,
+                            width: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Text(l10n.serverSettingsSave),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

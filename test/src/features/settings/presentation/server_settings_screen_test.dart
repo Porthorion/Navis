@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:navis/src/api/lastfm_api_client.dart';
 import 'package:navis/src/api/listenbrainz_api_client.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/features/auth/data/server_connection_service.dart';
@@ -78,6 +79,58 @@ class _TestServerConfigNotifier extends ServerConfigNotifier {
   }
 
   ServerConfigModel? savedConfigSnapshot() => _savedConfig;
+}
+
+class _FakeLastFmApiClient extends LastFmApiClient {
+  _FakeLastFmApiClient({
+    LastFmApiKeyValidationResult validationResult =
+        const LastFmApiKeyValidationResult(valid: true),
+    super.apiKey = 'fake-key',
+    String authToken = 'auth-token',
+    LastFmApiException? authTokenError,
+    List<Object> sessionResults = const <Object>[],
+  }) : _validationResult = validationResult,
+       _authToken = authToken,
+       _authTokenError = authTokenError,
+       _sessionResults = List<Object>.of(sessionResults);
+
+  final LastFmApiKeyValidationResult _validationResult;
+  final String _authToken;
+  final LastFmApiException? _authTokenError;
+  final List<Object> _sessionResults;
+  int getSessionCalls = 0;
+
+  @override
+  Future<LastFmApiKeyValidationResult> validateApiKey() async {
+    return _validationResult;
+  }
+
+  @override
+  Future<String> getAuthToken({required String sharedSecret}) async {
+    final error = _authTokenError;
+    if (error != null) {
+      throw error;
+    }
+    return _authToken;
+  }
+
+  @override
+  Future<LastFmAuthSession> getSession({
+    required String token,
+    required String sharedSecret,
+  }) async {
+    getSessionCalls++;
+    final result = _sessionResults.isEmpty
+        ? const LastFmApiException(14, 'This token has not been authorized')
+        : _sessionResults.removeAt(0);
+    if (result is LastFmAuthSession) {
+      return result;
+    }
+    if (result is Exception) {
+      throw result;
+    }
+    throw StateError('Unexpected fake Last.fm session result: $result');
+  }
 }
 
 class _FakeUrlLauncherPlatform extends UrlLauncherPlatform {
@@ -195,16 +248,56 @@ void main() {
         configNotifier: _TestServerConfigNotifier(initialConfig),
         connectionService: _FakeServerConnectionService(),
         signOutService: _FakeSignOutService(),
+        lastFmBundled: false,
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(_textFieldWithLabel('API Key'), findsNothing);
+    expect(_textFieldWithLabel('API Key'), findsOneWidget);
     expect(_textFieldWithLabel('Shared secret'), findsNothing);
     expect(_textFieldWithLabel('User token'), findsOneWidget);
-    expect(find.textContaining('Last.fm'), findsNothing);
+    expect(find.text('Last.fm scrobbling'), findsNothing);
+    expect(find.text('Last.fm'), findsOneWidget);
     expect(find.text('ListenBrainz'), findsOneWidget);
     expect(find.text('Get Token'), findsOneWidget);
+  });
+
+  testWidgets('failed Last.fm API validation shows field error', (
+    tester,
+  ) async {
+    final repository = _MockSettingsRepository();
+    when(() => repository.saveSettings(any())).thenAnswer((_) async {});
+
+    await tester.pumpWidget(
+      _buildTestApp(
+        configNotifier: _TestServerConfigNotifier(initialConfig),
+        connectionService: _FakeServerConnectionService(),
+        signOutService: _FakeSignOutService(),
+        settingsRepository: repository,
+        lastFmBundled: false,
+        lastFmClientFactory: (_) => _FakeLastFmApiClient(
+          validationResult: const LastFmApiKeyValidationResult(
+            valid: false,
+            apiErrorCode: 10,
+            message: 'Invalid API key',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(_textFieldWithLabel('API Key'), 'bad-key');
+    final saveButton = find.widgetWithText(FilledButton, 'Save');
+    await tester.scrollUntilVisible(
+      saveButton,
+      120,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(saveButton);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Invalid Last.fm API key.'), findsOneWidget);
+    verifyNever(() => repository.saveSettings(any()));
   });
 
   testWidgets('valid ListenBrainz token saves securely and marks usable', (
@@ -318,19 +411,26 @@ Widget _buildTestApp({
   required SignOutService signOutService,
   SettingsRepository? settingsRepository,
   ExternalScrobbleCredentialStore? credentialStore,
+  bool lastFmBundled = true,
+  String lastFmApiKey = 'bundled-key',
   AppSettingsModel initialSettings = const AppSettingsModel.defaults(),
+  LastFmApiClient Function(String)? lastFmClientFactory,
   ListenBrainzApiClient? listenBrainzClient,
 }) {
   final overrides = [
     serverConfigProvider.overrideWith(() => configNotifier),
     serverConnectionServiceProvider.overrideWithValue(connectionService),
     signOutServiceProvider.overrideWithValue(signOutService),
+    lastFmBundledKeyProvider.overrideWithValue(lastFmBundled),
+    lastFmApiKeyProvider.overrideWithValue(lastFmApiKey),
     if (settingsRepository != null)
       settingsRepositoryProvider.overrideWithValue(settingsRepository),
     if (credentialStore != null)
       externalScrobbleCredentialStoreProvider.overrideWithValue(
         credentialStore,
       ),
+    if (lastFmClientFactory != null)
+      lastFmApiClientFactoryProvider.overrideWithValue(lastFmClientFactory),
     if (listenBrainzClient != null)
       listenBrainzApiClientProvider.overrideWithValue(listenBrainzClient),
     // Provide in-memory settings so the screen doesn't spin on loading.

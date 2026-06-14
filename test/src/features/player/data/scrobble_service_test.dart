@@ -209,17 +209,16 @@ void main() {
           readReachable: () => reachable,
           now: () => now,
         );
-
         await database.scrobbleDao.enqueue(
-          songId: 'song-1',
           provider: ScrobbleProvider.lastFm.id,
+          songId: 'song-1',
+          sessionKey: 'legacy',
           submission: true,
-          sessionKey: 'legacy-session',
           trackTitle: 'Song 1',
           artistName: 'Artist',
           createdAt: now,
           nextAttemptAt: now,
-          expiresAt: now.add(const Duration(days: 7)),
+          expiresAt: now.add(const Duration(days: 2)),
         );
 
         await service.flushDue();
