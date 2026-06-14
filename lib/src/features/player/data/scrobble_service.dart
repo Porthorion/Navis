@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:navis/src/api/lastfm_api_client.dart';
 import 'package:navis/src/api/listenbrainz_api_client.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/database/daos/scrobble_dao.dart';
@@ -44,18 +43,6 @@ class ScrobbleTrackPayload {
   final Duration? duration;
 }
 
-class LastFmScrobbleCredentials {
-  const LastFmScrobbleCredentials({
-    required this.apiKey,
-    required this.sharedSecret,
-    required this.sessionKey,
-  });
-
-  final String apiKey;
-  final String sharedSecret;
-  final String sessionKey;
-}
-
 class ListenBrainzScrobbleCredentials {
   const ListenBrainzScrobbleCredentials({required this.userToken});
 
@@ -87,12 +74,9 @@ class DriftScrobbleService implements ScrobbleService {
     required ScrobbleDao dao,
     required SubsonicApiClient? Function() readApiClient,
     required bool Function() readScrobbleEnabled,
-    Future<LastFmScrobbleCredentials?> Function()? readLastFmCredentials,
     Future<ListenBrainzScrobbleCredentials?> Function()?
     readListenBrainzCredentials,
-    LastFmApiClient Function(String apiKey)? createLastFmClient,
     ListenBrainzApiClient Function()? createListenBrainzClient,
-    void Function()? onLastFmInvalidSession,
     void Function()? onListenBrainzInvalidToken,
     required bool Function() readReachable,
     DateTime Function()? now,
@@ -104,14 +88,10 @@ class DriftScrobbleService implements ScrobbleService {
   }) : _dao = dao,
        _readApiClient = readApiClient,
        _readScrobbleEnabled = readScrobbleEnabled,
-       _readLastFmCredentials = readLastFmCredentials ?? (() async => null),
        _readListenBrainzCredentials =
            readListenBrainzCredentials ?? (() async => null),
-       _createLastFmClient =
-           createLastFmClient ?? ((apiKey) => LastFmApiClient(apiKey: apiKey)),
        _createListenBrainzClient =
            createListenBrainzClient ?? (() => ListenBrainzApiClient()),
-       _onLastFmInvalidSession = onLastFmInvalidSession,
        _onListenBrainzInvalidToken = onListenBrainzInvalidToken,
        _readReachable = readReachable,
        _now = now ?? DateTime.now;
@@ -119,12 +99,9 @@ class DriftScrobbleService implements ScrobbleService {
   final ScrobbleDao _dao;
   final SubsonicApiClient? Function() _readApiClient;
   final bool Function() _readScrobbleEnabled;
-  final Future<LastFmScrobbleCredentials?> Function() _readLastFmCredentials;
   final Future<ListenBrainzScrobbleCredentials?> Function()
   _readListenBrainzCredentials;
-  final LastFmApiClient Function(String apiKey) _createLastFmClient;
   final ListenBrainzApiClient Function() _createListenBrainzClient;
-  final void Function()? _onLastFmInvalidSession;
   final void Function()? _onListenBrainzInvalidToken;
   final bool Function() _readReachable;
   final DateTime Function() _now;
@@ -215,9 +192,6 @@ class DriftScrobbleService implements ScrobbleService {
     if (_readScrobbleEnabled()) {
       providers.add(ScrobbleProvider.subsonic);
     }
-    if (await _readLastFmCredentials() != null) {
-      providers.add(ScrobbleProvider.lastFm);
-    }
     if (await _readListenBrainzCredentials() != null) {
       providers.add(ScrobbleProvider.listenBrainz);
     }
@@ -233,7 +207,6 @@ class DriftScrobbleService implements ScrobbleService {
     try {
       final hasAnyProvider =
           _readScrobbleEnabled() ||
-          await _readLastFmCredentials() != null ||
           await _readListenBrainzCredentials() != null;
       if (!hasAnyProvider) {
         await _dao.clearAll();
@@ -260,9 +233,6 @@ class DriftScrobbleService implements ScrobbleService {
           if (await _dispatchEvent(event, api)) {
             await _dao.markDelivered(event.id);
           }
-        } on LastFmInvalidSessionException catch (_) {
-          _onLastFmInvalidSession?.call();
-          await _dao.markDelivered(event.id);
         } on ListenBrainzInvalidTokenException catch (_) {
           _onListenBrainzInvalidToken?.call();
           await _dao.markDelivered(event.id);
@@ -313,35 +283,8 @@ class DriftScrobbleService implements ScrobbleService {
         return true;
 
       case ScrobbleProvider.lastFm:
-        final credentials = await _readLastFmCredentials();
-        if (credentials == null) {
-          return true;
-        }
-        final track = _validatedExternalTrack(
-          title: event.trackTitle,
-          artist: event.artistName,
-        );
-        final client = _createLastFmClient(credentials.apiKey);
-        if (event.submission) {
-          await client.scrobble(
-            artist: track.artist,
-            track: track.title,
-            timestamp: event.createdAt,
-            sessionKey: credentials.sessionKey,
-            sharedSecret: credentials.sharedSecret,
-            album: _clean(event.albumName),
-            duration: event.durationSeconds,
-          );
-        } else {
-          await client.updateNowPlaying(
-            artist: track.artist,
-            track: track.title,
-            sessionKey: credentials.sessionKey,
-            sharedSecret: credentials.sharedSecret,
-            album: _clean(event.albumName),
-            duration: event.durationSeconds,
-          );
-        }
+        // Last.fm scrobbling has been removed. Drop old queued Last.fm rows
+        // created by previous versions instead of retrying them forever.
         return true;
 
       case ScrobbleProvider.listenBrainz:

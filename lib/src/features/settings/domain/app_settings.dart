@@ -260,10 +260,10 @@ class AppSettingsModel {
   /// Ignored at runtime if a build-time key (NAVIS_LASTFM_API_KEY) is bundled.
   final String? lastFmApiKey;
 
-  /// Enables third-party Last.fm scrobble dispatch.
+  /// Deprecated compatibility flag. Last.fm scrobble dispatch was removed.
   final bool lastFmScrobblingEnabled;
 
-  /// Whether Last.fm session auth is currently connected.
+  /// Deprecated compatibility flag. Last.fm session auth was removed.
   final bool lastFmSessionConnected;
 
   /// Enables ListenBrainz scrobble dispatch.

@@ -213,13 +213,11 @@ class AppSettingsTable extends Table {
   /// build-time key (NAVIS_LASTFM_API_KEY) is bundled instead.
   TextColumn get lastFmApiKey => text().nullable()();
 
-  /// Whether Last.fm scrobbling is enabled. Secrets/session stay in secure
-  /// storage; this only controls non-sensitive dispatch state.
+  /// Deprecated compatibility column. Last.fm scrobble dispatch was removed.
   BoolColumn get lastFmScrobblingEnabled =>
       boolean().withDefault(const Constant(false))();
 
-  /// True after Last.fm session auth succeeds. Cleared on invalid-session
-  /// responses so the UI can ask the user to reconnect.
+  /// Deprecated compatibility column. Last.fm session auth was removed.
   BoolColumn get lastFmSessionConnected =>
       boolean().withDefault(const Constant(false))();
 

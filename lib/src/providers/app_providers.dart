@@ -359,12 +359,6 @@ final lastFmApiClientProvider = Provider<LastFmApiClient?>((ref) {
   return LastFmApiClient(apiKey: apiKey);
 });
 
-final lastFmApiClientFactoryProvider =
-    Provider<LastFmApiClient Function(String)>(
-      (_) =>
-          (apiKey) => LastFmApiClient(apiKey: apiKey),
-    );
-
 final listenBrainzApiClientProvider = Provider<ListenBrainzApiClient>((_) {
   return ListenBrainzApiClient();
 });
@@ -403,28 +397,6 @@ final scrobbleServiceProvider = Provider<ScrobbleService>((ref) {
     readApiClient: () => ref.read(subsonicApiProvider),
     readScrobbleEnabled: () =>
         ref.read(appSettingsProvider).asData?.value.scrobbleEnabled ?? true,
-    readLastFmCredentials: () async {
-      final settings =
-          ref.read(appSettingsProvider).asData?.value ??
-          const AppSettingsModel.defaults();
-      final apiKey = ref.read(lastFmApiKeyProvider).trim();
-      if (!settings.lastFmScrobblingEnabled ||
-          !settings.lastFmSessionConnected ||
-          apiKey.isEmpty) {
-        return null;
-      }
-      final store = ref.read(externalScrobbleCredentialStoreProvider);
-      final sharedSecret = (await store.readLastFmSharedSecret())?.trim() ?? '';
-      final sessionKey = (await store.readLastFmSessionKey())?.trim() ?? '';
-      if (sharedSecret.isEmpty || sessionKey.isEmpty) {
-        return null;
-      }
-      return LastFmScrobbleCredentials(
-        apiKey: apiKey,
-        sharedSecret: sharedSecret,
-        sessionKey: sessionKey,
-      );
-    },
     readListenBrainzCredentials: () async {
       final settings =
           ref.read(appSettingsProvider).asData?.value ??
@@ -444,16 +416,7 @@ final scrobbleServiceProvider = Provider<ScrobbleService>((ref) {
       }
       return ListenBrainzScrobbleCredentials(userToken: token);
     },
-    createLastFmClient: ref.read(lastFmApiClientFactoryProvider),
     createListenBrainzClient: () => ref.read(listenBrainzApiClientProvider),
-    onLastFmInvalidSession: () {
-      unawaited(
-        database.appSettingsDao.updateLastFmScrobblingState(
-          enabled: false,
-          connected: false,
-        ),
-      );
-    },
     onListenBrainzInvalidToken: () {
       unawaited(
         database.appSettingsDao.updateListenBrainzScrobblingState(

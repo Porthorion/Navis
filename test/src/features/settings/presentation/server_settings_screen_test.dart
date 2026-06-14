@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:navis/src/api/lastfm_api_client.dart';
 import 'package:navis/src/api/listenbrainz_api_client.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/features/auth/data/server_connection_service.dart';
@@ -81,58 +80,6 @@ class _TestServerConfigNotifier extends ServerConfigNotifier {
   ServerConfigModel? savedConfigSnapshot() => _savedConfig;
 }
 
-class _FakeLastFmApiClient extends LastFmApiClient {
-  _FakeLastFmApiClient({
-    LastFmApiKeyValidationResult validationResult =
-        const LastFmApiKeyValidationResult(valid: true),
-    super.apiKey = 'fake-key',
-    String authToken = 'auth-token',
-    LastFmApiException? authTokenError,
-    List<Object> sessionResults = const <Object>[],
-  }) : _validationResult = validationResult,
-       _authToken = authToken,
-       _authTokenError = authTokenError,
-       _sessionResults = List<Object>.of(sessionResults);
-
-  final LastFmApiKeyValidationResult _validationResult;
-  final String _authToken;
-  final LastFmApiException? _authTokenError;
-  final List<Object> _sessionResults;
-  int getSessionCalls = 0;
-
-  @override
-  Future<LastFmApiKeyValidationResult> validateApiKey() async {
-    return _validationResult;
-  }
-
-  @override
-  Future<String> getAuthToken({required String sharedSecret}) async {
-    final error = _authTokenError;
-    if (error != null) {
-      throw error;
-    }
-    return _authToken;
-  }
-
-  @override
-  Future<LastFmAuthSession> getSession({
-    required String token,
-    required String sharedSecret,
-  }) async {
-    getSessionCalls++;
-    final result = _sessionResults.isEmpty
-        ? const LastFmApiException(14, 'This token has not been authorized')
-        : _sessionResults.removeAt(0);
-    if (result is LastFmAuthSession) {
-      return result;
-    }
-    if (result is Exception) {
-      throw result;
-    }
-    throw StateError('Unexpected fake Last.fm session result: $result');
-  }
-}
-
 class _FakeUrlLauncherPlatform extends UrlLauncherPlatform {
   final launchedUrls = <String>[];
   bool canLaunchResponse = true;
@@ -177,37 +124,13 @@ class _FakeListenBrainzApiClient extends ListenBrainzApiClient {
 
 class _MemoryExternalScrobbleCredentialStore
     implements ExternalScrobbleCredentialStore {
-  String? lastFmSharedSecret;
-  String? lastFmSessionKey;
   String? listenBrainzToken;
-
-  @override
-  Future<void> clearLastFmSessionKey() async => lastFmSessionKey = null;
-
-  @override
-  Future<void> clearLastFmSharedSecret() async => lastFmSharedSecret = null;
 
   @override
   Future<void> clearListenBrainzToken() async => listenBrainzToken = null;
 
   @override
-  Future<String?> readLastFmSessionKey() async => lastFmSessionKey;
-
-  @override
-  Future<String?> readLastFmSharedSecret() async => lastFmSharedSecret;
-
-  @override
   Future<String?> readListenBrainzToken() async => listenBrainzToken;
-
-  @override
-  Future<void> saveLastFmSessionKey(String value) async {
-    lastFmSessionKey = value;
-  }
-
-  @override
-  Future<void> saveLastFmSharedSecret(String value) async {
-    lastFmSharedSecret = value;
-  }
 
   @override
   Future<void> saveListenBrainzToken(String value) async {
@@ -219,21 +142,6 @@ Finder _textFieldWithLabel(String label) {
   return find.byWidgetPredicate(
     (widget) => widget is TextField && widget.decoration?.labelText == label,
   );
-}
-
-Future<void> _tapVisible(WidgetTester tester, Finder finder) async {
-  await tester.scrollUntilVisible(
-    finder,
-    120,
-    scrollable: find.byType(Scrollable).first,
-  );
-  await tester.tap(finder);
-}
-
-Future<void> _pumpAsyncWork(WidgetTester tester) async {
-  await tester.pump();
-  await tester.pump();
-  await tester.pump();
 }
 
 void main() {
@@ -287,275 +195,16 @@ void main() {
         configNotifier: _TestServerConfigNotifier(initialConfig),
         connectionService: _FakeServerConnectionService(),
         signOutService: _FakeSignOutService(),
-        lastFmBundled: false,
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(_textFieldWithLabel('API Key'), findsOneWidget);
-    expect(_textFieldWithLabel('Shared secret'), findsOneWidget);
+    expect(_textFieldWithLabel('API Key'), findsNothing);
+    expect(_textFieldWithLabel('Shared secret'), findsNothing);
     expect(_textFieldWithLabel('User token'), findsOneWidget);
-    expect(find.text('Last.fm scrobbling'), findsOneWidget);
+    expect(find.textContaining('Last.fm'), findsNothing);
     expect(find.text('ListenBrainz'), findsOneWidget);
-  });
-
-  testWidgets('Last.fm scrobbling renders one authorize button', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      _buildTestApp(
-        configNotifier: _TestServerConfigNotifier(initialConfig),
-        connectionService: _FakeServerConnectionService(),
-        signOutService: _FakeSignOutService(),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.text('Authorize with Last.fm'), findsOneWidget);
-    expect(find.text('I authorized'), findsNothing);
-  });
-
-  testWidgets('tapping Last.fm authorize launches browser and waits', (
-    tester,
-  ) async {
-    final credentialStore = _MemoryExternalScrobbleCredentialStore();
-    final lastFmClient = _FakeLastFmApiClient(apiKey: 'bundled-key');
-
-    await tester.pumpWidget(
-      _buildTestApp(
-        configNotifier: _TestServerConfigNotifier(initialConfig),
-        connectionService: _FakeServerConnectionService(),
-        signOutService: _FakeSignOutService(),
-        credentialStore: credentialStore,
-        lastFmClientFactory: (_) => lastFmClient,
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    await tester.enterText(_textFieldWithLabel('Shared secret'), 'secret');
-    await _tapVisible(tester, find.text('Authorize with Last.fm'));
-    await _pumpAsyncWork(tester);
-
-    expect(credentialStore.lastFmSharedSecret, 'secret');
-    expect(urlLauncher.launchedUrls, hasLength(1));
-    expect(
-      urlLauncher.launchedUrls.single,
-      contains('https://www.last.fm/api/auth/'),
-    );
-    expect(find.text('Waiting for Last.fm approval...'), findsOneWidget);
-    expect(find.text('Cancel'), findsOneWidget);
-
-    await _tapVisible(tester, find.text('Cancel'));
-    await tester.pumpAndSettle();
-  });
-
-  testWidgets('pending Last.fm session response keeps waiting state', (
-    tester,
-  ) async {
-    final credentialStore = _MemoryExternalScrobbleCredentialStore();
-    final lastFmClient = _FakeLastFmApiClient(
-      sessionResults: const <Object>[
-        LastFmApiException(14, 'This token has not been authorized'),
-      ],
-    );
-
-    await tester.pumpWidget(
-      _buildTestApp(
-        configNotifier: _TestServerConfigNotifier(initialConfig),
-        connectionService: _FakeServerConnectionService(),
-        signOutService: _FakeSignOutService(),
-        credentialStore: credentialStore,
-        lastFmClientFactory: (_) => lastFmClient,
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    await tester.enterText(_textFieldWithLabel('Shared secret'), 'secret');
-    await _tapVisible(tester, find.text('Authorize with Last.fm'));
-    await _pumpAsyncWork(tester);
-
-    expect(lastFmClient.getSessionCalls, 1);
-    expect(find.text('Waiting for Last.fm approval...'), findsOneWidget);
-    expect(find.byType(CircularProgressIndicator), findsWidgets);
-
-    await _tapVisible(tester, find.text('Cancel'));
-    await tester.pumpAndSettle();
-  });
-
-  testWidgets('later Last.fm session success stores credentials and connects', (
-    tester,
-  ) async {
-    final repository = _MockSettingsRepository();
-    final credentialStore = _MemoryExternalScrobbleCredentialStore();
-    AppSettingsModel? savedModel;
-    when(() => repository.saveSettings(any())).thenAnswer((invocation) async {
-      savedModel = invocation.positionalArguments.first as AppSettingsModel;
-    });
-    final lastFmClient = _FakeLastFmApiClient(
-      sessionResults: const <Object>[
-        LastFmApiException(14, 'This token has not been authorized'),
-        LastFmAuthSession(name: 'alice', key: 'session-key'),
-      ],
-    );
-
-    await tester.pumpWidget(
-      _buildTestApp(
-        configNotifier: _TestServerConfigNotifier(initialConfig),
-        connectionService: _FakeServerConnectionService(),
-        signOutService: _FakeSignOutService(),
-        settingsRepository: repository,
-        credentialStore: credentialStore,
-        lastFmClientFactory: (_) => lastFmClient,
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    await tester.enterText(_textFieldWithLabel('Shared secret'), 'secret');
-    await _tapVisible(tester, find.text('Authorize with Last.fm'));
-    await _pumpAsyncWork(tester);
-    await tester.pump(const Duration(seconds: 2));
-    await _pumpAsyncWork(tester);
-    await tester.pumpAndSettle();
-
-    expect(credentialStore.lastFmSharedSecret, 'secret');
-    expect(credentialStore.lastFmSessionKey, 'session-key');
-    expect(savedModel, isNotNull);
-    expect(savedModel!.lastFmSessionConnected, isTrue);
-    expect(savedModel!.lastFmScrobblingEnabled, isTrue);
-    expect(find.text('Last.fm scrobbling connected.'), findsOneWidget);
-    expect(find.text('Waiting for Last.fm approval...'), findsNothing);
-  });
-
-  testWidgets('canceling Last.fm authorization leaves session unsaved', (
-    tester,
-  ) async {
-    final repository = _MockSettingsRepository();
-    final credentialStore = _MemoryExternalScrobbleCredentialStore();
-    when(() => repository.saveSettings(any())).thenAnswer((_) async {});
-
-    await tester.pumpWidget(
-      _buildTestApp(
-        configNotifier: _TestServerConfigNotifier(initialConfig),
-        connectionService: _FakeServerConnectionService(),
-        signOutService: _FakeSignOutService(),
-        settingsRepository: repository,
-        credentialStore: credentialStore,
-        lastFmClientFactory: (_) => _FakeLastFmApiClient(),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    await tester.enterText(_textFieldWithLabel('Shared secret'), 'secret');
-    await _tapVisible(tester, find.text('Authorize with Last.fm'));
-    await _pumpAsyncWork(tester);
-    await _tapVisible(tester, find.text('Cancel'));
-    await tester.pumpAndSettle();
-
-    expect(credentialStore.lastFmSessionKey, isNull);
-    verifyNever(() => repository.saveSettings(any()));
-    expect(find.text('Waiting for Last.fm approval...'), findsNothing);
-  });
-
-  testWidgets('timed out Last.fm authorization leaves session unsaved', (
-    tester,
-  ) async {
-    final repository = _MockSettingsRepository();
-    final credentialStore = _MemoryExternalScrobbleCredentialStore();
-    when(() => repository.saveSettings(any())).thenAnswer((_) async {});
-
-    await tester.pumpWidget(
-      _buildTestApp(
-        configNotifier: _TestServerConfigNotifier(initialConfig),
-        connectionService: _FakeServerConnectionService(),
-        signOutService: _FakeSignOutService(),
-        settingsRepository: repository,
-        credentialStore: credentialStore,
-        lastFmClientFactory: (_) => _FakeLastFmApiClient(),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    await tester.enterText(_textFieldWithLabel('Shared secret'), 'secret');
-    await _tapVisible(tester, find.text('Authorize with Last.fm'));
-    await _pumpAsyncWork(tester);
-    await tester.pump(const Duration(minutes: 10));
-    await _pumpAsyncWork(tester);
-
-    expect(credentialStore.lastFmSessionKey, isNull);
-    verifyNever(() => repository.saveSettings(any()));
-    expect(
-      find.text('Last.fm authorization timed out. Try again.'),
-      findsOneWidget,
-    );
-    expect(find.text('Waiting for Last.fm approval...'), findsNothing);
-  });
-
-  testWidgets('invalid Last.fm shared secret shows field error', (
-    tester,
-  ) async {
-    final credentialStore = _MemoryExternalScrobbleCredentialStore();
-
-    await tester.pumpWidget(
-      _buildTestApp(
-        configNotifier: _TestServerConfigNotifier(initialConfig),
-        connectionService: _FakeServerConnectionService(),
-        signOutService: _FakeSignOutService(),
-        credentialStore: credentialStore,
-        lastFmClientFactory: (_) => _FakeLastFmApiClient(
-          authTokenError: const LastFmApiException(
-            13,
-            'Invalid method signature supplied',
-          ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    await tester.enterText(_textFieldWithLabel('Shared secret'), 'bad-secret');
-    await _tapVisible(tester, find.text('Authorize with Last.fm'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Invalid Last.fm shared secret.'), findsOneWidget);
-    expect(credentialStore.lastFmSharedSecret, isNull);
-    expect(credentialStore.lastFmSessionKey, isNull);
-  });
-
-  testWidgets('failed Last.fm API validation shows field error', (
-    tester,
-  ) async {
-    final repository = _MockSettingsRepository();
-    when(() => repository.saveSettings(any())).thenAnswer((_) async {});
-
-    await tester.pumpWidget(
-      _buildTestApp(
-        configNotifier: _TestServerConfigNotifier(initialConfig),
-        connectionService: _FakeServerConnectionService(),
-        signOutService: _FakeSignOutService(),
-        settingsRepository: repository,
-        lastFmBundled: false,
-        lastFmClientFactory: (_) => _FakeLastFmApiClient(
-          validationResult: const LastFmApiKeyValidationResult(
-            valid: false,
-            apiErrorCode: 10,
-            message: 'Invalid API key',
-          ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    await tester.enterText(_textFieldWithLabel('API Key'), 'bad-key');
-    final saveButton = find.widgetWithText(FilledButton, 'Save');
-    await tester.scrollUntilVisible(
-      saveButton,
-      120,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.tap(saveButton);
-    await tester.pumpAndSettle();
-
-    expect(find.text('Invalid Last.fm API key.'), findsOneWidget);
-    verifyNever(() => repository.saveSettings(any()));
+    expect(find.text('Get Token'), findsOneWidget);
   });
 
   testWidgets('valid ListenBrainz token saves securely and marks usable', (
@@ -669,26 +318,19 @@ Widget _buildTestApp({
   required SignOutService signOutService,
   SettingsRepository? settingsRepository,
   ExternalScrobbleCredentialStore? credentialStore,
-  bool lastFmBundled = true,
-  String lastFmApiKey = 'bundled-key',
   AppSettingsModel initialSettings = const AppSettingsModel.defaults(),
-  LastFmApiClient Function(String)? lastFmClientFactory,
   ListenBrainzApiClient? listenBrainzClient,
 }) {
   final overrides = [
     serverConfigProvider.overrideWith(() => configNotifier),
     serverConnectionServiceProvider.overrideWithValue(connectionService),
     signOutServiceProvider.overrideWithValue(signOutService),
-    lastFmBundledKeyProvider.overrideWithValue(lastFmBundled),
-    lastFmApiKeyProvider.overrideWithValue(lastFmApiKey),
     if (settingsRepository != null)
       settingsRepositoryProvider.overrideWithValue(settingsRepository),
     if (credentialStore != null)
       externalScrobbleCredentialStoreProvider.overrideWithValue(
         credentialStore,
       ),
-    if (lastFmClientFactory != null)
-      lastFmApiClientFactoryProvider.overrideWithValue(lastFmClientFactory),
     if (listenBrainzClient != null)
       listenBrainzApiClientProvider.overrideWithValue(listenBrainzClient),
     // Provide in-memory settings so the screen doesn't spin on loading.

@@ -158,17 +158,12 @@ void main() {
     );
 
     test(
-      'enqueueSubmission records all active providers independently',
+      'enqueueSubmission records Subsonic and ListenBrainz providers independently',
       () async {
         final service = DriftScrobbleService(
           dao: database.scrobbleDao,
           readApiClient: () => apiClient,
           readScrobbleEnabled: () => scrobbleEnabled,
-          readLastFmCredentials: () async => const LastFmScrobbleCredentials(
-            apiKey: 'api-key',
-            sharedSecret: 'shared-secret',
-            sessionKey: 'lastfm-session',
-          ),
           readListenBrainzCredentials: () async =>
               const ListenBrainzScrobbleCredentials(
                 userToken: 'listenbrainz-token',
@@ -190,7 +185,6 @@ void main() {
         final queued = await database.select(database.scrobbleQueueTable).get();
         expect(queued.map((row) => row.provider).toSet(), {
           ScrobbleProvider.subsonic.id,
-          ScrobbleProvider.lastFm.id,
           ScrobbleProvider.listenBrainz.id,
         });
         expect(
@@ -201,6 +195,38 @@ void main() {
                 .having((row) => row.artistName, 'artistName', 'Artist'),
           ),
         );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'flushDue drops queued Last.fm events from older app versions',
+      () async {
+        final service = DriftScrobbleService(
+          dao: database.scrobbleDao,
+          readApiClient: () => apiClient,
+          readScrobbleEnabled: () => scrobbleEnabled,
+          readReachable: () => reachable,
+          now: () => now,
+        );
+
+        await database.scrobbleDao.enqueue(
+          songId: 'song-1',
+          provider: ScrobbleProvider.lastFm.id,
+          submission: true,
+          sessionKey: 'legacy-session',
+          trackTitle: 'Song 1',
+          artistName: 'Artist',
+          createdAt: now,
+          nextAttemptAt: now,
+          expiresAt: now.add(const Duration(days: 7)),
+        );
+
+        await service.flushDue();
+
+        final queued = await database.select(database.scrobbleQueueTable).get();
+        expect(queued, isEmpty);
+        expect(apiClient.calls, isEmpty);
       },
       skip: !sqliteAvailable,
     );

@@ -828,8 +828,8 @@ class _PlaybackSettingsScreenState
         matchFlowEnabled: _matchFlowEnabled,
         likedQueueEnabled: _likedQueueEnabled,
         lastFmApiKey: currentSettings.lastFmApiKey,
-        lastFmScrobblingEnabled: currentSettings.lastFmScrobblingEnabled,
-        lastFmSessionConnected: currentSettings.lastFmSessionConnected,
+        lastFmScrobblingEnabled: false,
+        lastFmSessionConnected: false,
         listenBrainzScrobblingEnabled:
             currentSettings.listenBrainzScrobblingEnabled,
         listenBrainzTokenValid: currentSettings.listenBrainzTokenValid,

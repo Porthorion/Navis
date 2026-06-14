@@ -26,11 +26,10 @@ class PrivacyScreen extends StatelessWidget {
           _PrivacySection(
             title: 'External scrobbling',
             body:
-                'If you enable Last.fm or ListenBrainz, Navis sends listening '
-                'activity for played tracks to those services. This can include '
+                'If you enable ListenBrainz, Navis sends listening '
+                'activity for played tracks to that service. This can include '
                 'track title, artist, album, duration, play time, and now-playing '
-                'status. Last.fm API secrets, Last.fm session keys, and '
-                'ListenBrainz user tokens remain on your device.',
+                'status. ListenBrainz user tokens remain on your device.',
           ),
           _PrivacySection(
             title: 'Downloads and cache',
