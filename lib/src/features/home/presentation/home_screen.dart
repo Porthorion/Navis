@@ -882,6 +882,10 @@ class _HomeSyncLogo extends StatelessWidget {
     final ringTrackColor = showFailure
         ? colorScheme.error.withValues(alpha: 0.18)
         : colorScheme.primary.withValues(alpha: 0.14);
+    final logoTintColor = Color.alphaBlend(
+      colorScheme.primary.withValues(alpha: 0.62),
+      colorScheme.surface,
+    );
     final iconOffset = Offset(
       -(size * _assetCenterOffsetX),
       -(size * _assetCenterOffsetY),
@@ -937,7 +941,11 @@ class _HomeSyncLogo extends StatelessWidget {
             ),
             Transform.translate(
               offset: iconOffset,
-              child: NavisIcon(size: size, tintWithAccent: true),
+              child: NavisIcon(
+                size: size,
+                tintWithAccent: true,
+                tintColor: logoTintColor,
+              ),
             ),
           ],
         ),

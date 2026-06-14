@@ -71,7 +71,7 @@ class AppSettingsTable extends Table {
   /// Theme mode: 'light', 'dark', 'oled', or 'system'. Defaults to 'dark'.
   TextColumn get themeMode => text().withDefault(const Constant('dark'))();
 
-  /// Seed color for the app's ColorScheme. Null = dynamic / default blue.
+  /// Seed color for the app's ColorScheme. Null = dynamic / default white.
   IntColumn get colorSchemeSeed => integer().nullable()();
 
   /// JSON-encoded list of custom color presets (ARGB32 ints).

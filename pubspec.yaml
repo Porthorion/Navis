@@ -12,6 +12,7 @@ dependencies:
   audio_service: ^0.18.18
   audio_session: ^0.2.3
   cached_network_image: ^3.4.1
+  colornames: ^0.2.0
   connectivity_plus: ^7.0.0
   crypto: ^3.0.7
   dio: ^5.9.2

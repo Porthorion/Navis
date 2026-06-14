@@ -11,7 +11,12 @@ class _DesktopQuickSearchOverlay extends StatefulWidget {
   final TextEditingController controller;
   final FocusNode focusNode;
   final VoidCallback onDismiss;
-  final void Function(String, {SearchResultType? filter}) onSubmitted;
+  final void Function(
+    String, {
+    SearchResultType? filter,
+    required bool explicitFilter,
+  })
+  onSubmitted;
 
   @override
   State<_DesktopQuickSearchOverlay> createState() =>
@@ -35,10 +40,12 @@ class _DesktopQuickSearchOverlayState
   ];
 
   int _selectedIndex = 0;
+  bool _explicitFilter = false;
 
   void _cycleNext() {
     setState(() {
       _selectedIndex = (_selectedIndex + 1) % _filterValues.length;
+      _explicitFilter = true;
     });
   }
 
@@ -46,6 +53,7 @@ class _DesktopQuickSearchOverlayState
     setState(() {
       _selectedIndex =
           (_selectedIndex - 1 + _filterValues.length) % _filterValues.length;
+      _explicitFilter = true;
     });
   }
 
@@ -53,6 +61,7 @@ class _DesktopQuickSearchOverlayState
     widget.onSubmitted(
       widget.controller.text,
       filter: _filterValues[_selectedIndex],
+      explicitFilter: _explicitFilter,
     );
   }
 
@@ -168,8 +177,10 @@ class _DesktopQuickSearchOverlayState
                                     FilterChip(
                                       label: Text(_filterLabels[i]),
                                       selected: _selectedIndex == i,
-                                      onSelected: (_) =>
-                                          setState(() => _selectedIndex = i),
+                                      onSelected: (_) => setState(() {
+                                        _selectedIndex = i;
+                                        _explicitFilter = true;
+                                      }),
                                       visualDensity: VisualDensity.compact,
                                       showCheckmark: false,
                                     ),

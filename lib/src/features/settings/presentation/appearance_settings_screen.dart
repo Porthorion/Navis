@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:colornames/colornames.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
@@ -20,6 +21,9 @@ class AppearanceSettingsScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
     final currentMode = ref.watch(themeModeProvider);
     final currentSeed = ref.watch(colorSchemeSeedProvider);
+    final dynamicAlbumColorEnabled = ref.watch(
+      dynamicAlbumColorEnabledProvider,
+    );
     final customPresetsAsync = ref.watch(customColorPresetsProvider);
     final customPresets = customPresetsAsync.asData?.value ?? <int>[];
     final appLocale = ref.watch(appLocaleProvider);
@@ -112,21 +116,26 @@ class AppearanceSettingsScreen extends ConsumerWidget {
           ),
           _ColorSchemeGrid(
             currentSeed: currentSeed,
+            dynamicAlbumColorEnabled: dynamicAlbumColorEnabled,
             customPresets: customPresets,
             onSelected: (seed) async {
               final db = ref.read(navisDatabaseProvider);
-              await db.appSettingsDao.updateColorSchemeSeed(seed);
+              await db.appSettingsDao.updateColorSchemeSeed(
+                _normalizeColorSchemeSeed(seed),
+              );
             },
             onCustomColorPicked: (colorValue) async {
               final db = ref.read(navisDatabaseProvider);
-              await db.appSettingsDao.updateColorSchemeSeed(colorValue);
+              await db.appSettingsDao.updateColorSchemeSeed(
+                _normalizeColorSchemeSeed(colorValue),
+              );
             },
             onSavePreset: (colorValue) async {
+              if (_normalizeColorSchemeSeed(colorValue) == null) return;
               final db = ref.read(navisDatabaseProvider);
-              final updated = List<int>.from(customPresets);
-              if (!updated.contains(colorValue)) {
-                updated.add(colorValue);
-              }
+              final updated = {...customPresets, colorValue}.toList(
+                growable: false,
+              );
               await db.appSettingsDao.updateCustomColorPresets(
                 jsonEncode(updated),
               );
@@ -192,10 +201,12 @@ class AppearanceSettingsScreen extends ConsumerWidget {
           ),
           SwitchListTile(
             title: const Text('Dynamic Album Color'),
-            subtitle: const Text(
-              'Use the currently playing album art to theme app accent colors.',
+            subtitle: Text(
+              dynamicAlbumColorEnabled
+                  ? 'Album art is currently overriding the selected color when artwork is available.'
+                  : 'Use the currently playing album art to theme app accent colors.',
             ),
-            value: ref.watch(dynamicAlbumColorEnabledProvider),
+            value: dynamicAlbumColorEnabled,
             onChanged: (enabled) async {
               final db = ref.read(navisDatabaseProvider);
               await db.appSettingsDao.updateDynamicAlbumColorEnabled(
@@ -765,6 +776,7 @@ class _ThemeModeSelector extends StatelessWidget {
 class _ColorSchemeGrid extends StatelessWidget {
   const _ColorSchemeGrid({
     required this.currentSeed,
+    required this.dynamicAlbumColorEnabled,
     required this.customPresets,
     required this.onSelected,
     required this.onCustomColorPicked,
@@ -773,6 +785,7 @@ class _ColorSchemeGrid extends StatelessWidget {
   });
 
   final int? currentSeed;
+  final bool dynamicAlbumColorEnabled;
   final List<int> customPresets;
   final ValueChanged<int?> onSelected;
   final ValueChanged<int> onCustomColorPicked;
@@ -783,70 +796,177 @@ class _ColorSchemeGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context)!;
+    final swatches = _mergedColorSwatches(
+      customPresets: customPresets,
+      customLabel: l10n.appearanceColorCustom,
+    );
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Wrap(
-        spacing: 12,
-        runSpacing: 12,
-        children: <Widget>[
-          // Default (orange, null seed) option.
-          // Also highlight when user previously saved explicit orange so the
-          // chip is never visually unselected for that legacy value.
-          _ColorChip(
-            color: Colors.orange,
-            label: l10n.appearanceColorDefault,
-            isSelected:
-                currentSeed == null || currentSeed == Colors.orange.toARGB32(),
-            onTap: () => onSelected(null),
-            theme: theme,
-          ),
-          // Preset colors (skip orange since it's the default)
-          for (final preset in presetColors)
-            if (preset.color != Colors.orange)
-              _ColorChip(
-                color: preset.color,
-                label: preset.name,
-                isSelected: currentSeed == preset.color.toARGB32(),
-                onTap: () => onSelected(preset.color.toARGB32()),
-                theme: theme,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        if (dynamicAlbumColorEnabled)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+            child: Text(
+              'Selected colors are used when album art has no available accent.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
-          // Custom presets (long-press to delete)
-          for (final colorValue in customPresets)
-            _ColorChip(
-              color: Color(colorValue),
-              label: l10n.appearanceColorCustom,
-              isSelected: currentSeed == colorValue,
-              onTap: () => onSelected(colorValue),
-              onLongPress: () => onDeletePreset(colorValue),
-              theme: theme,
-              showDeleteHint: true,
             ),
-          // Rainbow / custom picker chip
-          _RainbowChip(
-            theme: theme,
-            label: l10n.appearanceColorCustom,
-            onTap: () async {
-              // Pre-seed with the active color so the user continues from
-              // their current theme rather than always starting at red.
-              final seedColor = currentSeed != null
-                  ? Color(currentSeed!)
-                  : Colors.orange;
-              final result = await showDialog<_ColorPickerResult>(
-                context: context,
-                builder: (_) => _ColorPickerDialog(initialColor: seedColor),
-              );
-              if (result == null) return;
-              onCustomColorPicked(result.colorValue);
-              if (result.saveAsPreset) {
-                onSavePreset(result.colorValue);
-              }
-            },
           ),
-        ],
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: <Widget>[
+              _ColorChip(
+                color: defaultColorSchemeSeedColor,
+                label: l10n.appearanceColorDefault,
+                isSelected: _normalizeColorSchemeSeed(currentSeed) == null,
+                onTap: () => onSelected(null),
+                theme: theme,
+                valueKey: 'default',
+              ),
+              for (final swatch in swatches)
+                _ColorChip(
+                  color: swatch.color,
+                  label: swatch.label,
+                  isSelected: currentSeed == swatch.colorValue,
+                  onTap: () => onSelected(swatch.colorValue),
+                  onLongPress: swatch.isCustom
+                      ? () => onDeletePreset(swatch.colorValue)
+                      : null,
+                  theme: theme,
+                  showDeleteHint: swatch.isCustom,
+                  isCustom: swatch.isCustom,
+                  valueKey: swatch.valueKey,
+                ),
+              _RainbowChip(
+                theme: theme,
+                label: l10n.appearanceColorCustom,
+                onTap: () async {
+                  // Pre-seed with the active color so the user continues from
+                  // their current theme rather than always starting at red.
+                  final seedColor = resolveColorSchemeSeedColor(currentSeed);
+                  final result = await showDialog<_ColorPickerResult>(
+                    context: context,
+                    builder: (_) => _ColorPickerDialog(initialColor: seedColor),
+                  );
+                  if (result == null) return;
+                  onCustomColorPicked(result.colorValue);
+                  if (result.saveAsPreset) {
+                    onSavePreset(result.colorValue);
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ColorSwatchEntry {
+  const _ColorSwatchEntry({
+    required this.label,
+    required this.colorValue,
+    required this.sortKey,
+    required this.valueKey,
+    this.isCustom = false,
+  });
+
+  final String label;
+  final int colorValue;
+  final double sortKey;
+  final String valueKey;
+  final bool isCustom;
+
+  Color get color => Color(colorValue);
+}
+
+List<_ColorSwatchEntry> _mergedColorSwatches({
+  required List<int> customPresets,
+  required String customLabel,
+}) {
+  final defaultColorValue = defaultColorSchemeSeedColor.toARGB32();
+  final builtInValues = <int>{defaultColorValue};
+  final entries = <_ColorSwatchEntry>[];
+
+  for (var i = 0; i < presetColors.length; i++) {
+    final preset = presetColors[i];
+    final colorValue = preset.color.toARGB32();
+    builtInValues.add(colorValue);
+    entries.add(
+      _ColorSwatchEntry(
+        label: preset.name,
+        colorValue: colorValue,
+        sortKey: i.toDouble(),
+        valueKey: 'preset-$colorValue',
       ),
     );
   }
+
+  final seenCustomValues = <int>{};
+  for (final colorValue in customPresets) {
+    if (builtInValues.contains(colorValue) ||
+        !seenCustomValues.add(colorValue)) {
+      continue;
+    }
+    entries.add(
+      _ColorSwatchEntry(
+        label: _customColorLabel(Color(colorValue), customLabel),
+        colorValue: colorValue,
+        sortKey: _customColorSortKey(Color(colorValue)),
+        valueKey: 'custom-$colorValue',
+        isCustom: true,
+      ),
+    );
+  }
+
+  entries.sort((a, b) {
+    final bySort = a.sortKey.compareTo(b.sortKey);
+    if (bySort != 0) return bySort;
+    if (a.isCustom != b.isCustom) {
+      return a.isCustom ? 1 : -1;
+    }
+    return a.colorValue.compareTo(b.colorValue);
+  });
+
+  return entries;
+}
+
+int? _normalizeColorSchemeSeed(int? colorValue) {
+  return colorValue == defaultColorSchemeSeedColor.toARGB32()
+      ? null
+      : colorValue;
+}
+
+String _customColorLabel(Color color, String customLabel) {
+  return '$customLabel: ${ColorNames.guess(color)}';
+}
+
+double _customColorSortKey(Color color) {
+  final hsv = HSVColor.fromColor(color);
+  if (hsv.saturation < 0.08 && hsv.value > 0.92) {
+    return -0.5;
+  }
+  if (hsv.saturation < 0.12) {
+    return presetColors.length + (1 - hsv.value);
+  }
+
+  final firstLaterPreset = presetColors.indexWhere((preset) {
+    final presetHsv = HSVColor.fromColor(preset.color);
+    if (presetHsv.saturation < 0.12) {
+      return false;
+    }
+    return presetHsv.hue >= hsv.hue;
+  });
+  if (firstLaterPreset < 0) {
+    return presetColors.length - 4.0;
+  }
+  return firstLaterPreset - 0.25;
 }
 
 class _ColorChip extends StatelessWidget {
@@ -858,6 +978,8 @@ class _ColorChip extends StatelessWidget {
     required this.theme,
     this.onLongPress,
     this.showDeleteHint = false,
+    this.isCustom = false,
+    this.valueKey,
   });
 
   final Color color;
@@ -867,47 +989,103 @@ class _ColorChip extends StatelessWidget {
   final VoidCallback? onLongPress;
   final ThemeData theme;
   final bool showDeleteHint;
+  final bool isCustom;
+  final String? valueKey;
 
   @override
   Widget build(BuildContext context) {
     const size = 52.0;
-    final child = GestureDetector(
-      onTap: onTap,
-      onLongPress: onLongPress,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          color: color,
-          shape: BoxShape.circle,
-          border: isSelected
-              ? Border.all(
-                  color: theme.colorScheme.onSurface,
-                  width: 3,
-                )
-              : null,
-          boxShadow: isSelected
-              ? <BoxShadow>[
-                  BoxShadow(
-                    color: color.withAlpha(100),
-                    blurRadius: 8,
-                    spreadRadius: 2,
+    final colorBrightness = ThemeData.estimateBrightnessForColor(color);
+    final checkColor = colorBrightness == Brightness.dark
+        ? Colors.white
+        : Colors.black;
+    final child = Semantics(
+      button: true,
+      selected: isSelected,
+      label: isCustom ? '$label, custom color' : label,
+      child: GestureDetector(
+        onTap: onTap,
+        onLongPress: onLongPress,
+        child: AnimatedContainer(
+          key: valueKey == null
+              ? null
+              : ValueKey<String>('colorChip-$valueKey'),
+          duration: const Duration(milliseconds: 200),
+          width: size,
+          height: size,
+          padding: const EdgeInsets.all(3),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: isSelected
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.outlineVariant,
+              width: isSelected ? 3 : 1,
+            ),
+            boxShadow: isSelected
+                ? <BoxShadow>[
+                    BoxShadow(
+                      color: theme.colorScheme.primary.withAlpha(72),
+                      blurRadius: 10,
+                      spreadRadius: 1,
+                    ),
+                  ]
+                : null,
+          ),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: colorBrightness == Brightness.light
+                    ? Colors.black.withAlpha(56)
+                    : Colors.white.withAlpha(36),
+                width: 1,
+              ),
+            ),
+            child: Stack(
+              alignment: Alignment.center,
+              children: <Widget>[
+                if (isSelected)
+                  Container(
+                    width: 27,
+                    height: 27,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: colorBrightness == Brightness.light
+                          ? Colors.white.withAlpha(210)
+                          : Colors.black.withAlpha(130),
+                    ),
+                    child: Icon(
+                      Icons.check_rounded,
+                      color: checkColor,
+                      size: 20,
+                    ),
                   ),
-                ]
-              : null,
+                if (isCustom)
+                  Positioned(
+                    right: 1,
+                    bottom: 1,
+                    child: Container(
+                      key: valueKey == null
+                          ? null
+                          : ValueKey<String>('customColorBadge-$valueKey'),
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: theme.colorScheme.onSurface,
+                          width: 1,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ),
-        child: isSelected
-            ? Icon(
-                Icons.check,
-                color:
-                    ThemeData.estimateBrightnessForColor(color) ==
-                        Brightness.dark
-                    ? Colors.white
-                    : Colors.black,
-                size: 24,
-              )
-            : null,
       ),
     );
 
@@ -1114,7 +1292,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
               autocorrect: false,
               textCapitalization: TextCapitalization.characters,
               inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'[0-9a-fA-F]')),
+                FilteringTextInputFormatter.allow(RegExp('[0-9a-fA-F]')),
               ],
               onChanged: _onHexChanged,
               onSubmitted: _onHexChanged,

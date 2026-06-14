@@ -1045,6 +1045,68 @@ void main() {
     expect(quickSearchField, findsNothing);
   });
 
+  testWidgets(
+    'desktop quick-search resets stale expansion unless filter is explicit',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1280, 1000);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final container = _createContainerWithDatabase(
+        overrides: _authenticatedShellOverrides(
+          reachability: ServerReachabilityStatus.offline,
+        ),
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const NavisApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      container
+          .read(searchFilterProvider.notifier)
+          .select(SearchResultType.artists);
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pumpAndSettle();
+
+      var quickSearchField = find.byKey(
+        const ValueKey('desktopQuickSearchField'),
+      );
+      await tester.enterText(quickSearchField, 'porcupine tree');
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+
+      expect(container.read(searchQueryProvider), 'porcupine tree');
+      expect(container.read(searchFilterProvider), isNull);
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pumpAndSettle();
+
+      quickSearchField = find.byKey(
+        const ValueKey('desktopQuickSearchField'),
+      );
+      await tester.enterText(quickSearchField, 'opeth');
+      await tester.tap(find.widgetWithText(FilterChip, 'Songs'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Search'));
+      await tester.pumpAndSettle();
+
+      expect(container.read(searchQueryProvider), 'opeth');
+      expect(container.read(searchFilterProvider), SearchResultType.songs);
+    },
+  );
+
   testWidgets('queue dismissal restores focus to desktop queue toggle button', (
     tester,
   ) async {

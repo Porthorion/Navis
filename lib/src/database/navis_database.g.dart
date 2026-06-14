@@ -2384,7 +2384,7 @@ class AppSettingsTableData extends DataClass
   /// Theme mode: 'light', 'dark', 'oled', or 'system'. Defaults to 'dark'.
   final String themeMode;
 
-  /// Seed color for the app's ColorScheme. Null = dynamic / default blue.
+  /// Seed color for the app's ColorScheme. Null = dynamic / default white.
   final int? colorSchemeSeed;
 
   /// JSON-encoded list of custom color presets (ARGB32 ints).

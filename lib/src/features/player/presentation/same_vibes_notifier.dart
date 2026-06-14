@@ -29,9 +29,6 @@ const _kMaxSearchAttempts = 10;
 /// Number of song candidates to inspect per `search3` query.
 const _kSearchSongCount = 8;
 
-/// Use Subsonic similar fallback when Last.fm mapping yields fewer than this.
-const _kMinimumMappedTracksBeforeFallback = 2;
-
 /// Guard against rapid repeated refill attempts from playback ticks.
 const _kMinimumRefillInterval = Duration(milliseconds: 1200);
 
@@ -190,7 +187,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         'downloaded=${candidatePreferences.downloadedSongIds.length} '
         'cached=${candidatePreferences.cachedSongIds.length}',
       );
-      LastFmTrackFetchResult lastFmResult = const LastFmTrackFetchResult(
+      var lastFmResult = const LastFmTrackFetchResult(
         outcome: LastFmFetchOutcome.noResults,
         tracks: <LastFmTrackRecommendation>[],
       );
@@ -255,19 +252,18 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       }
 
       var fallbackQueued = 0;
-      List<Song> fallbackSongs = const <Song>[];
+      var fallbackSongs = const <Song>[];
       var fallbackDecision = 'skip';
       var fallbackReason = 'not_needed';
       var fallbackSeedEligible = false;
       final shouldAttemptFallback = switch (lastFmResult.outcome) {
-        LastFmFetchOutcome.success =>
-          mappedSongCount < _kMinimumMappedTracksBeforeFallback,
-        LastFmFetchOutcome.noResults || LastFmFetchOutcome.apiError =>
-          mappedSongCount < _kMinimumMappedTracksBeforeFallback,
+        LastFmFetchOutcome.success => mappedSongCount < _kTargetQueueBatchSize,
+        LastFmFetchOutcome.noResults ||
+        LastFmFetchOutcome.apiError ||
         LastFmFetchOutcome.networkError ||
-        LastFmFetchOutcome.parseError => false,
+        LastFmFetchOutcome.parseError ||
         LastFmFetchOutcome.notConfigured =>
-          mappedSongCount < _kMinimumMappedTracksBeforeFallback,
+          mappedSongCount < _kTargetQueueBatchSize,
       };
 
       if (shouldAttemptFallback) {
@@ -281,17 +277,19 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
           fallbackReason = 'seed_not_server_addressable';
         } else {
           fallbackDecision = 'attempt';
-          fallbackReason =
-              lastFmResult.outcome == LastFmFetchOutcome.notConfigured
-              ? 'lastfm_not_configured'
-              : 'mapped_below_threshold';
+          fallbackReason = switch (lastFmResult.outcome) {
+            LastFmFetchOutcome.notConfigured => 'lastfm_not_configured',
+            LastFmFetchOutcome.noResults => 'lastfm_no_results',
+            LastFmFetchOutcome.networkError => 'lastfm_network_error',
+            LastFmFetchOutcome.parseError => 'lastfm_parse_error',
+            LastFmFetchOutcome.apiError => 'lastfm_api_error',
+            LastFmFetchOutcome.success => 'mapped_below_target',
+          };
         }
-      } else if (lastFmResult.outcome == LastFmFetchOutcome.networkError) {
-        fallbackReason = 'lastfm_network_error';
-      } else if (lastFmResult.outcome == LastFmFetchOutcome.parseError) {
-        fallbackReason = 'lastfm_parse_error';
       } else {
-        fallbackReason = 'mapping_sufficient';
+        fallbackReason = mappedSongCount >= _kTargetQueueBatchSize
+            ? 'mapping_sufficient'
+            : 'seed_not_server_addressable';
       }
 
       AppLogger.debug(
@@ -309,7 +307,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         if (fallbackSeedSongId != null) {
           AppLogger.debug(
             'SameVibes diagnostics: fallback engaged '
-            'reason="mapped<$_kMinimumMappedTracksBeforeFallback" '
+            'reason="$fallbackReason" '
             'mapped=$mappedSongCount seed=$fallbackSeedSongId',
           );
           try {
@@ -374,8 +372,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         }
       }
 
-      if (mappedSongCount < _kMinimumMappedTracksBeforeFallback &&
-          !shouldAttemptFallback) {
+      if (mappedSongCount < _kTargetQueueBatchSize && !shouldAttemptFallback) {
         AppLogger.debug(
           'SameVibes diagnostics: fallback skipped '
           'reason=$fallbackReason mapped=$mappedSongCount',
@@ -667,24 +664,52 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     required LastFmTrackRecommendation recommendation,
     required _CandidatePreferenceContext preferences,
   }) async {
-    final query = '${recommendation.artist} ${recommendation.title}'.trim();
-    if (query.isEmpty) {
+    final queries = _mappingQueriesFor(recommendation);
+    if (queries.isEmpty) {
       return null;
     }
-    final search = await api.search3(
-      query: query,
-      artistCount: 0,
-      albumCount: 0,
-      songCount: _kSearchSongCount,
-    );
-    final albumSongCounts = await _readAlbumSongCounts(search.songs);
-    return _pickBestCandidate(
-      recommendation: recommendation,
-      songs: search.songs,
-      blockedIds: const <String>{},
-      preferences: preferences,
-      albumSongCounts: albumSongCounts,
-    );
+    for (final query in queries) {
+      try {
+        final search = await api.search3(
+          query: query,
+          artistCount: 0,
+          albumCount: 0,
+          songCount: _kSearchSongCount,
+        );
+        final albumSongCounts = await _readAlbumSongCounts(search.songs);
+        final candidate = _pickBestCandidate(
+          recommendation: recommendation,
+          songs: search.songs,
+          blockedIds: const <String>{},
+          preferences: preferences,
+          albumSongCounts: albumSongCounts,
+        );
+        if (candidate != null) {
+          return candidate;
+        }
+      } on Exception catch (error) {
+        AppLogger.debug(
+          'SameVibes diagnostics: mapping search failed '
+          'query="$query" error=$error',
+        );
+      }
+    }
+    return null;
+  }
+
+  List<String> _mappingQueriesFor(LastFmTrackRecommendation recommendation) {
+    final artist = recommendation.artist.trim();
+    final title = recommendation.title.trim();
+    final queries = <String>[
+      '$artist $title'.trim(),
+      '$title $artist'.trim(),
+      title,
+      artist,
+    ];
+    final seen = <String>{};
+    return queries
+        .where((query) => query.isNotEmpty && seen.add(query.toLowerCase()))
+        .toList(growable: false);
   }
 
   Song? _pickBestCandidate({

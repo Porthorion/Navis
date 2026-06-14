@@ -2230,7 +2230,7 @@ final themeModeProvider = Provider<String>((ref) {
   return settings.themeMode;
 });
 
-/// Current color scheme seed color value (null = default blue).
+/// Current color scheme seed color value (null = default white).
 final colorSchemeSeedProvider = Provider<int?>((ref) {
   final settings =
       ref.watch(appSettingsProvider).asData?.value ??

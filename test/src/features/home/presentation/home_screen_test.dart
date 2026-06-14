@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
+import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
@@ -1482,6 +1483,26 @@ void main() {
       find.bySemanticsLabel(l10n.librarySyncRunningWithProgress(3, 10)),
       findsOneWidget,
     );
+  });
+
+  testWidgets('home logo uses softened app accent tint', (tester) async {
+    await _pumpHomeWithSyncState(
+      tester,
+      const LibrarySyncState.idle(),
+      database,
+    );
+
+    final context = tester.element(find.byType(HomeScreen));
+    final colorScheme = Theme.of(context).colorScheme;
+    final icon = tester.widget<NavisIcon>(find.byType(NavisIcon).first);
+    final expectedTint = Color.alphaBlend(
+      colorScheme.primary.withValues(alpha: 0.62),
+      colorScheme.surface,
+    );
+
+    expect(icon.tintWithAccent, isTrue);
+    expect(icon.tintColor, expectedTint);
+    expect(icon.tintColor, isNot(colorScheme.primary));
   });
 
   testWidgets('shows indeterminate sync ring when progress is unknown', (

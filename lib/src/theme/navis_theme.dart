@@ -1,6 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:navis/src/theme/desktop_tokens.dart';
 
+/// Default seed used when no explicit color has been saved.
+const Color defaultColorSchemeSeedColor = Colors.white;
+
+/// Resolve a nullable persisted seed value to the effective seed color.
+Color resolveColorSchemeSeedColor(int? seed) {
+  return seed != null ? Color(seed) : defaultColorSchemeSeedColor;
+}
+
 /// Resolve a persisted theme mode string to a Flutter [ThemeMode].
 ///
 /// 'oled' maps to [ThemeMode.dark] since OLED is a dark variant — the
@@ -96,23 +104,28 @@ ThemeData buildOledTheme(Color seedColor) {
   );
 }
 
-/// Preset seed colors for the color scheme picker, ordered by hue (0°→360°).
+/// Preset seed colors for the color scheme picker, ordered as a readable
+/// gradient from warm through cool, vivid, and neutral accents.
 const List<NamedColor> presetColors = <NamedColor>[
-  NamedColor('Red', Colors.red),
-  NamedColor('Brown', Colors.brown),
+  NamedColor('Deep Orange', Colors.deepOrange),
   NamedColor('Orange', Colors.orange),
   NamedColor('Amber', Colors.amber),
   NamedColor('Yellow', Colors.yellow),
   NamedColor('Lime', Colors.lime),
   NamedColor('Green', Colors.green),
+  NamedColor('Light Green', Colors.lightGreen),
   NamedColor('Teal', Colors.teal),
   NamedColor('Cyan', Colors.cyan),
-  NamedColor('Blue Grey', Colors.blueGrey),
+  NamedColor('Light Blue', Colors.lightBlue),
   NamedColor('Blue', Colors.blue),
   NamedColor('Indigo', Colors.indigo),
   NamedColor('Deep Purple', Colors.deepPurple),
   NamedColor('Purple', Colors.purple),
   NamedColor('Pink', Colors.pink),
+  NamedColor('Red', Colors.red),
+  NamedColor('Brown', Colors.brown),
+  NamedColor('Blue Grey', Colors.blueGrey),
+  NamedColor('Grey', Colors.grey),
 ];
 
 /// A named color for the scheme picker UI.

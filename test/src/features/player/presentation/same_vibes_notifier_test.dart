@@ -231,13 +231,13 @@ void main() {
       );
       expect(state.active, isTrue);
       expect(state.pendingSnackbar, '4');
-      verifyNever(
+      verify(
         () => api.getSimilarSongs(
           any(),
           count: any(named: 'count'),
           cancelToken: any(named: 'cancelToken'),
         ),
-      );
+      ).called(1);
     },
   );
 
@@ -361,7 +361,7 @@ void main() {
   );
 
   test(
-    'does not fallback to Subsonic when Last.fm has transient network failure',
+    'falls back to Subsonic when Last.fm has transient network failure',
     () async {
       final snapshotState =
           NotifierProvider<_SnapshotController, PlaybackSnapshot>(
@@ -400,7 +400,13 @@ void main() {
           count: any(named: 'count'),
           cancelToken: any(named: 'cancelToken'),
         ),
-      ).thenAnswer((_) async => const <Song>[]);
+      ).thenAnswer(
+        (_) async => const <Song>[
+          Song(id: 'fallback-1', title: 'Fallback 1', artist: 'Artist 1'),
+          Song(id: 'fallback-2', title: 'Fallback 2', artist: 'Artist 2'),
+          Song(id: 'fallback-3', title: 'Fallback 3', artist: 'Artist 3'),
+        ],
+      );
 
       final container = ProviderContainer(
         overrides: [
@@ -446,16 +452,171 @@ void main() {
       await container.read(sameVibesProvider.notifier).activate('seed');
 
       final state = container.read(sameVibesProvider);
+      final queued =
+          container.read(queueProvider.notifier) as _FakeQueueController;
       expect(state.active, isTrue);
       expect(state.refilling, isFalse);
       expect(state.error, isNull);
-      verifyNever(
+      expect(
+        queued.queuedSongs.map((song) => song.id),
+        <String>['fallback-1', 'fallback-2', 'fallback-3'],
+      );
+      verify(
         () => api.getSimilarSongs(
           any(),
           count: any(named: 'count'),
           cancelToken: any(named: 'cancelToken'),
         ),
+      ).called(1);
+    },
+  );
+
+  test(
+    'broadens Last.fm mapping before filling remaining slots with fallback',
+    () async {
+      final snapshotState =
+          NotifierProvider<_SnapshotController, PlaybackSnapshot>(
+            _SnapshotController.new,
+          );
+
+      final api = _MockSubsonicApiClient();
+      final lastFm = _MockLastFmApiClient();
+      when(
+        () => api.getSong(
+          any(),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer(
+        (_) async => const Song(
+          id: 'seed',
+          title: 'Seed Song',
+          artist: 'Seed Artist',
+        ),
       );
+      when(
+        () => lastFm.getSimilarTracksResult(
+          artist: any(named: 'artist'),
+          track: any(named: 'track'),
+          limit: any(named: 'limit'),
+        ),
+      ).thenAnswer(
+        (_) async => const LastFmTrackFetchResult(
+          outcome: LastFmFetchOutcome.success,
+          tracks: <LastFmTrackRecommendation>[
+            LastFmTrackRecommendation(
+              artist: 'Local Artist',
+              title: 'Deep Cut',
+              match: 1,
+            ),
+          ],
+        ),
+      );
+      when(
+        () => api.search3(
+          query: any(named: 'query'),
+          artistCount: any(named: 'artistCount'),
+          albumCount: any(named: 'albumCount'),
+          songCount: any(named: 'songCount'),
+          artistOffset: any(named: 'artistOffset'),
+          albumOffset: any(named: 'albumOffset'),
+          songOffset: any(named: 'songOffset'),
+        ),
+      ).thenAnswer((invocation) async {
+        final query = invocation.namedArguments[#query] as String;
+        if (query == 'Deep Cut') {
+          return const SearchResult3(
+            songs: <Song>[
+              Song(
+                id: 'mapped-broad',
+                title: 'Deep Cut',
+                artist: 'Local Artist',
+              ),
+            ],
+          );
+        }
+        return const SearchResult3();
+      });
+      when(
+        () => api.getSimilarSongs(
+          any(),
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer(
+        (_) async => const <Song>[
+          Song(id: 'fallback-1', title: 'Fallback 1', artist: 'Artist 1'),
+          Song(id: 'fallback-2', title: 'Fallback 2', artist: 'Artist 2'),
+          Song(id: 'fallback-3', title: 'Fallback 3', artist: 'Artist 3'),
+          Song(id: 'fallback-4', title: 'Fallback 4', artist: 'Artist 4'),
+        ],
+      );
+
+      final container = ProviderContainer(
+        overrides: [
+          playerStateProvider.overrideWith((ref) => ref.watch(snapshotState)),
+          queueProvider.overrideWith(_FakeQueueController.new),
+          subsonicApiProvider.overrideWithValue(api),
+          lastFmApiClientProvider.overrideWithValue(lastFm),
+          currentMediaItemProvider.overrideWith(
+            (ref) => Stream<MediaItem?>.value(
+              const MediaItem(
+                id: 'seed',
+                title: 'Seed Song',
+                artist: 'Seed Artist',
+              ),
+            ),
+          ),
+          downloadedSongIdsProvider.overrideWithValue(
+            const AsyncData(<String>{}),
+          ),
+          cachedSongIdsProvider.overrideWithValue(
+            const AsyncData(<String>{}),
+          ),
+          sameVibesAlbumSongCountLookupProvider.overrideWithValue(
+            (albumIds) async => const <String, int?>{},
+          ),
+          sameVibesQueueSongKeyLookupProvider.overrideWithValue(
+            (songIds) async => const <String>{},
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container
+          .read(snapshotState.notifier)
+          .setSnapshot(
+            snapshot(
+              queueSongIds: const <String>['seed', 'a', 'b'],
+              currentSongId: 'seed',
+              currentIndex: 0,
+            ),
+          );
+
+      await container.read(sameVibesProvider.notifier).activate('seed');
+
+      final queued =
+          container.read(queueProvider.notifier) as _FakeQueueController;
+      expect(
+        queued.playNextSongBatches.single.map((song) => song.id),
+        <String>[
+          'mapped-broad',
+          'fallback-1',
+          'fallback-2',
+          'fallback-3',
+          'fallback-4',
+        ],
+      );
+      verify(
+        () => api.search3(
+          query: 'Deep Cut',
+          artistCount: any(named: 'artistCount'),
+          albumCount: any(named: 'albumCount'),
+          songCount: any(named: 'songCount'),
+          artistOffset: any(named: 'artistOffset'),
+          albumOffset: any(named: 'albumOffset'),
+          songOffset: any(named: 'songOffset'),
+        ),
+      ).called(1);
     },
   );
 

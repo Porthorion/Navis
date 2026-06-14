@@ -1025,14 +1025,19 @@ class _AppShellState extends ConsumerState<AppShell> {
       }
     }
 
-    void submitQuickSearch(String rawQuery, {SearchResultType? filter}) {
+    void submitQuickSearch(
+      String rawQuery, {
+      SearchResultType? filter,
+      required bool explicitFilter,
+    }) {
       final query = rawQuery.trim();
       AppLogger.debug(
-        '[ACP_INPUT] quickSearch submitted query="$query" filter=${filter?.name}',
+        '[ACP_INPUT] quickSearch submitted query="$query" '
+        'filter=${filter?.name} explicitFilter=$explicitFilter',
       );
-      // If no filter was used in the overlay, reset to "All" so the search
-      // screen starts unfiltered.  If a filter was picked, apply it.
-      if (filter == null) {
+      // New shortcut searches start compact unless the overlay filter was
+      // explicitly changed for this submit.
+      if (!explicitFilter) {
         ref.read(searchFilterProvider.notifier).select(null);
       } else {
         ref.read(searchFilterProvider.notifier).select(filter);
