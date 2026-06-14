@@ -38,6 +38,7 @@ import 'package:navis/src/features/settings/presentation/update_dialog.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/theme/navis_theme.dart';
 import 'package:navis/src/utils/format_utils.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -855,6 +856,7 @@ class _HomeSyncLogo extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final colorScheme = Theme.of(context).colorScheme;
+    final accentColors = NavisAccentColors.of(context);
     final clampedPullProgress = pullProgress.clamp(0.0, 1.0);
     final isRunning = syncState.isRunning;
     final hasDeterminate = isRunning && (syncState.total ?? 0) > 0;
@@ -878,14 +880,10 @@ class _HomeSyncLogo extends StatelessWidget {
     final strokeWidth = (size * 0.055).clamp(2.2, 5.2);
     final ringColor = showFailure
         ? colorScheme.error.withValues(alpha: 0.65)
-        : colorScheme.primary;
+        : accentColors.brand;
     final ringTrackColor = showFailure
         ? colorScheme.error.withValues(alpha: 0.18)
-        : colorScheme.primary.withValues(alpha: 0.14);
-    final logoTintColor = Color.alphaBlend(
-      colorScheme.primary.withValues(alpha: 0.62),
-      colorScheme.surface,
-    );
+        : accentColors.brandTrack;
     final iconOffset = Offset(
       -(size * _assetCenterOffsetX),
       -(size * _assetCenterOffsetY),
@@ -944,7 +942,6 @@ class _HomeSyncLogo extends StatelessWidget {
               child: NavisIcon(
                 size: size,
                 tintWithAccent: true,
-                tintColor: logoTintColor,
               ),
             ),
           ],

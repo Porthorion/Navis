@@ -263,15 +263,16 @@ class _BootstrapSplashScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final accentColors = NavisAccentColors.of(context);
     final bgColor = Theme.of(context).scaffoldBackgroundColor;
     final screenSize = MediaQuery.sizeOf(context);
 
     final logoSize = screenSize.width >= 1200 ? 80.0 : 120.0;
     final strokeWidth = (logoSize * 0.055).clamp(2.2, 5.2);
-    final ringColor = isFailed ? colorScheme.error : colorScheme.primary;
+    final ringColor = isFailed ? colorScheme.error : accentColors.brand;
     final ringTrackColor = isFailed
         ? colorScheme.error.withValues(alpha: 0.15)
-        : colorScheme.primary.withValues(alpha: 0.12);
+        : accentColors.brandTrack;
     final iconOffset = Offset(
       -(logoSize * _assetCenterOffsetX),
       -(logoSize * _assetCenterOffsetY),

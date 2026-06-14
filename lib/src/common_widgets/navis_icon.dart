@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:navis/src/theme/navis_theme.dart';
 
 /// Displays the Navis app icon, automatically switching between dark and light
 /// variants based on the current theme brightness.
 ///
 /// The [size] parameter controls both width and height.
 /// When [tintWithAccent] is true the icon is colorised with [tintColor] or
-/// the theme's primary colour (useful for the About screen).
+/// the theme's Navis brand accent (useful for the About screen).
 class NavisIcon extends StatelessWidget {
   const NavisIcon({
     super.key,
@@ -24,7 +25,6 @@ class NavisIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     final brightness = Theme.of(context).brightness;
     // Dark icon is used on light backgrounds, light icon on dark backgrounds.
     final asset = brightness == Brightness.dark ? _lightAsset : _darkAsset;
@@ -36,7 +36,7 @@ class NavisIcon extends StatelessWidget {
       fit: BoxFit.contain,
       colorFilter: tintWithAccent
           ? ColorFilter.mode(
-              tintColor ?? colorScheme.primary,
+              tintColor ?? NavisAccentColors.of(context).brand,
               BlendMode.srcATop,
             )
           : null,

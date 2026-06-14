@@ -19,6 +19,7 @@ import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/theme/navis_theme.dart';
 import 'package:riverpod/src/framework.dart' show Override;
 
 import '../../../../helpers/adaptive_test_harness.dart';
@@ -184,8 +185,9 @@ AlbumWithSongs _albumWithSongs(
 Future<void> _pumpHomeWithSyncState(
   WidgetTester tester,
   LibrarySyncState syncState,
-  NavisDatabase database,
-) async {
+  NavisDatabase database, {
+  ThemeData? theme,
+}) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: withTestDatabase(
@@ -235,6 +237,7 @@ Future<void> _pumpHomeWithSyncState(
       child: MaterialApp(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
+        theme: theme,
         builder: (ctx, child) => MediaQuery(
           data: MediaQuery.of(ctx).copyWith(disableAnimations: true),
           child: child!,
@@ -1485,24 +1488,54 @@ void main() {
     );
   });
 
-  testWidgets('home logo uses softened app accent tint', (tester) async {
+  testWidgets('home logo and sync ring use exact safe brand accent', (
+    tester,
+  ) async {
+    const selectedAccent = Color(0xFF005BBB);
     await _pumpHomeWithSyncState(
       tester,
-      const LibrarySyncState.idle(),
+      const LibrarySyncState(
+        status: LibrarySyncStatus.running,
+        stage: LibrarySyncStage.fetchingAlbums,
+      ),
       database,
+      theme: buildLightTheme(selectedAccent),
     );
 
     final context = tester.element(find.byType(HomeScreen));
-    final colorScheme = Theme.of(context).colorScheme;
+    final accent = NavisAccentColors.of(context);
     final icon = tester.widget<NavisIcon>(find.byType(NavisIcon).first);
-    final expectedTint = Color.alphaBlend(
-      colorScheme.primary.withValues(alpha: 0.62),
-      colorScheme.surface,
-    );
+    final ring = find.byKey(const ValueKey<String>('home-sync-ring'));
+    final indicator = tester.widget<CircularProgressIndicator>(ring);
 
     expect(icon.tintWithAccent, isTrue);
-    expect(icon.tintColor, expectedTint);
-    expect(icon.tintColor, isNot(colorScheme.primary));
+    expect(icon.tintColor, isNull);
+    expect(accent.brand, selectedAccent);
+    expect(indicator.color, selectedAccent);
+    expect(indicator.backgroundColor, selectedAccent.withValues(alpha: 0.14));
+  });
+
+  testWidgets('unsafe white-on-light brand accent falls back visibly', (
+    tester,
+  ) async {
+    await _pumpHomeWithSyncState(
+      tester,
+      const LibrarySyncState(
+        status: LibrarySyncStatus.running,
+        stage: LibrarySyncStage.fetchingAlbums,
+      ),
+      database,
+      theme: buildLightTheme(defaultColorSchemeSeedColor),
+    );
+
+    final context = tester.element(find.byType(HomeScreen));
+    final accent = NavisAccentColors.of(context);
+    final ring = find.byKey(const ValueKey<String>('home-sync-ring'));
+    final indicator = tester.widget<CircularProgressIndicator>(ring);
+
+    expect(accent.source, defaultColorSchemeSeedColor);
+    expect(accent.brand, isNot(defaultColorSchemeSeedColor));
+    expect(indicator.color, accent.brand);
   });
 
   testWidgets('shows indeterminate sync ring when progress is unknown', (

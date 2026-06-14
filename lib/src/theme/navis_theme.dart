@@ -9,6 +9,93 @@ Color resolveColorSchemeSeedColor(int? seed) {
   return seed != null ? Color(seed) : defaultColorSchemeSeedColor;
 }
 
+/// Brand/decorative accent colors that preserve the user's effective seed.
+///
+/// Material widgets should keep using [ColorScheme] roles. This extension is
+/// for Navis-specific marks such as logos and splash/progress decoration where
+/// the selected accent should be shown exactly when it remains readable.
+@immutable
+class NavisAccentColors extends ThemeExtension<NavisAccentColors> {
+  const NavisAccentColors({
+    required this.source,
+    required this.brand,
+    required this.brandTrack,
+  });
+
+  factory NavisAccentColors.fromScheme({
+    required Color source,
+    required ColorScheme colorScheme,
+  }) {
+    final brand = _resolveBrandColor(source, colorScheme);
+    return NavisAccentColors(
+      source: source,
+      brand: brand,
+      brandTrack: brand.withValues(alpha: 0.14),
+    );
+  }
+
+  final Color source;
+  final Color brand;
+  final Color brandTrack;
+
+  // Matches Flutter's Theme.of(context) lookup convention for extensions.
+  // ignore: prefer_constructors_over_static_methods
+  static NavisAccentColors of(BuildContext context) {
+    final theme = Theme.of(context);
+    return theme.extension<NavisAccentColors>() ??
+        NavisAccentColors.fromScheme(
+          source: theme.colorScheme.primary,
+          colorScheme: theme.colorScheme,
+        );
+  }
+
+  static Color _resolveBrandColor(Color source, ColorScheme colorScheme) {
+    if (_contrastRatio(source, colorScheme.surface) >= 3.0) {
+      return source;
+    }
+    if (_contrastRatio(colorScheme.primary, colorScheme.surface) >= 3.0) {
+      return colorScheme.primary;
+    }
+    return colorScheme.onSurface;
+  }
+
+  static double _contrastRatio(Color a, Color b) {
+    final aLuminance = a.computeLuminance();
+    final bLuminance = b.computeLuminance();
+    final lighter = aLuminance > bLuminance ? aLuminance : bLuminance;
+    final darker = aLuminance > bLuminance ? bLuminance : aLuminance;
+    return (lighter + 0.05) / (darker + 0.05);
+  }
+
+  @override
+  NavisAccentColors copyWith({
+    Color? source,
+    Color? brand,
+    Color? brandTrack,
+  }) {
+    return NavisAccentColors(
+      source: source ?? this.source,
+      brand: brand ?? this.brand,
+      brandTrack: brandTrack ?? this.brandTrack,
+    );
+  }
+
+  @override
+  NavisAccentColors lerp(
+    ThemeExtension<NavisAccentColors>? other,
+    double t,
+  ) {
+    if (other is! NavisAccentColors) {
+      return this;
+    }
+    return NavisAccentColors(
+      source: Color.lerp(source, other.source, t) ?? source,
+      brand: Color.lerp(brand, other.brand, t) ?? brand,
+      brandTrack: Color.lerp(brandTrack, other.brandTrack, t) ?? brandTrack,
+    );
+  }
+}
+
 /// Resolve a persisted theme mode string to a Flutter [ThemeMode].
 ///
 /// 'oled' maps to [ThemeMode.dark] since OLED is a dark variant — the
@@ -25,30 +112,40 @@ ThemeMode resolveThemeMode(String mode) {
 
 /// Build the light [ThemeData] from a seed color.
 ThemeData buildLightTheme(Color seedColor) {
+  final colorScheme = ColorScheme.fromSeed(
+    seedColor: seedColor,
+    dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
+  );
   return ThemeData(
     useMaterial3: true,
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: seedColor,
-      dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
-    ),
-    extensions: const <ThemeExtension<dynamic>>[
+    colorScheme: colorScheme,
+    extensions: <ThemeExtension<dynamic>>[
       DesktopTokens.defaults,
+      NavisAccentColors.fromScheme(
+        source: seedColor,
+        colorScheme: colorScheme,
+      ),
     ],
   );
 }
 
 /// Build the standard dark [ThemeData] from a seed color.
 ThemeData buildDarkTheme(Color seedColor) {
+  final colorScheme = ColorScheme.fromSeed(
+    seedColor: seedColor,
+    brightness: Brightness.dark,
+    dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
+  );
   return ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: seedColor,
-      brightness: Brightness.dark,
-      dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
-    ),
-    extensions: const <ThemeExtension<dynamic>>[
+    colorScheme: colorScheme,
+    extensions: <ThemeExtension<dynamic>>[
       DesktopTokens.defaults,
+      NavisAccentColors.fromScheme(
+        source: seedColor,
+        colorScheme: colorScheme,
+      ),
     ],
   );
 }
@@ -67,20 +164,21 @@ ThemeData buildOledTheme(Color seedColor) {
     brightness: Brightness.dark,
     dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
   );
+  final colorScheme = baseScheme.copyWith(
+    surface: Colors.black,
+    onSurface: Colors.white,
+    surfaceContainerLowest: Colors.black,
+    surfaceContainerLow: _oledContainer,
+    surfaceContainer: _oledContainer,
+    surfaceContainerHigh: _oledContainer,
+    surfaceContainerHighest: _oledContainerHighest,
+    // Ensure "on" colors for container variants stay readable
+    onSurfaceVariant: baseScheme.onSurfaceVariant.withAlpha(230),
+  );
   return ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,
-    colorScheme: baseScheme.copyWith(
-      surface: Colors.black,
-      onSurface: Colors.white,
-      surfaceContainerLowest: Colors.black,
-      surfaceContainerLow: _oledContainer,
-      surfaceContainer: _oledContainer,
-      surfaceContainerHigh: _oledContainer,
-      surfaceContainerHighest: _oledContainerHighest,
-      // Ensure "on" colors for container variants stay readable
-      onSurfaceVariant: baseScheme.onSurfaceVariant.withAlpha(230),
-    ),
+    colorScheme: colorScheme,
     scaffoldBackgroundColor: Colors.black,
     cardColor: _oledContainer,
     dialogTheme: const DialogThemeData(backgroundColor: _oledContainer),
@@ -98,8 +196,12 @@ ThemeData buildOledTheme(Color seedColor) {
     bottomSheetTheme: const BottomSheetThemeData(
       backgroundColor: _oledContainer,
     ),
-    extensions: const <ThemeExtension<dynamic>>[
+    extensions: <ThemeExtension<dynamic>>[
       DesktopTokens.defaults,
+      NavisAccentColors.fromScheme(
+        source: seedColor,
+        colorScheme: colorScheme,
+      ),
     ],
   );
 }
