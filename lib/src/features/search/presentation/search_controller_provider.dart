@@ -78,58 +78,119 @@ final searchIsOfflineProvider = Provider.autoDispose<bool>((ref) {
   return reachability.status != ServerReachabilityStatus.online;
 });
 
-final debouncedSearchProvider = FutureProvider.autoDispose<SearchResult3?>((
-  ref,
-) async {
-  final query = ref.watch(searchQueryProvider).trim();
-  if (query.isEmpty) {
-    return null;
-  }
+@immutable
+class SearchResultsState {
+  const SearchResultsState({
+    required this.result,
+    required this.isWaitingForApi,
+    required this.isLocalOnly,
+  });
 
-  final completer = Completer<void>();
-  final timer = Timer(const Duration(milliseconds: 300), completer.complete);
-  ref.onDispose(timer.cancel);
-  await completer.future;
+  final SearchResult3 result;
+  final bool isWaitingForApi;
+  final bool isLocalOnly;
+}
 
-  final filter = ref.watch(searchFilterProvider);
-  final isOffline = ref.watch(searchIsOfflineProvider);
+final debouncedSearchProvider = StreamProvider.autoDispose<SearchResultsState?>(
+  (ref) async* {
+    final query = ref.watch(searchQueryProvider).trim();
+    if (query.isEmpty) {
+      yield null;
+      return;
+    }
 
-  if (isOffline) {
-    return _rankByRelevance(await _searchLocal(ref, query, filter), query);
-  }
+    final completer = Completer<void>();
+    final timer = Timer(const Duration(milliseconds: 300), completer.complete);
+    ref.onDispose(timer.cancel);
+    await completer.future;
 
-  final api = ref.watch(subsonicApiProvider);
-  if (api == null) {
-    return _rankByRelevance(await _searchLocal(ref, query, filter), query);
-  }
-
-  final cancelToken = CancelToken();
-  ref.onDispose(cancelToken.cancel);
-
-  const defaultCount = 20;
-
-  try {
-    return _rankByRelevance(
-      await api.search3(
-        query: query,
-        artistCount: filter == null || filter == SearchResultType.artists
-            ? defaultCount
-            : 0,
-        albumCount: filter == null || filter == SearchResultType.albums
-            ? defaultCount
-            : 0,
-        songCount: filter == null || filter == SearchResultType.songs
-            ? defaultCount
-            : 0,
-        cancelToken: cancelToken,
-      ),
+    final filter = ref.watch(searchFilterProvider);
+    final isOffline = ref.watch(searchIsOfflineProvider);
+    final localResult = _rankByRelevance(
+      await _searchLocal(ref, query, filter),
       query,
     );
-  } on Object {
-    // Fall back to local search on any network error.
-    return _rankByRelevance(await _searchLocal(ref, query, filter), query);
+
+    if (isOffline) {
+      yield SearchResultsState(
+        result: localResult,
+        isWaitingForApi: false,
+        isLocalOnly: true,
+      );
+      return;
+    }
+
+    final api = ref.watch(subsonicApiProvider);
+    if (api == null) {
+      yield SearchResultsState(
+        result: localResult,
+        isWaitingForApi: false,
+        isLocalOnly: true,
+      );
+      return;
+    }
+
+    final cancelToken = CancelToken();
+    ref.onDispose(cancelToken.cancel);
+
+    const defaultCount = 20;
+    yield SearchResultsState(
+      result: localResult,
+      isWaitingForApi: true,
+      isLocalOnly: false,
+    );
+
+    try {
+      final apiResult = _rankByRelevance(
+        await api.search3(
+          query: query,
+          artistCount: filter == null || filter == SearchResultType.artists
+              ? defaultCount
+              : 0,
+          albumCount: filter == null || filter == SearchResultType.albums
+              ? defaultCount
+              : 0,
+          songCount: filter == null || filter == SearchResultType.songs
+              ? defaultCount
+              : 0,
+          cancelToken: cancelToken,
+        ),
+        query,
+      );
+      yield SearchResultsState(
+        result: _mergeCacheFirst(localResult, apiResult),
+        isWaitingForApi: false,
+        isLocalOnly: false,
+      );
+    } on Object {
+      yield SearchResultsState(
+        result: localResult,
+        isWaitingForApi: false,
+        isLocalOnly: false,
+      );
+    }
+  },
+);
+
+SearchResult3 _mergeCacheFirst(SearchResult3 local, SearchResult3 remote) {
+  List<T> merge<T>(
+    List<T> localItems,
+    List<T> remoteItems,
+    String Function(T) id,
+  ) {
+    final seen = localItems.map(id).toSet();
+    return <T>[
+      ...localItems,
+      ...remoteItems.where((item) => seen.add(id(item))),
+    ];
   }
-});
+
+  return SearchResult3(
+    artists: merge(local.artists, remote.artists, (artist) => artist.id),
+    albums: merge(local.albums, remote.albums, (album) => album.id),
+    songs: merge(local.songs, remote.songs, (song) => song.id),
+  );
+}
 
 /// Perform a local (offline) search using Drift LIKE queries.
 Future<SearchResult3> _searchLocal(

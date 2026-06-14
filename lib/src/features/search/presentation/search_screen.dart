@@ -343,64 +343,80 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     bool isExpanded(SearchResultType type) => filter == type;
 
     return results.when(
-      data: (data) {
-        if (data == null) {
+      data: (state) {
+        if (state == null) {
           return const SizedBox.shrink();
         }
-        if (data.artists.isEmpty && data.albums.isEmpty && data.songs.isEmpty) {
+        final data = state.result;
+        final hasResults =
+            data.artists.isNotEmpty ||
+            data.albums.isNotEmpty ||
+            data.songs.isNotEmpty;
+        if (!hasResults && state.isWaitingForApi) {
+          return const ShimmerListPage(count: 8);
+        }
+        if (!hasResults) {
           return EmptyState(
             title: l10n.searchNoResults,
             subtitle: l10n.searchNoResultsSubtitle,
             icon: Icons.search_off,
           );
         }
-        return ListView(
+        return Column(
           children: <Widget>[
-            if (data.artists.isNotEmpty)
-              _ArtistResultsSection(
-                artists: data.artists,
-                desktopMode: desktopMode,
-                expanded: isExpanded(SearchResultType.artists),
-                onToggleExpanded: () {
-                  if (filter == SearchResultType.artists) {
-                    ref.read(searchFilterProvider.notifier).select(null);
-                  } else {
-                    ref
-                        .read(searchFilterProvider.notifier)
-                        .select(SearchResultType.artists);
-                  }
-                },
+            if (state.isWaitingForApi) const LinearProgressIndicator(),
+            Expanded(
+              child: ListView(
+                children: <Widget>[
+                  if (data.artists.isNotEmpty)
+                    _ArtistResultsSection(
+                      artists: data.artists,
+                      desktopMode: desktopMode,
+                      expanded: isExpanded(SearchResultType.artists),
+                      onToggleExpanded: () {
+                        if (filter == SearchResultType.artists) {
+                          ref.read(searchFilterProvider.notifier).select(null);
+                        } else {
+                          ref
+                              .read(searchFilterProvider.notifier)
+                              .select(SearchResultType.artists);
+                        }
+                      },
+                    ),
+                  if (data.albums.isNotEmpty)
+                    _AlbumResultsSection(
+                      albums: data.albums,
+                      desktopMode: desktopMode,
+                      expanded: isExpanded(SearchResultType.albums),
+                      onToggleExpanded: () {
+                        if (filter == SearchResultType.albums) {
+                          ref.read(searchFilterProvider.notifier).select(null);
+                        } else {
+                          ref
+                              .read(searchFilterProvider.notifier)
+                              .select(SearchResultType.albums);
+                        }
+                      },
+                    ),
+                  if (data.songs.isNotEmpty)
+                    _SongResultsSection(
+                      songs: data.songs,
+                      desktopMode: desktopMode,
+                      expanded: isExpanded(SearchResultType.songs),
+                      onToggleExpanded: () {
+                        if (filter == SearchResultType.songs) {
+                          ref.read(searchFilterProvider.notifier).select(null);
+                        } else {
+                          ref
+                              .read(searchFilterProvider.notifier)
+                              .select(SearchResultType.songs);
+                        }
+                      },
+                    ),
+                ],
               ),
-            if (data.albums.isNotEmpty)
-              _AlbumResultsSection(
-                albums: data.albums,
-                desktopMode: desktopMode,
-                expanded: isExpanded(SearchResultType.albums),
-                onToggleExpanded: () {
-                  if (filter == SearchResultType.albums) {
-                    ref.read(searchFilterProvider.notifier).select(null);
-                  } else {
-                    ref
-                        .read(searchFilterProvider.notifier)
-                        .select(SearchResultType.albums);
-                  }
-                },
-              ),
-            if (data.songs.isNotEmpty)
-              _SongResultsSection(
-                songs: data.songs,
-                desktopMode: desktopMode,
-                expanded: isExpanded(SearchResultType.songs),
-                onToggleExpanded: () {
-                  if (filter == SearchResultType.songs) {
-                    ref.read(searchFilterProvider.notifier).select(null);
-                  } else {
-                    ref
-                        .read(searchFilterProvider.notifier)
-                        .select(SearchResultType.songs);
-                  }
-                },
-              ),
+            ),
+            if (state.isWaitingForApi) const LinearProgressIndicator(),
           ],
         );
       },
