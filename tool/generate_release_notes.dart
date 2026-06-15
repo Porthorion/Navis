@@ -55,6 +55,72 @@ String _label(_EntryType t) {
 // Newest version first.
 // ---------------------------------------------------------------------------
 const List<_Version> _changelogs = [
+  _Version('1.0.3', [
+    _Entry(
+      'Android releases are now prepared for Google Play, with Android self-updates removed, Play release tooling added, privacy information added, and release safety checks documented',
+      type: _EntryType.newFeature,
+    ),
+    _Entry(
+      'External scrobbling now supports Last.fm and ListenBrainz alongside Subsonic/OpenSubsonic, with secure credential storage, validation, reconnect handling, and provider-aware offline retries',
+      type: _EntryType.newFeature,
+    ),
+    _Entry(
+      'Listen Together now supports custom Voyage servers that can be added, edited, selected, and managed alongside bundled server defaults',
+      type: _EntryType.newFeature,
+    ),
+    _Entry(
+      'Voyage sync recovery is more robust, with protocol v2 support, clock-sync hardening, fewer duplicate queue seeks, and safer version negotiation',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Last.fm API key configuration has been restored in Server settings so builds can include a key while still allowing user-provided keys when needed',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Instant Mix and Same Vibes recommendations now insert after the current track so they keep your queue context instead of replacing what comes next',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Search can now prefer cached local results first, reducing network use and making repeat searches feel faster',
+      type: _EntryType.newFeature,
+    ),
+    _Entry(
+      'Mobile data usage is now tracked and reduced across artwork, sync, downloads, and playback flows, with clearer usage reporting in About',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Cached-first playback can now prefer downloaded or cached audio before remote streams when a local copy is available',
+      type: _EntryType.newFeature,
+    ),
+    _Entry(
+      'Navigation intents from album, artist, playlist, search, queue, and Now Playing actions are more stable across shell layouts and back-stack transitions',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Appearance settings, exact brand accent colors, icon rendering, and color picker behavior are more consistent across light and dark themes',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Android Auto browsing and real-car validation are more robust, with clearer media IDs, safer playback rules, diagnostic tooling, and dedicated test coverage',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Permanent downloads gained custom folders, readable artist/song paths, desktop folder actions, and safer cleanup of empty download directories',
+      type: _EntryType.newFeature,
+    ),
+    _Entry(
+      'Liked-tab play, shuffle, and queue-all actions include tracks from liked albums while deduplicating overlaps and respecting filters',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Listen Together rooms, Match Flow song chains, split artist releases, player polish, faster sync, and Android Auto reliability improvements from the 1.0 release are included',
+      type: _EntryType.newFeature,
+    ),
+    _Entry(
+      'Queue appends, cached-source seek recovery, Listen Together reconnects, room exits, and compact mini-player layout edge cases are more reliable',
+      type: _EntryType.fix,
+    ),
+  ]),
   _Version('1.0.2', [
     _Entry(
       'Custom download folders for permanent downloads — pick your own destination and Navis will move existing downloads there automatically',

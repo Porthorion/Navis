@@ -42,12 +42,36 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
+        'Voyage sync recovery is more robust, with protocol v2 support, clock-sync hardening, fewer duplicate queue seeks, and safer version negotiation',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Last.fm API key configuration has been restored in Server settings so builds can include a key while still allowing user-provided keys when needed',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Instant Mix and Same Vibes recommendations now insert after the current track so they keep your queue context instead of replacing what comes next',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Search can now prefer cached local results first, reducing network use and making repeat searches feel faster',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Mobile data usage is now tracked and reduced across artwork, sync, downloads, and playback flows, with clearer usage reporting in About',
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
         'Cached-first playback can now prefer downloaded or cached audio before remote streams when a local copy is available',
         type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Navigation intents from album, artist, playlist, search, queue, and Now Playing actions are more stable across shell layouts and back-stack transitions',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Appearance settings, exact brand accent colors, icon rendering, and color picker behavior are more consistent across light and dark themes',
+        type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
         'Android Auto browsing and real-car validation are more robust, with clearer media IDs, safer playback rules, diagnostic tooling, and dedicated test coverage',
