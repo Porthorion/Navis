@@ -2503,12 +2503,10 @@ class AppSettingsTableData extends DataClass
   /// build-time key (NAVIS_LASTFM_API_KEY) is bundled instead.
   final String? lastFmApiKey;
 
-  /// Whether Last.fm scrobbling is enabled. Secrets/session stay in secure
-  /// storage; this only controls non-sensitive dispatch state.
+  /// Deprecated compatibility column. Last.fm scrobble dispatch was removed.
   final bool lastFmScrobblingEnabled;
 
-  /// True after Last.fm session auth succeeds. Cleared on invalid-session
-  /// responses so the UI can ask the user to reconnect.
+  /// Deprecated compatibility column. Last.fm session auth was removed.
   final bool lastFmSessionConnected;
 
   /// Whether ListenBrainz scrobbling is enabled. The token stays in secure
