@@ -141,6 +141,20 @@ class CacheDao extends DatabaseAccessor<NavisDatabase> with _$CacheDaoMixin {
     return {for (final r in rows) r.songId: r.cacheType};
   }
 
+  /// Return full cache rows keyed by songId.
+  ///
+  /// Used by download enqueue paths that need format/bitrate compatibility
+  /// checks without issuing one lookup per song.
+  Future<Map<String, CachedTracksTableData>> getCachedTracksForSongIds(
+    Iterable<String> songIds,
+  ) async {
+    final ids = songIds.where((id) => id.trim().isNotEmpty).toList();
+    if (ids.isEmpty) return {};
+    final query = select(cachedTracksTable)..where((t) => t.songId.isIn(ids));
+    final rows = await query.get();
+    return {for (final r in rows) r.songId: r};
+  }
+
   Future<void> clearCachedTracks() {
     return delete(cachedTracksTable).go();
   }

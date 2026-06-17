@@ -55,6 +55,20 @@ String _label(_EntryType t) {
 // Newest version first.
 // ---------------------------------------------------------------------------
 const List<_Version> _changelogs = [
+  _Version('1.0.4', [
+    _Entry(
+      'Queued downloads now react when Wi-Fi-only settings or network type change, and compatible cached files are reused instead of downloaded again',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'Rolling cache files can now be promoted to permanent downloads from the queue, stale missing-file cache records are cleaned up, and lower-quality cached files no longer block higher-quality download requests',
+      type: _EntryType.fix,
+    ),
+    _Entry(
+      'The Previous control now restarts the current track when appropriate and only skips to the prior track near the start of playback',
+      type: _EntryType.fix,
+    ),
+  ]),
   _Version('1.0.3', [
     _Entry(
       'Android releases are now prepared for Google Play, with Android self-updates removed, Play release tooling added, privacy information added, and release safety checks documented',

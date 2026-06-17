@@ -93,7 +93,7 @@ void main() {
         expect(capabilities.canSkipPrevious, isFalse);
       });
 
-      test('single-track queue only exposes play/pause, stop, and seek', () {
+      test('single-track queue exposes previous to restart current track', () {
         final capabilities = navisOsControlCapabilities(
           queueLength: 1,
           currentIndex: 0,
@@ -108,7 +108,7 @@ void main() {
         expect(capabilities.canStop, isTrue);
         expect(capabilities.canSeek, isTrue);
         expect(capabilities.canSkipNext, isFalse);
-        expect(capabilities.canSkipPrevious, isFalse);
+        expect(capabilities.canSkipPrevious, isTrue);
       });
 
       test('paused restored queue advertises Auto playback entry points', () {
@@ -618,6 +618,60 @@ void main() {
         ),
         isTrue,
       );
+    });
+
+    group('previous track action helper', () {
+      test('no current index returns none', () {
+        expect(
+          navisResolvePreviousTrackAction(
+            queueLength: 1,
+            currentIndex: null,
+            position: Duration.zero,
+          ),
+          NavisPreviousTrackAction.none,
+        );
+      });
+
+      test('first or single track restarts current', () {
+        expect(
+          navisResolvePreviousTrackAction(
+            queueLength: 1,
+            currentIndex: 0,
+            position: Duration.zero,
+          ),
+          NavisPreviousTrackAction.restartCurrent,
+        );
+        expect(
+          navisResolvePreviousTrackAction(
+            queueLength: 3,
+            currentIndex: 0,
+            position: const Duration(seconds: 1),
+          ),
+          NavisPreviousTrackAction.restartCurrent,
+        );
+      });
+
+      test('previous exists and position above threshold restarts current', () {
+        expect(
+          navisResolvePreviousTrackAction(
+            queueLength: 3,
+            currentIndex: 1,
+            position: const Duration(seconds: 3, milliseconds: 1),
+          ),
+          NavisPreviousTrackAction.restartCurrent,
+        );
+      });
+
+      test('previous exists and position at or below threshold skips back', () {
+        expect(
+          navisResolvePreviousTrackAction(
+            queueLength: 3,
+            currentIndex: 1,
+            position: const Duration(seconds: 3),
+          ),
+          NavisPreviousTrackAction.skipToPrevious,
+        );
+      });
     });
 
     test('resolved playback extras preserve transcode metadata', () {

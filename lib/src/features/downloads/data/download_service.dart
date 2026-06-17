@@ -207,6 +207,12 @@ class DownloadService {
     unawaited(_processNext());
   }
 
+  /// Trigger queue processing after external conditions change.
+  ///
+  /// The internal processing and Wi-Fi guards remain authoritative, so callers
+  /// can invoke this optimistically when settings or connectivity change.
+  Future<void> processQueuedDownloads() => _processNext();
+
   Future<T> _runWithQueuePaused<T>(Future<T> Function() action) async {
     if (_maintenanceInProgress) {
       throw StateError('Download maintenance is already in progress.');
@@ -270,7 +276,9 @@ class DownloadService {
     // Also skip if already permanently cached (unless force re-download).
     if (!forceRedownload) {
       final cached = await _cacheDao.getCachedTrack(songId);
-      if (cached != null && cached.cacheType == CacheType.permanent) {
+      if (cached != null &&
+          cached.cacheType == CacheType.permanent &&
+          _isCacheQualityCompatible(cached, quality, format)) {
         return;
       }
 
@@ -370,7 +378,7 @@ class DownloadService {
   }) async {
     // Batch dedup: one query per data source instead of N queries per song.
     final activeSongIds = await _downloadQueueDao.getActiveSongIds();
-    final cacheTypes = await _cacheDao.getCacheTypesForSongIds(songIds);
+    final cachedTracks = await _cacheDao.getCachedTracksForSongIds(songIds);
 
     final toEnqueue = <DownloadQueueTableCompanion>[];
     var promotedCount = 0;
@@ -380,19 +388,19 @@ class DownloadService {
       if (activeSongIds.contains(songId)) continue;
 
       // Skip if already permanently cached.
-      final cacheType = cacheTypes[songId];
-      if (cacheType == CacheType.permanent) continue;
+      final cached = cachedTracks[songId];
+      if (cached?.cacheType == CacheType.permanent &&
+          _isCacheQualityCompatible(cached!, quality, format)) {
+        continue;
+      }
 
       // Try rolling → permanent promotion.
-      if (cacheType == CacheType.rolling) {
-        final cached = await _cacheDao.getCachedTrack(songId);
-        if (cached != null &&
-            _isCacheQualityCompatible(cached, quality, format)) {
-          final promoted = await promoteToPermanent(songId);
-          if (promoted) {
-            promotedCount++;
-            continue;
-          }
+      if (cached?.cacheType == CacheType.rolling &&
+          _isCacheQualityCompatible(cached!, quality, format)) {
+        final promoted = await promoteToPermanent(songId);
+        if (promoted) {
+          promotedCount++;
+          continue;
         }
       }
 
@@ -556,6 +564,10 @@ class DownloadService {
 
   Future<void> _downloadItem(DownloadQueueTableData item) async {
     final songId = item.songId!;
+    if (await _completeFromCompatibleCache(item)) {
+      return;
+    }
+
     final api = _readApiClient();
     if (api == null) {
       AppLogger.warning('DownloadService: No API client, skipping $songId');
@@ -706,6 +718,47 @@ class DownloadService {
     } finally {
       _activeCancelToken = null;
     }
+  }
+
+  Future<bool> _completeFromCompatibleCache(DownloadQueueTableData item) async {
+    final songId = item.songId;
+    if (songId == null) return false;
+
+    final cached = await _cacheDao.getCachedTrack(songId);
+    if (cached == null) {
+      return false;
+    }
+
+    final cachedFile = File(cached.filePath);
+    if (!await cachedFile.exists()) {
+      await _cacheDao.removeCachedTrack(songId);
+      return false;
+    }
+
+    if (!_isCacheQualityCompatible(cached, item.quality, item.format)) {
+      return false;
+    }
+
+    if (cached.cacheType == CacheType.permanent) {
+      await _downloadQueueDao.remove(item.id);
+      AppLogger.info(
+        'DownloadService: Completed queued download for $songId from permanent cache.',
+      );
+      return true;
+    }
+
+    if (cached.cacheType == CacheType.rolling) {
+      final promoted = await promoteToPermanent(songId);
+      if (promoted) {
+        await _downloadQueueDao.remove(item.id);
+        AppLogger.info(
+          'DownloadService: Promoted queued rolling-cached track $songId to permanent.',
+        );
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /// Handle a download failure with automatic retry logic.

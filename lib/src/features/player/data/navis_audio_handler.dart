@@ -3571,25 +3571,33 @@ class NavisAudioHandler extends BaseAudioHandler
     return _playbackLane.run(() async {
       await _ready;
       _cancelCrossfade();
-      if (!navisCanSkipQueueItem(
+      final action = navisResolvePreviousTrackAction(
         queueLength: _queueItems.length,
         currentIndex: _player.currentIndex,
-        forward: false,
-      )) {
-        return;
-      }
-      if (_player.position <= const Duration(seconds: 3)) {
-        _emitManualTrackChangeCue(
-          ManualTrackChangeDirection.previous,
-          fromSongId: _snapshot.currentSongId,
-        );
-      }
-      await navisRunTransportWithPersistence(
-        transportOperation: _player.seekToPrevious,
-        persistOperation: _persistQueueState,
-        persistSafely: _persistSafely,
-        persistenceContext: 'skip previous',
+        position: _player.position,
       );
+      switch (action) {
+        case NavisPreviousTrackAction.none:
+          return;
+        case NavisPreviousTrackAction.restartCurrent:
+          await _seekWithRecovery(Duration.zero);
+          await _persistSafely(
+            _persistPosition,
+            context: 'skip previous restart',
+          );
+          return;
+        case NavisPreviousTrackAction.skipToPrevious:
+          _emitManualTrackChangeCue(
+            ManualTrackChangeDirection.previous,
+            fromSongId: _snapshot.currentSongId,
+          );
+          await navisRunTransportWithPersistence(
+            transportOperation: _player.seekToPrevious,
+            persistOperation: _persistQueueState,
+            persistSafely: _persistSafely,
+            persistenceContext: 'skip previous',
+          );
+      }
     });
   }
 

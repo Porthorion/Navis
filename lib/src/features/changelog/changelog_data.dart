@@ -27,6 +27,23 @@ enum ChangelogEntryType { fix, improvement, newFeature }
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
+    version: '1.0.4',
+    entries: [
+      ChangelogEntry(
+        'Queued downloads now react when Wi-Fi-only settings or network type change, and compatible cached files are reused instead of downloaded again',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Rolling cache files can now be promoted to permanent downloads from the queue, stale missing-file cache records are cleaned up, and lower-quality cached files no longer block higher-quality download requests',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'The Previous control now restarts the current track when appropriate and only skips to the prior track near the start of playback',
+        type: ChangelogEntryType.fix,
+      ),
+    ],
+  ),
+  ChangelogVersion(
     version: '1.0.3',
     entries: [
       ChangelogEntry(

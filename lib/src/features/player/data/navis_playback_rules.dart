@@ -19,6 +19,14 @@ enum NavisAutoResumeSource {
   none,
 }
 
+enum NavisPreviousTrackAction {
+  none,
+  restartCurrent,
+  skipToPrevious,
+}
+
+const Duration navisPreviousTrackRestartThreshold = Duration(seconds: 3);
+
 final class NavisAndroidAutoSearchRequest {
   const NavisAndroidAutoSearchRequest({
     required this.type,
@@ -247,11 +255,12 @@ NavisOsControlCapabilities navisOsControlCapabilities({
         ),
     canSkipPrevious:
         !isRadioMode &&
-        navisCanSkipQueueItem(
-          queueLength: queueLength,
-          currentIndex: currentIndex,
-          forward: false,
-        ),
+        (navisCanSkipQueueItem(
+              queueLength: queueLength,
+              currentIndex: currentIndex,
+              forward: false,
+            ) ||
+            (hasKnownDuration && hasValidQueueIndex)),
     isLive: isLive,
   );
 }
@@ -447,6 +456,27 @@ bool navisCanSkipQueueItem({
     return currentIndex < queueLength - 1;
   }
   return currentIndex > 0;
+}
+
+@visibleForTesting
+NavisPreviousTrackAction navisResolvePreviousTrackAction({
+  required int queueLength,
+  required int? currentIndex,
+  required Duration position,
+}) {
+  if (queueLength <= 0 || currentIndex == null) {
+    return NavisPreviousTrackAction.none;
+  }
+  if (currentIndex < 0 || currentIndex >= queueLength) {
+    return NavisPreviousTrackAction.none;
+  }
+  if (currentIndex == 0) {
+    return NavisPreviousTrackAction.restartCurrent;
+  }
+  if (position > navisPreviousTrackRestartThreshold) {
+    return NavisPreviousTrackAction.restartCurrent;
+  }
+  return NavisPreviousTrackAction.skipToPrevious;
 }
 
 @visibleForTesting

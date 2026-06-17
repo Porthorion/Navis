@@ -2149,6 +2149,16 @@ final downloadServiceProvider = Provider<DownloadService>((ref) {
           );
     },
   );
+  ref.listen<bool>(wifiOnlyDownloadsProvider, (previous, next) {
+    if (previous != next) {
+      unawaited(service.processQueuedDownloads());
+    }
+  });
+  ref.listen<NetworkType>(networkTypeProvider, (previous, next) {
+    if (previous != next) {
+      unawaited(service.processQueuedDownloads());
+    }
+  });
   // Service.start() is async but we fire-and-forget here — the subscription
   // inside start() processes the queue independently.
   // ignore: discarded_futures

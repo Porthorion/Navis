@@ -91,6 +91,39 @@ void main() {
     );
 
     test(
+      'enqueueSong queues when permanent cache is lower quality than requested',
+      () async {
+        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(id: 'song-1', title: 'Test Song'),
+        ]);
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: 'song-1',
+            filePath: '/fake/path/song-1.mp3',
+            fileSize: 1000,
+            format: 'mp3',
+            bitRate: const Value(128),
+            cacheType: CacheType.permanent,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
+
+        await service.enqueueSong(
+          'song-1',
+          quality: '320',
+          format: 'mp3',
+        );
+
+        final items = await database.downloadQueueDao.watchQueue().first;
+        expect(items, hasLength(1));
+        expect(items.first.quality, '320');
+        expect(items.first.format, 'mp3');
+      },
+      skip: sqliteAvailable ? null : 'sqlite3 not available',
+    );
+
+    test(
       'enqueueSong replaces a previously failed item',
       () async {
         await database.libraryDao.upsertSongs(<SongsTableCompanion>[
@@ -380,6 +413,172 @@ void main() {
           items.first.status,
           anyOf(DownloadStatus.queued, DownloadStatus.failed),
         );
+      },
+      skip: sqliteAvailable ? null : 'sqlite3 not available',
+    );
+
+    test(
+      'queued item promotes compatible rolling cache during processing',
+      () async {
+        final supportDir = await Directory.systemTemp.createTemp(
+          'navis_support_',
+        );
+        final rollingDir = await Directory.systemTemp.createTemp(
+          'navis_rolling_',
+        );
+        addTearDown(() => supportDir.delete(recursive: true));
+        addTearDown(() => rollingDir.delete(recursive: true));
+
+        final rollingFile = File('${rollingDir.path}/song-1.mp3')
+          ..writeAsBytesSync(<int>[1, 2, 3]);
+        final rollingService = DownloadService(
+          appSettingsDao: database.appSettingsDao,
+          cacheDao: database.cacheDao,
+          downloadQueueDao: database.downloadQueueDao,
+          libraryDao: database.libraryDao,
+          readApiClient: () => null,
+          readWifiOnly: () => false,
+          readIsWifi: () => true,
+          readCustomDownloadFolderEnabled: () => false,
+          readCustomDownloadFolderPath: () => null,
+          lrclibClient: LrclibClient(),
+          readCoverArtCacheManager: _MockCacheManager.new,
+          readApplicationSupportDirectory: () async => supportDir,
+        );
+        addTearDown(rollingService.stop);
+
+        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(
+            id: 'song-1',
+            title: 'Cached Song',
+            artistName: const Value('Cached Artist'),
+          ),
+        ]);
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: 'song-1',
+            filePath: rollingFile.path,
+            fileSize: 3,
+            format: 'mp3',
+            bitRate: const Value(320),
+            cacheType: CacheType.rolling,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
+        await database.downloadQueueDao.enqueue(
+          DownloadQueueTableCompanion.insert(
+            songId: const Value('song-1'),
+            quality: const Value('128'),
+            format: const Value('mp3'),
+            status: DownloadStatus.queued,
+            addedAt: DateTime(2025, 1, 1),
+          ),
+        );
+
+        await rollingService.processQueuedDownloads();
+
+        expect(await database.downloadQueueDao.watchQueue().first, isEmpty);
+        final cached = await database.cacheDao.getCachedTrack('song-1');
+        expect(cached?.cacheType, CacheType.permanent);
+        expect(File(cached!.filePath).existsSync(), isTrue);
+        expect(rollingFile.existsSync(), isFalse);
+      },
+      skip: sqliteAvailable ? null : 'sqlite3 not available',
+    );
+
+    test(
+      'queued item completes from compatible permanent cache during processing',
+      () async {
+        final cacheDir = await Directory.systemTemp.createTemp(
+          'navis_permanent_cache_',
+        );
+        addTearDown(() => cacheDir.delete(recursive: true));
+        final cachedFile = File('${cacheDir.path}/song-1.mp3')
+          ..writeAsBytesSync(<int>[1, 2, 3]);
+
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: 'song-1',
+            filePath: cachedFile.path,
+            fileSize: 3,
+            format: 'mp3',
+            cacheType: CacheType.permanent,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
+        await database.downloadQueueDao.enqueue(
+          DownloadQueueTableCompanion.insert(
+            songId: const Value('song-1'),
+            status: DownloadStatus.queued,
+            addedAt: DateTime(2025, 1, 1),
+          ),
+        );
+
+        await service.processQueuedDownloads();
+
+        expect(await database.downloadQueueDao.watchQueue().first, isEmpty);
+      },
+      skip: sqliteAvailable ? null : 'sqlite3 not available',
+    );
+
+    test(
+      'queued item remains blocked by wifi-only then processes after trigger',
+      () async {
+        final cacheDir = await Directory.systemTemp.createTemp(
+          'navis_permanent_cache_',
+        );
+        addTearDown(() => cacheDir.delete(recursive: true));
+        final cachedFile = File('${cacheDir.path}/song-1.mp3')
+          ..writeAsBytesSync(<int>[1, 2, 3]);
+        var wifiOnly = true;
+        var isWifi = false;
+        final gatedService = DownloadService(
+          appSettingsDao: database.appSettingsDao,
+          cacheDao: database.cacheDao,
+          downloadQueueDao: database.downloadQueueDao,
+          libraryDao: database.libraryDao,
+          readApiClient: () => null,
+          readWifiOnly: () => wifiOnly,
+          readIsWifi: () => isWifi,
+          readCustomDownloadFolderEnabled: () => false,
+          readCustomDownloadFolderPath: () => null,
+          lrclibClient: LrclibClient(),
+          readCoverArtCacheManager: _MockCacheManager.new,
+        );
+        addTearDown(gatedService.stop);
+
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: 'song-1',
+            filePath: cachedFile.path,
+            fileSize: 3,
+            format: 'mp3',
+            cacheType: CacheType.permanent,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
+        await database.downloadQueueDao.enqueue(
+          DownloadQueueTableCompanion.insert(
+            songId: const Value('song-1'),
+            status: DownloadStatus.queued,
+            addedAt: DateTime(2025, 1, 1),
+          ),
+        );
+
+        await gatedService.processQueuedDownloads();
+        expect(
+          await database.downloadQueueDao.watchQueue().first,
+          hasLength(1),
+        );
+
+        wifiOnly = false;
+        isWifi = false;
+        await gatedService.processQueuedDownloads();
+
+        expect(await database.downloadQueueDao.watchQueue().first, isEmpty);
       },
       skip: sqliteAvailable ? null : 'sqlite3 not available',
     );
