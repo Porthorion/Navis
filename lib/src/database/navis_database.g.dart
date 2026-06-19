@@ -1357,6 +1357,17 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
         defaultValue: const Constant(false),
       );
+  static const VerificationMeta _listenBrainzUserNameMeta =
+      const VerificationMeta('listenBrainzUserName');
+  @override
+  late final GeneratedColumn<String> listenBrainzUserName =
+      GeneratedColumn<String>(
+        'listen_brainz_user_name',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _customVoyageServersMeta =
       const VerificationMeta('customVoyageServers');
   @override
@@ -1456,6 +1467,7 @@ class $AppSettingsTableTable extends AppSettingsTable
     lastFmSessionConnected,
     listenBrainzScrobblingEnabled,
     listenBrainzTokenValid,
+    listenBrainzUserName,
     customVoyageServers,
     lastFullSyncAppBuild,
     updatedAt,
@@ -2030,6 +2042,15 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
       );
     }
+    if (data.containsKey('listen_brainz_user_name')) {
+      context.handle(
+        _listenBrainzUserNameMeta,
+        listenBrainzUserName.isAcceptableOrUnknown(
+          data['listen_brainz_user_name']!,
+          _listenBrainzUserNameMeta,
+        ),
+      );
+    }
     if (data.containsKey('custom_voyage_servers')) {
       context.handle(
         _customVoyageServersMeta,
@@ -2321,6 +2342,10 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.bool,
         data['${effectivePrefix}listen_brainz_token_valid'],
       )!,
+      listenBrainzUserName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}listen_brainz_user_name'],
+      ),
       customVoyageServers: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}custom_voyage_servers'],
@@ -2516,6 +2541,9 @@ class AppSettingsTableData extends DataClass
   /// True after ListenBrainz token validation succeeds. Cleared on 401/403.
   final bool listenBrainzTokenValid;
 
+  /// MusicBrainz username returned by ListenBrainz token validation.
+  final String? listenBrainzUserName;
+
   /// JSON-encoded custom Voyage server entries:
   /// [{"label":"Home","url":"https://voyage.example.com"}]
   final String? customVoyageServers;
@@ -2590,6 +2618,7 @@ class AppSettingsTableData extends DataClass
     required this.lastFmSessionConnected,
     required this.listenBrainzScrobblingEnabled,
     required this.listenBrainzTokenValid,
+    this.listenBrainzUserName,
     this.customVoyageServers,
     this.lastFullSyncAppBuild,
     required this.updatedAt,
@@ -2707,6 +2736,9 @@ class AppSettingsTableData extends DataClass
       listenBrainzScrobblingEnabled,
     );
     map['listen_brainz_token_valid'] = Variable<bool>(listenBrainzTokenValid);
+    if (!nullToAbsent || listenBrainzUserName != null) {
+      map['listen_brainz_user_name'] = Variable<String>(listenBrainzUserName);
+    }
     if (!nullToAbsent || customVoyageServers != null) {
       map['custom_voyage_servers'] = Variable<String>(customVoyageServers);
     }
@@ -2815,6 +2847,9 @@ class AppSettingsTableData extends DataClass
       lastFmSessionConnected: Value(lastFmSessionConnected),
       listenBrainzScrobblingEnabled: Value(listenBrainzScrobblingEnabled),
       listenBrainzTokenValid: Value(listenBrainzTokenValid),
+      listenBrainzUserName: listenBrainzUserName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(listenBrainzUserName),
       customVoyageServers: customVoyageServers == null && nullToAbsent
           ? const Value.absent()
           : Value(customVoyageServers),
@@ -2947,6 +2982,9 @@ class AppSettingsTableData extends DataClass
       listenBrainzTokenValid: serializer.fromJson<bool>(
         json['listenBrainzTokenValid'],
       ),
+      listenBrainzUserName: serializer.fromJson<String?>(
+        json['listenBrainzUserName'],
+      ),
       customVoyageServers: serializer.fromJson<String?>(
         json['customVoyageServers'],
       ),
@@ -3046,6 +3084,7 @@ class AppSettingsTableData extends DataClass
         listenBrainzScrobblingEnabled,
       ),
       'listenBrainzTokenValid': serializer.toJson<bool>(listenBrainzTokenValid),
+      'listenBrainzUserName': serializer.toJson<String?>(listenBrainzUserName),
       'customVoyageServers': serializer.toJson<String?>(customVoyageServers),
       'lastFullSyncAppBuild': serializer.toJson<String?>(lastFullSyncAppBuild),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
@@ -3117,6 +3156,7 @@ class AppSettingsTableData extends DataClass
     bool? lastFmSessionConnected,
     bool? listenBrainzScrobblingEnabled,
     bool? listenBrainzTokenValid,
+    Value<String?> listenBrainzUserName = const Value.absent(),
     Value<String?> customVoyageServers = const Value.absent(),
     Value<String?> lastFullSyncAppBuild = const Value.absent(),
     DateTime? updatedAt,
@@ -3223,6 +3263,9 @@ class AppSettingsTableData extends DataClass
         listenBrainzScrobblingEnabled ?? this.listenBrainzScrobblingEnabled,
     listenBrainzTokenValid:
         listenBrainzTokenValid ?? this.listenBrainzTokenValid,
+    listenBrainzUserName: listenBrainzUserName.present
+        ? listenBrainzUserName.value
+        : this.listenBrainzUserName,
     customVoyageServers: customVoyageServers.present
         ? customVoyageServers.value
         : this.customVoyageServers,
@@ -3417,6 +3460,9 @@ class AppSettingsTableData extends DataClass
       listenBrainzTokenValid: data.listenBrainzTokenValid.present
           ? data.listenBrainzTokenValid.value
           : this.listenBrainzTokenValid,
+      listenBrainzUserName: data.listenBrainzUserName.present
+          ? data.listenBrainzUserName.value
+          : this.listenBrainzUserName,
       customVoyageServers: data.customVoyageServers.present
           ? data.customVoyageServers.value
           : this.customVoyageServers,
@@ -3498,6 +3544,7 @@ class AppSettingsTableData extends DataClass
             'listenBrainzScrobblingEnabled: $listenBrainzScrobblingEnabled, ',
           )
           ..write('listenBrainzTokenValid: $listenBrainzTokenValid, ')
+          ..write('listenBrainzUserName: $listenBrainzUserName, ')
           ..write('customVoyageServers: $customVoyageServers, ')
           ..write('lastFullSyncAppBuild: $lastFullSyncAppBuild, ')
           ..write('updatedAt: $updatedAt')
@@ -3571,6 +3618,7 @@ class AppSettingsTableData extends DataClass
     lastFmSessionConnected,
     listenBrainzScrobblingEnabled,
     listenBrainzTokenValid,
+    listenBrainzUserName,
     customVoyageServers,
     lastFullSyncAppBuild,
     updatedAt,
@@ -3646,6 +3694,7 @@ class AppSettingsTableData extends DataClass
           other.listenBrainzScrobblingEnabled ==
               this.listenBrainzScrobblingEnabled &&
           other.listenBrainzTokenValid == this.listenBrainzTokenValid &&
+          other.listenBrainzUserName == this.listenBrainzUserName &&
           other.customVoyageServers == this.customVoyageServers &&
           other.lastFullSyncAppBuild == this.lastFullSyncAppBuild &&
           other.updatedAt == this.updatedAt);
@@ -3716,6 +3765,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<bool> lastFmSessionConnected;
   final Value<bool> listenBrainzScrobblingEnabled;
   final Value<bool> listenBrainzTokenValid;
+  final Value<String?> listenBrainzUserName;
   final Value<String?> customVoyageServers;
   final Value<String?> lastFullSyncAppBuild;
   final Value<DateTime> updatedAt;
@@ -3784,6 +3834,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.lastFmSessionConnected = const Value.absent(),
     this.listenBrainzScrobblingEnabled = const Value.absent(),
     this.listenBrainzTokenValid = const Value.absent(),
+    this.listenBrainzUserName = const Value.absent(),
     this.customVoyageServers = const Value.absent(),
     this.lastFullSyncAppBuild = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -3853,6 +3904,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.lastFmSessionConnected = const Value.absent(),
     this.listenBrainzScrobblingEnabled = const Value.absent(),
     this.listenBrainzTokenValid = const Value.absent(),
+    this.listenBrainzUserName = const Value.absent(),
     this.customVoyageServers = const Value.absent(),
     this.lastFullSyncAppBuild = const Value.absent(),
     required DateTime updatedAt,
@@ -3922,6 +3974,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<bool>? lastFmSessionConnected,
     Expression<bool>? listenBrainzScrobblingEnabled,
     Expression<bool>? listenBrainzTokenValid,
+    Expression<String>? listenBrainzUserName,
     Expression<String>? customVoyageServers,
     Expression<String>? lastFullSyncAppBuild,
     Expression<DateTime>? updatedAt,
@@ -4020,6 +4073,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         'listen_brainz_scrobbling_enabled': listenBrainzScrobblingEnabled,
       if (listenBrainzTokenValid != null)
         'listen_brainz_token_valid': listenBrainzTokenValid,
+      if (listenBrainzUserName != null)
+        'listen_brainz_user_name': listenBrainzUserName,
       if (customVoyageServers != null)
         'custom_voyage_servers': customVoyageServers,
       if (lastFullSyncAppBuild != null)
@@ -4093,6 +4148,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<bool>? lastFmSessionConnected,
     Value<bool>? listenBrainzScrobblingEnabled,
     Value<bool>? listenBrainzTokenValid,
+    Value<String?>? listenBrainzUserName,
     Value<String?>? customVoyageServers,
     Value<String?>? lastFullSyncAppBuild,
     Value<DateTime>? updatedAt,
@@ -4176,6 +4232,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           listenBrainzScrobblingEnabled ?? this.listenBrainzScrobblingEnabled,
       listenBrainzTokenValid:
           listenBrainzTokenValid ?? this.listenBrainzTokenValid,
+      listenBrainzUserName: listenBrainzUserName ?? this.listenBrainzUserName,
       customVoyageServers: customVoyageServers ?? this.customVoyageServers,
       lastFullSyncAppBuild: lastFullSyncAppBuild ?? this.lastFullSyncAppBuild,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -4411,6 +4468,11 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         listenBrainzTokenValid.value,
       );
     }
+    if (listenBrainzUserName.present) {
+      map['listen_brainz_user_name'] = Variable<String>(
+        listenBrainzUserName.value,
+      );
+    }
     if (customVoyageServers.present) {
       map['custom_voyage_servers'] = Variable<String>(
         customVoyageServers.value,
@@ -4498,6 +4560,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
             'listenBrainzScrobblingEnabled: $listenBrainzScrobblingEnabled, ',
           )
           ..write('listenBrainzTokenValid: $listenBrainzTokenValid, ')
+          ..write('listenBrainzUserName: $listenBrainzUserName, ')
           ..write('customVoyageServers: $customVoyageServers, ')
           ..write('lastFullSyncAppBuild: $lastFullSyncAppBuild, ')
           ..write('updatedAt: $updatedAt')
@@ -14477,6 +14540,7 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<bool> lastFmSessionConnected,
       Value<bool> listenBrainzScrobblingEnabled,
       Value<bool> listenBrainzTokenValid,
+      Value<String?> listenBrainzUserName,
       Value<String?> customVoyageServers,
       Value<String?> lastFullSyncAppBuild,
       required DateTime updatedAt,
@@ -14547,6 +14611,7 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<bool> lastFmSessionConnected,
       Value<bool> listenBrainzScrobblingEnabled,
       Value<bool> listenBrainzTokenValid,
+      Value<String?> listenBrainzUserName,
       Value<String?> customVoyageServers,
       Value<String?> lastFullSyncAppBuild,
       Value<DateTime> updatedAt,
@@ -14878,6 +14943,11 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<bool> get listenBrainzTokenValid => $composableBuilder(
     column: $table.listenBrainzTokenValid,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get listenBrainzUserName => $composableBuilder(
+    column: $table.listenBrainzUserName,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -15226,6 +15296,11 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get listenBrainzUserName => $composableBuilder(
+    column: $table.listenBrainzUserName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get customVoyageServers => $composableBuilder(
     column: $table.customVoyageServers,
     builder: (column) => ColumnOrderings(column),
@@ -15563,6 +15638,11 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get listenBrainzUserName => $composableBuilder(
+    column: $table.listenBrainzUserName,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get customVoyageServers => $composableBuilder(
     column: $table.customVoyageServers,
     builder: (column) => column,
@@ -15680,6 +15760,7 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> listenBrainzScrobblingEnabled =
                     const Value.absent(),
                 Value<bool> listenBrainzTokenValid = const Value.absent(),
+                Value<String?> listenBrainzUserName = const Value.absent(),
                 Value<String?> customVoyageServers = const Value.absent(),
                 Value<String?> lastFullSyncAppBuild = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -15748,6 +15829,7 @@ class $$AppSettingsTableTableTableManager
                 lastFmSessionConnected: lastFmSessionConnected,
                 listenBrainzScrobblingEnabled: listenBrainzScrobblingEnabled,
                 listenBrainzTokenValid: listenBrainzTokenValid,
+                listenBrainzUserName: listenBrainzUserName,
                 customVoyageServers: customVoyageServers,
                 lastFullSyncAppBuild: lastFullSyncAppBuild,
                 updatedAt: updatedAt,
@@ -15820,6 +15902,7 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> listenBrainzScrobblingEnabled =
                     const Value.absent(),
                 Value<bool> listenBrainzTokenValid = const Value.absent(),
+                Value<String?> listenBrainzUserName = const Value.absent(),
                 Value<String?> customVoyageServers = const Value.absent(),
                 Value<String?> lastFullSyncAppBuild = const Value.absent(),
                 required DateTime updatedAt,
@@ -15888,6 +15971,7 @@ class $$AppSettingsTableTableTableManager
                 lastFmSessionConnected: lastFmSessionConnected,
                 listenBrainzScrobblingEnabled: listenBrainzScrobblingEnabled,
                 listenBrainzTokenValid: listenBrainzTokenValid,
+                listenBrainzUserName: listenBrainzUserName,
                 customVoyageServers: customVoyageServers,
                 lastFullSyncAppBuild: lastFullSyncAppBuild,
                 updatedAt: updatedAt,

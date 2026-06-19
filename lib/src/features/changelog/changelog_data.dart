@@ -30,6 +30,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.0.4',
     entries: [
       ChangelogEntry(
+        'Home can now show ListenBrainz Discover recommendation playlists, resolving playable tracks through your server while keeping unavailable recommendations visible for manual search',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
         'Queued downloads now react when Wi-Fi-only settings or network type change, and compatible cached files are reused instead of downloaded again',
         type: ChangelogEntryType.fix,
       ),

@@ -90,6 +90,7 @@ class AppSettingsModel {
     this.lastFmSessionConnected = false,
     this.listenBrainzScrobblingEnabled = false,
     this.listenBrainzTokenValid = false,
+    this.listenBrainzUserName,
     this.customVoyageServers = const <CustomVoyageServer>[],
     this.groupListeningEnabled = false,
     this.voyageServerUrl,
@@ -157,6 +158,7 @@ class AppSettingsModel {
       lastFmSessionConnected = false,
       listenBrainzScrobblingEnabled = false,
       listenBrainzTokenValid = false,
+      listenBrainzUserName = null,
       customVoyageServers = const <CustomVoyageServer>[],
       groupListeningEnabled = false,
       voyageServerUrl = null,
@@ -272,6 +274,9 @@ class AppSettingsModel {
   /// Whether the stored ListenBrainz token has validated successfully.
   final bool listenBrainzTokenValid;
 
+  /// MusicBrainz username returned by ListenBrainz token validation.
+  final String? listenBrainzUserName;
+
   /// User-managed Voyage servers stored in Drift as non-sensitive JSON.
   final List<CustomVoyageServer> customVoyageServers;
 
@@ -352,6 +357,7 @@ class AppSettingsModel {
     bool? lastFmSessionConnected,
     bool? listenBrainzScrobblingEnabled,
     bool? listenBrainzTokenValid,
+    String? listenBrainzUserName,
     List<CustomVoyageServer>? customVoyageServers,
     bool? groupListeningEnabled,
     String? voyageServerUrl,
@@ -371,6 +377,7 @@ class AppSettingsModel {
     bool clearHomeSectionOrder = false,
     bool clearHomeSectionsHidden = false,
     bool clearLastFmApiKey = false,
+    bool clearListenBrainzUserName = false,
     bool clearVoyageServerUrl = false,
     bool clearVoyageDisplayName = false,
     bool clearVoyageDeviceLabel = false,
@@ -468,6 +475,9 @@ class AppSettingsModel {
           listenBrainzScrobblingEnabled ?? this.listenBrainzScrobblingEnabled,
       listenBrainzTokenValid:
           listenBrainzTokenValid ?? this.listenBrainzTokenValid,
+      listenBrainzUserName: clearListenBrainzUserName
+          ? null
+          : listenBrainzUserName ?? this.listenBrainzUserName,
       customVoyageServers:
           customVoyageServers ??
           List<CustomVoyageServer>.from(this.customVoyageServers),

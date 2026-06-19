@@ -3,11 +3,14 @@ import 'dart:math';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/api/models/models.dart';
+import 'package:navis/src/api/models/listenbrainz_playlist.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
+import 'package:navis/src/features/player/domain/lyrics_matcher.dart';
 
 enum HomeRandomShowcaseSource { likedDiscovery, serverRandom, localFallback }
 
@@ -87,6 +90,49 @@ const int _homeRandomDiscoverySeedCount = 3;
 const int _homeRandomDiscoveryMinLikedSongs = 5;
 const int _homeRandomDiscoverySongCountPerSeed = 20;
 const int _homeRandomDiscoveryMinResults = 6;
+const int _listenBrainzDiscoverPlaylistLimit = 6;
+const int _listenBrainzDiscoverTrackPreviewLimit = 35;
+const int _listenBrainzDiscoverSearchSongCount = 8;
+const int _listenBrainzDiscoverResolutionParallelism = 3;
+const double _listenBrainzDiscoverMinimumScore = 0.76;
+const double _listenBrainzDiscoverAmbiguousDelta = 0.03;
+
+List<ListenBrainzDiscoverPlaylist>? _listenBrainzDiscoverSessionCache;
+
+enum ListenBrainzRecommendationMatchStatus { matched, unmatched, ambiguous }
+
+class ListenBrainzResolvedRecommendation {
+  const ListenBrainzResolvedRecommendation({
+    required this.track,
+    required this.status,
+    this.song,
+  });
+
+  final ListenBrainzPlaylistTrack track;
+  final ListenBrainzRecommendationMatchStatus status;
+  final Song? song;
+
+  bool get isPlayable =>
+      status == ListenBrainzRecommendationMatchStatus.matched && song != null;
+}
+
+class ListenBrainzDiscoverPlaylist {
+  const ListenBrainzDiscoverPlaylist({
+    required this.playlist,
+    required this.recommendations,
+  });
+
+  final ListenBrainzPlaylist playlist;
+  final List<ListenBrainzResolvedRecommendation> recommendations;
+
+  int get totalCount => recommendations.length;
+  int get matchedCount => playableSongs.length;
+
+  List<Song> get playableSongs => recommendations
+      .where((recommendation) => recommendation.isPlayable)
+      .map((recommendation) => recommendation.song!)
+      .toList(growable: false);
+}
 
 class HomeRandomShowcaseShuffleSeedNotifier extends Notifier<int> {
   @override
@@ -101,6 +147,231 @@ final homeRandomShowcaseShuffleSeedProvider =
     NotifierProvider<HomeRandomShowcaseShuffleSeedNotifier, int>(
       HomeRandomShowcaseShuffleSeedNotifier.new,
     );
+
+final listenBrainzDiscoverProvider =
+    FutureProvider<List<ListenBrainzDiscoverPlaylist>>((ref) async {
+      final settings =
+          ref.watch(appSettingsProvider).asData?.value ??
+          const AppSettingsModel.defaults();
+      if (!settings.listenBrainzTokenValid) {
+        return const <ListenBrainzDiscoverPlaylist>[];
+      }
+
+      final userName = settings.listenBrainzUserName?.trim();
+      if (userName == null || userName.isEmpty) {
+        return const <ListenBrainzDiscoverPlaylist>[];
+      }
+
+      final token =
+          (await ref
+                  .read(externalScrobbleCredentialStoreProvider)
+                  .readListenBrainzToken())
+              ?.trim() ??
+          '';
+      if (token.isEmpty) {
+        return const <ListenBrainzDiscoverPlaylist>[];
+      }
+
+      if (ref.watch(networkTypeProvider) == NetworkType.offline) {
+        return _listenBrainzDiscoverSessionCache ??
+            const <ListenBrainzDiscoverPlaylist>[];
+      }
+
+      final client = ref.read(listenBrainzApiClientProvider);
+      final api = ref.read(subsonicApiProvider);
+      if (api == null) {
+        return const <ListenBrainzDiscoverPlaylist>[];
+      }
+
+      try {
+        final playlistMetadata = await client.getRecommendationPlaylists(
+          userName: userName,
+          userToken: token,
+        );
+        final cappedMetadata = playlistMetadata
+            .take(_listenBrainzDiscoverPlaylistLimit)
+            .toList(growable: false);
+        final resolvedPlaylists = <ListenBrainzDiscoverPlaylist>[];
+        for (final metadata in cappedMetadata) {
+          final identifier = metadata.identifier.trim();
+          if (identifier.isEmpty) {
+            continue;
+          }
+          final playlist = await client.getPlaylist(
+            identifier,
+            fetchMetadata: true,
+            userToken: token,
+          );
+          final tracks = playlist.tracks
+              .take(_listenBrainzDiscoverTrackPreviewLimit)
+              .toList(growable: false);
+          final resolved = await _resolveListenBrainzTracks(api, tracks);
+          resolvedPlaylists.add(
+            ListenBrainzDiscoverPlaylist(
+              playlist: playlist,
+              recommendations: resolved,
+            ),
+          );
+        }
+        _listenBrainzDiscoverSessionCache = resolvedPlaylists;
+        return resolvedPlaylists;
+      } on DioException catch (error) {
+        final status = error.response?.statusCode;
+        if (status == 401 || status == 403) {
+          await ref
+              .read(navisDatabaseProvider)
+              .appSettingsDao
+              .updateListenBrainzScrobblingState(
+                enabled: false,
+                tokenValid: false,
+                clearUserName: true,
+              );
+          return const <ListenBrainzDiscoverPlaylist>[];
+        }
+        if (_listenBrainzDiscoverSessionCache != null) {
+          return _listenBrainzDiscoverSessionCache!;
+        }
+        rethrow;
+      }
+    });
+
+Future<List<ListenBrainzResolvedRecommendation>> _resolveListenBrainzTracks(
+  SubsonicApiClient api,
+  List<ListenBrainzPlaylistTrack> tracks,
+) async {
+  final resolved = List<ListenBrainzResolvedRecommendation?>.filled(
+    tracks.length,
+    null,
+  );
+
+  for (
+    var batchStart = 0;
+    batchStart < tracks.length;
+    batchStart += _listenBrainzDiscoverResolutionParallelism
+  ) {
+    final batchEnd = min(
+      tracks.length,
+      batchStart + _listenBrainzDiscoverResolutionParallelism,
+    );
+    await Future.wait(
+      Iterable<int>.generate(batchEnd - batchStart, (i) => batchStart + i).map(
+        (index) async {
+          final track = tracks[index];
+          try {
+            final query = <String>[
+              track.title,
+              if (track.creator != null) track.creator!,
+              if (track.album != null) track.album!,
+            ].join(' ');
+            final search = await api.search3(
+              query: query,
+              artistCount: 0,
+              albumCount: 0,
+              songCount: _listenBrainzDiscoverSearchSongCount,
+            );
+            resolved[index] = _pickListenBrainzTrackMatch(track, search.songs);
+          } on Object {
+            resolved[index] = ListenBrainzResolvedRecommendation(
+              track: track,
+              status: ListenBrainzRecommendationMatchStatus.unmatched,
+            );
+          }
+        },
+      ),
+    );
+  }
+
+  return resolved.whereType<ListenBrainzResolvedRecommendation>().toList(
+    growable: false,
+  );
+}
+
+ListenBrainzResolvedRecommendation _pickListenBrainzTrackMatch(
+  ListenBrainzPlaylistTrack track,
+  List<Song> candidates,
+) {
+  final expectedTitle = normalizeMetadata(track.title);
+  final expectedArtist = normalizeMetadata(track.creator ?? '');
+  if (expectedTitle.isEmpty || expectedArtist.isEmpty || candidates.isEmpty) {
+    return ListenBrainzResolvedRecommendation(
+      track: track,
+      status: ListenBrainzRecommendationMatchStatus.unmatched,
+    );
+  }
+
+  final scored = <({Song song, double score})>[];
+  for (final candidate in candidates) {
+    final candidateTitle = normalizeMetadata(candidate.title);
+    final candidateArtist = normalizeMetadata(candidate.artist ?? '');
+    if (candidateTitle.isEmpty || candidateArtist.isEmpty) {
+      continue;
+    }
+    final titleScore = _listenBrainzFieldScore(expectedTitle, candidateTitle);
+    final artistScore = _listenBrainzFieldScore(
+      expectedArtist,
+      candidateArtist,
+    );
+    if (artistScore < 0.35) {
+      continue;
+    }
+    var score = (titleScore * 0.58) + (artistScore * 0.32);
+    final expectedAlbum = normalizeMetadata(track.album ?? '');
+    final candidateAlbum = normalizeMetadata(candidate.album ?? '');
+    if (expectedAlbum.isNotEmpty && candidateAlbum.isNotEmpty) {
+      score += _listenBrainzFieldScore(expectedAlbum, candidateAlbum) * 0.06;
+    }
+    final expectedDuration = track.durationSeconds;
+    final candidateDuration = candidate.duration;
+    if (expectedDuration != null && candidateDuration != null) {
+      final diff = (expectedDuration - candidateDuration).abs();
+      if (diff <= 3) {
+        score += 0.04;
+      } else if (diff > 15) {
+        score -= 0.08;
+      }
+    }
+    scored.add((song: candidate, score: score.clamp(0.0, 1.0)));
+  }
+
+  scored.sort((a, b) => b.score.compareTo(a.score));
+  if (scored.isEmpty ||
+      scored.first.score < _listenBrainzDiscoverMinimumScore) {
+    return ListenBrainzResolvedRecommendation(
+      track: track,
+      status: ListenBrainzRecommendationMatchStatus.unmatched,
+    );
+  }
+  if (scored.length > 1 &&
+      scored.first.score - scored[1].score <
+          _listenBrainzDiscoverAmbiguousDelta &&
+      scored.first.song.id != scored[1].song.id) {
+    return ListenBrainzResolvedRecommendation(
+      track: track,
+      status: ListenBrainzRecommendationMatchStatus.ambiguous,
+    );
+  }
+  return ListenBrainzResolvedRecommendation(
+    track: track,
+    status: ListenBrainzRecommendationMatchStatus.matched,
+    song: scored.first.song,
+  );
+}
+
+double _listenBrainzFieldScore(String expected, String actual) {
+  if (expected == actual) {
+    return 1;
+  }
+  if (actual.contains(expected) || expected.contains(actual)) {
+    return 0.82;
+  }
+  final expectedTokens = expected.split(' ').where((t) => t.length > 1).toSet();
+  final actualTokens = actual.split(' ').where((t) => t.length > 1).toSet();
+  if (expectedTokens.isEmpty || actualTokens.isEmpty) {
+    return 0;
+  }
+  final overlap = expectedTokens.intersection(actualTokens).length;
+  return overlap / expectedTokens.length;
+}
 
 /// Starred / liked songs from local DB (limit 5 for home preview).
 final homeLikedSongsProvider = StreamProvider<List<SongsTableData>>((ref) {

@@ -230,6 +230,9 @@ class AppSettingsTable extends Table {
   BoolColumn get listenBrainzTokenValid =>
       boolean().withDefault(const Constant(false))();
 
+  /// MusicBrainz username returned by ListenBrainz token validation.
+  TextColumn get listenBrainzUserName => text().nullable()();
+
   /// JSON-encoded custom Voyage server entries:
   /// [{"label":"Home","url":"https://voyage.example.com"}]
   TextColumn get customVoyageServers => text().nullable()();

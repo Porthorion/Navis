@@ -5,6 +5,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/api/lastfm_api_client.dart';
 import 'package:navis/src/api/listenbrainz_api_client.dart';
+import 'package:navis/src/api/models/listenbrainz_playlist.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/features/auth/data/server_connection_service.dart';
 import 'package:navis/src/features/auth/data/sign_out_service.dart';
@@ -173,6 +174,16 @@ class _FakeListenBrainzApiClient extends ListenBrainzApiClient {
 
   @override
   Future<bool> validateToken(String userToken) async => valid;
+
+  @override
+  Future<ListenBrainzTokenDetails> validateTokenDetails(
+    String userToken,
+  ) async {
+    return ListenBrainzTokenDetails(
+      valid: valid,
+      userName: valid ? 'listenbrainz-user' : null,
+    );
+  }
 }
 
 class _MemoryExternalScrobbleCredentialStore

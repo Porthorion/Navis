@@ -561,10 +561,10 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
       _listenBrainzSuccess = null;
     });
     try {
-      final valid = await ref
+      final details = await ref
           .read(listenBrainzApiClientProvider)
-          .validateToken(token);
-      if (!valid) {
+          .validateTokenDetails(token);
+      if (!details.valid) {
         await ref
             .read(externalScrobbleCredentialStoreProvider)
             .clearListenBrainzToken();
@@ -574,6 +574,7 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
               settings.copyWith(
                 listenBrainzTokenValid: false,
                 listenBrainzScrobblingEnabled: false,
+                clearListenBrainzUserName: true,
               ),
             );
         if (!mounted) return;
@@ -592,6 +593,7 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
             settings.copyWith(
               listenBrainzTokenValid: true,
               listenBrainzScrobblingEnabled: true,
+              listenBrainzUserName: details.userName,
             ),
           );
       if (!mounted) return;
@@ -634,6 +636,7 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
           settings.copyWith(
             listenBrainzTokenValid: false,
             listenBrainzScrobblingEnabled: false,
+            clearListenBrainzUserName: true,
           ),
         );
     if (!mounted) return;

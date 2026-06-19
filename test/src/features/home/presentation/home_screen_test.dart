@@ -1670,6 +1670,7 @@ void main() {
         containsAll(<String>[
           HomeSectionIds.recentlyLikedAlbums,
           HomeSectionIds.likedTracks,
+          HomeSectionIds.listenBrainzDiscover,
           HomeSectionIds.recentlyAdded,
           HomeSectionIds.recentlyPlayed,
           HomeSectionIds.randomAlbums,

@@ -123,6 +123,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     bool lastFmSessionConnected = false,
     bool listenBrainzScrobblingEnabled = false,
     bool listenBrainzTokenValid = false,
+    String? listenBrainzUserName,
     String? customVoyageServers,
   }) {
     return into(appSettingsTable).insertOnConflictUpdate(
@@ -186,6 +187,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         lastFmSessionConnected: Value(lastFmSessionConnected),
         listenBrainzScrobblingEnabled: Value(listenBrainzScrobblingEnabled),
         listenBrainzTokenValid: Value(listenBrainzTokenValid),
+        listenBrainzUserName: Value(listenBrainzUserName),
         customVoyageServers: Value(customVoyageServers),
         updatedAt: DateTime.now(),
       ),
@@ -803,6 +805,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   Future<void> updateListenBrainzScrobblingState({
     bool? enabled,
     bool? tokenValid,
+    String? userName,
+    bool clearUserName = false,
   }) {
     return (update(
       appSettingsTable,
@@ -814,6 +818,11 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         listenBrainzTokenValid: tokenValid == null
             ? const Value.absent()
             : Value(tokenValid),
+        listenBrainzUserName: clearUserName
+            ? const Value(null)
+            : userName == null
+            ? const Value.absent()
+            : Value(userName),
         updatedAt: Value(DateTime.now()),
       ),
     );

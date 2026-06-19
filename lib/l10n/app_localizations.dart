@@ -4155,6 +4155,12 @@ abstract class AppLocalizations {
   /// **'Liked Tracks'**
   String get homeSectionLikedTracks;
 
+  /// No description provided for @homeSectionListenBrainzDiscover.
+  ///
+  /// In en, this message translates to:
+  /// **'Discover'**
+  String get homeSectionListenBrainzDiscover;
+
   /// No description provided for @homeSectionRecentlyAdded.
   ///
   /// In en, this message translates to:

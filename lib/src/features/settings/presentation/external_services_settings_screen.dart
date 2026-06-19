@@ -265,17 +265,27 @@ class _ExternalServicesSettingsScreenState
     }
     setState(() => _busy = true);
     try {
-      final valid = await ListenBrainzApiClient().validateToken(token);
-      await ref
-          .read(externalScrobbleCredentialStoreProvider)
-          .saveListenBrainzToken(token);
+      final details = await ListenBrainzApiClient().validateTokenDetails(token);
+      if (details.valid) {
+        await ref
+            .read(externalScrobbleCredentialStoreProvider)
+            .saveListenBrainzToken(token);
+      } else {
+        await ref
+            .read(externalScrobbleCredentialStoreProvider)
+            .clearListenBrainzToken();
+      }
       await _saveSettings(
         settings.copyWith(
-          listenBrainzTokenValid: valid,
-          listenBrainzScrobblingEnabled: valid,
+          listenBrainzTokenValid: details.valid,
+          listenBrainzScrobblingEnabled: details.valid,
+          listenBrainzUserName: details.userName,
+          clearListenBrainzUserName: !details.valid,
         ),
       );
-      _notice(valid ? 'ListenBrainz token validated.' : 'Token is not valid.');
+      _notice(
+        details.valid ? 'ListenBrainz token validated.' : 'Token is not valid.',
+      );
     } on Object {
       _notice('Could not validate the ListenBrainz token. Try again later.');
     } finally {

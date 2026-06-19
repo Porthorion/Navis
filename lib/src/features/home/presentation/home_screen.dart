@@ -7,6 +7,7 @@ import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/api/models/listenbrainz_playlist.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
@@ -99,6 +100,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     ref.invalidate(homeRandomAlbumsProvider);
     ref.invalidate(homeDownloadedRandomAlbumsProvider);
     ref.invalidate(homeRandomShowcaseProvider);
+    ref.invalidate(listenBrainzDiscoverProvider);
     ref.invalidate(updateProvider);
   }
 
@@ -685,6 +687,37 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               ref.invalidate(homeRandomAlbumsProvider);
               ref.invalidate(homeRandomShowcaseProvider);
             },
+          ),
+        ];
+
+      case HomeSectionIds.listenBrainzDiscover:
+        if (downloadedOnly || likedOnly) {
+          return const <Widget>[];
+        }
+        return <Widget>[
+          _HomeSection<List<ListenBrainzDiscoverPlaylist>>(
+            title: 'Discover',
+            desktopMode: desktopMode,
+            adaptiveLayoutClass: adaptiveLayoutClass,
+            compactWideLandscapeMode: compactWideLandscapeMode,
+            template: _HomeSectionTemplate.carousel,
+            density: sectionDensity,
+            data: ref.watch(listenBrainzDiscoverProvider),
+            isEmpty: (items) => items.isEmpty,
+            builder: (context, playlists) => _ListenBrainzDiscoverCarousel(
+              playlists: playlists,
+              density: sectionDensity,
+              compactWideLandscapeMode: compactWideLandscapeMode,
+              onTap: (playlist) => _showListenBrainzDiscoverDetail(
+                context,
+                ref,
+                playlist,
+              ),
+            ),
+            emptyTitle: 'No Discover playlists',
+            emptySubtitle:
+                'Validate your ListenBrainz token in External Services.',
+            onRetry: () => ref.invalidate(listenBrainzDiscoverProvider),
           ),
         ];
 

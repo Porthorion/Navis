@@ -84,6 +84,7 @@ class SettingsRepository {
       lastFmSessionConnected: settings.lastFmSessionConnected,
       listenBrainzScrobblingEnabled: settings.listenBrainzScrobblingEnabled,
       listenBrainzTokenValid: settings.listenBrainzTokenValid,
+      listenBrainzUserName: settings.listenBrainzUserName,
       customVoyageServers: _encodeCustomVoyageServers(
         settings.customVoyageServers,
       ),
@@ -174,6 +175,7 @@ class SettingsRepository {
       lastFmSessionConnected: row.lastFmSessionConnected,
       listenBrainzScrobblingEnabled: row.listenBrainzScrobblingEnabled,
       listenBrainzTokenValid: row.listenBrainzTokenValid,
+      listenBrainzUserName: row.listenBrainzUserName,
       customVoyageServers: _decodeCustomVoyageServers(
         row.customVoyageServers,
       ),
