@@ -140,6 +140,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     ),
                   ),
                   GoRoute(
+                    path: 'listenbrainz/:sourcePatch',
+                    pageBuilder: (context, state) => _slideFadePage(
+                      key: state.pageKey,
+                      child: ListenBrainzWeeklyDetailScreen(
+                        sourcePatch: state.pathParameters['sourcePatch']!,
+                      ),
+                    ),
+                  ),
+                  GoRoute(
                     path: 'liked-albums',
                     pageBuilder: (context, state) => _slideFadePage(
                       key: state.pageKey,

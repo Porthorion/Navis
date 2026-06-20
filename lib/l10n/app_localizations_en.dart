@@ -2321,9 +2321,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeSectionLikedTracks => 'Liked Tracks';
 
   @override
-  String get homeSectionListenBrainzDiscover => 'Discover';
-
-  @override
   String get homeSectionRecentlyAdded => 'Recently Added';
 
   @override

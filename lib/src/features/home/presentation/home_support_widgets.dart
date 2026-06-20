@@ -183,121 +183,6 @@ class _UpdateBanner extends ConsumerWidget {
   }
 }
 
-class _ListenBrainzDiscoverCarousel extends StatelessWidget {
-  const _ListenBrainzDiscoverCarousel({
-    required this.playlists,
-    required this.onTap,
-    required this.compactWideLandscapeMode,
-    this.density = _HomeSectionDensity.comfortable,
-  });
-
-  final List<ListenBrainzDiscoverPlaylist> playlists;
-  final ValueChanged<ListenBrainzDiscoverPlaylist> onTap;
-  final bool compactWideLandscapeMode;
-  final _HomeSectionDensity density;
-
-  @override
-  Widget build(BuildContext context) {
-    final compactDensity = density == _HomeSectionDensity.compact;
-    final cardWidth = compactDensity ? 178.0 : 196.0;
-    final cardHeight = compactDensity ? 252.0 : 276.0;
-    return SizedBox(
-      height: cardHeight,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.symmetric(
-          horizontal: compactWideLandscapeMode ? 0 : 16,
-        ),
-        itemCount: playlists.length,
-        separatorBuilder: (_, _) => SizedBox(width: compactDensity ? 10 : 12),
-        itemBuilder: (context, index) {
-          final playlist = playlists[index];
-          return SizedBox(
-            width: cardWidth,
-            child: _ListenBrainzDiscoverCard(
-              playlist: playlist,
-              onTap: () => onTap(playlist),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _ListenBrainzDiscoverCard extends StatelessWidget {
-  const _ListenBrainzDiscoverCard({
-    required this.playlist,
-    required this.onTap,
-  });
-
-  final ListenBrainzDiscoverPlaylist playlist;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final description = playlist.playlist.description?.trim();
-    final freshness = playlist.playlist.date == null
-        ? null
-        : _formatDiscoverDate(playlist.playlist.date!);
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              _ListenBrainzArtwork(playlist: playlist, size: 132),
-              const SizedBox(height: 10),
-              Text(
-                playlist.playlist.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 3),
-              if (description != null && description.isNotEmpty)
-                Text(
-                  description,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: cs.onSurfaceVariant,
-                  ),
-                )
-              else
-                Text(
-                  'ListenBrainz recommendations',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: cs.onSurfaceVariant,
-                  ),
-                ),
-              const Spacer(),
-              Text(
-                '${playlist.matchedCount} of ${playlist.totalCount} available'
-                '${freshness == null ? '' : ' · $freshness'}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: cs.onSurface.withValues(alpha: 0.62),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _ListenBrainzArtwork extends StatelessWidget {
   const _ListenBrainzArtwork({
     required this.playlist,
@@ -391,15 +276,23 @@ Future<void> _showListenBrainzDiscoverDetail(
   WidgetRef ref,
   ListenBrainzDiscoverPlaylist playlist,
 ) {
-  return showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    useSafeArea: true,
-    builder: (context) => _ListenBrainzDiscoverDetailSheet(
-      playlist: playlist,
-      ref: ref,
-    ),
+  if (GoRouter.maybeOf(context) == null) {
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (context) => _ListenBrainzDiscoverDetailSheet(
+        playlist: playlist,
+        ref: ref,
+      ),
+    );
+  }
+  NavService.openListenBrainzWeeklyDetail(
+    context,
+    ref,
+    playlist.playlist.sourcePatch ?? '',
   );
+  return Future<void>.value();
 }
 
 class _ListenBrainzDiscoverDetailSheet extends StatelessWidget {
@@ -436,7 +329,7 @@ class _ListenBrainzDiscoverDetailSheet extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       Text(
-                        playlist.playlist.title,
+                        playlist.displayTitle,
                         maxLines: 3,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.headlineSmall?.copyWith(
@@ -546,9 +439,17 @@ class _ListenBrainzRecommendationTile extends StatelessWidget {
     final cs = theme.colorScheme;
     final song = recommendation.song;
     final track = recommendation.track;
-    final unavailable = !recommendation.isPlayable;
+    final pending =
+        recommendation.status == ListenBrainzRecommendationMatchStatus.pending;
+    final unavailable = !pending && !recommendation.isPlayable;
     final playableSong = unavailable ? null : song;
-    final subtitle = song == null
+    final subtitle = pending
+        ? <String>[
+            if (track.creator != null) track.creator!,
+            if (track.album != null) track.album!,
+            'Matching',
+          ].join(' · ')
+        : song == null
         ? <String>[
             if (track.creator != null) track.creator!,
             if (track.album != null) track.album!,
@@ -568,13 +469,14 @@ class _ListenBrainzRecommendationTile extends StatelessWidget {
         contentPadding: EdgeInsets.zero,
         leading: SizedBox(
           width: 42,
-          child: song?.coverArt == null
-              ? Center(child: Text('$index'))
-              : CoverArtImage(
-                  coverArtId: song!.coverArt,
-                  size: 42,
-                  borderRadius: BorderRadius.circular(6),
-                ),
+          child: pending
+              ? const Center(
+                  child: SizedBox.square(
+                    dimension: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+              : Center(child: Text('$index')),
         ),
         title: Text(
           playableSong?.title ?? track.title,
@@ -596,9 +498,13 @@ class _ListenBrainzRecommendationTile extends StatelessWidget {
         ),
         trailing: playableSong == null
             ? IconButton(
-                tooltip: 'Search',
-                icon: const Icon(Icons.search_rounded),
-                onPressed: () => onSearch(track),
+                tooltip: pending ? 'Matching' : 'Search',
+                icon: Icon(
+                  pending
+                      ? Icons.hourglass_empty_rounded
+                      : Icons.search_rounded,
+                ),
+                onPressed: pending ? null : () => onSearch(track),
               )
             : Text(
                 formatSeconds(playableSong.duration),
@@ -610,19 +516,4 @@ class _ListenBrainzRecommendationTile extends StatelessWidget {
       ),
     );
   }
-}
-
-String _formatDiscoverDate(DateTime date) {
-  final now = DateTime.now();
-  final difference = now.difference(date);
-  if (difference.inDays <= 0) {
-    return 'today';
-  }
-  if (difference.inDays < 7) {
-    return '${difference.inDays}d ago';
-  }
-  if (difference.inDays < 31) {
-    return '${(difference.inDays / 7).floor()}w ago';
-  }
-  return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 }

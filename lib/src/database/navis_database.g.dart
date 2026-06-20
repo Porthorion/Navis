@@ -6048,6 +6048,17 @@ class $SongsTableTable extends SongsTable
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _recordingMbidMeta = const VerificationMeta(
+    'recordingMbid',
+  );
+  @override
+  late final GeneratedColumn<String> recordingMbid = GeneratedColumn<String>(
+    'recording_mbid',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _userRatingMeta = const VerificationMeta(
     'userRating',
   );
@@ -6155,6 +6166,7 @@ class $SongsTableTable extends SongsTable
     size,
     coverArt,
     starred,
+    recordingMbid,
     userRating,
     playCount,
     createdAt,
@@ -6274,6 +6286,15 @@ class $SongsTableTable extends SongsTable
       context.handle(
         _starredMeta,
         starred.isAcceptableOrUnknown(data['starred']!, _starredMeta),
+      );
+    }
+    if (data.containsKey('recording_mbid')) {
+      context.handle(
+        _recordingMbidMeta,
+        recordingMbid.isAcceptableOrUnknown(
+          data['recording_mbid']!,
+          _recordingMbidMeta,
+        ),
       );
     }
     if (data.containsKey('user_rating')) {
@@ -6412,6 +6433,10 @@ class $SongsTableTable extends SongsTable
         DriftSqlType.dateTime,
         data['${effectivePrefix}starred'],
       ),
+      recordingMbid: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}recording_mbid'],
+      ),
       userRating: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}user_rating'],
@@ -6470,6 +6495,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
   final int? size;
   final String? coverArt;
   final DateTime? starred;
+  final String? recordingMbid;
   final int? userRating;
   final int? playCount;
   final DateTime? createdAt;
@@ -6506,6 +6532,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     this.size,
     this.coverArt,
     this.starred,
+    this.recordingMbid,
     this.userRating,
     this.playCount,
     this.createdAt,
@@ -6561,6 +6588,9 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     }
     if (!nullToAbsent || starred != null) {
       map['starred'] = Variable<DateTime>(starred);
+    }
+    if (!nullToAbsent || recordingMbid != null) {
+      map['recording_mbid'] = Variable<String>(recordingMbid);
     }
     if (!nullToAbsent || userRating != null) {
       map['user_rating'] = Variable<int>(userRating);
@@ -6633,6 +6663,9 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       starred: starred == null && nullToAbsent
           ? const Value.absent()
           : Value(starred),
+      recordingMbid: recordingMbid == null && nullToAbsent
+          ? const Value.absent()
+          : Value(recordingMbid),
       userRating: userRating == null && nullToAbsent
           ? const Value.absent()
           : Value(userRating),
@@ -6682,6 +6715,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       size: serializer.fromJson<int?>(json['size']),
       coverArt: serializer.fromJson<String?>(json['coverArt']),
       starred: serializer.fromJson<DateTime?>(json['starred']),
+      recordingMbid: serializer.fromJson<String?>(json['recordingMbid']),
       userRating: serializer.fromJson<int?>(json['userRating']),
       playCount: serializer.fromJson<int?>(json['playCount']),
       createdAt: serializer.fromJson<DateTime?>(json['createdAt']),
@@ -6720,6 +6754,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       'size': serializer.toJson<int?>(size),
       'coverArt': serializer.toJson<String?>(coverArt),
       'starred': serializer.toJson<DateTime?>(starred),
+      'recordingMbid': serializer.toJson<String?>(recordingMbid),
       'userRating': serializer.toJson<int?>(userRating),
       'playCount': serializer.toJson<int?>(playCount),
       'createdAt': serializer.toJson<DateTime?>(createdAt),
@@ -6748,6 +6783,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     Value<int?> size = const Value.absent(),
     Value<String?> coverArt = const Value.absent(),
     Value<DateTime?> starred = const Value.absent(),
+    Value<String?> recordingMbid = const Value.absent(),
     Value<int?> userRating = const Value.absent(),
     Value<int?> playCount = const Value.absent(),
     Value<DateTime?> createdAt = const Value.absent(),
@@ -6773,6 +6809,9 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     size: size.present ? size.value : this.size,
     coverArt: coverArt.present ? coverArt.value : this.coverArt,
     starred: starred.present ? starred.value : this.starred,
+    recordingMbid: recordingMbid.present
+        ? recordingMbid.value
+        : this.recordingMbid,
     userRating: userRating.present ? userRating.value : this.userRating,
     playCount: playCount.present ? playCount.value : this.playCount,
     createdAt: createdAt.present ? createdAt.value : this.createdAt,
@@ -6818,6 +6857,9 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       size: data.size.present ? data.size.value : this.size,
       coverArt: data.coverArt.present ? data.coverArt.value : this.coverArt,
       starred: data.starred.present ? data.starred.value : this.starred,
+      recordingMbid: data.recordingMbid.present
+          ? data.recordingMbid.value
+          : this.recordingMbid,
       userRating: data.userRating.present
           ? data.userRating.value
           : this.userRating,
@@ -6860,6 +6902,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
           ..write('size: $size, ')
           ..write('coverArt: $coverArt, ')
           ..write('starred: $starred, ')
+          ..write('recordingMbid: $recordingMbid, ')
           ..write('userRating: $userRating, ')
           ..write('playCount: $playCount, ')
           ..write('createdAt: $createdAt, ')
@@ -6890,6 +6933,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     size,
     coverArt,
     starred,
+    recordingMbid,
     userRating,
     playCount,
     createdAt,
@@ -6919,6 +6963,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
           other.size == this.size &&
           other.coverArt == this.coverArt &&
           other.starred == this.starred &&
+          other.recordingMbid == this.recordingMbid &&
           other.userRating == this.userRating &&
           other.playCount == this.playCount &&
           other.createdAt == this.createdAt &&
@@ -6946,6 +6991,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
   final Value<int?> size;
   final Value<String?> coverArt;
   final Value<DateTime?> starred;
+  final Value<String?> recordingMbid;
   final Value<int?> userRating;
   final Value<int?> playCount;
   final Value<DateTime?> createdAt;
@@ -6972,6 +7018,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     this.size = const Value.absent(),
     this.coverArt = const Value.absent(),
     this.starred = const Value.absent(),
+    this.recordingMbid = const Value.absent(),
     this.userRating = const Value.absent(),
     this.playCount = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -6999,6 +7046,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     this.size = const Value.absent(),
     this.coverArt = const Value.absent(),
     this.starred = const Value.absent(),
+    this.recordingMbid = const Value.absent(),
     this.userRating = const Value.absent(),
     this.playCount = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -7027,6 +7075,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     Expression<int>? size,
     Expression<String>? coverArt,
     Expression<DateTime>? starred,
+    Expression<String>? recordingMbid,
     Expression<int>? userRating,
     Expression<int>? playCount,
     Expression<DateTime>? createdAt,
@@ -7054,6 +7103,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
       if (size != null) 'size': size,
       if (coverArt != null) 'cover_art': coverArt,
       if (starred != null) 'starred': starred,
+      if (recordingMbid != null) 'recording_mbid': recordingMbid,
       if (userRating != null) 'user_rating': userRating,
       if (playCount != null) 'play_count': playCount,
       if (createdAt != null) 'created_at': createdAt,
@@ -7087,6 +7137,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     Value<int?>? size,
     Value<String?>? coverArt,
     Value<DateTime?>? starred,
+    Value<String?>? recordingMbid,
     Value<int?>? userRating,
     Value<int?>? playCount,
     Value<DateTime?>? createdAt,
@@ -7114,6 +7165,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
       size: size ?? this.size,
       coverArt: coverArt ?? this.coverArt,
       starred: starred ?? this.starred,
+      recordingMbid: recordingMbid ?? this.recordingMbid,
       userRating: userRating ?? this.userRating,
       playCount: playCount ?? this.playCount,
       createdAt: createdAt ?? this.createdAt,
@@ -7177,6 +7229,9 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     if (starred.present) {
       map['starred'] = Variable<DateTime>(starred.value);
     }
+    if (recordingMbid.present) {
+      map['recording_mbid'] = Variable<String>(recordingMbid.value);
+    }
     if (userRating.present) {
       map['user_rating'] = Variable<int>(userRating.value);
     }
@@ -7234,6 +7289,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
           ..write('size: $size, ')
           ..write('coverArt: $coverArt, ')
           ..write('starred: $starred, ')
+          ..write('recordingMbid: $recordingMbid, ')
           ..write('userRating: $userRating, ')
           ..write('playCount: $playCount, ')
           ..write('createdAt: $createdAt, ')
@@ -13628,6 +13684,675 @@ class StarSyncQueueTableCompanion
   }
 }
 
+class $ListenBrainzFeedbackQueueTableTable
+    extends ListenBrainzFeedbackQueueTable
+    with
+        TableInfo<
+          $ListenBrainzFeedbackQueueTableTable,
+          ListenBrainzFeedbackQueueTableData
+        > {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ListenBrainzFeedbackQueueTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _songIdMeta = const VerificationMeta('songId');
+  @override
+  late final GeneratedColumn<String> songId = GeneratedColumn<String>(
+    'song_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES songs (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _scoreMeta = const VerificationMeta('score');
+  @override
+  late final GeneratedColumn<int> score = GeneratedColumn<int>(
+    'score',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _recordingMbidMeta = const VerificationMeta(
+    'recordingMbid',
+  );
+  @override
+  late final GeneratedColumn<String> recordingMbid = GeneratedColumn<String>(
+    'recording_mbid',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _artistMeta = const VerificationMeta('artist');
+  @override
+  late final GeneratedColumn<String> artist = GeneratedColumn<String>(
+    'artist',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _albumMeta = const VerificationMeta('album');
+  @override
+  late final GeneratedColumn<String> album = GeneratedColumn<String>(
+    'album',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _attemptsMeta = const VerificationMeta(
+    'attempts',
+  );
+  @override
+  late final GeneratedColumn<int> attempts = GeneratedColumn<int>(
+    'attempts',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _queuedAtMeta = const VerificationMeta(
+    'queuedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> queuedAt = GeneratedColumn<DateTime>(
+    'queued_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nextAttemptAtMeta = const VerificationMeta(
+    'nextAttemptAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> nextAttemptAt =
+      GeneratedColumn<DateTime>(
+        'next_attempt_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _lastErrorMeta = const VerificationMeta(
+    'lastError',
+  );
+  @override
+  late final GeneratedColumn<String> lastError = GeneratedColumn<String>(
+    'last_error',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    songId,
+    score,
+    recordingMbid,
+    title,
+    artist,
+    album,
+    attempts,
+    queuedAt,
+    nextAttemptAt,
+    lastError,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'listenbrainz_feedback_queue';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ListenBrainzFeedbackQueueTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('song_id')) {
+      context.handle(
+        _songIdMeta,
+        songId.isAcceptableOrUnknown(data['song_id']!, _songIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_songIdMeta);
+    }
+    if (data.containsKey('score')) {
+      context.handle(
+        _scoreMeta,
+        score.isAcceptableOrUnknown(data['score']!, _scoreMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_scoreMeta);
+    }
+    if (data.containsKey('recording_mbid')) {
+      context.handle(
+        _recordingMbidMeta,
+        recordingMbid.isAcceptableOrUnknown(
+          data['recording_mbid']!,
+          _recordingMbidMeta,
+        ),
+      );
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('artist')) {
+      context.handle(
+        _artistMeta,
+        artist.isAcceptableOrUnknown(data['artist']!, _artistMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_artistMeta);
+    }
+    if (data.containsKey('album')) {
+      context.handle(
+        _albumMeta,
+        album.isAcceptableOrUnknown(data['album']!, _albumMeta),
+      );
+    }
+    if (data.containsKey('attempts')) {
+      context.handle(
+        _attemptsMeta,
+        attempts.isAcceptableOrUnknown(data['attempts']!, _attemptsMeta),
+      );
+    }
+    if (data.containsKey('queued_at')) {
+      context.handle(
+        _queuedAtMeta,
+        queuedAt.isAcceptableOrUnknown(data['queued_at']!, _queuedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_queuedAtMeta);
+    }
+    if (data.containsKey('next_attempt_at')) {
+      context.handle(
+        _nextAttemptAtMeta,
+        nextAttemptAt.isAcceptableOrUnknown(
+          data['next_attempt_at']!,
+          _nextAttemptAtMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_nextAttemptAtMeta);
+    }
+    if (data.containsKey('last_error')) {
+      context.handle(
+        _lastErrorMeta,
+        lastError.isAcceptableOrUnknown(data['last_error']!, _lastErrorMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {songId},
+  ];
+  @override
+  ListenBrainzFeedbackQueueTableData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ListenBrainzFeedbackQueueTableData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      songId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}song_id'],
+      )!,
+      score: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}score'],
+      )!,
+      recordingMbid: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}recording_mbid'],
+      ),
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      artist: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}artist'],
+      )!,
+      album: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}album'],
+      ),
+      attempts: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}attempts'],
+      )!,
+      queuedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}queued_at'],
+      )!,
+      nextAttemptAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}next_attempt_at'],
+      )!,
+      lastError: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_error'],
+      ),
+    );
+  }
+
+  @override
+  $ListenBrainzFeedbackQueueTableTable createAlias(String alias) {
+    return $ListenBrainzFeedbackQueueTableTable(attachedDatabase, alias);
+  }
+}
+
+class ListenBrainzFeedbackQueueTableData extends DataClass
+    implements Insertable<ListenBrainzFeedbackQueueTableData> {
+  final int id;
+  final String songId;
+  final int score;
+  final String? recordingMbid;
+  final String title;
+  final String artist;
+  final String? album;
+  final int attempts;
+  final DateTime queuedAt;
+  final DateTime nextAttemptAt;
+  final String? lastError;
+  const ListenBrainzFeedbackQueueTableData({
+    required this.id,
+    required this.songId,
+    required this.score,
+    this.recordingMbid,
+    required this.title,
+    required this.artist,
+    this.album,
+    required this.attempts,
+    required this.queuedAt,
+    required this.nextAttemptAt,
+    this.lastError,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['song_id'] = Variable<String>(songId);
+    map['score'] = Variable<int>(score);
+    if (!nullToAbsent || recordingMbid != null) {
+      map['recording_mbid'] = Variable<String>(recordingMbid);
+    }
+    map['title'] = Variable<String>(title);
+    map['artist'] = Variable<String>(artist);
+    if (!nullToAbsent || album != null) {
+      map['album'] = Variable<String>(album);
+    }
+    map['attempts'] = Variable<int>(attempts);
+    map['queued_at'] = Variable<DateTime>(queuedAt);
+    map['next_attempt_at'] = Variable<DateTime>(nextAttemptAt);
+    if (!nullToAbsent || lastError != null) {
+      map['last_error'] = Variable<String>(lastError);
+    }
+    return map;
+  }
+
+  ListenBrainzFeedbackQueueTableCompanion toCompanion(bool nullToAbsent) {
+    return ListenBrainzFeedbackQueueTableCompanion(
+      id: Value(id),
+      songId: Value(songId),
+      score: Value(score),
+      recordingMbid: recordingMbid == null && nullToAbsent
+          ? const Value.absent()
+          : Value(recordingMbid),
+      title: Value(title),
+      artist: Value(artist),
+      album: album == null && nullToAbsent
+          ? const Value.absent()
+          : Value(album),
+      attempts: Value(attempts),
+      queuedAt: Value(queuedAt),
+      nextAttemptAt: Value(nextAttemptAt),
+      lastError: lastError == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastError),
+    );
+  }
+
+  factory ListenBrainzFeedbackQueueTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ListenBrainzFeedbackQueueTableData(
+      id: serializer.fromJson<int>(json['id']),
+      songId: serializer.fromJson<String>(json['songId']),
+      score: serializer.fromJson<int>(json['score']),
+      recordingMbid: serializer.fromJson<String?>(json['recordingMbid']),
+      title: serializer.fromJson<String>(json['title']),
+      artist: serializer.fromJson<String>(json['artist']),
+      album: serializer.fromJson<String?>(json['album']),
+      attempts: serializer.fromJson<int>(json['attempts']),
+      queuedAt: serializer.fromJson<DateTime>(json['queuedAt']),
+      nextAttemptAt: serializer.fromJson<DateTime>(json['nextAttemptAt']),
+      lastError: serializer.fromJson<String?>(json['lastError']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'songId': serializer.toJson<String>(songId),
+      'score': serializer.toJson<int>(score),
+      'recordingMbid': serializer.toJson<String?>(recordingMbid),
+      'title': serializer.toJson<String>(title),
+      'artist': serializer.toJson<String>(artist),
+      'album': serializer.toJson<String?>(album),
+      'attempts': serializer.toJson<int>(attempts),
+      'queuedAt': serializer.toJson<DateTime>(queuedAt),
+      'nextAttemptAt': serializer.toJson<DateTime>(nextAttemptAt),
+      'lastError': serializer.toJson<String?>(lastError),
+    };
+  }
+
+  ListenBrainzFeedbackQueueTableData copyWith({
+    int? id,
+    String? songId,
+    int? score,
+    Value<String?> recordingMbid = const Value.absent(),
+    String? title,
+    String? artist,
+    Value<String?> album = const Value.absent(),
+    int? attempts,
+    DateTime? queuedAt,
+    DateTime? nextAttemptAt,
+    Value<String?> lastError = const Value.absent(),
+  }) => ListenBrainzFeedbackQueueTableData(
+    id: id ?? this.id,
+    songId: songId ?? this.songId,
+    score: score ?? this.score,
+    recordingMbid: recordingMbid.present
+        ? recordingMbid.value
+        : this.recordingMbid,
+    title: title ?? this.title,
+    artist: artist ?? this.artist,
+    album: album.present ? album.value : this.album,
+    attempts: attempts ?? this.attempts,
+    queuedAt: queuedAt ?? this.queuedAt,
+    nextAttemptAt: nextAttemptAt ?? this.nextAttemptAt,
+    lastError: lastError.present ? lastError.value : this.lastError,
+  );
+  ListenBrainzFeedbackQueueTableData copyWithCompanion(
+    ListenBrainzFeedbackQueueTableCompanion data,
+  ) {
+    return ListenBrainzFeedbackQueueTableData(
+      id: data.id.present ? data.id.value : this.id,
+      songId: data.songId.present ? data.songId.value : this.songId,
+      score: data.score.present ? data.score.value : this.score,
+      recordingMbid: data.recordingMbid.present
+          ? data.recordingMbid.value
+          : this.recordingMbid,
+      title: data.title.present ? data.title.value : this.title,
+      artist: data.artist.present ? data.artist.value : this.artist,
+      album: data.album.present ? data.album.value : this.album,
+      attempts: data.attempts.present ? data.attempts.value : this.attempts,
+      queuedAt: data.queuedAt.present ? data.queuedAt.value : this.queuedAt,
+      nextAttemptAt: data.nextAttemptAt.present
+          ? data.nextAttemptAt.value
+          : this.nextAttemptAt,
+      lastError: data.lastError.present ? data.lastError.value : this.lastError,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ListenBrainzFeedbackQueueTableData(')
+          ..write('id: $id, ')
+          ..write('songId: $songId, ')
+          ..write('score: $score, ')
+          ..write('recordingMbid: $recordingMbid, ')
+          ..write('title: $title, ')
+          ..write('artist: $artist, ')
+          ..write('album: $album, ')
+          ..write('attempts: $attempts, ')
+          ..write('queuedAt: $queuedAt, ')
+          ..write('nextAttemptAt: $nextAttemptAt, ')
+          ..write('lastError: $lastError')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    songId,
+    score,
+    recordingMbid,
+    title,
+    artist,
+    album,
+    attempts,
+    queuedAt,
+    nextAttemptAt,
+    lastError,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ListenBrainzFeedbackQueueTableData &&
+          other.id == this.id &&
+          other.songId == this.songId &&
+          other.score == this.score &&
+          other.recordingMbid == this.recordingMbid &&
+          other.title == this.title &&
+          other.artist == this.artist &&
+          other.album == this.album &&
+          other.attempts == this.attempts &&
+          other.queuedAt == this.queuedAt &&
+          other.nextAttemptAt == this.nextAttemptAt &&
+          other.lastError == this.lastError);
+}
+
+class ListenBrainzFeedbackQueueTableCompanion
+    extends UpdateCompanion<ListenBrainzFeedbackQueueTableData> {
+  final Value<int> id;
+  final Value<String> songId;
+  final Value<int> score;
+  final Value<String?> recordingMbid;
+  final Value<String> title;
+  final Value<String> artist;
+  final Value<String?> album;
+  final Value<int> attempts;
+  final Value<DateTime> queuedAt;
+  final Value<DateTime> nextAttemptAt;
+  final Value<String?> lastError;
+  const ListenBrainzFeedbackQueueTableCompanion({
+    this.id = const Value.absent(),
+    this.songId = const Value.absent(),
+    this.score = const Value.absent(),
+    this.recordingMbid = const Value.absent(),
+    this.title = const Value.absent(),
+    this.artist = const Value.absent(),
+    this.album = const Value.absent(),
+    this.attempts = const Value.absent(),
+    this.queuedAt = const Value.absent(),
+    this.nextAttemptAt = const Value.absent(),
+    this.lastError = const Value.absent(),
+  });
+  ListenBrainzFeedbackQueueTableCompanion.insert({
+    this.id = const Value.absent(),
+    required String songId,
+    required int score,
+    this.recordingMbid = const Value.absent(),
+    required String title,
+    required String artist,
+    this.album = const Value.absent(),
+    this.attempts = const Value.absent(),
+    required DateTime queuedAt,
+    required DateTime nextAttemptAt,
+    this.lastError = const Value.absent(),
+  }) : songId = Value(songId),
+       score = Value(score),
+       title = Value(title),
+       artist = Value(artist),
+       queuedAt = Value(queuedAt),
+       nextAttemptAt = Value(nextAttemptAt);
+  static Insertable<ListenBrainzFeedbackQueueTableData> custom({
+    Expression<int>? id,
+    Expression<String>? songId,
+    Expression<int>? score,
+    Expression<String>? recordingMbid,
+    Expression<String>? title,
+    Expression<String>? artist,
+    Expression<String>? album,
+    Expression<int>? attempts,
+    Expression<DateTime>? queuedAt,
+    Expression<DateTime>? nextAttemptAt,
+    Expression<String>? lastError,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (songId != null) 'song_id': songId,
+      if (score != null) 'score': score,
+      if (recordingMbid != null) 'recording_mbid': recordingMbid,
+      if (title != null) 'title': title,
+      if (artist != null) 'artist': artist,
+      if (album != null) 'album': album,
+      if (attempts != null) 'attempts': attempts,
+      if (queuedAt != null) 'queued_at': queuedAt,
+      if (nextAttemptAt != null) 'next_attempt_at': nextAttemptAt,
+      if (lastError != null) 'last_error': lastError,
+    });
+  }
+
+  ListenBrainzFeedbackQueueTableCompanion copyWith({
+    Value<int>? id,
+    Value<String>? songId,
+    Value<int>? score,
+    Value<String?>? recordingMbid,
+    Value<String>? title,
+    Value<String>? artist,
+    Value<String?>? album,
+    Value<int>? attempts,
+    Value<DateTime>? queuedAt,
+    Value<DateTime>? nextAttemptAt,
+    Value<String?>? lastError,
+  }) {
+    return ListenBrainzFeedbackQueueTableCompanion(
+      id: id ?? this.id,
+      songId: songId ?? this.songId,
+      score: score ?? this.score,
+      recordingMbid: recordingMbid ?? this.recordingMbid,
+      title: title ?? this.title,
+      artist: artist ?? this.artist,
+      album: album ?? this.album,
+      attempts: attempts ?? this.attempts,
+      queuedAt: queuedAt ?? this.queuedAt,
+      nextAttemptAt: nextAttemptAt ?? this.nextAttemptAt,
+      lastError: lastError ?? this.lastError,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (songId.present) {
+      map['song_id'] = Variable<String>(songId.value);
+    }
+    if (score.present) {
+      map['score'] = Variable<int>(score.value);
+    }
+    if (recordingMbid.present) {
+      map['recording_mbid'] = Variable<String>(recordingMbid.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (artist.present) {
+      map['artist'] = Variable<String>(artist.value);
+    }
+    if (album.present) {
+      map['album'] = Variable<String>(album.value);
+    }
+    if (attempts.present) {
+      map['attempts'] = Variable<int>(attempts.value);
+    }
+    if (queuedAt.present) {
+      map['queued_at'] = Variable<DateTime>(queuedAt.value);
+    }
+    if (nextAttemptAt.present) {
+      map['next_attempt_at'] = Variable<DateTime>(nextAttemptAt.value);
+    }
+    if (lastError.present) {
+      map['last_error'] = Variable<String>(lastError.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ListenBrainzFeedbackQueueTableCompanion(')
+          ..write('id: $id, ')
+          ..write('songId: $songId, ')
+          ..write('score: $score, ')
+          ..write('recordingMbid: $recordingMbid, ')
+          ..write('title: $title, ')
+          ..write('artist: $artist, ')
+          ..write('album: $album, ')
+          ..write('attempts: $attempts, ')
+          ..write('queuedAt: $queuedAt, ')
+          ..write('nextAttemptAt: $nextAttemptAt, ')
+          ..write('lastError: $lastError')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $NetworkUsageTableTable extends NetworkUsageTable
     with TableInfo<$NetworkUsageTableTable, NetworkUsageTableData> {
   @override
@@ -14080,6 +14805,8 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
       $ScrobbleQueueTableTable(this);
   late final $StarSyncQueueTableTable starSyncQueueTable =
       $StarSyncQueueTableTable(this);
+  late final $ListenBrainzFeedbackQueueTableTable
+  listenBrainzFeedbackQueueTable = $ListenBrainzFeedbackQueueTableTable(this);
   late final $NetworkUsageTableTable networkUsageTable =
       $NetworkUsageTableTable(this);
   late final AppSettingsDao appSettingsDao = AppSettingsDao(
@@ -14097,6 +14824,8 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
   late final MatchFlowDao matchFlowDao = MatchFlowDao(this as NavisDatabase);
   late final ScrobbleDao scrobbleDao = ScrobbleDao(this as NavisDatabase);
   late final StarSyncDao starSyncDao = StarSyncDao(this as NavisDatabase);
+  late final ListenBrainzFeedbackDao listenBrainzFeedbackDao =
+      ListenBrainzFeedbackDao(this as NavisDatabase);
   late final NetworkUsageDao networkUsageDao = NetworkUsageDao(
     this as NavisDatabase,
   );
@@ -14125,6 +14854,7 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
     matchFlowSongsTable,
     scrobbleQueueTable,
     starSyncQueueTable,
+    listenBrainzFeedbackQueueTable,
     networkUsageTable,
   ];
   @override
@@ -14198,6 +14928,15 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('scrobble_queue', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'songs',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [
+        TableUpdate('listenbrainz_feedback_queue', kind: UpdateKind.delete),
+      ],
     ),
   ]);
 }
@@ -16032,10 +16771,7 @@ final class $$ArtistsTableTableReferences
   static MultiTypedResultKey<$AlbumsTableTable, List<AlbumsTableData>>
   _albumsTableRefsTable(_$NavisDatabase db) => MultiTypedResultKey.fromTable(
     db.albumsTable,
-    aliasName: $_aliasNameGenerator(
-      db.artistsTable.id,
-      db.albumsTable.artistId,
-    ),
+    aliasName: 'artists__id__albums__artist_id',
   );
 
   $$AlbumsTableTableProcessedTableManager get albumsTableRefs {
@@ -16053,7 +16789,7 @@ final class $$ArtistsTableTableReferences
   static MultiTypedResultKey<$SongsTableTable, List<SongsTableData>>
   _songsTableRefsTable(_$NavisDatabase db) => MultiTypedResultKey.fromTable(
     db.songsTable,
-    aliasName: $_aliasNameGenerator(db.artistsTable.id, db.songsTable.artistId),
+    aliasName: 'artists__id__songs__artist_id',
   );
 
   $$SongsTableTableProcessedTableManager get songsTableRefs {
@@ -16454,9 +17190,7 @@ final class $$AlbumsTableTableReferences
   $$AlbumsTableTableReferences(super.$_db, super.$_table, super.$_typedResult);
 
   static $ArtistsTableTable _artistIdTable(_$NavisDatabase db) =>
-      db.artistsTable.createAlias(
-        $_aliasNameGenerator(db.albumsTable.artistId, db.artistsTable.id),
-      );
+      db.artistsTable.createAlias('albums__artist_id__artists__id');
 
   $$ArtistsTableTableProcessedTableManager? get artistId {
     final $_column = $_itemColumn<String>('artist_id');
@@ -16475,7 +17209,7 @@ final class $$AlbumsTableTableReferences
   static MultiTypedResultKey<$SongsTableTable, List<SongsTableData>>
   _songsTableRefsTable(_$NavisDatabase db) => MultiTypedResultKey.fromTable(
     db.songsTable,
-    aliasName: $_aliasNameGenerator(db.albumsTable.id, db.songsTable.albumId),
+    aliasName: 'albums__id__songs__album_id',
   );
 
   $$SongsTableTableProcessedTableManager get songsTableRefs {
@@ -17051,6 +17785,7 @@ typedef $$SongsTableTableCreateCompanionBuilder =
       Value<int?> size,
       Value<String?> coverArt,
       Value<DateTime?> starred,
+      Value<String?> recordingMbid,
       Value<int?> userRating,
       Value<int?> playCount,
       Value<DateTime?> createdAt,
@@ -17079,6 +17814,7 @@ typedef $$SongsTableTableUpdateCompanionBuilder =
       Value<int?> size,
       Value<String?> coverArt,
       Value<DateTime?> starred,
+      Value<String?> recordingMbid,
       Value<int?> userRating,
       Value<int?> playCount,
       Value<DateTime?> createdAt,
@@ -17095,9 +17831,7 @@ final class $$SongsTableTableReferences
   $$SongsTableTableReferences(super.$_db, super.$_table, super.$_typedResult);
 
   static $AlbumsTableTable _albumIdTable(_$NavisDatabase db) =>
-      db.albumsTable.createAlias(
-        $_aliasNameGenerator(db.songsTable.albumId, db.albumsTable.id),
-      );
+      db.albumsTable.createAlias('songs__album_id__albums__id');
 
   $$AlbumsTableTableProcessedTableManager? get albumId {
     final $_column = $_itemColumn<String>('album_id');
@@ -17114,9 +17848,7 @@ final class $$SongsTableTableReferences
   }
 
   static $ArtistsTableTable _artistIdTable(_$NavisDatabase db) =>
-      db.artistsTable.createAlias(
-        $_aliasNameGenerator(db.songsTable.artistId, db.artistsTable.id),
-      );
+      db.artistsTable.createAlias('songs__artist_id__artists__id');
 
   $$ArtistsTableTableProcessedTableManager? get artistId {
     final $_column = $_itemColumn<String>('artist_id');
@@ -17139,10 +17871,7 @@ final class $$SongsTableTableReferences
   _playlistSongsTableRefsTable(_$NavisDatabase db) =>
       MultiTypedResultKey.fromTable(
         db.playlistSongsTable,
-        aliasName: $_aliasNameGenerator(
-          db.songsTable.id,
-          db.playlistSongsTable.songId,
-        ),
+        aliasName: 'songs__id__playlist_songs__song_id',
       );
 
   $$PlaylistSongsTableTableProcessedTableManager get playlistSongsTableRefs {
@@ -17163,10 +17892,7 @@ final class $$SongsTableTableReferences
   _playHistoryTableRefsTable(_$NavisDatabase db) =>
       MultiTypedResultKey.fromTable(
         db.playHistoryTable,
-        aliasName: $_aliasNameGenerator(
-          db.songsTable.id,
-          db.playHistoryTable.songId,
-        ),
+        aliasName: 'songs__id__play_history__song_id',
       );
 
   $$PlayHistoryTableTableProcessedTableManager get playHistoryTableRefs {
@@ -17190,10 +17916,7 @@ final class $$SongsTableTableReferences
   _playQueueItemsTableRefsTable(_$NavisDatabase db) =>
       MultiTypedResultKey.fromTable(
         db.playQueueItemsTable,
-        aliasName: $_aliasNameGenerator(
-          db.songsTable.id,
-          db.playQueueItemsTable.songId,
-        ),
+        aliasName: 'songs__id__play_queue_items__song_id',
       );
 
   $$PlayQueueItemsTableTableProcessedTableManager get playQueueItemsTableRefs {
@@ -17217,10 +17940,7 @@ final class $$SongsTableTableReferences
   _scrobbleQueueTableRefsTable(_$NavisDatabase db) =>
       MultiTypedResultKey.fromTable(
         db.scrobbleQueueTable,
-        aliasName: $_aliasNameGenerator(
-          db.songsTable.id,
-          db.scrobbleQueueTable.songId,
-        ),
+        aliasName: 'songs__id__scrobble_queue__song_id',
       );
 
   $$ScrobbleQueueTableTableProcessedTableManager get scrobbleQueueTableRefs {
@@ -17231,6 +17951,31 @@ final class $$SongsTableTableReferences
 
     final cache = $_typedResult.readTableOrNull(
       _scrobbleQueueTableRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $ListenBrainzFeedbackQueueTableTable,
+    List<ListenBrainzFeedbackQueueTableData>
+  >
+  _listenBrainzFeedbackQueueTableRefsTable(_$NavisDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.listenBrainzFeedbackQueueTable,
+        aliasName: 'songs__id__listenbrainz_feedback_queue__song_id',
+      );
+
+  $$ListenBrainzFeedbackQueueTableTableProcessedTableManager
+  get listenBrainzFeedbackQueueTableRefs {
+    final manager = $$ListenBrainzFeedbackQueueTableTableTableManager(
+      $_db,
+      $_db.listenBrainzFeedbackQueueTable,
+    ).filter((f) => f.songId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _listenBrainzFeedbackQueueTableRefsTable($_db),
     );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
@@ -17314,6 +18059,11 @@ class $$SongsTableTableFilterComposer
 
   ColumnFilters<DateTime> get starred => $composableBuilder(
     column: $table.starred,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get recordingMbid => $composableBuilder(
+    column: $table.recordingMbid,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -17502,6 +18252,35 @@ class $$SongsTableTableFilterComposer
     );
     return f(composer);
   }
+
+  Expression<bool> listenBrainzFeedbackQueueTableRefs(
+    Expression<bool> Function(
+      $$ListenBrainzFeedbackQueueTableTableFilterComposer f,
+    )
+    f,
+  ) {
+    final $$ListenBrainzFeedbackQueueTableTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.listenBrainzFeedbackQueueTable,
+          getReferencedColumn: (t) => t.songId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ListenBrainzFeedbackQueueTableTableFilterComposer(
+                $db: $db,
+                $table: $db.listenBrainzFeedbackQueueTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$SongsTableTableOrderingComposer
@@ -17580,6 +18359,11 @@ class $$SongsTableTableOrderingComposer
 
   ColumnOrderings<DateTime> get starred => $composableBuilder(
     column: $table.starred,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get recordingMbid => $composableBuilder(
+    column: $table.recordingMbid,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -17728,6 +18512,11 @@ class $$SongsTableTableAnnotationComposer
 
   GeneratedColumn<DateTime> get starred =>
       $composableBuilder(column: $table.starred, builder: (column) => column);
+
+  GeneratedColumn<String> get recordingMbid => $composableBuilder(
+    column: $table.recordingMbid,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<int> get userRating => $composableBuilder(
     column: $table.userRating,
@@ -17913,6 +18702,35 @@ class $$SongsTableTableAnnotationComposer
         );
     return f(composer);
   }
+
+  Expression<T> listenBrainzFeedbackQueueTableRefs<T extends Object>(
+    Expression<T> Function(
+      $$ListenBrainzFeedbackQueueTableTableAnnotationComposer a,
+    )
+    f,
+  ) {
+    final $$ListenBrainzFeedbackQueueTableTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.listenBrainzFeedbackQueueTable,
+          getReferencedColumn: (t) => t.songId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ListenBrainzFeedbackQueueTableTableAnnotationComposer(
+                $db: $db,
+                $table: $db.listenBrainzFeedbackQueueTable,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$SongsTableTableTableManager
@@ -17935,6 +18753,7 @@ class $$SongsTableTableTableManager
             bool playHistoryTableRefs,
             bool playQueueItemsTableRefs,
             bool scrobbleQueueTableRefs,
+            bool listenBrainzFeedbackQueueTableRefs,
           })
         > {
   $$SongsTableTableTableManager(_$NavisDatabase db, $SongsTableTable table)
@@ -17966,6 +18785,7 @@ class $$SongsTableTableTableManager
                 Value<int?> size = const Value.absent(),
                 Value<String?> coverArt = const Value.absent(),
                 Value<DateTime?> starred = const Value.absent(),
+                Value<String?> recordingMbid = const Value.absent(),
                 Value<int?> userRating = const Value.absent(),
                 Value<int?> playCount = const Value.absent(),
                 Value<DateTime?> createdAt = const Value.absent(),
@@ -17992,6 +18812,7 @@ class $$SongsTableTableTableManager
                 size: size,
                 coverArt: coverArt,
                 starred: starred,
+                recordingMbid: recordingMbid,
                 userRating: userRating,
                 playCount: playCount,
                 createdAt: createdAt,
@@ -18020,6 +18841,7 @@ class $$SongsTableTableTableManager
                 Value<int?> size = const Value.absent(),
                 Value<String?> coverArt = const Value.absent(),
                 Value<DateTime?> starred = const Value.absent(),
+                Value<String?> recordingMbid = const Value.absent(),
                 Value<int?> userRating = const Value.absent(),
                 Value<int?> playCount = const Value.absent(),
                 Value<DateTime?> createdAt = const Value.absent(),
@@ -18046,6 +18868,7 @@ class $$SongsTableTableTableManager
                 size: size,
                 coverArt: coverArt,
                 starred: starred,
+                recordingMbid: recordingMbid,
                 userRating: userRating,
                 playCount: playCount,
                 createdAt: createdAt,
@@ -18072,6 +18895,7 @@ class $$SongsTableTableTableManager
                 playHistoryTableRefs = false,
                 playQueueItemsTableRefs = false,
                 scrobbleQueueTableRefs = false,
+                listenBrainzFeedbackQueueTableRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -18080,6 +18904,8 @@ class $$SongsTableTableTableManager
                     if (playHistoryTableRefs) db.playHistoryTable,
                     if (playQueueItemsTableRefs) db.playQueueItemsTable,
                     if (scrobbleQueueTableRefs) db.scrobbleQueueTable,
+                    if (listenBrainzFeedbackQueueTableRefs)
+                      db.listenBrainzFeedbackQueueTable,
                   ],
                   addJoins:
                       <
@@ -18214,6 +19040,27 @@ class $$SongsTableTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (listenBrainzFeedbackQueueTableRefs)
+                        await $_getPrefetchedData<
+                          SongsTableData,
+                          $SongsTableTable,
+                          ListenBrainzFeedbackQueueTableData
+                        >(
+                          currentTable: table,
+                          referencedTable: $$SongsTableTableReferences
+                              ._listenBrainzFeedbackQueueTableRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$SongsTableTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).listenBrainzFeedbackQueueTableRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.songId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -18241,6 +19088,7 @@ typedef $$SongsTableTableProcessedTableManager =
         bool playHistoryTableRefs,
         bool playQueueItemsTableRefs,
         bool scrobbleQueueTableRefs,
+        bool listenBrainzFeedbackQueueTableRefs,
       })
     >;
 typedef $$GenresTableTableCreateCompanionBuilder =
@@ -19019,10 +19867,7 @@ final class $$PlaylistsTableTableReferences
   _playlistSongsTableRefsTable(_$NavisDatabase db) =>
       MultiTypedResultKey.fromTable(
         db.playlistSongsTable,
-        aliasName: $_aliasNameGenerator(
-          db.playlistsTable.id,
-          db.playlistSongsTable.playlistId,
-        ),
+        aliasName: 'playlists__id__playlist_songs__playlist_id',
       );
 
   $$PlaylistSongsTableTableProcessedTableManager get playlistSongsTableRefs {
@@ -19383,13 +20228,9 @@ final class $$PlaylistSongsTableTableReferences
     super.$_typedResult,
   );
 
-  static $PlaylistsTableTable _playlistIdTable(_$NavisDatabase db) =>
-      db.playlistsTable.createAlias(
-        $_aliasNameGenerator(
-          db.playlistSongsTable.playlistId,
-          db.playlistsTable.id,
-        ),
-      );
+  static $PlaylistsTableTable _playlistIdTable(_$NavisDatabase db) => db
+      .playlistsTable
+      .createAlias('playlist_songs__playlist_id__playlists__id');
 
   $$PlaylistsTableTableProcessedTableManager get playlistId {
     final $_column = $_itemColumn<String>('playlist_id')!;
@@ -19406,9 +20247,7 @@ final class $$PlaylistSongsTableTableReferences
   }
 
   static $SongsTableTable _songIdTable(_$NavisDatabase db) =>
-      db.songsTable.createAlias(
-        $_aliasNameGenerator(db.playlistSongsTable.songId, db.songsTable.id),
-      );
+      db.songsTable.createAlias('playlist_songs__song_id__songs__id');
 
   $$SongsTableTableProcessedTableManager get songId {
     final $_column = $_itemColumn<String>('song_id')!;
@@ -20375,9 +21214,7 @@ final class $$PlayHistoryTableTableReferences
   );
 
   static $SongsTableTable _songIdTable(_$NavisDatabase db) =>
-      db.songsTable.createAlias(
-        $_aliasNameGenerator(db.playHistoryTable.songId, db.songsTable.id),
-      );
+      db.songsTable.createAlias('play_history__song_id__songs__id');
 
   $$SongsTableTableProcessedTableManager get songId {
     final $_column = $_itemColumn<String>('song_id')!;
@@ -20823,10 +21660,7 @@ final class $$PlayQueueTableTableReferences
   _playQueueItemsTableRefsTable(_$NavisDatabase db) =>
       MultiTypedResultKey.fromTable(
         db.playQueueItemsTable,
-        aliasName: $_aliasNameGenerator(
-          db.playQueueTable.id,
-          db.playQueueItemsTable.queueId,
-        ),
+        aliasName: 'play_queue__id__play_queue_items__queue_id',
       );
 
   $$PlayQueueItemsTableTableProcessedTableManager get playQueueItemsTableRefs {
@@ -21161,13 +21995,9 @@ final class $$PlayQueueItemsTableTableReferences
     super.$_typedResult,
   );
 
-  static $PlayQueueTableTable _queueIdTable(_$NavisDatabase db) =>
-      db.playQueueTable.createAlias(
-        $_aliasNameGenerator(
-          db.playQueueItemsTable.queueId,
-          db.playQueueTable.id,
-        ),
-      );
+  static $PlayQueueTableTable _queueIdTable(_$NavisDatabase db) => db
+      .playQueueTable
+      .createAlias('play_queue_items__queue_id__play_queue__id');
 
   $$PlayQueueTableTableProcessedTableManager get queueId {
     final $_column = $_itemColumn<int>('queue_id')!;
@@ -21184,9 +22014,7 @@ final class $$PlayQueueItemsTableTableReferences
   }
 
   static $SongsTableTable _songIdTable(_$NavisDatabase db) =>
-      db.songsTable.createAlias(
-        $_aliasNameGenerator(db.playQueueItemsTable.songId, db.songsTable.id),
-      );
+      db.songsTable.createAlias('play_queue_items__song_id__songs__id');
 
   $$SongsTableTableProcessedTableManager get songId {
     final $_column = $_itemColumn<String>('song_id')!;
@@ -21565,10 +22393,7 @@ final class $$MatchFlowsTableTableReferences
   _matchFlowSongsTableRefsTable(_$NavisDatabase db) =>
       MultiTypedResultKey.fromTable(
         db.matchFlowSongsTable,
-        aliasName: $_aliasNameGenerator(
-          db.matchFlowsTable.id,
-          db.matchFlowSongsTable.flowId,
-        ),
+        aliasName: 'match_flows__id__match_flow_songs__flow_id',
       );
 
   $$MatchFlowSongsTableTableProcessedTableManager get matchFlowSongsTableRefs {
@@ -21880,13 +22705,9 @@ final class $$MatchFlowSongsTableTableReferences
     super.$_typedResult,
   );
 
-  static $MatchFlowsTableTable _flowIdTable(_$NavisDatabase db) =>
-      db.matchFlowsTable.createAlias(
-        $_aliasNameGenerator(
-          db.matchFlowSongsTable.flowId,
-          db.matchFlowsTable.id,
-        ),
-      );
+  static $MatchFlowsTableTable _flowIdTable(_$NavisDatabase db) => db
+      .matchFlowsTable
+      .createAlias('match_flow_songs__flow_id__match_flows__id');
 
   $$MatchFlowsTableTableProcessedTableManager get flowId {
     final $_column = $_itemColumn<String>('flow_id')!;
@@ -22221,9 +23042,7 @@ final class $$ScrobbleQueueTableTableReferences
   );
 
   static $SongsTableTable _songIdTable(_$NavisDatabase db) =>
-      db.songsTable.createAlias(
-        $_aliasNameGenerator(db.scrobbleQueueTable.songId, db.songsTable.id),
-      );
+      db.songsTable.createAlias('scrobble_queue__song_id__songs__id');
 
   $$SongsTableTableProcessedTableManager get songId {
     final $_column = $_itemColumn<String>('song_id')!;
@@ -22891,6 +23710,463 @@ typedef $$StarSyncQueueTableTableProcessedTableManager =
       StarSyncQueueTableData,
       PrefetchHooks Function()
     >;
+typedef $$ListenBrainzFeedbackQueueTableTableCreateCompanionBuilder =
+    ListenBrainzFeedbackQueueTableCompanion Function({
+      Value<int> id,
+      required String songId,
+      required int score,
+      Value<String?> recordingMbid,
+      required String title,
+      required String artist,
+      Value<String?> album,
+      Value<int> attempts,
+      required DateTime queuedAt,
+      required DateTime nextAttemptAt,
+      Value<String?> lastError,
+    });
+typedef $$ListenBrainzFeedbackQueueTableTableUpdateCompanionBuilder =
+    ListenBrainzFeedbackQueueTableCompanion Function({
+      Value<int> id,
+      Value<String> songId,
+      Value<int> score,
+      Value<String?> recordingMbid,
+      Value<String> title,
+      Value<String> artist,
+      Value<String?> album,
+      Value<int> attempts,
+      Value<DateTime> queuedAt,
+      Value<DateTime> nextAttemptAt,
+      Value<String?> lastError,
+    });
+
+final class $$ListenBrainzFeedbackQueueTableTableReferences
+    extends
+        BaseReferences<
+          _$NavisDatabase,
+          $ListenBrainzFeedbackQueueTableTable,
+          ListenBrainzFeedbackQueueTableData
+        > {
+  $$ListenBrainzFeedbackQueueTableTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $SongsTableTable _songIdTable(_$NavisDatabase db) => db.songsTable
+      .createAlias('listenbrainz_feedback_queue__song_id__songs__id');
+
+  $$SongsTableTableProcessedTableManager get songId {
+    final $_column = $_itemColumn<String>('song_id')!;
+
+    final manager = $$SongsTableTableTableManager(
+      $_db,
+      $_db.songsTable,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_songIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$ListenBrainzFeedbackQueueTableTableFilterComposer
+    extends Composer<_$NavisDatabase, $ListenBrainzFeedbackQueueTableTable> {
+  $$ListenBrainzFeedbackQueueTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get score => $composableBuilder(
+    column: $table.score,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get recordingMbid => $composableBuilder(
+    column: $table.recordingMbid,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get artist => $composableBuilder(
+    column: $table.artist,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get album => $composableBuilder(
+    column: $table.album,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get attempts => $composableBuilder(
+    column: $table.attempts,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get queuedAt => $composableBuilder(
+    column: $table.queuedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get nextAttemptAt => $composableBuilder(
+    column: $table.nextAttemptAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastError => $composableBuilder(
+    column: $table.lastError,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$SongsTableTableFilterComposer get songId {
+    final $$SongsTableTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.songId,
+      referencedTable: $db.songsTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SongsTableTableFilterComposer(
+            $db: $db,
+            $table: $db.songsTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ListenBrainzFeedbackQueueTableTableOrderingComposer
+    extends Composer<_$NavisDatabase, $ListenBrainzFeedbackQueueTableTable> {
+  $$ListenBrainzFeedbackQueueTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get score => $composableBuilder(
+    column: $table.score,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get recordingMbid => $composableBuilder(
+    column: $table.recordingMbid,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get artist => $composableBuilder(
+    column: $table.artist,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get album => $composableBuilder(
+    column: $table.album,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get attempts => $composableBuilder(
+    column: $table.attempts,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get queuedAt => $composableBuilder(
+    column: $table.queuedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get nextAttemptAt => $composableBuilder(
+    column: $table.nextAttemptAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastError => $composableBuilder(
+    column: $table.lastError,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$SongsTableTableOrderingComposer get songId {
+    final $$SongsTableTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.songId,
+      referencedTable: $db.songsTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SongsTableTableOrderingComposer(
+            $db: $db,
+            $table: $db.songsTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ListenBrainzFeedbackQueueTableTableAnnotationComposer
+    extends Composer<_$NavisDatabase, $ListenBrainzFeedbackQueueTableTable> {
+  $$ListenBrainzFeedbackQueueTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get score =>
+      $composableBuilder(column: $table.score, builder: (column) => column);
+
+  GeneratedColumn<String> get recordingMbid => $composableBuilder(
+    column: $table.recordingMbid,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get artist =>
+      $composableBuilder(column: $table.artist, builder: (column) => column);
+
+  GeneratedColumn<String> get album =>
+      $composableBuilder(column: $table.album, builder: (column) => column);
+
+  GeneratedColumn<int> get attempts =>
+      $composableBuilder(column: $table.attempts, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get queuedAt =>
+      $composableBuilder(column: $table.queuedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get nextAttemptAt => $composableBuilder(
+    column: $table.nextAttemptAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lastError =>
+      $composableBuilder(column: $table.lastError, builder: (column) => column);
+
+  $$SongsTableTableAnnotationComposer get songId {
+    final $$SongsTableTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.songId,
+      referencedTable: $db.songsTable,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SongsTableTableAnnotationComposer(
+            $db: $db,
+            $table: $db.songsTable,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ListenBrainzFeedbackQueueTableTableTableManager
+    extends
+        RootTableManager<
+          _$NavisDatabase,
+          $ListenBrainzFeedbackQueueTableTable,
+          ListenBrainzFeedbackQueueTableData,
+          $$ListenBrainzFeedbackQueueTableTableFilterComposer,
+          $$ListenBrainzFeedbackQueueTableTableOrderingComposer,
+          $$ListenBrainzFeedbackQueueTableTableAnnotationComposer,
+          $$ListenBrainzFeedbackQueueTableTableCreateCompanionBuilder,
+          $$ListenBrainzFeedbackQueueTableTableUpdateCompanionBuilder,
+          (
+            ListenBrainzFeedbackQueueTableData,
+            $$ListenBrainzFeedbackQueueTableTableReferences,
+          ),
+          ListenBrainzFeedbackQueueTableData,
+          PrefetchHooks Function({bool songId})
+        > {
+  $$ListenBrainzFeedbackQueueTableTableTableManager(
+    _$NavisDatabase db,
+    $ListenBrainzFeedbackQueueTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ListenBrainzFeedbackQueueTableTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$ListenBrainzFeedbackQueueTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$ListenBrainzFeedbackQueueTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> songId = const Value.absent(),
+                Value<int> score = const Value.absent(),
+                Value<String?> recordingMbid = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<String> artist = const Value.absent(),
+                Value<String?> album = const Value.absent(),
+                Value<int> attempts = const Value.absent(),
+                Value<DateTime> queuedAt = const Value.absent(),
+                Value<DateTime> nextAttemptAt = const Value.absent(),
+                Value<String?> lastError = const Value.absent(),
+              }) => ListenBrainzFeedbackQueueTableCompanion(
+                id: id,
+                songId: songId,
+                score: score,
+                recordingMbid: recordingMbid,
+                title: title,
+                artist: artist,
+                album: album,
+                attempts: attempts,
+                queuedAt: queuedAt,
+                nextAttemptAt: nextAttemptAt,
+                lastError: lastError,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String songId,
+                required int score,
+                Value<String?> recordingMbid = const Value.absent(),
+                required String title,
+                required String artist,
+                Value<String?> album = const Value.absent(),
+                Value<int> attempts = const Value.absent(),
+                required DateTime queuedAt,
+                required DateTime nextAttemptAt,
+                Value<String?> lastError = const Value.absent(),
+              }) => ListenBrainzFeedbackQueueTableCompanion.insert(
+                id: id,
+                songId: songId,
+                score: score,
+                recordingMbid: recordingMbid,
+                title: title,
+                artist: artist,
+                album: album,
+                attempts: attempts,
+                queuedAt: queuedAt,
+                nextAttemptAt: nextAttemptAt,
+                lastError: lastError,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$ListenBrainzFeedbackQueueTableTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({songId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (songId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.songId,
+                                referencedTable:
+                                    $$ListenBrainzFeedbackQueueTableTableReferences
+                                        ._songIdTable(db),
+                                referencedColumn:
+                                    $$ListenBrainzFeedbackQueueTableTableReferences
+                                        ._songIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$ListenBrainzFeedbackQueueTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NavisDatabase,
+      $ListenBrainzFeedbackQueueTableTable,
+      ListenBrainzFeedbackQueueTableData,
+      $$ListenBrainzFeedbackQueueTableTableFilterComposer,
+      $$ListenBrainzFeedbackQueueTableTableOrderingComposer,
+      $$ListenBrainzFeedbackQueueTableTableAnnotationComposer,
+      $$ListenBrainzFeedbackQueueTableTableCreateCompanionBuilder,
+      $$ListenBrainzFeedbackQueueTableTableUpdateCompanionBuilder,
+      (
+        ListenBrainzFeedbackQueueTableData,
+        $$ListenBrainzFeedbackQueueTableTableReferences,
+      ),
+      ListenBrainzFeedbackQueueTableData,
+      PrefetchHooks Function({bool songId})
+    >;
 typedef $$NetworkUsageTableTableCreateCompanionBuilder =
     NetworkUsageTableCompanion Function({
       Value<int> id,
@@ -23170,6 +24446,12 @@ class $NavisDatabaseManager {
       $$ScrobbleQueueTableTableTableManager(_db, _db.scrobbleQueueTable);
   $$StarSyncQueueTableTableTableManager get starSyncQueueTable =>
       $$StarSyncQueueTableTableTableManager(_db, _db.starSyncQueueTable);
+  $$ListenBrainzFeedbackQueueTableTableTableManager
+  get listenBrainzFeedbackQueueTable =>
+      $$ListenBrainzFeedbackQueueTableTableTableManager(
+        _db,
+        _db.listenBrainzFeedbackQueueTable,
+      );
   $$NetworkUsageTableTableTableManager get networkUsageTable =>
       $$NetworkUsageTableTableTableManager(_db, _db.networkUsageTable);
 }

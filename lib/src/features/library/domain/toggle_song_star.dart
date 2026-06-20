@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -36,6 +38,11 @@ Future<void> toggleSongStar(String songId, WidgetRef ref) async {
       itemType: 'song',
       action: wasLiked ? 'unstar' : 'star',
     );
+    unawaited(
+      ref
+          .read(listenBrainzFeedbackServiceProvider)
+          .enqueueSongFeedback(songId, liked: newLiked),
+    );
     return;
   }
 
@@ -45,12 +52,22 @@ Future<void> toggleSongStar(String songId, WidgetRef ref) async {
     } else {
       await api.star(songId);
     }
+    unawaited(
+      ref
+          .read(listenBrainzFeedbackServiceProvider)
+          .enqueueSongFeedback(songId, liked: newLiked),
+    );
   } on SubsonicConnectionException {
     // Offline — queue for retry, keep the optimistic DB state.
     await db.starSyncDao.queueStarAction(
       itemId: songId,
       itemType: 'song',
       action: wasLiked ? 'unstar' : 'star',
+    );
+    unawaited(
+      ref
+          .read(listenBrainzFeedbackServiceProvider)
+          .enqueueSongFeedback(songId, liked: newLiked),
     );
   } on Object {
     // API error — rollback to the previous state in both the DB and the queue.

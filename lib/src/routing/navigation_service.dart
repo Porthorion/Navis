@@ -54,8 +54,35 @@ abstract final class NavService {
     WidgetRef ref,
     String playlistId,
   ) {
+    const virtualPrefix = 'virtual:listenbrainz:';
+    if (playlistId.startsWith(virtualPrefix)) {
+      openListenBrainzWeeklyDetail(
+        context,
+        ref,
+        playlistId.substring(virtualPrefix.length),
+      );
+      return;
+    }
     _prepareForNavigation(context, ref, AppNavigationIntent.drillIn);
     unawaited(context.push<void>('/library/playlists/$playlistId'));
+  }
+
+  /// Open a virtual ListenBrainz weekly playlist detail from Home.
+  static void openListenBrainzWeeklyDetail(
+    BuildContext context,
+    WidgetRef ref,
+    String sourcePatch,
+  ) {
+    final normalized = sourcePatch.trim();
+    if (normalized.isEmpty) {
+      return;
+    }
+    _prepareForNavigation(context, ref, AppNavigationIntent.drillIn);
+    unawaited(
+      context.push<void>(
+        '/library/listenbrainz/${Uri.encodeComponent(normalized)}',
+      ),
+    );
   }
 
   /// Replace the current route with an album detail.

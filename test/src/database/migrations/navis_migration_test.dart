@@ -18,8 +18,8 @@ void main() {
         .customSelect('PRAGMA user_version;')
         .getSingle();
 
-    expect(database.schemaVersion, 48);
-    expect(pragmaRow.read<int>('user_version'), 48);
+    expect(database.schemaVersion, 49);
+    expect(pragmaRow.read<int>('user_version'), 49);
   }, skip: !sqliteAvailable);
 
   test('latest schema creates app settings defaults', () async {
@@ -83,6 +83,18 @@ void main() {
     expect(groupListening.voyageDisplayName, isNull);
     expect(groupListening.voyageDeviceLabel, isNull);
     expect(groupListening.voyageAutoFollowHost, isTrue);
+
+    final songColumns = await database
+        .customSelect("PRAGMA table_info('songs');")
+        .get();
+    expect(
+      songColumns.map((row) => row.read<String>('name')).toSet(),
+      contains('recording_mbid'),
+    );
+    final feedbackQueueColumns = await database
+        .customSelect("PRAGMA table_info('listenbrainz_feedback_queue');")
+        .get();
+    expect(feedbackQueueColumns, isNotEmpty);
   }, skip: !sqliteAvailable);
 
   test(
@@ -116,7 +128,7 @@ void main() {
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 48);
+      expect(versionRow.read<int>('user_version'), 49);
 
       final settingsInfo = await migrated
           .customSelect("PRAGMA table_info('app_settings');")
@@ -209,7 +221,7 @@ CREATE TABLE scrobble_queue (
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 48);
+      expect(versionRow.read<int>('user_version'), 49);
 
       final now = DateTime.utc(2026, 1, 1, 1);
       await migrated.scrobbleDao.enqueue(
@@ -292,7 +304,7 @@ CREATE TABLE scrobble_queue (
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 48);
+      expect(versionRow.read<int>('user_version'), 49);
 
       final settingsInfo = await migrated
           .customSelect("PRAGMA table_info('app_settings');")
@@ -411,7 +423,7 @@ CREATE TABLE scrobble_queue (
       final versionRow = await migrated
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(versionRow.read<int>('user_version'), 48);
+      expect(versionRow.read<int>('user_version'), 49);
 
       final albums = await migrated.select(migrated.albumsTable).get();
       final albumsById = {for (final album in albums) album.id: album};

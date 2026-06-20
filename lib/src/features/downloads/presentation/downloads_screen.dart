@@ -838,7 +838,7 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
 
   Future<void> _pickCustomDownloadFolder() async {
     final l10n = AppLocalizations.of(context)!;
-    final selectedPath = await FilePicker.platform.getDirectoryPath(
+    final selectedPath = await FilePicker.getDirectoryPath(
       dialogTitle: l10n.downloadsCustomFolderChooseAction,
     );
     if (!mounted || selectedPath == null) {

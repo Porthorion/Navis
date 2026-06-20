@@ -28,6 +28,7 @@ import 'package:navis/src/features/auth/presentation/server_config_provider.dart
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:navis/src/features/downloads/data/download_service.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
+import 'package:navis/src/features/player/data/listenbrainz_feedback_service.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 import 'package:navis/src/features/player/data/scrobble_service.dart';
 import 'package:navis/src/features/player/domain/lyrics_matcher.dart';
@@ -440,6 +441,38 @@ final scrobbleServiceProvider = Provider<ScrobbleService>((ref) {
   return service;
 });
 
+final listenBrainzFeedbackServiceProvider =
+    Provider<ListenBrainzFeedbackService>((ref) {
+      final database = ref.watch(navisDatabaseProvider);
+      return ListenBrainzFeedbackService(
+        dao: database.listenBrainzFeedbackDao,
+        libraryDao: database.libraryDao,
+        readCredentials: () {
+          final settings =
+              ref.read(appSettingsProvider).asData?.value ??
+              const AppSettingsModel.defaults();
+          return readListenBrainzFeedbackCredentials(
+            settings: settings,
+            readToken: () => ref
+                .read(externalScrobbleCredentialStoreProvider)
+                .readListenBrainzToken(),
+          );
+        },
+        createClient: () => ref.read(listenBrainzApiClientProvider),
+        readReachable: () =>
+            ref.read(networkTypeProvider) != NetworkType.offline,
+        onInvalidToken: () {
+          unawaited(
+            database.appSettingsDao.updateListenBrainzScrobblingState(
+              enabled: false,
+              tokenValid: false,
+              clearUserName: true,
+            ),
+          );
+        },
+      );
+    });
+
 typedef AudioHandlerInitializer = Future<NavisPlaybackHandler> Function();
 
 final audioBootstrapTimeoutProvider = Provider<Duration>((_) {
@@ -495,6 +528,9 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
       rollingCacheManager: ref.read(rollingCacheManagerProvider),
       rollingCacheBudgetBytes: ref.read(rollingCacheBudgetBytesProvider),
       scrobbleService: ref.read(scrobbleServiceProvider),
+      listenBrainzFeedbackService: ref.read(
+        listenBrainzFeedbackServiceProvider,
+      ),
       starSyncDao: database.starSyncDao,
       reportNetworkUsage: ({required category, required bytes}) {
         ref

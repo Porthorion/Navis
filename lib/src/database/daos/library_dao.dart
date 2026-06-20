@@ -611,6 +611,12 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     );
   }
 
+  Future<void> updateSongRecordingMbid(String songId, String recordingMbid) {
+    return (update(songsTable)..where((t) => t.id.equals(songId))).write(
+      SongsTableCompanion(recordingMbid: Value(recordingMbid)),
+    );
+  }
+
   Future<void> updateAlbumRating(String albumId, int? rating) {
     return (update(albumsTable)..where((t) => t.id.equals(albumId))).write(
       AlbumsTableCompanion(userRating: Value(rating)),

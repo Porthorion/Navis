@@ -6,6 +6,7 @@ import 'package:navis/src/database/tables/artist_ref_converter.dart';
 import 'package:navis/src/database/daos/cache_dao.dart';
 import 'package:navis/src/database/daos/download_queue_dao.dart';
 import 'package:navis/src/database/daos/history_dao.dart';
+import 'package:navis/src/database/daos/listenbrainz_feedback_dao.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/daos/match_flow_dao.dart';
 import 'package:navis/src/database/daos/network_usage_dao.dart';
@@ -22,6 +23,7 @@ import 'package:navis/src/database/tables/cached_tracks_table.dart';
 import 'package:navis/src/database/tables/download_queue_table.dart';
 import 'package:navis/src/database/tables/external_lyrics_cache_table.dart';
 import 'package:navis/src/database/tables/genres_table.dart';
+import 'package:navis/src/database/tables/listenbrainz_feedback_queue_table.dart';
 import 'package:navis/src/database/tables/match_flow_songs_table.dart';
 import 'package:navis/src/database/tables/match_flows_table.dart';
 import 'package:navis/src/database/tables/play_history_table.dart';
@@ -61,6 +63,7 @@ part 'navis_database.g.dart';
     MatchFlowSongsTable,
     ScrobbleQueueTable,
     StarSyncQueueTable,
+    ListenBrainzFeedbackQueueTable,
     NetworkUsageTable,
   ],
   daos: [
@@ -75,6 +78,7 @@ part 'navis_database.g.dart';
     MatchFlowDao,
     ScrobbleDao,
     StarSyncDao,
+    ListenBrainzFeedbackDao,
     NetworkUsageDao,
   ],
 )
@@ -85,7 +89,7 @@ class NavisDatabase extends _$NavisDatabase {
   static QueryExecutor _openConnection() => driftDatabase(name: 'navis.sqlite');
 
   @override
-  int get schemaVersion => 48;
+  int get schemaVersion => 49;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -250,6 +254,9 @@ class NavisDatabase extends _$NavisDatabase {
     if (from < 48 && to >= 48) {
       await from47To48(migrator);
     }
+    if (from < 49 && to >= 49) {
+      await from48To49(migrator);
+    }
   }
 
   Future<void> from1To2(Migrator migrator) async {
@@ -332,6 +339,15 @@ class NavisDatabase extends _$NavisDatabase {
         appSettingsTable,
         appSettingsTable.listenBrainzUserName,
       );
+    }
+  }
+
+  Future<void> from48To49(Migrator migrator) async {
+    if (!await _columnExists('songs', 'recording_mbid')) {
+      await migrator.addColumn(songsTable, songsTable.recordingMbid);
+    }
+    if (!await _tableExists('listenbrainz_feedback_queue')) {
+      await migrator.createTable(listenBrainzFeedbackQueueTable);
     }
   }
 

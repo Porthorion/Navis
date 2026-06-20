@@ -31,7 +31,7 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final playlistsAsync = ref.watch(playlistListProvider);
+    final playlistsAsync = ref.watch(playlistLibraryItemsProvider);
     // Keep the sync provider alive so it runs eagerly
     ref.watch(playlistSyncProvider);
 
@@ -48,8 +48,8 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
           await ref.read(playlistSyncProvider.future);
         },
         child: playlistsAsync.when(
-          data: (playlists) {
-            if (playlists.isEmpty) {
+          data: (items) {
+            if (items.isEmpty) {
               return ListView(
                 children: [
                   SizedBox(
@@ -66,9 +66,21 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
 
             return ListView.builder(
               padding: const EdgeInsets.only(bottom: 80),
-              itemCount: playlists.length,
+              itemCount: items.length,
               itemBuilder: (context, index) {
-                final playlist = playlists[index];
+                final item = items[index];
+                final virtual = item.virtualPlaylist;
+                if (virtual != null) {
+                  return _VirtualPlaylistTile(
+                    item: item,
+                    onTap: () => NavService.openListenBrainzWeeklyDetail(
+                      context,
+                      ref,
+                      virtual.playlist.sourcePatch ?? '',
+                    ),
+                  );
+                }
+                final playlist = item.playlist!;
                 return _PlaylistTile(
                   playlist: playlist,
                   onTap: () =>
@@ -356,6 +368,46 @@ class _PlaylistTile extends StatelessWidget {
       trailing: const Icon(Icons.chevron_right),
       onTap: onTap,
       onLongPress: onLongPress,
+    );
+  }
+}
+
+class _VirtualPlaylistTile extends StatelessWidget {
+  const _VirtualPlaylistTile({
+    required this.item,
+    this.onTap,
+  });
+
+  final PlaylistLibraryItem item;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final colors = Theme.of(context).colorScheme;
+    return ListTile(
+      leading: Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          color: colors.secondaryContainer,
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Icon(
+          Icons.auto_awesome_outlined,
+          color: colors.onSecondaryContainer,
+        ),
+      ),
+      title: Text(
+        item.name,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      subtitle: Text(
+        '${l10n.playlistsSongCount(item.songCount)} · ListenBrainz',
+      ),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: onTap,
     );
   }
 }

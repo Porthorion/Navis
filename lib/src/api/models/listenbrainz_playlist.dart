@@ -18,12 +18,18 @@ class ListenBrainzPlaylist {
     this.date,
     this.image,
     this.visibility,
+    this.sourcePatch,
     this.collaborators = const <String>[],
     this.raw = const <String, dynamic>{},
   });
 
   factory ListenBrainzPlaylist.fromJson(Map<String, dynamic> json) {
     final playlist = _firstMap(json, const <String>['playlist']) ?? json;
+    final extension = _flattenMaps(playlist['extension']);
+    final additionalMetadata = _flattenMaps(extension['additional_metadata']);
+    final algorithmMetadata = _flattenMaps(
+      additionalMetadata['algorithm_metadata'],
+    );
     final identifiers = _stringList(playlist['identifier']);
     final identifier =
         _stringValue(playlist['playlist_mbid']) ??
@@ -32,12 +38,8 @@ class ListenBrainzPlaylist {
         identifiers.firstOrNull ??
         _stringValue(playlist['id']) ??
         '';
-    final trackList =
-        _firstMap(playlist, const <String>['track']) ??
-        _firstMap(playlist, const <String>['trackList']) ??
-        const <String, dynamic>{};
-    final tracks = _mapList(
-      trackList['track'],
+    final tracks = _extractTrackMaps(
+      playlist,
     ).map(ListenBrainzPlaylistTrack.fromJson).toList(growable: false);
 
     return ListenBrainzPlaylist(
@@ -54,6 +56,9 @@ class ListenBrainzPlaylist {
             playlist['extension']?['https://musicbrainz.org/doc/jspf#playlist']?['public'],
           ) ??
           _stringValue(playlist['public']),
+      sourcePatch:
+          _stringValue(algorithmMetadata['source_patch']) ??
+          _stringValue(additionalMetadata['source_patch']),
       collaborators: _stringList(playlist['collaborator']),
       tracks: tracks,
       raw: Map<String, dynamic>.from(playlist),
@@ -67,9 +72,46 @@ class ListenBrainzPlaylist {
   final DateTime? date;
   final String? image;
   final String? visibility;
+  final String? sourcePatch;
   final List<String> collaborators;
   final List<ListenBrainzPlaylistTrack> tracks;
   final Map<String, dynamic> raw;
+
+  String get recommendationDisplayTitle {
+    return switch (sourcePatch) {
+      'weekly-jams' => 'Weekly Jams',
+      'weekly-exploration' => 'Weekly Exploration',
+      _ => title,
+    };
+  }
+
+  ListenBrainzPlaylist copyWith({
+    String? identifier,
+    String? title,
+    String? creator,
+    String? description,
+    DateTime? date,
+    String? image,
+    String? visibility,
+    String? sourcePatch,
+    List<String>? collaborators,
+    List<ListenBrainzPlaylistTrack>? tracks,
+    Map<String, dynamic>? raw,
+  }) {
+    return ListenBrainzPlaylist(
+      identifier: identifier ?? this.identifier,
+      title: title ?? this.title,
+      creator: creator ?? this.creator,
+      description: description ?? this.description,
+      date: date ?? this.date,
+      image: image ?? this.image,
+      visibility: visibility ?? this.visibility,
+      sourcePatch: sourcePatch ?? this.sourcePatch,
+      collaborators: collaborators ?? this.collaborators,
+      tracks: tracks ?? this.tracks,
+      raw: raw ?? this.raw,
+    );
+  }
 }
 
 class ListenBrainzPlaylistTrack {
@@ -136,8 +178,12 @@ class ListenBrainzPlaylistTrack {
 List<ListenBrainzPlaylist> parseListenBrainzPlaylistList(
   Map<String, dynamic> json,
 ) {
-  final root = _firstMap(json, const <String>['playlists']) ?? json;
-  final rawPlaylists = _mapList(root['playlist']);
+  final playlistsValue = json['playlists'];
+  final rawPlaylists = playlistsValue is List
+      ? _mapList(playlistsValue)
+      : _mapList(
+          (_firstMap(json, const <String>['playlists']) ?? json)['playlist'],
+        );
   if (rawPlaylists.isNotEmpty) {
     return rawPlaylists
         .map(ListenBrainzPlaylist.fromJson)
@@ -152,6 +198,38 @@ List<ListenBrainzPlaylist> parseListenBrainzPlaylistList(
   return playlist.identifier.trim().isEmpty
       ? const <ListenBrainzPlaylist>[]
       : <ListenBrainzPlaylist>[playlist];
+}
+
+String? parseListenBrainzRecordingMbid(Map<String, dynamic> json) {
+  final direct = _stringValue(json['recording_mbid']);
+  if (direct != null) {
+    return direct;
+  }
+  final metadata = _firstMap(json, const <String>['metadata']);
+  final metadataMbid = metadata == null
+      ? null
+      : _stringValue(metadata['recording_mbid']);
+  if (metadataMbid != null) {
+    return metadataMbid;
+  }
+  final recordings = _mapList(json['recordings']);
+  for (final recording in recordings) {
+    final mbid =
+        _stringValue(recording['recording_mbid']) ??
+        _stringValue(recording['mbid']);
+    if (mbid != null) {
+      return mbid;
+    }
+  }
+  final payload = _mapList(json['payload']);
+  for (final entry in payload) {
+    final mbid =
+        _stringValue(entry['recording_mbid']) ?? _stringValue(entry['mbid']);
+    if (mbid != null) {
+      return mbid;
+    }
+  }
+  return null;
 }
 
 Map<String, dynamic>? _firstMap(Map<String, dynamic> json, List<String> keys) {
@@ -189,6 +267,31 @@ List<Map<String, dynamic>> _mapList(Object? value) {
   if (value is Map) {
     return <Map<String, dynamic>>[Map<String, dynamic>.from(value)];
   }
+  return const <Map<String, dynamic>>[];
+}
+
+List<Map<String, dynamic>> _extractTrackMaps(Map<String, dynamic> playlist) {
+  final directTracks = _mapList(playlist['track']);
+  if (directTracks.isNotEmpty) {
+    final nestedTracks = directTracks.length == 1
+        ? _mapList(directTracks.single['track'])
+        : const <Map<String, dynamic>>[];
+    return nestedTracks.isNotEmpty ? nestedTracks : directTracks;
+  }
+
+  final trackList = _firstMap(playlist, const <String>['trackList']);
+  if (trackList != null) {
+    final tracks = _mapList(trackList['track']);
+    if (tracks.isNotEmpty) {
+      return tracks;
+    }
+  }
+
+  final track = _firstMap(playlist, const <String>['track']);
+  if (track != null) {
+    return _mapList(track['track']);
+  }
+
   return const <Map<String, dynamic>>[];
 }
 

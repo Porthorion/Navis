@@ -1625,8 +1625,6 @@ class _HomeSectionReorderState extends State<_HomeSectionReorder> {
         return l10n.homeSectionRecentlyLikedAlbums;
       case HomeSectionIds.likedTracks:
         return l10n.homeSectionLikedTracks;
-      case HomeSectionIds.listenBrainzDiscover:
-        return l10n.homeSectionListenBrainzDiscover;
       case HomeSectionIds.recentlyAdded:
         return l10n.homeSectionRecentlyAdded;
       case HomeSectionIds.recentlyPlayed:

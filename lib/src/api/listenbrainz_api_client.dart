@@ -51,11 +51,52 @@ class ListenBrainzApiClient {
     required String userName,
     String? userToken,
   }) async {
+    final encodedUserName = Uri.encodeComponent(userName);
     final response = await _dio.get<Map<String, dynamic>>(
-      '/user/$userName/playlists/recommendations',
+      '/user/$encodedUserName/playlists/recommendations',
       options: userToken == null || userToken.trim().isEmpty
           ? null
           : _authOptions(userToken),
+    );
+    return parseListenBrainzPlaylistList(
+      response.data ?? const <String, dynamic>{},
+    );
+  }
+
+  Future<List<ListenBrainzPlaylist>> getUserPlaylists({
+    required String userName,
+    String? userToken,
+    int count = 100,
+    int offset = 0,
+  }) async {
+    final encodedUserName = Uri.encodeComponent(userName);
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/user/$encodedUserName/playlists',
+      queryParameters: <String, Object?>{
+        'count': count,
+        'offset': offset,
+      },
+      options: userToken == null || userToken.trim().isEmpty
+          ? null
+          : _authOptions(userToken),
+    );
+    return parseListenBrainzPlaylistList(
+      response.data ?? const <String, dynamic>{},
+    );
+  }
+
+  Future<List<ListenBrainzPlaylist>> getCreatedForPlaylists({
+    required String userName,
+    int count = 100,
+    int offset = 0,
+  }) async {
+    final encodedUserName = Uri.encodeComponent(userName);
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/user/$encodedUserName/playlists/createdfor',
+      queryParameters: <String, Object?>{
+        'count': count,
+        'offset': offset,
+      },
     );
     return parseListenBrainzPlaylistList(
       response.data ?? const <String, dynamic>{},
@@ -119,6 +160,57 @@ class ListenBrainzApiClient {
       album: album,
       duration: duration,
       listenedAt: listenedAt,
+    );
+  }
+
+  Future<void> submitRecordingFeedback({
+    required String userToken,
+    String? recordingMbid,
+    String? recordingMsid,
+    required int score,
+  }) async {
+    final mbid = recordingMbid?.trim();
+    final msid = recordingMsid?.trim();
+    if ((mbid == null || mbid.isEmpty) && (msid == null || msid.isEmpty)) {
+      throw ArgumentError('recordingMbid or recordingMsid is required');
+    }
+    try {
+      await _dio.post<void>(
+        '/feedback/recording-feedback',
+        data: <String, dynamic>{
+          if (mbid != null && mbid.isNotEmpty) 'recording_mbid': mbid,
+          if (msid != null && msid.isNotEmpty) 'recording_msid': msid,
+          'score': score,
+        },
+        options: _authOptions(userToken),
+      );
+    } on DioException catch (error) {
+      final status = error.response?.statusCode;
+      if (status == 401 || status == 403) {
+        throw const ListenBrainzInvalidTokenException();
+      }
+      rethrow;
+    }
+  }
+
+  Future<String?> lookupRecordingMbid({
+    required String userToken,
+    required String title,
+    required String artist,
+    String? album,
+  }) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/metadata/lookup',
+      queryParameters: <String, Object?>{
+        'recording_name': title,
+        'artist_name': artist,
+        if (album != null && album.trim().isNotEmpty)
+          'release_name': album.trim(),
+      },
+      options: _authOptions(userToken),
+    );
+    return parseListenBrainzRecordingMbid(
+      response.data ?? const <String, dynamic>{},
     );
   }
 

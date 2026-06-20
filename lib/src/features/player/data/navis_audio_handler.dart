@@ -22,6 +22,7 @@ import 'package:navis/src/features/auto/data/auto_media_tree_service.dart';
 import 'package:navis/src/features/auto/domain/android_auto_constants.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:navis/src/features/player/data/playback_art_cache.dart';
+import 'package:navis/src/features/player/data/listenbrainz_feedback_service.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 import 'package:navis/src/features/player/data/radio_metadata_service.dart';
 import 'package:navis/src/features/player/data/scrobble_service.dart';
@@ -51,6 +52,7 @@ class NavisAudioHandler extends BaseAudioHandler
     required RollingCacheManager rollingCacheManager,
     required int rollingCacheBudgetBytes,
     required ScrobbleService scrobbleService,
+    required ListenBrainzFeedbackService listenBrainzFeedbackService,
     required PlaybackRuntimeSettings Function() readRuntimeSettings,
     required StarSyncDao starSyncDao,
     NetworkUsageReporter? reportNetworkUsage,
@@ -65,6 +67,7 @@ class NavisAudioHandler extends BaseAudioHandler
        _rollingCacheManager = rollingCacheManager,
        _rollingCacheBudgetBytes = rollingCacheBudgetBytes,
        _scrobbleService = scrobbleService,
+       _listenBrainzFeedbackService = listenBrainzFeedbackService,
        _readRuntimeSettings = readRuntimeSettings,
        _starSyncDao = starSyncDao,
        _reportNetworkUsage = reportNetworkUsage,
@@ -116,6 +119,7 @@ class NavisAudioHandler extends BaseAudioHandler
   final RollingCacheManager _rollingCacheManager;
   final int _rollingCacheBudgetBytes;
   final ScrobbleService _scrobbleService;
+  final ListenBrainzFeedbackService _listenBrainzFeedbackService;
   final PlaybackRuntimeSettings Function() _readRuntimeSettings;
   final StarSyncDao _starSyncDao;
   final NetworkUsageReporter? _reportNetworkUsage;
@@ -4361,12 +4365,24 @@ class NavisAudioHandler extends BaseAudioHandler
       } else {
         await api.star(current.id);
       }
+      unawaited(
+        _listenBrainzFeedbackService.enqueueSongFeedback(
+          current.id,
+          liked: !isLiked,
+        ),
+      );
     } on SubsonicConnectionException {
       // Offline — queue for retry and keep the optimistic UI (DB already updated).
       await _starSyncDao.queueStarAction(
         itemId: current.id,
         itemType: 'song',
         action: isLiked ? 'unstar' : 'star',
+      );
+      unawaited(
+        _listenBrainzFeedbackService.enqueueSongFeedback(
+          current.id,
+          liked: !isLiked,
+        ),
       );
     } on Object {
       // API error — rollback the optimistic update.

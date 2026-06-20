@@ -9,7 +9,6 @@ class HomeSectionIds {
   static const String recentlyAdded = 'recently_added';
   static const String recentlyPlayed = 'recently_played';
   static const String randomAlbums = 'random_albums';
-  static const String listenBrainzDiscover = 'listenbrainz_discover';
   static const String mostPlayed = 'most_played';
   static const String recentlyPlayedTracks = 'recently_played_tracks';
   static const String frequentAlbums = 'frequent_albums';
@@ -19,7 +18,6 @@ class HomeSectionIds {
     randomAlbums,
     recentlyLikedAlbums,
     likedTracks,
-    listenBrainzDiscover,
     recentlyAdded,
     recentlyPlayed,
     mostPlayed,

@@ -2,10 +2,12 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show listEquals;
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/listenbrainz_playlist.dart';
 import 'package:navis/src/api/models/models.dart';
@@ -17,6 +19,8 @@ import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/common_widgets/song_context_menu.dart';
+import 'package:navis/src/common_widgets/song_download_status_icon.dart';
+import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
@@ -24,6 +28,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/changelog/changelog_data.dart';
 import 'package:navis/src/features/changelog/changelog_dialog.dart';
 import 'package:navis/src/features/changelog/changelog_provider.dart';
+import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
 import 'package:navis/src/features/group_listening/presentation/group_listening_active_session_indicator.dart';
 import 'package:navis/src/features/group_listening/presentation/group_listening_settings_provider.dart';
 import 'package:navis/src/features/home/domain/home_section_ids.dart';
@@ -52,6 +57,591 @@ class HomeScreen extends ConsumerStatefulWidget {
 
   @override
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class ListenBrainzWeeklyDetailScreen extends ConsumerWidget {
+  const ListenBrainzWeeklyDetailScreen({
+    required this.sourcePatch,
+    super.key,
+  });
+
+  final String sourcePatch;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final playlistsAsync = ref.watch(listenBrainzDiscoverStreamProvider);
+    final playlist = playlistsAsync.asData?.value
+        .where((playlist) => playlist.playlist.sourcePatch == sourcePatch)
+        .firstOrNull;
+    final title = switch (sourcePatch) {
+      'weekly-jams' => 'Weekly Jams',
+      'weekly-exploration' => 'Weekly Exploration',
+      _ => 'ListenBrainz Weekly',
+    };
+    final adaptiveContext = resolveAdaptiveContextFor(context);
+
+    return Scaffold(
+      appBar: (adaptiveContext.useDesktopShell || playlist == null)
+          ? AppBar(title: Text(title))
+          : null,
+      body: playlistsAsync.when(
+        data: (_) {
+          if (playlist == null) {
+            return const EmptyState(
+              icon: Icons.auto_awesome_outlined,
+              title: 'No weekly playlist available',
+              subtitle: 'Refresh You Might Like to fetch it again.',
+            );
+          }
+          return _ListenBrainzWeeklyDetailContent(playlist: playlist);
+        },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, _) => ErrorState(
+          title: 'Could not load weekly playlist',
+          message: error.toString(),
+          onRetry: () {
+            ref
+                .read(listenBrainzDiscoverRefreshEpochProvider.notifier)
+                .refresh();
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _ListenBrainzWeeklyDetailContent extends ConsumerStatefulWidget {
+  const _ListenBrainzWeeklyDetailContent({required this.playlist});
+
+  final ListenBrainzDiscoverPlaylist playlist;
+
+  @override
+  ConsumerState<_ListenBrainzWeeklyDetailContent> createState() =>
+      _ListenBrainzWeeklyDetailContentState();
+}
+
+class _ListenBrainzWeeklyDetailContentState
+    extends ConsumerState<_ListenBrainzWeeklyDetailContent> {
+  DownloadQualityChoice? _pendingDownloadChoice;
+  final Set<String> _downloadIntentQueuedSongIds = <String>{};
+
+  ListenBrainzDiscoverPlaylist get playlist => widget.playlist;
+
+  @override
+  void didUpdateWidget(_ListenBrainzWeeklyDetailContent oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.playlist.playlist.identifier !=
+        widget.playlist.playlist.identifier) {
+      _pendingDownloadChoice = null;
+      _downloadIntentQueuedSongIds.clear();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final textTheme = theme.textTheme;
+    final adaptiveContext = resolveAdaptiveContextFor(context);
+    final serverSongs = _serverSongs;
+    _enqueuePendingDownloads(serverSongs);
+
+    if (adaptiveContext.useDesktopShell) {
+      const artSize = 260.0;
+      return SafeArea(
+        bottom: false,
+        child: DesktopFrame(
+          layoutClass: resolveDesktopLayoutClass(
+            MediaQuery.sizeOf(context).width,
+          ),
+          padding: EdgeInsets.zero,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              ColoredBox(
+                key: const ValueKey<String>('albumDetailDesktopHeader'),
+                color: colors.surfaceContainerHigh,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: <Widget>[
+                      SizedBox.square(
+                        dimension: artSize,
+                        child: _ListenBrainzArtwork(
+                          playlist: playlist,
+                          size: artSize,
+                        ),
+                      ),
+                      const SizedBox(width: 28),
+                      Expanded(
+                        child: _VirtualAlbumHeaderText(
+                          playlist: playlist,
+                          textAlign: TextAlign.start,
+                          titleStyle: textTheme.displaySmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            height: 1.1,
+                          ),
+                          metadataStyle: textTheme.bodyMedium?.copyWith(
+                            color: colors.onSurfaceVariant,
+                          ),
+                          actions: _buildActions(serverSongs),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Container(
+                height: 28,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: <Color>[
+                      colors.surfaceContainerHigh,
+                      colors.surface,
+                    ],
+                  ),
+                ),
+              ),
+              Expanded(
+                child: CustomScrollView(
+                  slivers: <Widget>[
+                    _buildTrackSliver(compact: false),
+                    const SliverToBoxAdapter(child: SizedBox(height: 16)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (adaptiveContext.useCompactWideLandscape) {
+      return SafeArea(
+        left: false,
+        right: false,
+        child: Row(
+          key: const ValueKey<String>('albumDetailCompactWideSplitPane'),
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            SizedBox(
+              width: 236,
+              child: Material(
+                color: colors.surfaceContainerHigh,
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      IconButton(
+                        tooltip: MaterialLocalizations.of(
+                          context,
+                        ).backButtonTooltip,
+                        onPressed: () => context.pop(),
+                        icon: const Icon(Icons.arrow_back),
+                      ),
+                      const SizedBox(height: 4),
+                      Center(
+                        child: SizedBox.square(
+                          dimension: 168,
+                          child: _ListenBrainzArtwork(
+                            playlist: playlist,
+                            size: 168,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      _VirtualAlbumHeaderText(
+                        playlist: playlist,
+                        textAlign: TextAlign.start,
+                        titleStyle: textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          height: 1.15,
+                        ),
+                        metadataStyle: textTheme.bodySmall?.copyWith(
+                          color: colors.onSurfaceVariant,
+                        ),
+                        compact: true,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            VerticalDivider(
+              width: 1,
+              thickness: 1,
+              color: colors.outlineVariant,
+            ),
+            Expanded(
+              child: CustomScrollView(
+                slivers: <Widget>[
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(4, 6, 8, 2),
+                      child: _buildActions(serverSongs, iconOnly: true),
+                    ),
+                  ),
+                  _buildTrackSliver(compact: true),
+                  const SliverToBoxAdapter(child: SizedBox(height: 16)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return CustomScrollView(
+      slivers: <Widget>[
+        SliverAppBar(
+          key: const ValueKey<String>('albumDetailMobileExpandedArtAppBar'),
+          pinned: true,
+          expandedHeight: MediaQuery.sizeOf(context).width,
+          title: Text(playlist.displayTitle),
+          flexibleSpace: FlexibleSpaceBar(
+            background: _ListenBrainzArtwork(
+              playlist: playlist,
+              size: MediaQuery.sizeOf(context).width,
+            ),
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: _VirtualAlbumHeaderText(
+              playlist: playlist,
+              titleStyle: textTheme.headlineMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+              metadataStyle: textTheme.bodyMedium?.copyWith(
+                color: colors.onSurfaceVariant,
+              ),
+              actions: Padding(
+                padding: const EdgeInsets.only(top: 16),
+                child: _buildActions(serverSongs),
+              ),
+            ),
+          ),
+        ),
+        _buildTrackSliver(compact: false),
+        const SliverToBoxAdapter(child: SizedBox(height: 16)),
+      ],
+    );
+  }
+
+  List<SongsTableData> get _serverSongs => playlist.recommendations
+      .where((recommendation) => recommendation.hasServerSong)
+      .map((recommendation) => recommendation.tableSong!)
+      .toList(growable: false);
+
+  Widget _buildActions(
+    List<SongsTableData> serverSongs, {
+    bool iconOnly = false,
+  }) {
+    final l10n = AppLocalizations.of(context)!;
+    if (iconOnly) {
+      return Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: <Widget>[
+          IconButton(
+            tooltip: l10n.albumDetailPlayAction,
+            icon: const Icon(Icons.play_arrow),
+            onPressed: serverSongs.isEmpty
+                ? null
+                : () => _queueSongs(serverSongs, shuffle: false),
+          ),
+          IconButton(
+            tooltip: l10n.albumDetailShuffleAction,
+            icon: const Icon(Icons.shuffle),
+            onPressed: serverSongs.isEmpty
+                ? null
+                : () => _queueSongs(serverSongs, shuffle: true),
+          ),
+          IconButton(
+            tooltip: l10n.albumDetailDownloadAction,
+            icon: const Icon(Icons.download_outlined),
+            onPressed: serverSongs.isEmpty ? null : _downloadVirtualAlbum,
+          ),
+        ],
+      );
+    }
+
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 10,
+      runSpacing: 10,
+      children: <Widget>[
+        FilledButton.icon(
+          onPressed: serverSongs.isEmpty
+              ? null
+              : () => _queueSongs(serverSongs, shuffle: false),
+          icon: const Icon(Icons.play_arrow_rounded),
+          label: Text(l10n.albumDetailPlayAction),
+        ),
+        FilledButton.tonalIcon(
+          onPressed: serverSongs.isEmpty
+              ? null
+              : () => _queueSongs(serverSongs, shuffle: true),
+          icon: const Icon(Icons.shuffle_rounded),
+          label: Text(l10n.albumDetailShuffleAction),
+        ),
+        OutlinedButton.icon(
+          onPressed: serverSongs.isEmpty ? null : _downloadVirtualAlbum,
+          icon: const Icon(Icons.download_outlined),
+          label: Text(l10n.albumDetailDownloadAction),
+        ),
+      ],
+    );
+  }
+
+  SliverList _buildTrackSliver({required bool compact}) {
+    return SliverList.builder(
+      itemCount: playlist.recommendations.length,
+      itemBuilder: (context, index) {
+        final recommendation = playlist.recommendations[index];
+        final tableSong = recommendation.tableSong;
+        if (recommendation.hasServerSong && tableSong != null) {
+          return TrackListTile(
+            song: tableSong.copyWith(track: Value(index + 1)),
+            contentPadding: compact
+                ? const EdgeInsetsDirectional.only(start: 8, end: 4)
+                : null,
+            horizontalTitleGap: 6,
+            onTap: () => _playFrom(index),
+            onLongPress: () => showSongContextMenu(context, ref, tableSong),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                SongDownloadStatusIcon(
+                  songId: tableSong.id,
+                  onDownload: () => _downloadSong(tableSong),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.more_vert),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(
+                    minWidth: 36,
+                    minHeight: 36,
+                  ),
+                  onPressed: () => showSongContextMenu(context, ref, tableSong),
+                ),
+              ],
+            ),
+          );
+        }
+        return _ListenBrainzRecommendationTile(
+          recommendation: recommendation,
+          index: index + 1,
+          onPlay: (song) {
+            ref.read(queueProvider.notifier).replaceWithSongs(<Song>[
+              song,
+            ]).ignore();
+          },
+          onSearch: (track) {
+            NavService.openSearch(
+              context,
+              ref,
+              '${track.title} ${track.creator ?? ''}'.trim(),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _queueSongs(List<SongsTableData> songs, {required bool shuffle}) {
+    final queueSongs = List<SongsTableData>.of(songs);
+    if (shuffle) {
+      queueSongs.shuffle(math.Random());
+    }
+    ref.read(queueProvider.notifier).replaceWithTableData(queueSongs).ignore();
+  }
+
+  void _playFrom(int recommendationIndex) {
+    final serverSongs = <SongsTableData>[];
+    var startIndex = 0;
+    for (var i = 0; i < playlist.recommendations.length; i++) {
+      final recommendation = playlist.recommendations[i];
+      if (!recommendation.hasServerSong) continue;
+      if (i == recommendationIndex) {
+        startIndex = serverSongs.length;
+      }
+      serverSongs.add(recommendation.tableSong!);
+    }
+    ref
+        .read(queueProvider.notifier)
+        .replaceWithTableData(serverSongs, startIndex: startIndex)
+        .ignore();
+  }
+
+  Future<void> _downloadVirtualAlbum() async {
+    final choice = await showDownloadQualitySheet(context);
+    if (choice == null || !mounted) return;
+    setState(() {
+      _pendingDownloadChoice = choice;
+      _downloadIntentQueuedSongIds.clear();
+    });
+    final count = await _enqueueDownloads(_serverSongs, choice);
+    if (!mounted) return;
+    showAppNotice(
+      context,
+      message: AppLocalizations.of(context)!.downloadAlbumQueued(count),
+      level: AppNoticeLevel.success,
+    );
+  }
+
+  Future<void> _downloadSong(SongsTableData song) async {
+    final choice = await showDownloadQualitySheet(context);
+    if (choice == null || !mounted) return;
+    await ref
+        .read(downloadServiceProvider)
+        .enqueueSong(
+          song.id,
+          albumId: song.albumId,
+          quality: choice.quality,
+          format: choice.format,
+        );
+    if (!mounted) return;
+    showAppNotice(
+      context,
+      message: AppLocalizations.of(context)!.downloadSongQueued,
+      level: AppNoticeLevel.success,
+    );
+  }
+
+  void _enqueuePendingDownloads(List<SongsTableData> serverSongs) {
+    final choice = _pendingDownloadChoice;
+    if (choice == null) return;
+    final newSongs = serverSongs
+        .where((song) => !_downloadIntentQueuedSongIds.contains(song.id))
+        .toList(growable: false);
+    if (newSongs.isEmpty) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _pendingDownloadChoice != choice) return;
+      _enqueueDownloads(newSongs, choice).ignore();
+    });
+  }
+
+  Future<int> _enqueueDownloads(
+    List<SongsTableData> songs,
+    DownloadQualityChoice choice,
+  ) async {
+    var count = 0;
+    final service = ref.read(downloadServiceProvider);
+    for (final song in songs) {
+      if (!_downloadIntentQueuedSongIds.add(song.id)) {
+        continue;
+      }
+      await service.enqueueSong(
+        song.id,
+        albumId: song.albumId,
+        quality: choice.quality,
+        format: choice.format,
+      );
+      count++;
+    }
+    return count;
+  }
+}
+
+class _VirtualAlbumHeaderText extends StatelessWidget {
+  const _VirtualAlbumHeaderText({
+    required this.playlist,
+    required this.titleStyle,
+    required this.metadataStyle,
+    this.actions,
+    this.textAlign = TextAlign.center,
+    this.compact = false,
+  });
+
+  final ListenBrainzDiscoverPlaylist playlist;
+  final TextStyle? titleStyle;
+  final TextStyle? metadataStyle;
+  final Widget? actions;
+  final TextAlign textAlign;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final date = _listenBrainzGenerationDate(playlist);
+    final metadata = <String>[
+      'ListenBrainz',
+      _formatListenBrainzDate(date),
+      '${playlist.totalCount} tracks',
+      playlist.matchingComplete
+          ? '${playlist.matchedCount} available'
+          : '${playlist.matchedCount} available, matching',
+    ].join(' • ');
+    return Column(
+      crossAxisAlignment: textAlign == TextAlign.center
+          ? CrossAxisAlignment.center
+          : CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Text(
+          playlist.displayTitle,
+          textAlign: textAlign,
+          maxLines: compact ? 3 : 2,
+          overflow: TextOverflow.ellipsis,
+          style: titleStyle,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          metadata,
+          textAlign: textAlign,
+          maxLines: compact ? 3 : 2,
+          overflow: TextOverflow.ellipsis,
+          style: metadataStyle,
+        ),
+        if (actions != null) ...<Widget>[
+          const SizedBox(height: 20),
+          actions!,
+        ],
+      ],
+    );
+  }
+}
+
+DateTime _listenBrainzGenerationDate(ListenBrainzDiscoverPlaylist playlist) {
+  final direct = playlist.playlist.date;
+  if (direct != null) {
+    return direct;
+  }
+  final match = RegExp(
+    r'week of (\d{4}-\d{2}-\d{2})',
+    caseSensitive: false,
+  ).firstMatch(playlist.playlist.title);
+  if (match != null) {
+    final parsed = DateTime.tryParse(match.group(1)!);
+    if (parsed != null) {
+      return parsed;
+    }
+  }
+  return DateTime.now();
+}
+
+String _formatListenBrainzDate(DateTime date) {
+  const months = <String>[
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  return '${months[date.month - 1]} ${date.day}, ${date.year}';
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen>
@@ -99,8 +689,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     ref.invalidate(homeRecentlyAddedProvider);
     ref.invalidate(homeRandomAlbumsProvider);
     ref.invalidate(homeDownloadedRandomAlbumsProvider);
+    ref.invalidate(homeRandomAlbumShowcaseProvider);
     ref.invalidate(homeRandomShowcaseProvider);
-    ref.invalidate(listenBrainzDiscoverProvider);
+    ref.read(listenBrainzDiscoverRefreshEpochProvider.notifier).refresh();
     ref.invalidate(updateProvider);
   }
 
@@ -647,7 +1238,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
       case HomeSectionIds.randomAlbums:
         return <Widget>[
-          _HomeSection<List<HomeRandomShowcaseAlbum>>(
+          _HomeSection<List<HomeRandomShowcaseItem>>(
             title: l10n.homeRandomTitle,
             desktopMode: desktopMode,
             adaptiveLayoutClass: adaptiveLayoutClass,
@@ -685,39 +1276,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             emptySubtitle: l10n.homeRandomEmptySubtitle,
             onRetry: () {
               ref.invalidate(homeRandomAlbumsProvider);
+              ref.invalidate(homeRandomAlbumShowcaseProvider);
+              ref
+                  .read(listenBrainzDiscoverRefreshEpochProvider.notifier)
+                  .refresh();
               ref.invalidate(homeRandomShowcaseProvider);
             },
-          ),
-        ];
-
-      case HomeSectionIds.listenBrainzDiscover:
-        if (downloadedOnly || likedOnly) {
-          return const <Widget>[];
-        }
-        return <Widget>[
-          _HomeSection<List<ListenBrainzDiscoverPlaylist>>(
-            title: 'Discover',
-            desktopMode: desktopMode,
-            adaptiveLayoutClass: adaptiveLayoutClass,
-            compactWideLandscapeMode: compactWideLandscapeMode,
-            template: _HomeSectionTemplate.carousel,
-            density: sectionDensity,
-            data: ref.watch(listenBrainzDiscoverProvider),
-            isEmpty: (items) => items.isEmpty,
-            builder: (context, playlists) => _ListenBrainzDiscoverCarousel(
-              playlists: playlists,
-              density: sectionDensity,
-              compactWideLandscapeMode: compactWideLandscapeMode,
-              onTap: (playlist) => _showListenBrainzDiscoverDetail(
-                context,
-                ref,
-                playlist,
-              ),
-            ),
-            emptyTitle: 'No Discover playlists',
-            emptySubtitle:
-                'Validate your ListenBrainz token in External Services.',
-            onRetry: () => ref.invalidate(listenBrainzDiscoverProvider),
           ),
         ];
 
@@ -1518,8 +2082,6 @@ class _CarouselEdgeArrow extends StatelessWidget {
   }
 }
 
-const int _kDesktopRandomSongsPerAlbum = 5;
-
 class _DesktopRandomAlbumsPager extends ConsumerStatefulWidget {
   const _DesktopRandomAlbumsPager({
     required this.albums,
@@ -1527,7 +2089,7 @@ class _DesktopRandomAlbumsPager extends ConsumerStatefulWidget {
     this.density = _HomeSectionDensity.comfortable,
   });
 
-  final List<HomeRandomShowcaseAlbum> albums;
+  final List<HomeRandomShowcaseItem> albums;
   final String heroContext;
   final _HomeSectionDensity density;
 
@@ -1690,11 +2252,16 @@ class _DesktopRandomAlbumPage extends ConsumerWidget {
     required this.heroContext,
   });
 
-  final HomeRandomShowcaseAlbum album;
+  final HomeRandomShowcaseItem album;
   final String heroContext;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final item = this.album;
+    if (item is HomeRandomShowcaseListenBrainz) {
+      return _DesktopListenBrainzPage(item: item);
+    }
+    final album = item as HomeRandomShowcaseAlbum;
     final colors = Theme.of(context).colorScheme;
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -1865,6 +2432,214 @@ class _DesktopRandomAlbumVisual extends ConsumerWidget {
   }
 }
 
+class _DesktopListenBrainzPage extends ConsumerWidget {
+  const _DesktopListenBrainzPage({required this.item});
+
+  final HomeRandomShowcaseListenBrainz item;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final pageHeight = constraints.maxHeight.isFinite
+            ? constraints.maxHeight
+            : 330.0;
+        final coverWidth = math.min(pageHeight, constraints.maxWidth * 0.44);
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            SizedBox(
+              width: coverWidth,
+              height: pageHeight,
+              child: _ListenBrainzShowcaseVisual(item: item),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: SizedBox(
+                height: pageHeight,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceContainerLowest
+                        .withValues(alpha: 0.28),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.outlineVariant.withValues(alpha: 0.34),
+                    ),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+                    child: _DesktopListenBrainzSongList(item: item),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _ListenBrainzShowcaseVisual extends ConsumerWidget {
+  const _ListenBrainzShowcaseVisual({
+    required this.item,
+  });
+
+  final HomeRandomShowcaseListenBrainz item;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Card(
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: InkWell(
+        onTap: item.isLoading
+            ? null
+            : () => _showListenBrainzDiscoverDetail(
+                context,
+                ref,
+                item.playlist!,
+              ),
+        child: Stack(
+          fit: StackFit.expand,
+          children: <Widget>[
+            if (item.isLoading)
+              const _ListenBrainzLoadingArtwork()
+            else
+              _ListenBrainzArtwork(playlist: item.playlist!, size: 480),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: <Color>[
+                    Colors.black.withValues(alpha: 0),
+                    Colors.black.withValues(alpha: 0.78),
+                  ],
+                ),
+              ),
+            ),
+            Positioned(
+              left: 12,
+              right: 12,
+              bottom: 10,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Text(
+                    item.displayTitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    item.isLoading
+                        ? 'Fetching ListenBrainz playlist...'
+                        : _listenBrainzAvailabilityText(item.playlist!),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Colors.white.withValues(alpha: 0.78),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (item.isLoading)
+              const Positioned(
+                top: 14,
+                right: 14,
+                child: SizedBox.square(
+                  dimension: 22,
+                  child: CircularProgressIndicator(strokeWidth: 2.4),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DesktopListenBrainzSongList extends ConsumerWidget {
+  const _DesktopListenBrainzSongList({required this.item});
+
+  final HomeRandomShowcaseListenBrainz item;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    if (item.isLoading || item.playlist == null) {
+      return Center(
+        child: Text(
+          'Fetching playlist...',
+          style: theme.textTheme.bodySmall,
+        ),
+      );
+    }
+    final recommendations = item.playlist!.recommendations;
+    if (recommendations.isEmpty) {
+      return Center(
+        child: Text(
+          'No tracks yet',
+          style: theme.textTheme.bodySmall,
+        ),
+      );
+    }
+    return ListView.builder(
+      padding: EdgeInsets.zero,
+      itemCount: recommendations.length,
+      itemBuilder: (context, index) {
+        return _ListenBrainzRecommendationTile(
+          recommendation: recommendations[index],
+          index: index + 1,
+          onPlay: (song) {
+            ref.read(queueProvider.notifier).replaceWithSongs(<Song>[
+              song,
+            ]).ignore();
+          },
+          onSearch: (track) {
+            NavService.openSearch(
+              context,
+              ref,
+              '${track.title} ${track.creator ?? ''}'.trim(),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _ListenBrainzLoadingArtwork extends StatelessWidget {
+  const _ListenBrainzLoadingArtwork();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerHighest,
+      ),
+      child: Center(
+        child: Icon(
+          Icons.graphic_eq_rounded,
+          size: 72,
+          color: colors.onSurfaceVariant.withValues(alpha: 0.72),
+        ),
+      ),
+    );
+  }
+}
+
 class _DesktopRandomAlbumSongList extends ConsumerWidget {
   const _DesktopRandomAlbumSongList({required this.album});
 
@@ -1919,59 +2694,23 @@ class _DesktopRandomAlbumSongList extends ConsumerWidget {
       );
     }
 
-    const separatorHeight = 4.0;
     const preferredRowHeight = 52.0;
-    const minRowHeight = 46.0;
-    const maxRowHeight = 74.0;
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final availableHeight = constraints.maxHeight.isFinite
-            ? constraints.maxHeight
-            : 280.0;
-        final baselineRows = math.min(
-          _kDesktopRandomSongsPerAlbum,
-          allSongs.length,
-        );
-        final preferredRowsByHeight =
-            ((availableHeight + separatorHeight) /
-                    (preferredRowHeight + separatorHeight))
-                .floor();
-        final maxRowsByHeight =
-            ((availableHeight + separatorHeight) /
-                    (minRowHeight + separatorHeight))
-                .floor();
-        final targetRows = preferredRowsByHeight
-            .clamp(
-              baselineRows,
-              math.max(baselineRows, maxRowsByHeight),
-            )
-            .toInt();
-        final visibleRowCount = targetRows.clamp(1, allSongs.length);
-        final displayedSongs = allSongs
-            .take(visibleRowCount)
-            .toList(growable: false);
-        final rowHeight =
-            ((availableHeight - ((visibleRowCount - 1) * separatorHeight)) /
-                    visibleRowCount)
-                .clamp(minRowHeight, maxRowHeight);
         return ListView.separated(
           key: ValueKey<String>('home-random-desktop-song-list-${album.id}'),
-          physics: const NeverScrollableScrollPhysics(),
           padding: EdgeInsets.zero,
-          itemCount: displayedSongs.length,
-          separatorBuilder: (_, _) => const SizedBox(height: separatorHeight),
+          itemCount: allSongs.length,
+          separatorBuilder: (_, _) => const SizedBox(height: 4),
           itemBuilder: (context, index) {
-            final song = displayedSongs[index];
-            final queueIndex = allSongs.indexWhere(
-              (candidate) => candidate.id == song.id,
-            );
+            final song = allSongs[index];
             return _DesktopRandomAlbumSongRow(
               song: song,
               albumTracks: allSongs,
-              queueStartIndex: queueIndex < 0 ? index : queueIndex,
+              queueStartIndex: index,
               displayIndex: index + 1,
-              rowHeight: rowHeight,
+              rowHeight: preferredRowHeight,
             );
           },
         );
@@ -2200,7 +2939,7 @@ class _DesktopRandomMiniCoverStrip extends ConsumerWidget {
     required this.onPageSelected,
   });
 
-  final List<HomeRandomShowcaseAlbum> albums;
+  final List<HomeRandomShowcaseItem> albums;
   final int currentPage;
   final ValueChanged<int> onPageSelected;
 
@@ -2219,7 +2958,7 @@ class _DesktopRandomMiniCoverStrip extends ConsumerWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: List<Widget>.generate(albums.length, (index) {
-              final album = albums[index];
+              final item = albums[index];
               final active = currentPage == index;
               return Padding(
                 padding: EdgeInsets.only(
@@ -2249,14 +2988,9 @@ class _DesktopRandomMiniCoverStrip extends ConsumerWidget {
                           width: active ? 1.6 : 1.0,
                         ),
                       ),
-                      child: ClipRRect(
+                      child: _RandomMiniCover(
+                        item: item,
                         borderRadius: coverRadius,
-                        child: CoverArtImage(
-                          coverArtId: album.coverArtId,
-                          size: 96,
-                          fit: BoxFit.cover,
-                          placeholderIcon: Icons.album_outlined,
-                        ),
                       ),
                     ),
                   ),
@@ -2265,6 +2999,39 @@ class _DesktopRandomMiniCoverStrip extends ConsumerWidget {
             }),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _RandomMiniCover extends StatelessWidget {
+  const _RandomMiniCover({
+    required this.item,
+    required this.borderRadius,
+  });
+
+  final HomeRandomShowcaseItem item;
+  final BorderRadius borderRadius;
+
+  @override
+  Widget build(BuildContext context) {
+    final item = this.item;
+    if (item is HomeRandomShowcaseListenBrainz) {
+      return ClipRRect(
+        borderRadius: borderRadius,
+        child: item.isLoading
+            ? const _ListenBrainzLoadingArtwork()
+            : _ListenBrainzArtwork(playlist: item.playlist!, size: 96),
+      );
+    }
+    final album = item as HomeRandomShowcaseAlbum;
+    return ClipRRect(
+      borderRadius: borderRadius,
+      child: CoverArtImage(
+        coverArtId: album.coverArtId,
+        size: 96,
+        fit: BoxFit.cover,
+        placeholderIcon: Icons.album_outlined,
       ),
     );
   }
@@ -2316,7 +3083,7 @@ class _RandomAlbumsHeroCarousel extends ConsumerStatefulWidget {
     this.freezeListUpdates = false,
   });
 
-  final List<HomeRandomShowcaseAlbum> albums;
+  final List<HomeRandomShowcaseItem> albums;
   final String heroContext;
   final bool desktopMode;
   final AdaptiveLayoutClass adaptiveLayoutClass;
@@ -2332,7 +3099,7 @@ class _RandomAlbumsHeroCarouselState
     extends ConsumerState<_RandomAlbumsHeroCarousel> {
   static const int _kVirtualLoopCycles = 10000;
   late final PageController _pageController;
-  late List<HomeRandomShowcaseAlbum> _displayedAlbums;
+  late List<HomeRandomShowcaseItem> _displayedAlbums;
   Timer? _autoAdvanceTimer;
   Timer? _resumeTimer;
   bool _autoAdvancePaused = false;
@@ -2342,7 +3109,7 @@ class _RandomAlbumsHeroCarouselState
   @override
   void initState() {
     super.initState();
-    _displayedAlbums = List<HomeRandomShowcaseAlbum>.unmodifiable(
+    _displayedAlbums = List<HomeRandomShowcaseItem>.unmodifiable(
       widget.albums,
     );
     final initialPage = _initialVirtualPage(_displayedAlbums.length);
@@ -2361,7 +3128,7 @@ class _RandomAlbumsHeroCarouselState
   @override
   void didUpdateWidget(covariant _RandomAlbumsHeroCarousel oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final incomingAlbums = List<HomeRandomShowcaseAlbum>.unmodifiable(
+    final incomingAlbums = List<HomeRandomShowcaseItem>.unmodifiable(
       widget.albums,
     );
 
@@ -2379,10 +3146,11 @@ class _RandomAlbumsHeroCarouselState
       return;
     }
 
-    final oldIds = _displayedAlbums.map((album) => album.id).toList();
-    final newIds = incomingAlbums.map((album) => album.id).toList();
+    final oldIds = _displayedAlbums.map((album) => album.stableId).toList();
+    final newIds = incomingAlbums.map((album) => album.stableId).toList();
     final contentChanged = !listEquals(oldIds, newIds);
     if (!contentChanged) {
+      _displayedAlbums = incomingAlbums;
       return;
     }
 
@@ -2403,7 +3171,7 @@ class _RandomAlbumsHeroCarouselState
                 0,
                 previousDisplayedAlbums.length - 1,
               )]
-              .id;
+              .stableId;
     }
     var nextLogicalPage = 0;
     if (currentAlbumId != null) {
@@ -2667,11 +3435,16 @@ class _RandomAlbumsHeroCard extends ConsumerWidget {
     required this.heroContext,
   });
 
-  final HomeRandomShowcaseAlbum album;
+  final HomeRandomShowcaseItem album;
   final String heroContext;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final item = this.album;
+    if (item is HomeRandomShowcaseListenBrainz) {
+      return _RandomListenBrainzHeroCard(item: item);
+    }
+    final album = item as HomeRandomShowcaseAlbum;
     final metadataParts = <String>[
       if (album.year != null && album.year! > 0) album.year.toString(),
       if (album.songCount != null && album.songCount! > 0)
@@ -2770,6 +3543,114 @@ class _RandomAlbumsHeroCard extends ConsumerWidget {
       ),
     );
   }
+}
+
+class _RandomListenBrainzHeroCard extends ConsumerWidget {
+  const _RandomListenBrainzHeroCard({required this.item});
+
+  final HomeRandomShowcaseListenBrainz item;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Card(
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: InkWell(
+        onTap: item.isLoading
+            ? null
+            : () => _showListenBrainzDiscoverDetail(
+                context,
+                ref,
+                item.playlist!,
+              ),
+        child: Stack(
+          fit: StackFit.expand,
+          children: <Widget>[
+            if (item.isLoading)
+              const _ListenBrainzLoadingArtwork()
+            else
+              _ListenBrainzArtwork(playlist: item.playlist!, size: 420),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: <Color>[
+                    Colors.black.withValues(alpha: 0),
+                    Colors.black.withValues(alpha: 0.78),
+                  ],
+                ),
+              ),
+            ),
+            Align(
+              alignment: Alignment.bottomLeft,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 44, 14, 14),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      item.displayTitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      item.isLoading
+                          ? 'Fetching ListenBrainz playlist...'
+                          : _listenBrainzAvailabilityText(item.playlist!),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Colors.white.withValues(alpha: 0.86),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      item.isLoading
+                          ? 'Loading'
+                          : item.playlist!.matchingComplete
+                          ? 'Ready'
+                          : 'Matching',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.white.withValues(alpha: 0.72),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (item.isLoading)
+              const Positioned(
+                top: 14,
+                right: 14,
+                child: SizedBox.square(
+                  dimension: 22,
+                  child: CircularProgressIndicator(strokeWidth: 2.4),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String _listenBrainzAvailabilityText(ListenBrainzDiscoverPlaylist playlist) {
+  if (!playlist.matchingComplete) {
+    return '${playlist.matchedCount} available • matching';
+  }
+  return '${playlist.matchedCount} of ${playlist.totalCount} available';
 }
 
 /// A small square card for server [Album] objects (same visual as [AlbumCard]

@@ -30,8 +30,24 @@ const List<ChangelogVersion> changelogs = [
     version: '1.0.4',
     entries: [
       ChangelogEntry(
-        'Home can now show ListenBrainz Discover recommendation playlists, resolving playable tracks through your server while keeping unavailable recommendations visible for manual search',
+        'You Might Like can now include your ListenBrainz weekly recommendations, and song likes sync to ListenBrainz recording feedback when connected',
         type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Weekly Exploration and Weekly Jams now appear as read-only virtual playlists in the playlist library, with normal play, shuffle, queue, download, and song actions for matched server tracks',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'ListenBrainz weekly matching now checks cached local songs first, limits remote search concurrency, handles duplicate exact matches more accurately, and avoids unnecessary ambiguous results',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Desktop You Might Like panels now show complete scrollable song lists for albums and weekly recommendations instead of short previews',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Weekly recommendation loading is smoother, with batched matching, database writes, and UI updates to reduce stalls while recommendations resolve',
+        type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
         'Queued downloads now react when Wi-Fi-only settings or network type change, and compatible cached files are reused instead of downloaded again',
@@ -44,6 +60,10 @@ const List<ChangelogVersion> changelogs = [
       ChangelogEntry(
         'The Previous control now restarts the current track when appropriate and only skips to the prior track near the start of playback',
         type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Updated package dependencies including file picker, local notifications, and JSON annotations',
+        type: ChangelogEntryType.improvement,
       ),
     ],
   ),

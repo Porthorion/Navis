@@ -1,7 +1,49 @@
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/providers/app_providers.dart';
+
+const String listenBrainzWeeklyExplorationVirtualPlaylistId =
+    'virtual:listenbrainz:weekly-exploration';
+const String listenBrainzWeeklyJamsVirtualPlaylistId =
+    'virtual:listenbrainz:weekly-jams';
+
+class PlaylistLibraryItem {
+  const PlaylistLibraryItem._({
+    this.playlist,
+    this.virtualPlaylist,
+  });
+
+  const PlaylistLibraryItem.normal(PlaylistsTableData playlist)
+    : this._(playlist: playlist);
+
+  const PlaylistLibraryItem.virtual(
+    ListenBrainzDiscoverPlaylist virtualPlaylist,
+  ) : this._(virtualPlaylist: virtualPlaylist);
+
+  final PlaylistsTableData? playlist;
+  final ListenBrainzDiscoverPlaylist? virtualPlaylist;
+
+  bool get isVirtual => virtualPlaylist != null;
+
+  String get id {
+    final virtual = virtualPlaylist;
+    if (virtual != null) {
+      return switch (virtual.playlist.sourcePatch) {
+        'weekly-exploration' => listenBrainzWeeklyExplorationVirtualPlaylistId,
+        'weekly-jams' => listenBrainzWeeklyJamsVirtualPlaylistId,
+        final sourcePatch? => 'virtual:listenbrainz:$sourcePatch',
+        _ => 'virtual:listenbrainz:${virtual.playlist.identifier}',
+      };
+    }
+    return playlist!.id;
+  }
+
+  String get name => virtualPlaylist?.displayTitle ?? playlist!.name;
+
+  int get songCount => virtualPlaylist?.totalCount ?? playlist!.songCount ?? 0;
+}
 
 /// Watches the local playlist list (synced from server).
 /// Non-autoDispose so the stream stays alive across tab switches, preventing
@@ -10,6 +52,37 @@ final playlistListProvider = StreamProvider<List<PlaylistsTableData>>((ref) {
   final db = ref.watch(navisDatabaseProvider);
   return db.playlistDao.watchPlaylists();
 });
+
+final playlistLibraryItemsProvider =
+    Provider<AsyncValue<List<PlaylistLibraryItem>>>((ref) {
+      final playlistsAsync = ref.watch(playlistListProvider);
+      final virtualAsync = ref.watch(listenBrainzDiscoverStreamProvider);
+
+      return playlistsAsync.when(
+        data: (playlists) {
+          final items = <PlaylistLibraryItem>[
+            for (final playlist in playlists)
+              PlaylistLibraryItem.normal(playlist),
+            for (final playlist
+                in virtualAsync.asData?.value ??
+                    const <ListenBrainzDiscoverPlaylist>[])
+              PlaylistLibraryItem.virtual(playlist),
+          ];
+          return AsyncData(items);
+        },
+        loading: () {
+          final virtual = virtualAsync.asData?.value;
+          if (virtual != null) {
+            return AsyncData(<PlaylistLibraryItem>[
+              for (final playlist in virtual)
+                PlaylistLibraryItem.virtual(playlist),
+            ]);
+          }
+          return const AsyncLoading();
+        },
+        error: AsyncError.new,
+      );
+    });
 
 /// Fetches playlist data from the server and stores it locally.
 /// Returns the list of playlists after sync.

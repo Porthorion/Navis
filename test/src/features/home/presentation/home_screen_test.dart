@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/api/models/listenbrainz_playlist.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -143,6 +144,42 @@ class _QueueSpyController extends QueueController {
   }
 }
 
+ListenBrainzDiscoverPlaylist _listenBrainzPlaylist(String id, String title) {
+  final sourcePatch = switch (id) {
+    'jams' => 'weekly-jams',
+    'exploration' => 'weekly-exploration',
+    _ => null,
+  };
+  return ListenBrainzDiscoverPlaylist(
+    playlist: ListenBrainzPlaylist(
+      identifier: id,
+      title: title,
+      sourcePatch: sourcePatch,
+      tracks: const <ListenBrainzPlaylistTrack>[
+        ListenBrainzPlaylistTrack(
+          title: 'Remote Song',
+          creator: 'Remote Artist',
+        ),
+      ],
+    ),
+    recommendations: const <ListenBrainzResolvedRecommendation>[
+      ListenBrainzResolvedRecommendation(
+        track: ListenBrainzPlaylistTrack(
+          title: 'Remote Song',
+          creator: 'Remote Artist',
+        ),
+        status: ListenBrainzRecommendationMatchStatus.matched,
+        song: Song(
+          id: 'remote-song',
+          title: 'Remote Song',
+          artist: 'Remote Artist',
+          album: 'Remote Album',
+        ),
+      ),
+    ],
+  );
+}
+
 SongsTableData _songRow({
   required String id,
   required String title,
@@ -224,7 +261,7 @@ Future<void> _pumpHomeWithSyncState(
             const AsyncData(<Album>[]),
           ),
           homeRandomShowcaseProvider.overrideWith(
-            (ref, filters) async => const <HomeRandomShowcaseAlbum>[],
+            (ref, filters) async => const <HomeRandomShowcaseItem>[],
           ),
           homeMostPlayedSongsProvider.overrideWithValue(
             const AsyncData(<SongsTableData>[]),
@@ -289,7 +326,7 @@ Future<void> _pumpHomeWithControllerOverride(
             const AsyncData(<Album>[]),
           ),
           homeRandomShowcaseProvider.overrideWith(
-            (ref, filters) async => const <HomeRandomShowcaseAlbum>[],
+            (ref, filters) async => const <HomeRandomShowcaseItem>[],
           ),
           homeMostPlayedSongsProvider.overrideWithValue(
             const AsyncData(<SongsTableData>[]),
@@ -316,9 +353,10 @@ Future<void> _pumpHomeWithControllerOverride(
 
 Future<void> _pumpRandomSectionHome(
   WidgetTester tester, {
-  required List<HomeRandomShowcaseAlbum> randomAlbums,
+  required List<HomeRandomShowcaseItem> randomAlbums,
   required NavisDatabase database,
   List<Override> overrides = const <Override>[],
+  bool settle = true,
 }) async {
   final sectionOverrides = withTestDatabase(
     database,
@@ -381,7 +419,11 @@ Future<void> _pumpRandomSectionHome(
       ),
     ),
   );
-  await tester.pumpAndSettle();
+  if (settle) {
+    await tester.pumpAndSettle();
+  } else {
+    await tester.pump(const Duration(milliseconds: 120));
+  }
 }
 
 Future<void> _pumpHomeWithAppSettings(
@@ -437,7 +479,7 @@ Future<void> _pumpHomeWithAppSettings(
             const AsyncData(<AlbumsTableData>[]),
           ),
           homeRandomShowcaseProvider.overrideWith(
-            (ref, filters) async => const <HomeRandomShowcaseAlbum>[],
+            (ref, filters) async => const <HomeRandomShowcaseItem>[],
           ),
           homeMostPlayedSongsProvider.overrideWithValue(
             const AsyncData(<SongsTableData>[]),
@@ -548,7 +590,7 @@ void main() {
                   artistName: 'Overflow Tester',
                   coverArt: 'cover-album-2',
                   songsHydrated: false,
-                  artists: const <ArtistRef>[],
+                  artists: <ArtistRef>[],
                 ),
               ]),
             ),
@@ -563,7 +605,7 @@ void main() {
               ]),
             ),
             homeRandomShowcaseProvider.overrideWith(
-              (ref, filters) async => const <HomeRandomShowcaseAlbum>[
+              (ref, filters) async => const <HomeRandomShowcaseItem>[
                 HomeRandomShowcaseAlbum(
                   id: 'album-3',
                   name: 'Random long album title for constrained card layout',
@@ -591,7 +633,7 @@ void main() {
                   artistName: 'Favorite Artist',
                   coverArt: 'cover-album-4',
                   songsHydrated: false,
-                  artists: const <ArtistRef>[],
+                  artists: <ArtistRef>[],
                 ),
               ]),
             ),
@@ -671,7 +713,7 @@ void main() {
               const AsyncData(<Album>[]),
             ),
             homeRandomShowcaseProvider.overrideWith(
-              (ref, filters) async => const <HomeRandomShowcaseAlbum>[],
+              (ref, filters) async => const <HomeRandomShowcaseItem>[],
             ),
             homeMostPlayedSongsProvider.overrideWithValue(
               const AsyncData(<SongsTableData>[]),
@@ -885,7 +927,7 @@ void main() {
                 const AsyncData(<Album>[]),
               ),
               homeRandomShowcaseProvider.overrideWith(
-                (ref, filters) async => const <HomeRandomShowcaseAlbum>[],
+                (ref, filters) async => const <HomeRandomShowcaseItem>[],
               ),
               homeMostPlayedSongsProvider.overrideWithValue(
                 const AsyncData(<SongsTableData>[]),
@@ -947,7 +989,7 @@ void main() {
               _StaticLibrarySyncController.new,
             ),
             homeRandomShowcaseProvider.overrideWith(
-              (ref, filters) async => const <HomeRandomShowcaseAlbum>[
+              (ref, filters) async => const <HomeRandomShowcaseItem>[
                 HomeRandomShowcaseAlbum(
                   id: 'hero-1',
                   name: 'Hero One',
@@ -1012,6 +1054,112 @@ void main() {
   });
 
   testWidgets(
+    'random hero carousel renders two ListenBrainz cards and opens detail sheets',
+    (
+      tester,
+    ) async {
+      final view = tester.view;
+      view.devicePixelRatio = 1.0;
+      view.physicalSize = const Size(390, 844);
+      addTearDown(() {
+        view.resetPhysicalSize();
+        view.resetDevicePixelRatio();
+      });
+
+      await _pumpRandomSectionHome(
+        tester,
+        database: database,
+        randomAlbums: <HomeRandomShowcaseItem>[
+          HomeRandomShowcaseListenBrainz(
+            playlist: _listenBrainzPlaylist(
+              'exploration',
+              'Weekly Exploration for alice, week of 2026-06-15',
+            ),
+          ),
+          HomeRandomShowcaseListenBrainz(
+            playlist: _listenBrainzPlaylist(
+              'jams',
+              'Weekly Jams for alice, week of 2026-06-15',
+            ),
+          ),
+        ],
+      );
+
+      expect(
+        find.byKey(const ValueKey<String>('home-random-hero-carousel')),
+        findsOneWidget,
+      );
+      expect(find.text('Weekly Exploration'), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, 'Play'), findsNothing);
+      expect(find.widgetWithText(OutlinedButton, 'Shuffle'), findsNothing);
+
+      await tester.tap(find.text('Weekly Exploration'));
+      await tester.pumpAndSettle();
+      expect(find.text('Weekly Exploration'), findsWidgets);
+      expect(find.text('Remote Song'), findsWidgets);
+      final playButton = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, 'Play').last,
+      );
+      expect(playButton.onPressed, isNotNull);
+      await tester.tapAt(const Offset(12, 12));
+      await tester.pumpAndSettle();
+
+      await tester.drag(
+        find.byKey(const ValueKey<String>('home-random-hero-carousel')),
+        const Offset(-320, 0),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Weekly Jams'), findsOneWidget);
+
+      await tester.tap(find.text('Weekly Jams'));
+      await tester.pumpAndSettle();
+      expect(find.text('Weekly Jams'), findsWidgets);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+    },
+  );
+
+  testWidgets('random hero carousel renders loading ListenBrainz cards', (
+    tester,
+  ) async {
+    final view = tester.view;
+    view.devicePixelRatio = 1.0;
+    view.physicalSize = const Size(390, 844);
+    addTearDown(() {
+      view.resetPhysicalSize();
+      view.resetDevicePixelRatio();
+    });
+
+    await _pumpRandomSectionHome(
+      tester,
+      database: database,
+      randomAlbums: const <HomeRandomShowcaseItem>[
+        HomeRandomShowcaseListenBrainz.loading(
+          sourcePatch: 'weekly-exploration',
+          displayTitle: 'Weekly Exploration',
+        ),
+        HomeRandomShowcaseListenBrainz.loading(
+          sourcePatch: 'weekly-jams',
+          displayTitle: 'Weekly Jams',
+        ),
+      ],
+      settle: false,
+    );
+
+    expect(find.text('Weekly Exploration'), findsOneWidget);
+    expect(find.text('Fetching ListenBrainz playlist...'), findsWidgets);
+    expect(find.byType(CircularProgressIndicator), findsWidgets);
+
+    await tester.tap(find.text('Weekly Exploration'));
+    await tester.pump(const Duration(milliseconds: 120));
+    expect(find.text('Remote Song'), findsNothing);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets(
     'random hero carousel auto-advances and pauses after interaction',
     (tester) async {
       final view = tester.view;
@@ -1048,7 +1196,7 @@ void main() {
                 _StaticLibrarySyncController.new,
               ),
               homeRandomShowcaseProvider.overrideWith(
-                (ref, filters) async => const <HomeRandomShowcaseAlbum>[
+                (ref, filters) async => const <HomeRandomShowcaseItem>[
                   HomeRandomShowcaseAlbum(
                     id: 'hero-1',
                     name: 'Hero One',
@@ -1145,7 +1293,7 @@ void main() {
   testWidgets(
     'desktop-wide random section uses desktop pager and compact widths keep hero carousel',
     (tester) async {
-      const randomAlbums = <HomeRandomShowcaseAlbum>[
+      const randomAlbums = <HomeRandomShowcaseItem>[
         HomeRandomShowcaseAlbum(
           id: 'desk-1',
           name: 'Desktop Album',
@@ -1214,9 +1362,99 @@ void main() {
   );
 
   testWidgets(
+    'desktop random pager renders two ListenBrainz cards and opens detail sheets',
+    (
+      tester,
+    ) async {
+      setAdaptiveTestViewport(tester, const Size(1366, 900));
+      await _pumpRandomSectionHome(
+        tester,
+        database: database,
+        randomAlbums: <HomeRandomShowcaseItem>[
+          HomeRandomShowcaseListenBrainz(
+            playlist: _listenBrainzPlaylist(
+              'exploration',
+              'Weekly Exploration for alice, week of 2026-06-15',
+            ),
+          ),
+          HomeRandomShowcaseListenBrainz(
+            playlist: _listenBrainzPlaylist(
+              'jams',
+              'Weekly Jams for alice, week of 2026-06-15',
+            ),
+          ),
+        ],
+      );
+
+      expect(
+        find.byKey(const ValueKey<String>('home-random-desktop-pager')),
+        findsOneWidget,
+      );
+      expect(find.text('Weekly Exploration'), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, 'Play'), findsNothing);
+      expect(find.widgetWithText(OutlinedButton, 'Shuffle'), findsNothing);
+
+      await tester.tap(find.text('Weekly Exploration'));
+      await tester.pumpAndSettle();
+      expect(find.text('Weekly Exploration'), findsWidgets);
+      expect(find.text('Remote Song'), findsWidgets);
+      await tester.tapAt(const Offset(12, 12));
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.byKey(const ValueKey<String>('home-random-desktop-mini-cover-1')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Weekly Jams'), findsOneWidget);
+
+      await tester.tap(find.text('Weekly Jams'));
+      await tester.pumpAndSettle();
+      expect(find.text('Weekly Jams'), findsWidgets);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+    },
+  );
+
+  testWidgets('desktop random pager renders loading ListenBrainz text', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(1366, 900));
+    await _pumpRandomSectionHome(
+      tester,
+      database: database,
+      randomAlbums: const <HomeRandomShowcaseItem>[
+        HomeRandomShowcaseListenBrainz.loading(
+          sourcePatch: 'weekly-exploration',
+          displayTitle: 'Weekly Exploration',
+        ),
+        HomeRandomShowcaseListenBrainz.loading(
+          sourcePatch: 'weekly-jams',
+          displayTitle: 'Weekly Jams',
+        ),
+      ],
+      settle: false,
+    );
+
+    expect(
+      find.byKey(const ValueKey<String>('home-random-desktop-pager')),
+      findsOneWidget,
+    );
+    expect(find.text('Weekly Exploration'), findsOneWidget);
+    expect(find.text('Fetching ListenBrainz playlist...'), findsOneWidget);
+
+    await tester.tap(find.text('Weekly Exploration'));
+    await tester.pump(const Duration(milliseconds: 120));
+    expect(find.text('Remote Song'), findsNothing);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets(
     'desktop random pager supports manual paging and expands rows when height allows',
     (tester) async {
-      const randomAlbums = <HomeRandomShowcaseAlbum>[
+      const randomAlbums = <HomeRandomShowcaseItem>[
         HomeRandomShowcaseAlbum(
           id: 'desk-a',
           name: 'Album A',
@@ -1314,7 +1552,7 @@ void main() {
   testWidgets(
     'desktop random rows trigger queue replace, like toggle, and menu actions',
     (tester) async {
-      const randomAlbums = <HomeRandomShowcaseAlbum>[
+      const randomAlbums = <HomeRandomShowcaseItem>[
         HomeRandomShowcaseAlbum(
           id: 'desk-interact',
           name: 'Interactive Album',
@@ -1396,7 +1634,7 @@ void main() {
   testWidgets('desktop random pager avoids overflow at key desktop widths', (
     tester,
   ) async {
-    const randomAlbums = <HomeRandomShowcaseAlbum>[
+    const randomAlbums = <HomeRandomShowcaseItem>[
       HomeRandomShowcaseAlbum(
         id: 'desk-overflow',
         name:
@@ -1670,7 +1908,6 @@ void main() {
         containsAll(<String>[
           HomeSectionIds.recentlyLikedAlbums,
           HomeSectionIds.likedTracks,
-          HomeSectionIds.listenBrainzDiscover,
           HomeSectionIds.recentlyAdded,
           HomeSectionIds.recentlyPlayed,
           HomeSectionIds.randomAlbums,
