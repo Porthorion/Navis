@@ -15,6 +15,7 @@ import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/group_listening/domain/group_listening_session_models.dart';
 import 'package:navis/src/features/group_listening/presentation/group_listening_session_controller.dart';
+import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
@@ -344,6 +345,7 @@ void main() {
                   scrobbleEnabled: true,
                   gaplessEnabled: true,
                   skipSilenceEnabled: false,
+                  showAlbumsPage: true,
                   showRadioPage: true,
                   showPlaylistsPage: true,
                   showArtistsPage: true,
@@ -382,6 +384,7 @@ void main() {
                   artistViewMode: 'grid',
                   homeSectionOrder: null,
                   homeSectionsHidden: null,
+                  libraryPageOrder: null,
                 ),
               ),
             ),
@@ -412,6 +415,44 @@ void main() {
         final quality = container.read(activeStreamingQualityProvider);
         expect(quality.maxBitRate, 192);
         expect(quality.format, 'opus');
+      },
+    );
+
+    test(
+      'visibleLibrarySectionsProvider applies custom order and visibility',
+      () {
+        final container = ProviderContainer(
+          overrides: [
+            appSettingsProvider.overrideWithValue(
+              AsyncData(
+                const AppSettingsModel.defaults().copyWith(
+                  showAlbumsPage: false,
+                  showArtistsPage: false,
+                  showPlaylistsPage: false,
+                  libraryPageOrder: <String>[
+                    'liked',
+                    'albums',
+                    'liked',
+                    'unknown',
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        expect(container.read(libraryPageOrderProvider), <LibrarySection>[
+          LibrarySection.liked,
+          LibrarySection.albums,
+          LibrarySection.artists,
+          LibrarySection.playlists,
+          LibrarySection.radio,
+        ]);
+        expect(container.read(visibleLibrarySectionsProvider), <LibrarySection>[
+          LibrarySection.liked,
+          LibrarySection.radio,
+        ]);
       },
     );
 

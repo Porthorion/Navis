@@ -9,6 +9,7 @@ import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/home/domain/home_section_ids.dart';
+import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/theme/navis_theme.dart';
@@ -45,6 +46,7 @@ class AppearanceSettingsScreen extends ConsumerWidget {
     final sanitizedHidden = baseHidden
         .where(allowedHomeSectionIds.contains)
         .toList(growable: false);
+    final libraryPageOrder = ref.watch(libraryPageOrderProvider);
     final isDesktop = resolveAdaptiveContextFor(context).useDesktopShell;
     // Quick Actions are now always-visible below the home logo; remove from
     // the section reorder list on all platforms.
@@ -381,53 +383,47 @@ class AppearanceSettingsScreen extends ConsumerWidget {
             leading: const _BlinkingEyeIcon(),
             title: l10n.appearancePagesSectionLabel,
             initiallyExpanded: false,
-            child: Column(
-              children: <Widget>[
-                SwitchListTile(
-                  title: Text(l10n.appearanceShowLikedPageTitle),
-                  subtitle: Text(l10n.appearanceShowLikedPageSubtitle),
-                  value: ref.watch(showLikedPageProvider),
-                  onChanged: (enabled) async {
-                    final db = ref.read(navisDatabaseProvider);
+            child: _LibraryPageReorder(
+              order: libraryPageOrder,
+              visibleSections: visibleLibrarySections(
+                orderedSections: libraryPageOrder,
+                showAlbums: ref.watch(showAlbumsPageProvider),
+                showLiked: ref.watch(showLikedPageProvider),
+                showArtists: ref.watch(showArtistsPageProvider),
+                showPlaylists: ref.watch(showPlaylistsPageProvider),
+                showRadio: ref.watch(showRadioPageProvider),
+              ).toSet(),
+              onReorder: (newOrder) async {
+                final db = ref.read(navisDatabaseProvider);
+                await db.appSettingsDao.updateLibraryPageOrder(
+                  jsonEncode(newOrder.map((section) => section.name).toList()),
+                );
+              },
+              onToggleVisibility: (section, visible) async {
+                final db = ref.read(navisDatabaseProvider);
+                switch (section) {
+                  case LibrarySection.albums:
+                    await db.appSettingsDao.updateShowAlbumsPage(
+                      enabled: visible,
+                    );
+                  case LibrarySection.liked:
                     await db.appSettingsDao.updateShowLikedPage(
-                      enabled: enabled,
+                      enabled: visible,
                     );
-                  },
-                ),
-                SwitchListTile(
-                  title: Text(l10n.appearanceShowArtistsPageTitle),
-                  subtitle: Text(l10n.appearanceShowArtistsPageSubtitle),
-                  value: ref.watch(showArtistsPageProvider),
-                  onChanged: (enabled) async {
-                    final db = ref.read(navisDatabaseProvider);
+                  case LibrarySection.artists:
                     await db.appSettingsDao.updateShowArtistsPage(
-                      enabled: enabled,
+                      enabled: visible,
                     );
-                  },
-                ),
-                SwitchListTile(
-                  title: Text(l10n.appearanceShowPlaylistsPageTitle),
-                  subtitle: Text(l10n.appearanceShowPlaylistsPageSubtitle),
-                  value: ref.watch(showPlaylistsPageProvider),
-                  onChanged: (enabled) async {
-                    final db = ref.read(navisDatabaseProvider);
+                  case LibrarySection.playlists:
                     await db.appSettingsDao.updateShowPlaylistsPage(
-                      enabled: enabled,
+                      enabled: visible,
                     );
-                  },
-                ),
-                SwitchListTile(
-                  title: Text(l10n.appearanceShowRadioPageTitle),
-                  subtitle: Text(l10n.appearanceShowRadioPageSubtitle),
-                  value: ref.watch(showRadioPageProvider),
-                  onChanged: (enabled) async {
-                    final db = ref.read(navisDatabaseProvider);
+                  case LibrarySection.radio:
                     await db.appSettingsDao.updateShowRadioPage(
-                      enabled: enabled,
+                      enabled: visible,
                     );
-                  },
-                ),
-              ],
+                }
+              },
             ),
           ),
           if (isDesktop) ...[
@@ -1684,6 +1680,111 @@ class _HomeSectionReorderState extends State<_HomeSectionReorder> {
             trailing: Switch(
               value: !isHidden,
               onChanged: (visible) => widget.onToggleVisibility(id, visible),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _LibraryPageReorder extends StatefulWidget {
+  const _LibraryPageReorder({
+    required this.order,
+    required this.visibleSections,
+    required this.onReorder,
+    required this.onToggleVisibility,
+  });
+
+  final List<LibrarySection> order;
+  final Set<LibrarySection> visibleSections;
+  final ValueChanged<List<LibrarySection>> onReorder;
+  final void Function(LibrarySection section, bool visible) onToggleVisibility;
+
+  @override
+  State<_LibraryPageReorder> createState() => _LibraryPageReorderState();
+}
+
+class _LibraryPageReorderState extends State<_LibraryPageReorder> {
+  late List<LibrarySection> _localOrder;
+
+  @override
+  void initState() {
+    super.initState();
+    _localOrder = List<LibrarySection>.from(widget.order);
+  }
+
+  @override
+  void didUpdateWidget(covariant _LibraryPageReorder oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.order != widget.order) {
+      _localOrder = List<LibrarySection>.from(widget.order);
+    }
+  }
+
+  String _sectionLabel(LibrarySection section, AppLocalizations l10n) {
+    return switch (section) {
+      LibrarySection.albums => l10n.libraryTabAlbums,
+      LibrarySection.liked => l10n.libraryTabLiked,
+      LibrarySection.artists => l10n.libraryTabArtists,
+      LibrarySection.playlists => l10n.navPlaylists,
+      LibrarySection.radio => l10n.navRadio,
+    };
+  }
+
+  String? _sectionSubtitle(LibrarySection section, AppLocalizations l10n) {
+    return switch (section) {
+      LibrarySection.albums => null,
+      LibrarySection.liked => l10n.appearanceShowLikedPageSubtitle,
+      LibrarySection.artists => l10n.appearanceShowArtistsPageSubtitle,
+      LibrarySection.playlists => l10n.appearanceShowPlaylistsPageSubtitle,
+      LibrarySection.radio => l10n.appearanceShowRadioPageSubtitle,
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+
+    return ReorderableListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      buildDefaultDragHandles: false,
+      itemCount: _localOrder.length,
+      onReorder: (oldIndex, newIndex) {
+        setState(() {
+          if (newIndex > oldIndex) newIndex--;
+          final item = _localOrder.removeAt(oldIndex);
+          _localOrder.insert(newIndex, item);
+        });
+        widget.onReorder(_localOrder);
+      },
+      itemBuilder: (context, index) {
+        final section = _localOrder[index];
+        final visible = widget.visibleSections.contains(section);
+        final subtitle = _sectionSubtitle(section, l10n);
+        return Material(
+          key: ValueKey<String>('library-page-${section.name}'),
+          color: Colors.transparent,
+          child: ListTile(
+            leading: ReorderableDragStartListener(
+              index: index,
+              child: const Icon(Icons.drag_handle),
+            ),
+            title: Text(
+              _sectionLabel(section, l10n),
+              style: !visible
+                  ? theme.textTheme.bodyLarge?.copyWith(
+                      color: theme.colorScheme.onSurface.withAlpha(100),
+                    )
+                  : null,
+            ),
+            subtitle: subtitle == null ? null : Text(subtitle),
+            trailing: Switch(
+              value: visible,
+              onChanged: (enabled) =>
+                  widget.onToggleVisibility(section, enabled),
             ),
           ),
         );

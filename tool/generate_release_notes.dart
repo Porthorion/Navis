@@ -57,6 +57,30 @@ String _label(_EntryType t) {
 const List<_Version> _changelogs = [
   _Version('1.0.4', [
     _Entry(
+      'You Might Like can now include your ListenBrainz weekly recommendations, and song likes sync to ListenBrainz recording feedback when connected',
+      type: _EntryType.newFeature,
+    ),
+    _Entry(
+      'Weekly Exploration and Weekly Jams now appear as read-only virtual playlists in the playlist library, with normal play, shuffle, queue, download, and song actions for matched server tracks',
+      type: _EntryType.newFeature,
+    ),
+    _Entry(
+      'ListenBrainz weekly matching now checks cached local songs first, limits remote search concurrency, handles duplicate exact matches more accurately, and avoids unnecessary ambiguous results',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Desktop You Might Like panels now show complete scrollable song lists for albums and weekly recommendations instead of short previews',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Library pages can now be reordered from Appearance settings, with per-page visibility controls including Albums across mobile tabs and desktop library navigation',
+      type: _EntryType.newFeature,
+    ),
+    _Entry(
+      'Weekly recommendation loading is smoother, with batched matching, database writes, and UI updates to reduce stalls while recommendations resolve',
+      type: _EntryType.fix,
+    ),
+    _Entry(
       'Queued downloads now react when Wi-Fi-only settings or network type change, and compatible cached files are reused instead of downloaded again',
       type: _EntryType.fix,
     ),
@@ -67,6 +91,10 @@ const List<_Version> _changelogs = [
     _Entry(
       'The Previous control now restarts the current track when appropriate and only skips to the prior track near the start of playback',
       type: _EntryType.fix,
+    ),
+    _Entry(
+      'Updated package dependencies including file picker, local notifications, and JSON annotations',
+      type: _EntryType.improvement,
     ),
   ]),
   _Version('1.0.3', [

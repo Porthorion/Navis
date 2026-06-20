@@ -28,6 +28,7 @@ void main() {
           scrobbleEnabled: false,
           gaplessEnabled: false,
           skipSilenceEnabled: true,
+          showAlbumsPage: false,
           showRadioPage: false,
           showPlaylistsPage: true,
           showArtistsPage: true,
@@ -74,6 +75,7 @@ void main() {
         expect(first.scrobbleEnabled, isFalse);
         expect(first.gaplessEnabled, isFalse);
         expect(first.skipSilenceEnabled, isTrue);
+        expect(first.showAlbumsPage, isFalse);
         expect(first.showRadioPage, isFalse);
         expect(first.equalizerEnabled, isTrue);
         expect(first.equalizerBandGains, '[1,2,3,4,5]');
@@ -91,6 +93,7 @@ void main() {
           scrobbleEnabled: true,
           gaplessEnabled: true,
           skipSilenceEnabled: false,
+          showAlbumsPage: true,
           showRadioPage: true,
           showPlaylistsPage: true,
           showArtistsPage: true,
@@ -137,6 +140,7 @@ void main() {
         expect(second.scrobbleEnabled, isTrue);
         expect(second.gaplessEnabled, isTrue);
         expect(second.skipSilenceEnabled, isFalse);
+        expect(second.showAlbumsPage, isTrue);
         expect(second.showRadioPage, isTrue);
         expect(second.equalizerEnabled, isFalse);
         expect(second.equalizerBandGains, isNull);
@@ -158,6 +162,7 @@ void main() {
         scrobbleEnabled: false,
         gaplessEnabled: false,
         skipSilenceEnabled: true,
+        showAlbumsPage: false,
         showRadioPage: false,
         showPlaylistsPage: true,
         showArtistsPage: true,
@@ -215,6 +220,7 @@ void main() {
       expect(settings.scrobbleEnabled, isTrue);
       expect(settings.gaplessEnabled, isTrue);
       expect(settings.skipSilenceEnabled, isFalse);
+      expect(settings.showAlbumsPage, isTrue);
       expect(settings.showRadioPage, isTrue);
       expect(settings.equalizerEnabled, isFalse);
       expect(settings.equalizerBandGains, isNull);

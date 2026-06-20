@@ -35,6 +35,7 @@ import 'package:navis/src/features/player/domain/lyrics_matcher.dart';
 import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/library/presentation/library_browse_models.dart';
+import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
 import 'package:navis/src/features/settings/data/battery_optimization_service.dart';
 import 'package:navis/src/features/settings/data/external_scrobble_credentials.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
@@ -200,6 +201,13 @@ final appSettingsProvider = StreamProvider<AppSettingsModel>((ref) {
 
 final lrclibClientProvider = Provider<LrclibClient>((_) {
   return LrclibClient();
+});
+
+final showAlbumsPageProvider = Provider<bool>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.showAlbumsPage;
 });
 
 final showRadioPageProvider = Provider<bool>((ref) {
@@ -2382,6 +2390,26 @@ final homeSectionsHiddenProvider = Provider<List<String>?>((ref) {
       ref.watch(appSettingsProvider).asData?.value ??
       const AppSettingsModel.defaults();
   return settings.homeSectionsHidden;
+});
+
+/// Ordered library pages including hidden pages.
+final libraryPageOrderProvider = Provider<List<LibrarySection>>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return sanitizeLibraryPageOrder(settings.libraryPageOrder);
+});
+
+/// Ordered library pages filtered by the current page visibility toggles.
+final visibleLibrarySectionsProvider = Provider<List<LibrarySection>>((ref) {
+  return visibleLibrarySections(
+    orderedSections: ref.watch(libraryPageOrderProvider),
+    showAlbums: ref.watch(showAlbumsPageProvider),
+    showLiked: ref.watch(showLikedPageProvider),
+    showArtists: ref.watch(showArtistsPageProvider),
+    showPlaylists: ref.watch(showPlaylistsPageProvider),
+    showRadio: ref.watch(showRadioPageProvider),
+  );
 });
 
 /// Custom color presets stored as a JSON list of ARGB32 ints.

@@ -26,10 +26,7 @@ class _DesktopWorkspace extends StatefulWidget {
     required this.showLibrarySubNavigation,
     required this.allowScrollableRail,
     required this.selectedLibrarySection,
-    required this.showLikedLibraryPage,
-    required this.showArtistsLibraryPage,
-    required this.showPlaylistsLibraryPage,
-    required this.showRadioLibraryPage,
+    required this.visibleLibrarySections,
     required this.onLibrarySectionSelected,
     required this.onOpenPlayer,
     required this.onToggleQueue,
@@ -66,10 +63,7 @@ class _DesktopWorkspace extends StatefulWidget {
   final bool showLibrarySubNavigation;
   final bool allowScrollableRail;
   final LibrarySection selectedLibrarySection;
-  final bool showLikedLibraryPage;
-  final bool showArtistsLibraryPage;
-  final bool showPlaylistsLibraryPage;
-  final bool showRadioLibraryPage;
+  final List<LibrarySection> visibleLibrarySections;
   final ValueChanged<LibrarySection> onLibrarySectionSelected;
   final VoidCallback onOpenPlayer;
   final VoidCallback onToggleQueue;
@@ -196,10 +190,7 @@ class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
                     showLibrarySubNavigation: widget.showLibrarySubNavigation,
                     allowScrollableRail: widget.allowScrollableRail,
                     selectedLibrarySection: widget.selectedLibrarySection,
-                    showLikedLibraryPage: widget.showLikedLibraryPage,
-                    showArtistsLibraryPage: widget.showArtistsLibraryPage,
-                    showPlaylistsLibraryPage: widget.showPlaylistsLibraryPage,
-                    showRadioLibraryPage: widget.showRadioLibraryPage,
+                    visibleLibrarySections: widget.visibleLibrarySections,
                     onLibrarySectionSelected: widget.onLibrarySectionSelected,
                     showPlayer: false,
                     playback: widget.playback,

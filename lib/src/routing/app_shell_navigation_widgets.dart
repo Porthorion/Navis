@@ -71,10 +71,7 @@ class _RailSidebar extends ConsumerWidget {
     required this.showLibrarySubNavigation,
     this.allowScrollableRail = true,
     required this.selectedLibrarySection,
-    required this.showLikedLibraryPage,
-    required this.showArtistsLibraryPage,
-    required this.showPlaylistsLibraryPage,
-    required this.showRadioLibraryPage,
+    required this.visibleLibrarySections,
     required this.onLibrarySectionSelected,
     required this.showPlayer,
     required this.playback,
@@ -98,10 +95,7 @@ class _RailSidebar extends ConsumerWidget {
   final bool showLibrarySubNavigation;
   final bool allowScrollableRail;
   final LibrarySection selectedLibrarySection;
-  final bool showLikedLibraryPage;
-  final bool showArtistsLibraryPage;
-  final bool showPlaylistsLibraryPage;
-  final bool showRadioLibraryPage;
+  final List<LibrarySection> visibleLibrarySections;
   final ValueChanged<LibrarySection> onLibrarySectionSelected;
   final bool showPlayer;
   final PlaybackSnapshot playback;
@@ -168,12 +162,7 @@ class _RailSidebar extends ConsumerWidget {
                 const reservedMiniPlayerHeight = 170.0;
                 const railMiniPlayerGap = 6.0;
                 const railCutoffSlack = 4.0;
-                final librarySubSectionCount =
-                    1 +
-                    (showLikedLibraryPage ? 1 : 0) +
-                    (showArtistsLibraryPage ? 1 : 0) +
-                    (showPlaylistsLibraryPage ? 1 : 0) +
-                    (showRadioLibraryPage ? 1 : 0);
+                final librarySubSectionCount = visibleLibrarySections.length;
                 final navViewportHeight =
                     (constraints.maxHeight -
                             (showPlayer
@@ -210,68 +199,16 @@ class _RailSidebar extends ConsumerWidget {
                       ),
                     ),
                     if (showLibrarySectionsInline && i == 1) ...<Widget>[
-                      _RailSubNavTile(
-                        key: const ValueKey<String>(
-                          'railLibrarySection-albums',
-                        ),
-                        label: AppLocalizations.of(context)!.libraryTabAlbums,
-                        selected:
-                            selectedIndex == 1 &&
-                            selectedLibrarySection == LibrarySection.albums,
-                        onTap: () =>
-                            onLibrarySectionSelected(LibrarySection.albums),
-                      ),
-                      if (showLikedLibraryPage)
+                      for (final section in visibleLibrarySections)
                         _RailSubNavTile(
-                          key: const ValueKey<String>(
-                            'railLibrarySection-liked',
+                          key: ValueKey<String>(
+                            'railLibrarySection-${section.name}',
                           ),
-                          label: AppLocalizations.of(context)!.libraryTabLiked,
+                          label: _librarySectionShellLabel(context, section),
                           selected:
                               selectedIndex == 1 &&
-                              selectedLibrarySection == LibrarySection.liked,
-                          onTap: () =>
-                              onLibrarySectionSelected(LibrarySection.liked),
-                        ),
-                      if (showArtistsLibraryPage)
-                        _RailSubNavTile(
-                          key: const ValueKey<String>(
-                            'railLibrarySection-artists',
-                          ),
-                          label: AppLocalizations.of(
-                            context,
-                          )!.libraryTabArtists,
-                          selected:
-                              selectedIndex == 1 &&
-                              selectedLibrarySection == LibrarySection.artists,
-                          onTap: () =>
-                              onLibrarySectionSelected(LibrarySection.artists),
-                        ),
-                      if (showPlaylistsLibraryPage)
-                        _RailSubNavTile(
-                          key: const ValueKey<String>(
-                            'railLibrarySection-playlists',
-                          ),
-                          label: AppLocalizations.of(context)!.navPlaylists,
-                          selected:
-                              selectedIndex == 1 &&
-                              selectedLibrarySection ==
-                                  LibrarySection.playlists,
-                          onTap: () => onLibrarySectionSelected(
-                            LibrarySection.playlists,
-                          ),
-                        ),
-                      if (showRadioLibraryPage)
-                        _RailSubNavTile(
-                          key: const ValueKey<String>(
-                            'railLibrarySection-radio',
-                          ),
-                          label: AppLocalizations.of(context)!.navRadio,
-                          selected:
-                              selectedIndex == 1 &&
-                              selectedLibrarySection == LibrarySection.radio,
-                          onTap: () =>
-                              onLibrarySectionSelected(LibrarySection.radio),
+                              selectedLibrarySection == section,
+                          onTap: () => onLibrarySectionSelected(section),
                         ),
                       const SizedBox(height: 6),
                     ],
@@ -324,6 +261,20 @@ class _RailSidebar extends ConsumerWidget {
       ),
     );
   }
+}
+
+String _librarySectionShellLabel(
+  BuildContext context,
+  LibrarySection section,
+) {
+  final l10n = AppLocalizations.of(context)!;
+  return switch (section) {
+    LibrarySection.albums => l10n.libraryTabAlbums,
+    LibrarySection.liked => l10n.libraryTabLiked,
+    LibrarySection.artists => l10n.libraryTabArtists,
+    LibrarySection.playlists => l10n.navPlaylists,
+    LibrarySection.radio => l10n.navRadio,
+  };
 }
 
 class _RailNavTile extends StatelessWidget {

@@ -28,6 +28,9 @@ class AppSettingsTable extends Table {
   BoolColumn get skipSilenceEnabled =>
       boolean().withDefault(const Constant(false))();
 
+  BoolColumn get showAlbumsPage =>
+      boolean().withDefault(const Constant(true))();
+
   BoolColumn get showRadioPage => boolean().withDefault(const Constant(true))();
 
   BoolColumn get showPlaylistsPage =>
@@ -185,6 +188,9 @@ class AppSettingsTable extends Table {
 
   /// JSON-encoded list of hidden home section IDs. Null = none hidden.
   TextColumn get homeSectionsHidden => text().nullable()();
+
+  /// JSON-encoded ordered list of library page IDs. Null = default order.
+  TextColumn get libraryPageOrder => text().nullable()();
 
   /// Desktop navigation style: 'comfortable', 'compact', or 'icons'. Default 'comfortable'.
   TextColumn get desktopNavbarStyle =>

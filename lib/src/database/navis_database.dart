@@ -89,7 +89,7 @@ class NavisDatabase extends _$NavisDatabase {
   static QueryExecutor _openConnection() => driftDatabase(name: 'navis.sqlite');
 
   @override
-  int get schemaVersion => 49;
+  int get schemaVersion => 51;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -257,6 +257,12 @@ class NavisDatabase extends _$NavisDatabase {
     if (from < 49 && to >= 49) {
       await from48To49(migrator);
     }
+    if (from < 50 && to >= 50) {
+      await from49To50(migrator);
+    }
+    if (from < 51 && to >= 51) {
+      await from50To51(migrator);
+    }
   }
 
   Future<void> from1To2(Migrator migrator) async {
@@ -348,6 +354,24 @@ class NavisDatabase extends _$NavisDatabase {
     }
     if (!await _tableExists('listenbrainz_feedback_queue')) {
       await migrator.createTable(listenBrainzFeedbackQueueTable);
+    }
+  }
+
+  Future<void> from49To50(Migrator migrator) async {
+    if (!await _columnExists('app_settings', 'library_page_order')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.libraryPageOrder,
+      );
+    }
+  }
+
+  Future<void> from50To51(Migrator migrator) async {
+    if (!await _columnExists('app_settings', 'show_albums_page')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.showAlbumsPage,
+      );
     }
   }
 
@@ -1052,10 +1076,12 @@ FROM scrobble_queue;
         scrobbleEnabled: const Value(true),
         gaplessEnabled: const Value(true),
         skipSilenceEnabled: const Value(false),
+        showAlbumsPage: const Value(true),
         showRadioPage: const Value(true),
         showPlaylistsPage: const Value(true),
         showArtistsPage: const Value(true),
         showLikedPage: const Value(true),
+        libraryPageOrder: const Value(null),
         equalizerEnabled: const Value(false),
         equalizerBandGains: const Value(null),
         loudnessEnabled: const Value(false),

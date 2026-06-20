@@ -61,12 +61,12 @@ final playlistLibraryItemsProvider =
       return playlistsAsync.when(
         data: (playlists) {
           final items = <PlaylistLibraryItem>[
-            for (final playlist in playlists)
-              PlaylistLibraryItem.normal(playlist),
             for (final playlist
                 in virtualAsync.asData?.value ??
                     const <ListenBrainzDiscoverPlaylist>[])
               PlaylistLibraryItem.virtual(playlist),
+            for (final playlist in playlists)
+              PlaylistLibraryItem.normal(playlist),
           ];
           return AsyncData(items);
         },

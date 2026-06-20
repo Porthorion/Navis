@@ -46,6 +46,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
+        'Library pages can now be reordered from Appearance settings, with per-page visibility controls including Albums across mobile tabs and desktop library navigation',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
         'Weekly recommendation loading is smoother, with batched matching, database writes, and UI updates to reduce stalls while recommendations resolve',
         type: ChangelogEntryType.fix,
       ),

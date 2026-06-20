@@ -9,6 +9,7 @@ import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/home/presentation/listenbrainz_playlist_artwork.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/navigation_service.dart';
@@ -64,11 +65,29 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
               );
             }
 
+            final firstNormalIndex = items.indexWhere(
+              (item) => !item.isVirtual,
+            );
+            final hasVirtualPlaylists = items.any((item) => item.isVirtual);
+            final showGroupDivider =
+                hasVirtualPlaylists && firstNormalIndex > 0;
+
             return ListView.builder(
               padding: const EdgeInsets.only(bottom: 80),
-              itemCount: items.length,
+              itemCount: items.length + (showGroupDivider ? 1 : 0),
               itemBuilder: (context, index) {
-                final item = items[index];
+                if (showGroupDivider && index == firstNormalIndex) {
+                  return const Divider(
+                    key: ValueKey<String>('listenBrainzPlaylistDivider'),
+                    height: 16,
+                    indent: 16,
+                    endIndent: 16,
+                  );
+                }
+                final itemIndex = showGroupDivider && index > firstNormalIndex
+                    ? index - 1
+                    : index;
+                final item = items[itemIndex];
                 final virtual = item.virtualPlaylist;
                 if (virtual != null) {
                   return _VirtualPlaylistTile(
@@ -384,19 +403,11 @@ class _VirtualPlaylistTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final colors = Theme.of(context).colorScheme;
     return ListTile(
-      leading: Container(
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(
-          color: colors.secondaryContainer,
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: Icon(
-          Icons.auto_awesome_outlined,
-          color: colors.onSecondaryContainer,
-        ),
+      leading: ListenBrainzPlaylistArtwork(
+        playlist: item.virtualPlaylist!,
+        size: 48,
+        borderRadius: 4,
       ),
       title: Text(
         item.name,

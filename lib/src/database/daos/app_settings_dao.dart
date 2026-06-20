@@ -73,6 +73,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     required bool scrobbleEnabled,
     required bool gaplessEnabled,
     required bool skipSilenceEnabled,
+    required bool showAlbumsPage,
     required bool showRadioPage,
     required bool showPlaylistsPage,
     required bool showArtistsPage,
@@ -113,6 +114,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     required String homeDensity,
     String? homeSectionOrder,
     String? homeSectionsHidden,
+    String? libraryPageOrder,
     String desktopNavbarStyle = 'comfortable',
     bool desktopNavbarAutohide = false,
     bool albumQueueEnabled = false,
@@ -137,6 +139,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         scrobbleEnabled: Value(scrobbleEnabled),
         gaplessEnabled: Value(gaplessEnabled),
         skipSilenceEnabled: Value(skipSilenceEnabled),
+        showAlbumsPage: Value(showAlbumsPage),
         showRadioPage: Value(showRadioPage),
         showPlaylistsPage: Value(showPlaylistsPage),
         showArtistsPage: Value(showArtistsPage),
@@ -177,6 +180,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         homeDensity: Value(homeDensity),
         homeSectionOrder: Value(homeSectionOrder),
         homeSectionsHidden: Value(homeSectionsHidden),
+        libraryPageOrder: Value(libraryPageOrder),
         desktopNavbarStyle: Value(desktopNavbarStyle),
         desktopNavbarAutohide: Value(desktopNavbarAutohide),
         albumQueueEnabled: Value(albumQueueEnabled),
@@ -244,6 +248,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       scrobbleEnabled: true,
       gaplessEnabled: true,
       skipSilenceEnabled: false,
+      showAlbumsPage: true,
       showRadioPage: true,
       showPlaylistsPage: true,
       showArtistsPage: true,
@@ -282,6 +287,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
       homeDensity: 'comfortable',
       homeSectionOrder: null,
       homeSectionsHidden: null,
+      libraryPageOrder: null,
       desktopNavbarStyle: 'comfortable',
       desktopNavbarAutohide: false,
       albumQueueEnabled: false,
@@ -306,6 +312,18 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   // ---------------------------------------------------------------------------
   // Page visibility helpers
   // ---------------------------------------------------------------------------
+
+  /// Targeted update for show albums page.
+  Future<void> updateShowAlbumsPage({required bool enabled}) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        showAlbumsPage: Value(enabled),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
 
   /// Targeted update for show radio page.
   Future<void> updateShowRadioPage({required bool enabled}) {
@@ -734,6 +752,18 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     )..where((t) => t.id.equals(primarySettingsId))).write(
       AppSettingsTableCompanion(
         homeSectionsHidden: Value(json),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Targeted update for library page order (JSON string list, or null for default).
+  Future<void> updateLibraryPageOrder(String? json) {
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion(
+        libraryPageOrder: Value(json),
         updatedAt: Value(DateTime.now()),
       ),
     );

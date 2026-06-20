@@ -72,7 +72,8 @@ class _LibraryPlaylistsTab extends ConsumerStatefulWidget {
 class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
     with AutomaticKeepAliveClientMixin {
   late final ProviderSubscription<AsyncValue<void>> _playlistSyncSubscription;
-  List<PlaylistsTableData> _cachedPlaylists = const <PlaylistsTableData>[];
+  List<PlaylistLibraryItem> _cachedPlaylistItems =
+      const <PlaylistLibraryItem>[];
 
   @override
   bool get wantKeepAlive => true;
@@ -113,14 +114,14 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
   Widget build(BuildContext context) {
     super.build(context); // required by AutomaticKeepAliveClientMixin
     final l10n = AppLocalizations.of(context)!;
-    final playlistsAsync = ref.watch(playlistListProvider);
+    final playlistsAsync = ref.watch(playlistLibraryItemsProvider);
     final playlistSyncAsync = ref.watch(playlistSyncProvider);
 
-    playlistsAsync.whenData((playlists) {
-      _cachedPlaylists = playlists;
+    playlistsAsync.whenData((items) {
+      _cachedPlaylistItems = items;
     });
 
-    final effectivePlaylists = playlistsAsync.asData?.value ?? _cachedPlaylists;
+    final effectiveItems = playlistsAsync.asData?.value ?? _cachedPlaylistItems;
 
     return Stack(
       children: [
@@ -131,7 +132,7 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
           },
           child: playlistsAsync.when(
             data: (_) {
-              if (effectivePlaylists.isEmpty) {
+              if (effectiveItems.isEmpty) {
                 return ListView(
                   children: [
                     SizedBox(
@@ -146,78 +147,11 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
                 );
               }
 
-              return ListView.builder(
-                controller: widget.scrollController,
-                padding: const EdgeInsets.only(bottom: 80),
-                itemCount: effectivePlaylists.length,
-                itemBuilder: (context, index) {
-                  final playlist = effectivePlaylists[index];
-                  return ListTile(
-                    minLeadingWidth: 48,
-                    horizontalTitleGap: 12,
-                    leading: SizedBox(
-                      width: 48,
-                      height: 48,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
-                        child: CoverArtImage(
-                          coverArtId: playlist.coverArt,
-                          size: 48,
-                          semanticLabel: playlist.name,
-                        ),
-                      ),
-                    ),
-                    title: Text(playlist.name),
-                    subtitle: playlist.songCount != null
-                        ? Text(l10n.playlistsSongCount(playlist.songCount!))
-                        : null,
-                    onTap: () => NavService.openPlaylistDetail(
-                      context,
-                      ref,
-                      playlist.id,
-                    ),
-                    onLongPress: () => _showPlaylistActions(context, playlist),
-                  );
-                },
-              );
+              return _buildPlaylistList(effectiveItems);
             },
             loading: () {
-              if (effectivePlaylists.isNotEmpty) {
-                return ListView.builder(
-                  controller: widget.scrollController,
-                  padding: const EdgeInsets.only(bottom: 80),
-                  itemCount: effectivePlaylists.length,
-                  itemBuilder: (context, index) {
-                    final playlist = effectivePlaylists[index];
-                    return ListTile(
-                      minLeadingWidth: 48,
-                      horizontalTitleGap: 12,
-                      leading: SizedBox(
-                        width: 48,
-                        height: 48,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(6),
-                          child: CoverArtImage(
-                            coverArtId: playlist.coverArt,
-                            size: 48,
-                            semanticLabel: playlist.name,
-                          ),
-                        ),
-                      ),
-                      title: Text(playlist.name),
-                      subtitle: playlist.songCount != null
-                          ? Text(l10n.playlistsSongCount(playlist.songCount!))
-                          : null,
-                      onTap: () => NavService.openPlaylistDetail(
-                        context,
-                        ref,
-                        playlist.id,
-                      ),
-                      onLongPress: () =>
-                          _showPlaylistActions(context, playlist),
-                    );
-                  },
-                );
+              if (effectiveItems.isNotEmpty) {
+                return _buildPlaylistList(effectiveItems);
               }
               return const ShimmerListPage(count: 8);
             },
@@ -251,6 +185,94 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildPlaylistList(List<PlaylistLibraryItem> items) {
+    final firstNormalIndex = items.indexWhere((item) => !item.isVirtual);
+    final hasVirtualPlaylists = items.any((item) => item.isVirtual);
+    final showGroupDivider = hasVirtualPlaylists && firstNormalIndex > 0;
+
+    return ListView.builder(
+      controller: widget.scrollController,
+      padding: const EdgeInsets.only(bottom: 80),
+      itemCount: items.length + (showGroupDivider ? 1 : 0),
+      itemBuilder: (context, index) {
+        if (showGroupDivider && index == firstNormalIndex) {
+          return const Divider(
+            key: ValueKey<String>('listenBrainzPlaylistDivider'),
+            height: 16,
+            indent: 16,
+            endIndent: 16,
+          );
+        }
+        final itemIndex = showGroupDivider && index > firstNormalIndex
+            ? index - 1
+            : index;
+        final item = items[itemIndex];
+        final virtual = item.virtualPlaylist;
+        if (virtual != null) {
+          return _buildVirtualPlaylistTile(item, virtual);
+        }
+        return _buildPlaylistTile(item.playlist!);
+      },
+    );
+  }
+
+  Widget _buildVirtualPlaylistTile(
+    PlaylistLibraryItem item,
+    ListenBrainzDiscoverPlaylist virtual,
+  ) {
+    final l10n = AppLocalizations.of(context)!;
+    return ListTile(
+      minLeadingWidth: 48,
+      horizontalTitleGap: 12,
+      leading: ListenBrainzPlaylistArtwork(
+        playlist: virtual,
+        size: 48,
+        borderRadius: 6,
+      ),
+      title: Text(item.name),
+      subtitle: Text(
+        '${l10n.playlistsSongCount(item.songCount)} · ListenBrainz',
+      ),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => NavService.openListenBrainzWeeklyDetail(
+        context,
+        ref,
+        virtual.playlist.sourcePatch ?? '',
+      ),
+    );
+  }
+
+  Widget _buildPlaylistTile(PlaylistsTableData playlist) {
+    final l10n = AppLocalizations.of(context)!;
+    return ListTile(
+      minLeadingWidth: 48,
+      horizontalTitleGap: 12,
+      leading: SizedBox(
+        width: 48,
+        height: 48,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: CoverArtImage(
+            coverArtId: playlist.coverArt,
+            size: 48,
+            semanticLabel: playlist.name,
+          ),
+        ),
+      ),
+      title: Text(playlist.name),
+      subtitle: playlist.songCount != null
+          ? Text(l10n.playlistsSongCount(playlist.songCount!))
+          : null,
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => NavService.openPlaylistDetail(
+        context,
+        ref,
+        playlist.id,
+      ),
+      onLongPress: () => _showPlaylistActions(context, playlist),
     );
   }
 

@@ -24,6 +24,8 @@ import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
+import 'package:navis/src/features/home/presentation/home_providers.dart';
+import 'package:navis/src/features/home/presentation/listenbrainz_playlist_artwork.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_browse_models.dart';
 import 'package:navis/src/features/library/presentation/radio_screen.dart';
@@ -363,38 +365,35 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
   /// Scrolls whichever tab is currently selected back to the top.
   void _scrollCurrentTabToTop() {
-    final tab = _tabController?.index ?? 0;
-
-    if (tab == 0) {
-      if (_albumSort == _AlbumSort.byYear) {
-        if (_yearItemScrollController.isAttached) {
-          unawaited(
-            _yearItemScrollController.scrollTo(
-              index: 0,
-              duration: const Duration(milliseconds: 450),
-              curve: Curves.easeOutCubic,
-            ),
-          );
-        }
-      } else {
-        _animateScrollControllerToTop(_albumsScrollController);
-      }
+    final sections = ref.read(visibleLibrarySectionsProvider);
+    if (sections.isEmpty) {
       return;
     }
+    final tab = (_tabController?.index ?? 0).clamp(0, sections.length - 1);
+    _scrollSectionToTop(sections[tab]);
+  }
 
-    var offset = 1;
-
-    if (ref.read(showLikedPageProvider)) {
-      if (tab == offset) {
+  void _scrollSectionToTop(LibrarySection section) {
+    switch (section) {
+      case LibrarySection.albums:
+        if (_albumSort == _AlbumSort.byYear) {
+          if (_yearItemScrollController.isAttached) {
+            unawaited(
+              _yearItemScrollController.scrollTo(
+                index: 0,
+                duration: const Duration(milliseconds: 450),
+                curve: Curves.easeOutCubic,
+              ),
+            );
+          }
+        } else {
+          _animateScrollControllerToTop(_albumsScrollController);
+        }
+        return;
+      case LibrarySection.liked:
         _animateScrollControllerToTop(_likedScrollController);
         return;
-      }
-      offset++;
-    }
-
-    if (ref.read(showArtistsPageProvider)) {
-      if (tab == offset) {
-        // Artists
+      case LibrarySection.artists:
         if (_artistsItemScrollController.isAttached) {
           unawaited(
             _artistsItemScrollController.scrollTo(
@@ -405,101 +404,57 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           );
         }
         return;
-      }
-      offset++;
-    }
-
-    if (ref.read(showPlaylistsPageProvider)) {
-      if (tab == offset) {
-        // Playlists
+      case LibrarySection.playlists:
         _animateScrollControllerToTop(_playlistsScrollController);
         return;
-      }
-      offset++;
-    }
-
-    if (ref.read(showRadioPageProvider)) {
-      if (tab == offset) {
-        // Radio
+      case LibrarySection.radio:
         _animateScrollControllerToTop(_radioScrollController);
-      }
+        return;
     }
   }
 
   int _tabIndexForSection(
-    LibrarySection section, {
-    required bool showLikedTab,
-    required bool showArtistsTab,
-    required bool showPlaylistsTab,
-    required bool showRadioTab,
-  }) {
-    var index = 0;
-    if (section == LibrarySection.albums) {
+    LibrarySection section,
+    List<LibrarySection> visibleSections,
+  ) {
+    final index = visibleSections.indexOf(section);
+    if (index >= 0) {
       return index;
-    }
-    if (showLikedTab) {
-      index++;
-      if (section == LibrarySection.liked) {
-        return index;
-      }
-    }
-    if (showArtistsTab) {
-      index++;
-      if (section == LibrarySection.artists) {
-        return index;
-      }
-    }
-    if (showPlaylistsTab) {
-      index++;
-      if (section == LibrarySection.playlists) {
-        return index;
-      }
-    }
-    if (showRadioTab) {
-      index++;
-      if (section == LibrarySection.radio) {
-        return index;
-      }
     }
     return 0;
   }
 
   LibrarySection _sectionForTabIndex(
-    int tabIndex, {
-    required bool showLikedTab,
-    required bool showArtistsTab,
-    required bool showPlaylistsTab,
-    required bool showRadioTab,
-  }) {
-    var cursor = 0;
-    if (tabIndex == cursor) {
-      return LibrarySection.albums;
-    }
-    if (showLikedTab) {
-      cursor++;
-      if (tabIndex == cursor) {
-        return LibrarySection.liked;
-      }
-    }
-    if (showArtistsTab) {
-      cursor++;
-      if (tabIndex == cursor) {
-        return LibrarySection.artists;
-      }
-    }
-    if (showPlaylistsTab) {
-      cursor++;
-      if (tabIndex == cursor) {
-        return LibrarySection.playlists;
-      }
-    }
-    if (showRadioTab) {
-      cursor++;
-      if (tabIndex == cursor) {
-        return LibrarySection.radio;
-      }
+    int tabIndex,
+    List<LibrarySection> visibleSections,
+  ) {
+    if (tabIndex >= 0 && tabIndex < visibleSections.length) {
+      return visibleSections[tabIndex];
     }
     return LibrarySection.albums;
+  }
+
+  Widget _tabForSection(AppLocalizations l10n, LibrarySection section) {
+    return Tab(text: _sectionTitle(l10n, section));
+  }
+
+  Widget _viewForSection(
+    BuildContext context,
+    LibrarySection section, {
+    required bool desktopMode,
+  }) {
+    return switch (section) {
+      LibrarySection.albums => _buildAlbumsTab(context),
+      LibrarySection.liked => _buildLikedTab(context, desktopMode: desktopMode),
+      LibrarySection.artists => _buildArtistsTab(context),
+      LibrarySection.playlists => _LibraryPlaylistsTab(
+        scrollController: _playlistsScrollController,
+      ),
+      LibrarySection.radio => RadioTabContent(
+        scrollController: _radioScrollController,
+        typeFilterQuery: _typeFilterQuery,
+      ),
+    };
   }
 
   String _sectionTitle(AppLocalizations l10n, LibrarySection section) {
@@ -519,12 +474,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         _synchronizingTabControllerFromSection) {
       return;
     }
+    final sections = ref.read(visibleLibrarySectionsProvider);
+    if (sections.isEmpty) {
+      return;
+    }
     final section = _sectionForTabIndex(
       controller.index,
-      showLikedTab: ref.read(showLikedPageProvider),
-      showArtistsTab: ref.read(showArtistsPageProvider),
-      showPlaylistsTab: ref.read(showPlaylistsPageProvider),
-      showRadioTab: ref.read(showRadioPageProvider),
+      sections,
     );
     _scheduleSectionSync(section);
   }
@@ -551,17 +507,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final syncState = ref.watch(librarySyncControllerProvider);
-    final showRadioTab = ref.watch(showRadioPageProvider);
-    final showArtistsTab = ref.watch(showArtistsPageProvider);
-    final showPlaylistsTab = ref.watch(showPlaylistsPageProvider);
-    final showLikedTab = ref.watch(showLikedPageProvider);
     final adaptiveContext = resolveAdaptiveContextFor(context);
-    final tabCount =
-        1 +
-        (showLikedTab ? 1 : 0) +
-        (showArtistsTab ? 1 : 0) +
-        (showPlaylistsTab ? 1 : 0) +
-        (showRadioTab ? 1 : 0);
+    final visibleSections = ref.watch(visibleLibrarySectionsProvider);
+    if (visibleSections.isEmpty) {
+      _disposeTabController();
+      return _buildNoLibraryPagesScaffold(context, adaptiveContext);
+    }
+    final tabCount = visibleSections.length;
     final desktopMode = adaptiveContext.useDesktopShell;
     final hasActivePlayback = ref.watch(
       playerStateProvider.select((state) => state.hasActivePlayback),
@@ -576,12 +528,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     const reservedMiniPlayerHeight = 170.0;
     const railMiniPlayerGap = 6.0;
     const railCutoffSlack = 4.0;
-    final librarySubSectionCount =
-        1 +
-        (showLikedTab ? 1 : 0) +
-        (showArtistsTab ? 1 : 0) +
-        (showPlaylistsTab ? 1 : 0) +
-        (showRadioTab ? 1 : 0);
+    final librarySubSectionCount = visibleSections.length;
     final inlineLibraryNavHeight =
         (4 * navTileEstimatedHeight) +
         (librarySubSectionCount * subNavTileEstimatedHeight) +
@@ -617,10 +564,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     final tabController = _ensureTabController(tabCount);
     final desiredTabIndex = _tabIndexForSection(
       selectedSection,
-      showLikedTab: showLikedTab,
-      showArtistsTab: showArtistsTab,
-      showPlaylistsTab: showPlaylistsTab,
-      showRadioTab: showRadioTab,
+      visibleSections,
     );
     if (tabController.index != desiredTabIndex &&
         !tabController.indexIsChanging) {
@@ -633,23 +577,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     }
     final activeSection = _sectionForTabIndex(
       tabController.index,
-      showLikedTab: showLikedTab,
-      showArtistsTab: showArtistsTab,
-      showPlaylistsTab: showPlaylistsTab,
-      showRadioTab: showRadioTab,
+      visibleSections,
     );
     if (selectedSection != activeSection) {
       _scheduleSectionSync(activeSection);
     }
     final wideHeaderTitle =
         '${l10n.libraryTitle} - ${_sectionTitle(l10n, activeSection)}';
-    final tabLabels = <String>[
-      l10n.libraryTabAlbums,
-      if (showLikedTab) l10n.libraryTabLiked,
-      if (showArtistsTab) l10n.libraryTabArtists,
-      if (showPlaylistsTab) l10n.navPlaylists,
-      if (showRadioTab) l10n.navRadio,
-    ];
+    final tabLabels = visibleSections
+        .map((section) => _sectionTitle(l10n, section))
+        .toList(growable: false);
     final labelStyle =
         Theme.of(context).tabBarTheme.labelStyle ??
         Theme.of(context).textTheme.titleSmall ??
@@ -678,11 +615,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           ? const EdgeInsets.symmetric(horizontal: 20)
           : null,
       tabs: <Widget>[
-        Tab(text: l10n.libraryTabAlbums),
-        if (showLikedTab) Tab(text: l10n.libraryTabLiked),
-        if (showArtistsTab) Tab(text: l10n.libraryTabArtists),
-        if (showPlaylistsTab) Tab(text: l10n.navPlaylists),
-        if (showRadioTab) Tab(text: l10n.navRadio),
+        for (final section in visibleSections) _tabForSection(l10n, section),
       ],
     );
     final bodyContent = Stack(
@@ -708,18 +641,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                     ? const NeverScrollableScrollPhysics()
                     : const PageScrollPhysics(),
                 children: <Widget>[
-                  _buildAlbumsTab(context),
-                  if (showLikedTab)
-                    _buildLikedTab(context, desktopMode: desktopMode),
-                  if (showArtistsTab) _buildArtistsTab(context),
-                  if (showPlaylistsTab)
-                    _LibraryPlaylistsTab(
-                      scrollController: _playlistsScrollController,
-                    ),
-                  if (showRadioTab)
-                    RadioTabContent(
-                      scrollController: _radioScrollController,
-                      typeFilterQuery: _typeFilterQuery,
+                  for (final section in visibleSections)
+                    _viewForSection(
+                      context,
+                      section,
+                      desktopMode: desktopMode,
                     ),
                 ],
               ),
@@ -877,6 +803,66 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     replaced.addListener(_handleTabControllerTick);
     _tabController = replaced;
     return replaced;
+  }
+
+  void _disposeTabController() {
+    final existing = _tabController;
+    if (existing == null) {
+      return;
+    }
+    existing.removeListener(_handleTabControllerTick);
+    existing.dispose();
+    _tabController = null;
+  }
+
+  Widget _buildNoLibraryPagesScaffold(
+    BuildContext context,
+    AdaptiveContext adaptiveContext,
+  ) {
+    final l10n = AppLocalizations.of(context)!;
+    final desktopMode = adaptiveContext.useDesktopShell;
+    final adaptiveLayoutClass = adaptiveContext.adaptiveLayoutClass;
+    final tabletMode =
+        !desktopMode && adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact;
+    final content = const EmptyState(
+      title: 'No library pages enabled',
+      subtitle: 'Enable a page in Appearance settings to browse your library.',
+      icon: Icons.visibility_off_outlined,
+    );
+
+    if (desktopMode) {
+      return Scaffold(
+        body: SafeArea(
+          child: DesktopFrame(
+            layoutClass: resolveDesktopLayoutClass(
+              MediaQuery.sizeOf(context).width,
+            ),
+            child: DesktopPanel(child: content),
+          ),
+        ),
+      );
+    }
+
+    if (tabletMode) {
+      final maxWidth = adaptiveLayoutClass == AdaptiveLayoutClass.tabletExpanded
+          ? 1080.0
+          : 920.0;
+      return Scaffold(
+        appBar: AppBar(title: Text(l10n.libraryTitle)),
+        body: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxWidth),
+            child: content,
+          ),
+        ),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(title: Text(l10n.libraryTitle)),
+      body: content,
+    );
   }
 
   Widget _buildArtistsTab(BuildContext context) {

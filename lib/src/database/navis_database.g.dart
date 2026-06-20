@@ -638,6 +638,21 @@ class $AppSettingsTableTable extends AppSettingsTable
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _showAlbumsPageMeta = const VerificationMeta(
+    'showAlbumsPage',
+  );
+  @override
+  late final GeneratedColumn<bool> showAlbumsPage = GeneratedColumn<bool>(
+    'show_albums_page',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("show_albums_page" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
   static const VerificationMeta _showRadioPageMeta = const VerificationMeta(
     'showRadioPage',
   );
@@ -1214,6 +1229,17 @@ class $AppSettingsTableTable extends AppSettingsTable
         type: DriftSqlType.string,
         requiredDuringInsert: false,
       );
+  static const VerificationMeta _libraryPageOrderMeta = const VerificationMeta(
+    'libraryPageOrder',
+  );
+  @override
+  late final GeneratedColumn<String> libraryPageOrder = GeneratedColumn<String>(
+    'library_page_order',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _desktopNavbarStyleMeta =
       const VerificationMeta('desktopNavbarStyle');
   @override
@@ -1412,6 +1438,7 @@ class $AppSettingsTableTable extends AppSettingsTable
     scrobbleEnabled,
     gaplessEnabled,
     skipSilenceEnabled,
+    showAlbumsPage,
     showRadioPage,
     showPlaylistsPage,
     showArtistsPage,
@@ -1457,6 +1484,7 @@ class $AppSettingsTableTable extends AppSettingsTable
     homeDensity,
     homeSectionOrder,
     homeSectionsHidden,
+    libraryPageOrder,
     desktopNavbarStyle,
     desktopNavbarAutohide,
     albumQueueEnabled,
@@ -1553,6 +1581,15 @@ class $AppSettingsTableTable extends AppSettingsTable
         skipSilenceEnabled.isAcceptableOrUnknown(
           data['skip_silence_enabled']!,
           _skipSilenceEnabledMeta,
+        ),
+      );
+    }
+    if (data.containsKey('show_albums_page')) {
+      context.handle(
+        _showAlbumsPageMeta,
+        showAlbumsPage.isAcceptableOrUnknown(
+          data['show_albums_page']!,
+          _showAlbumsPageMeta,
         ),
       );
     }
@@ -1952,6 +1989,15 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
       );
     }
+    if (data.containsKey('library_page_order')) {
+      context.handle(
+        _libraryPageOrderMeta,
+        libraryPageOrder.isAcceptableOrUnknown(
+          data['library_page_order']!,
+          _libraryPageOrderMeta,
+        ),
+      );
+    }
     if (data.containsKey('desktop_navbar_style')) {
       context.handle(
         _desktopNavbarStyleMeta,
@@ -2121,6 +2167,10 @@ class $AppSettingsTableTable extends AppSettingsTable
       skipSilenceEnabled: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}skip_silence_enabled'],
+      )!,
+      showAlbumsPage: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}show_albums_page'],
       )!,
       showRadioPage: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
@@ -2302,6 +2352,10 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.string,
         data['${effectivePrefix}home_sections_hidden'],
       ),
+      libraryPageOrder: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}library_page_order'],
+      ),
       desktopNavbarStyle: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}desktop_navbar_style'],
@@ -2381,6 +2435,7 @@ class AppSettingsTableData extends DataClass
   final bool scrobbleEnabled;
   final bool gaplessEnabled;
   final bool skipSilenceEnabled;
+  final bool showAlbumsPage;
   final bool showRadioPage;
   final bool showPlaylistsPage;
   final bool showArtistsPage;
@@ -2506,6 +2561,9 @@ class AppSettingsTableData extends DataClass
   /// JSON-encoded list of hidden home section IDs. Null = none hidden.
   final String? homeSectionsHidden;
 
+  /// JSON-encoded ordered list of library page IDs. Null = default order.
+  final String? libraryPageOrder;
+
   /// Desktop navigation style: 'comfortable', 'compact', or 'icons'. Default 'comfortable'.
   final String desktopNavbarStyle;
 
@@ -2563,6 +2621,7 @@ class AppSettingsTableData extends DataClass
     required this.scrobbleEnabled,
     required this.gaplessEnabled,
     required this.skipSilenceEnabled,
+    required this.showAlbumsPage,
     required this.showRadioPage,
     required this.showPlaylistsPage,
     required this.showArtistsPage,
@@ -2608,6 +2667,7 @@ class AppSettingsTableData extends DataClass
     required this.homeDensity,
     this.homeSectionOrder,
     this.homeSectionsHidden,
+    this.libraryPageOrder,
     required this.desktopNavbarStyle,
     required this.desktopNavbarAutohide,
     required this.albumQueueEnabled,
@@ -2643,6 +2703,7 @@ class AppSettingsTableData extends DataClass
     map['scrobble_enabled'] = Variable<bool>(scrobbleEnabled);
     map['gapless_enabled'] = Variable<bool>(gaplessEnabled);
     map['skip_silence_enabled'] = Variable<bool>(skipSilenceEnabled);
+    map['show_albums_page'] = Variable<bool>(showAlbumsPage);
     map['show_radio_page'] = Variable<bool>(showRadioPage);
     map['show_playlists_page'] = Variable<bool>(showPlaylistsPage);
     map['show_artists_page'] = Variable<bool>(showArtistsPage);
@@ -2722,6 +2783,9 @@ class AppSettingsTableData extends DataClass
     if (!nullToAbsent || homeSectionsHidden != null) {
       map['home_sections_hidden'] = Variable<String>(homeSectionsHidden);
     }
+    if (!nullToAbsent || libraryPageOrder != null) {
+      map['library_page_order'] = Variable<String>(libraryPageOrder);
+    }
     map['desktop_navbar_style'] = Variable<String>(desktopNavbarStyle);
     map['desktop_navbar_autohide'] = Variable<bool>(desktopNavbarAutohide);
     map['album_queue_enabled'] = Variable<bool>(albumQueueEnabled);
@@ -2768,6 +2832,7 @@ class AppSettingsTableData extends DataClass
       scrobbleEnabled: Value(scrobbleEnabled),
       gaplessEnabled: Value(gaplessEnabled),
       skipSilenceEnabled: Value(skipSilenceEnabled),
+      showAlbumsPage: Value(showAlbumsPage),
       showRadioPage: Value(showRadioPage),
       showPlaylistsPage: Value(showPlaylistsPage),
       showArtistsPage: Value(showArtistsPage),
@@ -2835,6 +2900,9 @@ class AppSettingsTableData extends DataClass
       homeSectionsHidden: homeSectionsHidden == null && nullToAbsent
           ? const Value.absent()
           : Value(homeSectionsHidden),
+      libraryPageOrder: libraryPageOrder == null && nullToAbsent
+          ? const Value.absent()
+          : Value(libraryPageOrder),
       desktopNavbarStyle: Value(desktopNavbarStyle),
       desktopNavbarAutohide: Value(desktopNavbarAutohide),
       albumQueueEnabled: Value(albumQueueEnabled),
@@ -2877,6 +2945,7 @@ class AppSettingsTableData extends DataClass
       scrobbleEnabled: serializer.fromJson<bool>(json['scrobbleEnabled']),
       gaplessEnabled: serializer.fromJson<bool>(json['gaplessEnabled']),
       skipSilenceEnabled: serializer.fromJson<bool>(json['skipSilenceEnabled']),
+      showAlbumsPage: serializer.fromJson<bool>(json['showAlbumsPage']),
       showRadioPage: serializer.fromJson<bool>(json['showRadioPage']),
       showPlaylistsPage: serializer.fromJson<bool>(json['showPlaylistsPage']),
       showArtistsPage: serializer.fromJson<bool>(json['showArtistsPage']),
@@ -2960,6 +3029,7 @@ class AppSettingsTableData extends DataClass
       homeSectionsHidden: serializer.fromJson<String?>(
         json['homeSectionsHidden'],
       ),
+      libraryPageOrder: serializer.fromJson<String?>(json['libraryPageOrder']),
       desktopNavbarStyle: serializer.fromJson<String>(
         json['desktopNavbarStyle'],
       ),
@@ -3007,6 +3077,7 @@ class AppSettingsTableData extends DataClass
       'scrobbleEnabled': serializer.toJson<bool>(scrobbleEnabled),
       'gaplessEnabled': serializer.toJson<bool>(gaplessEnabled),
       'skipSilenceEnabled': serializer.toJson<bool>(skipSilenceEnabled),
+      'showAlbumsPage': serializer.toJson<bool>(showAlbumsPage),
       'showRadioPage': serializer.toJson<bool>(showRadioPage),
       'showPlaylistsPage': serializer.toJson<bool>(showPlaylistsPage),
       'showArtistsPage': serializer.toJson<bool>(showArtistsPage),
@@ -3070,6 +3141,7 @@ class AppSettingsTableData extends DataClass
       'homeDensity': serializer.toJson<String>(homeDensity),
       'homeSectionOrder': serializer.toJson<String?>(homeSectionOrder),
       'homeSectionsHidden': serializer.toJson<String?>(homeSectionsHidden),
+      'libraryPageOrder': serializer.toJson<String?>(libraryPageOrder),
       'desktopNavbarStyle': serializer.toJson<String>(desktopNavbarStyle),
       'desktopNavbarAutohide': serializer.toJson<bool>(desktopNavbarAutohide),
       'albumQueueEnabled': serializer.toJson<bool>(albumQueueEnabled),
@@ -3101,6 +3173,7 @@ class AppSettingsTableData extends DataClass
     bool? scrobbleEnabled,
     bool? gaplessEnabled,
     bool? skipSilenceEnabled,
+    bool? showAlbumsPage,
     bool? showRadioPage,
     bool? showPlaylistsPage,
     bool? showArtistsPage,
@@ -3146,6 +3219,7 @@ class AppSettingsTableData extends DataClass
     String? homeDensity,
     Value<String?> homeSectionOrder = const Value.absent(),
     Value<String?> homeSectionsHidden = const Value.absent(),
+    Value<String?> libraryPageOrder = const Value.absent(),
     String? desktopNavbarStyle,
     bool? desktopNavbarAutohide,
     bool? albumQueueEnabled,
@@ -3176,6 +3250,7 @@ class AppSettingsTableData extends DataClass
     scrobbleEnabled: scrobbleEnabled ?? this.scrobbleEnabled,
     gaplessEnabled: gaplessEnabled ?? this.gaplessEnabled,
     skipSilenceEnabled: skipSilenceEnabled ?? this.skipSilenceEnabled,
+    showAlbumsPage: showAlbumsPage ?? this.showAlbumsPage,
     showRadioPage: showRadioPage ?? this.showRadioPage,
     showPlaylistsPage: showPlaylistsPage ?? this.showPlaylistsPage,
     showArtistsPage: showArtistsPage ?? this.showArtistsPage,
@@ -3249,6 +3324,9 @@ class AppSettingsTableData extends DataClass
     homeSectionsHidden: homeSectionsHidden.present
         ? homeSectionsHidden.value
         : this.homeSectionsHidden,
+    libraryPageOrder: libraryPageOrder.present
+        ? libraryPageOrder.value
+        : this.libraryPageOrder,
     desktopNavbarStyle: desktopNavbarStyle ?? this.desktopNavbarStyle,
     desktopNavbarAutohide: desktopNavbarAutohide ?? this.desktopNavbarAutohide,
     albumQueueEnabled: albumQueueEnabled ?? this.albumQueueEnabled,
@@ -3301,6 +3379,9 @@ class AppSettingsTableData extends DataClass
       skipSilenceEnabled: data.skipSilenceEnabled.present
           ? data.skipSilenceEnabled.value
           : this.skipSilenceEnabled,
+      showAlbumsPage: data.showAlbumsPage.present
+          ? data.showAlbumsPage.value
+          : this.showAlbumsPage,
       showRadioPage: data.showRadioPage.present
           ? data.showRadioPage.value
           : this.showRadioPage,
@@ -3430,6 +3511,9 @@ class AppSettingsTableData extends DataClass
       homeSectionsHidden: data.homeSectionsHidden.present
           ? data.homeSectionsHidden.value
           : this.homeSectionsHidden,
+      libraryPageOrder: data.libraryPageOrder.present
+          ? data.libraryPageOrder.value
+          : this.libraryPageOrder,
       desktopNavbarStyle: data.desktopNavbarStyle.present
           ? data.desktopNavbarStyle.value
           : this.desktopNavbarStyle,
@@ -3485,6 +3569,7 @@ class AppSettingsTableData extends DataClass
           ..write('scrobbleEnabled: $scrobbleEnabled, ')
           ..write('gaplessEnabled: $gaplessEnabled, ')
           ..write('skipSilenceEnabled: $skipSilenceEnabled, ')
+          ..write('showAlbumsPage: $showAlbumsPage, ')
           ..write('showRadioPage: $showRadioPage, ')
           ..write('showPlaylistsPage: $showPlaylistsPage, ')
           ..write('showArtistsPage: $showArtistsPage, ')
@@ -3532,6 +3617,7 @@ class AppSettingsTableData extends DataClass
           ..write('homeDensity: $homeDensity, ')
           ..write('homeSectionOrder: $homeSectionOrder, ')
           ..write('homeSectionsHidden: $homeSectionsHidden, ')
+          ..write('libraryPageOrder: $libraryPageOrder, ')
           ..write('desktopNavbarStyle: $desktopNavbarStyle, ')
           ..write('desktopNavbarAutohide: $desktopNavbarAutohide, ')
           ..write('albumQueueEnabled: $albumQueueEnabled, ')
@@ -3563,6 +3649,7 @@ class AppSettingsTableData extends DataClass
     scrobbleEnabled,
     gaplessEnabled,
     skipSilenceEnabled,
+    showAlbumsPage,
     showRadioPage,
     showPlaylistsPage,
     showArtistsPage,
@@ -3608,6 +3695,7 @@ class AppSettingsTableData extends DataClass
     homeDensity,
     homeSectionOrder,
     homeSectionsHidden,
+    libraryPageOrder,
     desktopNavbarStyle,
     desktopNavbarAutohide,
     albumQueueEnabled,
@@ -3636,6 +3724,7 @@ class AppSettingsTableData extends DataClass
           other.scrobbleEnabled == this.scrobbleEnabled &&
           other.gaplessEnabled == this.gaplessEnabled &&
           other.skipSilenceEnabled == this.skipSilenceEnabled &&
+          other.showAlbumsPage == this.showAlbumsPage &&
           other.showRadioPage == this.showRadioPage &&
           other.showPlaylistsPage == this.showPlaylistsPage &&
           other.showArtistsPage == this.showArtistsPage &&
@@ -3683,6 +3772,7 @@ class AppSettingsTableData extends DataClass
           other.homeDensity == this.homeDensity &&
           other.homeSectionOrder == this.homeSectionOrder &&
           other.homeSectionsHidden == this.homeSectionsHidden &&
+          other.libraryPageOrder == this.libraryPageOrder &&
           other.desktopNavbarStyle == this.desktopNavbarStyle &&
           other.desktopNavbarAutohide == this.desktopNavbarAutohide &&
           other.albumQueueEnabled == this.albumQueueEnabled &&
@@ -3710,6 +3800,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<bool> scrobbleEnabled;
   final Value<bool> gaplessEnabled;
   final Value<bool> skipSilenceEnabled;
+  final Value<bool> showAlbumsPage;
   final Value<bool> showRadioPage;
   final Value<bool> showPlaylistsPage;
   final Value<bool> showArtistsPage;
@@ -3755,6 +3846,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<String> homeDensity;
   final Value<String?> homeSectionOrder;
   final Value<String?> homeSectionsHidden;
+  final Value<String?> libraryPageOrder;
   final Value<String> desktopNavbarStyle;
   final Value<bool> desktopNavbarAutohide;
   final Value<bool> albumQueueEnabled;
@@ -3779,6 +3871,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.scrobbleEnabled = const Value.absent(),
     this.gaplessEnabled = const Value.absent(),
     this.skipSilenceEnabled = const Value.absent(),
+    this.showAlbumsPage = const Value.absent(),
     this.showRadioPage = const Value.absent(),
     this.showPlaylistsPage = const Value.absent(),
     this.showArtistsPage = const Value.absent(),
@@ -3824,6 +3917,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.homeDensity = const Value.absent(),
     this.homeSectionOrder = const Value.absent(),
     this.homeSectionsHidden = const Value.absent(),
+    this.libraryPageOrder = const Value.absent(),
     this.desktopNavbarStyle = const Value.absent(),
     this.desktopNavbarAutohide = const Value.absent(),
     this.albumQueueEnabled = const Value.absent(),
@@ -3849,6 +3943,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.scrobbleEnabled = const Value.absent(),
     this.gaplessEnabled = const Value.absent(),
     this.skipSilenceEnabled = const Value.absent(),
+    this.showAlbumsPage = const Value.absent(),
     this.showRadioPage = const Value.absent(),
     this.showPlaylistsPage = const Value.absent(),
     this.showArtistsPage = const Value.absent(),
@@ -3894,6 +3989,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.homeDensity = const Value.absent(),
     this.homeSectionOrder = const Value.absent(),
     this.homeSectionsHidden = const Value.absent(),
+    this.libraryPageOrder = const Value.absent(),
     this.desktopNavbarStyle = const Value.absent(),
     this.desktopNavbarAutohide = const Value.absent(),
     this.albumQueueEnabled = const Value.absent(),
@@ -3919,6 +4015,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<bool>? scrobbleEnabled,
     Expression<bool>? gaplessEnabled,
     Expression<bool>? skipSilenceEnabled,
+    Expression<bool>? showAlbumsPage,
     Expression<bool>? showRadioPage,
     Expression<bool>? showPlaylistsPage,
     Expression<bool>? showArtistsPage,
@@ -3964,6 +4061,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<String>? homeDensity,
     Expression<String>? homeSectionOrder,
     Expression<String>? homeSectionsHidden,
+    Expression<String>? libraryPageOrder,
     Expression<String>? desktopNavbarStyle,
     Expression<bool>? desktopNavbarAutohide,
     Expression<bool>? albumQueueEnabled,
@@ -3992,6 +4090,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       if (gaplessEnabled != null) 'gapless_enabled': gaplessEnabled,
       if (skipSilenceEnabled != null)
         'skip_silence_enabled': skipSilenceEnabled,
+      if (showAlbumsPage != null) 'show_albums_page': showAlbumsPage,
       if (showRadioPage != null) 'show_radio_page': showRadioPage,
       if (showPlaylistsPage != null) 'show_playlists_page': showPlaylistsPage,
       if (showArtistsPage != null) 'show_artists_page': showArtistsPage,
@@ -4057,6 +4156,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       if (homeSectionOrder != null) 'home_section_order': homeSectionOrder,
       if (homeSectionsHidden != null)
         'home_sections_hidden': homeSectionsHidden,
+      if (libraryPageOrder != null) 'library_page_order': libraryPageOrder,
       if (desktopNavbarStyle != null)
         'desktop_navbar_style': desktopNavbarStyle,
       if (desktopNavbarAutohide != null)
@@ -4093,6 +4193,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<bool>? scrobbleEnabled,
     Value<bool>? gaplessEnabled,
     Value<bool>? skipSilenceEnabled,
+    Value<bool>? showAlbumsPage,
     Value<bool>? showRadioPage,
     Value<bool>? showPlaylistsPage,
     Value<bool>? showArtistsPage,
@@ -4138,6 +4239,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<String>? homeDensity,
     Value<String?>? homeSectionOrder,
     Value<String?>? homeSectionsHidden,
+    Value<String?>? libraryPageOrder,
     Value<String>? desktopNavbarStyle,
     Value<bool>? desktopNavbarAutohide,
     Value<bool>? albumQueueEnabled,
@@ -4163,6 +4265,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       scrobbleEnabled: scrobbleEnabled ?? this.scrobbleEnabled,
       gaplessEnabled: gaplessEnabled ?? this.gaplessEnabled,
       skipSilenceEnabled: skipSilenceEnabled ?? this.skipSilenceEnabled,
+      showAlbumsPage: showAlbumsPage ?? this.showAlbumsPage,
       showRadioPage: showRadioPage ?? this.showRadioPage,
       showPlaylistsPage: showPlaylistsPage ?? this.showPlaylistsPage,
       showArtistsPage: showArtistsPage ?? this.showArtistsPage,
@@ -4217,6 +4320,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       homeDensity: homeDensity ?? this.homeDensity,
       homeSectionOrder: homeSectionOrder ?? this.homeSectionOrder,
       homeSectionsHidden: homeSectionsHidden ?? this.homeSectionsHidden,
+      libraryPageOrder: libraryPageOrder ?? this.libraryPageOrder,
       desktopNavbarStyle: desktopNavbarStyle ?? this.desktopNavbarStyle,
       desktopNavbarAutohide:
           desktopNavbarAutohide ?? this.desktopNavbarAutohide,
@@ -4268,6 +4372,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     }
     if (skipSilenceEnabled.present) {
       map['skip_silence_enabled'] = Variable<bool>(skipSilenceEnabled.value);
+    }
+    if (showAlbumsPage.present) {
+      map['show_albums_page'] = Variable<bool>(showAlbumsPage.value);
     }
     if (showRadioPage.present) {
       map['show_radio_page'] = Variable<bool>(showRadioPage.value);
@@ -4428,6 +4535,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     if (homeSectionsHidden.present) {
       map['home_sections_hidden'] = Variable<String>(homeSectionsHidden.value);
     }
+    if (libraryPageOrder.present) {
+      map['library_page_order'] = Variable<String>(libraryPageOrder.value);
+    }
     if (desktopNavbarStyle.present) {
       map['desktop_navbar_style'] = Variable<String>(desktopNavbarStyle.value);
     }
@@ -4501,6 +4611,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('scrobbleEnabled: $scrobbleEnabled, ')
           ..write('gaplessEnabled: $gaplessEnabled, ')
           ..write('skipSilenceEnabled: $skipSilenceEnabled, ')
+          ..write('showAlbumsPage: $showAlbumsPage, ')
           ..write('showRadioPage: $showRadioPage, ')
           ..write('showPlaylistsPage: $showPlaylistsPage, ')
           ..write('showArtistsPage: $showArtistsPage, ')
@@ -4548,6 +4659,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('homeDensity: $homeDensity, ')
           ..write('homeSectionOrder: $homeSectionOrder, ')
           ..write('homeSectionsHidden: $homeSectionsHidden, ')
+          ..write('libraryPageOrder: $libraryPageOrder, ')
           ..write('desktopNavbarStyle: $desktopNavbarStyle, ')
           ..write('desktopNavbarAutohide: $desktopNavbarAutohide, ')
           ..write('albumQueueEnabled: $albumQueueEnabled, ')
@@ -15224,6 +15336,7 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<bool> scrobbleEnabled,
       Value<bool> gaplessEnabled,
       Value<bool> skipSilenceEnabled,
+      Value<bool> showAlbumsPage,
       Value<bool> showRadioPage,
       Value<bool> showPlaylistsPage,
       Value<bool> showArtistsPage,
@@ -15269,6 +15382,7 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<String> homeDensity,
       Value<String?> homeSectionOrder,
       Value<String?> homeSectionsHidden,
+      Value<String?> libraryPageOrder,
       Value<String> desktopNavbarStyle,
       Value<bool> desktopNavbarAutohide,
       Value<bool> albumQueueEnabled,
@@ -15295,6 +15409,7 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<bool> scrobbleEnabled,
       Value<bool> gaplessEnabled,
       Value<bool> skipSilenceEnabled,
+      Value<bool> showAlbumsPage,
       Value<bool> showRadioPage,
       Value<bool> showPlaylistsPage,
       Value<bool> showArtistsPage,
@@ -15340,6 +15455,7 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<String> homeDensity,
       Value<String?> homeSectionOrder,
       Value<String?> homeSectionsHidden,
+      Value<String?> libraryPageOrder,
       Value<String> desktopNavbarStyle,
       Value<bool> desktopNavbarAutohide,
       Value<bool> albumQueueEnabled,
@@ -15407,6 +15523,11 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<bool> get skipSilenceEnabled => $composableBuilder(
     column: $table.skipSilenceEnabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get showAlbumsPage => $composableBuilder(
+    column: $table.showAlbumsPage,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -15635,6 +15756,11 @@ class $$AppSettingsTableTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get libraryPageOrder => $composableBuilder(
+    column: $table.libraryPageOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<String> get desktopNavbarStyle => $composableBuilder(
     column: $table.desktopNavbarStyle,
     builder: (column) => ColumnFilters(column),
@@ -15757,6 +15883,11 @@ class $$AppSettingsTableTableOrderingComposer
 
   ColumnOrderings<bool> get skipSilenceEnabled => $composableBuilder(
     column: $table.skipSilenceEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get showAlbumsPage => $composableBuilder(
+    column: $table.showAlbumsPage,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -15985,6 +16116,11 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get libraryPageOrder => $composableBuilder(
+    column: $table.libraryPageOrder,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get desktopNavbarStyle => $composableBuilder(
     column: $table.desktopNavbarStyle,
     builder: (column) => ColumnOrderings(column),
@@ -16105,6 +16241,11 @@ class $$AppSettingsTableTableAnnotationComposer
 
   GeneratedColumn<bool> get skipSilenceEnabled => $composableBuilder(
     column: $table.skipSilenceEnabled,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get showAlbumsPage => $composableBuilder(
+    column: $table.showAlbumsPage,
     builder: (column) => column,
   );
 
@@ -16327,6 +16468,11 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get libraryPageOrder => $composableBuilder(
+    column: $table.libraryPageOrder,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get desktopNavbarStyle => $composableBuilder(
     column: $table.desktopNavbarStyle,
     builder: (column) => column,
@@ -16442,6 +16588,7 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> scrobbleEnabled = const Value.absent(),
                 Value<bool> gaplessEnabled = const Value.absent(),
                 Value<bool> skipSilenceEnabled = const Value.absent(),
+                Value<bool> showAlbumsPage = const Value.absent(),
                 Value<bool> showRadioPage = const Value.absent(),
                 Value<bool> showPlaylistsPage = const Value.absent(),
                 Value<bool> showArtistsPage = const Value.absent(),
@@ -16488,6 +16635,7 @@ class $$AppSettingsTableTableTableManager
                 Value<String> homeDensity = const Value.absent(),
                 Value<String?> homeSectionOrder = const Value.absent(),
                 Value<String?> homeSectionsHidden = const Value.absent(),
+                Value<String?> libraryPageOrder = const Value.absent(),
                 Value<String> desktopNavbarStyle = const Value.absent(),
                 Value<bool> desktopNavbarAutohide = const Value.absent(),
                 Value<bool> albumQueueEnabled = const Value.absent(),
@@ -16513,6 +16661,7 @@ class $$AppSettingsTableTableTableManager
                 scrobbleEnabled: scrobbleEnabled,
                 gaplessEnabled: gaplessEnabled,
                 skipSilenceEnabled: skipSilenceEnabled,
+                showAlbumsPage: showAlbumsPage,
                 showRadioPage: showRadioPage,
                 showPlaylistsPage: showPlaylistsPage,
                 showArtistsPage: showArtistsPage,
@@ -16558,6 +16707,7 @@ class $$AppSettingsTableTableTableManager
                 homeDensity: homeDensity,
                 homeSectionOrder: homeSectionOrder,
                 homeSectionsHidden: homeSectionsHidden,
+                libraryPageOrder: libraryPageOrder,
                 desktopNavbarStyle: desktopNavbarStyle,
                 desktopNavbarAutohide: desktopNavbarAutohide,
                 albumQueueEnabled: albumQueueEnabled,
@@ -16584,6 +16734,7 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> scrobbleEnabled = const Value.absent(),
                 Value<bool> gaplessEnabled = const Value.absent(),
                 Value<bool> skipSilenceEnabled = const Value.absent(),
+                Value<bool> showAlbumsPage = const Value.absent(),
                 Value<bool> showRadioPage = const Value.absent(),
                 Value<bool> showPlaylistsPage = const Value.absent(),
                 Value<bool> showArtistsPage = const Value.absent(),
@@ -16630,6 +16781,7 @@ class $$AppSettingsTableTableTableManager
                 Value<String> homeDensity = const Value.absent(),
                 Value<String?> homeSectionOrder = const Value.absent(),
                 Value<String?> homeSectionsHidden = const Value.absent(),
+                Value<String?> libraryPageOrder = const Value.absent(),
                 Value<String> desktopNavbarStyle = const Value.absent(),
                 Value<bool> desktopNavbarAutohide = const Value.absent(),
                 Value<bool> albumQueueEnabled = const Value.absent(),
@@ -16655,6 +16807,7 @@ class $$AppSettingsTableTableTableManager
                 scrobbleEnabled: scrobbleEnabled,
                 gaplessEnabled: gaplessEnabled,
                 skipSilenceEnabled: skipSilenceEnabled,
+                showAlbumsPage: showAlbumsPage,
                 showRadioPage: showRadioPage,
                 showPlaylistsPage: showPlaylistsPage,
                 showArtistsPage: showArtistsPage,
@@ -16700,6 +16853,7 @@ class $$AppSettingsTableTableTableManager
                 homeDensity: homeDensity,
                 homeSectionOrder: homeSectionOrder,
                 homeSectionsHidden: homeSectionsHidden,
+                libraryPageOrder: libraryPageOrder,
                 desktopNavbarStyle: desktopNavbarStyle,
                 desktopNavbarAutohide: desktopNavbarAutohide,
                 albumQueueEnabled: albumQueueEnabled,

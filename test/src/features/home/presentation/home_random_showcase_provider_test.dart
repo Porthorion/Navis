@@ -795,7 +795,9 @@ void main() {
       final container = ProviderContainer(
         overrides: <Override>[
           playlistListProvider.overrideWithValue(
-            const AsyncData<List<PlaylistsTableData>>(<PlaylistsTableData>[]),
+            const AsyncData<List<PlaylistsTableData>>(<PlaylistsTableData>[
+              PlaylistsTableData(id: 'server-playlist', name: 'Server Mix'),
+            ]),
           ),
           listenBrainzDiscoverStreamProvider.overrideWithValue(
             AsyncData<List<ListenBrainzDiscoverPlaylist>>(virtualPlaylists),
@@ -808,13 +810,12 @@ void main() {
 
       expect(libraryItems.hasValue, isTrue);
       expect(
-        libraryItems.requireValue
-            .where((item) => item.isVirtual)
-            .map((item) => item.id),
-        containsAll(<String>[
+        libraryItems.requireValue.map((item) => item.id),
+        <String>[
           listenBrainzWeeklyExplorationVirtualPlaylistId,
           listenBrainzWeeklyJamsVirtualPlaylistId,
-        ]),
+          'server-playlist',
+        ],
       );
     },
   );
@@ -1513,8 +1514,7 @@ void main() {
           ),
         ],
       });
-      final recommendationCompleter =
-          Completer<List<ListenBrainzPlaylist>>();
+      final recommendationCompleter = Completer<List<ListenBrainzPlaylist>>();
       final container = ProviderContainer(
         overrides: withTestDatabase(
           database,

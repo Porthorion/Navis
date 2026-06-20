@@ -5,10 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/api/models/listenbrainz_playlist.dart';
 import 'package:navis/src/api/models/artist_info.dart';
 import 'package:navis/src/api/models/artist_ref.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
+import 'package:navis/src/features/home/presentation/home_providers.dart';
+import 'package:navis/src/features/home/presentation/home_screen.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/library/presentation/album_detail_screen.dart';
@@ -249,6 +252,32 @@ AlbumWithSongs _albumWithSongs(List<SongsTableData> songs) {
   );
 }
 
+ListenBrainzDiscoverPlaylist _listenBrainzPlaylist() {
+  return const ListenBrainzDiscoverPlaylist(
+    playlist: ListenBrainzPlaylist(
+      identifier: 'jams',
+      title: 'Generated weekly jams',
+      sourcePatch: 'weekly-jams',
+      tracks: <ListenBrainzPlaylistTrack>[
+        ListenBrainzPlaylistTrack(
+          title: 'Queued Track',
+          creator: 'ListenBrainz Artist',
+        ),
+      ],
+    ),
+    recommendations: <ListenBrainzResolvedRecommendation>[
+      ListenBrainzResolvedRecommendation(
+        track: ListenBrainzPlaylistTrack(
+          title: 'Queued Track',
+          creator: 'ListenBrainz Artist',
+        ),
+        status: ListenBrainzRecommendationMatchStatus.pending,
+      ),
+    ],
+    matchingComplete: true,
+  );
+}
+
 Future<void> _pumpAlbumDetail(
   WidgetTester tester, {
   required NavisDatabase database,
@@ -416,7 +445,7 @@ void main() {
                     artistName: 'Artist 1',
                     year: 2025,
                     songsHydrated: true,
-                    artists: const <ArtistRef>[],
+                    artists: <ArtistRef>[],
                   ),
                   songs: <SongsTableData>[
                     SongsTableData(id: 'song-1', title: 'Song 1', track: 1),
@@ -586,6 +615,58 @@ void main() {
     });
 
     testWidgets(
+      'mobile ListenBrainz weekly detail uses expanded art app bar above tracks',
+      (tester) async {
+        tester.view.physicalSize = const Size(390, 780);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        await tester.pumpWidget(
+          _buildApp(
+            child: const ListenBrainzWeeklyDetailScreen(
+              sourcePatch: 'weekly-jams',
+            ),
+            database: database,
+            adaptiveContext: _mobileContext,
+            overrides: [
+              listenBrainzDiscoverStreamProvider.overrideWithValue(
+                AsyncData<List<ListenBrainzDiscoverPlaylist>>(
+                  <ListenBrainzDiscoverPlaylist>[_listenBrainzPlaylist()],
+                ),
+              ),
+            ],
+          ),
+        );
+        await tester.pump();
+
+        final appBarFinder = find.byKey(
+          const ValueKey<String>('albumDetailMobileExpandedArtAppBar'),
+        );
+        expect(appBarFinder, findsOneWidget);
+        final appBar = tester.widget<SliverAppBar>(appBarFinder);
+        expect(
+          appBar.title,
+          isA<Opacity>().having(
+            (opacity) => opacity.child,
+            'child',
+            isA<Text>().having((text) => text.data, 'data', 'Weekly Jams'),
+          ),
+        );
+        expect(find.text('Weekly Jams'), findsNWidgets(2));
+        expect(find.text('Queued Track'), findsOneWidget);
+        expect(
+          tester.getTopLeft(find.text('Queued Track')).dy,
+          greaterThan(360),
+        );
+
+        await _disposeApp(tester);
+      },
+    );
+
+    testWidgets(
       'compact-wide filter chips toggle liked and downloaded empty states',
       (tester) async {
         await _pumpAlbumDetail(
@@ -714,7 +795,7 @@ void main() {
                       artistName: 'Artist Rapid',
                       year: 2025,
                       songsHydrated: true,
-                      artists: const <ArtistRef>[],
+                      artists: <ArtistRef>[],
                     ),
                     songs: <SongsTableData>[
                       SongsTableData(

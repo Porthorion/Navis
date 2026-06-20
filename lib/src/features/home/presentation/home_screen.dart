@@ -34,6 +34,7 @@ import 'package:navis/src/features/group_listening/presentation/group_listening_
 import 'package:navis/src/features/home/domain/home_section_ids.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/home/presentation/home_scroll_provider.dart';
+import 'package:navis/src/features/home/presentation/listenbrainz_playlist_artwork.dart';
 import 'package:navis/src/features/library/domain/toggle_song_star.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
@@ -124,8 +125,23 @@ class _ListenBrainzWeeklyDetailContentState
     extends ConsumerState<_ListenBrainzWeeklyDetailContent> {
   DownloadQualityChoice? _pendingDownloadChoice;
   final Set<String> _downloadIntentQueuedSongIds = <String>{};
+  final ScrollController _scrollController = ScrollController();
+  double _headerProgress = 0;
+  double _screenWidth = 0;
 
   ListenBrainzDiscoverPlaylist get playlist => widget.playlist;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   void didUpdateWidget(_ListenBrainzWeeklyDetailContent oldWidget) {
@@ -134,6 +150,16 @@ class _ListenBrainzWeeklyDetailContentState
         widget.playlist.playlist.identifier) {
       _pendingDownloadChoice = null;
       _downloadIntentQueuedSongIds.clear();
+    }
+  }
+
+  void _onScroll() {
+    final maxScroll = math.max(1, _screenWidth - kToolbarHeight).toDouble();
+    final newProgress = (_scrollController.offset / maxScroll)
+        .clamp(0, 1)
+        .toDouble();
+    if ((newProgress - _headerProgress).abs() > 0.001) {
+      setState(() => _headerProgress = newProgress);
     }
   }
 
@@ -295,17 +321,98 @@ class _ListenBrainzWeeklyDetailContentState
       );
     }
 
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    _screenWidth = screenWidth;
+    final gradientScrollFade = ((0.9 - _headerProgress) / 0.3).clamp(
+      0.0,
+      1.0,
+    );
+    final toolbarTitleOpacity = ((_headerProgress - 0.8) / 0.2).clamp(
+      0.0,
+      1.0,
+    );
+
     return CustomScrollView(
+      controller: _scrollController,
       slivers: <Widget>[
         SliverAppBar(
           key: const ValueKey<String>('albumDetailMobileExpandedArtAppBar'),
+          automaticallyImplyLeading: false,
           pinned: true,
-          expandedHeight: MediaQuery.sizeOf(context).width,
-          title: Text(playlist.displayTitle),
+          toolbarHeight: kToolbarHeight,
+          expandedHeight: screenWidth,
+          backgroundColor: Color.lerp(
+            Colors.transparent,
+            colors.surfaceContainerHighest,
+            _headerProgress,
+          ),
+          systemOverlayStyle: SystemUiOverlayStyle.light,
+          leading: _buildAnimatedNavButton(
+            icon: Icons.arrow_back,
+            onPressed: () => context.pop(),
+          ),
+          title: Opacity(
+            opacity: toolbarTitleOpacity,
+            child: Text(
+              playlist.displayTitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
           flexibleSpace: FlexibleSpaceBar(
-            background: _ListenBrainzArtwork(
-              playlist: playlist,
-              size: MediaQuery.sizeOf(context).width,
+            collapseMode: CollapseMode.pin,
+            background: Stack(
+              fit: StackFit.expand,
+              children: <Widget>[
+                _ListenBrainzArtwork(
+                  playlist: playlist,
+                  size: screenWidth,
+                ),
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: <Color>[
+                          Colors.transparent,
+                          Colors.transparent,
+                          Theme.of(context).scaffoldBackgroundColor,
+                        ],
+                        stops: const <double>[0, 0.60, 0.85],
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  child: Opacity(
+                    opacity: gradientScrollFade,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      child: Text(
+                        playlist.displayTitle,
+                        style: textTheme.displayMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          shadows: <Shadow>[
+                            Shadow(
+                              color: Colors.black.withValues(alpha: 0.55),
+                              blurRadius: 12,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -314,6 +421,7 @@ class _ListenBrainzWeeklyDetailContentState
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: _VirtualAlbumHeaderText(
               playlist: playlist,
+              showTitle: false,
               titleStyle: textTheme.headlineMedium?.copyWith(
                 fontWeight: FontWeight.w800,
               ),
@@ -330,6 +438,32 @@ class _ListenBrainzWeeklyDetailContentState
         _buildTrackSliver(compact: false),
         const SliverToBoxAdapter(child: SizedBox(height: 16)),
       ],
+    );
+  }
+
+  Widget _buildAnimatedNavButton({
+    required IconData icon,
+    required VoidCallback? onPressed,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final iconColor = Color.lerp(
+      Colors.white,
+      colorScheme.onSurface,
+      _headerProgress,
+    );
+    final circleAlpha = 0.35 * (1.0 - _headerProgress);
+    return Padding(
+      padding: const EdgeInsets.all(4),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: circleAlpha),
+          shape: BoxShape.circle,
+        ),
+        child: IconButton(
+          icon: Icon(icon, color: iconColor),
+          onPressed: onPressed,
+        ),
+      ),
     );
   }
 
@@ -558,6 +692,7 @@ class _VirtualAlbumHeaderText extends StatelessWidget {
     this.actions,
     this.textAlign = TextAlign.center,
     this.compact = false,
+    this.showTitle = true,
   });
 
   final ListenBrainzDiscoverPlaylist playlist;
@@ -566,6 +701,7 @@ class _VirtualAlbumHeaderText extends StatelessWidget {
   final Widget? actions;
   final TextAlign textAlign;
   final bool compact;
+  final bool showTitle;
 
   @override
   Widget build(BuildContext context) {
@@ -574,9 +710,10 @@ class _VirtualAlbumHeaderText extends StatelessWidget {
       'ListenBrainz',
       _formatListenBrainzDate(date),
       '${playlist.totalCount} tracks',
-      playlist.matchingComplete
-          ? '${playlist.matchedCount} available'
-          : '${playlist.matchedCount} available, matching',
+      if (playlist.matchingComplete)
+        '${playlist.matchedCount} available'
+      else
+        '${playlist.matchedCount} available, matching',
     ].join(' • ');
     return Column(
       crossAxisAlignment: textAlign == TextAlign.center
@@ -584,14 +721,16 @@ class _VirtualAlbumHeaderText extends StatelessWidget {
           : CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        Text(
-          playlist.displayTitle,
-          textAlign: textAlign,
-          maxLines: compact ? 3 : 2,
-          overflow: TextOverflow.ellipsis,
-          style: titleStyle,
-        ),
-        const SizedBox(height: 8),
+        if (showTitle) ...<Widget>[
+          Text(
+            playlist.displayTitle,
+            textAlign: textAlign,
+            maxLines: compact ? 3 : 2,
+            overflow: TextOverflow.ellipsis,
+            style: titleStyle,
+          ),
+          const SizedBox(height: 8),
+        ],
         Text(
           metadata,
           textAlign: textAlign,

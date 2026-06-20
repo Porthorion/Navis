@@ -194,79 +194,9 @@ class _ListenBrainzArtwork extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final image = playlist.playlist.image;
-    if (image != null && Uri.tryParse(image)?.hasAbsolutePath == true) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: Image.network(
-          image,
-          width: size,
-          height: size,
-          fit: BoxFit.cover,
-          errorBuilder: (_, _, _) => _DiscoverMosaic(
-            playlist: playlist,
-            size: size,
-          ),
-        ),
-      );
-    }
-    return _DiscoverMosaic(playlist: playlist, size: size);
-  }
-}
-
-class _DiscoverMosaic extends StatelessWidget {
-  const _DiscoverMosaic({
-    required this.playlist,
-    required this.size,
-  });
-
-  final ListenBrainzDiscoverPlaylist playlist;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    final covers = playlist.playableSongs
-        .map((song) => song.coverArt)
-        .whereType<String>()
-        .where((id) => id.trim().isNotEmpty)
-        .take(4)
-        .toList(growable: false);
-    final theme = Theme.of(context);
-    final fallback = Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: theme.colorScheme.secondaryContainer,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Icon(
-        Icons.auto_awesome_outlined,
-        color: theme.colorScheme.onSecondaryContainer,
-        size: size * 0.36,
-      ),
-    );
-    if (covers.isEmpty) {
-      return fallback;
-    }
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: SizedBox.square(
-        dimension: size,
-        child: GridView.count(
-          crossAxisCount: covers.length == 1 ? 1 : 2,
-          physics: const NeverScrollableScrollPhysics(),
-          padding: EdgeInsets.zero,
-          children: covers
-              .map(
-                (coverArt) => CoverArtImage(
-                  coverArtId: coverArt,
-                  size: size.round(),
-                  borderRadius: BorderRadius.zero,
-                ),
-              )
-              .toList(growable: false),
-        ),
-      ),
+    return ListenBrainzPlaylistArtwork(
+      playlist: playlist,
+      size: size,
     );
   }
 }

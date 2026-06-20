@@ -40,6 +40,7 @@ class AppSettingsModel {
     required this.scrobbleEnabled,
     required this.gaplessEnabled,
     required this.skipSilenceEnabled,
+    required this.showAlbumsPage,
     required this.showRadioPage,
     required this.showPlaylistsPage,
     required this.showArtistsPage,
@@ -80,6 +81,7 @@ class AppSettingsModel {
     this.homeDensity = 'comfortable',
     required this.homeSectionOrder,
     required this.homeSectionsHidden,
+    required this.libraryPageOrder,
     this.desktopNavbarStyle = 'comfortable',
     this.desktopNavbarAutohide = false,
     this.albumQueueEnabled = false,
@@ -108,6 +110,7 @@ class AppSettingsModel {
       scrobbleEnabled = true,
       gaplessEnabled = true,
       skipSilenceEnabled = false,
+      showAlbumsPage = true,
       showRadioPage = true,
       showPlaylistsPage = true,
       showArtistsPage = true,
@@ -148,6 +151,7 @@ class AppSettingsModel {
       homeDensity = 'comfortable',
       homeSectionOrder = null,
       homeSectionsHidden = null,
+      libraryPageOrder = null,
       desktopNavbarStyle = 'comfortable',
       desktopNavbarAutohide = false,
       albumQueueEnabled = false,
@@ -176,6 +180,7 @@ class AppSettingsModel {
   // Compatibility-only persisted field retained to keep schema upgrades safe.
   // Runtime playback behavior intentionally does not consume this setting.
   final bool skipSilenceEnabled;
+  final bool showAlbumsPage;
   final bool showRadioPage;
   final bool showPlaylistsPage;
   final bool showArtistsPage;
@@ -240,6 +245,9 @@ class AppSettingsModel {
 
   /// List of hidden home section IDs, or null meaning none hidden.
   final List<String>? homeSectionsHidden;
+
+  /// Ordered list of library page IDs, or null for default order.
+  final List<String>? libraryPageOrder;
 
   /// Desktop navigation sidebar style: 'comfortable', 'compact', or 'icons'.
   final String desktopNavbarStyle;
@@ -307,6 +315,7 @@ class AppSettingsModel {
     bool? scrobbleEnabled,
     bool? gaplessEnabled,
     bool? skipSilenceEnabled,
+    bool? showAlbumsPage,
     bool? showRadioPage,
     bool? showPlaylistsPage,
     bool? showArtistsPage,
@@ -347,6 +356,7 @@ class AppSettingsModel {
     String? homeDensity,
     List<String>? homeSectionOrder,
     List<String>? homeSectionsHidden,
+    List<String>? libraryPageOrder,
     String? desktopNavbarStyle,
     bool? desktopNavbarAutohide,
     bool? albumQueueEnabled,
@@ -376,6 +386,7 @@ class AppSettingsModel {
     bool clearAlbumGridDensity = false,
     bool clearHomeSectionOrder = false,
     bool clearHomeSectionsHidden = false,
+    bool clearLibraryPageOrder = false,
     bool clearLastFmApiKey = false,
     bool clearListenBrainzUserName = false,
     bool clearVoyageServerUrl = false,
@@ -397,6 +408,7 @@ class AppSettingsModel {
       scrobbleEnabled: scrobbleEnabled ?? this.scrobbleEnabled,
       gaplessEnabled: gaplessEnabled ?? this.gaplessEnabled,
       skipSilenceEnabled: skipSilenceEnabled ?? this.skipSilenceEnabled,
+      showAlbumsPage: showAlbumsPage ?? this.showAlbumsPage,
       showRadioPage: showRadioPage ?? this.showRadioPage,
       showPlaylistsPage: showPlaylistsPage ?? this.showPlaylistsPage,
       showArtistsPage: showArtistsPage ?? this.showArtistsPage,
@@ -458,6 +470,9 @@ class AppSettingsModel {
       homeSectionsHidden: clearHomeSectionsHidden
           ? null
           : homeSectionsHidden ?? this.homeSectionsHidden,
+      libraryPageOrder: clearLibraryPageOrder
+          ? null
+          : libraryPageOrder ?? this.libraryPageOrder,
       desktopNavbarStyle: desktopNavbarStyle ?? this.desktopNavbarStyle,
       desktopNavbarAutohide:
           desktopNavbarAutohide ?? this.desktopNavbarAutohide,

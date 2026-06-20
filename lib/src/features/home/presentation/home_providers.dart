@@ -402,8 +402,9 @@ Stream<List<ListenBrainzDiscoverPlaylist>> _listenBrainzDiscoverStream(
     }
     var resolvedPlaylists = <ListenBrainzDiscoverPlaylist>[];
     final localSongsSnapshot = await dao.getAllSongs();
-    final localCandidates =
-        _ListenBrainzLocalCandidateSnapshot.fromSongs(localSongsSnapshot);
+    final localCandidates = _ListenBrainzLocalCandidateSnapshot.fromSongs(
+      localSongsSnapshot,
+    );
 
     void emitVisible() {
       final visible = resolvedPlaylists
@@ -1048,22 +1049,25 @@ Future<List<ListenBrainzDiscoverPlaylist>> _persistListenBrainzSearchMatches(
   return playlists
       .map(
         (playlist) => playlist.copyWith(
-          recommendations: playlist.recommendations.map((recommendation) {
-            final song = recommendation.song;
-            if (recommendation.tableSong != null ||
-                song == null ||
-                !songsById.containsKey(song.id)) {
-              return recommendation;
-            }
-            final persisted = recommendation.copyWith(
-              tableSong: _listenBrainzTableSong(song),
-            );
-            _listenBrainzDiscoverMatchCache[_listenBrainzMatchCacheKey(
-              playlist.playlist,
-              recommendation.track,
-            )] = persisted;
-            return persisted;
-          }).toList(growable: false),
+          recommendations: playlist.recommendations
+              .map((recommendation) {
+                final song = recommendation.song;
+                if (recommendation.tableSong != null ||
+                    song == null ||
+                    !songsById.containsKey(song.id)) {
+                  return recommendation;
+                }
+                final persisted = recommendation.copyWith(
+                  tableSong: _listenBrainzTableSong(song),
+                );
+                _listenBrainzDiscoverMatchCache[_listenBrainzMatchCacheKey(
+                      playlist.playlist,
+                      recommendation.track,
+                    )] =
+                    persisted;
+                return persisted;
+              })
+              .toList(growable: false),
         ),
       )
       .toList(growable: false);
@@ -1140,18 +1144,18 @@ class _ListenBrainzLocalCandidateSnapshot {
   factory _ListenBrainzLocalCandidateSnapshot.fromSongs(
     List<SongsTableData> songs,
   ) {
-    final all = songs
-        .map(_listenBrainzLocalCandidate)
-        .toList(growable: false);
+    final all = songs.map(_listenBrainzLocalCandidate).toList(growable: false);
     final byTitle = <String, List<_ListenBrainzSongCandidate>>{};
     for (final candidate in all) {
       final title = normalizeMetadata(candidate.song.title);
       if (title.isEmpty) {
         continue;
       }
-      byTitle.putIfAbsent(title, () => <_ListenBrainzSongCandidate>[]).add(
-        candidate,
-      );
+      byTitle
+          .putIfAbsent(title, () => <_ListenBrainzSongCandidate>[])
+          .add(
+            candidate,
+          );
     }
     return _ListenBrainzLocalCandidateSnapshot._(
       all: all,

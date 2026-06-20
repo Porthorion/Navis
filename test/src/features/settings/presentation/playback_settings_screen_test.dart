@@ -25,6 +25,7 @@ void main() {
       scrobbleEnabled: true,
       gaplessEnabled: true,
       skipSilenceEnabled: false,
+      showAlbumsPage: true,
       showRadioPage: true,
       showPlaylistsPage: true,
       showArtistsPage: true,
@@ -63,6 +64,7 @@ void main() {
       artistViewMode: 'grid',
       homeSectionOrder: null,
       homeSectionsHidden: null,
+      libraryPageOrder: null,
     );
 
     setUp(() {

@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/api/models/listenbrainz_playlist.dart';
 import 'package:navis/src/api/models/models.dart';
+import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
@@ -10,10 +13,13 @@ import 'package:navis/src/common_widgets/track_list_tile.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
+import 'package:navis/src/features/home/presentation/home_providers.dart';
+import 'package:navis/src/features/home/presentation/listenbrainz_playlist_artwork.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_screen.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
+import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
@@ -108,14 +114,55 @@ SongsTableData _likedSong({
   );
 }
 
-Widget _buildLibraryScreen({required List<Object?> overrides}) {
+ListenBrainzDiscoverPlaylist _virtualPlaylist({
+  required String identifier,
+  required String title,
+  required String sourcePatch,
+  List<String> coverArts = const <String>[],
+}) {
+  return ListenBrainzDiscoverPlaylist(
+    playlist: ListenBrainzPlaylist(
+      identifier: identifier,
+      title: title,
+      sourcePatch: sourcePatch,
+      tracks: <ListenBrainzPlaylistTrack>[
+        ListenBrainzPlaylistTrack(title: '$title Track'),
+      ],
+    ),
+    recommendations: coverArts.isEmpty
+        ? <ListenBrainzResolvedRecommendation>[
+            ListenBrainzResolvedRecommendation(
+              track: ListenBrainzPlaylistTrack(title: '$title Track'),
+              status: ListenBrainzRecommendationMatchStatus.pending,
+            ),
+          ]
+        : <ListenBrainzResolvedRecommendation>[
+            for (var i = 0; i < coverArts.length; i++)
+              ListenBrainzResolvedRecommendation(
+                track: ListenBrainzPlaylistTrack(title: '$title Track $i'),
+                status: ListenBrainzRecommendationMatchStatus.matched,
+                song: Song(
+                  id: '$identifier-$i',
+                  title: '$title Track $i',
+                  coverArt: coverArts[i],
+                ),
+              ),
+          ],
+    matchingComplete: true,
+  );
+}
+
+Widget _buildLibraryScreen({
+  required List<Object?> overrides,
+  bool showPlaylistsPage = false,
+}) {
   return ProviderScope(
     overrides: withTestDatabase(
       _testDatabase,
       overrides: [
         showRadioPageProvider.overrideWithValue(false),
         showArtistsPageProvider.overrideWithValue(true),
-        showPlaylistsPageProvider.overrideWithValue(false),
+        showPlaylistsPageProvider.overrideWithValue(showPlaylistsPage),
         artistViewModeProvider.overrideWithValue('list'),
         serverConfigStateProvider.overrideWithValue(
           const AsyncData<ServerConfigModel?>(null),
@@ -128,6 +175,56 @@ Widget _buildLibraryScreen({required List<Object?> overrides}) {
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       home: const LibraryScreen(),
+    ),
+  );
+}
+
+Widget _buildLibraryScreenRouter({
+  required List<Object?> overrides,
+  bool showPlaylistsPage = false,
+}) {
+  final router = GoRouter(
+    routes: <RouteBase>[
+      GoRoute(
+        path: '/',
+        builder: (context, state) => const LibraryScreen(),
+        routes: <RouteBase>[
+          GoRoute(
+            path: 'library/listenbrainz/:sourcePatch',
+            builder: (context, state) => Text(
+              'ListenBrainz detail ${state.pathParameters['sourcePatch']}',
+            ),
+          ),
+          GoRoute(
+            path: 'library/playlists/:playlistId',
+            builder: (context, state) => Text(
+              'Playlist detail ${state.pathParameters['playlistId']}',
+            ),
+          ),
+        ],
+      ),
+    ],
+  );
+
+  return ProviderScope(
+    overrides: withTestDatabase(
+      _testDatabase,
+      overrides: [
+        showRadioPageProvider.overrideWithValue(false),
+        showArtistsPageProvider.overrideWithValue(true),
+        showPlaylistsPageProvider.overrideWithValue(showPlaylistsPage),
+        artistViewModeProvider.overrideWithValue('list'),
+        serverConfigStateProvider.overrideWithValue(
+          const AsyncData<ServerConfigModel?>(null),
+        ),
+        subsonicApiProvider.overrideWithValue(null),
+        ...overrides.cast(),
+      ],
+    ),
+    child: MaterialApp.router(
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      routerConfig: router,
     ),
   );
 }
@@ -152,8 +249,14 @@ void _testWidgetsWithCleanup(
 Future<void> _pumpLibraryScreen(
   WidgetTester tester, {
   required List<Object?> overrides,
+  bool showPlaylistsPage = false,
 }) async {
-  await tester.pumpWidget(_buildLibraryScreen(overrides: overrides));
+  await tester.pumpWidget(
+    _buildLibraryScreen(
+      overrides: overrides,
+      showPlaylistsPage: showPlaylistsPage,
+    ),
+  );
   await tester.pumpAndSettle();
 }
 
@@ -223,7 +326,7 @@ void main() {
                     name: 'Album 1',
                     artistName: 'Artist 1',
                     songsHydrated: true,
-                    artists: const <ArtistRef>[],
+                    artists: <ArtistRef>[],
                   ),
                 ],
               ),
@@ -670,6 +773,213 @@ void main() {
 
       expect(find.text('Radio'), findsOneWidget);
     });
+
+    _testWidgetsWithCleanup(
+      'playlists tab renders ListenBrainz playlists before normal playlists with divider',
+      (tester) async {
+        await tester.pumpWidget(
+          _buildLibraryScreenRouter(
+            showPlaylistsPage: true,
+            overrides: [
+              librarySyncControllerProvider.overrideWith(
+                () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+              ),
+              albumCountProvider.overrideWithValue(const AsyncData(0)),
+              pagedAlbumsProvider.overrideWith(
+                (ref, request) => Stream.value(const <AlbumsTableData>[]),
+              ),
+              artistsProvider.overrideWithValue(
+                const AsyncData(<ArtistsTableData>[]),
+              ),
+              playlistSyncProvider.overrideWith((ref) async {}),
+              playlistLibraryItemsProvider.overrideWithValue(
+                AsyncData<List<PlaylistLibraryItem>>(
+                  <PlaylistLibraryItem>[
+                    PlaylistLibraryItem.virtual(
+                      _virtualPlaylist(
+                        identifier: 'jams',
+                        title: 'Weekly Jams',
+                        sourcePatch: 'weekly-jams',
+                      ),
+                    ),
+                    const PlaylistLibraryItem.normal(
+                      PlaylistsTableData(
+                        id: 'server-mix',
+                        name: 'Server Mix',
+                        songCount: 3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Playlists'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Weekly Jams'), findsOneWidget);
+        expect(find.text('Server Mix'), findsOneWidget);
+        expect(
+          find.byKey(const ValueKey<String>('listenBrainzPlaylistDivider')),
+          findsOneWidget,
+        );
+        expect(
+          tester.getTopLeft(find.text('Weekly Jams')).dy,
+          lessThan(tester.getTopLeft(find.text('Server Mix')).dy),
+        );
+      },
+    );
+
+    _testWidgetsWithCleanup(
+      'playlists tab omits ListenBrainz divider without following normal playlists',
+      (tester) async {
+        await tester.pumpWidget(
+          _buildLibraryScreenRouter(
+            showPlaylistsPage: true,
+            overrides: [
+              librarySyncControllerProvider.overrideWith(
+                () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+              ),
+              albumCountProvider.overrideWithValue(const AsyncData(0)),
+              pagedAlbumsProvider.overrideWith(
+                (ref, request) => Stream.value(const <AlbumsTableData>[]),
+              ),
+              artistsProvider.overrideWithValue(
+                const AsyncData(<ArtistsTableData>[]),
+              ),
+              playlistSyncProvider.overrideWith((ref) async {}),
+              playlistLibraryItemsProvider.overrideWithValue(
+                AsyncData<List<PlaylistLibraryItem>>(
+                  <PlaylistLibraryItem>[
+                    PlaylistLibraryItem.virtual(
+                      _virtualPlaylist(
+                        identifier: 'exploration',
+                        title: 'Weekly Exploration',
+                        sourcePatch: 'weekly-exploration',
+                        coverArts: const <String>[
+                          'cover-1',
+                          'cover-2',
+                          'cover-3',
+                          'cover-4',
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Playlists'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Weekly Exploration'), findsOneWidget);
+        expect(find.byType(ListenBrainzPlaylistArtwork), findsOneWidget);
+        expect(find.byType(CoverArtImage), findsNWidgets(4));
+        expect(
+          find.byKey(const ValueKey<String>('listenBrainzPlaylistDivider')),
+          findsNothing,
+        );
+      },
+    );
+
+    _testWidgetsWithCleanup(
+      'playlists tab keeps ListenBrainz rows read-only',
+      (tester) async {
+        await tester.pumpWidget(
+          _buildLibraryScreenRouter(
+            showPlaylistsPage: true,
+            overrides: [
+              librarySyncControllerProvider.overrideWith(
+                () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+              ),
+              albumCountProvider.overrideWithValue(const AsyncData(0)),
+              pagedAlbumsProvider.overrideWith(
+                (ref, request) => Stream.value(const <AlbumsTableData>[]),
+              ),
+              artistsProvider.overrideWithValue(
+                const AsyncData(<ArtistsTableData>[]),
+              ),
+              playlistSyncProvider.overrideWith((ref) async {}),
+              playlistLibraryItemsProvider.overrideWithValue(
+                AsyncData<List<PlaylistLibraryItem>>(
+                  <PlaylistLibraryItem>[
+                    PlaylistLibraryItem.virtual(
+                      _virtualPlaylist(
+                        identifier: 'jams',
+                        title: 'Weekly Jams',
+                        sourcePatch: 'weekly-jams',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Playlists'));
+        await tester.pumpAndSettle();
+
+        await tester.longPress(find.text('Weekly Jams'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Rename playlist'), findsNothing);
+        expect(find.text('Delete playlist?'), findsNothing);
+      },
+    );
+
+    _testWidgetsWithCleanup(
+      'playlists tab navigates ListenBrainz rows to detail',
+      (tester) async {
+        await tester.pumpWidget(
+          _buildLibraryScreenRouter(
+            showPlaylistsPage: true,
+            overrides: [
+              librarySyncControllerProvider.overrideWith(
+                () => _FakeLibrarySyncController(const LibrarySyncState.idle()),
+              ),
+              albumCountProvider.overrideWithValue(const AsyncData(0)),
+              pagedAlbumsProvider.overrideWith(
+                (ref, request) => Stream.value(const <AlbumsTableData>[]),
+              ),
+              artistsProvider.overrideWithValue(
+                const AsyncData(<ArtistsTableData>[]),
+              ),
+              playlistSyncProvider.overrideWith((ref) async {}),
+              playlistLibraryItemsProvider.overrideWithValue(
+                AsyncData<List<PlaylistLibraryItem>>(
+                  <PlaylistLibraryItem>[
+                    PlaylistLibraryItem.virtual(
+                      _virtualPlaylist(
+                        identifier: 'jams',
+                        title: 'Weekly Jams',
+                        sourcePatch: 'weekly-jams',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Playlists'));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Weekly Jams'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('ListenBrainz detail weekly-jams'), findsOneWidget);
+      },
+    );
 
     _testWidgetsWithCleanup(
       'removing radio tab while selected clamps tab index without crashing',

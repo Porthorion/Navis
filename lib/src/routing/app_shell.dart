@@ -755,10 +755,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     final showPlayer = playback.hasActivePlayback;
     final isExpanded = ref.watch(playerSheetExpandedProvider);
     final showQueueOverlay = ref.watch(queueOverlayVisibleProvider);
-    final showLikedLibraryPage = ref.watch(showLikedPageProvider);
-    final showArtistsLibraryPage = ref.watch(showArtistsPageProvider);
-    final showPlaylistsLibraryPage = ref.watch(showPlaylistsPageProvider);
-    final showRadioLibraryPage = ref.watch(showRadioPageProvider);
+    final visibleLibrarySections = ref.watch(visibleLibrarySectionsProvider);
     final selectedLibrarySection = ref.watch(librarySectionProvider);
     final hasPlayerOverlay = ref.watch(
       playerOverlayStackProvider.select((stack) => stack.isNotEmpty),
@@ -947,9 +944,12 @@ class _AppShellState extends ConsumerState<AppShell> {
       _navExpandRequestNotifier.value++;
       final branchIndex = visibleBranchIndices[index];
       if (branchIndex == _libraryBranchIndex) {
+        final nextLibrarySection = visibleLibrarySections.isEmpty
+            ? LibrarySection.albums
+            : visibleLibrarySections.first;
         ref
             .read(librarySectionProvider.notifier)
-            .setSection(LibrarySection.albums);
+            .setSection(nextLibrarySection);
       }
       if (branchIndex == _searchBranchIndex) {
         ref.read(searchFocusRequestProvider.notifier).increment();
@@ -1131,13 +1131,10 @@ class _AppShellState extends ConsumerState<AppShell> {
             onDestinationSelected(1);
           } else {
             // Already on library — cycle to the next available section.
-            final availableSections = <LibrarySection>[
-              LibrarySection.albums,
-              if (showLikedLibraryPage) LibrarySection.liked,
-              if (showArtistsLibraryPage) LibrarySection.artists,
-              if (showPlaylistsLibraryPage) LibrarySection.playlists,
-              if (showRadioLibraryPage) LibrarySection.radio,
-            ];
+            final availableSections = visibleLibrarySections;
+            if (availableSections.isEmpty) {
+              return;
+            }
             final currentIdx = availableSections.indexOf(
               selectedLibrarySection,
             );
@@ -1285,10 +1282,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                         onDestinationSelected: onDestinationSelected,
                         showLibrarySubNavigation: showLibrarySubNavigation,
                         selectedLibrarySection: selectedLibrarySection,
-                        showLikedLibraryPage: showLikedLibraryPage,
-                        showArtistsLibraryPage: showArtistsLibraryPage,
-                        showPlaylistsLibraryPage: showPlaylistsLibraryPage,
-                        showRadioLibraryPage: showRadioLibraryPage,
+                        visibleLibrarySections: visibleLibrarySections,
                         onLibrarySectionSelected: onLibrarySectionSelected,
                         allowScrollableRail: allowScrollableRail,
                         onOpenPlayer: _toggleDesktopLyricsOverlay,
@@ -1391,14 +1385,8 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                       showLibrarySubNavigation,
                                                   selectedLibrarySection:
                                                       selectedLibrarySection,
-                                                  showLikedLibraryPage:
-                                                      showLikedLibraryPage,
-                                                  showArtistsLibraryPage:
-                                                      showArtistsLibraryPage,
-                                                  showPlaylistsLibraryPage:
-                                                      showPlaylistsLibraryPage,
-                                                  showRadioLibraryPage:
-                                                      showRadioLibraryPage,
+                                                  visibleLibrarySections:
+                                                      visibleLibrarySections,
                                                   onLibrarySectionSelected:
                                                       onLibrarySectionSelected,
                                                   allowScrollableRail:
