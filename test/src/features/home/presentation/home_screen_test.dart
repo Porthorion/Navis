@@ -112,6 +112,7 @@ class _QueueSpyController extends QueueController {
   List<String>? lastReplaceIds;
   int? lastStartIndex;
   bool? lastAutoPlay;
+  bool? lastExpandMatchFlows;
 
   @override
   List<String> build() => const <String>[];
@@ -121,11 +122,13 @@ class _QueueSpyController extends QueueController {
     List<String> ids, {
     int startIndex = 0,
     bool autoPlay = true,
+    bool expandMatchFlows = true,
     bool syncGroupListening = true,
   }) async {
     lastReplaceIds = List<String>.unmodifiable(ids);
     lastStartIndex = startIndex;
     lastAutoPlay = autoPlay;
+    lastExpandMatchFlows = expandMatchFlows;
     state = List<String>.unmodifiable(ids);
   }
 
@@ -134,12 +137,30 @@ class _QueueSpyController extends QueueController {
     List<SongsTableData> songs, {
     int startIndex = 0,
     bool autoPlay = true,
+    bool expandMatchFlows = true,
     bool syncGroupListening = true,
   }) async {
     final ids = songs.map((s) => s.id).toList(growable: false);
     lastReplaceIds = List<String>.unmodifiable(ids);
     lastStartIndex = startIndex;
     lastAutoPlay = autoPlay;
+    lastExpandMatchFlows = expandMatchFlows;
+    state = List<String>.unmodifiable(ids);
+  }
+
+  @override
+  Future<void> replaceWithSongs(
+    List<Song> songs, {
+    int startIndex = 0,
+    bool autoPlay = true,
+    bool expandMatchFlows = true,
+    bool syncGroupListening = true,
+  }) async {
+    final ids = songs.map((s) => s.id).toList(growable: false);
+    lastReplaceIds = List<String>.unmodifiable(ids);
+    lastStartIndex = startIndex;
+    lastAutoPlay = autoPlay;
+    lastExpandMatchFlows = expandMatchFlows;
     state = List<String>.unmodifiable(ids);
   }
 }
@@ -176,6 +197,38 @@ ListenBrainzDiscoverPlaylist _listenBrainzPlaylist(String id, String title) {
           album: 'Remote Album',
         ),
       ),
+    ],
+  );
+}
+
+ListenBrainzDiscoverPlaylist _listenBrainzPlaylistWithTableSongs() {
+  final songs = <SongsTableData>[
+    _songRow(id: 'weekly-song-1', title: 'Weekly Song 1', albumId: 'weekly'),
+    _songRow(id: 'weekly-song-2', title: 'Weekly Song 2', albumId: 'weekly'),
+    _songRow(id: 'weekly-song-3', title: 'Weekly Song 3', albumId: 'weekly'),
+  ];
+  return ListenBrainzDiscoverPlaylist(
+    playlist: const ListenBrainzPlaylist(
+      identifier: 'exploration',
+      title: 'Weekly Exploration for alice, week of 2026-06-15',
+      sourcePatch: 'weekly-exploration',
+      tracks: <ListenBrainzPlaylistTrack>[
+        ListenBrainzPlaylistTrack(title: 'Weekly Song 1', creator: 'Artist'),
+        ListenBrainzPlaylistTrack(title: 'Weekly Song 2', creator: 'Artist'),
+        ListenBrainzPlaylistTrack(title: 'Weekly Song 3', creator: 'Artist'),
+      ],
+    ),
+    recommendations: <ListenBrainzResolvedRecommendation>[
+      for (final song in songs)
+        ListenBrainzResolvedRecommendation(
+          track: ListenBrainzPlaylistTrack(
+            title: song.title,
+            creator: song.artistName,
+          ),
+          status: ListenBrainzRecommendationMatchStatus.matched,
+          tableSong: song,
+          song: Song(id: song.id, title: song.title, artist: song.artistName),
+        ),
     ],
   );
 }
@@ -409,6 +462,7 @@ Future<void> _pumpRandomSectionHome(
     ProviderScope(
       overrides: sectionOverrides,
       child: MaterialApp(
+        theme: ThemeData(splashFactory: NoSplash.splashFactory),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         builder: (ctx, child) => MediaQuery(
@@ -1114,6 +1168,112 @@ void main() {
       await tester.tap(find.text('Weekly Jams'));
       await tester.pumpAndSettle();
       expect(find.text('Weekly Jams'), findsWidgets);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+    },
+  );
+
+  testWidgets(
+    'weekly detail row taps queue one matched song without match-flow expansion',
+    (tester) async {
+      final view = tester.view;
+      view.devicePixelRatio = 1.0;
+      view.physicalSize = const Size(390, 844);
+      addTearDown(() {
+        view.resetPhysicalSize();
+        view.resetDevicePixelRatio();
+      });
+
+      await _pumpRandomSectionHome(
+        tester,
+        database: database,
+        randomAlbums: <HomeRandomShowcaseItem>[
+          HomeRandomShowcaseListenBrainz(
+            playlist: _listenBrainzPlaylistWithTableSongs(),
+          ),
+        ],
+        overrides: <Override>[
+          queueProvider.overrideWith(_QueueSpyController.new),
+        ],
+      );
+
+      await tester.tap(find.text('Weekly Exploration'));
+      await tester.pumpAndSettle();
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(HomeScreen)),
+      );
+      final queueSpy =
+          container.read(queueProvider.notifier) as _QueueSpyController;
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Play').last);
+      await tester.pumpAndSettle();
+
+      expect(
+        queueSpy.lastReplaceIds,
+        const <String>['weekly-song-1', 'weekly-song-2', 'weekly-song-3'],
+      );
+      expect(queueSpy.lastStartIndex, 0);
+      expect(queueSpy.lastAutoPlay, isTrue);
+      expect(queueSpy.lastExpandMatchFlows, isFalse);
+
+      await tester.tap(find.text('Weekly Exploration'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Weekly Song 2').last);
+      await tester.pumpAndSettle();
+
+      expect(queueSpy.lastReplaceIds, const <String>['weekly-song-2']);
+      expect(queueSpy.lastStartIndex, 0);
+      expect(queueSpy.lastAutoPlay, isTrue);
+      expect(queueSpy.lastExpandMatchFlows, isFalse);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+    },
+  );
+
+  testWidgets(
+    'weekly detail remote row taps queue one API song without match-flow expansion',
+    (tester) async {
+      final view = tester.view;
+      view.devicePixelRatio = 1.0;
+      view.physicalSize = const Size(390, 844);
+      addTearDown(() {
+        view.resetPhysicalSize();
+        view.resetDevicePixelRatio();
+      });
+
+      await _pumpRandomSectionHome(
+        tester,
+        database: database,
+        randomAlbums: <HomeRandomShowcaseItem>[
+          HomeRandomShowcaseListenBrainz(
+            playlist: _listenBrainzPlaylist(
+              'exploration',
+              'Weekly Exploration for alice, week of 2026-06-15',
+            ),
+          ),
+        ],
+        overrides: <Override>[
+          queueProvider.overrideWith(_QueueSpyController.new),
+        ],
+      );
+
+      await tester.tap(find.text('Weekly Exploration'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Remote Song').last);
+      await tester.pumpAndSettle();
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(HomeScreen)),
+      );
+      final queueSpy =
+          container.read(queueProvider.notifier) as _QueueSpyController;
+      expect(queueSpy.lastReplaceIds, const <String>['remote-song']);
+      expect(queueSpy.lastStartIndex, 0);
+      expect(queueSpy.lastAutoPlay, isTrue);
+      expect(queueSpy.lastExpandMatchFlows, isFalse);
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pumpAndSettle();

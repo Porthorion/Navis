@@ -54,6 +54,7 @@ class QueueController extends Notifier<List<String>> {
     List<String> ids, {
     int startIndex = 0,
     bool autoPlay = true,
+    bool expandMatchFlows = true,
     bool syncGroupListening = true,
   }) async {
     final handler = _requireHandler();
@@ -75,6 +76,7 @@ class QueueController extends Notifier<List<String>> {
       normalized,
       startIndex: normalizedStartIndex,
       autoPlay: autoPlay,
+      expandMatchFlows: expandMatchFlows,
     );
   }
 
@@ -85,6 +87,7 @@ class QueueController extends Notifier<List<String>> {
     List<SongsTableData> songs, {
     int startIndex = 0,
     bool autoPlay = true,
+    bool expandMatchFlows = true,
     bool syncGroupListening = true,
   }) async {
     final handler = _requireHandler();
@@ -105,6 +108,7 @@ class QueueController extends Notifier<List<String>> {
       songs,
       startIndex: normalizedStartIndex,
       autoPlay: autoPlay,
+      expandMatchFlows: expandMatchFlows,
     );
   }
 
@@ -145,6 +149,7 @@ class QueueController extends Notifier<List<String>> {
     List<Song> songs, {
     int startIndex = 0,
     bool autoPlay = true,
+    bool expandMatchFlows = true,
     bool syncGroupListening = true,
   }) async {
     if (songs.isEmpty) {
@@ -175,6 +180,7 @@ class QueueController extends Notifier<List<String>> {
       ids,
       startIndex: startIndex,
       autoPlay: autoPlay,
+      expandMatchFlows: expandMatchFlows,
       syncGroupListening: false,
     );
     // Belt-and-suspenders: if autoPlay was requested, explicitly ensure the

@@ -239,6 +239,10 @@ class _ListenBrainzDiscoverDetailSheet extends StatelessWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final playableSongs = playlist.playableSongs;
+    final serverSongs = playlist.recommendations
+        .where((recommendation) => recommendation.hasServerSong)
+        .map((recommendation) => recommendation.tableSong!)
+        .toList(growable: false);
     return DraggableScrollableSheet(
       expand: false,
       initialChildSize: 0.86,
@@ -297,10 +301,23 @@ class _ListenBrainzDiscoverDetailSheet extends StatelessWidget {
                       ? null
                       : () {
                           Navigator.of(context).pop();
-                          ref
-                              .read(queueProvider.notifier)
-                              .replaceWithSongs(playableSongs)
-                              .ignore();
+                          if (serverSongs.length == playableSongs.length) {
+                            ref
+                                .read(queueProvider.notifier)
+                                .replaceWithTableData(
+                                  serverSongs,
+                                  expandMatchFlows: false,
+                                )
+                                .ignore();
+                          } else {
+                            ref
+                                .read(queueProvider.notifier)
+                                .replaceWithSongs(
+                                  playableSongs,
+                                  expandMatchFlows: false,
+                                )
+                                .ignore();
+                          }
                         },
                   icon: const Icon(Icons.play_arrow_rounded),
                   label: const Text('Play'),
@@ -313,10 +330,26 @@ class _ListenBrainzDiscoverDetailSheet extends StatelessWidget {
                           final shuffled = List<Song>.from(playableSongs)
                             ..shuffle(math.Random());
                           Navigator.of(context).pop();
-                          ref
-                              .read(queueProvider.notifier)
-                              .replaceWithSongs(shuffled)
-                              .ignore();
+                          if (serverSongs.length == playableSongs.length) {
+                            final shuffledRows = List<SongsTableData>.from(
+                              serverSongs,
+                            )..shuffle(math.Random());
+                            ref
+                                .read(queueProvider.notifier)
+                                .replaceWithTableData(
+                                  shuffledRows,
+                                  expandMatchFlows: false,
+                                )
+                                .ignore();
+                          } else {
+                            ref
+                                .read(queueProvider.notifier)
+                                .replaceWithSongs(
+                                  shuffled,
+                                  expandMatchFlows: false,
+                                )
+                                .ignore();
+                          }
                         },
                   icon: const Icon(Icons.shuffle_rounded),
                   label: const Text('Shuffle'),
@@ -330,9 +363,21 @@ class _ListenBrainzDiscoverDetailSheet extends StatelessWidget {
                 index: i + 1,
                 onPlay: (song) {
                   Navigator.of(context).pop();
-                  ref.read(queueProvider.notifier).replaceWithSongs(<Song>[
-                    song,
-                  ]).ignore();
+                  final recommendation = playlist.recommendations[i];
+                  final tableSong = recommendation.hasServerSong
+                      ? recommendation.tableSong
+                      : null;
+                  if (tableSong != null) {
+                    ref.read(queueProvider.notifier).replaceWithTableData(
+                      <SongsTableData>[tableSong],
+                      expandMatchFlows: false,
+                    ).ignore();
+                  } else {
+                    ref.read(queueProvider.notifier).replaceWithSongs(
+                      <Song>[song],
+                      expandMatchFlows: false,
+                    ).ignore();
+                  }
                 },
                 onSearch: (track) {
                   Navigator.of(context).pop();
@@ -395,54 +440,57 @@ class _ListenBrainzRecommendationTile extends StatelessWidget {
 
     return Opacity(
       opacity: unavailable ? 0.58 : 1,
-      child: ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: SizedBox(
-          width: 42,
-          child: pending
-              ? const Center(
-                  child: SizedBox.square(
-                    dimension: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+      child: Material(
+        type: MaterialType.transparency,
+        child: ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: SizedBox(
+            width: 42,
+            child: pending
+                ? const Center(
+                    child: SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                : Center(child: Text('$index')),
+          ),
+          title: Text(
+            playableSong?.title ?? track.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          subtitle: Text(
+            subtitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: unavailable
+                  ? cs.onSurface.withValues(alpha: 0.55)
+                  : cs.onSurfaceVariant,
+            ),
+          ),
+          trailing: playableSong == null
+              ? IconButton(
+                  tooltip: pending ? 'Matching' : 'Search',
+                  icon: Icon(
+                    pending
+                        ? Icons.hourglass_empty_rounded
+                        : Icons.search_rounded,
                   ),
+                  onPressed: pending ? null : () => onSearch(track),
                 )
-              : Center(child: Text('$index')),
-        ),
-        title: Text(
-          playableSong?.title ?? track.title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        subtitle: Text(
-          subtitle,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: unavailable
-                ? cs.onSurface.withValues(alpha: 0.55)
-                : cs.onSurfaceVariant,
-          ),
-        ),
-        trailing: playableSong == null
-            ? IconButton(
-                tooltip: pending ? 'Matching' : 'Search',
-                icon: Icon(
-                  pending
-                      ? Icons.hourglass_empty_rounded
-                      : Icons.search_rounded,
+              : Text(
+                  formatSeconds(playableSong.duration),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: cs.onSurface.withValues(alpha: 0.5),
+                  ),
                 ),
-                onPressed: pending ? null : () => onSearch(track),
-              )
-            : Text(
-                formatSeconds(playableSong.duration),
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: cs.onSurface.withValues(alpha: 0.5),
-                ),
-              ),
-        onTap: playableSong == null ? null : () => onPlay(playableSong),
+          onTap: playableSong == null ? null : () => onPlay(playableSong),
+        ),
       ),
     );
   }

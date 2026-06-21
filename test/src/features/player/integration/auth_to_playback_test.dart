@@ -16,6 +16,9 @@ class _RecordingPlaybackHandler implements NavisPlaybackHandler {
   int replaceQueueCalls = 0;
   int playCalls = 0;
   List<String> lastQueue = const <String>[];
+  int? lastStartIndex;
+  bool? lastAutoPlay;
+  bool? lastExpandMatchFlows;
 
   @override
   PlaybackSnapshot get snapshot => const PlaybackSnapshot.idle();
@@ -56,6 +59,9 @@ class _RecordingPlaybackHandler implements NavisPlaybackHandler {
   }) async {
     replaceQueueCalls += 1;
     lastQueue = List<String>.from(songIds);
+    lastStartIndex = startIndex;
+    lastAutoPlay = autoPlay;
+    lastExpandMatchFlows = expandMatchFlows;
   }
 
   @override
@@ -67,6 +73,9 @@ class _RecordingPlaybackHandler implements NavisPlaybackHandler {
   }) async {
     replaceQueueCalls += 1;
     lastQueue = songs.map((s) => s.id).toList();
+    lastStartIndex = startIndex;
+    lastAutoPlay = autoPlay;
+    lastExpandMatchFlows = expandMatchFlows;
   }
 
   @override
@@ -211,17 +220,95 @@ void main() {
       );
 
       final queue = container.read(queueProvider.notifier);
-      await queue.replaceWithSongs(<Song>[fixtureSong]);
+      await queue.replaceWithSongs(
+        <Song>[fixtureSong],
+        expandMatchFlows: false,
+      );
 
       expect(handler.replaceQueueCalls, 1);
       expect(handler.playCalls, 1);
       expect(handler.lastQueue, <String>['remote-song-1']);
+      expect(handler.lastExpandMatchFlows, isFalse);
 
       final persisted = await db.libraryDao.getSongsByIds(
         const <String>['remote-song-1'],
       );
       expect(persisted, isNotEmpty);
       expect(persisted.first.title, 'Fixture Song');
+    },
+  );
+
+  test('queue replacement forwards match-flow expansion opt-out', () async {
+    final db = createTestDatabase();
+    addTearDown(db.close);
+
+    final handler = _RecordingPlaybackHandler();
+    final container = ProviderContainer(
+      overrides: [
+        ...withTestDatabase(db),
+        audioHandlerProvider.overrideWithValue(handler),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final queue = container.read(queueProvider.notifier);
+    await queue.replace(
+      const <String>['song-1', 'song-2'],
+      startIndex: 1,
+      autoPlay: false,
+      expandMatchFlows: false,
+    );
+
+    expect(handler.replaceQueueCalls, 1);
+    expect(handler.lastQueue, const <String>['song-1', 'song-2']);
+    expect(handler.lastStartIndex, 1);
+    expect(handler.lastAutoPlay, isFalse);
+    expect(handler.lastExpandMatchFlows, isFalse);
+  });
+
+  test(
+    'table-data queue replacement forwards match-flow expansion opt-out',
+    () async {
+      final db = createTestDatabase();
+      addTearDown(db.close);
+
+      final handler = _RecordingPlaybackHandler();
+      final container = ProviderContainer(
+        overrides: [
+          ...withTestDatabase(db),
+          audioHandlerProvider.overrideWithValue(handler),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final queue = container.read(queueProvider.notifier);
+      await queue.replaceWithTableData(
+        const <SongsTableData>[
+          SongsTableData(
+            id: 'song-1',
+            title: 'Song 1',
+            albumId: 'album-1',
+            albumName: 'Album',
+            artistName: 'Artist',
+          ),
+          SongsTableData(
+            id: 'song-2',
+            title: 'Song 2',
+            albumId: 'album-1',
+            albumName: 'Album',
+            artistName: 'Artist',
+          ),
+        ],
+        startIndex: 1,
+        autoPlay: false,
+        expandMatchFlows: false,
+      );
+
+      expect(handler.replaceQueueCalls, 1);
+      expect(handler.lastQueue, const <String>['song-1', 'song-2']);
+      expect(handler.lastStartIndex, 1);
+      expect(handler.lastAutoPlay, isFalse);
+      expect(handler.lastExpandMatchFlows, isFalse);
     },
   );
 }

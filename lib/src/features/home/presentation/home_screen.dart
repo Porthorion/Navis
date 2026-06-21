@@ -547,7 +547,7 @@ class _ListenBrainzWeeklyDetailContentState
                 ? const EdgeInsetsDirectional.only(start: 8, end: 4)
                 : null,
             horizontalTitleGap: 6,
-            onTap: () => _playFrom(index),
+            onTap: () => _playOneTableSong(tableSong),
             onLongPress: () => showSongContextMenu(context, ref, tableSong),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
@@ -573,9 +573,10 @@ class _ListenBrainzWeeklyDetailContentState
           recommendation: recommendation,
           index: index + 1,
           onPlay: (song) {
-            ref.read(queueProvider.notifier).replaceWithSongs(<Song>[
-              song,
-            ]).ignore();
+            ref.read(queueProvider.notifier).replaceWithSongs(
+              <Song>[song],
+              expandMatchFlows: false,
+            ).ignore();
           },
           onSearch: (track) {
             NavService.openSearch(
@@ -594,24 +595,16 @@ class _ListenBrainzWeeklyDetailContentState
     if (shuffle) {
       queueSongs.shuffle(math.Random());
     }
-    ref.read(queueProvider.notifier).replaceWithTableData(queueSongs).ignore();
-  }
-
-  void _playFrom(int recommendationIndex) {
-    final serverSongs = <SongsTableData>[];
-    var startIndex = 0;
-    for (var i = 0; i < playlist.recommendations.length; i++) {
-      final recommendation = playlist.recommendations[i];
-      if (!recommendation.hasServerSong) continue;
-      if (i == recommendationIndex) {
-        startIndex = serverSongs.length;
-      }
-      serverSongs.add(recommendation.tableSong!);
-    }
     ref
         .read(queueProvider.notifier)
-        .replaceWithTableData(serverSongs, startIndex: startIndex)
+        .replaceWithTableData(queueSongs, expandMatchFlows: false)
         .ignore();
+  }
+
+  void _playOneTableSong(SongsTableData song) {
+    ref.read(queueProvider.notifier).replaceWithTableData(<SongsTableData>[
+      song,
+    ], expandMatchFlows: false).ignore();
   }
 
   Future<void> _downloadVirtualAlbum() async {
@@ -2737,13 +2730,25 @@ class _DesktopListenBrainzSongList extends ConsumerWidget {
       padding: EdgeInsets.zero,
       itemCount: recommendations.length,
       itemBuilder: (context, index) {
+        final recommendation = recommendations[index];
         return _ListenBrainzRecommendationTile(
-          recommendation: recommendations[index],
+          recommendation: recommendation,
           index: index + 1,
           onPlay: (song) {
-            ref.read(queueProvider.notifier).replaceWithSongs(<Song>[
-              song,
-            ]).ignore();
+            final tableSong = recommendation.hasServerSong
+                ? recommendation.tableSong
+                : null;
+            if (tableSong != null) {
+              ref.read(queueProvider.notifier).replaceWithTableData(
+                <SongsTableData>[tableSong],
+                expandMatchFlows: false,
+              ).ignore();
+            } else {
+              ref.read(queueProvider.notifier).replaceWithSongs(
+                <Song>[song],
+                expandMatchFlows: false,
+              ).ignore();
+            }
           },
           onSearch: (track) {
             NavService.openSearch(
