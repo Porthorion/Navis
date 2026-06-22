@@ -652,6 +652,9 @@ class GroupListeningSessionRoomOps {
     final stored = await ref
         .read(groupListeningSessionCredentialStoreProvider)
         .read();
+    if (!ref.mounted) {
+      return;
+    }
     if (stored != null && !state.hasStoredSession) {
       state = stateApplier.withSyncHealth(
         state.copyWith(hasStoredSession: true),
@@ -683,11 +686,17 @@ class GroupListeningSessionRoomOps {
     final stored = await ref
         .read(groupListeningSessionCredentialStoreProvider)
         .read();
+    if (!ref.mounted) {
+      return;
+    }
     if (stored == null) {
       return;
     }
     state = stateApplier.withSyncHealth(state.copyWith(hasStoredSession: true));
     await reconnect();
+    if (!ref.mounted) {
+      return;
+    }
   }
 
   Future<T> runAuthenticatedWithRejoinRetry<T>(
