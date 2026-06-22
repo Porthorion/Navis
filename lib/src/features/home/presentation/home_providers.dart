@@ -1527,26 +1527,32 @@ class _ListenBrainzLocalCandidateSnapshot {
       return const <_ListenBrainzSongCandidate>[];
     }
 
-    final expectedArtistTokens =
-        expectedArtist.split(' ').where((t) => t.length > 1).toSet();
+    final expectedArtistTokens = expectedArtist
+        .split(' ')
+        .where((t) => t.length > 1)
+        .toSet();
     if (expectedArtistTokens.isEmpty) {
       return const <_ListenBrainzSongCandidate>[];
     }
 
-    return all.where((candidate) {
-      final candidateArtist = candidate.normalizedArtist;
-      if (candidateArtist.isEmpty) return false;
-      if (candidateArtist == expectedArtist) return true;
-      if (candidateArtist.contains(expectedArtist) ||
-          expectedArtist.contains(candidateArtist)) {
-        return true;
-      }
-      final candidateArtistTokens =
-          candidateArtist.split(' ').where((t) => t.length > 1).toSet();
-      return expectedArtistTokens
-          .intersection(candidateArtistTokens)
-          .isNotEmpty;
-    }).toList(growable: false);
+    return all
+        .where((candidate) {
+          final candidateArtist = candidate.normalizedArtist;
+          if (candidateArtist.isEmpty) return false;
+          if (candidateArtist == expectedArtist) return true;
+          if (candidateArtist.contains(expectedArtist) ||
+              expectedArtist.contains(candidateArtist)) {
+            return true;
+          }
+          final candidateArtistTokens = candidateArtist
+              .split(' ')
+              .where((t) => t.length > 1)
+              .toSet();
+          return expectedArtistTokens
+              .intersection(candidateArtistTokens)
+              .isNotEmpty;
+        })
+        .toList(growable: false);
   }
 }
 
@@ -1634,7 +1640,8 @@ double _listenBrainzFieldScore(String expected, String actual) {
   return overlap / expectedTokens.length;
 }
 
-Future<_ListenBrainzLocalCandidateSnapshot> _loadListenBrainzLocalCandidateSnapshot(
+Future<_ListenBrainzLocalCandidateSnapshot>
+_loadListenBrainzLocalCandidateSnapshot(
   List<SongsTableData> songs,
 ) async {
   if (_listenBrainzLocalCandidateCache != null &&
@@ -1902,7 +1909,11 @@ final homeRandomShowcaseProvider =
 
       return albumsAsync.when(
         loading: () {
-          final staged = _listenBrainzShowcasePrefix(ref, filters, listenBrainz);
+          final staged = _listenBrainzShowcasePrefix(
+            ref,
+            filters,
+            listenBrainz,
+          );
           if (staged != null && staged.isNotEmpty) {
             return AsyncData(staged);
           }

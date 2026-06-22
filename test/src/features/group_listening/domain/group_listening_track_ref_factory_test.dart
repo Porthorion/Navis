@@ -5,13 +5,16 @@ import 'package:navis/src/features/group_listening/domain/group_listening_track_
 
 void main() {
   group('group_listening_track_ref_factory', () {
-    test('buildTrackRefForSong uses library id for server-addressable songs', () {
-      final ref = buildTrackRefForSong(
-        const Song(id: 'song-1', title: 'Track', artist: 'Artist'),
-      );
-      expect(ref.kind, GroupListeningTrackRefKind.libraryId);
-      expect(ref.librarySongId, 'song-1');
-    });
+    test(
+      'buildTrackRefForSong uses library id for server-addressable songs',
+      () {
+        final ref = buildTrackRefForSong(
+          const Song(id: 'song-1', title: 'Track', artist: 'Artist'),
+        );
+        expect(ref.kind, GroupListeningTrackRefKind.libraryId);
+        expect(ref.librarySongId, 'song-1');
+      },
+    );
 
     test('buildTrackRefForSong uses search fingerprint for remote ids', () {
       final ref = buildTrackRefForSong(

@@ -156,12 +156,10 @@ class ListenTogetherQueueResolutionTile extends StatelessWidget {
         Icons.check_circle_outline,
       GroupListeningTrackResolutionReadiness.resolving =>
         Icons.hourglass_top_outlined,
-      GroupListeningTrackResolutionReadiness.unavailable =>
-        Icons.error_outline,
+      GroupListeningTrackResolutionReadiness.unavailable => Icons.error_outline,
     };
     final color = switch (readiness) {
-      GroupListeningTrackResolutionReadiness.ready =>
-        theme.colorScheme.primary,
+      GroupListeningTrackResolutionReadiness.ready => theme.colorScheme.primary,
       GroupListeningTrackResolutionReadiness.resolving =>
         theme.colorScheme.tertiary,
       GroupListeningTrackResolutionReadiness.unavailable =>

@@ -1412,9 +1412,9 @@ void main() {
 
       await container.read(listenBrainzDiscoverProvider.future);
       final result = await readHomeRandomShowcase(
-      container,
-      (downloadedOnly: false, likedOnly: false),
-    );
+        container,
+        (downloadedOnly: false, likedOnly: false),
+      );
 
       expect(result, hasLength(3));
       expect(fakeListenBrainz.createdForCalls, 0);
@@ -1551,9 +1551,9 @@ void main() {
       });
 
       final result = await readHomeRandomShowcase(
-      container,
-      (downloadedOnly: false, likedOnly: false),
-    );
+        container,
+        (downloadedOnly: false, likedOnly: false),
+      );
 
       expect(result, hasLength(3));
       expect(result[0].stableId, 'listenbrainz:weekly-exploration');
@@ -1632,9 +1632,9 @@ void main() {
 
       await container.read(listenBrainzDiscoverProvider.future);
       final result = await readHomeRandomShowcase(
-      container,
-      (downloadedOnly: false, likedOnly: false),
-    );
+        container,
+        (downloadedOnly: false, likedOnly: false),
+      );
 
       expect(result, hasLength(2));
       expect(result.first.listenBrainz.playlist!.playlist.identifier, 'jams');
@@ -1693,9 +1693,9 @@ void main() {
 
       await container.read(listenBrainzDiscoverProvider.future);
       final result = await readHomeRandomShowcase(
-      container,
-      (downloadedOnly: false, likedOnly: false),
-    );
+        container,
+        (downloadedOnly: false, likedOnly: false),
+      );
 
       expect(result, hasLength(1));
       expect(result.first.album.id, 'srv-1');
@@ -1822,9 +1822,9 @@ void main() {
 
       await container.read(listenBrainzDiscoverProvider.future);
       final result = await readHomeRandomShowcase(
-      container,
-      (downloadedOnly: false, likedOnly: false),
-    );
+        container,
+        (downloadedOnly: false, likedOnly: false),
+      );
 
       expect(result, hasLength(1));
       expect(result.first.album.source, HomeRandomShowcaseSource.localFallback);
@@ -1889,9 +1889,9 @@ void main() {
 
       await container.read(listenBrainzDiscoverProvider.future);
       final result = await readHomeRandomShowcase(
-      container,
-      (downloadedOnly: false, likedOnly: false),
-    );
+        container,
+        (downloadedOnly: false, likedOnly: false),
+      );
 
       expect(result, hasLength(1));
       expect(result.first.album.id, 'srv-1');
@@ -2131,9 +2131,9 @@ void main() {
       });
 
       final result = await readHomeRandomShowcase(
-      container,
-      (downloadedOnly: false, likedOnly: false),
-    );
+        container,
+        (downloadedOnly: false, likedOnly: false),
+      );
 
       expect(result.length, greaterThanOrEqualTo(6));
       expect(
@@ -2339,9 +2339,9 @@ void main() {
       });
 
       final result = await readHomeRandomShowcase(
-      container,
-      (downloadedOnly: false, likedOnly: false),
-    );
+        container,
+        (downloadedOnly: false, likedOnly: false),
+      );
 
       expect(fakeApi.totalSimilarSongCalls, 3);
       expect(result, hasLength(1));

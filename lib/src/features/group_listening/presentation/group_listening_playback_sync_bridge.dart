@@ -48,9 +48,11 @@ class _QueueTrackSkippedNotifier extends Notifier<int> {
 }
 
 class GroupListeningPlaybackSyncBridge extends Notifier<int> {
-  static const GroupListeningSyncPolicy _syncPolicy = GroupListeningSyncPolicy();
+  static const GroupListeningSyncPolicy _syncPolicy =
+      GroupListeningSyncPolicy();
 
-  final GroupListeningSyncCoordinator _coordinator = GroupListeningSyncCoordinator();
+  final GroupListeningSyncCoordinator _coordinator =
+      GroupListeningSyncCoordinator();
   GroupListeningPlaybackFollower? _follower;
   GroupListeningPlaybackPublisher? _publisher;
   late final GroupListeningPlaybackSyncBridgeInbound _inbound;
@@ -97,8 +99,9 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
       resolutionService: resolutionService,
       onQueueTrackAdded: () =>
           ref.read(groupListeningQueueTrackAddedProvider.notifier).increment(),
-      onQueueTrackSkipped: () =>
-          ref.read(groupListeningQueueTrackSkippedProvider.notifier).increment(),
+      onQueueTrackSkipped: () => ref
+          .read(groupListeningQueueTrackSkippedProvider.notifier)
+          .increment(),
       currentLocalState: _stateMapper.currentLocalPlaybackState,
       playbackStateFromSession: _stateMapper.playbackStateFromSession,
       correctionTolerance: _inbound.correctionTolerance,
@@ -124,7 +127,10 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
     _lastObservedQueueVersion = room?.queue.queueVersion ?? 0;
     _lastObservedPlaybackApplyId = _inbound.effectivePlaybackApplyId(room) ?? 0;
 
-    ref.listen<PlaybackSnapshot>(playerStateProvider, _handleLocalSnapshotChanged);
+    ref.listen<PlaybackSnapshot>(
+      playerStateProvider,
+      _handleLocalSnapshotChanged,
+    );
     ref.listen<AsyncValue<Duration>>(
       playbackPositionProvider,
       _handleLocalPositionChanged,
@@ -141,7 +147,10 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
     return 0;
   }
 
-  void _handleLocalSnapshotChanged(PlaybackSnapshot? previous, PlaybackSnapshot next) {
+  void _handleLocalSnapshotChanged(
+    PlaybackSnapshot? previous,
+    PlaybackSnapshot next,
+  ) {
     _latestSnapshot = next;
     _latestPosition = next.position;
     final immediate =
@@ -156,7 +165,8 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
       final intent = switch ((previous?.playing, next.playing)) {
         (false, true) => UserPlaybackIntent.play,
         (true, false) => UserPlaybackIntent.pause,
-        _ when !listEquals(previous?.queueSongIds, next.queueSongIds) ||
+        _
+            when !listEquals(previous?.queueSongIds, next.queueSongIds) ||
                 previous?.currentIndex != next.currentIndex =>
           UserPlaybackIntent.trackChange,
         _ => UserPlaybackIntent.seek,
@@ -181,9 +191,11 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
             GroupListeningSyncTimings.localPositionDebounce) {
       return;
     }
-    ref.read(groupListeningUserIntentProvider.notifier).record(
-      UserPlaybackIntent.seek,
-    );
+    ref
+        .read(groupListeningUserIntentProvider.notifier)
+        .record(
+          UserPlaybackIntent.seek,
+        );
     _schedulePublish(immediate: false);
   }
 
@@ -234,7 +246,9 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
 
   Future<void> _publishLocalState({required bool force}) async {
     final session = ref.read(groupListeningSessionControllerProvider);
-    final intent = ref.read(groupListeningUserIntentProvider.notifier).consumeIntent();
+    final intent = ref
+        .read(groupListeningUserIntentProvider.notifier)
+        .consumeIntent();
     if (intent == null && !force) {
       return;
     }
@@ -248,8 +262,10 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
       lastPublishedState: _coordinator.lastPublishedState,
       suppressedEchoState: _coordinator.suppressedEchoState,
       lastPublishedAt: _coordinator.lastPublishedAt,
-      rememberPublishedState: (state) => _coordinator.lastPublishedState = state,
-      rememberSuppressedEcho: (state) => _coordinator.suppressedEchoState = state,
+      rememberPublishedState: (state) =>
+          _coordinator.lastPublishedState = state,
+      rememberSuppressedEcho: (state) =>
+          _coordinator.suppressedEchoState = state,
       rememberPublishedAt: (time) => _coordinator.lastPublishedAt = time,
     );
   }

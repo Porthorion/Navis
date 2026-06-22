@@ -8,7 +8,8 @@ import 'package:navis/src/features/group_listening/presentation/group_listening_
 import 'package:navis/src/features/group_listening/presentation/group_listening_providers.dart';
 import 'package:navis/src/utils/app_logger.dart';
 
-typedef GroupListeningSessionStateReader = GroupListeningSessionState Function();
+typedef GroupListeningSessionStateReader =
+    GroupListeningSessionState Function();
 typedef GroupListeningSessionStateWriter =
     void Function(GroupListeningSessionState state);
 

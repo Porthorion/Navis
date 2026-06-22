@@ -6,7 +6,6 @@ import 'package:navis/src/features/group_listening/data/group_listening_dtos.dar
 import 'package:navis/src/features/group_listening/data/group_listening_transport_messages.dart';
 import 'package:navis/src/features/group_listening/domain/group_listening_session_models.dart';
 
-
 class GroupListeningRepositoryException implements Exception {
   const GroupListeningRepositoryException(this.failure);
 
@@ -264,9 +263,7 @@ GroupListeningRoomState roomStateFromJson(
     hostMemberId: stringValue(json['host_member_id']),
     self: GroupListeningSelfState(
       memberId:
-          nullableStringValue(self?['member_id']) ??
-          fallbackSelfMemberId ??
-          '',
+          nullableStringValue(self?['member_id']) ?? fallbackSelfMemberId ?? '',
       role: self != null
           ? _memberRoleFromWire(self['role'])
           : (fallbackSelfRole ?? GroupListeningMemberRole.member),
@@ -794,7 +791,8 @@ Map<String, Object?> _trackRefToWire(GroupListeningTrackRef trackRef) {
           'album': trackRef.searchFingerprint!.album,
         'duration_seconds': trackRef.searchFingerprint!.durationSeconds,
       },
-    if (trackRef.source != null) 'source': _trackRefSourceToWire(trackRef.source!),
+    if (trackRef.source != null)
+      'source': _trackRefSourceToWire(trackRef.source!),
   };
 }
 

@@ -30,7 +30,8 @@ class GroupListeningTrackResolved extends GroupListeningTrackResolutionResult {
   final double confidence;
 }
 
-class GroupListeningTrackUnavailable extends GroupListeningTrackResolutionResult {
+class GroupListeningTrackUnavailable
+    extends GroupListeningTrackResolutionResult {
   const GroupListeningTrackUnavailable({required this.reason});
 
   final String reason;
@@ -124,7 +125,9 @@ class GroupListeningTrackResolutionService {
             confidence: cached.confidence ?? 1,
           ),
         GroupListeningTrackResolutionStatus.unavailable =>
-          GroupListeningTrackUnavailable(reason: cached.reason ?? 'unavailable'),
+          GroupListeningTrackUnavailable(
+            reason: cached.reason ?? 'unavailable',
+          ),
       };
     }
 
@@ -141,11 +144,12 @@ class GroupListeningTrackResolutionService {
     final resolved = switch (trackRef.kind) {
       GroupListeningTrackRefKind.libraryId => null,
       GroupListeningTrackRefKind.mbid => await _resolveByMbid(api, trackRef),
-      GroupListeningTrackRefKind.searchFingerprint => await _resolveByFingerprint(
-        api,
-        trackRef,
-        entry,
-      ),
+      GroupListeningTrackRefKind.searchFingerprint =>
+        await _resolveByFingerprint(
+          api,
+          trackRef,
+          entry,
+        ),
     };
 
     if (resolved == null) {

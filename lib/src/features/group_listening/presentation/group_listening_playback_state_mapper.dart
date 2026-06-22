@@ -87,7 +87,9 @@ class GroupListeningPlaybackStateMapper {
       return anchor.position;
     }
     final session = ref.read(groupListeningSessionControllerProvider);
-    final serverNow = DateTime.now().toUtc().add(session.connection.serverClockOffset);
+    final serverNow = DateTime.now().toUtc().add(
+      session.connection.serverClockOffset,
+    );
     final elapsed = serverNow.difference(anchor.capturedAt);
     return anchor.expectedPositionAt(
       anchor.capturedAt.add(elapsed.isNegative ? Duration.zero : elapsed),

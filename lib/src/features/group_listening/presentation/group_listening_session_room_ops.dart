@@ -72,7 +72,8 @@ class GroupListeningSessionRoomOps {
   final void Function() beginTransportTeardown;
   final void Function() endTransportTeardown;
   final bool Function() readTransportTeardownFailureObserved;
-  final bool Function(GroupListeningErrorCode code) shouldCollapseToLocalCleanup;
+  final bool Function(GroupListeningErrorCode code)
+  shouldCollapseToLocalCleanup;
   final bool Function(GroupListeningErrorState failure)
   canLeaveLocallyAfterFailure;
   final bool Function(GroupListeningErrorState failure)

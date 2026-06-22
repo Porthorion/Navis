@@ -99,7 +99,10 @@ class GroupListeningSessionController
       },
       canSendType: _canSendMutationType,
       expectedQueueVersion: (type, {playbackAnchor}) =>
-          _expectedQueueVersionForMutation(type, playbackAnchor: playbackAnchor),
+          _expectedQueueVersionForMutation(
+            type,
+            playbackAnchor: playbackAnchor,
+          ),
       expectedPlaybackVersion: (type, {playbackAnchor}) =>
           _expectedPlaybackVersionForMutation(
             type,
@@ -247,39 +250,36 @@ class GroupListeningSessionController
     GroupListeningRoomOptions roomOptions = const GroupListeningRoomOptions(),
     GroupListeningRoomSeed? roomSeed,
     bool connectAfterCreate = true,
-  }) =>
-      _roomOps.createRoom(
-        client: client,
-        roomOptions: roomOptions,
-        roomSeed: roomSeed,
-        connectAfterCreate: connectAfterCreate,
-      );
+  }) => _roomOps.createRoom(
+    client: client,
+    roomOptions: roomOptions,
+    roomSeed: roomSeed,
+    connectAfterCreate: connectAfterCreate,
+  );
 
   Future<GroupListeningSessionState> joinRoom({
     required String inviteCode,
     required GroupListeningClientDescriptor client,
     String? pinCode,
     bool connectAfterJoin = true,
-  }) =>
-      _roomOps.joinRoom(
-        inviteCode: inviteCode,
-        client: client,
-        pinCode: pinCode,
-        connectAfterJoin: connectAfterJoin,
-      );
+  }) => _roomOps.joinRoom(
+    inviteCode: inviteCode,
+    client: client,
+    pinCode: pinCode,
+    connectAfterJoin: connectAfterJoin,
+  );
 
   Future<GroupListeningSessionState> joinAvailableRoom({
     required String roomId,
     required GroupListeningClientDescriptor client,
     String? pinCode,
     bool connectAfterJoin = true,
-  }) =>
-      _roomOps.joinAvailableRoom(
-        roomId: roomId,
-        client: client,
-        pinCode: pinCode,
-        connectAfterJoin: connectAfterJoin,
-      );
+  }) => _roomOps.joinAvailableRoom(
+    roomId: roomId,
+    client: client,
+    pinCode: pinCode,
+    connectAfterJoin: connectAfterJoin,
+  );
 
   Future<GroupListeningSessionState> connect() => _transport.connect();
 
@@ -338,32 +338,27 @@ class GroupListeningSessionController
 
   Future<GroupListeningSessionState> disconnect({
     bool preserveSession = true,
-  }) =>
-      _roomOps.disconnect(preserveSession: preserveSession);
+  }) => _roomOps.disconnect(preserveSession: preserveSession);
 
   Future<GroupListeningSessionState> leaveRoom({
     String source = 'unknown',
-  }) =>
-      _roomOps.leaveRoom(source: source);
+  }) => _roomOps.leaveRoom(source: source);
 
   Future<GroupListeningSessionState> closeRoom({
     String source = 'unknown',
-  }) =>
-      _roomOps.closeRoom(source: source);
+  }) => _roomOps.closeRoom(source: source);
 
   Future<GroupListeningSessionState> rotateInvite({
     String source = 'unknown',
-  }) =>
-      _roomOps.rotateInvite(source: source);
+  }) => _roomOps.rotateInvite(source: source);
 
   Future<String?> transferHost({
     required String targetMemberId,
     String source = 'unknown',
-  }) =>
-      _roomOps.transferHost(
-        targetMemberId: targetMemberId,
-        source: source,
-      );
+  }) => _roomOps.transferHost(
+    targetMemberId: targetMemberId,
+    source: source,
+  );
 
   Future<GroupListeningSessionState> reconnect() => _roomOps.reconnect();
 
@@ -453,13 +448,13 @@ class GroupListeningSessionController
   GroupListeningSessionState applySnapshot(GroupListeningRoomState snapshot) =>
       _stateApplier.applySnapshot(snapshot);
 
-  GroupListeningSessionState applyRealtimeEvent(GroupListeningRoomEvent event) =>
-      _stateApplier.applyRealtimeEvent(event);
+  GroupListeningSessionState applyRealtimeEvent(
+    GroupListeningRoomEvent event,
+  ) => _stateApplier.applyRealtimeEvent(event);
 
   GroupListeningSessionState markSnapshotRequired([
     GroupListeningErrorState? failure,
-  ]) =>
-      _stateApplier.markSnapshotRequired(failure);
+  ]) => _stateApplier.markSnapshotRequired(failure);
 
   Future<void> tryRestoreStoredSession() => reconnect();
 

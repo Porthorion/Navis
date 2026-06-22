@@ -76,7 +76,10 @@ class GroupListeningSyncCoordinator {
     required BridgePlaybackState latestRemoteState,
     required Duration correctionTolerance,
     required bool recentUserIntent,
-    required bool Function(BridgePlaybackState local, BridgePlaybackState remote)
+    required bool Function(
+      BridgePlaybackState local,
+      BridgePlaybackState remote,
+    )
     isTransientLocalPlaybackState,
     required bool Function(
       BridgePlaybackState left,
@@ -133,7 +136,10 @@ class GroupListeningSyncCoordinator {
   bool _localPlayerReachedRemoteState(
     BridgePlaybackState localState,
     BridgePlaybackState remoteState, {
-    required bool Function(BridgePlaybackState local, BridgePlaybackState remote)
+    required bool Function(
+      BridgePlaybackState local,
+      BridgePlaybackState remote,
+    )
     isTransientLocalPlaybackState,
   }) {
     return listEquals(localState.queueSongIds, remoteState.queueSongIds) &&

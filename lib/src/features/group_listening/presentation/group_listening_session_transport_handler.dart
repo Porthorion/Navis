@@ -87,12 +87,14 @@ class GroupListeningSessionTransportHandler {
     GroupListeningErrorState failure,
   )
   finishInvalidatedSessionCleanup;
-  final bool Function(GroupListeningErrorCode code) shouldCollapseToLocalCleanup;
+  final bool Function(GroupListeningErrorCode code)
+  shouldCollapseToLocalCleanup;
   final bool Function(GroupListeningErrorCode code) isFatalSessionFailure;
   final bool Function(GroupListeningErrorState failure)
   shouldAutoReconnectAfterFailure;
   final Future<GroupListeningSessionState> Function() reconnect;
-  final void Function(GroupListeningMutationAckMessage message) handleMutationAck;
+  final void Function(GroupListeningMutationAckMessage message)
+  handleMutationAck;
   final void Function(GroupListeningMutationRejectedMessage message)
   handleMutationNack;
   final void Function() abortMutationOutboxTransport;
@@ -439,21 +441,23 @@ class GroupListeningSessionTransportHandler {
     if (stored == null) {
       return;
     }
-    await ref.read(groupListeningSessionCredentialStoreProvider).save(
-      GroupListeningStoredSession(
-        roomId: runtime.roomId,
-        memberId: runtime.memberId,
-        role: runtime.role,
-        authVersion: runtime.authVersion,
-        voyageBaseUrl: runtime.voyageBaseUrl,
-        sourceServerFingerprint: runtime.sourceServerFingerprint,
-        rejoinToken: runtime.rejoinToken,
-        client: stored.client,
-        lastAppliedRoomVersion: state.lastAppliedRoomVersion,
-        lastAppliedEventId: state.lastAppliedEventId,
-        protocolVersion: runtime.protocolVersion,
-      ),
-    );
+    await ref
+        .read(groupListeningSessionCredentialStoreProvider)
+        .save(
+          GroupListeningStoredSession(
+            roomId: runtime.roomId,
+            memberId: runtime.memberId,
+            role: runtime.role,
+            authVersion: runtime.authVersion,
+            voyageBaseUrl: runtime.voyageBaseUrl,
+            sourceServerFingerprint: runtime.sourceServerFingerprint,
+            rejoinToken: runtime.rejoinToken,
+            client: stored.client,
+            lastAppliedRoomVersion: state.lastAppliedRoomVersion,
+            lastAppliedEventId: state.lastAppliedEventId,
+            protocolVersion: runtime.protocolVersion,
+          ),
+        );
   }
 
   void markTransportReady({

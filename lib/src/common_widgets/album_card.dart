@@ -12,8 +12,7 @@ enum AlbumCardSize {
   compact(150),
 
   /// Larger cards used in the library grid – sized to fill available width.
-  library(double.infinity)
-  ;
+  library(double.infinity);
 
   const AlbumCardSize(this.extent);
   final double extent;

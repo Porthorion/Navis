@@ -129,9 +129,10 @@ class GroupListeningSyncPolicy {
     return switch (intent) {
       UserPlaybackIntent.queueAdd ||
       UserPlaybackIntent.queueRemove ||
-      UserPlaybackIntent.queueReplace => queueChanged || trackChanged
-          ? GroupListeningPlaybackAnchorReason.trackChange
-          : null,
+      UserPlaybackIntent.queueReplace =>
+        queueChanged || trackChanged
+            ? GroupListeningPlaybackAnchorReason.trackChange
+            : null,
       UserPlaybackIntent.play => GroupListeningPlaybackAnchorReason.play,
       UserPlaybackIntent.pause => GroupListeningPlaybackAnchorReason.pause,
       UserPlaybackIntent.seek =>

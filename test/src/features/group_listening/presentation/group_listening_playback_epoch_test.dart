@@ -42,17 +42,29 @@ void main() {
     }
 
     test('catch-up active when local epoch lags server', () {
-      final session = buildSession(localEpoch: 1, serverEpoch: 3, aligned: true);
+      final session = buildSession(
+        localEpoch: 1,
+        serverEpoch: 3,
+        aligned: true,
+      );
       expect(session.isCatchUpActive, isTrue);
     });
 
     test('catch-up active when not position aligned', () {
-      final session = buildSession(localEpoch: 3, serverEpoch: 3, aligned: false);
+      final session = buildSession(
+        localEpoch: 3,
+        serverEpoch: 3,
+        aligned: false,
+      );
       expect(session.isCatchUpActive, isTrue);
     });
 
     test('synced when epoch matches and aligned', () {
-      final session = buildSession(localEpoch: 3, serverEpoch: 3, aligned: true);
+      final session = buildSession(
+        localEpoch: 3,
+        serverEpoch: 3,
+        aligned: true,
+      );
       expect(session.isCatchUpActive, isFalse);
     });
   });

@@ -10,8 +10,7 @@ import 'package:navis/src/utils/app_logger.dart';
 enum ScrobbleProvider {
   subsonic('subsonic'),
   lastFm('lastfm'),
-  listenBrainz('listenbrainz')
-  ;
+  listenBrainz('listenbrainz');
 
   const ScrobbleProvider(this.id);
 

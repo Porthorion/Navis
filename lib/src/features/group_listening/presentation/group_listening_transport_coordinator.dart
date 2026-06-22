@@ -26,10 +26,10 @@ class GroupListeningTransportCoordinator {
     Duration reconnectMaxDelay = const Duration(seconds: 60),
     int reconnectMaxAttempts = 8,
     Duration tokenRefreshWindow = const Duration(minutes: 1),
-  })  : _reconnectInitialDelay = reconnectInitialDelay,
-        _reconnectMaxDelay = reconnectMaxDelay,
-        _reconnectMaxAttempts = reconnectMaxAttempts,
-        _tokenRefreshWindow = tokenRefreshWindow;
+  }) : _reconnectInitialDelay = reconnectInitialDelay,
+       _reconnectMaxDelay = reconnectMaxDelay,
+       _reconnectMaxAttempts = reconnectMaxAttempts,
+       _tokenRefreshWindow = tokenRefreshWindow;
 
   final Duration _reconnectInitialDelay;
   final Duration _reconnectMaxDelay;
@@ -79,7 +79,10 @@ class GroupListeningTransportCoordinator {
     heartbeatTimer = Timer(interval, onHeartbeat);
   }
 
-  bool shouldRefreshAccessToken(DateTime accessTokenExpiresAt, {bool force = false}) {
+  bool shouldRefreshAccessToken(
+    DateTime accessTokenExpiresAt, {
+    bool force = false,
+  }) {
     if (force) {
       return true;
     }

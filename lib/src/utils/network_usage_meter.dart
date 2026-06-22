@@ -16,8 +16,7 @@ enum NetworkUsageCategory {
   scrobble('scrobble'),
   recommendations('recommendations'),
   updates('updates'),
-  otherApi('other_api')
-  ;
+  otherApi('other_api');
 
   const NetworkUsageCategory(this.key);
 

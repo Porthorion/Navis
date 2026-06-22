@@ -32,8 +32,7 @@ enum SmartQueueProfile {
   energyFlow(
     icon: Icons.electric_bolt_outlined,
     color: Color(0xFFFF6D00),
-  )
-  ;
+  );
 
   const SmartQueueProfile({required this.icon, required this.color});
 

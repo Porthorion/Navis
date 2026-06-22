@@ -23,7 +23,8 @@ bool isPrefixOf(List<String> prefix, List<String> full) {
 ({
   GroupListeningMutationType type,
   String queueEntryId,
-})? granularQueueMutation({
+})?
+granularQueueMutation({
   required GroupListeningRoomState room,
   required GroupListeningQueueState queueState,
   required BridgePlaybackState localState,
@@ -34,7 +35,8 @@ bool isPrefixOf(List<String> prefix, List<String> full) {
       isPrefixOf(remoteState.queueSongIds, localState.queueSongIds)) {
     return (
       type: GroupListeningMutationType.queueAdd,
-      queueEntryId: queueState.entries[remoteState.queueSongIds.length].queueEntryId,
+      queueEntryId:
+          queueState.entries[remoteState.queueSongIds.length].queueEntryId,
     );
   }
   if (localState.queueSongIds.length + 1 == remoteState.queueSongIds.length) {

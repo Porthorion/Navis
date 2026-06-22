@@ -96,7 +96,8 @@ class GroupListeningMutationOutbox {
        _readClientConnectionId = readClientConnectionId,
        _isConnected = isConnected,
        _readLastAppliedRoomVersion = readLastAppliedRoomVersion,
-       _pendingPolicy = pendingPolicy ?? const GroupListeningPendingMutationPolicy(),
+       _pendingPolicy =
+           pendingPolicy ?? const GroupListeningPendingMutationPolicy(),
        _onSendError = onSendError;
 
   final GroupListeningMutationSender _send;
@@ -167,7 +168,8 @@ class GroupListeningMutationOutbox {
     switch (mutation.type) {
       case GroupListeningMutationType.playbackAnchor:
         _pending.removeWhere(
-          (pending) => pending.type == GroupListeningMutationType.playbackAnchor,
+          (pending) =>
+              pending.type == GroupListeningMutationType.playbackAnchor,
         );
       case GroupListeningMutationType.queueReplace:
         _pending.removeWhere(

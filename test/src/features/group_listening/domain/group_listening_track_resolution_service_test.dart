@@ -7,20 +7,23 @@ import 'package:navis/src/features/group_listening/domain/group_listening_track_
 
 void main() {
   group('GroupListeningTrackResolutionService', () {
-    test('returns library id directly for server-addressable entries', () async {
-      final service = GroupListeningTrackResolutionService(api: null);
-      final result = await service.resolveEntry(
-        entry: GroupListeningQueueEntry(
-          queueEntryId: 'q1',
-          songId: 'song-123',
-          addedByMemberId: 'member',
-          addedAt: DateTime.utc(2026),
-          playability: GroupListeningPlayability.serverAddressable,
-        ),
-      );
-      expect(result, isA<GroupListeningTrackResolved>());
-      expect((result as GroupListeningTrackResolved).songId, 'song-123');
-    });
+    test(
+      'returns library id directly for server-addressable entries',
+      () async {
+        final service = GroupListeningTrackResolutionService(api: null);
+        final result = await service.resolveEntry(
+          entry: GroupListeningQueueEntry(
+            queueEntryId: 'q1',
+            songId: 'song-123',
+            addedByMemberId: 'member',
+            addedAt: DateTime.utc(2026),
+            playability: GroupListeningPlayability.serverAddressable,
+          ),
+        );
+        expect(result, isA<GroupListeningTrackResolved>());
+        expect((result as GroupListeningTrackResolved).songId, 'song-123');
+      },
+    );
 
     test('never returns remote fallback ids for unresolved entries', () async {
       final service = GroupListeningTrackResolutionService(api: null);

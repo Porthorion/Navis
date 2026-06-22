@@ -59,7 +59,8 @@ class GroupListeningPlaybackFollower {
       final queueController = ref.read(queueProvider.notifier);
       final beforeApply = currentLocalState();
       final remoteRoom = ref.read(groupListeningSessionControllerProvider).room;
-      final entries = remoteRoom?.queue.entries ?? const <GroupListeningQueueEntry>[];
+      final entries =
+          remoteRoom?.queue.entries ?? const <GroupListeningQueueEntry>[];
       await _prefetchUpcoming(entries, remoteState.currentIndex);
       final resolvedRemoteState = await _resolveRemoteState(
         remoteState,
@@ -126,7 +127,9 @@ class GroupListeningPlaybackFollower {
           trackChanged &&
           resolvedRemoteState.currentIndex != null) {
         if (resolvedRemoteState.playing) {
-          await queueController.playFromIndex(resolvedRemoteState.currentIndex!);
+          await queueController.playFromIndex(
+            resolvedRemoteState.currentIndex!,
+          );
         } else {
           await queueController.replace(
             resolvedRemoteState.queueSongIds
@@ -260,7 +263,8 @@ class GroupListeningPlaybackFollower {
       return remoteState;
     }
     final currentIndex = remoteState.currentIndex;
-    final currentSongId = currentIndex != null &&
+    final currentSongId =
+        currentIndex != null &&
             currentIndex >= 0 &&
             currentIndex < resolvedIds.length &&
             resolvedIds[currentIndex].isNotEmpty
@@ -309,9 +313,11 @@ class GroupListeningPlaybackFollower {
           );
       return true;
     }
-    await ref.read(queueProvider.notifier).skipUnresolvableGroupListening(
-      queueEntryId: entry.queueEntryId,
-    );
+    await ref
+        .read(queueProvider.notifier)
+        .skipUnresolvableGroupListening(
+          queueEntryId: entry.queueEntryId,
+        );
     return true;
   }
 

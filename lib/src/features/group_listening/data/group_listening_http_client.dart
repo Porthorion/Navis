@@ -72,8 +72,7 @@ class VoyageGroupListeningHttpClient implements GroupListeningHttpClient {
     final discovery = GroupListeningCapabilityDiscovery(
       service: stringValue(data['service']),
       apiVersion: stringValue(data['api_version']),
-      serverVersion:
-          nullableStringValue(data['server_version']) ?? '0.0.0-dev',
+      serverVersion: nullableStringValue(data['server_version']) ?? '0.0.0-dev',
       buildCommit: nullableStringValue(data['build_commit']) ?? 'unknown',
       buildTime: nullableStringValue(data['build_time']) ?? 'unknown',
       supportedProtocolVersions: stringListValue(
@@ -393,6 +392,7 @@ class VoyageGroupListeningHttpClient implements GroupListeningHttpClient {
     );
   }
 }
+
 abstract class GroupListeningHttpClient {
   Future<GroupListeningCapabilityDiscovery> discover(
     GroupListeningClientConfiguration configuration,
@@ -441,6 +441,7 @@ abstract class GroupListeningHttpClient {
     int? expectedRoomVersion,
   });
 }
+
 class UnsupportedGroupListeningHttpClient implements GroupListeningHttpClient {
   const UnsupportedGroupListeningHttpClient();
 

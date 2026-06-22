@@ -184,8 +184,7 @@ class _IOWebSocketGroupListeningRealtimeConnection
               queueVersion: intValue(payload['queue_version']),
               playbackVersion:
                   nullableIntValue(payload['playback_version']) ?? 0,
-              playbackEpoch:
-                  nullableIntValue(payload['playback_epoch']) ?? 0,
+              playbackEpoch: nullableIntValue(payload['playback_epoch']) ?? 0,
               presenceVersion: intValue(payload['presence_version']),
               authVersion: intValue(payload['auth_version']),
               heartbeatInterval: Duration(
@@ -390,11 +389,13 @@ class _IOWebSocketGroupListeningRealtimeConnection
     );
   }
 }
+
 abstract class GroupListeningRealtimeTransportClient {
   Future<GroupListeningRealtimeConnection> connect(
     GroupListeningTransportConnectRequest request,
   );
 }
+
 class UnsupportedGroupListeningRealtimeTransportClient
     implements GroupListeningRealtimeTransportClient {
   const UnsupportedGroupListeningRealtimeTransportClient();

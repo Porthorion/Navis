@@ -10,8 +10,8 @@ class GroupListeningSnapshotRecovery {
   GroupListeningSnapshotRecovery({
     required GroupListeningSnapshotRefresher refreshSnapshot,
     Duration retryDelay = const Duration(seconds: 5),
-  })  : _refreshSnapshot = refreshSnapshot,
-        _retryDelay = retryDelay;
+  }) : _refreshSnapshot = refreshSnapshot,
+       _retryDelay = retryDelay;
 
   final GroupListeningSnapshotRefresher _refreshSnapshot;
   final Duration _retryDelay;

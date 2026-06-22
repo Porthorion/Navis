@@ -82,7 +82,9 @@ class _ListenBrainzWeeklyDetailScreenState
     final playlistsAsync = ref.watch(listenBrainzDiscoverStreamProvider);
     final playlists = playlistsAsync.asData?.value;
     final latest = playlists
-        ?.where((playlist) => playlist.playlist.sourcePatch == widget.sourcePatch)
+        ?.where(
+          (playlist) => playlist.playlist.sourcePatch == widget.sourcePatch,
+        )
         .firstOrNull;
     if (latest != null) {
       _cachedPlaylist = latest;
@@ -106,9 +108,7 @@ class _ListenBrainzWeeklyDetailScreenState
         title: 'Could not load weekly playlist',
         message: playlistsAsync.error.toString(),
         onRetry: () {
-          ref
-              .read(listenBrainzDiscoverRefreshEpochProvider.notifier)
-              .refresh();
+          ref.read(listenBrainzDiscoverRefreshEpochProvider.notifier).refresh();
         },
       );
     } else if (playlistsAsync.hasValue) {
@@ -1416,8 +1416,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               final hasListenBrainzItems = albums.any(
                 (item) => item is HomeRandomShowcaseListenBrainz,
               );
-              final freezeListUpdates =
-                  syncRunning && !hasListenBrainzItems;
+              final freezeListUpdates = syncRunning && !hasListenBrainzItems;
               return desktopMode
                   ? _DesktopRandomAlbumsPager(
                       albums: albums,

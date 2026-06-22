@@ -122,8 +122,7 @@ class ListenTogetherRoomPanelState
       );
     }
     final currentIndex = playback.currentIndex ?? 0;
-    final currentEntry =
-        currentIndex >= 0 && currentIndex < entries.length
+    final currentEntry = currentIndex >= 0 && currentIndex < entries.length
         ? entries[currentIndex]
         : null;
     return GroupListeningRoomSeed(
@@ -319,7 +318,10 @@ class ListenTogetherRoomPanelState
             failure?.code != GroupListeningErrorCode.pinInvalid)) {
       return;
     }
-    final retryPin = await showListenTogetherRoomPinDialog(context, failure: failure);
+    final retryPin = await showListenTogetherRoomPinDialog(
+      context,
+      failure: failure,
+    );
     if (!mounted || retryPin == null) {
       return;
     }
@@ -698,7 +700,10 @@ class ListenTogetherRoomPanelState
               ),
               const SizedBox(height: 16),
               ListenTogetherMetadataRow(label: 'Room', value: room.roomId),
-              ListenTogetherMetadataRow(label: 'Mode', value: _roomModeLabel(room.roomMode)),
+              ListenTogetherMetadataRow(
+                label: 'Mode',
+                value: _roomModeLabel(room.roomMode),
+              ),
               ListenTogetherMetadataRow(
                 label: 'Connected users',
                 value: '${room.activeMemberCount}/${room.members.length}',

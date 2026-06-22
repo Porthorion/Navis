@@ -42,11 +42,23 @@ void main() {
         loadingSongId: null,
       );
       coordinator.onApplyGateChanged(true, remote);
-      expect(coordinator.canPublishOutbound(catchUpActive: false, sessionReady: true), isFalse);
+      expect(
+        coordinator.canPublishOutbound(
+          catchUpActive: false,
+          sessionReady: true,
+        ),
+        isFalse,
+      );
       coordinator.suppressOutboundUntil = DateTime.now().subtract(
         const Duration(seconds: 2),
       );
-      expect(coordinator.canPublishOutbound(catchUpActive: false, sessionReady: true), isTrue);
+      expect(
+        coordinator.canPublishOutbound(
+          catchUpActive: false,
+          sessionReady: true,
+        ),
+        isTrue,
+      );
     });
   });
 }

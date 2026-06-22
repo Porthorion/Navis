@@ -96,7 +96,9 @@ class GroupListeningPlaybackSyncBridgeInbound {
     setLastObservedPlaybackApplyId(nextPlaybackApplyId);
 
     if (!nextRoom.self.canPlayAudio) {
-      coordinator.lastPublishedState = stateMapper.playbackStateFromSession(next);
+      coordinator.lastPublishedState = stateMapper.playbackStateFromSession(
+        next,
+      );
       coordinator.lastPublishedAt = DateTime.now();
       return;
     }
@@ -124,7 +126,9 @@ class GroupListeningPlaybackSyncBridgeInbound {
         playbackApplyChanged && (next.configuration?.autoFollowHost ?? true);
     final forcePosition = playbackApplyChanged;
     if (previous?.snapshotRequired == true && !next.snapshotRequired) {
-      unawaited(applyInbound(remoteState, followPlayback: followPlayback, force: true));
+      unawaited(
+        applyInbound(remoteState, followPlayback: followPlayback, force: true),
+      );
       return;
     }
     unawaited(
@@ -162,7 +166,10 @@ class GroupListeningPlaybackSyncBridgeInbound {
       return;
     }
     if (!coordinator.canApplyNow) {
-      coordinator.queueInboundApply(remoteState, followPlayback: followPlayback);
+      coordinator.queueInboundApply(
+        remoteState,
+        followPlayback: followPlayback,
+      );
       return;
     }
     coordinator.isApplyingRemoteState = true;
