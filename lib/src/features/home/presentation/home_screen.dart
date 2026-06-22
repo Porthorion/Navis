@@ -1412,21 +1412,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               )),
             ),
             isEmpty: (items) => items.isEmpty,
-            builder: (context, albums) => desktopMode
-                ? _DesktopRandomAlbumsPager(
-                    albums: albums,
-                    heroContext: 'home_random',
-                    density: sectionDensity,
-                    freezeListUpdates: syncRunning,
-                  )
-                : _RandomAlbumsHeroCarousel(
-                    albums: albums,
-                    heroContext: 'home_random',
-                    density: sectionDensity,
-                    freezeListUpdates: syncRunning,
-                    desktopMode: desktopMode,
-                    adaptiveLayoutClass: adaptiveLayoutClass,
-                  ),
+            builder: (context, albums) {
+              final hasListenBrainzItems = albums.any(
+                (item) => item is HomeRandomShowcaseListenBrainz,
+              );
+              final freezeListUpdates =
+                  syncRunning && !hasListenBrainzItems;
+              return desktopMode
+                  ? _DesktopRandomAlbumsPager(
+                      albums: albums,
+                      heroContext: 'home_random',
+                      density: sectionDensity,
+                      freezeListUpdates: freezeListUpdates,
+                    )
+                  : _RandomAlbumsHeroCarousel(
+                      albums: albums,
+                      heroContext: 'home_random',
+                      density: sectionDensity,
+                      freezeListUpdates: freezeListUpdates,
+                      desktopMode: desktopMode,
+                      adaptiveLayoutClass: adaptiveLayoutClass,
+                    );
+            },
             emptyTitle: l10n.homeRandomEmptyTitle,
             emptySubtitle: l10n.homeRandomEmptySubtitle,
             onRetry: () {
@@ -1716,6 +1723,37 @@ class _HomeSyncLogo extends StatelessWidget {
 enum _HomeSectionDensity { comfortable, compact }
 
 enum _HomeSectionTemplate { carousel, compactList }
+
+bool _homeRandomShowcaseItemsVisuallyChanged(
+  List<HomeRandomShowcaseItem> previous,
+  List<HomeRandomShowcaseItem> next,
+) {
+  if (identical(previous, next)) {
+    return false;
+  }
+  if (previous.length != next.length) {
+    return true;
+  }
+  for (var index = 0; index < previous.length; index++) {
+    final prior = previous[index];
+    final incoming = next[index];
+    if (prior.stableId != incoming.stableId) {
+      return true;
+    }
+    if (prior is HomeRandomShowcaseListenBrainz &&
+        incoming is HomeRandomShowcaseListenBrainz) {
+      if (prior.isLoading != incoming.isLoading) {
+        return true;
+      }
+      final priorCount = prior.playlist?.recommendations.length ?? 0;
+      final incomingCount = incoming.playlist?.recommendations.length ?? 0;
+      if (priorCount != incomingCount) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared section wrapper
@@ -2284,22 +2322,34 @@ class _DesktopRandomAlbumsPagerState
       return;
     }
     if (!listEquals(oldIds, newIds)) {
-      _displayedAlbums = incomingAlbums;
       final stableId = _currentStableId;
+      setState(() {
+        _displayedAlbums = incomingAlbums;
+        if (stableId != null && _displayedAlbums.isNotEmpty) {
+          final nextIndex = _displayedAlbums.indexWhere(
+            (album) => album.stableId == stableId,
+          );
+          if (nextIndex >= 0) {
+            _currentPage = nextIndex;
+            _currentStableId = stableId;
+          }
+        }
+      });
       if (stableId != null && _displayedAlbums.isNotEmpty) {
         final nextIndex = _displayedAlbums.indexWhere(
           (album) => album.stableId == stableId,
         );
-        if (nextIndex >= 0) {
-          _currentPage = nextIndex;
-          if (_pageController.hasClients) {
-            _pageController.jumpToPage(nextIndex);
-          }
-          return;
+        if (nextIndex >= 0 && _pageController.hasClients) {
+          _pageController.jumpToPage(nextIndex);
         }
       }
-    } else {
-      _displayedAlbums = incomingAlbums;
+    } else if (_homeRandomShowcaseItemsVisuallyChanged(
+      _displayedAlbums,
+      incomingAlbums,
+    )) {
+      setState(() {
+        _displayedAlbums = incomingAlbums;
+      });
     }
     if (_displayedAlbums.isEmpty) {
       if (_currentPage != 0) {
@@ -3377,7 +3427,14 @@ class _RandomAlbumsHeroCarouselState
     final newIds = incomingAlbums.map((album) => album.stableId).toList();
     final contentChanged = !listEquals(oldIds, newIds);
     if (!contentChanged) {
-      _displayedAlbums = incomingAlbums;
+      if (_homeRandomShowcaseItemsVisuallyChanged(
+        _displayedAlbums,
+        incomingAlbums,
+      )) {
+        setState(() {
+          _displayedAlbums = incomingAlbums;
+        });
+      }
       return;
     }
 

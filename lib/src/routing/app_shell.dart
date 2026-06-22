@@ -43,6 +43,7 @@ import 'package:navis/src/features/player/presentation/listenbrainz_feedback_dis
 import 'package:navis/src/features/player/presentation/smart_queue_sheet.dart';
 import 'package:navis/src/features/group_listening/presentation/group_listening_active_session_indicator.dart';
 import 'package:navis/src/features/group_listening/domain/group_listening_session_models.dart';
+import 'package:navis/src/features/group_listening/presentation/group_listening_providers.dart';
 import 'package:navis/src/features/group_listening/presentation/group_listening_session_controller.dart';
 import 'package:navis/src/features/library/presentation/star_sync_dispatch_provider.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
@@ -98,6 +99,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     debugLabel: 'desktopQuickSearch',
   );
   bool _didCheckBatteryOptimizationPrompt = false;
+  bool _resumeRoomPromptShown = false;
   bool Function()? _nowPlayingBackInterceptor;
   bool _compactWideInternalOverlayActive = false;
   VoidCallback? _compactWideQueueRequestHandler;
@@ -204,6 +206,46 @@ class _AppShellState extends ConsumerState<AppShell> {
     if (executor == null) return false;
     unawaited(executor(action));
     return true;
+  }
+
+  Future<void> _maybeShowResumeRoomPrompt() async {
+    if (!mounted) {
+      return;
+    }
+    final stored = await ref
+        .read(groupListeningSessionCredentialStoreProvider)
+        .read();
+    if (!mounted || stored == null) {
+      return;
+    }
+    final shouldResume = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Resume Listen Together?'),
+          content: const Text(
+            'A previous Listen Together room is available on this server. '
+            'Resume where you left off?',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Not now'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Resume'),
+            ),
+          ],
+        );
+      },
+    );
+    if (!mounted || shouldResume != true) {
+      return;
+    }
+    await ref
+        .read(groupListeningSessionControllerProvider.notifier)
+        .restoreStoredSessionIfAvailable();
   }
 
   void _scheduleQueueCoverArtPrefetch() {
@@ -708,6 +750,19 @@ class _AppShellState extends ConsumerState<AppShell> {
         } else if (prevHad && !nextHad) {
           _appNoticeController.show(
             message: 'Left the Listen Together session',
+          );
+        }
+        if (!_resumeRoomPromptShown &&
+            !next.hasActiveRoom &&
+            next.hasStoredSession &&
+            next.availability == GroupListeningAvailability.ready) {
+          _resumeRoomPromptShown = true;
+          unawaited(_maybeShowResumeRoomPrompt());
+        }
+        if (next.syncHealth == GroupListeningSyncHealth.catchingUp &&
+            prev?.syncHealth != GroupListeningSyncHealth.catchingUp) {
+          _appNoticeController.show(
+            message: 'Listen Together is catching up…',
           );
         }
       },

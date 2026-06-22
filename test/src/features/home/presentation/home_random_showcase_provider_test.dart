@@ -22,6 +22,14 @@ import 'package:riverpod/src/framework.dart' show Override;
 
 import '../../../../helpers/test_database.dart';
 
+Future<List<HomeRandomShowcaseItem>> readHomeRandomShowcase(
+  ProviderContainer container,
+  ({bool downloadedOnly, bool likedOnly}) filters,
+) async {
+  await container.read(homeRandomAlbumShowcaseProvider(filters).future);
+  return container.read(homeRandomShowcaseProvider(filters)).requireValue;
+}
+
 Future<void> _insertAlbum(
   NavisDatabase db, {
   required String id,
@@ -1287,11 +1295,9 @@ void main() {
       await database.close();
     });
 
-    final result = await container.read(
-      homeRandomShowcaseProvider((
-        downloadedOnly: false,
-        likedOnly: false,
-      )).future,
+    final result = await readHomeRandomShowcase(
+      container,
+      (downloadedOnly: false, likedOnly: false),
     );
 
     expect(result, hasLength(1));
@@ -1405,12 +1411,10 @@ void main() {
       });
 
       await container.read(listenBrainzDiscoverProvider.future);
-      final result = await container.read(
-        homeRandomShowcaseProvider((
-          downloadedOnly: false,
-          likedOnly: false,
-        )).future,
-      );
+      final result = await readHomeRandomShowcase(
+      container,
+      (downloadedOnly: false, likedOnly: false),
+    );
 
       expect(result, hasLength(3));
       expect(fakeListenBrainz.createdForCalls, 0);
@@ -1546,12 +1550,10 @@ void main() {
         await database.close();
       });
 
-      final result = await container.read(
-        homeRandomShowcaseProvider((
-          downloadedOnly: false,
-          likedOnly: false,
-        )).future,
-      );
+      final result = await readHomeRandomShowcase(
+      container,
+      (downloadedOnly: false, likedOnly: false),
+    );
 
       expect(result, hasLength(3));
       expect(result[0].stableId, 'listenbrainz:weekly-exploration');
@@ -1629,12 +1631,10 @@ void main() {
       });
 
       await container.read(listenBrainzDiscoverProvider.future);
-      final result = await container.read(
-        homeRandomShowcaseProvider((
-          downloadedOnly: false,
-          likedOnly: false,
-        )).future,
-      );
+      final result = await readHomeRandomShowcase(
+      container,
+      (downloadedOnly: false, likedOnly: false),
+    );
 
       expect(result, hasLength(2));
       expect(result.first.listenBrainz.playlist!.playlist.identifier, 'jams');
@@ -1692,12 +1692,10 @@ void main() {
       });
 
       await container.read(listenBrainzDiscoverProvider.future);
-      final result = await container.read(
-        homeRandomShowcaseProvider((
-          downloadedOnly: false,
-          likedOnly: false,
-        )).future,
-      );
+      final result = await readHomeRandomShowcase(
+      container,
+      (downloadedOnly: false, likedOnly: false),
+    );
 
       expect(result, hasLength(1));
       expect(result.first.album.id, 'srv-1');
@@ -1752,11 +1750,9 @@ void main() {
     });
 
     await container.read(listenBrainzDiscoverProvider.future);
-    final result = await container.read(
-      homeRandomShowcaseProvider((
-        downloadedOnly: false,
-        likedOnly: false,
-      )).future,
+    final result = await readHomeRandomShowcase(
+      container,
+      (downloadedOnly: false, likedOnly: false),
     );
 
     expect(result, hasLength(1));
@@ -1825,12 +1821,10 @@ void main() {
       });
 
       await container.read(listenBrainzDiscoverProvider.future);
-      final result = await container.read(
-        homeRandomShowcaseProvider((
-          downloadedOnly: false,
-          likedOnly: false,
-        )).future,
-      );
+      final result = await readHomeRandomShowcase(
+      container,
+      (downloadedOnly: false, likedOnly: false),
+    );
 
       expect(result, hasLength(1));
       expect(result.first.album.source, HomeRandomShowcaseSource.localFallback);
@@ -1894,12 +1888,10 @@ void main() {
       });
 
       await container.read(listenBrainzDiscoverProvider.future);
-      final result = await container.read(
-        homeRandomShowcaseProvider((
-          downloadedOnly: false,
-          likedOnly: false,
-        )).future,
-      );
+      final result = await readHomeRandomShowcase(
+      container,
+      (downloadedOnly: false, likedOnly: false),
+    );
 
       expect(result, hasLength(1));
       expect(result.first.album.id, 'srv-1');
@@ -1966,11 +1958,9 @@ void main() {
     });
 
     await container.read(listenBrainzDiscoverProvider.future);
-    final result = await container.read(
-      homeRandomShowcaseProvider((
-        downloadedOnly: false,
-        likedOnly: false,
-      )).future,
+    final result = await readHomeRandomShowcase(
+      container,
+      (downloadedOnly: false, likedOnly: false),
     );
 
     expect(result, hasLength(1));
@@ -2023,11 +2013,9 @@ void main() {
     });
 
     await container.read(listenBrainzDiscoverProvider.future);
-    final result = await container.read(
-      homeRandomShowcaseProvider((
-        downloadedOnly: false,
-        likedOnly: false,
-      )).future,
+    final result = await readHomeRandomShowcase(
+      container,
+      (downloadedOnly: false, likedOnly: false),
     );
 
     expect(result, hasLength(1));
@@ -2142,12 +2130,10 @@ void main() {
         await database.close();
       });
 
-      final result = await container.read(
-        homeRandomShowcaseProvider((
-          downloadedOnly: false,
-          likedOnly: false,
-        )).future,
-      );
+      final result = await readHomeRandomShowcase(
+      container,
+      (downloadedOnly: false, likedOnly: false),
+    );
 
       expect(result.length, greaterThanOrEqualTo(6));
       expect(
@@ -2266,9 +2252,7 @@ void main() {
       });
 
       const filters = (downloadedOnly: false, likedOnly: false);
-      final firstResult = await container.read(
-        homeRandomShowcaseProvider(filters).future,
-      );
+      final firstResult = await readHomeRandomShowcase(container, filters);
       final similarCallsAfterDiscovery = fakeApi.totalSimilarSongCalls;
 
       expect(firstResult.length, greaterThanOrEqualTo(6));
@@ -2276,9 +2260,7 @@ void main() {
 
       recommendationCompleter.complete(const <ListenBrainzPlaylist>[]);
       await container.read(listenBrainzDiscoverProvider.future);
-      final secondResult = await container.read(
-        homeRandomShowcaseProvider(filters).future,
-      );
+      final secondResult = await readHomeRandomShowcase(container, filters);
 
       expect(secondResult.length, greaterThanOrEqualTo(6));
       expect(fakeApi.totalSimilarSongCalls, similarCallsAfterDiscovery);
@@ -2356,12 +2338,10 @@ void main() {
         await database.close();
       });
 
-      final result = await container.read(
-        homeRandomShowcaseProvider((
-          downloadedOnly: false,
-          likedOnly: false,
-        )).future,
-      );
+      final result = await readHomeRandomShowcase(
+      container,
+      (downloadedOnly: false, likedOnly: false),
+    );
 
       expect(fakeApi.totalSimilarSongCalls, 3);
       expect(result, hasLength(1));
@@ -2392,11 +2372,9 @@ void main() {
       await database.close();
     });
 
-    final result = await container.read(
-      homeRandomShowcaseProvider((
-        downloadedOnly: false,
-        likedOnly: false,
-      )).future,
+    final result = await readHomeRandomShowcase(
+      container,
+      (downloadedOnly: false, likedOnly: false),
     );
 
     expect(result, hasLength(1));
@@ -2443,11 +2421,9 @@ void main() {
       await database.close();
     });
 
-    final result = await container.read(
-      homeRandomShowcaseProvider((
-        downloadedOnly: false,
-        likedOnly: true,
-      )).future,
+    final result = await readHomeRandomShowcase(
+      container,
+      (downloadedOnly: false, likedOnly: true),
     );
 
     final ids = result.map((album) => album.album.id).toSet();
@@ -2487,11 +2463,9 @@ void main() {
         await database.close();
       });
 
-      final result = await container.read(
-        homeRandomShowcaseProvider((
-          downloadedOnly: true,
-          likedOnly: false,
-        )).future,
+      final result = await readHomeRandomShowcase(
+        container,
+        (downloadedOnly: true, likedOnly: false),
       );
 
       expect(result, hasLength(1));
@@ -2546,11 +2520,9 @@ void main() {
         await database.close();
       });
 
-      final result = await container.read(
-        homeRandomShowcaseProvider((
-          downloadedOnly: true,
-          likedOnly: true,
-        )).future,
+      final result = await readHomeRandomShowcase(
+        container,
+        (downloadedOnly: true, likedOnly: true),
       );
 
       expect(result, hasLength(1));

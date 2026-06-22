@@ -314,7 +314,7 @@ Future<void> _pumpHomeWithSyncState(
             const AsyncData(<Album>[]),
           ),
           homeRandomShowcaseProvider.overrideWith(
-            (ref, filters) async => const <HomeRandomShowcaseItem>[],
+            (ref, filters) => const AsyncData(<HomeRandomShowcaseItem>[]),
           ),
           homeMostPlayedSongsProvider.overrideWithValue(
             const AsyncData(<SongsTableData>[]),
@@ -379,7 +379,7 @@ Future<void> _pumpHomeWithControllerOverride(
             const AsyncData(<Album>[]),
           ),
           homeRandomShowcaseProvider.overrideWith(
-            (ref, filters) async => const <HomeRandomShowcaseItem>[],
+            (ref, filters) => const AsyncData(<HomeRandomShowcaseItem>[]),
           ),
           homeMostPlayedSongsProvider.overrideWithValue(
             const AsyncData(<SongsTableData>[]),
@@ -435,7 +435,7 @@ Future<void> _pumpRandomSectionHome(
       ),
       subsonicApiProvider.overrideWithValue(null),
       homeRandomShowcaseProvider.overrideWith(
-        (ref, filters) async => randomAlbums,
+        (ref, filters) => AsyncData(randomAlbums),
       ),
       homeLikedSongsProvider.overrideWithValue(
         const AsyncData(<SongsTableData>[]),
@@ -533,7 +533,7 @@ Future<void> _pumpHomeWithAppSettings(
             const AsyncData(<AlbumsTableData>[]),
           ),
           homeRandomShowcaseProvider.overrideWith(
-            (ref, filters) async => const <HomeRandomShowcaseItem>[],
+            (ref, filters) => const AsyncData(<HomeRandomShowcaseItem>[]),
           ),
           homeMostPlayedSongsProvider.overrideWithValue(
             const AsyncData(<SongsTableData>[]),
@@ -659,7 +659,7 @@ void main() {
               ]),
             ),
             homeRandomShowcaseProvider.overrideWith(
-              (ref, filters) async => const <HomeRandomShowcaseItem>[
+              (ref, filters) => const AsyncData(<HomeRandomShowcaseItem>[
                 HomeRandomShowcaseAlbum(
                   id: 'album-3',
                   name: 'Random long album title for constrained card layout',
@@ -667,7 +667,7 @@ void main() {
                   coverArtId: 'cover-album-3',
                   source: HomeRandomShowcaseSource.serverRandom,
                 ),
-              ],
+              ]),
             ),
             homeMostPlayedSongsProvider.overrideWithValue(
               const AsyncData(<SongsTableData>[
@@ -767,7 +767,7 @@ void main() {
               const AsyncData(<Album>[]),
             ),
             homeRandomShowcaseProvider.overrideWith(
-              (ref, filters) async => const <HomeRandomShowcaseItem>[],
+              (ref, filters) => const AsyncData(<HomeRandomShowcaseItem>[]),
             ),
             homeMostPlayedSongsProvider.overrideWithValue(
               const AsyncData(<SongsTableData>[]),
@@ -981,7 +981,7 @@ void main() {
                 const AsyncData(<Album>[]),
               ),
               homeRandomShowcaseProvider.overrideWith(
-                (ref, filters) async => const <HomeRandomShowcaseItem>[],
+                (ref, filters) => const AsyncData(<HomeRandomShowcaseItem>[]),
               ),
               homeMostPlayedSongsProvider.overrideWithValue(
                 const AsyncData(<SongsTableData>[]),
@@ -1043,7 +1043,7 @@ void main() {
               _StaticLibrarySyncController.new,
             ),
             homeRandomShowcaseProvider.overrideWith(
-              (ref, filters) async => const <HomeRandomShowcaseItem>[
+              (ref, filters) => const AsyncData(<HomeRandomShowcaseItem>[
                 HomeRandomShowcaseAlbum(
                   id: 'hero-1',
                   name: 'Hero One',
@@ -1058,7 +1058,7 @@ void main() {
                   coverArtId: 'cover-hero-2',
                   source: HomeRandomShowcaseSource.serverRandom,
                 ),
-              ],
+              ]),
             ),
             homeLikedSongsProvider.overrideWithValue(
               const AsyncData(<SongsTableData>[]),
@@ -1356,7 +1356,7 @@ void main() {
                 _StaticLibrarySyncController.new,
               ),
               homeRandomShowcaseProvider.overrideWith(
-                (ref, filters) async => const <HomeRandomShowcaseItem>[
+                (ref, filters) => const AsyncData(<HomeRandomShowcaseItem>[
                   HomeRandomShowcaseAlbum(
                     id: 'hero-1',
                     name: 'Hero One',
@@ -1378,7 +1378,7 @@ void main() {
                     coverArtId: 'cover-hero-3',
                     source: HomeRandomShowcaseSource.serverRandom,
                   ),
-                ],
+                ]),
               ),
               homeLikedSongsProvider.overrideWithValue(
                 const AsyncData(<SongsTableData>[]),
@@ -1679,7 +1679,7 @@ void main() {
       });
 
       expect(
-        find.byKey(const ValueKey<String>('home-random-desktop-page-0')),
+        find.byKey(const ValueKey<String>('album:desk-a')),
         findsOneWidget,
       );
       expect(visibleRows(), findsNWidgets(6));
@@ -1690,7 +1690,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(
-        find.byKey(const ValueKey<String>('home-random-desktop-page-1')),
+        find.byKey(const ValueKey<String>('album:desk-b')),
         findsOneWidget,
       );
       expect(visibleRows(), findsNWidgets(3));
@@ -1699,7 +1699,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(
-        find.byKey(const ValueKey<String>('home-random-desktop-page-0')),
+        find.byKey(const ValueKey<String>('album:desk-a')),
         findsOneWidget,
       );
       expect(visibleRows(), findsNWidgets(6));

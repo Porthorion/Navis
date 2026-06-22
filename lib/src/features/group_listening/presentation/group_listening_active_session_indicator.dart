@@ -32,6 +32,7 @@ class GroupListeningSessionButton extends ConsumerWidget {
     final room = session.room;
     final connectedCount = room?.activeMemberCount ?? 0;
     final roomCount = room?.members.length ?? 0;
+    final syncHealth = session.syncHealth;
 
     final IconData icon;
     final Color? color;
@@ -41,7 +42,14 @@ class GroupListeningSessionButton extends ConsumerWidget {
       icon = Icons.people_alt_outlined;
       color = null;
       tooltip = 'Listen Together';
-    } else if (session.snapshotRequired || !session.connection.isConnected) {
+    } else if (syncHealth == GroupListeningSyncHealth.catchingUp) {
+      icon = Icons.sync_outlined;
+      color = Theme.of(context).colorScheme.tertiary;
+      tooltip = 'Listen Together · Catching up…';
+    } else if (syncHealth == GroupListeningSyncHealth.snapshotRecovery ||
+        syncHealth == GroupListeningSyncHealth.degraded ||
+        session.snapshotRequired ||
+        !session.connection.isConnected) {
       icon = Icons.sync_problem_outlined;
       color = Theme.of(context).colorScheme.error;
       tooltip = 'Listen Together · Needs attention';
@@ -65,7 +73,18 @@ class GroupListeningSessionButton extends ConsumerWidget {
         connectedCount > 99 ? '99+' : '$connectedCount',
         key: const ValueKey('groupListeningSessionBadgeLabel'),
       ),
-      child: Icon(icon, color: color),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: <Widget>[
+          Icon(icon, color: color),
+          if (room != null)
+            Positioned(
+              right: -2,
+              bottom: -2,
+              child: _SyncHealthPill(health: syncHealth),
+            ),
+        ],
+      ),
     );
 
     switch (variant) {
@@ -86,5 +105,39 @@ class GroupListeningSessionButton extends ConsumerWidget {
           onPressed: () => showListenTogetherSheet(context),
         );
     }
+  }
+}
+
+class _SyncHealthPill extends StatelessWidget {
+  const _SyncHealthPill({required this.health});
+
+  final GroupListeningSyncHealth health;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color color;
+    switch (health) {
+      case GroupListeningSyncHealth.synced:
+        color = const Color(0xFF2E7D32);
+      case GroupListeningSyncHealth.catchingUp:
+        color = const Color(0xFFED6C02);
+      case GroupListeningSyncHealth.snapshotRecovery:
+        color = const Color(0xFFED6C02);
+      case GroupListeningSyncHealth.degraded:
+        color = const Color(0xFFD32F2F);
+    }
+    return Container(
+      key: ValueKey('groupListeningSyncHealthPill-${health.name}'),
+      width: 10,
+      height: 10,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: Theme.of(context).colorScheme.surface,
+          width: 1.5,
+        ),
+      ),
+    );
   }
 }

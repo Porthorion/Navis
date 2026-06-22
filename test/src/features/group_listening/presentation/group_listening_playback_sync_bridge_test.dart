@@ -471,6 +471,7 @@ void main() {
         ),
         groupListeningRepositoryProvider.overrideWithValue(repository),
         audioHandlerProvider.overrideWithValue(handler),
+        subsonicApiProvider.overrideWithValue(null),
       ],
     );
     addTearDown(container.dispose);

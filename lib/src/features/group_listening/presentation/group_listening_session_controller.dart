@@ -1,370 +1,22 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
-import 'package:navis/src/features/group_listening/data/group_listening_configuration.dart';
-import 'package:navis/src/features/group_listening/data/group_listening_device_name_service.dart';
 import 'package:navis/src/features/group_listening/data/group_listening_repository.dart';
-import 'package:navis/src/features/group_listening/domain/group_listening_session_models.dart';
 import 'package:navis/src/features/group_listening/domain/group_listening_server_clock_estimator.dart';
-import 'package:navis/src/features/group_listening/presentation/group_listening_settings_provider.dart';
+import 'package:navis/src/features/group_listening/domain/group_listening_session_models.dart';
+import 'package:navis/src/features/group_listening/presentation/group_listening_mutation_outbox.dart';
+import 'package:navis/src/features/group_listening/presentation/group_listening_providers.dart';
+import 'package:navis/src/features/group_listening/presentation/group_listening_session_room_ops.dart';
+import 'package:navis/src/features/group_listening/presentation/group_listening_session_state_applier.dart';
+import 'package:navis/src/features/group_listening/presentation/group_listening_session_transport_handler.dart';
+import 'package:navis/src/features/group_listening/presentation/group_listening_snapshot_recovery.dart';
+import 'package:navis/src/features/group_listening/presentation/group_listening_transport_coordinator.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
-import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:uuid/uuid.dart';
 
-final groupListeningAvailabilityProvider = Provider<GroupListeningAvailability>(
-  (ref) {
-    final settings = ref.watch(groupListeningSettingsProvider);
-    final resolvedVoyageServerUrl = ref.watch(
-      groupListeningResolvedVoyageServerUrlProvider,
-    );
-    final activeServer = ref.watch(serverConfigStateProvider).asData?.value;
-    return resolveGroupListeningAvailability(
-      enabled: settings.enabled,
-      voyageServerUrl: resolvedVoyageServerUrl,
-      activeServer: activeServer,
-    );
-  },
-);
-
-final groupListeningClientConfigurationProvider =
-    Provider<GroupListeningClientConfiguration?>((ref) {
-      final settings = ref.watch(groupListeningSettingsProvider);
-      final deviceLabel = ref
-          .watch(groupListeningDeviceLabelProvider)
-          .asData
-          ?.value;
-      final resolvedVoyageServerUrl = ref.watch(
-        groupListeningResolvedVoyageServerUrlProvider,
-      );
-      final activeServer = ref.watch(serverConfigStateProvider).asData?.value;
-      return buildGroupListeningClientConfiguration(
-        enabled: settings.enabled,
-        voyageServerUrl: resolvedVoyageServerUrl,
-        activeServer: activeServer,
-        autoFollowHost: settings.autoFollowHost,
-        deviceLabel: deviceLabel,
-      );
-    });
-
-final groupListeningDeviceLabelProvider = FutureProvider<String>((ref) {
-  return const GroupListeningDeviceNameService().resolveDeviceLabel();
-});
-
-final groupListeningSessionCredentialStoreProvider =
-    Provider<GroupListeningSessionCredentialStore>((_) {
-      return const FlutterSecureGroupListeningSessionCredentialStore();
-    });
-
-final groupListeningHttpClientProvider = Provider<GroupListeningHttpClient>((
-  _,
-) {
-  return VoyageGroupListeningHttpClient();
-});
-
-final groupListeningRealtimeTransportProvider =
-    Provider<GroupListeningRealtimeTransportClient>((_) {
-      return const IOWebSocketGroupListeningRealtimeTransportClient();
-    });
-
-final groupListeningRepositoryProvider = Provider<GroupListeningRepository>((
-  ref,
-) {
-  return DefaultGroupListeningRepository(
-    httpClient: ref.watch(groupListeningHttpClientProvider),
-    realtimeTransport: ref.watch(groupListeningRealtimeTransportProvider),
-  );
-});
-
-final groupListeningCapabilityDiscoveryProvider =
-    FutureProvider.autoDispose<GroupListeningCapabilityDiscovery?>((ref) async {
-      final availability = ref.watch(groupListeningAvailabilityProvider);
-      if (availability != GroupListeningAvailability.ready) {
-        return null;
-      }
-      final configuration = ref.watch(
-        groupListeningClientConfigurationProvider,
-      );
-      if (configuration == null) {
-        return null;
-      }
-      final resolved = await _resolveBestBundledVoyageServer(
-        ref,
-        configuration,
-      );
-      return resolved?.discovery ??
-          ref.read(groupListeningRepositoryProvider).discover(configuration);
-    });
-
-final groupListeningAvailableRoomsProvider =
-    FutureProvider.autoDispose<List<GroupListeningAvailableRoomSummary>>((
-      ref,
-    ) async {
-      final availability = ref.watch(groupListeningAvailabilityProvider);
-      if (availability != GroupListeningAvailability.ready) {
-        return const <GroupListeningAvailableRoomSummary>[];
-      }
-      final configuration = ref.watch(
-        groupListeningClientConfigurationProvider,
-      );
-      if (configuration == null) {
-        return const <GroupListeningAvailableRoomSummary>[];
-      }
-      final resolved = await _resolveBestBundledVoyageServer(
-        ref,
-        configuration,
-      );
-      final effectiveConfiguration = resolved == null
-          ? configuration
-          : _configurationWithVoyageBaseUrl(
-              configuration,
-              Uri.parse(resolved.option.url),
-            );
-      return ref
-          .read(groupListeningRepositoryProvider)
-          .listAvailableRooms(effectiveConfiguration);
-    });
-
-Future<GroupListeningResolvedVoyageServer?> _resolveBestBundledVoyageServer(
-  Ref ref,
-  GroupListeningClientConfiguration configuration, {
-  String? preferredUrl,
-}) async {
-  final voyageServers = ref.read(groupListeningVoyageServersProvider);
-  if (voyageServers.isEmpty) {
-    return null;
-  }
-  final settings = ref.read(groupListeningSettingsProvider);
-  if (!settings.enabled) {
-    return null;
-  }
-  final selectedUrl = normalizeVoyageBaseUri(
-    preferredUrl ?? settings.voyageServerUrl,
-  )?.toString();
-  final repository = ref.read(groupListeningRepositoryProvider);
-  final probes = await Future.wait(
-    voyageServers.map((server) async {
-      final uri = normalizeVoyageBaseUri(server.url);
-      if (uri == null || !isVoyageTransportAllowed(uri)) {
-        return null;
-      }
-      try {
-        final discovery = await repository.discover(
-          _configurationWithVoyageBaseUrl(configuration, uri),
-        );
-        if (!discovery.supportsCurrentProtocol) {
-          return null;
-        }
-        return GroupListeningResolvedVoyageServer(
-          option: server,
-          discovery: discovery,
-        );
-      } on Object {
-        return null;
-      }
-    }),
-  );
-  final candidates = probes.nonNulls.toList(growable: false);
-  if (candidates.isEmpty) {
-    return null;
-  }
-  candidates.sort((a, b) {
-    final versionCompare = _compareSemanticVersions(
-      b.discovery.serverVersion,
-      a.discovery.serverVersion,
-    );
-    if (versionCompare != 0) {
-      return versionCompare;
-    }
-    final aSelected = selectedUrl != null && a.option.url == selectedUrl;
-    final bSelected = selectedUrl != null && b.option.url == selectedUrl;
-    if (aSelected != bSelected) {
-      return aSelected ? -1 : 1;
-    }
-    return voyageServers
-        .indexOf(a.option)
-        .compareTo(
-          voyageServers.indexOf(b.option),
-        );
-  });
-  return candidates.first;
-}
-
-GroupListeningClientConfiguration _configurationWithVoyageBaseUrl(
-  GroupListeningClientConfiguration configuration,
-  Uri voyageBaseUrl, {
-  String? protocolVersion,
-}) {
-  return GroupListeningClientConfiguration(
-    voyageBaseUrl: voyageBaseUrl,
-    sourceServerOrigin: configuration.sourceServerOrigin,
-    sourceServerFingerprint: configuration.sourceServerFingerprint,
-    displayName: configuration.displayName,
-    deviceLabel: configuration.deviceLabel,
-    autoFollowHost: configuration.autoFollowHost,
-    allowInsecureTransport: voyageBaseUrl.scheme == 'http',
-    protocolVersion: protocolVersion ?? configuration.protocolVersion,
-  );
-}
-
-enum GroupListeningVoyageConnectionState {
-  disabled,
-  unconfigured,
-  checking,
-  connected,
-  failed,
-}
-
-@immutable
-class GroupListeningVoyageConnectionStatus {
-  const GroupListeningVoyageConnectionStatus({
-    required this.state,
-    required this.message,
-    this.userActionMessage,
-  });
-
-  final GroupListeningVoyageConnectionState state;
-  final String message;
-  final String? userActionMessage;
-
-  bool get isHealthy => state == GroupListeningVoyageConnectionState.connected;
-}
-
-final groupListeningVoyageConnectionStatusProvider =
-    Provider<GroupListeningVoyageConnectionStatus>((ref) {
-      final settings = ref.watch(groupListeningSettingsProvider);
-      final availability = ref.watch(groupListeningAvailabilityProvider);
-      final discoveryAsync = ref.watch(
-        groupListeningCapabilityDiscoveryProvider,
-      );
-
-      if (!settings.enabled) {
-        return GroupListeningVoyageConnectionStatus(
-          state: GroupListeningVoyageConnectionState.disabled,
-          message: 'Listen Together is off.',
-        );
-      }
-      if (availability != GroupListeningAvailability.ready) {
-        final resolvedVoyageServerUrl = ref.watch(
-          groupListeningResolvedVoyageServerUrlProvider,
-        );
-        return GroupListeningVoyageConnectionStatus(
-          state: GroupListeningVoyageConnectionState.unconfigured,
-          message: 'Not connected to Voyage.',
-          userActionMessage: _voyageUserActionMessage(
-            voyageServerUrl: resolvedVoyageServerUrl,
-            availability: availability,
-          ),
-        );
-      }
-
-      return discoveryAsync.when(
-        data: (_) => GroupListeningVoyageConnectionStatus(
-          state: GroupListeningVoyageConnectionState.connected,
-          message: 'Successfully connected to Voyage.',
-        ),
-        loading: () => GroupListeningVoyageConnectionStatus(
-          state: GroupListeningVoyageConnectionState.checking,
-          message: 'Checking Voyage connection...',
-        ),
-        error: (error, _) => GroupListeningVoyageConnectionStatus(
-          state: GroupListeningVoyageConnectionState.failed,
-          message: 'Not connected to Voyage.',
-          userActionMessage: _voyageDiscoveryUserActionMessage(error),
-        ),
-      );
-    });
-
-String? _voyageUserActionMessage({
-  required String? voyageServerUrl,
-  required GroupListeningAvailability availability,
-}) {
-  if (availability != GroupListeningAvailability.unconfigured) {
-    return null;
-  }
-  final uri = normalizeVoyageBaseUri(voyageServerUrl);
-  if (uri == null) {
-    return 'Enter a valid Voyage server URL.';
-  }
-  if (!isVoyageTransportAllowed(uri)) {
-    return 'Use HTTPS for Voyage, or a local HTTP server in debug builds.';
-  }
-  return 'Sign in to your Subsonic server before using Listen Together.';
-}
-
-String? _voyageDiscoveryUserActionMessage(Object error) {
-  final failure = error is GroupListeningRepositoryException
-      ? error.failure
-      : null;
-  if (failure == null) {
-    return null;
-  }
-  return switch (failure.code) {
-    GroupListeningErrorCode.unsupportedProtocolVersion =>
-      'Update Navis or choose a Voyage server with a compatible protocol.',
-    GroupListeningErrorCode.validationFailed =>
-      'Check the Voyage server configuration and try again.',
-    GroupListeningErrorCode.insecureTransport =>
-      'Use HTTPS for Voyage, or a local HTTP server in debug builds.',
-    GroupListeningErrorCode.transportUnavailable
-        when failure.message.isNotEmpty =>
-      failure.message,
-    _ => null,
-  };
-}
-
-@immutable
-class GroupListeningResolvedVoyageServer {
-  const GroupListeningResolvedVoyageServer({
-    required this.option,
-    required this.discovery,
-  });
-
-  final GroupListeningVoyageServerOption option;
-  final GroupListeningCapabilityDiscovery discovery;
-}
-
-final groupListeningClientDescriptorProvider =
-    Provider<GroupListeningClientDescriptor>((ref) {
-      final configuration = ref.watch(
-        groupListeningClientConfigurationProvider,
-      );
-      final resolvedDeviceLabel = ref
-          .watch(groupListeningDeviceLabelProvider)
-          .asData
-          ?.value;
-      final packageInfo = ref.watch(packageInfoProvider).asData?.value;
-      final fallbackDeviceLabel =
-          resolvedDeviceLabel ?? defaultGroupListeningDeviceLabel();
-      final fingerprint = configuration?.sourceServerFingerprint ?? 'local';
-      final fingerprintPrefix = fingerprint.length <= 12
-          ? fingerprint
-          : fingerprint.substring(0, 12);
-      final rawDeviceId = <String>[
-        packageInfo?.packageName ?? 'navis',
-        defaultTargetPlatform.name,
-        configuration?.deviceLabel ??
-            configuration?.displayName ??
-            fallbackDeviceLabel,
-        fingerprintPrefix,
-      ].join('-');
-      return GroupListeningClientDescriptor(
-        appVersion: packageInfo?.version ?? 'dev',
-        platform: defaultTargetPlatform.name,
-        deviceId: _normalizeGroupListeningDeviceId(rawDeviceId),
-        deviceLabel: configuration?.deviceLabel ?? fallbackDeviceLabel,
-        capabilities: const <String>{
-          'playback_anchor',
-          'queue_add',
-          voyageQueueEntryMetadataCapability,
-          'queue_remove',
-          'queue_replace',
-        },
-      );
-    });
+export 'group_listening_providers.dart';
 
 final groupListeningSessionControllerProvider =
     NotifierProvider<
@@ -372,93 +24,38 @@ final groupListeningSessionControllerProvider =
       GroupListeningSessionState
     >(GroupListeningSessionController.new);
 
-String _normalizeGroupListeningDeviceId(String rawValue) {
-  var normalized = rawValue
-      .trim()
-      .toLowerCase()
-      .replaceAll(RegExp(r'[^a-z0-9._-]+'), '-')
-      .replaceAll(RegExp(r'-+'), '-');
-  normalized = normalized.replaceFirst(RegExp(r'^-+'), '');
-  normalized = normalized.replaceFirst(RegExp(r'-+$'), '');
-  if (normalized.isEmpty) {
-    return 'navis-${defaultTargetPlatform.name}';
-  }
-  return normalized.length <= 64 ? normalized : normalized.substring(0, 64);
-}
-
-int _compareSemanticVersions(String left, String right) {
-  final leftParts = _semanticVersionParts(left);
-  final rightParts = _semanticVersionParts(right);
-  for (var index = 0; index < leftParts.length; index++) {
-    final compare = leftParts[index].compareTo(rightParts[index]);
-    if (compare != 0) {
-      return compare;
-    }
-  }
-  return left.compareTo(right);
-}
-
-List<int> _semanticVersionParts(String version) {
-  final match = RegExp(r'^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?').firstMatch(
-    version.trim(),
-  );
-  if (match == null) {
-    return const <int>[0, 0, 0];
-  }
-  return <int>[
-    int.tryParse(match.group(1) ?? '') ?? 0,
-    int.tryParse(match.group(2) ?? '') ?? 0,
-    int.tryParse(match.group(3) ?? '') ?? 0,
-  ];
-}
-
 class GroupListeningSessionController
     extends Notifier<GroupListeningSessionState> {
   static const Uuid _uuid = Uuid();
   static const Duration _tokenRefreshWindow = Duration(minutes: 1);
-  static const Duration _serverUpgradeCheckInterval = Duration(minutes: 5);
-  static const Duration _serverMigrationTimeout = Duration(seconds: 15);
-
   static const Duration _snapshotRetryDelay = Duration(seconds: 5);
-  static const Duration _ackLagGrace = Duration(seconds: 2);
-  static const Duration _reconnectInitialDelay = Duration(seconds: 2);
-  static const Duration _reconnectMaxDelay = Duration(seconds: 60);
-  static const int _reconnectMaxAttempts = 8;
 
   GroupListeningClientConfiguration? _configuration;
   GroupListeningSessionRuntimeContext? _runtimeSession;
-  GroupListeningRealtimeConnection? _connection;
-  StreamSubscription<GroupListeningTransportMessage>? _transportSubscription;
-  Timer? _heartbeatTimer;
-  Timer? _serverUpgradeTimer;
   Timer? _snapshotRetryTimer;
-  Timer? _reconnectTimer;
-  Timer? _ackLagTimer;
   Future<GroupListeningSessionState>? _snapshotRefreshOperation;
   bool _snapshotRefreshInFlight = false;
   bool _queuedSnapshotRefresh = false;
   String? _queuedSnapshotRefreshReason;
-  int _reconnectAttempts = 0;
-  int? _ackLagRoomVersion;
-  GroupListeningCapabilityDiscovery? _connectingDiscovery;
-  bool _serverUpgradeInProgress = false;
-  bool _transportTeardownInProgress = false;
-  bool _transportTeardownFailureObserved = false;
   int _clientSequence = 0;
-  final List<_PendingGroupListeningMutation> _pendingMutations =
-      <_PendingGroupListeningMutation>[];
-  _PendingGroupListeningMutation? _inFlightMutation;
-  bool _mutationOutboxPaused = false;
-  bool _mutationOutboxDispatching = false;
-  String? _loadingStatusKey;
-  DateTime? _loadingStartedAt;
   final GroupListeningServerClockEstimator _serverClockEstimator =
       GroupListeningServerClockEstimator();
+  final GroupListeningTransportCoordinator _transportCoordinator =
+      GroupListeningTransportCoordinator();
+  GroupListeningMutationOutbox? _mutationOutbox;
+  GroupListeningSnapshotRecovery? _snapshotRecovery;
+  bool _coldStartAutoRejoinAttempted = false;
+  bool _modulesInitialized = false;
+
+  late GroupListeningSessionStateApplier _stateApplier;
+  late GroupListeningSessionTransportHandler _transport;
+  late GroupListeningSessionRoomOps _roomOps;
 
   @override
   GroupListeningSessionState build() {
     _configuration = ref.read(groupListeningClientConfigurationProvider);
     final availability = ref.read(groupListeningAvailabilityProvider);
+    _initModules();
 
     ref.listen<GroupListeningAvailability>(
       groupListeningAvailabilityProvider,
@@ -470,12 +67,62 @@ class GroupListeningSessionController
     );
     ref.listen<PlaybackSnapshot>(
       playerStateProvider,
-      (_, next) => _recordPlaybackLoadingState(next),
+      (_, next) => _transport.recordPlaybackLoadingState(next),
     );
     ref.onDispose(() {
-      unawaited(_disposeTransport());
-      _serverUpgradeTimer?.cancel();
+      _snapshotRetryTimer?.cancel();
+      if (_modulesInitialized) {
+        unawaited(_transport.disposeTransport());
+      }
+      _snapshotRecovery?.dispose();
+      _transportCoordinator.dispose();
     });
+
+    _snapshotRecovery = GroupListeningSnapshotRecovery(
+      refreshSnapshot: ({required String reason}) async {
+        await refreshSnapshot(reason: reason);
+      },
+    );
+    _mutationOutbox = GroupListeningMutationOutbox(
+      send: (mutation, message) async {
+        final activeConnection = _transport.connection;
+        if (activeConnection == null) {
+          throw const GroupListeningRepositoryException(
+            GroupListeningErrorState(
+              code: GroupListeningErrorCode.transportDisconnected,
+              message: 'Voyage realtime transport is disconnected.',
+              retryable: true,
+            ),
+          );
+        }
+        await activeConnection.send(message);
+      },
+      canSendType: _canSendMutationType,
+      expectedQueueVersion: (type, {playbackAnchor}) =>
+          _expectedQueueVersionForMutation(type, playbackAnchor: playbackAnchor),
+      expectedPlaybackVersion: (type, {playbackAnchor}) =>
+          _expectedPlaybackVersionForMutation(
+            type,
+            playbackAnchor: playbackAnchor,
+          ),
+      expectedPlaybackEpoch: () => state.localPlaybackEpoch,
+      nextClientSequence: () => ++_clientSequence,
+      readClientConnectionId: () => state.connection.clientConnectionId,
+      isConnected: () => state.connection.isConnected,
+      readLastAppliedRoomVersion: () => state.lastAppliedRoomVersion,
+      onSendError: (mutation, error, stackTrace) {
+        _transport.handleTransportFailure(
+          _asFailure(
+            error,
+            fallbackMessage: 'Unable to send Voyage room mutation.',
+            fallbackCode: GroupListeningErrorCode.transportDisconnected,
+          ),
+          stackTrace: stackTrace,
+        );
+      },
+    );
+
+    unawaited(_roomOps.probeStoredSession());
 
     return GroupListeningSessionState(
       availability: availability,
@@ -485,226 +132,156 @@ class GroupListeningSessionController
     );
   }
 
-  Future<GroupListeningCapabilityDiscovery> discoverCapabilities() async {
-    try {
-      final resolved = await _resolveBestBundledServer();
-      if (resolved != null) {
-        return resolved.discovery;
-      }
-      return ref
-          .read(groupListeningRepositoryProvider)
-          .discover(
-            _requireConfiguration(),
-          );
-    } on Object catch (error, stackTrace) {
-      _setFailure(
-        _asFailure(
-          error,
-          fallbackMessage: 'Unable to discover Voyage capabilities.',
-          fallbackCode: GroupListeningErrorCode.transportUnavailable,
-        ),
-        stackTrace: stackTrace,
-      );
-      rethrow;
+  void _initModules() {
+    if (_modulesInitialized) {
+      return;
     }
+    _modulesInitialized = true;
+
+    _stateApplier = GroupListeningSessionStateApplier(
+      ref: ref,
+      readState: () => state,
+      writeState: (next) => state = next,
+      readConfiguration: () => _configuration,
+      readRuntimeSession: () => _runtimeSession,
+      writeRuntimeSession: (session) => _runtimeSession = session,
+      serverClockEstimator: _serverClockEstimator,
+      readMutationOutbox: () => _mutationOutbox,
+      clearAckLagRecovery: ({int? upToRoomVersion}) =>
+          _transport.clearAckLagRecovery(upToRoomVersion: upToRoomVersion),
+      pauseMutationOutbox: _pauseMutationOutbox,
+      resumeMutationOutbox: _resumeMutationOutbox,
+      persistLastAppliedCursor: _persistLastAppliedCursor,
+      setFailure: (failure, {bool clearRoom = false}) =>
+          _setFailure(failure, clearRoom: clearRoom),
+      refreshSnapshot: ({String reason = 'manual'}) =>
+          refreshSnapshot(reason: reason),
+      readConnectionConnected: () => state.connection.isConnected,
+      snapshotRetryDelay: _snapshotRetryDelay,
+      readSnapshotRetryTimer: () => _snapshotRetryTimer,
+      writeSnapshotRetryTimer: (timer) => _snapshotRetryTimer = timer,
+    );
+
+    _transport = GroupListeningSessionTransportHandler(
+      ref: ref,
+      readState: () => state,
+      writeState: (next) => state = next,
+      readRuntimeSession: () => _runtimeSession,
+      writeRuntimeSession: (session) => _runtimeSession = session,
+      stateApplier: _stateApplier,
+      serverClockEstimator: _serverClockEstimator,
+      asFailure: _asFailure,
+      setFailure: _setFailure,
+      ensureFreshSession: ({bool force = false}) =>
+          _roomOps.ensureFreshSession(force: force),
+      discoverSessionServer: (session) =>
+          _roomOps.discoverSessionServer(session),
+      resolveBestBundledServer: ({String? preferredUrl}) =>
+          _roomOps.resolveBestBundledServer(preferredUrl: preferredUrl),
+      finishInvalidatedSessionCleanup: (failure) async {
+        final result = await _roomOps.finishInvalidatedSessionCleanup(failure);
+        return result;
+      },
+      shouldCollapseToLocalCleanup: _shouldCollapseToLocalCleanup,
+      isFatalSessionFailure: _isFatalSessionFailure,
+      shouldAutoReconnectAfterFailure: _shouldAutoReconnectAfterFailure,
+      reconnect: () => _roomOps.reconnect(),
+      handleMutationAck: _handleMutationAck,
+      handleMutationNack: _handleMutationNack,
+      abortMutationOutboxTransport: () =>
+          _mutationOutbox?.abortInFlightTransport(),
+      resumeMutationOutbox: _resumeMutationOutbox,
+      readMutationOutbox: () => _mutationOutbox,
+      resetClientSequence: () => _clientSequence = 0,
+      requireConfiguration: () => _roomOps.requireConfiguration(),
+      matchesStoredSession: _matchesStoredSession,
+      cancelSnapshotRetry: () {
+        _snapshotRetryTimer?.cancel();
+        _snapshotRetryTimer = null;
+      },
+    );
+
+    _roomOps = GroupListeningSessionRoomOps(
+      ref: ref,
+      readState: () => state,
+      writeState: (next) => state = next,
+      readConfiguration: () => _configuration,
+      writeConfiguration: (configuration) => _configuration = configuration,
+      readRuntimeSession: () => _runtimeSession,
+      writeRuntimeSession: (session) => _runtimeSession = session,
+      stateApplier: _stateApplier,
+      serverClockEstimator: _serverClockEstimator,
+      asFailure: _asFailure,
+      setFailure: _setFailure,
+      connect: () => _transport.connect(),
+      disposeTransport: () => _transport.disposeTransport(),
+      beginTransportTeardown: () => _transport.beginTransportTeardown(),
+      endTransportTeardown: () => _transport.endTransportTeardown(),
+      readTransportTeardownFailureObserved: () =>
+          _transport.transportTeardownFailureObserved,
+      shouldCollapseToLocalCleanup: _shouldCollapseToLocalCleanup,
+      canLeaveLocallyAfterFailure: _canLeaveLocallyAfterFailure,
+      shouldAutoReconnectAfterFailure: _shouldAutoReconnectAfterFailure,
+      scheduleAutoReconnect: () => _transport.scheduleAutoReconnect(),
+      isFatalSessionFailure: _isFatalSessionFailure,
+      clearMutationOutbox: _clearMutationOutbox,
+      sendMutation: sendMutation,
+      logRoomAction: _logRoomAction,
+      readColdStartAutoRejoinAttempted: () => _coldStartAutoRejoinAttempted,
+      writeColdStartAutoRejoinAttempted: (attempted) =>
+          _coldStartAutoRejoinAttempted = attempted,
+      refreshAccessTokenOverTransport: (session) =>
+          _transport.refreshAccessTokenOverTransport(
+            session,
+            _roomOps.rejoinCurrentSession,
+          ),
+      tokenRefreshWindow: _tokenRefreshWindow,
+    );
   }
+
+  Future<GroupListeningCapabilityDiscovery> discoverCapabilities() =>
+      _roomOps.discoverCapabilities();
 
   Future<GroupListeningSessionState> createRoom({
     required GroupListeningClientDescriptor client,
     GroupListeningRoomOptions roomOptions = const GroupListeningRoomOptions(),
     GroupListeningRoomSeed? roomSeed,
     bool connectAfterCreate = true,
-  }) async {
-    try {
-      final configuration = await _configurationForRoomOperation();
-      state = state.copyWith(
-        status: GroupListeningSessionStatus.joining,
-        clearFailure: true,
-      );
-      final result = await ref
-          .read(groupListeningRepositoryProvider)
-          .createRoom(
-            GroupListeningCreateRoomRequest(
-              configuration: configuration,
-              client: client,
-              roomOptions: roomOptions,
-              roomSeed: roomSeed,
-            ),
-          );
-      await _bindJoinedSession(
-        result: result,
+  }) =>
+      _roomOps.createRoom(
         client: client,
-        connectAfterJoin: connectAfterCreate,
+        roomOptions: roomOptions,
+        roomSeed: roomSeed,
+        connectAfterCreate: connectAfterCreate,
       );
-      return state;
-    } on Object catch (error, stackTrace) {
-      return _setFailure(
-        _asFailure(
-          error,
-          fallbackMessage: 'Unable to create Voyage room.',
-          fallbackCode: GroupListeningErrorCode.transportUnavailable,
-        ),
-        stackTrace: stackTrace,
-      );
-    }
-  }
 
   Future<GroupListeningSessionState> joinRoom({
     required String inviteCode,
     required GroupListeningClientDescriptor client,
     String? pinCode,
     bool connectAfterJoin = true,
-  }) async {
-    try {
-      final configuration = await _configurationForRoomOperation();
-      state = state.copyWith(
-        status: GroupListeningSessionStatus.joining,
-        clearFailure: true,
-      );
-      final result = await ref
-          .read(groupListeningRepositoryProvider)
-          .joinRoom(
-            GroupListeningJoinRoomRequest(
-              configuration: configuration,
-              client: client,
-              inviteCode: inviteCode,
-              pinCode: pinCode,
-            ),
-          );
-      await _bindJoinedSession(
-        result: result,
+  }) =>
+      _roomOps.joinRoom(
+        inviteCode: inviteCode,
         client: client,
+        pinCode: pinCode,
         connectAfterJoin: connectAfterJoin,
       );
-      return state;
-    } on Object catch (error, stackTrace) {
-      return _setFailure(
-        _asFailure(
-          error,
-          fallbackMessage: 'Unable to join Voyage room.',
-          fallbackCode: GroupListeningErrorCode.transportUnavailable,
-        ),
-        stackTrace: stackTrace,
-      );
-    }
-  }
 
   Future<GroupListeningSessionState> joinAvailableRoom({
     required String roomId,
     required GroupListeningClientDescriptor client,
     String? pinCode,
     bool connectAfterJoin = true,
-  }) async {
-    try {
-      final configuration = await _configurationForRoomOperation();
-      state = state.copyWith(
-        status: GroupListeningSessionStatus.joining,
-        clearFailure: true,
-        clearActiveInviteCode: true,
-      );
-      final result = await ref
-          .read(groupListeningRepositoryProvider)
-          .joinAvailableRoom(
-            roomId: roomId,
-            configuration: configuration,
-            client: client,
-            pinCode: pinCode,
-          );
-      await _bindJoinedSession(
-        result: result,
+  }) =>
+      _roomOps.joinAvailableRoom(
+        roomId: roomId,
         client: client,
+        pinCode: pinCode,
         connectAfterJoin: connectAfterJoin,
       );
-      return state;
-    } on Object catch (error, stackTrace) {
-      return _setFailure(
-        _asFailure(
-          error,
-          fallbackMessage: 'Unable to join available Voyage room.',
-          fallbackCode: GroupListeningErrorCode.transportUnavailable,
-        ),
-        stackTrace: stackTrace,
-      );
-    }
-  }
 
-  Future<GroupListeningSessionState> connect() async {
-    final session = _runtimeSession;
-    if (session == null) {
-      return _setFailure(
-        const GroupListeningErrorState(
-          code: GroupListeningErrorCode.sessionUnavailable,
-          message: 'No active Voyage session is available to connect.',
-        ),
-      );
-    }
-
-    state = state.copyWith(
-      status:
-          state.connection.status == GroupListeningConnectionStatus.connected
-          ? GroupListeningSessionStatus.connected
-          : GroupListeningSessionStatus.connecting,
-      connection: state.connection.copyWith(
-        status:
-            state.connection.status == GroupListeningConnectionStatus.connected
-            ? GroupListeningConnectionStatus.connected
-            : GroupListeningConnectionStatus.connecting,
-        clearDisconnectReason: true,
-      ),
-      clearFailure: true,
-    );
-
-    try {
-      await _disposeTransport();
-      _clientSequence = 0;
-      final freshSession = await _ensureFreshSession();
-      _connectingDiscovery = await _discoverSessionServer(freshSession);
-      final connection = await ref
-          .read(groupListeningRepositoryProvider)
-          .connect(
-            GroupListeningTransportConnectRequest(
-              session: freshSession,
-              lastAppliedRoomVersion: state.lastAppliedRoomVersion,
-              lastAppliedEventId: state.lastAppliedEventId,
-              lastAppliedQueueVersion: state.room?.queue.queueVersion ?? 0,
-              lastAppliedPlaybackVersion: state.room?.playbackVersion ?? 0,
-              lastAppliedPresenceVersion: state.room?.presenceVersion ?? 0,
-            ),
-          );
-      _connection = connection;
-      _transportSubscription = connection.messages.listen(
-        _handleTransportMessage,
-        onError: (Object error, StackTrace stackTrace) {
-          _handleTransportFailure(
-            _asFailure(
-              error,
-              fallbackMessage: 'Voyage transport stream failed.',
-              fallbackCode: GroupListeningErrorCode.transportDisconnected,
-            ),
-            stackTrace: stackTrace,
-          );
-        },
-      );
-      return state;
-    } on Object catch (error, stackTrace) {
-      final failure = _asFailure(
-        error,
-        fallbackMessage: 'Unable to connect to Voyage room realtime transport.',
-        fallbackCode: GroupListeningErrorCode.transportUnavailable,
-      );
-      if (_shouldCollapseToLocalCleanup(failure.code)) {
-        return _finishInvalidatedSessionCleanup(failure);
-      }
-      if (_shouldAutoReconnectAfterFailure(failure)) {
-        _scheduleAutoReconnect();
-      }
-      return _setFailure(
-        failure,
-        connectionStatus: GroupListeningConnectionStatus.disconnected,
-        stackTrace: stackTrace,
-      );
-    }
-  }
+  Future<GroupListeningSessionState> connect() => _transport.connect();
 
   Future<String?> sendMutation({
     required GroupListeningMutationType type,
@@ -719,8 +296,8 @@ class GroupListeningSessionController
     }
 
     final mutationId = _uuid.v4();
-    _enqueueMutation(
-      _PendingGroupListeningMutation(
+    _mutationOutbox?.enqueue(
+      PendingGroupListeningMutation(
         type: type,
         clientMutationId: mutationId,
         playbackAnchor: playbackAnchor,
@@ -730,148 +307,185 @@ class GroupListeningSessionController
         targetMemberId: targetMemberId,
       ),
     );
-    _dispatchMutationOutbox();
     return mutationId;
   }
 
-  void _enqueueMutation(_PendingGroupListeningMutation mutation) {
-    switch (mutation.type) {
-      case GroupListeningMutationType.playbackAnchor:
-        _pendingMutations.removeWhere(
-          (pending) =>
-              pending.type == GroupListeningMutationType.playbackAnchor,
-        );
-      case GroupListeningMutationType.queueReplace:
-        _pendingMutations.removeWhere(
-          (pending) =>
-              pending.type == GroupListeningMutationType.queueAdd ||
-              pending.type == GroupListeningMutationType.queueRemove ||
-              pending.type == GroupListeningMutationType.queueReplace,
-        );
-      case GroupListeningMutationType.queueAdd:
-      case GroupListeningMutationType.queueRemove:
-      case GroupListeningMutationType.transferHost:
-      case GroupListeningMutationType.removeMember:
-    }
-    _pendingMutations.add(mutation);
-    AppLogger.debug(
-      'Group listening mutation queued: '
-      'id=${mutation.clientMutationId}, type=${mutation.type.name}, '
-      'pending=${_pendingMutations.length}, '
-      'in_flight=${_inFlightMutation?.clientMutationId ?? 'none'}',
-    );
-  }
-
-  void _dispatchMutationOutbox() {
-    if (_mutationOutboxDispatching ||
-        _mutationOutboxPaused ||
-        _inFlightMutation != null ||
-        _pendingMutations.isEmpty) {
-      return;
-    }
-    final connection = _connection;
+  Future<void> sendTrackReadiness({
+    required String queueEntryId,
+    required String status,
+    String? resolvedSongId,
+  }) async {
+    final activeConnection = _transport.connection;
     final clientConnectionId = state.connection.clientConnectionId;
-    if (connection == null ||
+    if (activeConnection == null ||
         clientConnectionId == null ||
         !state.connection.isConnected) {
       return;
     }
+    await activeConnection.send(
+      GroupListeningTrackReadinessMessage(
+        clientConnectionId: clientConnectionId,
+        queueEntryId: queueEntryId,
+        status: status,
+        resolvedSongId: resolvedSongId,
+      ),
+    );
+  }
 
-    final mutation = _pendingMutations.removeAt(0);
-    if (!_canSendMutationType(mutation.type)) {
-      _dispatchMutationOutbox();
-      return;
+  void markPlaybackCatchUpAligned({required int serverEpoch}) {
+    _stateApplier.markPlaybackCatchUpAligned(serverEpoch: serverEpoch);
+  }
+
+  Future<GroupListeningSessionState> disconnect({
+    bool preserveSession = true,
+  }) =>
+      _roomOps.disconnect(preserveSession: preserveSession);
+
+  Future<GroupListeningSessionState> leaveRoom({
+    String source = 'unknown',
+  }) =>
+      _roomOps.leaveRoom(source: source);
+
+  Future<GroupListeningSessionState> closeRoom({
+    String source = 'unknown',
+  }) =>
+      _roomOps.closeRoom(source: source);
+
+  Future<GroupListeningSessionState> rotateInvite({
+    String source = 'unknown',
+  }) =>
+      _roomOps.rotateInvite(source: source);
+
+  Future<String?> transferHost({
+    required String targetMemberId,
+    String source = 'unknown',
+  }) =>
+      _roomOps.transferHost(
+        targetMemberId: targetMemberId,
+        source: source,
+      );
+
+  Future<GroupListeningSessionState> reconnect() => _roomOps.reconnect();
+
+  Future<GroupListeningSessionState> refreshSnapshot({
+    String reason = 'manual',
+  }) async {
+    final session = _runtimeSession;
+    if (session == null) {
+      return _setFailure(
+        const GroupListeningErrorState(
+          code: GroupListeningErrorCode.sessionUnavailable,
+          message:
+              'No active Voyage session is available for snapshot refresh.',
+        ),
+      );
     }
-
-    final clientSequence = ++_clientSequence;
-    final message = GroupListeningMutationMessage(
-      type: mutation.type,
-      expectedRoomVersion: state.lastAppliedRoomVersion,
-      expectedQueueVersion: _expectedQueueVersionForMutation(
-        mutation.type,
-        playbackAnchor: mutation.playbackAnchor,
-      ),
-      expectedPlaybackVersion: _expectedPlaybackVersionForMutation(
-        mutation.type,
-        playbackAnchor: mutation.playbackAnchor,
-      ),
-      clientMutationId: mutation.clientMutationId,
-      clientConnectionId: clientConnectionId,
-      clientSequence: clientSequence,
-      playbackAnchor: mutation.playbackAnchor,
-      queue: mutation.queue,
-      targetQueueEntryId: mutation.targetQueueEntryId,
-      insertIndex: mutation.insertIndex,
-      targetMemberId: mutation.targetMemberId,
-    );
-    _inFlightMutation = mutation.copyWith(clientSequence: clientSequence);
-    _mutationOutboxDispatching = true;
+    if (_snapshotRefreshInFlight) {
+      _queuedSnapshotRefresh = true;
+      _queuedSnapshotRefreshReason = reason;
+      AppLogger.info(
+        'Group listening: coalescing snapshot refresh '
+        '(reason=$reason, last_applied=${state.lastAppliedRoomVersion})',
+      );
+      return _snapshotRefreshOperation ??
+          Future<GroupListeningSessionState>.value(state);
+    }
+    _snapshotRefreshInFlight = true;
     AppLogger.info(
-      'Group listening mutation sending: '
-      'id=${mutation.clientMutationId}, type=${mutation.type.name}, '
-      'connection=$clientConnectionId, seq=$clientSequence, '
-      'room_version=${message.expectedRoomVersion}, '
-      'queue_version=${message.expectedQueueVersion ?? 0}, '
-      'playback_version=${message.expectedPlaybackVersion ?? 0}',
+      'Group listening: refreshing snapshot '
+      '(reason=$reason, last_applied=${state.lastAppliedRoomVersion})',
     );
-    unawaited(
-      connection
-          .send(message)
-          .catchError((Object error, StackTrace stackTrace) {
-            _inFlightMutation = null;
-            _pendingMutations.insert(0, mutation);
-            _handleTransportFailure(
-              _asFailure(
-                error,
-                fallbackMessage: 'Unable to send Voyage room mutation.',
-                fallbackCode: GroupListeningErrorCode.transportDisconnected,
+    final operation = () async {
+      try {
+        final snapshot = await _roomOps.runAuthenticatedWithRejoinRetry(
+          (freshSession) => ref
+              .read(groupListeningRepositoryProvider)
+              .fetchSnapshot(
+                freshSession,
+                lastAppliedRoomVersion: state.lastAppliedRoomVersion,
               ),
-              stackTrace: stackTrace,
-            );
-          })
-          .whenComplete(() {
-            _mutationOutboxDispatching = false;
-            _dispatchMutationOutbox();
-          }),
-    );
+          fallbackMessage: 'Unable to refresh Voyage room snapshot.',
+          fallbackCode: GroupListeningErrorCode.transportUnavailable,
+        );
+        return _stateApplier.applySnapshot(snapshot);
+      } on Object catch (error, stackTrace) {
+        final failure = _asFailure(
+          error,
+          fallbackMessage: 'Unable to refresh Voyage room snapshot.',
+          fallbackCode: GroupListeningErrorCode.transportUnavailable,
+        );
+        if (_shouldCollapseToLocalCleanup(failure.code)) {
+          return _roomOps.finishInvalidatedSessionCleanup(failure);
+        }
+        if (state.connection.isConnected) {
+          AppLogger.warning(
+            'Group listening: snapshot fetch failed (reason=$reason, '
+            'non-fatal, WS alive): ${failure.code.name} — ${failure.message}',
+          );
+          _stateApplier.scheduleSnapshotRetry();
+          return state;
+        }
+        return _setFailure(failure, stackTrace: stackTrace);
+      }
+    }();
+    _snapshotRefreshOperation = operation;
+    try {
+      return await operation;
+    } finally {
+      _snapshotRefreshOperation = null;
+      _snapshotRefreshInFlight = false;
+      final queuedRefresh = _queuedSnapshotRefresh;
+      final queuedReason = _queuedSnapshotRefreshReason;
+      _queuedSnapshotRefresh = false;
+      _queuedSnapshotRefreshReason = null;
+      if (queuedRefresh && state.snapshotRequired) {
+        unawaited(
+          refreshSnapshot(
+            reason: queuedReason == null
+                ? 'coalesced-retry'
+                : 'coalesced-retry:$queuedReason',
+          ),
+        );
+      }
+    }
+  }
+
+  GroupListeningSessionState applySnapshot(GroupListeningRoomState snapshot) =>
+      _stateApplier.applySnapshot(snapshot);
+
+  GroupListeningSessionState applyRealtimeEvent(GroupListeningRoomEvent event) =>
+      _stateApplier.applyRealtimeEvent(event);
+
+  GroupListeningSessionState markSnapshotRequired([
+    GroupListeningErrorState? failure,
+  ]) =>
+      _stateApplier.markSnapshotRequired(failure);
+
+  Future<void> tryRestoreStoredSession() => reconnect();
+
+  Future<void> restoreStoredSessionIfAvailable() =>
+      _roomOps.restoreStoredSessionIfAvailable();
+
+  void clearFailure() {
+    state = state.copyWith(clearFailure: true);
   }
 
   void _handleMutationAck(GroupListeningMutationAckMessage message) {
-    final inFlight = _inFlightMutation;
-    if (inFlight == null ||
-        inFlight.clientMutationId != message.clientMutationId) {
-      _pendingMutations.removeWhere(
-        (pending) => pending.clientMutationId == message.clientMutationId,
-      );
-      return;
-    }
-    AppLogger.info(
-      'Group listening mutation ack: '
-      'id=${message.clientMutationId}, type=${inFlight.type.name}, '
-      'event_id=${message.eventId}, room_version=${message.roomVersion}, '
-      'queue_version=${message.queueVersion}, '
-      'playback_version=${message.playbackVersion}, '
-      'playback_apply_id=${message.playbackApplyId ?? 0}',
-    );
-    _inFlightMutation = null;
-    _clearAckLagRecovery(upToRoomVersion: message.roomVersion);
-    _dispatchMutationOutbox();
+    _mutationOutbox?.handleAck(message.clientMutationId);
+    _transport.clearAckLagRecovery(upToRoomVersion: message.roomVersion);
   }
 
   void _handleMutationNack(GroupListeningMutationRejectedMessage message) {
-    final inFlight = _inFlightMutation;
+    final outbox = _mutationOutbox;
+    if (outbox == null) {
+      return;
+    }
     final mutationId = message.clientMutationId;
     if (mutationId != null && mutationId.isNotEmpty) {
-      _pendingMutations.removeWhere(
-        (pending) => pending.clientMutationId == mutationId,
-      );
+      outbox.handleNack(clientMutationId: mutationId, dropInFlight: false);
     }
-    final appliesToInFlight =
-        inFlight != null &&
-        (mutationId == null ||
-            mutationId.isEmpty ||
-            inFlight.clientMutationId == mutationId);
-    if (!appliesToInFlight) {
+    final inFlight = outbox.takeInFlightForNack(mutationId);
+    if (inFlight == null) {
       AppLogger.info(
         'Group listening mutation nack ignored: '
         'id=${mutationId ?? 'unknown'}, code=${message.error.code.name}',
@@ -891,15 +505,16 @@ class GroupListeningSessionController
 
     final code = message.error.code;
     if (code == GroupListeningErrorCode.duplicateMutation) {
-      _inFlightMutation = null;
-      _dispatchMutationOutbox();
+      outbox.clearInFlight();
+      outbox.dispatch();
       return;
     }
     if (code == GroupListeningErrorCode.staleVersion ||
-        code == GroupListeningErrorCode.snapshotRequired) {
-      _inFlightMutation = null;
-      _pauseMutationOutbox();
-      _dropPendingPlaybackMutations();
+        code == GroupListeningErrorCode.snapshotRequired ||
+        code == GroupListeningErrorCode.stalePlaybackEpoch) {
+      outbox.clearInFlight();
+      outbox.pause();
+      outbox.dropPendingPlaybackMutations();
       markSnapshotRequired(message.error);
       unawaited(
         refreshSnapshot(reason: 'mutation-${code.name}').whenComplete(
@@ -909,18 +524,18 @@ class GroupListeningSessionController
       return;
     }
     if (code == GroupListeningErrorCode.sequenceRejected) {
-      _inFlightMutation = null;
-      _pauseMutationOutbox();
+      outbox.clearInFlight();
+      outbox.pause();
       if (!_isPlaybackOnlyMutation(inFlight.type)) {
-        _pendingMutations.insert(0, inFlight.withoutSequence());
+        outbox.insertAtFront(inFlight.withoutSequence());
       }
       unawaited(reconnect().whenComplete(_resumeMutationOutbox));
       return;
     }
     if (code == GroupListeningErrorCode.forbidden) {
-      _inFlightMutation = null;
-      _pauseMutationOutbox();
-      _pendingMutations.clear();
+      outbox.clearInFlight();
+      outbox.pause();
+      outbox.clear();
       unawaited(
         refreshSnapshot(
           reason: 'mutation-forbidden',
@@ -932,11 +547,11 @@ class GroupListeningSessionController
     if (code == GroupListeningErrorCode.removed ||
         code == GroupListeningErrorCode.roomClosed) {
       _clearMutationOutbox();
-      _handleTransportFailure(message.error);
+      _transport.handleTransportFailure(message.error);
       return;
     }
-    _inFlightMutation = null;
-    _dispatchMutationOutbox();
+    outbox.clearInFlight();
+    outbox.dispatch();
   }
 
   bool _isPlaybackOnlyMutation(GroupListeningMutationType type) {
@@ -944,124 +559,15 @@ class GroupListeningSessionController
   }
 
   void _pauseMutationOutbox() {
-    _mutationOutboxPaused = true;
+    _mutationOutbox?.pause();
   }
 
   void _resumeMutationOutbox() {
-    _mutationOutboxPaused = false;
-    _dispatchMutationOutbox();
-  }
-
-  void _dropPendingPlaybackMutations() {
-    _pendingMutations.removeWhere(_isObsoletePendingPlaybackMutation);
-  }
-
-  void _revalidatePendingMutations(GroupListeningRoomState snapshot) {
-    _pendingMutations.removeWhere(
-      (mutation) => !_shouldRetainPendingMutation(mutation, snapshot),
-    );
-  }
-
-  bool _shouldRetainPendingMutation(
-    _PendingGroupListeningMutation mutation,
-    GroupListeningRoomState snapshot,
-  ) {
-    switch (mutation.type) {
-      case GroupListeningMutationType.playbackAnchor:
-        return false;
-      case GroupListeningMutationType.queueAdd:
-        final targetQueueEntryId = mutation.targetQueueEntryId;
-        final desiredQueue = mutation.queue;
-        if (targetQueueEntryId == null ||
-            targetQueueEntryId.isEmpty ||
-            desiredQueue == null) {
-          return false;
-        }
-        if (_queueContainsEntry(snapshot.queue, targetQueueEntryId)) {
-          return false;
-        }
-        if (!_queueContainsEntry(desiredQueue, targetQueueEntryId)) {
-          return false;
-        }
-        final insertIndex = mutation.insertIndex;
-        return insertIndex == null ||
-            (insertIndex >= 0 && insertIndex <= snapshot.queue.entries.length);
-      case GroupListeningMutationType.queueRemove:
-        final targetQueueEntryId = mutation.targetQueueEntryId;
-        return targetQueueEntryId != null &&
-            targetQueueEntryId.isNotEmpty &&
-            _queueContainsEntry(snapshot.queue, targetQueueEntryId);
-      case GroupListeningMutationType.queueReplace:
-        final desiredQueue = mutation.queue;
-        if (desiredQueue == null) {
-          return false;
-        }
-        return !_queueEntryOrderMatches(snapshot.queue, desiredQueue);
-      case GroupListeningMutationType.transferHost:
-        final targetMember = _activeMember(snapshot, mutation.targetMemberId);
-        return targetMember != null &&
-            targetMember.memberId != snapshot.hostMemberId;
-      case GroupListeningMutationType.removeMember:
-        final targetMember = _activeMember(snapshot, mutation.targetMemberId);
-        return targetMember != null &&
-            targetMember.memberId != snapshot.self.memberId;
-    }
-  }
-
-  bool _queueContainsEntry(
-    GroupListeningQueueState queue,
-    String queueEntryId,
-  ) {
-    return queue.entries.any((entry) => entry.queueEntryId == queueEntryId);
-  }
-
-  bool _queueEntryOrderMatches(
-    GroupListeningQueueState current,
-    GroupListeningQueueState desired,
-  ) {
-    if (current.entries.length != desired.entries.length) {
-      return false;
-    }
-    for (var i = 0; i < current.entries.length; i++) {
-      final left = current.entries[i];
-      final right = desired.entries[i];
-      if (left.queueEntryId != right.queueEntryId ||
-          left.songId != right.songId) {
-        return false;
-      }
-    }
-    return current.currentIndex == desired.currentIndex;
-  }
-
-  GroupListeningMemberState? _activeMember(
-    GroupListeningRoomState snapshot,
-    String? memberId,
-  ) {
-    if (memberId == null || memberId.isEmpty) {
-      return null;
-    }
-    for (final member in snapshot.members) {
-      if (member.memberId == memberId &&
-          member.presenceState == GroupListeningMemberPresenceState.active) {
-        return member;
-      }
-    }
-    return null;
-  }
-
-  bool _isObsoletePendingPlaybackMutation(
-    _PendingGroupListeningMutation mutation,
-  ) {
-    return mutation.type == GroupListeningMutationType.playbackAnchor ||
-        (mutation.type == GroupListeningMutationType.queueReplace &&
-            mutation.playbackAnchor != null);
+    _mutationOutbox?.resume();
   }
 
   void _clearMutationOutbox() {
-    _pendingMutations.clear();
-    _inFlightMutation = null;
-    _mutationOutboxPaused = false;
-    _mutationOutboxDispatching = false;
+    _mutationOutbox?.clear();
   }
 
   int? _expectedQueueVersionForMutation(
@@ -1101,1221 +607,12 @@ class GroupListeningSessionController
     }
   }
 
-  Future<GroupListeningSessionState> disconnect({
-    bool preserveSession = true,
-  }) async {
-    state = state.copyWith(
-      status: GroupListeningSessionStatus.disconnecting,
-      connection: state.connection.copyWith(
-        status: GroupListeningConnectionStatus.disconnected,
-      ),
-      clearFailure: true,
-    );
-    await _disposeTransport();
-    if (!preserveSession) {
-      _clearMutationOutbox();
-      _runtimeSession = null;
-      await ref.read(groupListeningSessionCredentialStoreProvider).clear();
-    }
-    state = state.copyWith(
-      status: GroupListeningSessionStatus.idle,
-      connection: const GroupListeningConnectionState.disconnected(),
-      clearRoom: !preserveSession,
-      lastAppliedRoomVersion: preserveSession
-          ? state.lastAppliedRoomVersion
-          : 0,
-      lastAppliedEventId: preserveSession ? state.lastAppliedEventId : 0,
-      snapshotRequired: preserveSession ? state.snapshotRequired : false,
-    );
-    return state;
-  }
-
-  Future<GroupListeningSessionState> leaveRoom({
-    String source = 'unknown',
-  }) async {
-    final session = _runtimeSession;
-    if (session == null) {
-      return disconnect(preserveSession: false);
-    }
-    _logRoomAction('leave room', source: source);
-
-    state = state.copyWith(
-      status: GroupListeningSessionStatus.leaving,
-      clearFailure: true,
-    );
-    _beginTransportTeardown();
-    try {
-      try {
-        await _runAuthenticatedWithRejoinRetry(
-          (freshSession) => ref
-              .read(groupListeningRepositoryProvider)
-              .leaveRoom(
-                freshSession,
-                lastAppliedRoomVersion: state.lastAppliedRoomVersion,
-              ),
-          fallbackMessage: 'Unable to leave Voyage room cleanly.',
-          fallbackCode: GroupListeningErrorCode.transportUnavailable,
-        );
-      } on Object catch (error, stackTrace) {
-        final failure = _asFailure(
-          error,
-          fallbackMessage: 'Unable to leave Voyage room cleanly.',
-          fallbackCode: GroupListeningErrorCode.transportUnavailable,
-        );
-        // Fatal codes mean the server already considers us gone (room closed,
-        // token revoked, unauthorised).
-        if (_canLeaveLocallyAfterFailure(failure)) {
-          AppLogger.warning(
-            'Leave request rejected (${failure.code}), leaving locally.',
-          );
-          return _finishLocalLeave();
-        }
-        final retryResult = await _retryLeaveAfterRejoin(
-          session,
-          initialFailure: failure,
-        );
-        if (retryResult != null) {
-          return retryResult;
-        }
-        return _finishLocalLeaveAfterUnconfirmedLeave(
-          failure,
-          stackTrace: stackTrace,
-        );
-      }
-
-      return _finishLocalLeave();
-    } finally {
-      _endTransportTeardown();
-    }
-  }
-
-  Future<GroupListeningSessionState> closeRoom({
-    String source = 'unknown',
-  }) async {
-    final session = _runtimeSession;
-    final room = state.room;
-    if (session == null || room == null) {
-      return _setFailure(
-        const GroupListeningErrorState(
-          code: GroupListeningErrorCode.sessionUnavailable,
-          message: 'No active Voyage room is available to close.',
-        ),
-      );
-    }
-    if (!room.self.canManageRoom) {
-      return _setFailure(
-        const GroupListeningErrorState(
-          code: GroupListeningErrorCode.forbidden,
-          message: 'Only the host can close this room.',
-        ),
-      );
-    }
-    _logRoomAction('close room', source: source);
-
-    state = state.copyWith(
-      status: GroupListeningSessionStatus.disconnecting,
-      clearFailure: true,
-    );
-    _beginTransportTeardown();
-    try {
-      try {
-        final result = await _runAuthenticatedWithRejoinRetry(
-          (freshSession) => ref
-              .read(groupListeningRepositoryProvider)
-              .closeRoom(
-                freshSession,
-                expectedRoomVersion: state.lastAppliedRoomVersion,
-              ),
-          fallbackMessage: 'Unable to close Voyage room.',
-          fallbackCode: GroupListeningErrorCode.transportUnavailable,
-        );
-        await _disposeTransport();
-        _runtimeSession = null;
-        await ref.read(groupListeningSessionCredentialStoreProvider).clear();
-        final latestRoom = state.room ?? room;
-        state = state.copyWith(
-          status: GroupListeningSessionStatus.idle,
-          connection: const GroupListeningConnectionState.disconnected(),
-          room: latestRoom.copyWith(
-            roomStatus: result.roomStatus,
-            roomVersion: result.roomVersion,
-            serverTime: result.closedAt,
-          ),
-          lastAppliedRoomVersion: result.roomVersion,
-          lastAppliedEventId: latestRoom.latestEventId,
-          snapshotRequired: false,
-          clearActiveInviteCode: true,
-          clearFailure: true,
-        );
-        return state;
-      } on Object catch (error, stackTrace) {
-        final failure = _asFailure(
-          error,
-          fallbackMessage: 'Unable to close Voyage room.',
-          fallbackCode: GroupListeningErrorCode.transportUnavailable,
-        );
-        final roomAlreadyClosed =
-            state.room?.roomStatus == GroupListeningRoomStatus.closed ||
-            failure.code == GroupListeningErrorCode.roomClosed;
-        final gracefulTransportTeardown =
-            failure.code == GroupListeningErrorCode.transportUnavailable &&
-            _transportTeardownFailureObserved;
-        if (!roomAlreadyClosed && !gracefulTransportTeardown) {
-          if (_shouldCollapseToLocalCleanup(failure.code)) {
-            return _finishInvalidatedSessionCleanup(failure);
-          }
-          return _setFailure(failure, stackTrace: stackTrace);
-        }
-
-        AppLogger.warning(
-          'Close request rejected (${failure.code}), cleaning up locally.',
-        );
-        await _disposeTransport();
-        _runtimeSession = null;
-        await ref.read(groupListeningSessionCredentialStoreProvider).clear();
-        final latestRoom = switch (state.room) {
-          final current?
-              when failure.code == GroupListeningErrorCode.roomClosed ||
-                  gracefulTransportTeardown =>
-            current.copyWith(
-              roomStatus: GroupListeningRoomStatus.closed,
-              serverTime: DateTime.now(),
-            ),
-          final current? => current,
-          null => null,
-        };
-        state = state.copyWith(
-          status: GroupListeningSessionStatus.idle,
-          connection: const GroupListeningConnectionState.disconnected(),
-          room: latestRoom,
-          clearRoom: latestRoom == null,
-          lastAppliedRoomVersion: latestRoom?.roomVersion ?? 0,
-          lastAppliedEventId: latestRoom?.latestEventId ?? 0,
-          snapshotRequired: false,
-          clearActiveInviteCode: true,
-          clearFailure: true,
-        );
-        return state;
-      }
-    } finally {
-      _endTransportTeardown();
-    }
-  }
-
-  Future<GroupListeningSessionState> rotateInvite({
-    String source = 'unknown',
-  }) async {
-    final room = state.room;
-    if (_runtimeSession == null || room == null) {
-      return _setFailure(
-        const GroupListeningErrorState(
-          code: GroupListeningErrorCode.sessionUnavailable,
-          message: 'No active Voyage room is available.',
-        ),
-      );
-    }
-    if (!room.self.canManageRoom) {
-      return _setFailure(
-        const GroupListeningErrorState(
-          code: GroupListeningErrorCode.forbidden,
-          message: 'Only the host can rotate the invite.',
-        ),
-      );
-    }
-    _logRoomAction('rotate invite', source: source);
-
-    try {
-      final result = await _runAuthenticatedWithRejoinRetry(
-        (freshSession) => ref
-            .read(groupListeningRepositoryProvider)
-            .rotateInvite(
-              freshSession,
-              expectedRoomVersion: state.lastAppliedRoomVersion,
-            ),
-        fallbackMessage: 'Unable to rotate Voyage invite.',
-        fallbackCode: GroupListeningErrorCode.transportUnavailable,
-      );
-      state = state.copyWith(
-        room: state.room?.copyWith(roomVersion: result.roomVersion),
-        lastAppliedRoomVersion: result.roomVersion,
-        lastAppliedEventId: state.lastAppliedEventId,
-        activeInviteCode: result.inviteCode,
-        clearFailure: true,
-      );
-      return state;
-    } on Object catch (error, stackTrace) {
-      final failure = _asFailure(
-        error,
-        fallbackMessage: 'Unable to rotate Voyage invite.',
-        fallbackCode: GroupListeningErrorCode.transportUnavailable,
-      );
-      if (_shouldCollapseToLocalCleanup(failure.code)) {
-        return _finishInvalidatedSessionCleanup(failure);
-      }
-      return _setFailure(
-        failure,
-        stackTrace: stackTrace,
-      );
-    }
-  }
-
-  Future<String?> transferHost({
-    required String targetMemberId,
-    String source = 'unknown',
-  }) async {
-    final room = state.room;
-    if (_runtimeSession == null || room == null) {
-      state = state.copyWith(
-        failure: const GroupListeningErrorState(
-          code: GroupListeningErrorCode.sessionUnavailable,
-          message: 'No active Voyage room is available.',
-        ),
-      );
-      return null;
-    }
-    if (!room.self.canManageRoom) {
-      state = state.copyWith(
-        failure: const GroupListeningErrorState(
-          code: GroupListeningErrorCode.forbidden,
-          message: 'Only the host can transfer room ownership.',
-        ),
-      );
-      return null;
-    }
-    if (targetMemberId == room.self.memberId) {
-      state = state.copyWith(
-        failure: const GroupListeningErrorState(
-          code: GroupListeningErrorCode.validationFailed,
-          message: 'Select a different active member as the new host.',
-        ),
-      );
-      return null;
-    }
-    GroupListeningMemberState? targetMember;
-    for (final member in room.members) {
-      if (member.memberId == targetMemberId) {
-        targetMember = member;
-        break;
-      }
-    }
-    if (targetMember == null) {
-      state = state.copyWith(
-        failure: const GroupListeningErrorState(
-          code: GroupListeningErrorCode.validationFailed,
-          message: 'The selected member is no longer in the room.',
-        ),
-      );
-      return null;
-    }
-    if (targetMember.presenceState !=
-        GroupListeningMemberPresenceState.active) {
-      state = state.copyWith(
-        failure: const GroupListeningErrorState(
-          code: GroupListeningErrorCode.validationFailed,
-          message: 'Select an active member as the new host.',
-        ),
-      );
-      return null;
-    }
-    _logRoomAction('transfer host', source: source);
-    return sendMutation(
-      type: GroupListeningMutationType.transferHost,
-      targetMemberId: targetMemberId,
-    );
-  }
-
-  Future<GroupListeningSessionState> reconnect() async {
-    try {
-      final configuration = await _configurationForRoomOperation(
-        preferStoredServer: true,
-      );
-      final storedSession = await ref
-          .read(groupListeningSessionCredentialStoreProvider)
-          .read();
-      if (storedSession == null) {
-        return _setFailure(
-          const GroupListeningErrorState(
-            code: GroupListeningErrorCode.sessionUnavailable,
-            message: 'No stored Voyage rejoin session is available.',
-          ),
-        );
-      }
-      if (storedSession.sourceServerFingerprint !=
-          configuration.sourceServerFingerprint) {
-        await ref.read(groupListeningSessionCredentialStoreProvider).clear();
-        _runtimeSession = null;
-        return _setFailure(
-          const GroupListeningErrorState(
-            code: GroupListeningErrorCode.fingerprintMismatch,
-            message: 'Stored Voyage session does not match the active server.',
-          ),
-        );
-      }
-
-      state = state.copyWith(
-        status: GroupListeningSessionStatus.reconnecting,
-        connection: state.connection.copyWith(
-          status: GroupListeningConnectionStatus.reconnecting,
-          reconnectAttempt: state.connection.reconnectAttempt + 1,
-          clearDisconnectReason: true,
-        ),
-        clearFailure: true,
-      );
-      final result = await ref
-          .read(groupListeningRepositoryProvider)
-          .rejoinRoom(
-            GroupListeningRejoinRoomRequest(
-              configuration: configuration,
-              session: storedSession.copyWith(
-                lastAppliedRoomVersion: state.lastAppliedRoomVersion,
-                lastAppliedEventId: state.lastAppliedEventId,
-              ),
-            ),
-          );
-      await _bindJoinedSession(
-        result: result,
-        client: storedSession.client,
-        connectAfterJoin: true,
-      );
-      return state;
-    } on Object catch (error, stackTrace) {
-      final failure = _asFailure(
-        error,
-        fallbackMessage: 'Unable to rejoin Voyage room.',
-        fallbackCode: GroupListeningErrorCode.transportUnavailable,
-      );
-      if (_shouldCollapseToLocalCleanup(failure.code)) {
-        return _finishInvalidatedSessionCleanup(failure);
-      }
-      if (_shouldAutoReconnectAfterFailure(failure)) {
-        _scheduleAutoReconnect();
-      }
-      if (_isFatalSessionFailure(failure.code)) {
-        await ref.read(groupListeningSessionCredentialStoreProvider).clear();
-        _runtimeSession = null;
-      }
-      return _setFailure(failure, stackTrace: stackTrace);
-    }
-  }
-
-  Future<GroupListeningSessionState> refreshSnapshot({
-    String reason = 'manual',
-  }) async {
-    final session = _runtimeSession;
-    if (session == null) {
-      return _setFailure(
-        const GroupListeningErrorState(
-          code: GroupListeningErrorCode.sessionUnavailable,
-          message:
-              'No active Voyage session is available for snapshot refresh.',
-        ),
-      );
-    }
-    if (_snapshotRefreshInFlight) {
-      _queuedSnapshotRefresh = true;
-      _queuedSnapshotRefreshReason = reason;
-      AppLogger.info(
-        'Group listening: coalescing snapshot refresh '
-        '(reason=$reason, last_applied=${state.lastAppliedRoomVersion})',
-      );
-      return _snapshotRefreshOperation ??
-          Future<GroupListeningSessionState>.value(state);
-    }
-    _snapshotRefreshInFlight = true;
-    AppLogger.info(
-      'Group listening: refreshing snapshot '
-      '(reason=$reason, last_applied=${state.lastAppliedRoomVersion})',
-    );
-    final operation = () async {
-      try {
-        final snapshot = await _runAuthenticatedWithRejoinRetry(
-          (freshSession) => ref
-              .read(groupListeningRepositoryProvider)
-              .fetchSnapshot(
-                freshSession,
-                lastAppliedRoomVersion: state.lastAppliedRoomVersion,
-              ),
-          fallbackMessage: 'Unable to refresh Voyage room snapshot.',
-          fallbackCode: GroupListeningErrorCode.transportUnavailable,
-        );
-        return applySnapshot(snapshot);
-      } on Object catch (error, stackTrace) {
-        final failure = _asFailure(
-          error,
-          fallbackMessage: 'Unable to refresh Voyage room snapshot.',
-          fallbackCode: GroupListeningErrorCode.transportUnavailable,
-        );
-        if (_shouldCollapseToLocalCleanup(failure.code)) {
-          return _finishInvalidatedSessionCleanup(failure);
-        }
-        // If the WS connection is still alive, don't tear down the session just
-        // because the HTTP snapshot fetch failed. Leave snapshotRequired=true so
-        // the retry timer or the bridge will attempt again.
-        if (state.connection.isConnected) {
-          AppLogger.warning(
-            'Group listening: snapshot fetch failed (reason=$reason, '
-            'non-fatal, WS alive): ${failure.code.name} — ${failure.message}',
-          );
-          _scheduleSnapshotRetry();
-          return state;
-        }
-        return _setFailure(failure, stackTrace: stackTrace);
-      }
-    }();
-    _snapshotRefreshOperation = operation;
-    try {
-      return await operation;
-    } finally {
-      _snapshotRefreshOperation = null;
-      _snapshotRefreshInFlight = false;
-      final queuedRefresh = _queuedSnapshotRefresh;
-      final queuedReason = _queuedSnapshotRefreshReason;
-      _queuedSnapshotRefresh = false;
-      _queuedSnapshotRefreshReason = null;
-      if (queuedRefresh && state.snapshotRequired) {
-        unawaited(
-          refreshSnapshot(
-            reason: queuedReason == null
-                ? 'coalesced-retry'
-                : 'coalesced-retry:$queuedReason',
-          ),
-        );
-      }
-    }
-  }
-
-  GroupListeningSessionState applySnapshot(GroupListeningRoomState snapshot) {
-    final configuration = _configuration;
-    if (configuration == null) {
-      return _setFailure(
-        const GroupListeningErrorState(
-          code: GroupListeningErrorCode.configurationMissing,
-          message: 'Voyage configuration is not ready.',
-        ),
-      );
-    }
-    if (snapshot.sourceServerFingerprint !=
-        configuration.sourceServerFingerprint) {
-      unawaited(ref.read(groupListeningSessionCredentialStoreProvider).clear());
-      _runtimeSession = null;
-      return _setFailure(
-        const GroupListeningErrorState(
-          code: GroupListeningErrorCode.fingerprintMismatch,
-          message:
-              'Voyage snapshot fingerprint does not match the active server.',
-        ),
-        clearRoom: true,
-      );
-    }
-    if (state.room != null && snapshot.roomId != state.room!.roomId) {
-      return state;
-    }
-    // Allow re-applying a snapshot at the current version so that a
-    // snapshotRequired flag set by a stale_version rejection (which arrived
-    // after the corresponding room event already advanced lastApplied) can be
-    // cleared.  Using strict-less-than here means an equal-version snapshot
-    // still goes through applySnapshot and clears snapshotRequired at line
-    // below, rather than silently returning with the flag still set.
-    if (snapshot.roomVersion < state.lastAppliedRoomVersion) {
-      return state;
-    }
-
-    _serverClockEstimator.recordInstantSample(
-      serverTime: snapshot.serverTime,
-      clientReceiveTime: DateTime.now().toUtc(),
-    );
-    final nextConnection =
-        snapshot.roomStatus == GroupListeningRoomStatus.closed
-        ? const GroupListeningConnectionState.disconnected()
-        : state.connection.copyWith(
-            serverClockOffset: _serverClockEstimator.clockOffset,
-          );
-    state = state.copyWith(
-      status: snapshot.roomStatus == GroupListeningRoomStatus.closed
-          ? GroupListeningSessionStatus.idle
-          : state.connection.isConnected
-          ? GroupListeningSessionStatus.connected
-          : GroupListeningSessionStatus.idle,
-      connection: nextConnection,
-      room: snapshot,
-      lastAppliedRoomVersion: snapshot.roomVersion,
-      lastAppliedEventId: snapshot.latestEventId,
-      snapshotRequired: false,
-      lastSnapshotAt: DateTime.now(),
-      clearActiveInviteCode:
-          snapshot.roomStatus == GroupListeningRoomStatus.closed,
-      clearFailure: true,
-    );
-    _snapshotRetryTimer?.cancel();
-    _snapshotRetryTimer = null;
-    _clearAckLagRecovery(upToRoomVersion: snapshot.roomVersion);
-    _dropPendingPlaybackMutations();
-    _revalidatePendingMutations(snapshot);
-    _resumeMutationOutbox();
-    if (snapshot.roomStatus == GroupListeningRoomStatus.closed) {
-      _runtimeSession = null;
-      unawaited(ref.read(groupListeningSessionCredentialStoreProvider).clear());
-    }
-    unawaited(
-      _persistLastAppliedCursor(
-        roomVersion: snapshot.roomVersion,
-        eventId: snapshot.latestEventId,
-        expectedSession: _runtimeSession,
-      ),
-    );
-    return state;
-  }
-
-  GroupListeningSessionState applyRealtimeEvent(GroupListeningRoomEvent event) {
-    final room = state.room;
-    if (room == null || room.roomId != event.roomId) {
-      return _requestSnapshotRecovery(
-        'room-event-before-snapshot',
-        const GroupListeningErrorState(
-          code: GroupListeningErrorCode.snapshotRequired,
-          message: 'Voyage room event arrived before a room snapshot.',
-        ),
-      );
-    }
-    final eventCursor = event.eventCursor;
-    if (eventCursor != null) {
-      if (eventCursor <= state.lastAppliedEventId) {
-        return state;
-      }
-      if (eventCursor != state.lastAppliedEventId + 1) {
-        return _requestSnapshotRecovery(
-          'room-event-cursor-gap',
-          GroupListeningErrorState(
-            code: GroupListeningErrorCode.snapshotRequired,
-            message: 'Voyage event cursor gap detected.',
-            retryable: true,
-            roomVersion: event.roomVersion,
-            details: <String, Object?>{
-              'last_applied_event_id': state.lastAppliedEventId,
-              'incoming_event_id': eventCursor,
-            },
-          ),
-        );
-      }
-    } else if (event.roomVersion <= state.lastAppliedRoomVersion) {
-      return state;
-    }
-    if (eventCursor == null &&
-        (event.previousRoomVersion != state.lastAppliedRoomVersion ||
-            event.roomVersion != state.lastAppliedRoomVersion + 1)) {
-      return _requestSnapshotRecovery(
-        'room-event-gap',
-        GroupListeningErrorState(
-          code: GroupListeningErrorCode.snapshotRequired,
-          message: 'Voyage room version gap detected.',
-          retryable: true,
-          roomVersion: event.roomVersion,
-          details: <String, Object?>{
-            'last_applied_room_version': state.lastAppliedRoomVersion,
-            'incoming_room_version': event.roomVersion,
-          },
-        ),
-      );
-    }
-
-    state = state.copyWith(
-      room: room.applyEvent(event),
-      lastAppliedRoomVersion: event.roomVersion,
-      lastAppliedEventId: eventCursor ?? state.lastAppliedEventId,
-      snapshotRequired: false,
-      clearFailure: true,
-    );
-    _clearAckLagRecovery(upToRoomVersion: event.roomVersion);
-    unawaited(
-      _persistLastAppliedCursor(
-        roomVersion: event.roomVersion,
-        eventId: eventCursor ?? state.lastAppliedEventId,
-        expectedSession: _runtimeSession,
-      ),
-    );
-
-    if (event.roomStatus == GroupListeningRoomStatus.closed ||
-        event.eventType == GroupListeningRoomEventType.roomClosed) {
-      state = state.copyWith(
-        status: GroupListeningSessionStatus.idle,
-        connection: const GroupListeningConnectionState.disconnected(),
-      );
-    }
-    return state;
-  }
-
-  GroupListeningSessionState markSnapshotRequired([
-    GroupListeningErrorState? failure,
-  ]) {
-    _clearAckLagRecovery();
-    _pauseMutationOutbox();
-    state = state.copyWith(
-      snapshotRequired: true,
-      failure:
-          failure ??
-          const GroupListeningErrorState(
-            code: GroupListeningErrorCode.snapshotRequired,
-            message: 'Voyage state is stale and requires a fresh snapshot.',
-            retryable: true,
-          ),
-      status: state.connection.isConnected
-          ? GroupListeningSessionStatus.connected
-          : state.status,
-    );
-    _scheduleSnapshotRetry();
-    return state;
-  }
-
-  /// Schedules a one-shot timer to call [refreshSnapshot] if [snapshotRequired]
-  /// is still true after [_snapshotRetryDelay]. This acts as a safety net when
-  /// the bridge misses the false→true transition (e.g. concurrent in-flight
-  /// refresh) or when the initial HTTP call failed non-fatally.
-  void _scheduleSnapshotRetry() {
-    _snapshotRetryTimer?.cancel();
-    if (!state.connection.isConnected) {
-      return;
-    }
-    _snapshotRetryTimer = Timer(_snapshotRetryDelay, () {
-      if (state.snapshotRequired && state.connection.isConnected) {
-        AppLogger.info('Group listening: retrying snapshot refresh via timer');
-        unawaited(refreshSnapshot(reason: 'snapshot-retry-timer'));
-      }
-    });
-  }
-
-  GroupListeningSessionState _requestSnapshotRecovery(
-    String reason, [
-    GroupListeningErrorState? failure,
-  ]) {
-    final effectiveFailure =
-        failure ??
-        const GroupListeningErrorState(
-          code: GroupListeningErrorCode.snapshotRequired,
-          message: 'Voyage state is stale and requires a fresh snapshot.',
-          retryable: true,
-        );
-    AppLogger.info(
-      'Group listening: snapshot required '
-      '(reason=$reason, code=${effectiveFailure.code.name}, '
-      'last_applied=${state.lastAppliedRoomVersion}, '
-      'room_version=${effectiveFailure.roomVersion ?? state.room?.roomVersion ?? 0})',
-    );
-    return markSnapshotRequired(effectiveFailure);
-  }
-
   void _logRoomAction(String action, {required String source}) {
     AppLogger.info(
       'Group listening: $action requested '
       '(source=$source, room_id=${state.room?.roomId ?? _runtimeSession?.roomId ?? 'n/a'}, '
       'room_version=${state.lastAppliedRoomVersion})',
     );
-  }
-
-  void clearFailure() {
-    state = state.copyWith(clearFailure: true);
-  }
-
-  Future<T> _runAuthenticatedWithRejoinRetry<T>(
-    Future<T> Function(GroupListeningSessionRuntimeContext session) operation, {
-    required String fallbackMessage,
-    required GroupListeningErrorCode fallbackCode,
-  }) async {
-    var session = await _ensureFreshSession();
-    try {
-      return await operation(session);
-    } on Object catch (error) {
-      final failure = _asFailure(
-        error,
-        fallbackMessage: fallbackMessage,
-        fallbackCode: fallbackCode,
-      );
-      if (failure.code != GroupListeningErrorCode.unauthorized) {
-        rethrow;
-      }
-      session = await _ensureFreshSession(force: true);
-      return operation(session);
-    }
-  }
-
-  Future<GroupListeningSessionRuntimeContext> _ensureFreshSession({
-    bool force = false,
-  }) async {
-    final session = _runtimeSession;
-    if (session == null) {
-      throw const GroupListeningRepositoryException(
-        GroupListeningErrorState(
-          code: GroupListeningErrorCode.sessionUnavailable,
-          message: 'No active Voyage session is available.',
-        ),
-      );
-    }
-    if (!force &&
-        session.accessTokenExpiresAt
-                .difference(DateTime.now().toUtc())
-                .compareTo(_tokenRefreshWindow) >
-            0) {
-      return session;
-    }
-    return _rejoinCurrentSession(session);
-  }
-
-  Future<GroupListeningSessionRuntimeContext> _rejoinCurrentSession(
-    GroupListeningSessionRuntimeContext expectedSession,
-  ) async {
-    final store = ref.read(groupListeningSessionCredentialStoreProvider);
-    final storedSession = await store.read();
-    if (storedSession == null ||
-        !_matchesStoredSession(storedSession, expectedSession)) {
-      throw const GroupListeningRepositoryException(
-        GroupListeningErrorState(
-          code: GroupListeningErrorCode.sessionUnavailable,
-          message: 'No stored Voyage rejoin session is available.',
-        ),
-      );
-    }
-    final configuration = _configurationWithVoyageBaseUrl(
-      _requireConfiguration(),
-      expectedSession.voyageBaseUrl,
-      protocolVersion: storedSession.protocolVersion,
-    );
-    final result = await ref
-        .read(groupListeningRepositoryProvider)
-        .rejoinRoom(
-          GroupListeningRejoinRoomRequest(
-            configuration: configuration,
-            session: storedSession.copyWith(
-              lastAppliedRoomVersion: state.lastAppliedRoomVersion,
-              lastAppliedEventId: state.lastAppliedEventId,
-            ),
-          ),
-        );
-    _runtimeSession = result.runtimeContext;
-    applySnapshot(result.roomSnapshot);
-    state = state.copyWith(
-      activeInviteCode: result.inviteCode,
-      clearActiveInviteCode: result.inviteCode == null,
-    );
-    await store.save(
-      GroupListeningStoredSession(
-        roomId: result.runtimeContext.roomId,
-        memberId: result.runtimeContext.memberId,
-        role: result.runtimeContext.role,
-        authVersion: result.runtimeContext.authVersion,
-        voyageBaseUrl: result.runtimeContext.voyageBaseUrl,
-        sourceServerFingerprint: result.runtimeContext.sourceServerFingerprint,
-        rejoinToken: result.runtimeContext.rejoinToken,
-        client: storedSession.client,
-        lastAppliedRoomVersion: result.roomSnapshot.roomVersion,
-        lastAppliedEventId: result.roomSnapshot.latestEventId,
-        protocolVersion: result.runtimeContext.protocolVersion,
-      ),
-    );
-    return result.runtimeContext;
-  }
-
-  Future<void> _bindJoinedSession({
-    required GroupListeningJoinResponse result,
-    required GroupListeningClientDescriptor client,
-    required bool connectAfterJoin,
-  }) async {
-    _serverClockEstimator.clear();
-    _runtimeSession = result.runtimeContext;
-    final storedSession = GroupListeningStoredSession(
-      roomId: result.runtimeContext.roomId,
-      memberId: result.runtimeContext.memberId,
-      role: result.runtimeContext.role,
-      authVersion: result.runtimeContext.authVersion,
-      voyageBaseUrl: result.runtimeContext.voyageBaseUrl,
-      sourceServerFingerprint: result.runtimeContext.sourceServerFingerprint,
-      rejoinToken: result.runtimeContext.rejoinToken,
-      client: client,
-      lastAppliedRoomVersion: result.roomSnapshot.roomVersion,
-      lastAppliedEventId: result.roomSnapshot.latestEventId,
-      protocolVersion: result.runtimeContext.protocolVersion,
-    );
-    applySnapshot(result.roomSnapshot);
-    state = state.copyWith(
-      activeInviteCode: result.inviteCode,
-      clearActiveInviteCode: result.inviteCode == null,
-    );
-    await ref
-        .read(groupListeningSessionCredentialStoreProvider)
-        .save(storedSession);
-    if (connectAfterJoin) {
-      await connect();
-    } else {
-      state = state.copyWith(
-        status: GroupListeningSessionStatus.idle,
-        connection: const GroupListeningConnectionState.disconnected(),
-      );
-    }
-  }
-
-  void _handleTransportMessage(GroupListeningTransportMessage message) {
-    if (message is GroupListeningConnectionWelcomeMessage) {
-      _markTransportReady(
-        clientConnectionId: message.clientConnectionId,
-        heartbeatInterval: message.heartbeatInterval,
-        memberStaleTimeout: message.memberStaleTimeout,
-        serverTime: message.serverTime,
-      );
-      return;
-    }
-    if (message is GroupListeningConnectionReadyMessage) {
-      _markTransportReady(
-        clientConnectionId: message.clientConnectionId,
-        heartbeatInterval: message.heartbeatInterval,
-        memberStaleTimeout: message.memberStaleTimeout,
-        serverTime: message.serverTime,
-      );
-      if (message.requiresSnapshot) {
-        _requestSnapshotRecovery(
-          'replay-snapshot-required',
-          GroupListeningErrorState(
-            code: GroupListeningErrorCode.snapshotRequired,
-            message: 'Voyage replay resume requires a fresh snapshot.',
-            retryable: true,
-            roomVersion: message.roomVersion,
-            details: <String, Object?>{
-              'latest_event_id': message.latestEventId,
-              'last_applied_event_id': state.lastAppliedEventId,
-            },
-          ),
-        );
-      }
-      return;
-    }
-    if (message is GroupListeningRoomSnapshotMessage) {
-      applySnapshot(message.snapshot);
-      return;
-    }
-    if (message is GroupListeningRoomEventMessage) {
-      applyRealtimeEvent(message.event);
-      return;
-    }
-    if (message is GroupListeningPresenceUpdatedMessage) {
-      final room = state.room;
-      if (room == null || room.roomId != message.roomId) {
-        return;
-      }
-      if (message.roomVersion < state.lastAppliedRoomVersion) {
-        return;
-      }
-      if (message.roomVersion > state.lastAppliedRoomVersion + 1) {
-        // Genuine gap: multiple room events are missing. Fetch a fresh snapshot.
-        _requestSnapshotRecovery(
-          'presence-gap',
-          GroupListeningErrorState(
-            code: GroupListeningErrorCode.snapshotRequired,
-            message: 'Voyage presence update arrived ahead of room state.',
-            retryable: true,
-            roomVersion: message.roomVersion,
-          ),
-        );
-        return;
-      }
-      if (message.roomVersion > state.lastAppliedRoomVersion) {
-        // Presence arrived exactly 1 version ahead of lastApplied: the
-        // corresponding room.event is still in transit on the WS stream.
-        // Skip this presence frame; the event will arrive momentarily and
-        // advance lastAppliedRoomVersion, at which point the next presence
-        // notification (at the new version) will apply normally.
-        return;
-      }
-      state = state.copyWith(
-        room: room.copyWith(
-          presenceVersion: message.presenceVersion,
-          members: _mergeMembers(
-            existing: room.members,
-            updates: message.members,
-            removedMemberIds: const <String>[],
-          ),
-        ),
-      );
-      return;
-    }
-    if (message is GroupListeningHeartbeatAckMessage) {
-      _recordServerClockSample(message);
-      final receivedAt = DateTime.now();
-      state = state.copyWith(
-        connection: state.connection.copyWith(
-          lastHeartbeatAckAt: receivedAt,
-          lastServerTime: message.serverTime,
-        ),
-      );
-      if (!state.snapshotRequired &&
-          message.roomVersion > state.lastAppliedRoomVersion) {
-        _scheduleAckLagRecovery(message.roomVersion);
-      } else {
-        _clearAckLagRecovery(upToRoomVersion: state.lastAppliedRoomVersion);
-      }
-      return;
-    }
-    if (message is GroupListeningMutationAckMessage) {
-      _handleMutationAck(message);
-      return;
-    }
-    if (message is GroupListeningRoomClosedMessage) {
-      _runtimeSession = null;
-      unawaited(ref.read(groupListeningSessionCredentialStoreProvider).clear());
-      state = state.copyWith(
-        status: GroupListeningSessionStatus.idle,
-        connection: const GroupListeningConnectionState.disconnected(),
-        clearActiveInviteCode: true,
-        room: state.room?.copyWith(
-          roomStatus: GroupListeningRoomStatus.closed,
-          roomVersion: message.roomVersion,
-          serverTime: message.closedAt,
-        ),
-      );
-      return;
-    }
-    if (message is GroupListeningTransportDisconnectedMessage) {
-      _handleTransportFailure(
-        message.error ??
-            const GroupListeningErrorState(
-              code: GroupListeningErrorCode.transportDisconnected,
-              message: 'Voyage realtime transport disconnected.',
-              retryable: true,
-            ),
-      );
-      return;
-    }
-    if (message is GroupListeningMutationRejectedMessage) {
-      _handleMutationNack(message);
-      return;
-    }
-    if (message is GroupListeningTransportErrorMessage) {
-      _handleTransportFailure(message.error);
-    }
-  }
-
-  void _markTransportReady({
-    required String clientConnectionId,
-    required Duration heartbeatInterval,
-    required Duration memberStaleTimeout,
-    required DateTime serverTime,
-  }) {
-    _scheduleHeartbeat(after: heartbeatInterval);
-    _reconnectTimer?.cancel();
-    _reconnectTimer = null;
-    _reconnectAttempts = 0;
-    _clearAckLagRecovery();
-    final connectedDiscovery = _connectingDiscovery;
-    _connectingDiscovery = null;
-    final connectedSession = _runtimeSession;
-    _serverClockEstimator.recordInstantSample(
-      serverTime: serverTime,
-      clientReceiveTime: DateTime.now().toUtc(),
-    );
-    state = state.copyWith(
-      status: GroupListeningSessionStatus.connected,
-      connection: state.connection.copyWith(
-        status: GroupListeningConnectionStatus.connected,
-        clientConnectionId: clientConnectionId,
-        heartbeatInterval: heartbeatInterval,
-        memberStaleTimeout: memberStaleTimeout,
-        connectedAt: DateTime.now(),
-        lastServerTime: serverTime,
-        connectedServerUrl: connectedSession?.voyageBaseUrl,
-        connectedServerVersion: connectedDiscovery?.serverVersion,
-        serverClockOffset: _serverClockEstimator.clockOffset,
-        clearDisconnectReason: true,
-      ),
-      clearFailure: true,
-    );
-    _resumeMutationOutbox();
-    _scheduleServerUpgradeCheck();
-  }
-
-  void _recordServerClockSample(GroupListeningHeartbeatAckMessage message) {
-    final clientTime = message.clientTime;
-    final serverReceiveTime = message.serverReceiveTime;
-    final serverSendTime = message.serverSendTime;
-    if (clientTime == null ||
-        serverReceiveTime == null ||
-        serverSendTime == null) {
-      return;
-    }
-    final accepted = _serverClockEstimator.recordSample(
-      clientSendTime: clientTime,
-      serverReceiveTime: serverReceiveTime,
-      serverSendTime: serverSendTime,
-      clientReceiveTime: DateTime.now().toUtc(),
-    );
-    if (!accepted) {
-      return;
-    }
-    final medianOffset = _serverClockEstimator.clockOffset;
-    AppLogger.debug(
-      'Group listening heartbeat clock sample: '
-      'rtt_ms=${_serverClockEstimator.lastRoundTripTime?.inMilliseconds}, '
-      'offset_ms=${_serverClockEstimator.lastSampleOffset?.inMilliseconds}, '
-      'median_offset_ms=${medianOffset.inMilliseconds}',
-    );
-    state = state.copyWith(
-      connection: state.connection.copyWith(
-        serverClockOffset: medianOffset,
-        lastRoundTripTime: _serverClockEstimator.lastRoundTripTime,
-      ),
-    );
-  }
-
-  void _recordPlaybackLoadingState(PlaybackSnapshot snapshot) {
-    final loading =
-        snapshot.isLoading ||
-        snapshot.processingState.name == 'loading' ||
-        snapshot.processingState.name == 'buffering';
-    if (!loading) {
-      _loadingStatusKey = null;
-      _loadingStartedAt = null;
-      return;
-    }
-
-    final key =
-        '${snapshot.loadingSongId ?? snapshot.currentSongId ?? ''}'
-        '|${snapshot.processingState.name}';
-    if (_loadingStatusKey == key && _loadingStartedAt != null) {
-      return;
-    }
-    _loadingStatusKey = key;
-    _loadingStartedAt = DateTime.now().toUtc();
-  }
-
-  Duration? _playbackLoadingAge(PlaybackSnapshot snapshot) {
-    final loading =
-        snapshot.isLoading ||
-        snapshot.processingState.name == 'loading' ||
-        snapshot.processingState.name == 'buffering';
-    if (!loading) {
-      return null;
-    }
-    final startedAt = _loadingStartedAt;
-    if (startedAt == null) {
-      _recordPlaybackLoadingState(snapshot);
-      return Duration.zero;
-    }
-    final age = DateTime.now().toUtc().difference(startedAt);
-    return age.isNegative ? Duration.zero : age;
-  }
-
-  void _handleTransportFailure(
-    GroupListeningErrorState failure, {
-    StackTrace? stackTrace,
-  }) {
-    // Only cancel the heartbeat for non-recoverable failures that actually
-    // tear down the transport.  Recoverable errors (stale_version,
-    // snapshotRequired) keep the WS connection alive — stopping the heartbeat
-    // here causes the server to mark this client as stale after
-    // memberStaleTimeout, which is the root cause of the "sync disconnects
-    // within seconds" symptom.
-    final isRecoverable =
-        failure.code == GroupListeningErrorCode.snapshotRequired ||
-        failure.code == GroupListeningErrorCode.staleVersion;
-    if (!isRecoverable) {
-      _heartbeatTimer?.cancel();
-      _heartbeatTimer = null;
-    }
-    if (_transportTeardownInProgress) {
-      _transportTeardownFailureObserved = true;
-      return;
-    }
-    if (stackTrace != null) {
-      AppLogger.warning(
-        'Group listening transport failure: ${failure.code.name}',
-      );
-    }
-    if (failure.code == GroupListeningErrorCode.snapshotRequired ||
-        failure.code == GroupListeningErrorCode.staleVersion) {
-      _requestSnapshotRecovery('transport-${failure.code.name}', failure);
-      return;
-    }
-    if (_shouldCollapseToLocalCleanup(failure.code)) {
-      unawaited(_finishInvalidatedSessionCleanup(failure));
-      return;
-    }
-    if (failure.code == GroupListeningErrorCode.unsupportedProtocolVersion ||
-        failure.code == GroupListeningErrorCode.transportUnavailable ||
-        failure.code == GroupListeningErrorCode.transportDisconnected) {
-      unawaited(_checkForBundledServerUpgrade(triggeredByFailure: true));
-    }
-    if (_isFatalSessionFailure(failure.code)) {
-      _snapshotRetryTimer?.cancel();
-      _snapshotRetryTimer = null;
-      _reconnectTimer?.cancel();
-      _reconnectTimer = null;
-      _reconnectAttempts = 0;
-      _runtimeSession = null;
-      unawaited(ref.read(groupListeningSessionCredentialStoreProvider).clear());
-    }
-    state = state.copyWith(
-      status: GroupListeningSessionStatus.error,
-      connection: state.connection.copyWith(
-        status: GroupListeningConnectionStatus.disconnected,
-        lastDisconnectReason: failure,
-      ),
-      clearActiveInviteCode: _isFatalSessionFailure(failure.code),
-      failure: failure,
-    );
-    // Auto-reconnect on retryable transport disconnects (e.g. network blip,
-    // server restart).  We use exponential backoff and cap attempts so the
-    // user is shown an error if the server is truly unreachable.
-    if (_shouldAutoReconnectAfterFailure(failure)) {
-      _scheduleAutoReconnect();
-    }
-  }
-
-  void _scheduleAutoReconnect() {
-    _reconnectTimer?.cancel();
-    if (_reconnectAttempts >= _reconnectMaxAttempts) {
-      AppLogger.warning(
-        'Group listening: auto-reconnect exhausted after '
-        '$_reconnectAttempts attempts',
-      );
-      return;
-    }
-    final attempt = _reconnectAttempts + 1;
-    final backoff = Duration(
-      milliseconds:
-          (_reconnectInitialDelay.inMilliseconds *
-                  (1 << (_reconnectAttempts).clamp(0, 5)))
-              .clamp(
-                _reconnectInitialDelay.inMilliseconds,
-                _reconnectMaxDelay.inMilliseconds,
-              ),
-    );
-    AppLogger.info(
-      'Group listening: scheduling auto-reconnect attempt $attempt in '
-      '${backoff.inSeconds}s',
-    );
-    _reconnectTimer = Timer(backoff, () {
-      if (_runtimeSession == null || state.connection.isConnected) {
-        return;
-      }
-      _reconnectAttempts = attempt;
-      AppLogger.info(
-        'Group listening: auto-reconnect attempt $_reconnectAttempts',
-      );
-      unawaited(reconnect());
-    });
-  }
-
-  bool _shouldAutoReconnectAfterFailure(GroupListeningErrorState failure) {
-    return failure.retryable == true &&
-        _runtimeSession != null &&
-        !_isFatalSessionFailure(failure.code) &&
-        (failure.code == GroupListeningErrorCode.transportDisconnected ||
-            failure.code == GroupListeningErrorCode.transportUnavailable);
-  }
-
-  bool _shouldCollapseToLocalCleanup(GroupListeningErrorCode code) {
-    return code == GroupListeningErrorCode.unauthorized ||
-        code == GroupListeningErrorCode.removed ||
-        code == GroupListeningErrorCode.revoked;
-  }
-
-  bool _canLeaveLocallyAfterFailure(GroupListeningErrorState failure) {
-    return _isFatalSessionFailure(failure.code);
   }
 
   void _handleAvailabilityChanged(GroupListeningAvailability availability) {
@@ -2344,7 +641,7 @@ class GroupListeningSessionController
   }
 
   Future<void> _resetForConfigurationLoss() async {
-    await _disposeTransport();
+    await _transport.disposeTransport();
     _clearMutationOutbox();
     _runtimeSession = null;
     await ref.read(groupListeningSessionCredentialStoreProvider).clear();
@@ -2437,516 +734,6 @@ class GroupListeningSessionController
     }
   }
 
-  Future<GroupListeningClientConfiguration> _configurationForRoomOperation({
-    bool preferStoredServer = false,
-  }) async {
-    final configuration = _requireConfiguration();
-    final resolved = await _resolveBestBundledServer(
-      preferredUrl: preferStoredServer
-          ? (await ref
-                    .read(groupListeningSessionCredentialStoreProvider)
-                    .read())
-                ?.voyageBaseUrl
-                .toString()
-          : null,
-    );
-    if (resolved == null) {
-      final discovery = await ref
-          .read(groupListeningRepositoryProvider)
-          .discover(configuration);
-      return _configurationWithVoyageBaseUrl(
-        configuration,
-        configuration.voyageBaseUrl,
-        protocolVersion: discovery.preferredProtocolVersion,
-      );
-    }
-    return _configurationWithVoyageBaseUrl(
-      configuration,
-      Uri.parse(resolved.option.url),
-      protocolVersion: resolved.discovery.preferredProtocolVersion,
-    );
-  }
-
-  Future<GroupListeningResolvedVoyageServer?> _resolveBestBundledServer({
-    String? preferredUrl,
-  }) async {
-    final configuration = _configuration;
-    if (configuration == null ||
-        state.availability != GroupListeningAvailability.ready) {
-      return null;
-    }
-    return _resolveBestBundledVoyageServer(
-      ref,
-      configuration,
-      preferredUrl: preferredUrl,
-    );
-  }
-
-  Future<GroupListeningCapabilityDiscovery> _discoverSessionServer(
-    GroupListeningSessionRuntimeContext session,
-  ) {
-    final configuration = _requireConfiguration();
-    return ref
-        .read(groupListeningRepositoryProvider)
-        .discover(
-          _configurationWithVoyageBaseUrl(configuration, session.voyageBaseUrl),
-        );
-  }
-
-  GroupListeningClientConfiguration _requireConfiguration() {
-    final configuration = _configuration;
-    if (configuration == null ||
-        state.availability != GroupListeningAvailability.ready) {
-      throw const GroupListeningRepositoryException(
-        GroupListeningErrorState(
-          code: GroupListeningErrorCode.configurationMissing,
-          message: 'Voyage settings are incomplete or disabled.',
-        ),
-      );
-    }
-    return configuration;
-  }
-
-  Future<void> _disposeTransport() async {
-    _serverClockEstimator.clear();
-    _heartbeatTimer?.cancel();
-    _heartbeatTimer = null;
-    _serverUpgradeTimer?.cancel();
-    _serverUpgradeTimer = null;
-    _snapshotRetryTimer?.cancel();
-    _snapshotRetryTimer = null;
-    _reconnectTimer?.cancel();
-    _reconnectTimer = null;
-    _clearAckLagRecovery();
-    _reconnectAttempts = 0;
-    _connectingDiscovery = null;
-    await _transportSubscription?.cancel();
-    _transportSubscription = null;
-    final connection = _connection;
-    _connection = null;
-    _inFlightMutation = null;
-    _mutationOutboxDispatching = false;
-    if (connection != null) {
-      await connection.disconnect();
-    }
-  }
-
-  Future<GroupListeningSessionState> _finishLocalLeave() async {
-    await _disposeTransport();
-    _clearMutationOutbox();
-    _runtimeSession = null;
-    await ref.read(groupListeningSessionCredentialStoreProvider).clear();
-    state = state.copyWith(
-      status: GroupListeningSessionStatus.idle,
-      connection: const GroupListeningConnectionState.disconnected(),
-      clearRoom: true,
-      clearFailure: true,
-      lastAppliedRoomVersion: 0,
-      lastAppliedEventId: 0,
-      snapshotRequired: false,
-    );
-    return state;
-  }
-
-  Future<GroupListeningSessionState?> _retryLeaveAfterRejoin(
-    GroupListeningSessionRuntimeContext expectedSession, {
-    required GroupListeningErrorState initialFailure,
-  }) async {
-    if (initialFailure.code != GroupListeningErrorCode.transportUnavailable &&
-        initialFailure.code != GroupListeningErrorCode.transportDisconnected) {
-      return null;
-    }
-
-    try {
-      final refreshedSession = await _rejoinCurrentSession(expectedSession);
-      await ref
-          .read(groupListeningRepositoryProvider)
-          .leaveRoom(
-            refreshedSession,
-            lastAppliedRoomVersion: state.lastAppliedRoomVersion,
-          );
-      return _finishLocalLeave();
-    } on Object catch (error, stackTrace) {
-      final retryFailure = _asFailure(
-        error,
-        fallbackMessage: 'Unable to leave Voyage room cleanly.',
-        fallbackCode: GroupListeningErrorCode.transportUnavailable,
-      );
-      if (_canLeaveLocallyAfterFailure(retryFailure)) {
-        AppLogger.warning(
-          'Leave retry rejected (${retryFailure.code}), leaving locally.',
-        );
-        return _finishLocalLeave();
-      }
-      return _finishLocalLeaveAfterUnconfirmedLeave(
-        retryFailure,
-        stackTrace: stackTrace,
-      );
-    }
-  }
-
-  Future<GroupListeningSessionState> _finishLocalLeaveAfterUnconfirmedLeave(
-    GroupListeningErrorState failure, {
-    StackTrace? stackTrace,
-  }) async {
-    AppLogger.warning(
-      'Leave was not confirmed by Voyage (${failure.code}); '
-      'clearing local session anyway.${stackTrace == null ? '' : '\n$stackTrace'}',
-    );
-    return _finishLocalLeave();
-  }
-
-  Future<GroupListeningSessionState> _finishInvalidatedSessionCleanup(
-    GroupListeningErrorState failure,
-  ) async {
-    AppLogger.warning(
-      'Group listening: session invalidated by ${failure.code.name}; '
-      'cleaning up locally.',
-    );
-    await _disposeTransport();
-    _runtimeSession = null;
-    await ref.read(groupListeningSessionCredentialStoreProvider).clear();
-    state = state.copyWith(
-      status: GroupListeningSessionStatus.idle,
-      connection: const GroupListeningConnectionState.disconnected(),
-      clearRoom: true,
-      lastAppliedRoomVersion: 0,
-      lastAppliedEventId: 0,
-      snapshotRequired: false,
-      clearActiveInviteCode: true,
-      failure: failure,
-    );
-    return state;
-  }
-
-  void _scheduleHeartbeat({Duration? after}) {
-    _heartbeatTimer?.cancel();
-    final delay = after ?? state.connection.heartbeatInterval;
-    if (delay == null || delay <= Duration.zero) {
-      return;
-    }
-    _heartbeatTimer = Timer(delay, () {
-      unawaited(_sendHeartbeat());
-    });
-  }
-
-  void _scheduleAckLagRecovery(int roomVersion) {
-    if (roomVersion <= state.lastAppliedRoomVersion) {
-      _clearAckLagRecovery();
-      return;
-    }
-    if (_ackLagRoomVersion == roomVersion &&
-        (_ackLagTimer?.isActive ?? false)) {
-      return;
-    }
-    _ackLagTimer?.cancel();
-    _ackLagRoomVersion = roomVersion;
-    _ackLagTimer = Timer(_ackLagGrace, () {
-      final stillLagging =
-          state.connection.isConnected &&
-          !state.snapshotRequired &&
-          state.lastAppliedRoomVersion < roomVersion;
-      if (!stillLagging) {
-        _clearAckLagRecovery(upToRoomVersion: state.lastAppliedRoomVersion);
-        return;
-      }
-      AppLogger.info(
-        'Group listening: heartbeat ack stayed ahead of room state; '
-        'requesting snapshot recovery',
-      );
-      _requestSnapshotRecovery(
-        'heartbeat-ack-lag',
-        GroupListeningErrorState(
-          code: GroupListeningErrorCode.snapshotRequired,
-          message: 'Heartbeat ack indicates the room state is lagging behind.',
-          retryable: true,
-          roomVersion: roomVersion,
-          details: <String, Object?>{
-            'last_applied_room_version': state.lastAppliedRoomVersion,
-            'ack_room_version': roomVersion,
-          },
-        ),
-      );
-      _clearAckLagRecovery();
-    });
-  }
-
-  void _clearAckLagRecovery({int? upToRoomVersion}) {
-    final trackedRoomVersion = _ackLagRoomVersion;
-    if (upToRoomVersion != null &&
-        trackedRoomVersion != null &&
-        trackedRoomVersion > upToRoomVersion) {
-      return;
-    }
-    _ackLagTimer?.cancel();
-    _ackLagTimer = null;
-    _ackLagRoomVersion = null;
-  }
-
-  Future<void> _sendHeartbeat() async {
-    final connection = _connection;
-    final clientConnectionId = state.connection.clientConnectionId;
-    if (connection == null ||
-        clientConnectionId == null ||
-        !state.connection.isConnected) {
-      return;
-    }
-
-    final interval = state.connection.heartbeatInterval;
-    if (interval == null || interval <= Duration.zero) {
-      return;
-    }
-
-    final playbackSnapshot = ref.read(playerStateProvider);
-    final observedPosition = playbackSnapshot.position;
-    try {
-      await connection.send(
-        GroupListeningHeartbeatMessage(
-          clientConnectionId: clientConnectionId,
-          clientTime: DateTime.now().toUtc(),
-          lastAppliedRoomVersion: state.lastAppliedRoomVersion,
-          lastAppliedEventId: state.lastAppliedEventId,
-          lastAppliedQueueVersion: state.room?.queue.queueVersion ?? 0,
-          lastAppliedPlaybackVersion: state.room?.playbackVersion ?? 0,
-          lastAppliedPresenceVersion: state.room?.presenceVersion ?? 0,
-          observedPosition: observedPosition,
-          transportRtt: state.connection.lastRoundTripTime,
-        ),
-      );
-      final loadingAge = _playbackLoadingAge(playbackSnapshot);
-      final observedCurrentIndex = playbackSnapshot.currentIndex;
-      final observedQueueEntryId =
-          observedCurrentIndex != null &&
-              observedCurrentIndex >= 0 &&
-              (state.room?.queue.entries.length ?? 0) > observedCurrentIndex
-          ? state.room!.queue.entries[observedCurrentIndex].queueEntryId
-          : null;
-      await connection.send(
-        GroupListeningClientStatusMessage(
-          clientConnectionId: clientConnectionId,
-          lastAppliedPlaybackApplyId: state.room?.playbackApplyId ?? 0,
-          observedQueueEntryId: observedQueueEntryId,
-          observedCurrentIndex: observedCurrentIndex,
-          localProcessingState: playbackSnapshot.processingState.name,
-          loadingAge: loadingAge,
-          clientTime: DateTime.now().toUtc(),
-        ),
-      );
-      _scheduleHeartbeat(after: interval);
-    } on Object catch (error, stackTrace) {
-      _handleTransportFailure(
-        _asFailure(
-          error,
-          fallbackMessage: 'Unable to send Voyage heartbeat.',
-          fallbackCode: GroupListeningErrorCode.transportDisconnected,
-        ),
-        stackTrace: stackTrace,
-      );
-    }
-  }
-
-  void _scheduleServerUpgradeCheck() {
-    _serverUpgradeTimer?.cancel();
-    if (!state.connection.isConnected) {
-      return;
-    }
-    _serverUpgradeTimer = Timer(_serverUpgradeCheckInterval, () {
-      unawaited(_checkForBundledServerUpgrade());
-    });
-  }
-
-  Future<void> _checkForBundledServerUpgrade({
-    bool triggeredByFailure = false,
-  }) async {
-    if (_serverUpgradeInProgress ||
-        _runtimeSession == null ||
-        !state.connection.isConnected) {
-      return;
-    }
-    final currentVersion = state.connection.connectedServerVersion;
-    final currentUrl = _runtimeSession?.voyageBaseUrl.toString();
-    if (currentVersion == null || currentUrl == null) {
-      _scheduleServerUpgradeCheck();
-      return;
-    }
-
-    final candidate = await _resolveBestBundledServer(preferredUrl: currentUrl);
-    if (candidate == null ||
-        candidate.option.url == currentUrl ||
-        _compareSemanticVersions(
-              candidate.discovery.serverVersion,
-              currentVersion,
-            ) <=
-            0) {
-      if (!triggeredByFailure) {
-        _scheduleServerUpgradeCheck();
-      }
-      return;
-    }
-    await _migrateToBundledServer(candidate);
-    if (!triggeredByFailure) {
-      _scheduleServerUpgradeCheck();
-    }
-  }
-
-  Future<void> _migrateToBundledServer(
-    GroupListeningResolvedVoyageServer candidate,
-  ) async {
-    _serverUpgradeInProgress = true;
-    GroupListeningRealtimeConnection? candidateConnection;
-    StreamSubscription<GroupListeningTransportMessage>? candidateSubscription;
-    try {
-      final currentSession = _runtimeSession;
-      final baseConfiguration = _requireConfiguration();
-      if (currentSession == null) {
-        return;
-      }
-      final store = ref.read(groupListeningSessionCredentialStoreProvider);
-      final storedSession = await store.read();
-      if (storedSession == null ||
-          !_matchesStoredSession(storedSession, currentSession)) {
-        return;
-      }
-      final nextUri = Uri.parse(candidate.option.url);
-      final nextConfiguration = _configurationWithVoyageBaseUrl(
-        baseConfiguration,
-        nextUri,
-      );
-      final result = await ref
-          .read(groupListeningRepositoryProvider)
-          .rejoinRoom(
-            GroupListeningRejoinRoomRequest(
-              configuration: nextConfiguration,
-              session: storedSession.copyWith(
-                voyageBaseUrl: nextUri,
-                lastAppliedRoomVersion: state.lastAppliedRoomVersion,
-              ),
-            ),
-          );
-      candidateConnection = await ref
-          .read(groupListeningRepositoryProvider)
-          .connect(
-            GroupListeningTransportConnectRequest(
-              session: result.runtimeContext,
-              lastAppliedRoomVersion: state.lastAppliedRoomVersion,
-              lastAppliedEventId: state.lastAppliedEventId,
-              lastAppliedQueueVersion: state.room?.queue.queueVersion ?? 0,
-              lastAppliedPlaybackVersion: state.room?.playbackVersion ?? 0,
-              lastAppliedPresenceVersion: state.room?.presenceVersion ?? 0,
-            ),
-          );
-
-      final messages = <GroupListeningTransportMessage>[];
-      final ready = Completer<void>();
-      GroupListeningConnectionWelcomeMessage? welcome;
-      GroupListeningRoomSnapshotMessage? snapshot;
-      candidateSubscription = candidateConnection.messages.listen(
-        (message) {
-          messages.add(message);
-          if (message is GroupListeningConnectionWelcomeMessage) {
-            welcome = message;
-          }
-          if (message is GroupListeningRoomSnapshotMessage) {
-            snapshot = message;
-          }
-          if (welcome != null && snapshot != null && !ready.isCompleted) {
-            ready.complete();
-          }
-          if (message is GroupListeningTransportErrorMessage &&
-              !ready.isCompleted) {
-            ready.completeError(
-              GroupListeningRepositoryException(message.error),
-            );
-          }
-          if (message is GroupListeningTransportDisconnectedMessage &&
-              !ready.isCompleted) {
-            ready.completeError(
-              GroupListeningRepositoryException(
-                message.error ??
-                    const GroupListeningErrorState(
-                      code: GroupListeningErrorCode.transportDisconnected,
-                      message: 'Voyage realtime transport disconnected.',
-                      retryable: true,
-                    ),
-              ),
-            );
-          }
-        },
-        onError: ready.completeError,
-      );
-      await ready.future.timeout(_serverMigrationTimeout);
-
-      final oldConnection = _connection;
-      final oldSubscription = _transportSubscription;
-      _heartbeatTimer?.cancel();
-      _heartbeatTimer = null;
-      await oldSubscription?.cancel();
-      _connection = candidateConnection;
-      _transportSubscription = candidateConnection.messages.listen(
-        _handleTransportMessage,
-        onError: (Object error, StackTrace stackTrace) {
-          _handleTransportFailure(
-            _asFailure(
-              error,
-              fallbackMessage: 'Voyage transport stream failed.',
-              fallbackCode: GroupListeningErrorCode.transportDisconnected,
-            ),
-            stackTrace: stackTrace,
-          );
-        },
-      );
-      await candidateSubscription.cancel();
-      candidateSubscription = null;
-      candidateConnection = null;
-      await oldConnection?.disconnect();
-
-      _runtimeSession = result.runtimeContext;
-      _connectingDiscovery = candidate.discovery;
-      for (final message in messages) {
-        if (message is GroupListeningConnectionWelcomeMessage ||
-            message is GroupListeningRoomSnapshotMessage) {
-          _handleTransportMessage(message);
-        }
-      }
-      state = state.copyWith(
-        activeInviteCode: result.inviteCode,
-        clearActiveInviteCode: result.inviteCode == null,
-      );
-      await store.save(
-        GroupListeningStoredSession(
-          roomId: result.runtimeContext.roomId,
-          memberId: result.runtimeContext.memberId,
-          role: result.runtimeContext.role,
-          authVersion: result.runtimeContext.authVersion,
-          voyageBaseUrl: result.runtimeContext.voyageBaseUrl,
-          sourceServerFingerprint:
-              result.runtimeContext.sourceServerFingerprint,
-          rejoinToken: result.runtimeContext.rejoinToken,
-          client: storedSession.client,
-          lastAppliedRoomVersion: state.lastAppliedRoomVersion,
-        ),
-      );
-      await _persistSelectedVoyageServer(result.runtimeContext.voyageBaseUrl);
-    } on Object catch (error) {
-      AppLogger.warning('Voyage bundled server migration failed: $error');
-      await candidateSubscription?.cancel();
-      await candidateConnection?.disconnect();
-    } finally {
-      _serverUpgradeInProgress = false;
-    }
-  }
-
-  Future<void> _persistSelectedVoyageServer(Uri voyageBaseUrl) async {
-    final settings =
-        ref.read(appSettingsProvider).asData?.value ??
-        const AppSettingsModel.defaults();
-    await ref
-        .read(settingsRepositoryProvider)
-        .saveSettings(
-          settings.copyWith(voyageServerUrl: voyageBaseUrl.toString()),
-        );
-  }
-
   GroupListeningSessionState _setFailure(
     GroupListeningErrorState failure, {
     GroupListeningConnectionStatus? connectionStatus,
@@ -2982,88 +769,32 @@ class GroupListeningSessionController
     );
   }
 
+  bool _shouldAutoReconnectAfterFailure(GroupListeningErrorState failure) {
+    return failure.retryable == true &&
+        _runtimeSession != null &&
+        !_isFatalSessionFailure(failure.code) &&
+        (failure.code == GroupListeningErrorCode.transportDisconnected ||
+            failure.code == GroupListeningErrorCode.transportUnavailable);
+  }
+
+  bool _shouldCollapseToLocalCleanup(GroupListeningErrorCode code) {
+    return code == GroupListeningErrorCode.unauthorized ||
+        code == GroupListeningErrorCode.removed ||
+        code == GroupListeningErrorCode.revoked ||
+        code == GroupListeningErrorCode.roomNotFound ||
+        code == GroupListeningErrorCode.roomClosed;
+  }
+
+  bool _canLeaveLocallyAfterFailure(GroupListeningErrorState failure) {
+    return _isFatalSessionFailure(failure.code);
+  }
+
   bool _isFatalSessionFailure(GroupListeningErrorCode code) {
     return code == GroupListeningErrorCode.fingerprintMismatch ||
         code == GroupListeningErrorCode.removed ||
         code == GroupListeningErrorCode.revoked ||
         code == GroupListeningErrorCode.roomClosed ||
+        code == GroupListeningErrorCode.roomNotFound ||
         code == GroupListeningErrorCode.unauthorized;
-  }
-
-  void _beginTransportTeardown() {
-    _transportTeardownInProgress = true;
-    _transportTeardownFailureObserved = false;
-  }
-
-  void _endTransportTeardown() {
-    _transportTeardownInProgress = false;
-    _transportTeardownFailureObserved = false;
-  }
-
-  List<GroupListeningMemberState> _mergeMembers({
-    required List<GroupListeningMemberState> existing,
-    required List<GroupListeningMemberState> updates,
-    required List<String> removedMemberIds,
-  }) {
-    final byId = <String, GroupListeningMemberState>{
-      for (final member in existing) member.memberId: member,
-    };
-    for (final memberId in removedMemberIds) {
-      byId.remove(memberId);
-    }
-    for (final member in updates) {
-      byId[member.memberId] = member;
-    }
-    final merged = byId.values.toList(growable: false)
-      ..sort((a, b) => a.joinedAt.compareTo(b.joinedAt));
-    return merged;
-  }
-}
-
-@immutable
-class _PendingGroupListeningMutation {
-  const _PendingGroupListeningMutation({
-    required this.type,
-    required this.clientMutationId,
-    this.clientSequence,
-    this.playbackAnchor,
-    this.queue,
-    this.targetQueueEntryId,
-    this.insertIndex,
-    this.targetMemberId,
-  });
-
-  final GroupListeningMutationType type;
-  final String clientMutationId;
-  final int? clientSequence;
-  final GroupListeningPlaybackAnchor? playbackAnchor;
-  final GroupListeningQueueState? queue;
-  final String? targetQueueEntryId;
-  final int? insertIndex;
-  final String? targetMemberId;
-
-  _PendingGroupListeningMutation copyWith({int? clientSequence}) {
-    return _PendingGroupListeningMutation(
-      type: type,
-      clientMutationId: clientMutationId,
-      clientSequence: clientSequence ?? this.clientSequence,
-      playbackAnchor: playbackAnchor,
-      queue: queue,
-      targetQueueEntryId: targetQueueEntryId,
-      insertIndex: insertIndex,
-      targetMemberId: targetMemberId,
-    );
-  }
-
-  _PendingGroupListeningMutation withoutSequence() {
-    return _PendingGroupListeningMutation(
-      type: type,
-      clientMutationId: clientMutationId,
-      playbackAnchor: playbackAnchor,
-      queue: queue,
-      targetQueueEntryId: targetQueueEntryId,
-      insertIndex: insertIndex,
-      targetMemberId: targetMemberId,
-    );
   }
 }

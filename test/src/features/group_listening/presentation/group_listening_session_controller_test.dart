@@ -358,7 +358,7 @@ void main() {
           .read(groupListeningSessionControllerProvider.notifier)
           .discoverCapabilities();
 
-      expect(discovery.serverVersion, '1.3.0');
+      expect(discovery.serverVersion, '2.0.0');
       expect(
         repository.discoveredUrls,
         contains('https://voyage-1.example.com'),

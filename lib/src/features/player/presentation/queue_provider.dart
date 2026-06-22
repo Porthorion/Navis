@@ -7,6 +7,8 @@ import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/group_listening/data/group_listening_repository.dart';
 import 'package:navis/src/features/group_listening/domain/group_listening_session_models.dart';
+import 'package:navis/src/features/group_listening/domain/group_listening_track_ref_factory.dart';
+import 'package:navis/src/features/group_listening/domain/group_listening_user_intent.dart';
 import 'package:navis/src/features/group_listening/presentation/group_listening_session_controller.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
@@ -594,6 +596,11 @@ class QueueController extends Notifier<List<String>> {
           targetQueueEntryId: entry.queueEntryId,
           insertIndex: insertIndex,
         );
+    if (mutationId != null && mutationId.isNotEmpty) {
+      ref
+          .read(groupListeningUserIntentProvider.notifier)
+          .record(UserPlaybackIntent.queueAdd);
+    }
     return mutationId != null && mutationId.isNotEmpty;
   }
 
@@ -626,6 +633,10 @@ class QueueController extends Notifier<List<String>> {
       replayGainAlbumGain: song?.replayGain?.albumGain,
       replayGainTrackPeak: song?.replayGain?.trackPeak,
       replayGainAlbumPeak: song?.replayGain?.albumPeak,
+      trackRef: song == null ? null : buildTrackRefForSong(song),
+      playability: song == null
+          ? playabilityForSongId(songId)
+          : playabilityForSongId(song.id),
     );
   }
 
@@ -644,6 +655,11 @@ class QueueController extends Notifier<List<String>> {
           type: GroupListeningMutationType.queueRemove,
           targetQueueEntryId: entries[index].queueEntryId,
         );
+    if (mutationId != null && mutationId.isNotEmpty) {
+      ref
+          .read(groupListeningUserIntentProvider.notifier)
+          .record(UserPlaybackIntent.queueRemove);
+    }
     return mutationId != null && mutationId.isNotEmpty;
   }
 
@@ -680,6 +696,11 @@ class QueueController extends Notifier<List<String>> {
           queue: queue,
           playbackAnchor: anchor,
         );
+    if (mutationId != null && mutationId.isNotEmpty) {
+      ref
+          .read(groupListeningUserIntentProvider.notifier)
+          .record(UserPlaybackIntent.queueReplace);
+    }
     return mutationId != null && mutationId.isNotEmpty;
   }
 
@@ -800,6 +821,37 @@ class QueueController extends Notifier<List<String>> {
         }
       }),
     );
+  }
+
+  Future<void> skipUnresolvableGroupListening({
+    required String queueEntryId,
+  }) async {
+    final session = ref.read(groupListeningSessionControllerProvider);
+    final room = session.room;
+    if (room == null) {
+      return;
+    }
+    final index = room.queue.entries.indexWhere(
+      (entry) => entry.queueEntryId == queueEntryId,
+    );
+    if (index < 0) {
+      return;
+    }
+    final handler = ref.read(audioHandlerProvider);
+    if (handler == null) {
+      return;
+    }
+    final snapshot = handler.snapshot;
+    final currentIndex = snapshot.currentIndex ?? room.queue.currentIndex ?? 0;
+    if (index != currentIndex) {
+      return;
+    }
+    final nextIndex = index + 1;
+    if (nextIndex < state.length) {
+      await handler.playFromIndex(nextIndex);
+      return;
+    }
+    await handler.pause();
   }
 }
 

@@ -537,28 +537,19 @@ Stream<List<ListenBrainzDiscoverPlaylist>> _listenBrainzDiscoverStream(
       );
       yield loading;
     }
-    final currentSyncState = ref.read(
+    while (ref.read(listenBrainzDiscoverStartupSyncStateProvider).isRunning) {
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      if (!ref.mounted) {
+        return;
+      }
+    }
+    final openedSyncState = ref.read(
       listenBrainzDiscoverStartupSyncStateProvider,
     );
-    if (currentSyncState.status == LibrarySyncStatus.running ||
-        syncState.status == LibrarySyncStatus.running) {
-      final waitingState = currentSyncState.status == LibrarySyncStatus.running
-          ? currentSyncState
-          : syncState;
-      _scheduleListenBrainzSyncGateFallbackLog(
-        ref: ref,
-        fallback: startupIdleDelay,
-      );
-      AppLogger.debug(
-        'ListenBrainz discover waiting for startup sync: '
-        'status=${waitingState.status.name} stage=${waitingState.stage.name}.',
-      );
-      return;
-    }
     AppLogger.debug(
       'ListenBrainz discover sync gate opened: '
-      'status=${currentSyncState.status.name} '
-      'stage=${currentSyncState.stage.name}.',
+      'status=${openedSyncState.status.name} '
+      'stage=${openedSyncState.stage.name}.',
     );
     await _awaitListenBrainzStartupIdle(ref, startupIdleDelay);
     if (!ref.mounted) {
@@ -1900,22 +1891,43 @@ final homeRandomAlbumShowcaseProvider =
     });
 
 final homeRandomShowcaseProvider =
-    FutureProvider.family<
-      List<HomeRandomShowcaseItem>,
+    Provider.family<
+      AsyncValue<List<HomeRandomShowcaseItem>>,
       ({bool downloadedOnly, bool likedOnly})
-    >((ref, filters) async {
-      final albums = await ref.read(
-        homeRandomAlbumShowcaseProvider(filters).future,
+    >((ref, filters) {
+      final listenBrainz = ref.watch(listenBrainzDiscoverStreamProvider);
+      ref.watch(listenBrainzDiscoverRefreshEpochProvider);
+      ref.watch(listenBrainzDiscoverStartupSyncStateProvider);
+      final albumsAsync = ref.watch(homeRandomAlbumShowcaseProvider(filters));
+
+      return albumsAsync.when(
+        loading: () {
+          final staged = _listenBrainzShowcasePrefix(ref, filters, listenBrainz);
+          if (staged != null && staged.isNotEmpty) {
+            return AsyncData(staged);
+          }
+          return const AsyncLoading();
+        },
+        error: (error, stackTrace) => AsyncError(error, stackTrace),
+        data: (albums) {
+          final showcase = _prependListenBrainzShowcase(
+            ref,
+            filters,
+            albums,
+            listenBrainz,
+          );
+          return AsyncData(showcase);
+        },
       );
-      return _prependListenBrainzShowcase(ref, filters, albums);
     });
 
 List<HomeRandomShowcaseItem> _prependListenBrainzShowcase(
   Ref ref,
   ({bool downloadedOnly, bool likedOnly}) filters,
   List<HomeRandomShowcaseAlbum> albums,
+  AsyncValue<List<ListenBrainzDiscoverPlaylist>> listenBrainz,
 ) {
-  final prefix = _listenBrainzShowcasePrefix(ref, filters);
+  final prefix = _listenBrainzShowcasePrefix(ref, filters, listenBrainz);
   if (prefix == null) {
     return albums;
   }
@@ -1928,11 +1940,11 @@ List<HomeRandomShowcaseItem> _prependListenBrainzShowcase(
 List<HomeRandomShowcaseItem>? _listenBrainzShowcasePrefix(
   Ref ref,
   ({bool downloadedOnly, bool likedOnly}) filters,
+  AsyncValue<List<ListenBrainzDiscoverPlaylist>> listenBrainz,
 ) {
   if (filters.downloadedOnly || filters.likedOnly) {
     return null;
   }
-  final listenBrainz = ref.watch(listenBrainzDiscoverStreamProvider);
   final streamItems = listenBrainz.maybeWhen(
     data: (playlists) => <HomeRandomShowcaseListenBrainz>[
       for (final playlist in playlists)
@@ -1942,12 +1954,19 @@ List<HomeRandomShowcaseItem>? _listenBrainzShowcasePrefix(
   );
   if (streamItems != null) {
     if (streamItems.isEmpty) {
+      final lastVisible = _listenBrainzDiscoverLastVisible;
+      if (lastVisible != null && lastVisible.isNotEmpty) {
+        return <HomeRandomShowcaseItem>[
+          for (final playlist in lastVisible)
+            HomeRandomShowcaseListenBrainz(playlist: playlist),
+        ];
+      }
       return null;
     }
     return <HomeRandomShowcaseItem>[...streamItems];
   }
   final cached = _listenBrainzDiscoverSessionCache;
-  if (cached != null) {
+  if (cached != null && cached.isNotEmpty) {
     return <HomeRandomShowcaseItem>[
       for (final playlist in cached)
         HomeRandomShowcaseListenBrainz(playlist: playlist),
