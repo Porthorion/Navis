@@ -1,13 +1,14 @@
 import 'package:drift/drift.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/cached_tracks_table.dart';
+import 'package:navis/src/database/tables/listenbrainz_weekly_cache_table.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 
 part 'cache_dao.g.dart';
 
-@DriftAccessor(tables: [CachedTracksTable])
+@DriftAccessor(tables: [CachedTracksTable, ListenBrainzWeeklyCacheTable])
 class CacheDao extends DatabaseAccessor<NavisDatabase> with _$CacheDaoMixin {
-  CacheDao(super.db);
+  CacheDao(super.attachedDatabase);
 
   Stream<List<CachedTracksTableData>> watchCachedTracks() {
     final query = select(cachedTracksTable)
@@ -157,5 +158,40 @@ class CacheDao extends DatabaseAccessor<NavisDatabase> with _$CacheDaoMixin {
 
   Future<void> clearCachedTracks() {
     return delete(cachedTracksTable).go();
+  }
+
+  Future<List<ListenBrainzWeeklyCacheTableData>>
+  getListenBrainzWeeklyCacheForUser(String userName) {
+    final query = select(listenBrainzWeeklyCacheTable)
+      ..where((table) => table.listenBrainzUserName.equals(userName))
+      ..orderBy([(table) => OrderingTerm.asc(table.sourcePatch)]);
+    return query.get();
+  }
+
+  Future<void> upsertListenBrainzWeeklyCache(
+    ListenBrainzWeeklyCacheTableCompanion companion,
+  ) {
+    return into(
+      listenBrainzWeeklyCacheTable,
+    ).insertOnConflictUpdate(companion);
+  }
+
+  Future<void> deleteListenBrainzWeeklyCacheForUserSources(
+    String userName,
+    Iterable<String> sourcePatches,
+  ) async {
+    final sources = sourcePatches
+        .map((sourcePatch) => sourcePatch.trim())
+        .where((sourcePatch) => sourcePatch.isNotEmpty)
+        .toList(growable: false);
+    if (sources.isEmpty) {
+      return;
+    }
+    await (delete(listenBrainzWeeklyCacheTable)..where(
+          (table) =>
+              table.listenBrainzUserName.equals(userName) &
+              table.sourcePatch.isIn(sources),
+        ))
+        .go();
   }
 }

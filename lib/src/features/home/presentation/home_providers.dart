@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:dio/dio.dart';
@@ -10,8 +11,11 @@ import 'package:navis/src/api/listenbrainz_api_client.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/models/listenbrainz_playlist.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
+import 'package:navis/src/database/daos/cache_dao.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
@@ -109,7 +113,7 @@ class HomeRandomShowcaseListenBrainz extends HomeRandomShowcaseItem {
       playlist: playlist,
       sourcePatch: playlist.playlist.sourcePatch,
       displayTitle: playlist.displayTitle,
-      isLoading: false,
+      isLoading: playlist.recommendations.isEmpty && !playlist.matchingComplete,
     );
   }
 
@@ -153,7 +157,11 @@ const int _listenBrainzDiscoverTrackPreviewLimit = 35;
 const int _listenBrainzDiscoverSearchSongCount = 8;
 const int _listenBrainzDiscoverPlaylistDetailParallelism = 2;
 const int _listenBrainzDiscoverSearchParallelism = 6;
+const int _listenBrainzDiscoverAutomaticSearchParallelism = 2;
 const int _listenBrainzDiscoverSearchEmitBatchSize = 6;
+const Duration _listenBrainzDiscoverDefaultStartupIdleDelay = Duration(
+  minutes: 2,
+);
 const double _listenBrainzDiscoverMinimumScore = 0.75;
 const double _listenBrainzDiscoverMinimumFieldScore = 0.75;
 const double _listenBrainzDiscoverAmbiguousDelta = 0.03;
@@ -165,6 +173,7 @@ const List<String> _listenBrainzShowcaseSourcePatches = <String>[
 List<ListenBrainzDiscoverPlaylist>? _listenBrainzDiscoverSessionCache;
 List<ListenBrainzDiscoverPlaylist>? _listenBrainzDiscoverLastVisible;
 int? _listenBrainzDiscoverSessionCacheEpoch;
+String? _listenBrainzDiscoverSessionCacheKey;
 final Map<String, ListenBrainzResolvedRecommendation>
 _listenBrainzDiscoverMatchCache =
     <String, ListenBrainzResolvedRecommendation>{};
@@ -200,6 +209,7 @@ void debugResetListenBrainzDiscoverSessionCacheForTests() {
   _listenBrainzDiscoverSessionCache = null;
   _listenBrainzDiscoverLastVisible = null;
   _listenBrainzDiscoverSessionCacheEpoch = null;
+  _listenBrainzDiscoverSessionCacheKey = null;
   _listenBrainzDiscoverMatchCache.clear();
 }
 
@@ -309,6 +319,20 @@ final listenBrainzDiscoverRefreshEpochProvider =
       ListenBrainzDiscoverRefreshEpochNotifier.new,
     );
 
+final listenBrainzDiscoverStartupIdleDelayProvider = Provider<Duration>(
+  (_) => _listenBrainzDiscoverDefaultStartupIdleDelay,
+);
+
+final listenBrainzDiscoverStartupSyncStateProvider = Provider<LibrarySyncState>(
+  (ref) {
+    try {
+      return ref.watch(librarySyncControllerProvider);
+    } on Object {
+      return const LibrarySyncState.idle();
+    }
+  },
+);
+
 final listenBrainzDiscoverStreamProvider =
     StreamProvider<List<ListenBrainzDiscoverPlaylist>>(
       _listenBrainzDiscoverStream,
@@ -321,6 +345,17 @@ Stream<List<ListenBrainzDiscoverPlaylist>> _listenBrainzDiscoverStream(
   final settings =
       ref.watch(appSettingsProvider).asData?.value ??
       const AppSettingsModel.defaults();
+  final networkType = ref.watch(networkTypeProvider);
+  final credentialStore = ref.read(externalScrobbleCredentialStoreProvider);
+  final db = ref.read(navisDatabaseProvider);
+  final cacheDao = db.cacheDao;
+  final api = ref.read(subsonicApiProvider);
+  final dao = db.libraryDao;
+  final client = ref.read(listenBrainzApiClientProvider);
+  final startupIdleDelay = ref.watch(
+    listenBrainzDiscoverStartupIdleDelayProvider,
+  );
+  final syncState = ref.watch(listenBrainzDiscoverStartupSyncStateProvider);
   if (!settings.listenBrainzTokenValid) {
     AppLogger.debug(
       'ListenBrainz discover skipped: stored token is not marked valid.',
@@ -340,12 +375,7 @@ Stream<List<ListenBrainzDiscoverPlaylist>> _listenBrainzDiscoverStream(
     return;
   }
 
-  final token =
-      (await ref
-              .read(externalScrobbleCredentialStoreProvider)
-              .readListenBrainzToken())
-          ?.trim() ??
-      '';
+  final token = (await credentialStore.readListenBrainzToken())?.trim() ?? '';
   if (token.isEmpty) {
     AppLogger.debug(
       'ListenBrainz discover skipped: no stored ListenBrainz token.',
@@ -355,151 +385,126 @@ Stream<List<ListenBrainzDiscoverPlaylist>> _listenBrainzDiscoverStream(
     return;
   }
 
-  if (ref.watch(networkTypeProvider) == NetworkType.offline) {
+  final sessionKey = userName.toLowerCase();
+  if (_listenBrainzDiscoverSessionCacheEpoch != refreshEpoch ||
+      _listenBrainzDiscoverSessionCacheKey != sessionKey) {
+    _listenBrainzDiscoverSessionCache = null;
+    _listenBrainzDiscoverLastVisible = null;
+    _listenBrainzDiscoverSessionCacheEpoch = refreshEpoch;
+    _listenBrainzDiscoverSessionCacheKey = sessionKey;
+    _listenBrainzDiscoverMatchCache.clear();
+  }
+
+  final persistentCached = refreshEpoch == 0
+      ? await _loadListenBrainzWeeklyCache(
+          cacheDao: cacheDao,
+          userName: sessionKey,
+        )
+      : const <ListenBrainzDiscoverPlaylist>[];
+  AppLogger.debug(
+    'ListenBrainz discover weekly cache '
+    '${persistentCached.isEmpty ? 'miss' : 'hit'}: count='
+    '${persistentCached.length} sourcePatches='
+    '${persistentCached.map((playlist) => playlist.playlist.sourcePatch ?? 'none').join(',')}.',
+  );
+  if (persistentCached.isNotEmpty) {
+    _listenBrainzDiscoverLastVisible = persistentCached;
+    yield persistentCached;
+  }
+
+  if (networkType == NetworkType.offline) {
     AppLogger.debug(
       'ListenBrainz discover offline: using cached playlists count='
-      '${_listenBrainzDiscoverSessionCache?.length ?? 0}.',
+      '${_listenBrainzDiscoverSessionCache?.length ?? persistentCached.length}.',
     );
     yield _listenBrainzDiscoverSessionCache ??
-        _listenBrainzDiscoverLastVisible ??
+        (persistentCached.isNotEmpty ? persistentCached : null) ??
         const <ListenBrainzDiscoverPlaylist>[];
     return;
   }
 
-  final client = ref.read(listenBrainzApiClientProvider);
-  final api = ref.read(subsonicApiProvider);
-  final dao = ref.read(navisDatabaseProvider).libraryDao;
-
   try {
-    if (_listenBrainzDiscoverSessionCacheEpoch != refreshEpoch) {
-      _listenBrainzDiscoverSessionCache = null;
-      _listenBrainzDiscoverLastVisible = null;
-      _listenBrainzDiscoverSessionCacheEpoch = refreshEpoch;
-      _listenBrainzDiscoverMatchCache.clear();
-    }
     final cached = _listenBrainzDiscoverSessionCache;
     if (cached != null) {
       yield cached;
       return;
     }
-    final playlistMetadata = await _fetchListenBrainzPlaylistMetadata(
-      client: client,
-      userName: userName,
-      token: token,
-    );
-    final targetMetadata = _selectListenBrainzShowcaseMetadata(
-      playlistMetadata,
-    );
-    AppLogger.debug(
-      'ListenBrainz discover metadata fetched count='
-      '${playlistMetadata.length} selectedTargets=${targetMetadata.length}.',
-    );
-    if (targetMetadata.isEmpty) {
+    final normalStartup = refreshEpoch == 0;
+    final automaticRefresh = normalStartup;
+    if (persistentCached.isEmpty) {
+      final loading = _listenBrainzLoadingDiscoverPlaylists();
+      _listenBrainzDiscoverLastVisible = loading;
       AppLogger.debug(
-        'ListenBrainz discover skipped: ListenBrainz returned no weekly '
-        'recommendation playlists.',
+        'ListenBrainz discover emitted weekly loading placeholders.',
+      );
+      yield loading;
+    }
+
+    if (automaticRefresh) {
+      AppLogger.debug(
+        'ListenBrainz discover background resolver scheduled: '
+        'user=$sessionKey epoch=$refreshEpoch.',
+      );
+      await Future<void>.delayed(Duration.zero);
+      if (!ref.mounted) {
+        return;
+      }
+      final currentSyncState = ref.read(
+        listenBrainzDiscoverStartupSyncStateProvider,
+      );
+      if (currentSyncState.status == LibrarySyncStatus.running ||
+          syncState.status == LibrarySyncStatus.running) {
+        final waitingState =
+            currentSyncState.status == LibrarySyncStatus.running
+            ? currentSyncState
+            : syncState;
+        _scheduleListenBrainzSyncGateFallbackLog(
+          ref: ref,
+          fallback: startupIdleDelay,
+        );
+        AppLogger.debug(
+          'ListenBrainz discover waiting for startup sync: '
+          'status=${waitingState.status.name} stage=${waitingState.stage.name}.',
+        );
+        return;
+      }
+      AppLogger.debug(
+        'ListenBrainz discover sync gate opened: '
+        'status=${currentSyncState.status.name} '
+        'stage=${currentSyncState.stage.name}.',
+      );
+    } else {
+      AppLogger.debug(
+        'ListenBrainz discover manual refresh bypassed startup sync gate: '
+        'epoch=$refreshEpoch.',
       );
     }
-    var resolvedPlaylists = <ListenBrainzDiscoverPlaylist>[];
-    final localSongsSnapshot = await dao.getAllSongs();
-    final localCandidates = _ListenBrainzLocalCandidateSnapshot.fromSongs(
-      localSongsSnapshot,
-    );
 
-    void emitVisible() {
-      final visible = resolvedPlaylists
-          .where(
-            (playlist) =>
-                playlist.totalCount > 0 &&
-                (!playlist.matchingComplete || playlist.matchedCount > 0),
-          )
-          .toList(growable: false);
-      _listenBrainzDiscoverLastVisible = visible;
-    }
-
-    final detailQueue = _BoundedAsyncQueue(
-      _listenBrainzDiscoverPlaylistDetailParallelism,
-    );
-    final detailResults = await Future.wait(
-      targetMetadata.map(
-        (metadata) => detailQueue.run(
-          () => _fetchListenBrainzTargetDetail(
-            client: client,
-            metadata: metadata,
-            token: token,
-          ),
-        ),
-      ),
-    );
-    resolvedPlaylists = detailResults
-        .whereType<ListenBrainzDiscoverPlaylist>()
-        .toList(growable: false);
-    if (resolvedPlaylists.isNotEmpty) {
-      emitVisible();
-      yield _listenBrainzDiscoverLastVisible!;
-    }
-
-    resolvedPlaylists = await Future.wait(
-      resolvedPlaylists.map(
-        (playlist) => _resolveListenBrainzTracksFromLocalSnapshot(
-          playlist: playlist,
-          localCandidates: localCandidates,
-        ),
-      ),
-    );
-    if (resolvedPlaylists.isNotEmpty) {
-      emitVisible();
-      yield _listenBrainzDiscoverLastVisible!;
-    }
-
-    await for (final updated in _resolveListenBrainzTrackSearchMisses(
+    await for (final visible in _resolveListenBrainzWeeklyPlaylists(
+      ref: ref,
+      client: client,
       api: api,
       dao: dao,
-      playlists: resolvedPlaylists,
+      cacheDao: cacheDao,
+      userName: userName,
+      sessionKey: sessionKey,
+      token: token,
+      cachedPlaylists: persistentCached,
+      automaticRefresh: automaticRefresh,
     )) {
-      resolvedPlaylists = updated;
-      emitVisible();
-      yield _listenBrainzDiscoverLastVisible!;
+      yield visible;
     }
-
-    resolvedPlaylists = resolvedPlaylists
-        .map((playlist) => playlist.copyWith(matchingComplete: true))
-        .toList(growable: false);
-    emitVisible();
-    for (final discoverPlaylist in resolvedPlaylists) {
-      final matchedCount = discoverPlaylist.matchedCount;
-      AppLogger.debug(
-        'ListenBrainz discover target ready: '
-        'sourcePatch="${discoverPlaylist.playlist.sourcePatch ?? 'unknown'}" '
-        'title="${discoverPlaylist.playlist.title}" '
-        'detailTracks=${discoverPlaylist.playlist.tracks.length} '
-        'tracks=${discoverPlaylist.totalCount} matched=$matchedCount.',
-      );
-      if (matchedCount == 0) {
-        AppLogger.debug(
-          'ListenBrainz discover removed target: '
-          'sourcePatch="${discoverPlaylist.playlist.sourcePatch ?? 'unknown'}" '
-          'title="${discoverPlaylist.playlist.title}" reason=zero_matches.',
-        );
-      }
-    }
-    emitVisible();
-    _listenBrainzDiscoverSessionCache = _listenBrainzDiscoverLastVisible;
-    yield _listenBrainzDiscoverLastVisible!;
   } on DioException catch (error) {
     final status = error.response?.statusCode;
     if (status == 401 || status == 403) {
       AppLogger.warning(
         'ListenBrainz discover disabled: token rejected with status=$status.',
       );
-      await ref
-          .read(navisDatabaseProvider)
-          .appSettingsDao
-          .updateListenBrainzScrobblingState(
-            enabled: false,
-            tokenValid: false,
-            clearUserName: true,
-          );
+      await db.appSettingsDao.updateListenBrainzScrobblingState(
+        enabled: false,
+        tokenValid: false,
+        clearUserName: true,
+      );
       yield const <ListenBrainzDiscoverPlaylist>[];
       return;
     }
@@ -517,6 +522,215 @@ Stream<List<ListenBrainzDiscoverPlaylist>> _listenBrainzDiscoverStream(
     }
     rethrow;
   }
+}
+
+void _scheduleListenBrainzSyncGateFallbackLog({
+  required Ref ref,
+  required Duration fallback,
+}) {
+  if (fallback <= Duration.zero) {
+    return;
+  }
+  final timer = Timer(fallback, () {
+    if (!ref.mounted) {
+      return;
+    }
+    final syncState = ref.read(listenBrainzDiscoverStartupSyncStateProvider);
+    if (syncState.status != LibrarySyncStatus.running) {
+      return;
+    }
+    AppLogger.debug(
+      'ListenBrainz discover sync gate fallback elapsed; still deferring: '
+      'status=${syncState.status.name} stage=${syncState.stage.name}.',
+    );
+  });
+  ref.onDispose(timer.cancel);
+}
+
+Stream<List<ListenBrainzDiscoverPlaylist>> _resolveListenBrainzWeeklyPlaylists({
+  required Ref ref,
+  required ListenBrainzApiClient client,
+  required SubsonicApiClient? api,
+  required LibraryDao dao,
+  required CacheDao cacheDao,
+  required String userName,
+  required String sessionKey,
+  required String token,
+  required List<ListenBrainzDiscoverPlaylist> cachedPlaylists,
+  required bool automaticRefresh,
+}) async* {
+  var resolvedPlaylists = <ListenBrainzDiscoverPlaylist>[];
+  final playlistMetadata = await _fetchListenBrainzPlaylistMetadata(
+    client: client,
+    userName: userName,
+    token: token,
+  );
+  if (!ref.mounted) {
+    return;
+  }
+  final targetMetadata = _selectListenBrainzShowcaseMetadata(
+    playlistMetadata,
+  );
+  AppLogger.debug(
+    'ListenBrainz discover metadata fetched count='
+    '${playlistMetadata.length} selectedTargets=${targetMetadata.length}.',
+  );
+  final hasPersistentCache = cachedPlaylists.isNotEmpty;
+  if (hasPersistentCache &&
+      _listenBrainzMetadataMatchesCachedPlaylists(
+        targetMetadata,
+        cachedPlaylists,
+      )) {
+    final unresolvedCount = _listenBrainzUnresolvedRecommendationCount(
+      cachedPlaylists,
+    );
+    AppLogger.debug(
+      'ListenBrainz discover metadata check result=unchanged count='
+      '${targetMetadata.length}.',
+    );
+    AppLogger.debug(
+      'ListenBrainz discover cached unresolved rematch count=$unresolvedCount.',
+    );
+    if (unresolvedCount == 0) {
+      _listenBrainzDiscoverSessionCache = cachedPlaylists;
+      return;
+    }
+    resolvedPlaylists = cachedPlaylists;
+  } else {
+    if (hasPersistentCache) {
+      AppLogger.debug(
+        'ListenBrainz discover metadata check result=changed count='
+        '${targetMetadata.length}.',
+      );
+    }
+    if (targetMetadata.isEmpty) {
+      AppLogger.debug(
+        'ListenBrainz discover skipped: ListenBrainz returned no weekly '
+        'recommendation playlists.',
+      );
+      _listenBrainzDiscoverLastVisible = const <ListenBrainzDiscoverPlaylist>[];
+      _listenBrainzDiscoverSessionCache =
+          const <ListenBrainzDiscoverPlaylist>[];
+      await _saveListenBrainzWeeklyCache(
+        cacheDao: cacheDao,
+        userName: sessionKey,
+        playlists: const <ListenBrainzDiscoverPlaylist>[],
+      );
+      yield const <ListenBrainzDiscoverPlaylist>[];
+      return;
+    }
+    final detailQueue = _BoundedAsyncQueue(
+      _listenBrainzDiscoverPlaylistDetailParallelism,
+    );
+    final detailResults = await Future.wait(
+      targetMetadata.map(
+        (metadata) => detailQueue.run(
+          () => _fetchListenBrainzTargetDetail(
+            client: client,
+            metadata: metadata,
+            token: token,
+          ),
+        ),
+      ),
+    );
+    if (!ref.mounted) {
+      return;
+    }
+    resolvedPlaylists = detailResults
+        .whereType<ListenBrainzDiscoverPlaylist>()
+        .toList(growable: false);
+  }
+
+  final localSongsSnapshot = await dao.getAllSongs();
+  if (!ref.mounted) {
+    return;
+  }
+  final localCandidates = _ListenBrainzLocalCandidateSnapshot.fromSongs(
+    localSongsSnapshot,
+  );
+  final beforeLocalMatched = _listenBrainzMatchedRecommendationCount(
+    resolvedPlaylists,
+  );
+  resolvedPlaylists = await Future.wait(
+    resolvedPlaylists.map(
+      (playlist) => _resolveListenBrainzTracksFromLocalSnapshot(
+        playlist: playlist,
+        localCandidates: localCandidates,
+      ),
+    ),
+  );
+  if (!ref.mounted) {
+    return;
+  }
+  final afterLocalMatched = _listenBrainzMatchedRecommendationCount(
+    resolvedPlaylists,
+  );
+  AppLogger.debug(
+    'ListenBrainz discover local pass matched='
+    '${afterLocalMatched - beforeLocalMatched} totalMatched=$afterLocalMatched.',
+  );
+
+  final unresolvedCount = _listenBrainzUnresolvedRecommendationCount(
+    resolvedPlaylists,
+  );
+  if (unresolvedCount > 0) {
+    final searchParallelism = automaticRefresh
+        ? _listenBrainzDiscoverAutomaticSearchParallelism
+        : _listenBrainzDiscoverSearchParallelism;
+    AppLogger.debug(
+      'ListenBrainz discover search3 start: '
+      'unresolved=$unresolvedCount concurrency=$searchParallelism.',
+    );
+    await for (final updated in _resolveListenBrainzTrackSearchMisses(
+      api: api,
+      dao: dao,
+      playlists: resolvedPlaylists,
+      maxConcurrent: searchParallelism,
+    )) {
+      if (!ref.mounted) {
+        return;
+      }
+      resolvedPlaylists = updated;
+    }
+    if (!ref.mounted) {
+      return;
+    }
+  }
+
+  resolvedPlaylists = resolvedPlaylists
+      .map((playlist) => playlist.copyWith(matchingComplete: true))
+      .toList(growable: false);
+  for (final discoverPlaylist in resolvedPlaylists) {
+    final matchedCount = discoverPlaylist.matchedCount;
+    AppLogger.debug(
+      'ListenBrainz discover target ready: '
+      'sourcePatch="${discoverPlaylist.playlist.sourcePatch ?? 'unknown'}" '
+      'title="${discoverPlaylist.playlist.title}" '
+      'detailTracks=${discoverPlaylist.playlist.tracks.length} '
+      'tracks=${discoverPlaylist.totalCount} matched=$matchedCount.',
+    );
+    if (matchedCount == 0) {
+      AppLogger.debug(
+        'ListenBrainz discover removed target: '
+        'sourcePatch="${discoverPlaylist.playlist.sourcePatch ?? 'unknown'}" '
+        'title="${discoverPlaylist.playlist.title}" reason=zero_matches.',
+      );
+    }
+  }
+  final visible = _visibleListenBrainzDiscoverPlaylists(resolvedPlaylists);
+  _listenBrainzDiscoverLastVisible = visible;
+  _listenBrainzDiscoverSessionCache = visible;
+  await _saveListenBrainzWeeklyCache(
+    cacheDao: cacheDao,
+    userName: sessionKey,
+    playlists: visible,
+  );
+  AppLogger.debug(
+    'ListenBrainz discover weekly cache saved: matched='
+    '${visible.fold<int>(0, (sum, playlist) => sum + playlist.matchedCount)} '
+    'total=${visible.fold<int>(0, (sum, playlist) => sum + playlist.totalCount)}.',
+  );
+  yield visible;
 }
 
 final listenBrainzDiscoverProvider =
@@ -624,12 +838,16 @@ _resolveListenBrainzTracksFromLocalSnapshot({
 }) async {
   final recommendations = <ListenBrainzResolvedRecommendation>[];
   for (final recommendation in playlist.recommendations) {
+    if (recommendation.isPlayable) {
+      recommendations.add(recommendation);
+      continue;
+    }
     final cacheKey = _listenBrainzMatchCacheKey(
       playlist.playlist,
       recommendation.track,
     );
     final cached = _listenBrainzDiscoverMatchCache[cacheKey];
-    if (cached != null) {
+    if (cached != null && cached.isPlayable) {
       recommendations.add(cached);
       continue;
     }
@@ -650,6 +868,7 @@ _resolveListenBrainzTrackSearchMisses({
   required SubsonicApiClient? api,
   required LibraryDao dao,
   required List<ListenBrainzDiscoverPlaylist> playlists,
+  required int maxConcurrent,
 }) async* {
   var current = playlists
       .map(
@@ -665,8 +884,9 @@ _resolveListenBrainzTrackSearchMisses({
             recommendations: playlist.recommendations
                 .map(
                   (recommendation) =>
-                      recommendation.status ==
-                          ListenBrainzRecommendationMatchStatus.pending
+                      _listenBrainzRecommendationNeedsResolution(
+                        recommendation,
+                      )
                       ? ListenBrainzResolvedRecommendation(
                           track: recommendation.track,
                           status:
@@ -682,9 +902,7 @@ _resolveListenBrainzTrackSearchMisses({
     return;
   }
 
-  final searchQueue = _BoundedAsyncQueue(
-    _listenBrainzDiscoverSearchParallelism,
-  );
+  final searchQueue = _BoundedAsyncQueue(maxConcurrent);
   final pending =
       <
         int,
@@ -707,8 +925,7 @@ _resolveListenBrainzTrackSearchMisses({
       recommendationIndex++
     ) {
       final recommendation = playlist.recommendations[recommendationIndex];
-      if (recommendation.status !=
-          ListenBrainzRecommendationMatchStatus.pending) {
+      if (!_listenBrainzRecommendationNeedsResolution(recommendation)) {
         continue;
       }
       final taskId = nextTaskId++;
@@ -769,7 +986,7 @@ _resolveListenBrainzRemoteSearchMiss({
   final track = recommendation.track;
   final cacheKey = _listenBrainzMatchCacheKey(playlist, track);
   final cached = _listenBrainzDiscoverMatchCache[cacheKey];
-  if (cached != null) {
+  if (cached != null && cached.isPlayable) {
     return (
       taskId: taskId,
       playlistIndex: playlistIndex,
@@ -793,6 +1010,9 @@ _resolveListenBrainzRemoteSearchMiss({
       track,
       search.songs.map(_listenBrainzRemoteCandidate).toList(growable: false),
     );
+    if (match.isPlayable) {
+      _listenBrainzDiscoverMatchCache[cacheKey] = match;
+    }
     return (
       taskId: taskId,
       playlistIndex: playlistIndex,
@@ -804,7 +1024,6 @@ _resolveListenBrainzRemoteSearchMiss({
       track: track,
       status: ListenBrainzRecommendationMatchStatus.unmatched,
     );
-    _listenBrainzDiscoverMatchCache[cacheKey] = unmatched;
     return (
       taskId: taskId,
       playlistIndex: playlistIndex,
@@ -854,8 +1073,8 @@ ListenBrainzResolvedRecommendation _pickListenBrainzTrackMatch(
   final tableSongsById = <String, SongsTableData>{};
   final expectedAlbum = normalizeMetadata(track.album ?? '');
   for (final candidate in candidatesToScore) {
-    final candidateTitle = normalizeMetadata(candidate.song.title);
-    final candidateArtist = normalizeMetadata(candidate.song.artist ?? '');
+    final candidateTitle = candidate.normalizedTitle;
+    final candidateArtist = candidate.normalizedArtist;
     if (candidateTitle.isEmpty || candidateArtist.isEmpty) {
       continue;
     }
@@ -870,7 +1089,7 @@ ListenBrainzResolvedRecommendation _pickListenBrainzTrackMatch(
     }
     var score = (titleScore * 0.58) + (artistScore * 0.32);
     var albumScore = 0.0;
-    final candidateAlbum = normalizeMetadata(candidate.song.album ?? '');
+    final candidateAlbum = candidate.normalizedAlbum;
     if (expectedAlbum.isNotEmpty && candidateAlbum.isNotEmpty) {
       albumScore = _listenBrainzFieldScore(expectedAlbum, candidateAlbum);
       score += albumScore * 0.06;
@@ -1133,6 +1352,9 @@ typedef _ListenBrainzSongCandidate = ({
   Song song,
   String? recordingMbid,
   SongsTableData? tableSong,
+  String normalizedTitle,
+  String normalizedArtist,
+  String normalizedAlbum,
 });
 
 class _ListenBrainzLocalCandidateSnapshot {
@@ -1147,7 +1369,7 @@ class _ListenBrainzLocalCandidateSnapshot {
     final all = songs.map(_listenBrainzLocalCandidate).toList(growable: false);
     final byTitle = <String, List<_ListenBrainzSongCandidate>>{};
     for (final candidate in all) {
-      final title = normalizeMetadata(candidate.song.title);
+      final title = candidate.normalizedTitle;
       if (title.isEmpty) {
         continue;
       }
@@ -1179,52 +1401,88 @@ class _ListenBrainzLocalCandidateSnapshot {
     if (exactTitleCandidates != null && exactTitleCandidates.isNotEmpty) {
       return exactTitleCandidates;
     }
-    return all;
+
+    final expectedArtist = normalizeMetadata(track.creator ?? '');
+    if (expectedArtist.isEmpty) {
+      return const <_ListenBrainzSongCandidate>[];
+    }
+
+    final expectedArtistTokens =
+        expectedArtist.split(' ').where((t) => t.length > 1).toSet();
+    if (expectedArtistTokens.isEmpty) {
+      return const <_ListenBrainzSongCandidate>[];
+    }
+
+    return all.where((candidate) {
+      final candidateArtist = candidate.normalizedArtist;
+      if (candidateArtist.isEmpty) return false;
+      if (candidateArtist == expectedArtist) return true;
+      if (candidateArtist.contains(expectedArtist) ||
+          expectedArtist.contains(candidateArtist)) {
+        return true;
+      }
+      final candidateArtistTokens =
+          candidateArtist.split(' ').where((t) => t.length > 1).toSet();
+      return expectedArtistTokens
+          .intersection(candidateArtistTokens)
+          .isNotEmpty;
+    }).toList(growable: false);
   }
 }
 
 _ListenBrainzSongCandidate _listenBrainzLocalCandidate(SongsTableData song) {
+  final songObj = Song(
+    id: song.id,
+    title: song.title,
+    album: song.albumName,
+    albumId: song.albumId,
+    artist: song.artistName,
+    artistId: song.artistId,
+    track: song.track,
+    discNumber: song.discNumber,
+    duration: song.duration,
+    bitRate: song.bitRate,
+    sampleRate: song.sampleRate,
+    contentType: song.contentType,
+    suffix: song.suffix,
+    size: song.size,
+    coverArt: song.coverArt,
+    starred: song.starred,
+    userRating: song.userRating,
+    playCount: song.playCount,
+    created: song.createdAt,
+    replayGain:
+        song.replayGainTrackGain == null &&
+            song.replayGainAlbumGain == null &&
+            song.replayGainTrackPeak == null &&
+            song.replayGainAlbumPeak == null
+        ? null
+        : ReplayGain(
+            trackGain: song.replayGainTrackGain,
+            albumGain: song.replayGainAlbumGain,
+            trackPeak: song.replayGainTrackPeak,
+            albumPeak: song.replayGainAlbumPeak,
+          ),
+  );
   return (
-    song: Song(
-      id: song.id,
-      title: song.title,
-      album: song.albumName,
-      albumId: song.albumId,
-      artist: song.artistName,
-      artistId: song.artistId,
-      track: song.track,
-      discNumber: song.discNumber,
-      duration: song.duration,
-      bitRate: song.bitRate,
-      sampleRate: song.sampleRate,
-      contentType: song.contentType,
-      suffix: song.suffix,
-      size: song.size,
-      coverArt: song.coverArt,
-      starred: song.starred,
-      userRating: song.userRating,
-      playCount: song.playCount,
-      created: song.createdAt,
-      replayGain:
-          song.replayGainTrackGain == null &&
-              song.replayGainAlbumGain == null &&
-              song.replayGainTrackPeak == null &&
-              song.replayGainAlbumPeak == null
-          ? null
-          : ReplayGain(
-              trackGain: song.replayGainTrackGain,
-              albumGain: song.replayGainAlbumGain,
-              trackPeak: song.replayGainTrackPeak,
-              albumPeak: song.replayGainAlbumPeak,
-            ),
-    ),
+    song: songObj,
     recordingMbid: song.recordingMbid,
     tableSong: song,
+    normalizedTitle: normalizeMetadata(song.title),
+    normalizedArtist: normalizeMetadata(song.artistName ?? ''),
+    normalizedAlbum: normalizeMetadata(song.albumName ?? ''),
   );
 }
 
 _ListenBrainzSongCandidate _listenBrainzRemoteCandidate(Song song) {
-  return (song: song, recordingMbid: null, tableSong: null);
+  return (
+    song: song,
+    recordingMbid: null,
+    tableSong: null,
+    normalizedTitle: normalizeMetadata(song.title),
+    normalizedArtist: normalizeMetadata(song.artist ?? ''),
+    normalizedAlbum: normalizeMetadata(song.album ?? ''),
+  );
 }
 
 String _listenBrainzMatchCacheKey(
@@ -1589,6 +1847,306 @@ List<HomeRandomShowcaseListenBrainz> _listenBrainzLoadingShowcaseItems(
       displayTitle: 'Weekly Jams',
     ),
   ];
+}
+
+List<ListenBrainzDiscoverPlaylist> _listenBrainzLoadingDiscoverPlaylists() {
+  return const <ListenBrainzDiscoverPlaylist>[
+    ListenBrainzDiscoverPlaylist(
+      playlist: ListenBrainzPlaylist(
+        identifier: 'weekly-exploration',
+        title: 'Weekly Exploration',
+        sourcePatch: 'weekly-exploration',
+        tracks: <ListenBrainzPlaylistTrack>[],
+      ),
+      recommendations: <ListenBrainzResolvedRecommendation>[],
+    ),
+    ListenBrainzDiscoverPlaylist(
+      playlist: ListenBrainzPlaylist(
+        identifier: 'weekly-jams',
+        title: 'Weekly Jams',
+        sourcePatch: 'weekly-jams',
+        tracks: <ListenBrainzPlaylistTrack>[],
+      ),
+      recommendations: <ListenBrainzResolvedRecommendation>[],
+    ),
+  ];
+}
+
+Future<List<ListenBrainzDiscoverPlaylist>> _loadListenBrainzWeeklyCache({
+  required CacheDao cacheDao,
+  required String userName,
+}) async {
+  final rows = await cacheDao.getListenBrainzWeeklyCacheForUser(userName);
+  if (rows.isEmpty) {
+    return const <ListenBrainzDiscoverPlaylist>[];
+  }
+  final bySourcePatch = <String, ListenBrainzDiscoverPlaylist>{};
+  for (final row in rows) {
+    final playlist = _listenBrainzDiscoverPlaylistFromCache(row);
+    if (playlist == null) {
+      continue;
+    }
+    bySourcePatch[row.sourcePatch] = playlist;
+  }
+  return _listenBrainzShowcaseSourcePatches
+      .map((sourcePatch) => bySourcePatch[sourcePatch])
+      .whereType<ListenBrainzDiscoverPlaylist>()
+      .toList(growable: false);
+}
+
+Future<void> _saveListenBrainzWeeklyCache({
+  required CacheDao cacheDao,
+  required String userName,
+  required List<ListenBrainzDiscoverPlaylist> playlists,
+}) async {
+  await cacheDao.deleteListenBrainzWeeklyCacheForUserSources(
+    userName,
+    _listenBrainzShowcaseSourcePatches,
+  );
+  for (final playlist in playlists) {
+    final sourcePatch = playlist.playlist.sourcePatch?.trim();
+    if (sourcePatch == null || sourcePatch.isEmpty) {
+      continue;
+    }
+    await cacheDao.upsertListenBrainzWeeklyCache(
+      ListenBrainzWeeklyCacheTableCompanion.insert(
+        listenBrainzUserName: userName,
+        sourcePatch: sourcePatch,
+        playlistIdentifier: playlist.playlist.identifier,
+        title: playlist.playlist.title,
+        weekMarker: Value(_listenBrainzWeekMarker(playlist.playlist)),
+        playlistDate: Value(playlist.playlist.date),
+        recommendationsJson: jsonEncode(
+          playlist.recommendations
+              .map(_listenBrainzRecommendationToCacheJson)
+              .toList(growable: false),
+        ),
+        matchedCount: Value(playlist.matchedCount),
+        totalCount: Value(playlist.totalCount),
+        fetchedAt: DateTime.now(),
+      ),
+    );
+  }
+}
+
+ListenBrainzDiscoverPlaylist? _listenBrainzDiscoverPlaylistFromCache(
+  ListenBrainzWeeklyCacheTableData row,
+) {
+  try {
+    final decoded = jsonDecode(row.recommendationsJson);
+    if (decoded is! List) {
+      return null;
+    }
+    final recommendations = decoded
+        .whereType<Map<Object?, Object?>>()
+        .map((json) {
+          return _listenBrainzRecommendationFromCacheJson(
+            Map<String, dynamic>.from(json),
+          );
+        })
+        .whereType<ListenBrainzResolvedRecommendation>()
+        .toList(growable: false);
+    if (recommendations.isEmpty) {
+      return null;
+    }
+    return ListenBrainzDiscoverPlaylist(
+      playlist: ListenBrainzPlaylist(
+        identifier: row.playlistIdentifier,
+        title: row.title,
+        date: row.playlistDate,
+        sourcePatch: row.sourcePatch,
+        tracks: recommendations
+            .map((recommendation) => recommendation.track)
+            .toList(growable: false),
+      ),
+      recommendations: recommendations,
+      matchingComplete: true,
+    );
+  } on Object catch (error) {
+    AppLogger.debug(
+      'ListenBrainz discover ignored corrupt weekly cache: '
+      'sourcePatch="${row.sourcePatch}" error=$error.',
+    );
+    return null;
+  }
+}
+
+Map<String, dynamic> _listenBrainzRecommendationToCacheJson(
+  ListenBrainzResolvedRecommendation recommendation,
+) {
+  return <String, dynamic>{
+    'track': _listenBrainzTrackToCacheJson(recommendation.track),
+    'status': recommendation.status.name,
+    'song': recommendation.song?.toJson(),
+  };
+}
+
+ListenBrainzResolvedRecommendation? _listenBrainzRecommendationFromCacheJson(
+  Map<String, dynamic> json,
+) {
+  final trackJson = json['track'];
+  if (trackJson is! Map) {
+    return null;
+  }
+  final track = _listenBrainzTrackFromCacheJson(
+    Map<String, dynamic>.from(trackJson),
+  );
+  if (track == null) {
+    return null;
+  }
+  final statusName = json['status'] as String?;
+  final status = ListenBrainzRecommendationMatchStatus.values
+      .where((value) => value.name == statusName)
+      .firstOrNull;
+  if (status == null) {
+    return null;
+  }
+  final songJson = json['song'];
+  final song = songJson is Map
+      ? Song.fromJson(Map<String, dynamic>.from(songJson))
+      : null;
+  return ListenBrainzResolvedRecommendation(
+    track: track,
+    status:
+        song == null && status == ListenBrainzRecommendationMatchStatus.matched
+        ? ListenBrainzRecommendationMatchStatus.unmatched
+        : status,
+    song: song,
+    tableSong: song == null ? null : _listenBrainzTableSong(song),
+  );
+}
+
+Map<String, dynamic> _listenBrainzTrackToCacheJson(
+  ListenBrainzPlaylistTrack track,
+) {
+  return <String, dynamic>{
+    'title': track.title,
+    'creator': track.creator,
+    'album': track.album,
+    'durationMs': track.durationMs,
+    'identifiers': track.identifiers,
+    'recordingMbid': track.recordingMbid,
+    'recordingMsid': track.recordingMsid,
+    'image': track.image,
+  };
+}
+
+ListenBrainzPlaylistTrack? _listenBrainzTrackFromCacheJson(
+  Map<String, dynamic> json,
+) {
+  final title = json['title'] as String?;
+  if (title == null || title.trim().isEmpty) {
+    return null;
+  }
+  return ListenBrainzPlaylistTrack(
+    title: title,
+    creator: json['creator'] as String?,
+    album: json['album'] as String?,
+    durationMs: (json['durationMs'] as num?)?.toInt(),
+    identifiers:
+        (json['identifiers'] as List?)?.whereType<String>().toList(
+          growable: false,
+        ) ??
+        const <String>[],
+    recordingMbid: json['recordingMbid'] as String?,
+    recordingMsid: json['recordingMsid'] as String?,
+    image: json['image'] as String?,
+  );
+}
+
+String? _listenBrainzWeekMarker(ListenBrainzPlaylist playlist) {
+  final date = playlist.date;
+  if (date != null) {
+    return date.toIso8601String();
+  }
+  final match = RegExp(
+    'week of ([0-9]{4}-[0-9]{2}-[0-9]{2})',
+    caseSensitive: false,
+  ).firstMatch(playlist.title);
+  return match?.group(1);
+}
+
+String _listenBrainzPlaylistVersionMarker(ListenBrainzPlaylist playlist) {
+  final weekMarker = _listenBrainzWeekMarker(playlist)?.trim();
+  if (weekMarker != null && weekMarker.isNotEmpty) {
+    return weekMarker;
+  }
+  return playlist.title.trim();
+}
+
+bool _listenBrainzMetadataMatchesCachedPlaylists(
+  List<ListenBrainzPlaylist> metadata,
+  List<ListenBrainzDiscoverPlaylist> cached,
+) {
+  if (metadata.length != cached.length) {
+    return false;
+  }
+  final cachedBySourcePatch = <String, ListenBrainzDiscoverPlaylist>{};
+  for (final playlist in cached) {
+    final sourcePatch = playlist.playlist.sourcePatch?.trim();
+    if (sourcePatch == null || sourcePatch.isEmpty) {
+      return false;
+    }
+    cachedBySourcePatch[sourcePatch] = playlist;
+  }
+  for (final playlist in metadata) {
+    final sourcePatch = playlist.sourcePatch?.trim();
+    if (sourcePatch == null || sourcePatch.isEmpty) {
+      return false;
+    }
+    final cachedPlaylist = cachedBySourcePatch[sourcePatch]?.playlist;
+    if (cachedPlaylist == null) {
+      return false;
+    }
+    if (cachedPlaylist.identifier != playlist.identifier) {
+      return false;
+    }
+    if (_listenBrainzPlaylistVersionMarker(cachedPlaylist) !=
+        _listenBrainzPlaylistVersionMarker(playlist)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool _listenBrainzRecommendationNeedsResolution(
+  ListenBrainzResolvedRecommendation recommendation,
+) {
+  return !recommendation.isPlayable;
+}
+
+int _listenBrainzUnresolvedRecommendationCount(
+  List<ListenBrainzDiscoverPlaylist> playlists,
+) {
+  return playlists.fold<int>(0, (sum, playlist) {
+    return sum +
+        playlist.recommendations
+            .where(_listenBrainzRecommendationNeedsResolution)
+            .length;
+  });
+}
+
+int _listenBrainzMatchedRecommendationCount(
+  List<ListenBrainzDiscoverPlaylist> playlists,
+) {
+  return playlists.fold<int>(0, (sum, playlist) {
+    return sum +
+        playlist.recommendations.where((recommendation) {
+          return recommendation.isPlayable;
+        }).length;
+  });
+}
+
+List<ListenBrainzDiscoverPlaylist> _visibleListenBrainzDiscoverPlaylists(
+  List<ListenBrainzDiscoverPlaylist> playlists,
+) {
+  return playlists
+      .where(
+        (playlist) =>
+            playlist.totalCount > 0 &&
+            (!playlist.matchingComplete || playlist.matchedCount > 0),
+      )
+      .toList(growable: false);
 }
 
 List<ListenBrainzPlaylist> _selectListenBrainzShowcaseMetadata(

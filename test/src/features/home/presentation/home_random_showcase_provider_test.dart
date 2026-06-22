@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,6 +11,7 @@ import 'package:navis/src/api/models/listenbrainz_playlist.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/features/settings/data/external_scrobble_credentials.dart';
@@ -215,6 +217,134 @@ extension _HomeRandomShowcaseItemTestX on HomeRandomShowcaseItem {
       this as HomeRandomShowcaseListenBrainz;
 }
 
+List<Override> _listenBrainzWeeklyOverrides({
+  required NavisDatabase database,
+  required ListenBrainzApiClient listenBrainz,
+  required SubsonicApiClient? subsonic,
+  String userName = 'alice',
+  NetworkType networkType = NetworkType.wifi,
+  Duration startupIdleDelay = Duration.zero,
+  Override? startupSyncStateOverride,
+}) {
+  return withTestDatabase(
+    database,
+    overrides: <Override>[
+      networkTypeProvider.overrideWith((ref) => networkType),
+      listenBrainzDiscoverStartupIdleDelayProvider.overrideWithValue(
+        startupIdleDelay,
+      ),
+      startupSyncStateOverride ??
+          listenBrainzDiscoverStartupSyncStateProvider.overrideWithValue(
+            const LibrarySyncState.idle(),
+          ),
+      appSettingsProvider.overrideWithValue(
+        AsyncData(
+          const AppSettingsModel.defaults().copyWith(
+            listenBrainzScrobblingEnabled: true,
+            listenBrainzTokenValid: true,
+            listenBrainzUserName: userName,
+          ),
+        ),
+      ),
+      externalScrobbleCredentialStoreProvider.overrideWithValue(
+        const _FakeExternalScrobbleCredentialStore('token'),
+      ),
+      listenBrainzApiClientProvider.overrideWithValue(listenBrainz),
+      subsonicApiProvider.overrideWithValue(subsonic),
+    ],
+  );
+}
+
+_FakeListenBrainzApiClient _weeklyListenBrainzClient({
+  String identifier = 'jams',
+  String sourcePatch = 'weekly-jams',
+  String title = 'Weekly Jams for alice, week of 2026-06-15',
+  String trackTitle = 'Jam Song',
+  String artist = 'Artist',
+  Completer<List<ListenBrainzPlaylist>>? recommendationCompleter,
+}) {
+  return _FakeListenBrainzApiClient(
+    playlists: const <ListenBrainzPlaylist>[],
+    recommendationCompleter: recommendationCompleter,
+    recommendationPlaylists: <ListenBrainzPlaylist>[
+      ListenBrainzPlaylist(
+        identifier: identifier,
+        title: title,
+        sourcePatch: sourcePatch,
+        tracks: const <ListenBrainzPlaylistTrack>[],
+      ),
+    ],
+    detailsById: <String, ListenBrainzPlaylist>{
+      identifier: ListenBrainzPlaylist(
+        identifier: identifier,
+        title: title,
+        sourcePatch: sourcePatch,
+        tracks: <ListenBrainzPlaylistTrack>[
+          ListenBrainzPlaylistTrack(title: trackTitle, creator: artist),
+        ],
+      ),
+    },
+  );
+}
+
+Future<void> _primeListenBrainzWeeklyCache(
+  NavisDatabase database, {
+  String userName = 'alice',
+  String identifier = 'jams',
+  String sourcePatch = 'weekly-jams',
+  String title = 'Weekly Jams for alice, week of 2026-06-15',
+  String trackTitle = 'Jam Song',
+  String artist = 'Artist',
+  String songId = 'song-jams',
+}) async {
+  final fakeApi = _FakeDiscoveryApiClient(
+    {},
+    searchSongs: <Song>[
+      Song(id: songId, title: trackTitle, artist: artist),
+    ],
+  );
+  final container = ProviderContainer(
+    overrides: _listenBrainzWeeklyOverrides(
+      database: database,
+      listenBrainz: _weeklyListenBrainzClient(
+        identifier: identifier,
+        sourcePatch: sourcePatch,
+        title: title,
+        trackTitle: trackTitle,
+        artist: artist,
+      ),
+      subsonic: fakeApi,
+      userName: userName,
+    ),
+  );
+  await container.read(listenBrainzDiscoverProvider.future);
+  container.dispose();
+  debugResetListenBrainzDiscoverSessionCacheForTests();
+}
+
+Future<List<ListenBrainzDiscoverPlaylist>> _firstListenBrainzEmission(
+  ProviderContainer container,
+) async {
+  final firstData = Completer<List<ListenBrainzDiscoverPlaylist>>();
+  final subscription = container
+      .listen<AsyncValue<List<ListenBrainzDiscoverPlaylist>>>(
+        listenBrainzDiscoverStreamProvider,
+        (previous, next) {
+          next.whenData((value) {
+            if (!firstData.isCompleted) {
+              firstData.complete(value);
+            }
+          });
+        },
+        fireImmediately: true,
+      );
+  try {
+    return await firstData.future;
+  } finally {
+    subscription.close();
+  }
+}
+
 void main() {
   setUp(debugResetListenBrainzDiscoverSessionCacheForTests);
 
@@ -248,6 +378,9 @@ void main() {
         database,
         overrides: <Override>[
           networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
+          listenBrainzDiscoverStartupIdleDelayProvider.overrideWithValue(
+            Duration.zero,
+          ),
           appSettingsProvider.overrideWithValue(
             AsyncData(
               const AppSettingsModel.defaults().copyWith(
@@ -372,6 +505,9 @@ void main() {
         database,
         overrides: <Override>[
           networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
+          listenBrainzDiscoverStartupIdleDelayProvider.overrideWithValue(
+            Duration.zero,
+          ),
           appSettingsProvider.overrideWithValue(
             AsyncData(
               const AppSettingsModel.defaults().copyWith(
@@ -400,17 +536,17 @@ void main() {
     final future = container.read(listenBrainzDiscoverProvider.future);
     for (
       var attempt = 0;
-      attempt < 50 && fakeApi.activeSearchCalls < 6;
+      attempt < 50 && fakeApi.activeSearchCalls < 2;
       attempt++
     ) {
       await Future<void>.delayed(Duration.zero);
     }
-    expect(fakeApi.maxActiveSearchCalls, 6);
+    expect(fakeApi.maxActiveSearchCalls, 2);
     searchGate.complete();
     await future;
 
     expect(fakeApi.totalSearchCalls, 10);
-    expect(fakeApi.maxActiveSearchCalls, lessThanOrEqualTo(6));
+    expect(fakeApi.maxActiveSearchCalls, lessThanOrEqualTo(2));
   });
 
   test(
@@ -465,6 +601,9 @@ void main() {
           database,
           overrides: <Override>[
             networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
+            listenBrainzDiscoverStartupIdleDelayProvider.overrideWithValue(
+              Duration.zero,
+            ),
             appSettingsProvider.overrideWithValue(
               AsyncData(
                 const AppSettingsModel.defaults().copyWith(
@@ -541,6 +680,9 @@ void main() {
         database,
         overrides: <Override>[
           networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
+          listenBrainzDiscoverStartupIdleDelayProvider.overrideWithValue(
+            Duration.zero,
+          ),
           appSettingsProvider.overrideWithValue(
             AsyncData(
               const AppSettingsModel.defaults().copyWith(
@@ -577,6 +719,544 @@ void main() {
     expect(fakeApi.totalSearchCalls, 0);
   });
 
+  test('cached weekly playlists emit before remote futures complete', () async {
+    final database = createTestDatabase();
+    await _primeListenBrainzWeeklyCache(database);
+    final recommendationCompleter = Completer<List<ListenBrainzPlaylist>>();
+    final fakeListenBrainz = _weeklyListenBrainzClient(
+      recommendationCompleter: recommendationCompleter,
+    );
+    final fakeApi = _FakeDiscoveryApiClient({});
+    final container = ProviderContainer(
+      overrides: _listenBrainzWeeklyOverrides(
+        database: database,
+        listenBrainz: fakeListenBrainz,
+        subsonic: fakeApi,
+        startupIdleDelay: const Duration(milliseconds: 200),
+      ),
+    );
+    addTearDown(() async {
+      if (!recommendationCompleter.isCompleted) {
+        recommendationCompleter.complete(const <ListenBrainzPlaylist>[]);
+      }
+      container.dispose();
+      await database.close();
+    });
+
+    final first = await _firstListenBrainzEmission(container);
+
+    expect(first, hasLength(1));
+    expect(first.single.playlist.identifier, 'jams');
+    expect(first.single.matchingComplete, isTrue);
+    expect(first.single.playableSongs.single.id, 'song-jams');
+    expect(fakeListenBrainz.recommendationPlaylistCalls, 0);
+    expect(fakeApi.totalSearchCalls, 0);
+  });
+
+  test(
+    'cached weekly startup waits for idle before metadata/detail work',
+    () async {
+      final database = createTestDatabase();
+      await _primeListenBrainzWeeklyCache(database);
+      final fakeListenBrainz = _weeklyListenBrainzClient();
+      final fakeApi = _FakeDiscoveryApiClient({});
+      final container = ProviderContainer(
+        overrides: _listenBrainzWeeklyOverrides(
+          database: database,
+          listenBrainz: fakeListenBrainz,
+          subsonic: fakeApi,
+          startupIdleDelay: const Duration(milliseconds: 60),
+        ),
+      );
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+
+      final first = await _firstListenBrainzEmission(container);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(first.single.playableSongs.single.id, 'song-jams');
+      expect(fakeListenBrainz.recommendationPlaylistCalls, 0);
+      expect(fakeListenBrainz.detailStarts, isEmpty);
+      expect(fakeApi.totalSearchCalls, 0);
+    },
+  );
+
+  test('unchanged weekly metadata after idle does not run search3', () async {
+    final database = createTestDatabase();
+    await _primeListenBrainzWeeklyCache(database);
+    final fakeListenBrainz = _weeklyListenBrainzClient();
+    final fakeApi = _FakeDiscoveryApiClient({});
+    final container = ProviderContainer(
+      overrides: _listenBrainzWeeklyOverrides(
+        database: database,
+        listenBrainz: fakeListenBrainz,
+        subsonic: fakeApi,
+        startupIdleDelay: const Duration(milliseconds: 1),
+      ),
+    );
+    addTearDown(() async {
+      container.dispose();
+      await database.close();
+    });
+
+    final result = await container.read(listenBrainzDiscoverProvider.future);
+
+    expect(result.single.playableSongs.single.id, 'song-jams');
+    expect(fakeListenBrainz.recommendationPlaylistCalls, 1);
+    expect(fakeListenBrainz.detailStarts, isEmpty);
+    expect(fakeApi.totalSearchCalls, 0);
+  });
+
+  test(
+    'changed weekly metadata after idle resolves and persists cache',
+    () async {
+      final database = createTestDatabase();
+      await _primeListenBrainzWeeklyCache(database);
+      final fakeApi = _FakeDiscoveryApiClient(
+        {},
+        searchSongs: const <Song>[
+          Song(id: 'fresh-song', title: 'Fresh Jam', artist: 'Artist'),
+        ],
+      );
+      final container = ProviderContainer(
+        overrides: _listenBrainzWeeklyOverrides(
+          database: database,
+          listenBrainz: _weeklyListenBrainzClient(
+            title: 'Weekly Jams for alice, week of 2026-06-22',
+            trackTitle: 'Fresh Jam',
+          ),
+          subsonic: fakeApi,
+          startupIdleDelay: const Duration(milliseconds: 1),
+        ),
+      );
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+
+      final result = await container.read(listenBrainzDiscoverProvider.future);
+
+      expect(result.single.playableSongs.single.id, 'fresh-song');
+      expect(fakeApi.totalSearchCalls, 1);
+
+      final cacheRows = await database.cacheDao
+          .getListenBrainzWeeklyCacheForUser(
+            'alice',
+          );
+      final cachedRecommendations =
+          jsonDecode(cacheRows.single.recommendationsJson) as List<dynamic>;
+      final cachedRecommendation = Map<String, dynamic>.from(
+        cachedRecommendations.single as Map,
+      );
+      final cachedSong = Map<String, dynamic>.from(
+        cachedRecommendation['song'] as Map,
+      );
+      expect(cachedSong['id'], 'fresh-song');
+    },
+  );
+
+  test(
+    'cold weekly start emits loading cards without awaiting search3',
+    () async {
+      final database = createTestDatabase();
+      final searchGate = Completer<void>();
+      final fakeApi = _FakeDiscoveryApiClient(
+        {},
+        searchGate: searchGate,
+        searchSongs: const <Song>[],
+      );
+      final container = ProviderContainer(
+        overrides: _listenBrainzWeeklyOverrides(
+          database: database,
+          listenBrainz: _weeklyListenBrainzClient(),
+          subsonic: fakeApi,
+          startupIdleDelay: const Duration(milliseconds: 60),
+        ),
+      );
+      addTearDown(() async {
+        if (!searchGate.isCompleted) {
+          searchGate.complete();
+        }
+        container.dispose();
+        await database.close();
+      });
+
+      final first = await _firstListenBrainzEmission(container);
+
+      expect(first, hasLength(2));
+      expect(first.map((playlist) => playlist.playlist.sourcePatch), <String?>[
+        'weekly-exploration',
+        'weekly-jams',
+      ]);
+      expect(
+        first.every((playlist) => playlist.recommendations.isEmpty),
+        isTrue,
+      );
+      expect(fakeApi.totalSearchCalls, 0);
+    },
+  );
+
+  test(
+    'cold weekly start keeps loading cards visible while resolving',
+    () async {
+      final database = createTestDatabase();
+      final searchGate = Completer<void>();
+      final fakeApi = _FakeDiscoveryApiClient(
+        {},
+        searchGate: searchGate,
+        searchSongs: const <Song>[],
+      );
+      final container = ProviderContainer(
+        overrides: _listenBrainzWeeklyOverrides(
+          database: database,
+          listenBrainz: _weeklyListenBrainzClient(),
+          subsonic: fakeApi,
+          startupIdleDelay: const Duration(milliseconds: 80),
+        ),
+      );
+      addTearDown(() async {
+        if (!searchGate.isCompleted) {
+          searchGate.complete();
+        }
+        container.dispose();
+        await database.close();
+      });
+
+      final first = await _firstListenBrainzEmission(container);
+      for (
+        var attempt = 0;
+        attempt < 50 && fakeApi.totalSearchCalls == 0;
+        attempt++
+      ) {
+        await Future<void>.delayed(Duration.zero);
+      }
+
+      expect(
+        first.every((playlist) => playlist.recommendations.isEmpty),
+        isTrue,
+      );
+      expect(fakeApi.totalSearchCalls, 1);
+    },
+  );
+
+  test(
+    'automatic weekly resolver waits while startup sync is running',
+    () async {
+      final database = createTestDatabase();
+      final fakeListenBrainz = _weeklyListenBrainzClient();
+      final fakeApi = _FakeDiscoveryApiClient({});
+      final container = ProviderContainer(
+        overrides: _listenBrainzWeeklyOverrides(
+          database: database,
+          listenBrainz: fakeListenBrainz,
+          subsonic: fakeApi,
+          startupSyncStateOverride: listenBrainzDiscoverStartupSyncStateProvider
+              .overrideWithValue(
+                const LibrarySyncState(
+                  status: LibrarySyncStatus.running,
+                  stage: LibrarySyncStage.fetchingSongs,
+                ),
+              ),
+        ),
+      );
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+
+      final first = await _firstListenBrainzEmission(container);
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(
+        first.every((playlist) => playlist.recommendations.isEmpty),
+        isTrue,
+      );
+      expect(fakeListenBrainz.recommendationPlaylistCalls, 0);
+      expect(fakeListenBrainz.detailStarts, isEmpty);
+      expect(fakeApi.totalSearchCalls, 0);
+    },
+  );
+
+  test(
+    'automatic weekly resolver starts after startup sync completes',
+    () async {
+      final database = createTestDatabase();
+      var syncState = const LibrarySyncState(
+        status: LibrarySyncStatus.running,
+        stage: LibrarySyncStage.fetchingSongs,
+      );
+      final fakeListenBrainz = _weeklyListenBrainzClient();
+      final fakeApi = _FakeDiscoveryApiClient(
+        {},
+        searchSongs: const <Song>[
+          Song(id: 'song-jams', title: 'Jam Song', artist: 'Artist'),
+        ],
+      );
+      final container = ProviderContainer(
+        overrides: _listenBrainzWeeklyOverrides(
+          database: database,
+          listenBrainz: fakeListenBrainz,
+          subsonic: fakeApi,
+          startupSyncStateOverride: listenBrainzDiscoverStartupSyncStateProvider
+              .overrideWith(
+                (ref) => syncState,
+              ),
+        ),
+      );
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+
+      final first = await _firstListenBrainzEmission(container);
+      expect(
+        first.every((playlist) => playlist.recommendations.isEmpty),
+        isTrue,
+      );
+      expect(fakeListenBrainz.recommendationPlaylistCalls, 0);
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+      expect(fakeListenBrainz.recommendationPlaylistCalls, 0);
+
+      syncState = const LibrarySyncState(
+        status: LibrarySyncStatus.succeeded,
+        stage: LibrarySyncStage.completed,
+      );
+      container.invalidate(listenBrainzDiscoverStartupSyncStateProvider);
+      container.invalidate(listenBrainzDiscoverProvider);
+      container.invalidate(listenBrainzDiscoverStreamProvider);
+      final result = await container.read(listenBrainzDiscoverProvider.future);
+
+      expect(result.single.playableSongs.single.id, 'song-jams');
+      expect(fakeListenBrainz.recommendationPlaylistCalls, 1);
+      expect(fakeApi.totalSearchCalls, 1);
+    },
+  );
+
+  test('manual weekly refresh bypasses running startup sync', () async {
+    final database = createTestDatabase();
+    final fakeListenBrainz = _weeklyListenBrainzClient();
+    final fakeApi = _FakeDiscoveryApiClient(
+      {},
+      searchSongs: const <Song>[
+        Song(id: 'song-jams', title: 'Jam Song', artist: 'Artist'),
+      ],
+    );
+    final container = ProviderContainer(
+      overrides: _listenBrainzWeeklyOverrides(
+        database: database,
+        listenBrainz: fakeListenBrainz,
+        subsonic: fakeApi,
+        startupSyncStateOverride: listenBrainzDiscoverStartupSyncStateProvider
+            .overrideWithValue(
+              const LibrarySyncState(
+                status: LibrarySyncStatus.running,
+                stage: LibrarySyncStage.fetchingSongs,
+              ),
+            ),
+      ),
+    );
+    addTearDown(() async {
+      container.dispose();
+      await database.close();
+    });
+
+    container.read(listenBrainzDiscoverRefreshEpochProvider.notifier).refresh();
+    final result = await container.read(listenBrainzDiscoverProvider.future);
+
+    expect(result.single.playableSongs.single.id, 'song-jams');
+    expect(fakeListenBrainz.recommendationPlaylistCalls, 1);
+    expect(fakeApi.totalSearchCalls, 1);
+  });
+
+  test('weekly provider disposal before idle prevents search3', () async {
+    final database = createTestDatabase();
+    final fakeApi = _FakeDiscoveryApiClient({}, searchSongs: const <Song>[]);
+    final container = ProviderContainer(
+      overrides: _listenBrainzWeeklyOverrides(
+        database: database,
+        listenBrainz: _weeklyListenBrainzClient(),
+        subsonic: fakeApi,
+        startupIdleDelay: const Duration(milliseconds: 40),
+      ),
+    );
+    final subscription = container
+        .listen<AsyncValue<List<ListenBrainzDiscoverPlaylist>>>(
+          listenBrainzDiscoverStreamProvider,
+          (previous, next) {},
+          fireImmediately: true,
+        );
+
+    await Future<void>.delayed(Duration.zero);
+    subscription.close();
+    container.dispose();
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+    await database.close();
+
+    expect(fakeApi.totalSearchCalls, 0);
+  });
+
+  test(
+    'weekly remote matches persist and seed the next provider start',
+    () async {
+      final database = createTestDatabase();
+      await _primeListenBrainzWeeklyCache(database);
+      final fakeApi = _FakeDiscoveryApiClient({});
+      final container = ProviderContainer(
+        overrides: _listenBrainzWeeklyOverrides(
+          database: database,
+          listenBrainz: _weeklyListenBrainzClient(),
+          subsonic: fakeApi,
+        ),
+      );
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+
+      final first = await _firstListenBrainzEmission(container);
+
+      expect(first.single.playableSongs.single.id, 'song-jams');
+      expect(fakeApi.totalSearchCalls, 0);
+    },
+  );
+
+  test('manual weekly refresh bypasses persisted cache', () async {
+    final database = createTestDatabase();
+    await _primeListenBrainzWeeklyCache(database);
+    final fakeApi = _FakeDiscoveryApiClient(
+      {},
+      searchSongs: const <Song>[
+        Song(id: 'fresh-song', title: 'Fresh Jam', artist: 'Artist'),
+      ],
+    );
+    final container = ProviderContainer(
+      overrides: _listenBrainzWeeklyOverrides(
+        database: database,
+        listenBrainz: _weeklyListenBrainzClient(
+          title: 'Weekly Jams for alice, week of 2026-06-22',
+          trackTitle: 'Fresh Jam',
+        ),
+        subsonic: fakeApi,
+        startupIdleDelay: const Duration(seconds: 1),
+      ),
+    );
+    addTearDown(() async {
+      container.dispose();
+      await database.close();
+    });
+
+    container.read(listenBrainzDiscoverRefreshEpochProvider.notifier).refresh();
+    final first = await _firstListenBrainzEmission(container);
+    final finalResult = await container.read(
+      listenBrainzDiscoverProvider.future,
+    );
+
+    expect(first.every((playlist) => playlist.recommendations.isEmpty), isTrue);
+    expect(finalResult.single.playableSongs.single.id, 'fresh-song');
+    expect(fakeApi.totalSearchCalls, 1);
+  });
+
+  test(
+    'offline weekly discovery uses persisted cache without remote calls',
+    () async {
+      final database = createTestDatabase();
+      await _primeListenBrainzWeeklyCache(database);
+      final fakeApi = _FakeDiscoveryApiClient({});
+      final fakeListenBrainz = _weeklyListenBrainzClient();
+      final container = ProviderContainer(
+        overrides: _listenBrainzWeeklyOverrides(
+          database: database,
+          listenBrainz: fakeListenBrainz,
+          subsonic: fakeApi,
+          networkType: NetworkType.offline,
+        ),
+      );
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+
+      final result = await container.read(listenBrainzDiscoverProvider.future);
+
+      expect(result.single.playableSongs.single.id, 'song-jams');
+      expect(fakeListenBrainz.recommendationPlaylistCalls, 0);
+      expect(fakeApi.totalSearchCalls, 0);
+    },
+  );
+
+  test('weekly cache is isolated by ListenBrainz user', () async {
+    final database = createTestDatabase();
+    await _primeListenBrainzWeeklyCache(database, userName: 'alice');
+    final fakeApi = _FakeDiscoveryApiClient({});
+    final fakeListenBrainz = _weeklyListenBrainzClient();
+    final container = ProviderContainer(
+      overrides: _listenBrainzWeeklyOverrides(
+        database: database,
+        listenBrainz: fakeListenBrainz,
+        subsonic: fakeApi,
+        userName: 'bob',
+        networkType: NetworkType.offline,
+      ),
+    );
+    addTearDown(() async {
+      container.dispose();
+      await database.close();
+    });
+
+    final result = await container.read(listenBrainzDiscoverProvider.future);
+
+    expect(result, isEmpty);
+    expect(fakeListenBrainz.recommendationPlaylistCalls, 0);
+    expect(fakeApi.totalSearchCalls, 0);
+  });
+
+  test(
+    'weekly cache is cleared when remote weekly targets disappear',
+    () async {
+      final database = createTestDatabase();
+      await _primeListenBrainzWeeklyCache(database);
+      final onlineContainer = ProviderContainer(
+        overrides: _listenBrainzWeeklyOverrides(
+          database: database,
+          listenBrainz: _FakeListenBrainzApiClient(
+            playlists: const <ListenBrainzPlaylist>[],
+            recommendationPlaylists: const <ListenBrainzPlaylist>[],
+          ),
+          subsonic: _FakeDiscoveryApiClient({}),
+        ),
+      );
+      final onlineResult = await onlineContainer.read(
+        listenBrainzDiscoverProvider.future,
+      );
+      onlineContainer.dispose();
+      debugResetListenBrainzDiscoverSessionCacheForTests();
+
+      final offlineContainer = ProviderContainer(
+        overrides: _listenBrainzWeeklyOverrides(
+          database: database,
+          listenBrainz: _weeklyListenBrainzClient(),
+          subsonic: _FakeDiscoveryApiClient({}),
+          networkType: NetworkType.offline,
+        ),
+      );
+      addTearDown(() async {
+        offlineContainer.dispose();
+        await database.close();
+      });
+
+      final offlineResult = await offlineContainer.read(
+        listenBrainzDiscoverProvider.future,
+      );
+
+      expect(onlineResult, isEmpty);
+      expect(offlineResult, isEmpty);
+    },
+  );
+
   test('online unfiltered uses server random source', () async {
     final database = createTestDatabase();
     final fakeApi = _FakeDiscoveryApiClient({});
@@ -585,6 +1265,9 @@ void main() {
         database,
         overrides: <Override>[
           networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
+          listenBrainzDiscoverStartupIdleDelayProvider.overrideWithValue(
+            Duration.zero,
+          ),
           subsonicApiProvider.overrideWithValue(fakeApi),
           homeRandomAlbumsProvider.overrideWith(
             (ref) async => const <Album>[
@@ -696,6 +1379,9 @@ void main() {
           database,
           overrides: <Override>[
             networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
+            listenBrainzDiscoverStartupIdleDelayProvider.overrideWithValue(
+              Duration.zero,
+            ),
             appSettingsProvider.overrideWithValue(
               AsyncData(
                 const AppSettingsModel.defaults().copyWith(
@@ -830,6 +1516,9 @@ void main() {
           database,
           overrides: <Override>[
             networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
+            listenBrainzDiscoverStartupIdleDelayProvider.overrideWithValue(
+              Duration.zero,
+            ),
             appSettingsProvider.overrideWithValue(
               AsyncData(
                 const AppSettingsModel.defaults().copyWith(
@@ -896,6 +1585,9 @@ void main() {
           database,
           overrides: <Override>[
             networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
+            listenBrainzDiscoverStartupIdleDelayProvider.overrideWithValue(
+              Duration.zero,
+            ),
             appSettingsProvider.overrideWithValue(
               AsyncData(
                 const AppSettingsModel.defaults().copyWith(
@@ -971,6 +1663,9 @@ void main() {
           database,
           overrides: <Override>[
             networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
+            listenBrainzDiscoverStartupIdleDelayProvider.overrideWithValue(
+              Duration.zero,
+            ),
             appSettingsProvider.overrideWithValue(
               AsyncData(
                 const AppSettingsModel.defaults().copyWith(
@@ -1031,6 +1726,9 @@ void main() {
         database,
         overrides: <Override>[
           networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
+          listenBrainzDiscoverStartupIdleDelayProvider.overrideWithValue(
+            Duration.zero,
+          ),
           appSettingsProvider.overrideWithValue(
             AsyncData(
               const AppSettingsModel.defaults().copyWith(
@@ -1092,6 +1790,9 @@ void main() {
           database,
           overrides: <Override>[
             networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
+            listenBrainzDiscoverStartupIdleDelayProvider.overrideWithValue(
+              Duration.zero,
+            ),
             appSettingsProvider.overrideWithValue(
               AsyncData(
                 const AppSettingsModel.defaults().copyWith(
@@ -1166,6 +1867,9 @@ void main() {
           database,
           overrides: <Override>[
             networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
+            listenBrainzDiscoverStartupIdleDelayProvider.overrideWithValue(
+              Duration.zero,
+            ),
             appSettingsProvider.overrideWithValue(
               AsyncData(
                 const AppSettingsModel.defaults().copyWith(
@@ -1233,6 +1937,9 @@ void main() {
         database,
         overrides: <Override>[
           networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
+          listenBrainzDiscoverStartupIdleDelayProvider.overrideWithValue(
+            Duration.zero,
+          ),
           appSettingsProvider.overrideWithValue(
             AsyncData(
               const AppSettingsModel.defaults().copyWith(
@@ -1304,6 +2011,9 @@ void main() {
         database,
         overrides: <Override>[
           networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
+          listenBrainzDiscoverStartupIdleDelayProvider.overrideWithValue(
+            Duration.zero,
+          ),
           appSettingsProvider.overrideWithValue(
             AsyncData(
               const AppSettingsModel.defaults().copyWith(
@@ -1418,6 +2128,9 @@ void main() {
           database,
           overrides: <Override>[
             networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
+            listenBrainzDiscoverStartupIdleDelayProvider.overrideWithValue(
+              Duration.zero,
+            ),
             subsonicApiProvider.overrideWithValue(fakeApi),
             homeRandomAlbumsProvider.overrideWith(
               (ref) async => throw StateError('discovery should be used first'),
@@ -1520,6 +2233,9 @@ void main() {
           database,
           overrides: <Override>[
             networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
+            listenBrainzDiscoverStartupIdleDelayProvider.overrideWithValue(
+              Duration.zero,
+            ),
             appSettingsProvider.overrideWithValue(
               AsyncData(
                 const AppSettingsModel.defaults().copyWith(
@@ -1627,6 +2343,9 @@ void main() {
           database,
           overrides: <Override>[
             networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
+            listenBrainzDiscoverStartupIdleDelayProvider.overrideWithValue(
+              Duration.zero,
+            ),
             subsonicApiProvider.overrideWithValue(fakeApi),
             homeRandomAlbumsProvider.overrideWith(
               (ref) async => const <Album>[
@@ -1742,6 +2461,9 @@ void main() {
         database,
         overrides: <Override>[
           networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
+          listenBrainzDiscoverStartupIdleDelayProvider.overrideWithValue(
+            Duration.zero,
+          ),
           likedSongsProvider.overrideWithValue(
             AsyncData(
               <SongsTableData>[
@@ -1830,6 +2552,9 @@ void main() {
           database,
           overrides: <Override>[
             networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
+            listenBrainzDiscoverStartupIdleDelayProvider.overrideWithValue(
+              Duration.zero,
+            ),
             downloadedContentIdsProvider.overrideWithValue(
               const AsyncData((
                 albumIds: <String>{'album-a'},

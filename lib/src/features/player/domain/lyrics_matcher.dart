@@ -22,15 +22,17 @@ class LrclibMatchScore {
   bool passes([double threshold = 0.7]) => value >= threshold;
 }
 
+final _parenthesesRegex = RegExp(r'\([^)]*\)');
+final _featRegex = RegExp(r'\b(feat\.?|ft\.?)\b.*$');
+final _punctRegex = RegExp(r'[^a-z0-9\s]');
+final _whitespaceRegex = RegExp(r'\s+');
+
 String normalizeMetadata(String value) {
   final lower = value.toLowerCase().trim();
-  final withoutParen = lower.replaceAll(RegExp(r'\([^)]*\)'), ' ');
-  final withoutFeat = withoutParen.replaceAll(
-    RegExp(r'\b(feat\.?|ft\.?)\b.*$'),
-    ' ',
-  );
-  final withoutPunct = withoutFeat.replaceAll(RegExp(r'[^a-z0-9\s]'), ' ');
-  return withoutPunct.replaceAll(RegExp(r'\s+'), ' ').trim();
+  final withoutParen = lower.replaceAll(_parenthesesRegex, ' ');
+  final withoutFeat = withoutParen.replaceAll(_featRegex, ' ');
+  final withoutPunct = withoutFeat.replaceAll(_punctRegex, ' ');
+  return withoutPunct.replaceAll(_whitespaceRegex, ' ').trim();
 }
 
 LrclibMatchScore scoreCandidate({

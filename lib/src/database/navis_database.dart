@@ -24,6 +24,7 @@ import 'package:navis/src/database/tables/download_queue_table.dart';
 import 'package:navis/src/database/tables/external_lyrics_cache_table.dart';
 import 'package:navis/src/database/tables/genres_table.dart';
 import 'package:navis/src/database/tables/listenbrainz_feedback_queue_table.dart';
+import 'package:navis/src/database/tables/listenbrainz_weekly_cache_table.dart';
 import 'package:navis/src/database/tables/match_flow_songs_table.dart';
 import 'package:navis/src/database/tables/match_flows_table.dart';
 import 'package:navis/src/database/tables/play_history_table.dart';
@@ -64,6 +65,7 @@ part 'navis_database.g.dart';
     ScrobbleQueueTable,
     StarSyncQueueTable,
     ListenBrainzFeedbackQueueTable,
+    ListenBrainzWeeklyCacheTable,
     NetworkUsageTable,
   ],
   daos: [
@@ -89,7 +91,7 @@ class NavisDatabase extends _$NavisDatabase {
   static QueryExecutor _openConnection() => driftDatabase(name: 'navis.sqlite');
 
   @override
-  int get schemaVersion => 51;
+  int get schemaVersion => 52;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -263,6 +265,9 @@ class NavisDatabase extends _$NavisDatabase {
     if (from < 51 && to >= 51) {
       await from50To51(migrator);
     }
+    if (from < 52 && to >= 52) {
+      await from51To52(migrator);
+    }
   }
 
   Future<void> from1To2(Migrator migrator) async {
@@ -372,6 +377,12 @@ class NavisDatabase extends _$NavisDatabase {
         appSettingsTable,
         appSettingsTable.showAlbumsPage,
       );
+    }
+  }
+
+  Future<void> from51To52(Migrator migrator) async {
+    if (!await _tableExists('listenbrainz_weekly_cache')) {
+      await migrator.createTable(listenBrainzWeeklyCacheTable);
     }
   }
 
@@ -1163,6 +1174,9 @@ FROM scrobble_queue;
     );
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_network_usage_category_network ON network_usage_events(category, network_type);',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_listenbrainz_weekly_cache_fetched_at ON listenbrainz_weekly_cache(fetched_at);',
     );
   }
 

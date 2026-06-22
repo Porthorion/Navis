@@ -6,6 +6,8 @@ part of 'cache_dao.dart';
 mixin _$CacheDaoMixin on DatabaseAccessor<NavisDatabase> {
   $CachedTracksTableTable get cachedTracksTable =>
       attachedDatabase.cachedTracksTable;
+  $ListenBrainzWeeklyCacheTableTable get listenBrainzWeeklyCacheTable =>
+      attachedDatabase.listenBrainzWeeklyCacheTable;
   CacheDaoManager get managers => CacheDaoManager(this);
 }
 
@@ -16,5 +18,11 @@ class CacheDaoManager {
       $$CachedTracksTableTableTableManager(
         _db.attachedDatabase,
         _db.cachedTracksTable,
+      );
+  $$ListenBrainzWeeklyCacheTableTableTableManager
+  get listenBrainzWeeklyCacheTable =>
+      $$ListenBrainzWeeklyCacheTableTableTableManager(
+        _db.attachedDatabase,
+        _db.listenBrainzWeeklyCacheTable,
       );
 }

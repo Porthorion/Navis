@@ -14465,6 +14465,670 @@ class ListenBrainzFeedbackQueueTableCompanion
   }
 }
 
+class $ListenBrainzWeeklyCacheTableTable extends ListenBrainzWeeklyCacheTable
+    with
+        TableInfo<
+          $ListenBrainzWeeklyCacheTableTable,
+          ListenBrainzWeeklyCacheTableData
+        > {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ListenBrainzWeeklyCacheTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _listenBrainzUserNameMeta =
+      const VerificationMeta('listenBrainzUserName');
+  @override
+  late final GeneratedColumn<String> listenBrainzUserName =
+      GeneratedColumn<String>(
+        'listen_brainz_user_name',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _sourcePatchMeta = const VerificationMeta(
+    'sourcePatch',
+  );
+  @override
+  late final GeneratedColumn<String> sourcePatch = GeneratedColumn<String>(
+    'source_patch',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _playlistIdentifierMeta =
+      const VerificationMeta('playlistIdentifier');
+  @override
+  late final GeneratedColumn<String> playlistIdentifier =
+      GeneratedColumn<String>(
+        'playlist_identifier',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _weekMarkerMeta = const VerificationMeta(
+    'weekMarker',
+  );
+  @override
+  late final GeneratedColumn<String> weekMarker = GeneratedColumn<String>(
+    'week_marker',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _playlistDateMeta = const VerificationMeta(
+    'playlistDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> playlistDate = GeneratedColumn<DateTime>(
+    'playlist_date',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _recommendationsJsonMeta =
+      const VerificationMeta('recommendationsJson');
+  @override
+  late final GeneratedColumn<String> recommendationsJson =
+      GeneratedColumn<String>(
+        'recommendations_json',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _matchedCountMeta = const VerificationMeta(
+    'matchedCount',
+  );
+  @override
+  late final GeneratedColumn<int> matchedCount = GeneratedColumn<int>(
+    'matched_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _totalCountMeta = const VerificationMeta(
+    'totalCount',
+  );
+  @override
+  late final GeneratedColumn<int> totalCount = GeneratedColumn<int>(
+    'total_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _fetchedAtMeta = const VerificationMeta(
+    'fetchedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> fetchedAt = GeneratedColumn<DateTime>(
+    'fetched_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    listenBrainzUserName,
+    sourcePatch,
+    playlistIdentifier,
+    title,
+    weekMarker,
+    playlistDate,
+    recommendationsJson,
+    matchedCount,
+    totalCount,
+    fetchedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'listenbrainz_weekly_cache';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ListenBrainzWeeklyCacheTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('listen_brainz_user_name')) {
+      context.handle(
+        _listenBrainzUserNameMeta,
+        listenBrainzUserName.isAcceptableOrUnknown(
+          data['listen_brainz_user_name']!,
+          _listenBrainzUserNameMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_listenBrainzUserNameMeta);
+    }
+    if (data.containsKey('source_patch')) {
+      context.handle(
+        _sourcePatchMeta,
+        sourcePatch.isAcceptableOrUnknown(
+          data['source_patch']!,
+          _sourcePatchMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_sourcePatchMeta);
+    }
+    if (data.containsKey('playlist_identifier')) {
+      context.handle(
+        _playlistIdentifierMeta,
+        playlistIdentifier.isAcceptableOrUnknown(
+          data['playlist_identifier']!,
+          _playlistIdentifierMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_playlistIdentifierMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('week_marker')) {
+      context.handle(
+        _weekMarkerMeta,
+        weekMarker.isAcceptableOrUnknown(data['week_marker']!, _weekMarkerMeta),
+      );
+    }
+    if (data.containsKey('playlist_date')) {
+      context.handle(
+        _playlistDateMeta,
+        playlistDate.isAcceptableOrUnknown(
+          data['playlist_date']!,
+          _playlistDateMeta,
+        ),
+      );
+    }
+    if (data.containsKey('recommendations_json')) {
+      context.handle(
+        _recommendationsJsonMeta,
+        recommendationsJson.isAcceptableOrUnknown(
+          data['recommendations_json']!,
+          _recommendationsJsonMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_recommendationsJsonMeta);
+    }
+    if (data.containsKey('matched_count')) {
+      context.handle(
+        _matchedCountMeta,
+        matchedCount.isAcceptableOrUnknown(
+          data['matched_count']!,
+          _matchedCountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('total_count')) {
+      context.handle(
+        _totalCountMeta,
+        totalCount.isAcceptableOrUnknown(data['total_count']!, _totalCountMeta),
+      );
+    }
+    if (data.containsKey('fetched_at')) {
+      context.handle(
+        _fetchedAtMeta,
+        fetchedAt.isAcceptableOrUnknown(data['fetched_at']!, _fetchedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_fetchedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {listenBrainzUserName, sourcePatch};
+  @override
+  ListenBrainzWeeklyCacheTableData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ListenBrainzWeeklyCacheTableData(
+      listenBrainzUserName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}listen_brainz_user_name'],
+      )!,
+      sourcePatch: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_patch'],
+      )!,
+      playlistIdentifier: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}playlist_identifier'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      weekMarker: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}week_marker'],
+      ),
+      playlistDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}playlist_date'],
+      ),
+      recommendationsJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}recommendations_json'],
+      )!,
+      matchedCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}matched_count'],
+      )!,
+      totalCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}total_count'],
+      )!,
+      fetchedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}fetched_at'],
+      )!,
+    );
+  }
+
+  @override
+  $ListenBrainzWeeklyCacheTableTable createAlias(String alias) {
+    return $ListenBrainzWeeklyCacheTableTable(attachedDatabase, alias);
+  }
+}
+
+class ListenBrainzWeeklyCacheTableData extends DataClass
+    implements Insertable<ListenBrainzWeeklyCacheTableData> {
+  final String listenBrainzUserName;
+  final String sourcePatch;
+  final String playlistIdentifier;
+  final String title;
+  final String? weekMarker;
+  final DateTime? playlistDate;
+  final String recommendationsJson;
+  final int matchedCount;
+  final int totalCount;
+  final DateTime fetchedAt;
+  const ListenBrainzWeeklyCacheTableData({
+    required this.listenBrainzUserName,
+    required this.sourcePatch,
+    required this.playlistIdentifier,
+    required this.title,
+    this.weekMarker,
+    this.playlistDate,
+    required this.recommendationsJson,
+    required this.matchedCount,
+    required this.totalCount,
+    required this.fetchedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['listen_brainz_user_name'] = Variable<String>(listenBrainzUserName);
+    map['source_patch'] = Variable<String>(sourcePatch);
+    map['playlist_identifier'] = Variable<String>(playlistIdentifier);
+    map['title'] = Variable<String>(title);
+    if (!nullToAbsent || weekMarker != null) {
+      map['week_marker'] = Variable<String>(weekMarker);
+    }
+    if (!nullToAbsent || playlistDate != null) {
+      map['playlist_date'] = Variable<DateTime>(playlistDate);
+    }
+    map['recommendations_json'] = Variable<String>(recommendationsJson);
+    map['matched_count'] = Variable<int>(matchedCount);
+    map['total_count'] = Variable<int>(totalCount);
+    map['fetched_at'] = Variable<DateTime>(fetchedAt);
+    return map;
+  }
+
+  ListenBrainzWeeklyCacheTableCompanion toCompanion(bool nullToAbsent) {
+    return ListenBrainzWeeklyCacheTableCompanion(
+      listenBrainzUserName: Value(listenBrainzUserName),
+      sourcePatch: Value(sourcePatch),
+      playlistIdentifier: Value(playlistIdentifier),
+      title: Value(title),
+      weekMarker: weekMarker == null && nullToAbsent
+          ? const Value.absent()
+          : Value(weekMarker),
+      playlistDate: playlistDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(playlistDate),
+      recommendationsJson: Value(recommendationsJson),
+      matchedCount: Value(matchedCount),
+      totalCount: Value(totalCount),
+      fetchedAt: Value(fetchedAt),
+    );
+  }
+
+  factory ListenBrainzWeeklyCacheTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ListenBrainzWeeklyCacheTableData(
+      listenBrainzUserName: serializer.fromJson<String>(
+        json['listenBrainzUserName'],
+      ),
+      sourcePatch: serializer.fromJson<String>(json['sourcePatch']),
+      playlistIdentifier: serializer.fromJson<String>(
+        json['playlistIdentifier'],
+      ),
+      title: serializer.fromJson<String>(json['title']),
+      weekMarker: serializer.fromJson<String?>(json['weekMarker']),
+      playlistDate: serializer.fromJson<DateTime?>(json['playlistDate']),
+      recommendationsJson: serializer.fromJson<String>(
+        json['recommendationsJson'],
+      ),
+      matchedCount: serializer.fromJson<int>(json['matchedCount']),
+      totalCount: serializer.fromJson<int>(json['totalCount']),
+      fetchedAt: serializer.fromJson<DateTime>(json['fetchedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'listenBrainzUserName': serializer.toJson<String>(listenBrainzUserName),
+      'sourcePatch': serializer.toJson<String>(sourcePatch),
+      'playlistIdentifier': serializer.toJson<String>(playlistIdentifier),
+      'title': serializer.toJson<String>(title),
+      'weekMarker': serializer.toJson<String?>(weekMarker),
+      'playlistDate': serializer.toJson<DateTime?>(playlistDate),
+      'recommendationsJson': serializer.toJson<String>(recommendationsJson),
+      'matchedCount': serializer.toJson<int>(matchedCount),
+      'totalCount': serializer.toJson<int>(totalCount),
+      'fetchedAt': serializer.toJson<DateTime>(fetchedAt),
+    };
+  }
+
+  ListenBrainzWeeklyCacheTableData copyWith({
+    String? listenBrainzUserName,
+    String? sourcePatch,
+    String? playlistIdentifier,
+    String? title,
+    Value<String?> weekMarker = const Value.absent(),
+    Value<DateTime?> playlistDate = const Value.absent(),
+    String? recommendationsJson,
+    int? matchedCount,
+    int? totalCount,
+    DateTime? fetchedAt,
+  }) => ListenBrainzWeeklyCacheTableData(
+    listenBrainzUserName: listenBrainzUserName ?? this.listenBrainzUserName,
+    sourcePatch: sourcePatch ?? this.sourcePatch,
+    playlistIdentifier: playlistIdentifier ?? this.playlistIdentifier,
+    title: title ?? this.title,
+    weekMarker: weekMarker.present ? weekMarker.value : this.weekMarker,
+    playlistDate: playlistDate.present ? playlistDate.value : this.playlistDate,
+    recommendationsJson: recommendationsJson ?? this.recommendationsJson,
+    matchedCount: matchedCount ?? this.matchedCount,
+    totalCount: totalCount ?? this.totalCount,
+    fetchedAt: fetchedAt ?? this.fetchedAt,
+  );
+  ListenBrainzWeeklyCacheTableData copyWithCompanion(
+    ListenBrainzWeeklyCacheTableCompanion data,
+  ) {
+    return ListenBrainzWeeklyCacheTableData(
+      listenBrainzUserName: data.listenBrainzUserName.present
+          ? data.listenBrainzUserName.value
+          : this.listenBrainzUserName,
+      sourcePatch: data.sourcePatch.present
+          ? data.sourcePatch.value
+          : this.sourcePatch,
+      playlistIdentifier: data.playlistIdentifier.present
+          ? data.playlistIdentifier.value
+          : this.playlistIdentifier,
+      title: data.title.present ? data.title.value : this.title,
+      weekMarker: data.weekMarker.present
+          ? data.weekMarker.value
+          : this.weekMarker,
+      playlistDate: data.playlistDate.present
+          ? data.playlistDate.value
+          : this.playlistDate,
+      recommendationsJson: data.recommendationsJson.present
+          ? data.recommendationsJson.value
+          : this.recommendationsJson,
+      matchedCount: data.matchedCount.present
+          ? data.matchedCount.value
+          : this.matchedCount,
+      totalCount: data.totalCount.present
+          ? data.totalCount.value
+          : this.totalCount,
+      fetchedAt: data.fetchedAt.present ? data.fetchedAt.value : this.fetchedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ListenBrainzWeeklyCacheTableData(')
+          ..write('listenBrainzUserName: $listenBrainzUserName, ')
+          ..write('sourcePatch: $sourcePatch, ')
+          ..write('playlistIdentifier: $playlistIdentifier, ')
+          ..write('title: $title, ')
+          ..write('weekMarker: $weekMarker, ')
+          ..write('playlistDate: $playlistDate, ')
+          ..write('recommendationsJson: $recommendationsJson, ')
+          ..write('matchedCount: $matchedCount, ')
+          ..write('totalCount: $totalCount, ')
+          ..write('fetchedAt: $fetchedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    listenBrainzUserName,
+    sourcePatch,
+    playlistIdentifier,
+    title,
+    weekMarker,
+    playlistDate,
+    recommendationsJson,
+    matchedCount,
+    totalCount,
+    fetchedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ListenBrainzWeeklyCacheTableData &&
+          other.listenBrainzUserName == this.listenBrainzUserName &&
+          other.sourcePatch == this.sourcePatch &&
+          other.playlistIdentifier == this.playlistIdentifier &&
+          other.title == this.title &&
+          other.weekMarker == this.weekMarker &&
+          other.playlistDate == this.playlistDate &&
+          other.recommendationsJson == this.recommendationsJson &&
+          other.matchedCount == this.matchedCount &&
+          other.totalCount == this.totalCount &&
+          other.fetchedAt == this.fetchedAt);
+}
+
+class ListenBrainzWeeklyCacheTableCompanion
+    extends UpdateCompanion<ListenBrainzWeeklyCacheTableData> {
+  final Value<String> listenBrainzUserName;
+  final Value<String> sourcePatch;
+  final Value<String> playlistIdentifier;
+  final Value<String> title;
+  final Value<String?> weekMarker;
+  final Value<DateTime?> playlistDate;
+  final Value<String> recommendationsJson;
+  final Value<int> matchedCount;
+  final Value<int> totalCount;
+  final Value<DateTime> fetchedAt;
+  final Value<int> rowid;
+  const ListenBrainzWeeklyCacheTableCompanion({
+    this.listenBrainzUserName = const Value.absent(),
+    this.sourcePatch = const Value.absent(),
+    this.playlistIdentifier = const Value.absent(),
+    this.title = const Value.absent(),
+    this.weekMarker = const Value.absent(),
+    this.playlistDate = const Value.absent(),
+    this.recommendationsJson = const Value.absent(),
+    this.matchedCount = const Value.absent(),
+    this.totalCount = const Value.absent(),
+    this.fetchedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ListenBrainzWeeklyCacheTableCompanion.insert({
+    required String listenBrainzUserName,
+    required String sourcePatch,
+    required String playlistIdentifier,
+    required String title,
+    this.weekMarker = const Value.absent(),
+    this.playlistDate = const Value.absent(),
+    required String recommendationsJson,
+    this.matchedCount = const Value.absent(),
+    this.totalCount = const Value.absent(),
+    required DateTime fetchedAt,
+    this.rowid = const Value.absent(),
+  }) : listenBrainzUserName = Value(listenBrainzUserName),
+       sourcePatch = Value(sourcePatch),
+       playlistIdentifier = Value(playlistIdentifier),
+       title = Value(title),
+       recommendationsJson = Value(recommendationsJson),
+       fetchedAt = Value(fetchedAt);
+  static Insertable<ListenBrainzWeeklyCacheTableData> custom({
+    Expression<String>? listenBrainzUserName,
+    Expression<String>? sourcePatch,
+    Expression<String>? playlistIdentifier,
+    Expression<String>? title,
+    Expression<String>? weekMarker,
+    Expression<DateTime>? playlistDate,
+    Expression<String>? recommendationsJson,
+    Expression<int>? matchedCount,
+    Expression<int>? totalCount,
+    Expression<DateTime>? fetchedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (listenBrainzUserName != null)
+        'listen_brainz_user_name': listenBrainzUserName,
+      if (sourcePatch != null) 'source_patch': sourcePatch,
+      if (playlistIdentifier != null) 'playlist_identifier': playlistIdentifier,
+      if (title != null) 'title': title,
+      if (weekMarker != null) 'week_marker': weekMarker,
+      if (playlistDate != null) 'playlist_date': playlistDate,
+      if (recommendationsJson != null)
+        'recommendations_json': recommendationsJson,
+      if (matchedCount != null) 'matched_count': matchedCount,
+      if (totalCount != null) 'total_count': totalCount,
+      if (fetchedAt != null) 'fetched_at': fetchedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ListenBrainzWeeklyCacheTableCompanion copyWith({
+    Value<String>? listenBrainzUserName,
+    Value<String>? sourcePatch,
+    Value<String>? playlistIdentifier,
+    Value<String>? title,
+    Value<String?>? weekMarker,
+    Value<DateTime?>? playlistDate,
+    Value<String>? recommendationsJson,
+    Value<int>? matchedCount,
+    Value<int>? totalCount,
+    Value<DateTime>? fetchedAt,
+    Value<int>? rowid,
+  }) {
+    return ListenBrainzWeeklyCacheTableCompanion(
+      listenBrainzUserName: listenBrainzUserName ?? this.listenBrainzUserName,
+      sourcePatch: sourcePatch ?? this.sourcePatch,
+      playlistIdentifier: playlistIdentifier ?? this.playlistIdentifier,
+      title: title ?? this.title,
+      weekMarker: weekMarker ?? this.weekMarker,
+      playlistDate: playlistDate ?? this.playlistDate,
+      recommendationsJson: recommendationsJson ?? this.recommendationsJson,
+      matchedCount: matchedCount ?? this.matchedCount,
+      totalCount: totalCount ?? this.totalCount,
+      fetchedAt: fetchedAt ?? this.fetchedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (listenBrainzUserName.present) {
+      map['listen_brainz_user_name'] = Variable<String>(
+        listenBrainzUserName.value,
+      );
+    }
+    if (sourcePatch.present) {
+      map['source_patch'] = Variable<String>(sourcePatch.value);
+    }
+    if (playlistIdentifier.present) {
+      map['playlist_identifier'] = Variable<String>(playlistIdentifier.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (weekMarker.present) {
+      map['week_marker'] = Variable<String>(weekMarker.value);
+    }
+    if (playlistDate.present) {
+      map['playlist_date'] = Variable<DateTime>(playlistDate.value);
+    }
+    if (recommendationsJson.present) {
+      map['recommendations_json'] = Variable<String>(recommendationsJson.value);
+    }
+    if (matchedCount.present) {
+      map['matched_count'] = Variable<int>(matchedCount.value);
+    }
+    if (totalCount.present) {
+      map['total_count'] = Variable<int>(totalCount.value);
+    }
+    if (fetchedAt.present) {
+      map['fetched_at'] = Variable<DateTime>(fetchedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ListenBrainzWeeklyCacheTableCompanion(')
+          ..write('listenBrainzUserName: $listenBrainzUserName, ')
+          ..write('sourcePatch: $sourcePatch, ')
+          ..write('playlistIdentifier: $playlistIdentifier, ')
+          ..write('title: $title, ')
+          ..write('weekMarker: $weekMarker, ')
+          ..write('playlistDate: $playlistDate, ')
+          ..write('recommendationsJson: $recommendationsJson, ')
+          ..write('matchedCount: $matchedCount, ')
+          ..write('totalCount: $totalCount, ')
+          ..write('fetchedAt: $fetchedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $NetworkUsageTableTable extends NetworkUsageTable
     with TableInfo<$NetworkUsageTableTable, NetworkUsageTableData> {
   @override
@@ -14919,6 +15583,8 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
       $StarSyncQueueTableTable(this);
   late final $ListenBrainzFeedbackQueueTableTable
   listenBrainzFeedbackQueueTable = $ListenBrainzFeedbackQueueTableTable(this);
+  late final $ListenBrainzWeeklyCacheTableTable listenBrainzWeeklyCacheTable =
+      $ListenBrainzWeeklyCacheTableTable(this);
   late final $NetworkUsageTableTable networkUsageTable =
       $NetworkUsageTableTable(this);
   late final AppSettingsDao appSettingsDao = AppSettingsDao(
@@ -14967,6 +15633,7 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
     scrobbleQueueTable,
     starSyncQueueTable,
     listenBrainzFeedbackQueueTable,
+    listenBrainzWeeklyCacheTable,
     networkUsageTable,
   ];
   @override
@@ -24321,6 +24988,336 @@ typedef $$ListenBrainzFeedbackQueueTableTableProcessedTableManager =
       ListenBrainzFeedbackQueueTableData,
       PrefetchHooks Function({bool songId})
     >;
+typedef $$ListenBrainzWeeklyCacheTableTableCreateCompanionBuilder =
+    ListenBrainzWeeklyCacheTableCompanion Function({
+      required String listenBrainzUserName,
+      required String sourcePatch,
+      required String playlistIdentifier,
+      required String title,
+      Value<String?> weekMarker,
+      Value<DateTime?> playlistDate,
+      required String recommendationsJson,
+      Value<int> matchedCount,
+      Value<int> totalCount,
+      required DateTime fetchedAt,
+      Value<int> rowid,
+    });
+typedef $$ListenBrainzWeeklyCacheTableTableUpdateCompanionBuilder =
+    ListenBrainzWeeklyCacheTableCompanion Function({
+      Value<String> listenBrainzUserName,
+      Value<String> sourcePatch,
+      Value<String> playlistIdentifier,
+      Value<String> title,
+      Value<String?> weekMarker,
+      Value<DateTime?> playlistDate,
+      Value<String> recommendationsJson,
+      Value<int> matchedCount,
+      Value<int> totalCount,
+      Value<DateTime> fetchedAt,
+      Value<int> rowid,
+    });
+
+class $$ListenBrainzWeeklyCacheTableTableFilterComposer
+    extends Composer<_$NavisDatabase, $ListenBrainzWeeklyCacheTableTable> {
+  $$ListenBrainzWeeklyCacheTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get listenBrainzUserName => $composableBuilder(
+    column: $table.listenBrainzUserName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourcePatch => $composableBuilder(
+    column: $table.sourcePatch,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get playlistIdentifier => $composableBuilder(
+    column: $table.playlistIdentifier,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get weekMarker => $composableBuilder(
+    column: $table.weekMarker,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get playlistDate => $composableBuilder(
+    column: $table.playlistDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get recommendationsJson => $composableBuilder(
+    column: $table.recommendationsJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get matchedCount => $composableBuilder(
+    column: $table.matchedCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get totalCount => $composableBuilder(
+    column: $table.totalCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get fetchedAt => $composableBuilder(
+    column: $table.fetchedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ListenBrainzWeeklyCacheTableTableOrderingComposer
+    extends Composer<_$NavisDatabase, $ListenBrainzWeeklyCacheTableTable> {
+  $$ListenBrainzWeeklyCacheTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get listenBrainzUserName => $composableBuilder(
+    column: $table.listenBrainzUserName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourcePatch => $composableBuilder(
+    column: $table.sourcePatch,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get playlistIdentifier => $composableBuilder(
+    column: $table.playlistIdentifier,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get weekMarker => $composableBuilder(
+    column: $table.weekMarker,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get playlistDate => $composableBuilder(
+    column: $table.playlistDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get recommendationsJson => $composableBuilder(
+    column: $table.recommendationsJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get matchedCount => $composableBuilder(
+    column: $table.matchedCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get totalCount => $composableBuilder(
+    column: $table.totalCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get fetchedAt => $composableBuilder(
+    column: $table.fetchedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ListenBrainzWeeklyCacheTableTableAnnotationComposer
+    extends Composer<_$NavisDatabase, $ListenBrainzWeeklyCacheTableTable> {
+  $$ListenBrainzWeeklyCacheTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get listenBrainzUserName => $composableBuilder(
+    column: $table.listenBrainzUserName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get sourcePatch => $composableBuilder(
+    column: $table.sourcePatch,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get playlistIdentifier => $composableBuilder(
+    column: $table.playlistIdentifier,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get weekMarker => $composableBuilder(
+    column: $table.weekMarker,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get playlistDate => $composableBuilder(
+    column: $table.playlistDate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get recommendationsJson => $composableBuilder(
+    column: $table.recommendationsJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get matchedCount => $composableBuilder(
+    column: $table.matchedCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get totalCount => $composableBuilder(
+    column: $table.totalCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get fetchedAt =>
+      $composableBuilder(column: $table.fetchedAt, builder: (column) => column);
+}
+
+class $$ListenBrainzWeeklyCacheTableTableTableManager
+    extends
+        RootTableManager<
+          _$NavisDatabase,
+          $ListenBrainzWeeklyCacheTableTable,
+          ListenBrainzWeeklyCacheTableData,
+          $$ListenBrainzWeeklyCacheTableTableFilterComposer,
+          $$ListenBrainzWeeklyCacheTableTableOrderingComposer,
+          $$ListenBrainzWeeklyCacheTableTableAnnotationComposer,
+          $$ListenBrainzWeeklyCacheTableTableCreateCompanionBuilder,
+          $$ListenBrainzWeeklyCacheTableTableUpdateCompanionBuilder,
+          (
+            ListenBrainzWeeklyCacheTableData,
+            BaseReferences<
+              _$NavisDatabase,
+              $ListenBrainzWeeklyCacheTableTable,
+              ListenBrainzWeeklyCacheTableData
+            >,
+          ),
+          ListenBrainzWeeklyCacheTableData,
+          PrefetchHooks Function()
+        > {
+  $$ListenBrainzWeeklyCacheTableTableTableManager(
+    _$NavisDatabase db,
+    $ListenBrainzWeeklyCacheTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ListenBrainzWeeklyCacheTableTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$ListenBrainzWeeklyCacheTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$ListenBrainzWeeklyCacheTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> listenBrainzUserName = const Value.absent(),
+                Value<String> sourcePatch = const Value.absent(),
+                Value<String> playlistIdentifier = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<String?> weekMarker = const Value.absent(),
+                Value<DateTime?> playlistDate = const Value.absent(),
+                Value<String> recommendationsJson = const Value.absent(),
+                Value<int> matchedCount = const Value.absent(),
+                Value<int> totalCount = const Value.absent(),
+                Value<DateTime> fetchedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ListenBrainzWeeklyCacheTableCompanion(
+                listenBrainzUserName: listenBrainzUserName,
+                sourcePatch: sourcePatch,
+                playlistIdentifier: playlistIdentifier,
+                title: title,
+                weekMarker: weekMarker,
+                playlistDate: playlistDate,
+                recommendationsJson: recommendationsJson,
+                matchedCount: matchedCount,
+                totalCount: totalCount,
+                fetchedAt: fetchedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String listenBrainzUserName,
+                required String sourcePatch,
+                required String playlistIdentifier,
+                required String title,
+                Value<String?> weekMarker = const Value.absent(),
+                Value<DateTime?> playlistDate = const Value.absent(),
+                required String recommendationsJson,
+                Value<int> matchedCount = const Value.absent(),
+                Value<int> totalCount = const Value.absent(),
+                required DateTime fetchedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => ListenBrainzWeeklyCacheTableCompanion.insert(
+                listenBrainzUserName: listenBrainzUserName,
+                sourcePatch: sourcePatch,
+                playlistIdentifier: playlistIdentifier,
+                title: title,
+                weekMarker: weekMarker,
+                playlistDate: playlistDate,
+                recommendationsJson: recommendationsJson,
+                matchedCount: matchedCount,
+                totalCount: totalCount,
+                fetchedAt: fetchedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ListenBrainzWeeklyCacheTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NavisDatabase,
+      $ListenBrainzWeeklyCacheTableTable,
+      ListenBrainzWeeklyCacheTableData,
+      $$ListenBrainzWeeklyCacheTableTableFilterComposer,
+      $$ListenBrainzWeeklyCacheTableTableOrderingComposer,
+      $$ListenBrainzWeeklyCacheTableTableAnnotationComposer,
+      $$ListenBrainzWeeklyCacheTableTableCreateCompanionBuilder,
+      $$ListenBrainzWeeklyCacheTableTableUpdateCompanionBuilder,
+      (
+        ListenBrainzWeeklyCacheTableData,
+        BaseReferences<
+          _$NavisDatabase,
+          $ListenBrainzWeeklyCacheTableTable,
+          ListenBrainzWeeklyCacheTableData
+        >,
+      ),
+      ListenBrainzWeeklyCacheTableData,
+      PrefetchHooks Function()
+    >;
 typedef $$NetworkUsageTableTableCreateCompanionBuilder =
     NetworkUsageTableCompanion Function({
       Value<int> id,
@@ -24605,6 +25602,12 @@ class $NavisDatabaseManager {
       $$ListenBrainzFeedbackQueueTableTableTableManager(
         _db,
         _db.listenBrainzFeedbackQueueTable,
+      );
+  $$ListenBrainzWeeklyCacheTableTableTableManager
+  get listenBrainzWeeklyCacheTable =>
+      $$ListenBrainzWeeklyCacheTableTableTableManager(
+        _db,
+        _db.listenBrainzWeeklyCacheTable,
       );
   $$NetworkUsageTableTableTableManager get networkUsageTable =>
       $$NetworkUsageTableTableTableManager(_db, _db.networkUsageTable);
