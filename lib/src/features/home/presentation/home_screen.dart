@@ -60,7 +60,7 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class ListenBrainzWeeklyDetailScreen extends ConsumerWidget {
+class ListenBrainzWeeklyDetailScreen extends ConsumerStatefulWidget {
   const ListenBrainzWeeklyDetailScreen({
     required this.sourcePatch,
     super.key,
@@ -69,50 +69,72 @@ class ListenBrainzWeeklyDetailScreen extends ConsumerWidget {
   final String sourcePatch;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ListenBrainzWeeklyDetailScreen> createState() =>
+      _ListenBrainzWeeklyDetailScreenState();
+}
+
+class _ListenBrainzWeeklyDetailScreenState
+    extends ConsumerState<ListenBrainzWeeklyDetailScreen> {
+  ListenBrainzDiscoverPlaylist? _cachedPlaylist;
+
+  @override
+  Widget build(BuildContext context) {
     final playlistsAsync = ref.watch(listenBrainzDiscoverStreamProvider);
-    final playlist = playlistsAsync.asData?.value
-        .where((playlist) => playlist.playlist.sourcePatch == sourcePatch)
+    final playlists = playlistsAsync.asData?.value;
+    final latest = playlists
+        ?.where((playlist) => playlist.playlist.sourcePatch == widget.sourcePatch)
         .firstOrNull;
-    final title = switch (sourcePatch) {
+    if (latest != null) {
+      _cachedPlaylist = latest;
+    }
+    final playlist = latest ?? _cachedPlaylist;
+    final title = switch (widget.sourcePatch) {
       'weekly-jams' => 'Weekly Jams',
       'weekly-exploration' => 'Weekly Exploration',
       _ => 'ListenBrainz Weekly',
     };
     final adaptiveContext = resolveAdaptiveContextFor(context);
 
+    final Widget body;
+    if (playlist != null) {
+      body = _ListenBrainzWeeklyDetailContent(
+        key: ValueKey<String>('listenbrainz-weekly-${widget.sourcePatch}'),
+        playlist: playlist,
+      );
+    } else if (playlistsAsync.hasError) {
+      body = ErrorState(
+        title: 'Could not load weekly playlist',
+        message: playlistsAsync.error.toString(),
+        onRetry: () {
+          ref
+              .read(listenBrainzDiscoverRefreshEpochProvider.notifier)
+              .refresh();
+        },
+      );
+    } else if (playlistsAsync.hasValue) {
+      body = const EmptyState(
+        icon: Icons.auto_awesome_outlined,
+        title: 'No weekly playlist available',
+        subtitle: 'Refresh You Might Like to fetch it again.',
+      );
+    } else {
+      body = const Center(child: CircularProgressIndicator());
+    }
+
     return Scaffold(
       appBar: (adaptiveContext.useDesktopShell || playlist == null)
           ? AppBar(title: Text(title))
           : null,
-      body: playlistsAsync.when(
-        data: (_) {
-          if (playlist == null) {
-            return const EmptyState(
-              icon: Icons.auto_awesome_outlined,
-              title: 'No weekly playlist available',
-              subtitle: 'Refresh You Might Like to fetch it again.',
-            );
-          }
-          return _ListenBrainzWeeklyDetailContent(playlist: playlist);
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => ErrorState(
-          title: 'Could not load weekly playlist',
-          message: error.toString(),
-          onRetry: () {
-            ref
-                .read(listenBrainzDiscoverRefreshEpochProvider.notifier)
-                .refresh();
-          },
-        ),
-      ),
+      body: body,
     );
   }
 }
 
 class _ListenBrainzWeeklyDetailContent extends ConsumerStatefulWidget {
-  const _ListenBrainzWeeklyDetailContent({required this.playlist});
+  const _ListenBrainzWeeklyDetailContent({
+    required this.playlist,
+    super.key,
+  });
 
   final ListenBrainzDiscoverPlaylist playlist;
 
@@ -1395,6 +1417,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     albums: albums,
                     heroContext: 'home_random',
                     density: sectionDensity,
+                    freezeListUpdates: syncRunning,
                   )
                 : _RandomAlbumsHeroCarousel(
                     albums: albums,
@@ -2219,11 +2242,13 @@ class _DesktopRandomAlbumsPager extends ConsumerStatefulWidget {
     required this.albums,
     required this.heroContext,
     this.density = _HomeSectionDensity.comfortable,
+    this.freezeListUpdates = false,
   });
 
   final List<HomeRandomShowcaseItem> albums;
   final String heroContext;
   final _HomeSectionDensity density;
+  final bool freezeListUpdates;
 
   @override
   ConsumerState<_DesktopRandomAlbumsPager> createState() =>
@@ -2233,18 +2258,50 @@ class _DesktopRandomAlbumsPager extends ConsumerStatefulWidget {
 class _DesktopRandomAlbumsPagerState
     extends ConsumerState<_DesktopRandomAlbumsPager> {
   late final PageController _pageController;
+  late List<HomeRandomShowcaseItem> _displayedAlbums;
   int _currentPage = 0;
+  String? _currentStableId;
 
   @override
   void initState() {
     super.initState();
+    _displayedAlbums = List<HomeRandomShowcaseItem>.unmodifiable(widget.albums);
+    if (_displayedAlbums.isNotEmpty) {
+      _currentStableId = _displayedAlbums.first.stableId;
+    }
     _pageController = PageController();
   }
 
   @override
   void didUpdateWidget(covariant _DesktopRandomAlbumsPager oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.albums.isEmpty) {
+    final incomingAlbums = List<HomeRandomShowcaseItem>.unmodifiable(
+      widget.albums,
+    );
+    final oldIds = _displayedAlbums.map((album) => album.stableId).toList();
+    final newIds = incomingAlbums.map((album) => album.stableId).toList();
+    if (widget.freezeListUpdates && _displayedAlbums.isNotEmpty) {
+      return;
+    }
+    if (!listEquals(oldIds, newIds)) {
+      _displayedAlbums = incomingAlbums;
+      final stableId = _currentStableId;
+      if (stableId != null && _displayedAlbums.isNotEmpty) {
+        final nextIndex = _displayedAlbums.indexWhere(
+          (album) => album.stableId == stableId,
+        );
+        if (nextIndex >= 0) {
+          _currentPage = nextIndex;
+          if (_pageController.hasClients) {
+            _pageController.jumpToPage(nextIndex);
+          }
+          return;
+        }
+      }
+    } else {
+      _displayedAlbums = incomingAlbums;
+    }
+    if (_displayedAlbums.isEmpty) {
       if (_currentPage != 0) {
         setState(() {
           _currentPage = 0;
@@ -2252,7 +2309,7 @@ class _DesktopRandomAlbumsPagerState
       }
       return;
     }
-    final clampedPage = _currentPage.clamp(0, widget.albums.length - 1);
+    final clampedPage = _currentPage.clamp(0, _displayedAlbums.length - 1);
     if (_currentPage != clampedPage) {
       setState(() {
         _currentPage = clampedPage;
@@ -2270,10 +2327,10 @@ class _DesktopRandomAlbumsPagerState
   }
 
   void _animateToPage(int target) {
-    if (!_pageController.hasClients || widget.albums.isEmpty) {
+    if (!_pageController.hasClients || _displayedAlbums.isEmpty) {
       return;
     }
-    final clampedTarget = target.clamp(0, widget.albums.length - 1);
+    final clampedTarget = target.clamp(0, _displayedAlbums.length - 1);
     if (clampedTarget == _currentPage) {
       return;
     }
@@ -2294,7 +2351,7 @@ class _DesktopRandomAlbumsPagerState
 
   @override
   Widget build(BuildContext context) {
-    if (widget.albums.isEmpty) {
+    if (_displayedAlbums.isEmpty) {
       return const SizedBox.shrink();
     }
 
@@ -2318,13 +2375,14 @@ class _DesktopRandomAlbumsPagerState
                       ),
                       controller: _pageController,
                       physics: const NeverScrollableScrollPhysics(),
-                      itemCount: widget.albums.length,
+                      itemCount: _displayedAlbums.length,
                       onPageChanged: (page) {
                         if (!mounted) {
                           return;
                         }
                         setState(() {
                           _currentPage = page;
+                          _currentStableId = _displayedAlbums[page].stableId;
                         });
                       },
                       itemBuilder: (context, index) {
@@ -2332,10 +2390,10 @@ class _DesktopRandomAlbumsPagerState
                           padding: const EdgeInsets.symmetric(horizontal: 2),
                           child: KeyedSubtree(
                             key: ValueKey<String>(
-                              'home-random-desktop-page-$index',
+                              _displayedAlbums[index].stableId,
                             ),
                             child: _DesktopRandomAlbumPage(
-                              album: widget.albums[index],
+                              album: _displayedAlbums[index],
                               heroContext: widget.heroContext,
                             ),
                           ),
@@ -2343,7 +2401,7 @@ class _DesktopRandomAlbumsPagerState
                       },
                     ),
                   ),
-                  if (widget.albums.length > 1 && _currentPage > 0)
+                  if (_displayedAlbums.length > 1 && _currentPage > 0)
                     Align(
                       alignment: Alignment.centerLeft,
                       child: _CarouselEdgeArrow(
@@ -2351,8 +2409,8 @@ class _DesktopRandomAlbumsPagerState
                         onPressed: () => _animateToPage(_currentPage - 1),
                       ),
                     ),
-                  if (widget.albums.length > 1 &&
-                      _currentPage < widget.albums.length - 1)
+                  if (_displayedAlbums.length > 1 &&
+                      _currentPage < _displayedAlbums.length - 1)
                     Align(
                       alignment: Alignment.centerRight,
                       child: _CarouselEdgeArrow(
@@ -2365,10 +2423,10 @@ class _DesktopRandomAlbumsPagerState
             );
           },
         ),
-        if (widget.albums.length > 1) ...<Widget>[
+        if (_displayedAlbums.length > 1) ...<Widget>[
           const SizedBox(height: 10),
           _DesktopRandomMiniCoverStrip(
-            albums: widget.albums,
+            albums: _displayedAlbums,
             currentPage: _currentPage,
             onPageSelected: _animateToPage,
           ),
@@ -2602,7 +2660,10 @@ class _DesktopListenBrainzPage extends ConsumerWidget {
                   ),
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-                    child: _DesktopListenBrainzSongList(item: item),
+                    child: _DesktopListenBrainzSongList(
+                      key: ValueKey<String>(item.stableId),
+                      item: item,
+                    ),
                   ),
                 ),
               ),
@@ -2701,15 +2762,36 @@ class _ListenBrainzShowcaseVisual extends ConsumerWidget {
   }
 }
 
-class _DesktopListenBrainzSongList extends ConsumerWidget {
-  const _DesktopListenBrainzSongList({required this.item});
+class _DesktopListenBrainzSongList extends ConsumerStatefulWidget {
+  const _DesktopListenBrainzSongList({required this.item, super.key});
 
   final HomeRandomShowcaseListenBrainz item;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_DesktopListenBrainzSongList> createState() =>
+      _DesktopListenBrainzSongListState();
+}
+
+class _DesktopListenBrainzSongListState
+    extends ConsumerState<_DesktopListenBrainzSongList> {
+  final ScrollController _scrollController = ScrollController();
+  var _hadRecommendations = false;
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    if (item.isLoading || item.playlist == null) {
+    final item = widget.item;
+    final recommendations = item.playlist?.recommendations ?? const [];
+    if (recommendations.isNotEmpty) {
+      _hadRecommendations = true;
+    }
+    if ((item.isLoading || item.playlist == null) && !_hadRecommendations) {
       return Center(
         child: Text(
           'Fetching playlist...',
@@ -2717,7 +2799,6 @@ class _DesktopListenBrainzSongList extends ConsumerWidget {
         ),
       );
     }
-    final recommendations = item.playlist!.recommendations;
     if (recommendations.isEmpty) {
       return Center(
         child: Text(
@@ -2727,6 +2808,8 @@ class _DesktopListenBrainzSongList extends ConsumerWidget {
       );
     }
     return ListView.builder(
+      key: PageStorageKey<String>('lb-desktop-songs-${item.stableId}'),
+      controller: _scrollController,
       padding: EdgeInsets.zero,
       itemCount: recommendations.length,
       itemBuilder: (context, index) {

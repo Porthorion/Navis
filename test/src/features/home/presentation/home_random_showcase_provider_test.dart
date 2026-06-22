@@ -217,6 +217,22 @@ extension _HomeRandomShowcaseItemTestX on HomeRandomShowcaseItem {
       this as HomeRandomShowcaseListenBrainz;
 }
 
+List<Override> withHomeShowcaseTestOverrides(
+  NavisDatabase database, {
+  List<Override> overrides = const <Override>[],
+  Duration startupIdleDelay = Duration.zero,
+}) {
+  return withTestDatabase(
+    database,
+    overrides: <Override>[
+      listenBrainzDiscoverStartupIdleDelayProvider.overrideWithValue(
+        startupIdleDelay,
+      ),
+      ...overrides,
+    ],
+  );
+}
+
 List<Override> _listenBrainzWeeklyOverrides({
   required NavisDatabase database,
   required ListenBrainzApiClient listenBrainz,
@@ -226,13 +242,11 @@ List<Override> _listenBrainzWeeklyOverrides({
   Duration startupIdleDelay = Duration.zero,
   Override? startupSyncStateOverride,
 }) {
-  return withTestDatabase(
+  return withHomeShowcaseTestOverrides(
     database,
+    startupIdleDelay: startupIdleDelay,
     overrides: <Override>[
       networkTypeProvider.overrideWith((ref) => networkType),
-      listenBrainzDiscoverStartupIdleDelayProvider.overrideWithValue(
-        startupIdleDelay,
-      ),
       startupSyncStateOverride ??
           listenBrainzDiscoverStartupSyncStateProvider.overrideWithValue(
             const LibrarySyncState.idle(),
@@ -374,13 +388,10 @@ void main() {
       },
     );
     final container = ProviderContainer(
-      overrides: withTestDatabase(
+      overrides: withHomeShowcaseTestOverrides(
         database,
         overrides: <Override>[
           networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
-          listenBrainzDiscoverStartupIdleDelayProvider.overrideWithValue(
-            Duration.zero,
-          ),
           appSettingsProvider.overrideWithValue(
             AsyncData(
               const AppSettingsModel.defaults().copyWith(
@@ -424,8 +435,13 @@ void main() {
     });
 
     final future = container.read(listenBrainzDiscoverProvider.future);
-    await Future<void>.delayed(Duration.zero);
-    await Future<void>.delayed(Duration.zero);
+    for (
+      var attempt = 0;
+      attempt < 50 && fakeListenBrainz.detailStarts.length < 2;
+      attempt++
+    ) {
+      await Future<void>.delayed(Duration.zero);
+    }
 
     expect(
       fakeListenBrainz.detailStarts,
@@ -501,13 +517,10 @@ void main() {
       },
     );
     final container = ProviderContainer(
-      overrides: withTestDatabase(
+      overrides: withHomeShowcaseTestOverrides(
         database,
         overrides: <Override>[
           networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
-          listenBrainzDiscoverStartupIdleDelayProvider.overrideWithValue(
-            Duration.zero,
-          ),
           appSettingsProvider.overrideWithValue(
             AsyncData(
               const AppSettingsModel.defaults().copyWith(
@@ -597,13 +610,10 @@ void main() {
         },
       );
       final container = ProviderContainer(
-        overrides: withTestDatabase(
+        overrides: withHomeShowcaseTestOverrides(
           database,
           overrides: <Override>[
             networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
-            listenBrainzDiscoverStartupIdleDelayProvider.overrideWithValue(
-              Duration.zero,
-            ),
             appSettingsProvider.overrideWithValue(
               AsyncData(
                 const AppSettingsModel.defaults().copyWith(
@@ -676,13 +686,10 @@ void main() {
       },
     );
     final container = ProviderContainer(
-      overrides: withTestDatabase(
+      overrides: withHomeShowcaseTestOverrides(
         database,
         overrides: <Override>[
           networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
-          listenBrainzDiscoverStartupIdleDelayProvider.overrideWithValue(
-            Duration.zero,
-          ),
           appSettingsProvider.overrideWithValue(
             AsyncData(
               const AppSettingsModel.defaults().copyWith(
@@ -925,13 +932,7 @@ void main() {
       });
 
       final first = await _firstListenBrainzEmission(container);
-      for (
-        var attempt = 0;
-        attempt < 50 && fakeApi.totalSearchCalls == 0;
-        attempt++
-      ) {
-        await Future<void>.delayed(Duration.zero);
-      }
+      await Future<void>.delayed(const Duration(milliseconds: 100));
 
       expect(
         first.every((playlist) => playlist.recommendations.isEmpty),
@@ -1261,13 +1262,10 @@ void main() {
     final database = createTestDatabase();
     final fakeApi = _FakeDiscoveryApiClient({});
     final container = ProviderContainer(
-      overrides: withTestDatabase(
+      overrides: withHomeShowcaseTestOverrides(
         database,
         overrides: <Override>[
           networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
-          listenBrainzDiscoverStartupIdleDelayProvider.overrideWithValue(
-            Duration.zero,
-          ),
           subsonicApiProvider.overrideWithValue(fakeApi),
           homeRandomAlbumsProvider.overrideWith(
             (ref) async => const <Album>[
@@ -1375,13 +1373,10 @@ void main() {
         },
       );
       final container = ProviderContainer(
-        overrides: withTestDatabase(
+        overrides: withHomeShowcaseTestOverrides(
           database,
           overrides: <Override>[
             networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
-            listenBrainzDiscoverStartupIdleDelayProvider.overrideWithValue(
-              Duration.zero,
-            ),
             appSettingsProvider.overrideWithValue(
               AsyncData(
                 const AppSettingsModel.defaults().copyWith(
@@ -1512,13 +1507,10 @@ void main() {
       final database = createTestDatabase();
       final recommendationCompleter = Completer<List<ListenBrainzPlaylist>>();
       final container = ProviderContainer(
-        overrides: withTestDatabase(
+        overrides: withHomeShowcaseTestOverrides(
           database,
           overrides: <Override>[
             networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
-            listenBrainzDiscoverStartupIdleDelayProvider.overrideWithValue(
-              Duration.zero,
-            ),
             appSettingsProvider.overrideWithValue(
               AsyncData(
                 const AppSettingsModel.defaults().copyWith(
@@ -1581,13 +1573,10 @@ void main() {
         ],
       );
       final container = ProviderContainer(
-        overrides: withTestDatabase(
+        overrides: withHomeShowcaseTestOverrides(
           database,
           overrides: <Override>[
             networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
-            listenBrainzDiscoverStartupIdleDelayProvider.overrideWithValue(
-              Duration.zero,
-            ),
             appSettingsProvider.overrideWithValue(
               AsyncData(
                 const AppSettingsModel.defaults().copyWith(
@@ -1659,13 +1648,10 @@ void main() {
       final database = createTestDatabase();
       final fakeApi = _FakeDiscoveryApiClient({});
       final container = ProviderContainer(
-        overrides: withTestDatabase(
+        overrides: withHomeShowcaseTestOverrides(
           database,
           overrides: <Override>[
             networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
-            listenBrainzDiscoverStartupIdleDelayProvider.overrideWithValue(
-              Duration.zero,
-            ),
             appSettingsProvider.overrideWithValue(
               AsyncData(
                 const AppSettingsModel.defaults().copyWith(
@@ -1722,13 +1708,10 @@ void main() {
     final database = createTestDatabase();
     final fakeApi = _FakeDiscoveryApiClient({});
     final container = ProviderContainer(
-      overrides: withTestDatabase(
+      overrides: withHomeShowcaseTestOverrides(
         database,
         overrides: <Override>[
           networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
-          listenBrainzDiscoverStartupIdleDelayProvider.overrideWithValue(
-            Duration.zero,
-          ),
           appSettingsProvider.overrideWithValue(
             AsyncData(
               const AppSettingsModel.defaults().copyWith(
@@ -1786,13 +1769,10 @@ void main() {
       final database = createTestDatabase();
       await _insertAlbum(database, id: 'loc-1', name: 'Local Album');
       final container = ProviderContainer(
-        overrides: withTestDatabase(
+        overrides: withHomeShowcaseTestOverrides(
           database,
           overrides: <Override>[
             networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
-            listenBrainzDiscoverStartupIdleDelayProvider.overrideWithValue(
-              Duration.zero,
-            ),
             appSettingsProvider.overrideWithValue(
               AsyncData(
                 const AppSettingsModel.defaults().copyWith(
@@ -1863,13 +1843,10 @@ void main() {
       final database = createTestDatabase();
       final fakeApi = _FakeDiscoveryApiClient({});
       final container = ProviderContainer(
-        overrides: withTestDatabase(
+        overrides: withHomeShowcaseTestOverrides(
           database,
           overrides: <Override>[
             networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
-            listenBrainzDiscoverStartupIdleDelayProvider.overrideWithValue(
-              Duration.zero,
-            ),
             appSettingsProvider.overrideWithValue(
               AsyncData(
                 const AppSettingsModel.defaults().copyWith(
@@ -1933,13 +1910,10 @@ void main() {
     final database = createTestDatabase();
     final fakeApi = _FakeDiscoveryApiClient({});
     final container = ProviderContainer(
-      overrides: withTestDatabase(
+      overrides: withHomeShowcaseTestOverrides(
         database,
         overrides: <Override>[
           networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
-          listenBrainzDiscoverStartupIdleDelayProvider.overrideWithValue(
-            Duration.zero,
-          ),
           appSettingsProvider.overrideWithValue(
             AsyncData(
               const AppSettingsModel.defaults().copyWith(
@@ -2007,13 +1981,10 @@ void main() {
     final database = createTestDatabase();
     final fakeApi = _FakeDiscoveryApiClient({});
     final container = ProviderContainer(
-      overrides: withTestDatabase(
+      overrides: withHomeShowcaseTestOverrides(
         database,
         overrides: <Override>[
           networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
-          listenBrainzDiscoverStartupIdleDelayProvider.overrideWithValue(
-            Duration.zero,
-          ),
           appSettingsProvider.overrideWithValue(
             AsyncData(
               const AppSettingsModel.defaults().copyWith(
@@ -2124,13 +2095,10 @@ void main() {
       });
 
       final container = ProviderContainer(
-        overrides: withTestDatabase(
+        overrides: withHomeShowcaseTestOverrides(
           database,
           overrides: <Override>[
             networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
-            listenBrainzDiscoverStartupIdleDelayProvider.overrideWithValue(
-              Duration.zero,
-            ),
             subsonicApiProvider.overrideWithValue(fakeApi),
             homeRandomAlbumsProvider.overrideWith(
               (ref) async => throw StateError('discovery should be used first'),
@@ -2229,13 +2197,10 @@ void main() {
       });
       final recommendationCompleter = Completer<List<ListenBrainzPlaylist>>();
       final container = ProviderContainer(
-        overrides: withTestDatabase(
+        overrides: withHomeShowcaseTestOverrides(
           database,
           overrides: <Override>[
             networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
-            listenBrainzDiscoverStartupIdleDelayProvider.overrideWithValue(
-              Duration.zero,
-            ),
             appSettingsProvider.overrideWithValue(
               AsyncData(
                 const AppSettingsModel.defaults().copyWith(
@@ -2339,13 +2304,10 @@ void main() {
         similarGate: similarGate,
       );
       final container = ProviderContainer(
-        overrides: withTestDatabase(
+        overrides: withHomeShowcaseTestOverrides(
           database,
           overrides: <Override>[
             networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
-            listenBrainzDiscoverStartupIdleDelayProvider.overrideWithValue(
-              Duration.zero,
-            ),
             subsonicApiProvider.overrideWithValue(fakeApi),
             homeRandomAlbumsProvider.overrideWith(
               (ref) async => const <Album>[
@@ -2413,7 +2375,7 @@ void main() {
     await _insertAlbum(database, id: 'loc-1', name: 'Local Album');
 
     final container = ProviderContainer(
-      overrides: withTestDatabase(
+      overrides: withHomeShowcaseTestOverrides(
         database,
         overrides: <Override>[
           networkTypeProvider.overrideWith((ref) => NetworkType.offline),
@@ -2457,13 +2419,10 @@ void main() {
     );
 
     final container = ProviderContainer(
-      overrides: withTestDatabase(
+      overrides: withHomeShowcaseTestOverrides(
         database,
         overrides: <Override>[
           networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
-          listenBrainzDiscoverStartupIdleDelayProvider.overrideWithValue(
-            Duration.zero,
-          ),
           likedSongsProvider.overrideWithValue(
             AsyncData(
               <SongsTableData>[
@@ -2510,7 +2469,7 @@ void main() {
       await _insertAlbum(database, id: 'album-b', name: 'Album B');
 
       final container = ProviderContainer(
-        overrides: withTestDatabase(
+        overrides: withHomeShowcaseTestOverrides(
           database,
           overrides: <Override>[
             networkTypeProvider.overrideWith((ref) => NetworkType.offline),
@@ -2548,13 +2507,10 @@ void main() {
       await _insertAlbum(database, id: 'album-b', name: 'Album B');
 
       final container = ProviderContainer(
-        overrides: withTestDatabase(
+        overrides: withHomeShowcaseTestOverrides(
           database,
           overrides: <Override>[
             networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
-            listenBrainzDiscoverStartupIdleDelayProvider.overrideWithValue(
-              Duration.zero,
-            ),
             downloadedContentIdsProvider.overrideWithValue(
               const AsyncData((
                 albumIds: <String>{'album-a'},
