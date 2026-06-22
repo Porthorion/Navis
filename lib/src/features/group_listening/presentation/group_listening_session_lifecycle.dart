@@ -41,9 +41,9 @@ class GroupListeningSessionLifecycle {
   }
 
   Future<GroupListeningSessionState> leaveRoom({
-    bool disconnectTransport = true,
+    String source = 'unknown',
   }) {
-    return _controller.leaveRoom(disconnectTransport: disconnectTransport);
+    return _controller.leaveRoom(source: source);
   }
 
   Future<GroupListeningSessionState> closeRoom() {

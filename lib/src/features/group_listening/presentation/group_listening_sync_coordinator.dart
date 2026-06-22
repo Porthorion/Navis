@@ -4,10 +4,7 @@ import 'package:navis/src/features/group_listening/presentation/group_listening_
 
 /// Owns apply-in-flight state and outbound suppression for Listen Together sync.
 class GroupListeningSyncCoordinator {
-  GroupListeningSyncCoordinator({GroupListeningSyncPolicy? syncPolicy})
-    : _syncPolicy = syncPolicy ?? const GroupListeningSyncPolicy();
-
-  final GroupListeningSyncPolicy _syncPolicy;
+  GroupListeningSyncCoordinator();
 
   bool isApplyingRemoteState = false;
   BridgePlaybackState? queuedRemoteState;

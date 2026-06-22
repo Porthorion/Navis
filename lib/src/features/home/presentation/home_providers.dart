@@ -411,7 +411,7 @@ Stream<List<ListenBrainzDiscoverPlaylist>> _listenBrainzDiscoverStream(
   final startupIdleDelay = ref.watch(
     listenBrainzDiscoverStartupIdleDelayProvider,
   );
-  final syncState = ref.watch(listenBrainzDiscoverStartupSyncStateProvider);
+  ref.watch(listenBrainzDiscoverStartupSyncStateProvider);
   if (!settings.listenBrainzTokenValid) {
     AppLogger.debug(
       'ListenBrainz discover skipped: stored token is not marked valid.',
@@ -611,29 +611,6 @@ Stream<List<ListenBrainzDiscoverPlaylist>> _listenBrainzDiscoverStream(
     }
     rethrow;
   }
-}
-
-void _scheduleListenBrainzSyncGateFallbackLog({
-  required Ref ref,
-  required Duration fallback,
-}) {
-  if (fallback <= Duration.zero) {
-    return;
-  }
-  final timer = Timer(fallback, () {
-    if (!ref.mounted) {
-      return;
-    }
-    final syncState = ref.read(listenBrainzDiscoverStartupSyncStateProvider);
-    if (syncState.status != LibrarySyncStatus.running) {
-      return;
-    }
-    AppLogger.debug(
-      'ListenBrainz discover sync gate fallback elapsed; still deferring: '
-      'status=${syncState.status.name} stage=${syncState.stage.name}.',
-    );
-  });
-  ref.onDispose(timer.cancel);
 }
 
 Stream<List<ListenBrainzDiscoverPlaylist>> _resolveListenBrainzWeeklyPlaylists({

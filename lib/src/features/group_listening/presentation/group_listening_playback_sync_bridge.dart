@@ -162,12 +162,12 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
             previous.isRadioMode != next.isRadioMode);
     if (immediate) {
       _lastImmediateSnapshotChangeAt = DateTime.now();
-      final intent = switch ((previous?.playing, next.playing)) {
+      final intent = switch ((previous.playing, next.playing)) {
         (false, true) => UserPlaybackIntent.play,
         (true, false) => UserPlaybackIntent.pause,
         _
-            when !listEquals(previous?.queueSongIds, next.queueSongIds) ||
-                previous?.currentIndex != next.currentIndex =>
+            when !listEquals(previous.queueSongIds, next.queueSongIds) ||
+                previous.currentIndex != next.currentIndex =>
           UserPlaybackIntent.trackChange,
         _ => UserPlaybackIntent.seek,
       };

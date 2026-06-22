@@ -13,8 +13,6 @@ import 'package:navis/src/features/group_listening/presentation/group_listening_
 import 'package:navis/src/features/group_listening/presentation/group_listening_settings_provider.dart';
 import 'package:navis/src/features/group_listening/presentation/listen_together_join_dialogs.dart';
 import 'package:navis/src/features/group_listening/presentation/listen_together_settings_widgets.dart';
-import 'package:navis/src/features/player/domain/playback_snapshot.dart';
-import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/song_id_utils.dart';

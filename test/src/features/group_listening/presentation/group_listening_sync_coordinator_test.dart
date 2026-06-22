@@ -1,6 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:navis/src/features/group_listening/domain/group_listening_sync_policy.dart';
-import 'package:navis/src/features/group_listening/presentation/group_listening_playback_follower.dart';
 import 'package:navis/src/features/group_listening/presentation/group_listening_sync_coordinator.dart';
 
 void main() {

@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/features/group_listening/data/group_listening_track_resolution_cache.dart';
 import 'package:navis/src/features/group_listening/domain/group_listening_session_models.dart';
