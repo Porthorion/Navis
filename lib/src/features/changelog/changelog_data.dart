@@ -41,6 +41,14 @@ const List<ChangelogVersion> changelogs = [
         'Library metadata sync tolerates missing albums and transient per-album failures instead of failing the entire scan, and automatically retries after a failed sync',
         type: ChangelogEntryType.fix,
       ),
+      ChangelogEntry(
+        'Instant Mix now honors the legacy Subsonic instant-mix setting in Playback Settings instead of routing to Same Vibes, and active mix sessions reconcile when you switch between modes',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Listen Together now validates stored sessions on app launch — valid rooms auto-resume without a prompt, and expired or invalid sessions are cleared silently instead of showing a stale resume dialog',
+        type: ChangelogEntryType.fix,
+      ),
     ],
   ),
   ChangelogVersion(
