@@ -1,0 +1,165 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/database/daos/network_usage_dao.dart';
+import 'package:navis/src/features/settings/data/settings_repository.dart';
+import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/features/settings/domain/update_delivery.dart';
+import 'package:navis/src/features/settings/domain/update_info.dart';
+import 'package:navis/src/features/settings/presentation/about_screen.dart';
+import 'package:navis/src/providers/app_providers.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+
+class _MockSettingsRepository extends Mock implements SettingsRepository {}
+
+void main() {
+  setUpAll(() {
+    registerFallbackValue(const AppSettingsModel.defaults());
+  });
+
+  group('AboutScreen update controls', () {
+    late _MockSettingsRepository repository;
+
+    const settings = AppSettingsModel(
+      wifiMaxBitRate: null,
+      wifiFormat: null,
+      cellularMaxBitRate: 192,
+      cellularFormat: 'mp3',
+      scrobbleEnabled: true,
+      gaplessEnabled: true,
+      skipSilenceEnabled: false,
+      showAlbumsPage: true,
+      showRadioPage: true,
+      showPlaylistsPage: true,
+      showArtistsPage: true,
+      showLikedPage: true,
+      equalizerEnabled: false,
+      equalizerBandGains: <double>[],
+      loudnessEnabled: false,
+      loudnessTargetGainDb: 0,
+      wifiOnlyDownloads: false,
+      autoDownloadStarredOnWifi: false,
+      customDownloadFolderEnabled: false,
+      customDownloadFolderPath: null,
+      themeMode: 'dark',
+      colorSchemeSeed: null,
+      appLocale: null,
+      crossfadeEnabled: false,
+      crossfadeDurationSeconds: 5,
+      crossfadeType: 'normal',
+      artTintedNowPlaying: true,
+      dynamicAlbumColorEnabled: false,
+      updateCheckEnabled: true,
+      updateChannel: 'stable',
+      audioMuseServerUrl: null,
+      audioMuseApiKey: null,
+      audioMuseEnabled: false,
+      syncIntervalMinutes: 60,
+      useLrclib: true,
+      legacyInstantMixEnabled: false,
+      replayGainMode: 'off',
+      replayGainPreamp: 0,
+      playbackSpeed: 1,
+      albumGridDensity: null,
+      coverArtShape: 'rounded',
+      nowPlayingArtShape: 'rounded',
+      artistCardShape: 'circle',
+      artistViewMode: 'grid',
+      homeSectionOrder: null,
+      homeSectionsHidden: null,
+      libraryPageOrder: null,
+    );
+
+    setUp(() {
+      repository = _MockSettingsRepository();
+      when(() => repository.saveSettings(any())).thenAnswer((_) async {});
+    });
+
+    Future<void> pumpAbout(
+      WidgetTester tester, {
+      required UpdateInfo? updateInfo,
+    }) async {
+      await tester.binding.setSurfaceSize(const Size(900, 1200));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            settingsRepositoryProvider.overrideWithValue(repository),
+            appSettingsProvider.overrideWith((ref) => Stream.value(settings)),
+            packageInfoProvider.overrideWith(
+              (ref) async => PackageInfo(
+                appName: 'Navis',
+                packageName: 'com.navis.app.navis',
+                version: '1.0.0',
+                buildNumber: '1',
+              ),
+            ),
+            updateProvider.overrideWith((ref) async => updateInfo),
+            networkUsageTotalProvider(1).overrideWith(
+              (ref) => Stream.value(
+                const NetworkUsageTotal(bytes: 0, requestCount: 0),
+              ),
+            ),
+            networkUsageTotalProvider(7).overrideWith(
+              (ref) => Stream.value(
+                const NetworkUsageTotal(bytes: 0, requestCount: 0),
+              ),
+            ),
+            networkUsageTotalProvider(30).overrideWith(
+              (ref) => Stream.value(
+                const NetworkUsageTotal(bytes: 0, requestCount: 0),
+              ),
+            ),
+            networkUsageCategoryTotalsProvider(7).overrideWith(
+              (ref) => Stream.value(const <NetworkUsageCategoryTotal>[]),
+            ),
+          ],
+          child: MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const AboutScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('shows update section on Android', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      try {
+        await pumpAbout(tester, updateInfo: null);
+
+        final l10n = lookupAppLocalizations(const Locale('en'));
+        expect(find.text(l10n.updatesSettingsSectionLabel), findsOneWidget);
+        expect(find.text(l10n.updateCheckTitle), findsOneWidget);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
+    testWidgets('shows Play Store action for store redirect updates', (
+      tester,
+    ) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      try {
+        await pumpAbout(
+          tester,
+          updateInfo: const UpdateInfo(
+            tagName: 'v2.0.0',
+            htmlUrl: 'https://example.com/release',
+            delivery: UpdateDelivery.storeRedirect,
+          ),
+        );
+
+        final l10n = lookupAppLocalizations(const Locale('en'));
+        expect(find.text(l10n.updateOpenPlayStore), findsOneWidget);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+  });
+}

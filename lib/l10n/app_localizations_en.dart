@@ -2159,6 +2159,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get updateDownloadManually => 'Download Manually';
 
   @override
+  String get updatePlayStoreTitle => 'Update on Google Play';
+
+  @override
+  String updatePlayStoreBody(String version) {
+    return '$version is available on Google Play. Update there to get the latest release.';
+  }
+
+  @override
+  String get updateOpenPlayStore => 'Open in Play Store';
+
+  @override
+  String get updatePlayStoreFallbackNotice =>
+      'Could not open Google Play. Opening the release page instead.';
+
+  @override
   String get updateAutoCheckTitle => 'Automatically check for updates';
 
   @override

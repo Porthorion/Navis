@@ -3,7 +3,11 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import 'package:navis/src/features/settings/data/install_source_service.dart';
+import 'package:navis/src/features/settings/data/update_check_store.dart';
 import 'package:navis/src/features/settings/data/update_install_mode.dart';
+import 'package:navis/src/features/settings/domain/update_delivery.dart';
+import 'package:navis/src/features/settings/domain/update_delivery_resolver.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/utils/constants.dart';
 
@@ -11,9 +15,17 @@ import 'package:navis/src/utils/constants.dart';
 /// it with the installed app version to determine whether an update is
 /// available.
 class UpdateRepository {
-  UpdateRepository({Dio? dio}) : _dio = dio ?? Dio();
+  UpdateRepository({
+    Dio? dio,
+    InstallSourceService? installSourceService,
+    UpdateCheckStore? updateCheckStore,
+  }) : _dio = dio ?? Dio(),
+       _installSourceService = installSourceService ?? InstallSourceService(),
+       _updateCheckStore = updateCheckStore ?? UpdateCheckStore();
 
   final Dio _dio;
+  final InstallSourceService _installSourceService;
+  final UpdateCheckStore _updateCheckStore;
 
   /// Returns [UpdateInfo] when a newer release exists, or `null` when the app
   /// is already up-to-date (or no releases are published yet).
@@ -22,10 +34,16 @@ class UpdateRepository {
   Future<UpdateInfo?> checkForUpdate({
     bool includePrerelease = false,
     String? updateChannel,
+    bool forceCheck = false,
   }) async {
-    if (Platform.isAndroid || Platform.isIOS) {
+    if (Platform.isIOS) {
       return null;
     }
+
+    if (!await _updateCheckStore.shouldCheck(force: forceCheck)) {
+      return null;
+    }
+
     final packageInfo = await PackageInfo.fromPlatform();
     final currentVersion = packageInfo.version; // e.g. "0.1.0"
     final currentSemver = _parseSemverCore(currentVersion);
@@ -43,6 +61,8 @@ class UpdateRepository {
         sendTimeout: const Duration(seconds: 10),
       ),
     );
+
+    await _updateCheckStore.recordCheck();
 
     final releases = (response.data ?? []).cast<Map<String, dynamic>>();
 
@@ -91,6 +111,7 @@ class UpdateRepository {
     if (candidate == null) return null;
 
     final rawTag = (candidate['tag_name'] as String?) ?? '';
+    final delivery = await _resolveDelivery();
 
     // Determine which artifact to download for the current platform/install mode.
     final assets = (candidate['assets'] as List<dynamic>?) ?? [];
@@ -104,12 +125,30 @@ class UpdateRepository {
       installMode: installMode,
     );
 
+    final resolvedDownloadUrl = delivery == UpdateDelivery.storeRedirect
+        ? null
+        : assetUrl;
+
     return UpdateInfo(
       tagName: rawTag,
       htmlUrl: (candidate['html_url'] as String?) ?? AppConstants.repoUrl,
+      delivery: delivery,
       releaseNotes: candidate['body'] as String?,
-      downloadUrl: assetUrl,
+      downloadUrl: resolvedDownloadUrl,
       assetFileName: assetFileName,
+    );
+  }
+
+  Future<UpdateDelivery> _resolveDelivery() async {
+    if (!Platform.isAndroid) {
+      return UpdateDelivery.desktopSelfUpdate;
+    }
+
+    final installSource = await _installSourceService.getInstallSource();
+    return resolveUpdateDelivery(
+      isAndroid: Platform.isAndroid,
+      selfUpdateBuildEnabled: selfUpdateBuildEnabled,
+      installerPackage: installSource?.installerPackage,
     );
   }
 }

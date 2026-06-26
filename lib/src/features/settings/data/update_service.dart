@@ -1,20 +1,31 @@
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:navis/src/features/settings/data/archive_utils.dart';
 import 'package:navis/src/features/settings/data/update_install_mode.dart';
 import 'package:navis/src/features/settings/data/update_scripts.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/constants.dart';
+import 'package:navis/src/utils/network_usage_meter.dart';
 
-/// Handles downloading a Forgejo desktop release artifact and applying it.
+/// Handles downloading a Forgejo release artifact and applying it.
 class UpdateService {
-  UpdateService({Dio? dio}) : _dio = dio ?? Dio();
+  UpdateService({
+    Dio? dio,
+    NetworkUsageReporter? networkUsageReporter,
+  }) : _dio = dio ?? Dio(),
+       _networkUsageReporter = networkUsageReporter;
 
   final Dio _dio;
+  final NetworkUsageReporter? _networkUsageReporter;
+
+  static const _channel = MethodChannel('com.navis.app/updater');
 
   // ---------------------------------------------------------------------------
   // Download
@@ -45,11 +56,13 @@ class UpdateService {
 
     AppLogger.info('Downloading update artifact from $url → $filePath');
 
+    var downloadedBytes = 0;
     await _dio.download(
       url,
       filePath,
       cancelToken: cancelToken,
       onReceiveProgress: (received, total) {
+        downloadedBytes = received;
         if (total > 0) onProgress?.call(received / total);
       },
       options: Options(
@@ -58,8 +71,80 @@ class UpdateService {
       ),
     );
 
+    _networkUsageReporter?.call(
+      category: NetworkUsageCategory.updates,
+      bytes: downloadedBytes,
+    );
+
     AppLogger.info('Artifact downloaded to $filePath');
     return filePath;
+  }
+
+  /// Backward-compatible alias used by Android callers.
+  Future<String> downloadApk(
+    UpdateInfo info, {
+    void Function(double progress)? onProgress,
+    CancelToken? cancelToken,
+  }) =>
+      downloadArtifact(info, onProgress: onProgress, cancelToken: cancelToken);
+
+  // ---------------------------------------------------------------------------
+  // Android install
+  // ---------------------------------------------------------------------------
+
+  /// Requests the Android system to install the APK at [filePath] via the
+  /// platform MethodChannel.
+  Future<void> installApk(String filePath) async {
+    if (!AppConstants.selfUpdateEnabled) {
+      throw StateError('APK self-update is disabled in this build');
+    }
+    AppLogger.info('Requesting APK install for $filePath');
+    await _channel.invokeMethod<bool>('installApk', {'filePath': filePath});
+  }
+
+  /// Convenience: download then install (Android only).
+  Future<void> downloadAndInstall(
+    UpdateInfo info, {
+    void Function(double progress)? onProgress,
+    CancelToken? cancelToken,
+  }) async {
+    final path = await downloadArtifact(
+      info,
+      onProgress: onProgress,
+      cancelToken: cancelToken,
+    );
+    await installApk(path);
+  }
+
+  /// Opens the Google Play listing for Navis, falling back to [fallbackUrl]
+  /// when the Play app cannot handle the market URI.
+  Future<bool> openPlayStoreListing({String? fallbackUrl}) async {
+    final marketUri = Uri.parse(
+      'market://details?id=${AppConstants.playStorePackageName}',
+    );
+    if (await canLaunchUrl(marketUri)) {
+      final launched = await launchUrl(
+        marketUri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (launched) {
+        return true;
+      }
+    }
+
+    final webUri = Uri.parse(AppConstants.playStoreListingUrl);
+    if (await canLaunchUrl(webUri)) {
+      return launchUrl(webUri, mode: LaunchMode.externalApplication);
+    }
+
+    final fallback = fallbackUrl?.trim();
+    if (fallback != null && fallback.isNotEmpty) {
+      final fallbackUri = Uri.parse(fallback);
+      if (await canLaunchUrl(fallbackUri)) {
+        return launchUrl(fallbackUri, mode: LaunchMode.externalApplication);
+      }
+    }
+    return false;
   }
 
   // ---------------------------------------------------------------------------

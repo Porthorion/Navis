@@ -972,6 +972,16 @@
   "updateSignatureMismatch": "This update is signed with a different key than your installed version. Uninstall Navis, then install the new version manually.",
   "updateDownloadManually": "Download Manually",
 
+  "updatePlayStoreTitle": "Update on Google Play",
+  "updatePlayStoreBody": "{version} is available on Google Play. Update there to get the latest release.",
+  "@updatePlayStoreBody": {
+    "placeholders": {
+      "version": { "type": "String" }
+    }
+  },
+  "updateOpenPlayStore": "Open in Play Store",
+  "updatePlayStoreFallbackNotice": "Could not open Google Play. Opening the release page instead.",
+
   "updateAutoCheckTitle": "Automatically check for updates",
   "updateAutoCheckSubtitle": "Check for new releases on each app launch.",
   "updatesSettingsSectionLabel": "Updates",

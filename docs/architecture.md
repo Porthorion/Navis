@@ -306,8 +306,12 @@ The in-app update checker lives in `lib/src/features/settings/`:
   `detectInstallMode()`. Returns `UpdateInfo` (with `downloadUrl` and `assetFileName`)
   when a newer version is available.
 - `data/update_service.dart` — downloads the release artifact into the system temp
-  directory and applies the update. On Android, invokes the system APK installer via a
-  `MethodChannel`. On desktop, runs a platform-appropriate apply strategy:
+  directory and applies the update. Distribution is resolved at runtime:
+  - **Forgejo/sideload Android APK builds** (`NAVIS_SELF_UPDATE=true`) download the
+    APK and invoke the system installer via a gated `MethodChannel`.
+  - **Google Play installs** (detected via install-source metadata, or Play AAB builds
+    with `NAVIS_SELF_UPDATE=false`) open the Play Store listing instead of sideloading.
+  - **Desktop** runs a platform-appropriate apply strategy:
   - **Linux deb:** `pkexec dpkg -i` + relaunch.
   - **Linux portable / Windows portable / macOS:** extracts the archive to a staging
     directory, writes a self-deleting shell/batch script with rollback logic, launches it
@@ -322,8 +326,10 @@ The in-app update checker lives in `lib/src/features/settings/`:
 - `data/update_scripts.dart` — generates the platform-specific updater scripts (`.sh` for
   Linux/macOS, `.bat` for Windows). Scripts include rollback on failure and self-delete
   after successful update.
-- `domain/update_info.dart` — immutable value object. `downloadUrl` holds the direct asset
-  URL for the current platform; `apkDownloadUrl` is a backward-compatible alias.
+- `domain/update_info.dart` — immutable value object with an `UpdateDelivery` mode.
+  `downloadUrl` holds the direct asset URL for self-update paths; Play redirects omit it.
+- `domain/update_delivery_resolver.dart` — maps platform, build capability, and Android
+  install source to `UpdateDelivery`.
 
 ### Write-access guard
 

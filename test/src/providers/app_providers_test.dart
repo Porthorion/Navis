@@ -20,6 +20,7 @@ import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
+import 'package:navis/src/features/settings/data/update_check_store.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
@@ -1176,4 +1177,31 @@ void main() {
       );
     });
   });
+
+  group('updateProvider', () {
+    test('returns null when auto update checks are disabled', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      final settings = const AppSettingsModel.defaults().copyWith(
+        updateCheckEnabled: false,
+      );
+      final container = ProviderContainer(
+        overrides: [
+          appSettingsProvider.overrideWith((ref) => Stream.value(settings)),
+          updateCheckStoreProvider.overrideWithValue(_NoOpUpdateCheckStore()),
+        ],
+      );
+      addTearDown(container.dispose);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(await container.read(updateProvider.future), isNull);
+    });
+  });
+}
+
+class _NoOpUpdateCheckStore extends UpdateCheckStore {
+  @override
+  Future<bool> shouldCheck({bool force = false}) async => true;
+
+  @override
+  Future<void> recordCheck([DateTime? checkedAt]) async {}
 }

@@ -21,9 +21,21 @@ rg -n --hidden \
 echo "==> Tracked env files"
 git ls-files | rg '(^|/)(\.env($|\.)|release\.env$)' || true
 
-echo "==> Android Play build blockers"
-if rg -n 'REQUEST_INSTALL_PACKAGES|installApk|ACTION_INSTALL_PACKAGE|FileProvider' android lib; then
-  echo "Play blocker found: APK self-install path is still present." >&2
+echo "==> Android Play manifest blockers"
+if rg -n 'REQUEST_INSTALL_PACKAGES|FileProvider' android/app/src/main/AndroidManifest.xml; then
+  echo "Play blocker found: base Android manifest must not declare APK self-install permissions." >&2
+  exit 1
+fi
+
+echo "==> Play release self-update guard"
+if ! rg -n 'NAVIS_SELF_UPDATE=false' tool/play_release.sh >/dev/null; then
+  echo "Play blocker found: tool/play_release.sh must disable NAVIS_SELF_UPDATE." >&2
+  exit 1
+fi
+
+echo "==> Forgejo APK self-update guard"
+if ! rg -n 'NAVIS_SELF_UPDATE=true' tool/release.sh >/dev/null; then
+  echo "Forgejo release blocker found: tool/release.sh must enable NAVIS_SELF_UPDATE for Android APK builds." >&2
   exit 1
 fi
 

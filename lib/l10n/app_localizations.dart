@@ -3849,6 +3849,30 @@ abstract class AppLocalizations {
   /// **'Download Manually'**
   String get updateDownloadManually;
 
+  /// No description provided for @updatePlayStoreTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Update on Google Play'**
+  String get updatePlayStoreTitle;
+
+  /// No description provided for @updatePlayStoreBody.
+  ///
+  /// In en, this message translates to:
+  /// **'{version} is available on Google Play. Update there to get the latest release.'**
+  String updatePlayStoreBody(String version);
+
+  /// No description provided for @updateOpenPlayStore.
+  ///
+  /// In en, this message translates to:
+  /// **'Open in Play Store'**
+  String get updateOpenPlayStore;
+
+  /// No description provided for @updatePlayStoreFallbackNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open Google Play. Opening the release page instead.'**
+  String get updatePlayStoreFallbackNotice;
+
   /// No description provided for @updateAutoCheckTitle.
   ///
   /// In en, this message translates to:

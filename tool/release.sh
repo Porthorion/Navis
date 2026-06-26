@@ -289,6 +289,8 @@ ASSET_NAMES=()
 
 if [[ "${BUILD_ANDROID}" == "true" ]]; then
   echo "==> Building Android APK..."
+  export NAVIS_SELF_UPDATE=true
+  DART_DEFINE_ARGS+=("--dart-define=NAVIS_SELF_UPDATE=true")
   ANDROID_OBFUSCATION_DIR="${SCRIPT_DIR}/../build/obfuscation/android/${VERSION}"
   mkdir -p "${ANDROID_OBFUSCATION_DIR}"
   _apk_define_args="${DART_DEFINE_ARGS[*]}"
@@ -297,7 +299,7 @@ if [[ "${BUILD_ANDROID}" == "true" ]]; then
   if [[ -n "${FLATPAK_ID:-}" ]]; then
     _flutter_bin="$(command -v flutter)"
     /usr/bin/flatpak-spawn --host -- bash -c \
-      "export PATH=\"$(dirname "${_flutter_bin}"):\$HOME/.local/bin:\$PATH\"; cd \"${SCRIPT_DIR}/..\"; flutter build apk --release --obfuscate --split-debug-info=\"${ANDROID_OBFUSCATION_DIR}\" $(printf '%q ' "${DART_DEFINE_ARGS[@]}")"
+      "export PATH=\"$(dirname "${_flutter_bin}"):\$HOME/.local/bin:\$PATH\"; export NAVIS_SELF_UPDATE=true; cd \"${SCRIPT_DIR}/..\"; flutter build apk --release --obfuscate --split-debug-info=\"${ANDROID_OBFUSCATION_DIR}\" $(printf '%q ' "${DART_DEFINE_ARGS[@]}")"
   else
     flutter build apk \
       --release \

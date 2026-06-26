@@ -25,11 +25,17 @@ val sidecarAppName =
         ?.trim()
         ?.takeIf { it.isNotEmpty() }
         ?: "Navis"
+val selfUpdateEnabled =
+    System.getenv("NAVIS_SELF_UPDATE")?.trim()?.equals("false", ignoreCase = true) != true
 
 android {
     namespace = "com.navis.app.navis"
     compileSdk = 36
     ndkVersion = flutter.ndkVersion
+
+    buildFeatures {
+        buildConfig = true
+    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -60,6 +66,15 @@ android {
         targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        buildConfigField("boolean", "SELF_UPDATE_ENABLED", selfUpdateEnabled.toString())
+    }
+
+    sourceSets {
+        getByName("main") {
+            if (selfUpdateEnabled) {
+                manifest.srcDir("src/selfupdate")
+            }
+        }
     }
 
     buildTypes {

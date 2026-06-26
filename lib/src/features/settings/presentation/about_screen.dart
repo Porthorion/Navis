@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
@@ -6,11 +8,13 @@ import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/database/daos/network_usage_dao.dart';
+import 'package:navis/src/features/settings/domain/update_delivery.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/features/settings/presentation/update_dialog.dart';
 import 'package:navis/src/providers/app_providers.dart';
-import 'package:navis/src/utils/format_utils.dart';
 import 'package:navis/src/utils/network_usage_meter.dart';
+import 'package:navis/src/utils/format_utils.dart';
+
 import 'package:url_launcher/url_launcher.dart';
 
 /// Displays app version, open-source licenses, and repository links.
@@ -35,10 +39,8 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
     final settings = settingsAsync.asData?.value;
     final packageInfo = ref.watch(packageInfoProvider).asData?.value;
     final version = packageInfo?.version ?? '';
-    final showDesktopUpdateControls =
-        !kIsWeb &&
-        defaultTargetPlatform != TargetPlatform.android &&
-        defaultTargetPlatform != TargetPlatform.iOS;
+    final showUpdateControls =
+        !kIsWeb && defaultTargetPlatform != TargetPlatform.iOS;
 
     // Show a snackbar when a user-triggered check resolves as up to date,
     // or auto-show the update dialog when an update is found.
@@ -53,8 +55,14 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
           message: l10n.updateUpToDate,
           level: AppNoticeLevel.info,
         );
-      } else if (info != null && info.downloadUrl != null) {
-        showUpdateDialog(context, info);
+      } else if (info != null) {
+        unawaited(
+          showUpdateDialog(
+            context,
+            info,
+            updateService: ref.read(updateServiceProvider),
+          ),
+        );
       }
     });
 
@@ -115,7 +123,7 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push('/settings/about/privacy'),
           ),
-          if (showDesktopUpdateControls) ...<Widget>[
+          if (showUpdateControls) ...<Widget>[
             const Divider(),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
@@ -159,27 +167,71 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
                   ? FilledButton.icon(
                       onPressed: () {
                         final info = updateAsync.asData!.value!;
-                        if (info.downloadUrl != null) {
-                          showUpdateDialog(context, info);
-                        } else {
-                          launchUrl(
-                            Uri.parse(info.htmlUrl),
-                            mode: LaunchMode.externalApplication,
-                          );
-                        }
+                        unawaited(_handleUpdateAction(context, ref, info));
                       },
-                      icon: const Icon(Icons.install_mobile, size: 18),
-                      label: Text(l10n.updateInstall),
+                      icon: Icon(
+                        updateAsync.asData!.value!.delivery ==
+                                UpdateDelivery.storeRedirect
+                            ? Icons.shop_2_outlined
+                            : Icons.install_mobile,
+                        size: 18,
+                      ),
+                      label: Text(
+                        updateAsync.asData!.value!.delivery ==
+                                UpdateDelivery.storeRedirect
+                            ? l10n.updateOpenPlayStore
+                            : l10n.updateInstall,
+                      ),
                     )
                   : const Icon(Icons.refresh),
               onTap: () {
                 setState(() => _userTriggeredCheck = true);
+                ref.read(updateForceCheckProvider.notifier).requestForceCheck();
                 ref.invalidate(updateProvider);
               },
             ),
           ],
         ],
       ),
+    );
+  }
+
+  Future<void> _handleUpdateAction(
+    BuildContext context,
+    WidgetRef ref,
+    UpdateInfo info,
+  ) async {
+    final l10n = AppLocalizations.of(context)!;
+    final updateService = ref.read(updateServiceProvider);
+    if (info.delivery == UpdateDelivery.storeRedirect) {
+      final launched = await updateService.openPlayStoreListing(
+        fallbackUrl: info.htmlUrl,
+      );
+      if (!context.mounted) {
+        return;
+      }
+      if (!launched) {
+        showAppNotice(
+          context,
+          message: l10n.updatePlayStoreFallbackNotice,
+          level: AppNoticeLevel.info,
+        );
+      }
+      return;
+    }
+
+    if (info.downloadUrl != null) {
+      await showUpdateDialog(
+        context,
+        info,
+        updateService: updateService,
+      );
+      return;
+    }
+
+    await launchUrl(
+      Uri.parse(info.htmlUrl),
+      mode: LaunchMode.externalApplication,
     );
   }
 

@@ -40,7 +40,10 @@ import 'package:navis/src/features/settings/data/battery_optimization_service.da
 import 'package:navis/src/features/settings/data/external_scrobble_credentials.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/routing/desktop_layout.dart' show isDesktopRuntime;
+import 'package:navis/src/features/settings/data/install_source_service.dart';
+import 'package:navis/src/features/settings/data/update_check_store.dart';
 import 'package:navis/src/features/settings/data/update_repository.dart';
+import 'package:navis/src/features/settings/data/update_service.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
@@ -2432,11 +2435,67 @@ final packageInfoProvider = FutureProvider<PackageInfo>((ref) async {
   return PackageInfo.fromPlatform();
 });
 
+/// When `true`, the next [updateProvider] fetch bypasses the 24-hour throttle.
+class UpdateForceCheckNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void requestForceCheck() => state = true;
+
+  bool consumeForceCheck() {
+    if (!state) {
+      return false;
+    }
+    state = false;
+    return true;
+  }
+}
+
+final updateForceCheckProvider =
+    NotifierProvider<UpdateForceCheckNotifier, bool>(
+      UpdateForceCheckNotifier.new,
+    );
+
+final installSourceServiceProvider = Provider<InstallSourceService>((ref) {
+  return InstallSourceService();
+});
+
+final updateCheckStoreProvider = Provider<UpdateCheckStore>((ref) {
+  return UpdateCheckStore();
+});
+
+final updateServiceProvider = Provider<UpdateService>((ref) {
+  final meter = ref.watch(networkUsageMeterProvider);
+  return UpdateService(
+    networkUsageReporter: ({required category, required bytes}) {
+      meter.record(category: category, bytes: bytes);
+    },
+  );
+});
+
 /// Checks whether a newer Navis release is available on Forgejo.
 /// Auto-disposed so it re-runs each time a screen watches it freshly.
-/// Always checks stable releases only (pre-releases are never surfaced).
 final updateProvider = FutureProvider.autoDispose<UpdateInfo?>((ref) async {
-  return UpdateRepository().checkForUpdate(includePrerelease: false);
+  final settingsAsync = ref.watch(appSettingsProvider);
+  if (settingsAsync.isLoading) {
+    return null;
+  }
+  final settings = settingsAsync.asData?.value;
+  if (settings != null && !settings.updateCheckEnabled) {
+    return null;
+  }
+
+  final forceCheck = ref
+      .read(updateForceCheckProvider.notifier)
+      .consumeForceCheck();
+
+  return UpdateRepository(
+    installSourceService: ref.read(installSourceServiceProvider),
+    updateCheckStore: ref.read(updateCheckStoreProvider),
+  ).checkForUpdate(
+    includePrerelease: AppConstants.updateChannel == 'dev',
+    forceCheck: forceCheck,
+  );
 });
 
 Future<void> seedDefaultServerConfig(Ref ref) async {

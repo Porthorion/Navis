@@ -136,6 +136,45 @@ class _ListShimmer extends StatelessWidget {
 class _UpdateBanner extends ConsumerWidget {
   const _UpdateBanner();
 
+  Future<void> _handleUpdateAction(
+    BuildContext context,
+    WidgetRef ref,
+    UpdateInfo info,
+  ) async {
+    final l10n = AppLocalizations.of(context)!;
+    final updateService = ref.read(updateServiceProvider);
+    if (info.delivery == UpdateDelivery.storeRedirect) {
+      final launched = await updateService.openPlayStoreListing(
+        fallbackUrl: info.htmlUrl,
+      );
+      if (!context.mounted) {
+        return;
+      }
+      if (!launched) {
+        showAppNotice(
+          context,
+          message: l10n.updatePlayStoreFallbackNotice,
+          level: AppNoticeLevel.info,
+        );
+      }
+      return;
+    }
+
+    if (info.downloadUrl != null) {
+      await showUpdateDialog(
+        context,
+        info,
+        updateService: updateService,
+      );
+      return;
+    }
+
+    await launchUrl(
+      Uri.parse(info.htmlUrl),
+      mode: LaunchMode.externalApplication,
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
@@ -149,6 +188,12 @@ class _UpdateBanner extends ConsumerWidget {
     return updateAsync.when(
       data: (info) {
         if (info == null) return const SizedBox.shrink();
+        final actionLabel = switch (info.delivery) {
+          UpdateDelivery.storeRedirect => l10n.updateOpenPlayStore,
+          UpdateDelivery.forgejoSelfUpdate => l10n.updateInstall,
+          UpdateDelivery.desktopSelfUpdate =>
+            info.downloadUrl != null ? l10n.updateInstall : l10n.updateDownload,
+        };
         return MaterialBanner(
           content: Text(l10n.updateAvailableBody(info.tagName)),
           leading: const Icon(Icons.system_update_outlined),
@@ -158,21 +203,9 @@ class _UpdateBanner extends ConsumerWidget {
               child: Text(l10n.updateDismiss),
             ),
             TextButton(
-              onPressed: () {
-                if (info.downloadUrl != null) {
-                  showUpdateDialog(context, info);
-                } else {
-                  launchUrl(
-                    Uri.parse(info.htmlUrl),
-                    mode: LaunchMode.externalApplication,
-                  );
-                }
-              },
-              child: Text(
-                info.downloadUrl != null
-                    ? l10n.updateInstall
-                    : l10n.updateDownload,
-              ),
+              onPressed: () =>
+                  unawaited(_handleUpdateAction(context, ref, info)),
+              child: Text(actionLabel),
             ),
           ],
         );

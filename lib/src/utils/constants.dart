@@ -32,6 +32,21 @@ abstract final class AppConstants {
       ? 'navis-dev'
       : 'navis';
 
+  /// Whether this build can self-update via APK install (Forgejo/sideload APKs).
+  ///
+  /// Set to `false` for Google Play App Bundle builds via
+  /// `--dart-define=NAVIS_SELF_UPDATE=false`.
+  static const bool selfUpdateEnabled = bool.fromEnvironment(
+    'NAVIS_SELF_UPDATE',
+    defaultValue: true,
+  );
+
+  /// Google Play listing for the stable Android package.
+  static const String playStorePackageName = 'com.navis.app.navis';
+
+  static const String playStoreListingUrl =
+      'https://play.google.com/store/apps/details?id=$playStorePackageName';
+
   /// Last.fm API key used by the Same Vibes mix mode.
   ///
   /// Inject at build time via:

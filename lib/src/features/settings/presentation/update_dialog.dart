@@ -1,21 +1,31 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/features/settings/data/update_install_mode.dart';
 import 'package:navis/src/features/settings/data/update_service.dart';
+import 'package:navis/src/features/settings/domain/update_delivery.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-/// Shows a dialog that downloads and applies a desktop update artifact.
+/// Shows a dialog that downloads and applies an update, or redirects to a store.
 ///
 /// Call [showUpdateDialog] to display this from anywhere in the widget tree.
-Future<void> showUpdateDialog(BuildContext context, UpdateInfo info) {
+Future<void> showUpdateDialog(
+  BuildContext context,
+  UpdateInfo info, {
+  UpdateService? updateService,
+}) {
   return showDialog<void>(
     context: context,
     barrierDismissible: false,
-    builder: (_) => _UpdateDownloadDialog(info: info),
+    builder: (_) => _UpdateDownloadDialog(
+      info: info,
+      updateService: updateService,
+    ),
   );
 }
 
@@ -32,15 +42,19 @@ enum _DownloadPhase {
 }
 
 class _UpdateDownloadDialog extends StatefulWidget {
-  const _UpdateDownloadDialog({required this.info});
+  const _UpdateDownloadDialog({
+    required this.info,
+    this.updateService,
+  });
   final UpdateInfo info;
+  final UpdateService? updateService;
 
   @override
   State<_UpdateDownloadDialog> createState() => _UpdateDownloadDialogState();
 }
 
 class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
-  final _service = UpdateService();
+  late final UpdateService _service;
   _DownloadPhase _phase = _DownloadPhase.confirm;
   double _progress = 0;
   String? _error;
@@ -54,6 +68,7 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
   @override
   void initState() {
     super.initState();
+    _service = widget.updateService ?? UpdateService();
     _installMode = detectInstallMode();
   }
 
@@ -63,7 +78,37 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
     super.dispose();
   }
 
+  bool get _isStoreRedirect =>
+      widget.info.delivery == UpdateDelivery.storeRedirect;
+
+  bool get _isForgejoSelfUpdate =>
+      widget.info.delivery == UpdateDelivery.forgejoSelfUpdate;
+
+  Future<void> _openPlayStore() async {
+    final launched = await _service.openPlayStoreListing(
+      fallbackUrl: widget.info.htmlUrl,
+    );
+    if (!mounted) {
+      return;
+    }
+    if (!launched) {
+      showAppNotice(
+        context,
+        message: AppLocalizations.of(context)!.updatePlayStoreFallbackNotice,
+        level: AppNoticeLevel.info,
+      );
+    }
+    if (mounted) {
+      Navigator.of(context).pop();
+    }
+  }
+
   Future<void> _startDownload() async {
+    if (_isStoreRedirect) {
+      await _openPlayStore();
+      return;
+    }
+
     // On desktop, check write access before downloading.
     if (isDesktopInstallMode(_installMode) &&
         !_service.canApplyUpdate(_installMode)) {
@@ -95,6 +140,10 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
         _phase = _DownloadPhase.done;
         _apkPath = path;
       });
+
+      if (_isForgejoSelfUpdate) {
+        await _service.installApk(path);
+      }
     } on DioException catch (e) {
       if (e.type == DioExceptionType.cancel) {
         // User cancelled — just close.
@@ -105,6 +154,21 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
         setState(() {
           _phase = _DownloadPhase.error;
           _error = e.message;
+        });
+      }
+    } on PlatformException catch (e) {
+      AppLogger.error('APK install failed', e);
+      if (mounted) {
+        final isSignatureMismatch =
+            e.code == 'INSTALL_ERROR' &&
+            (e.message ?? '').toLowerCase().contains('signature');
+        setState(() {
+          if (isSignatureMismatch) {
+            _phase = _DownloadPhase.signatureMismatch;
+          } else {
+            _phase = _DownloadPhase.error;
+            _error = e.message ?? e.code;
+          }
         });
       }
     } on Object catch (e) {
@@ -124,7 +188,11 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
     final theme = Theme.of(context);
 
     return AlertDialog(
-      title: Text(l10n.updateAvailableTitle),
+      title: Text(
+        _isStoreRedirect
+            ? l10n.updatePlayStoreTitle
+            : l10n.updateAvailableTitle,
+      ),
       content: _buildContent(l10n, theme),
       actions: _buildActions(l10n),
     );
@@ -137,7 +205,11 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(l10n.updateAvailableBody(widget.info.tagName)),
+            Text(
+              _isStoreRedirect
+                  ? l10n.updatePlayStoreBody(widget.info.tagName)
+                  : l10n.updateAvailableBody(widget.info.tagName),
+            ),
             if (widget.info.releaseNotes != null &&
                 widget.info.releaseNotes!.isNotEmpty) ...[
               const SizedBox(height: 12),
@@ -268,8 +340,12 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
           ),
           FilledButton.icon(
             onPressed: _startDownload,
-            icon: const Icon(Icons.download),
-            label: Text(l10n.updateInstall),
+            icon: Icon(
+              _isStoreRedirect ? Icons.shop_2_outlined : Icons.download,
+            ),
+            label: Text(
+              _isStoreRedirect ? l10n.updateOpenPlayStore : l10n.updateInstall,
+            ),
           ),
         ];
 
@@ -310,6 +386,38 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
               },
               icon: const Icon(Icons.restart_alt),
               label: Text(l10n.updateRestartAndUpdate),
+            ),
+          ];
+        }
+        if (_isForgejoSelfUpdate) {
+          return [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(l10n.updateDismiss),
+            ),
+            FilledButton.icon(
+              onPressed: () async {
+                if (_apkPath == null) return;
+                try {
+                  await _service.installApk(_apkPath!);
+                } on PlatformException catch (e) {
+                  AppLogger.error('APK install failed', e);
+                  if (!mounted) return;
+                  final isSignatureMismatch =
+                      e.code == 'INSTALL_ERROR' &&
+                      (e.message ?? '').toLowerCase().contains('signature');
+                  setState(() {
+                    if (isSignatureMismatch) {
+                      _phase = _DownloadPhase.signatureMismatch;
+                    } else {
+                      _phase = _DownloadPhase.error;
+                      _error = e.message ?? e.code;
+                    }
+                  });
+                }
+              },
+              icon: const Icon(Icons.install_mobile),
+              label: Text(l10n.updateInstall),
             ),
           ];
         }

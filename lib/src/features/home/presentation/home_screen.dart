@@ -41,6 +41,8 @@ import 'package:navis/src/features/library/presentation/library_sync_provider.da
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/features/player/presentation/smart_queue_sheet.dart';
+import 'package:navis/src/features/settings/domain/update_delivery.dart';
+import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/features/settings/presentation/update_dialog.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
