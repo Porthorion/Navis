@@ -6,14 +6,46 @@ import 'package:navis/src/features/player/domain/instant_mix_state.dart';
 import 'package:navis/src/features/player/domain/same_vibes_state.dart';
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
 import 'package:navis/src/features/player/presentation/same_vibes_notifier.dart';
+import 'package:navis/src/features/settings/data/settings_repository.dart';
+import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
+
+Future<PreferredMixMode> _readPreferredMixMode(WidgetRef ref) async {
+  return _resolvePreferredMixMode(
+    readLocked: () => ref.read(legacyInstantMixLockedProvider),
+    loadSettings: () => ref.read(settingsRepositoryProvider).getSettings(),
+  );
+}
+
+Future<PreferredMixMode> _readPreferredMixModeFromContainer(
+  ProviderContainer container,
+) async {
+  return _resolvePreferredMixMode(
+    readLocked: () => container.read(legacyInstantMixLockedProvider),
+    loadSettings: () => container.read(settingsRepositoryProvider).getSettings(),
+  );
+}
+
+Future<PreferredMixMode> _resolvePreferredMixMode({
+  required bool Function() readLocked,
+  required Future<AppSettingsModel> Function() loadSettings,
+}) async {
+  if (readLocked()) {
+    return PreferredMixMode.legacyInstantMix;
+  }
+  final settings = await loadSettings();
+  return settings.legacyInstantMixEnabled
+      ? PreferredMixMode.legacyInstantMix
+      : PreferredMixMode.sameVibes;
+}
 
 Future<void> activatePreferredMixMode(
   WidgetRef ref, {
   required String seedSongId,
-}) {
+}) async {
+  final mode = await _readPreferredMixMode(ref);
   return _activatePreferredMixMode(
-    mode: ref.read(preferredMixModeProvider),
+    mode: mode,
     instantMix: ref.read(instantMixProvider.notifier),
     sameVibes: ref.read(sameVibesProvider.notifier),
     seedSongId: seedSongId,
@@ -23,9 +55,10 @@ Future<void> activatePreferredMixMode(
 Future<void> activatePreferredMixModeFromContainer(
   ProviderContainer container, {
   required String seedSongId,
-}) {
+}) async {
+  final mode = await _readPreferredMixModeFromContainer(container);
   return _activatePreferredMixMode(
-    mode: container.read(preferredMixModeProvider),
+    mode: mode,
     instantMix: container.read(instantMixProvider.notifier),
     sameVibes: container.read(sameVibesProvider.notifier),
     seedSongId: seedSongId,
@@ -35,9 +68,10 @@ Future<void> activatePreferredMixModeFromContainer(
 Future<void> togglePreferredMixMode(
   WidgetRef ref, {
   required String seedSongId,
-}) {
+}) async {
+  final mode = await _readPreferredMixMode(ref);
   return _togglePreferredMixMode(
-    mode: ref.read(preferredMixModeProvider),
+    mode: mode,
     instantMixState: ref.read(instantMixProvider),
     sameVibesState: ref.read(sameVibesProvider),
     instantMix: ref.read(instantMixProvider.notifier),
@@ -49,9 +83,10 @@ Future<void> togglePreferredMixMode(
 Future<void> togglePreferredMixModeFromContainer(
   ProviderContainer container, {
   required String seedSongId,
-}) {
+}) async {
+  final mode = await _readPreferredMixModeFromContainer(container);
   return _togglePreferredMixMode(
-    mode: container.read(preferredMixModeProvider),
+    mode: mode,
     instantMixState: container.read(instantMixProvider),
     sameVibesState: container.read(sameVibesProvider),
     instantMix: container.read(instantMixProvider.notifier),

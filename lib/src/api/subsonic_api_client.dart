@@ -305,6 +305,22 @@ class SubsonicApiClient {
     ).map(Song.fromJson).toList(growable: false);
   }
 
+  /// Returns songs from the Subsonic `getInstantMix` endpoint.
+  Future<List<Song>> getInstantMix(
+    String seedSongId, {
+    int count = 50,
+    CancelToken? cancelToken,
+  }) async {
+    final root = await _readRoot(
+      '/rest/getInstantMix.view',
+      query: {'id': seedSongId, 'count': count},
+      cancelToken: cancelToken,
+    );
+    return _asMapList(
+      _asMap(root['instantMix'])['song'],
+    ).map(Song.fromJson).toList(growable: false);
+  }
+
   /// Returns songs similar to [seedSongId] using `getSimilarSongs2`.
   ///
   /// Falls back to `getInstantMix` when the primary endpoint returns a
@@ -328,15 +344,11 @@ class SubsonicApiClient {
     try {
       return await fetch('/rest/getSimilarSongs2.view');
     } on SubsonicNotFoundException {
-      // Server doesn't support getSimilarSongs2 — try getInstantMix.
-      final root = await _readRoot(
-        '/rest/getInstantMix.view',
-        query: {'id': seedSongId, 'count': count},
+      return getInstantMix(
+        seedSongId,
+        count: count,
         cancelToken: cancelToken,
       );
-      return _asMapList(
-        _asMap(root['instantMix'])['song'],
-      ).map(Song.fromJson).toList(growable: false);
     }
   }
 

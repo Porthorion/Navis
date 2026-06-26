@@ -346,9 +346,11 @@ class _PlaybackSettingsScreenState
                 value: effectiveLegacyInstantMix,
                 onChanged: (_isSaving || legacyInstantMixLocked)
                     ? null
-                    : (value) => setState(
-                        () => _legacyInstantMixEnabled = value,
-                      ),
+                    : (value) {
+                        setState(() => _legacyInstantMixEnabled = value);
+                        _autosaveDebounce?.cancel();
+                        unawaited(_persistAutosave(_formSignature()));
+                      },
                 title: Text(l10n.playbackSettingsLegacyInstantMixTitle),
                 subtitle: Text(
                   legacyInstantMixLocked
@@ -958,6 +960,12 @@ class _PlaybackSettingsScreenState
   @override
   void dispose() {
     _autosaveDebounce?.cancel();
+    if (_didHydrateForm) {
+      final signature = _formSignature();
+      if (signature != _lastSavedSignature) {
+        unawaited(_persistAutosave(signature));
+      }
+    }
     super.dispose();
   }
 }

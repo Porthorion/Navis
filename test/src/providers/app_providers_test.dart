@@ -1111,4 +1111,69 @@ void main() {
       expect(metadata, isNull);
     });
   });
+
+  group('preferredMixModeProvider', () {
+    test('forces legacy mode when no Last.fm API key is available', () {
+      final container = ProviderContainer(
+        overrides: [
+          lastFmApiKeyProvider.overrideWithValue(''),
+          appSettingsProvider.overrideWithValue(
+            AsyncData(
+              AppSettingsModel.defaults().copyWith(
+                legacyInstantMixEnabled: false,
+              ),
+            ),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      expect(
+        container.read(preferredMixModeProvider),
+        PreferredMixMode.legacyInstantMix,
+      );
+    });
+
+    test('uses legacy mode when setting is enabled', () {
+      final container = ProviderContainer(
+        overrides: [
+          lastFmApiKeyProvider.overrideWithValue('test-key'),
+          appSettingsProvider.overrideWithValue(
+            AsyncData(
+              AppSettingsModel.defaults().copyWith(
+                legacyInstantMixEnabled: true,
+              ),
+            ),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      expect(
+        container.read(preferredMixModeProvider),
+        PreferredMixMode.legacyInstantMix,
+      );
+    });
+
+    test('uses same vibes when setting is disabled and key is available', () {
+      final container = ProviderContainer(
+        overrides: [
+          lastFmApiKeyProvider.overrideWithValue('test-key'),
+          appSettingsProvider.overrideWithValue(
+            AsyncData(
+              AppSettingsModel.defaults().copyWith(
+                legacyInstantMixEnabled: false,
+              ),
+            ),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      expect(
+        container.read(preferredMixModeProvider),
+        PreferredMixMode.sameVibes,
+      );
+    });
+  });
 }

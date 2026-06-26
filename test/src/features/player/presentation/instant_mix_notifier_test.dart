@@ -259,7 +259,7 @@ void main() {
       final api = _MockSubsonicApiClient();
       final handler = _RecordingPlaybackHandler();
       when(
-        () => api.getSimilarSongs(any()),
+        () => api.getInstantMix(any()),
       ).thenAnswer(
         (_) async => const <Song>[
           Song(id: 'rec-1', title: 'Rec 1'),
@@ -324,8 +324,13 @@ void main() {
         audioHandlerProvider.overrideWithValue(handler),
         subsonicApiProvider.overrideWith((_) => null),
         audioMuseRepositoryProvider.overrideWithValue(audioMuse),
+        lastFmApiKeyProvider.overrideWithValue('test-key'),
         appSettingsProvider.overrideWithValue(
-          const AsyncData(AppSettingsModel.defaults()),
+          AsyncData(
+            AppSettingsModel.defaults().copyWith(
+              legacyInstantMixEnabled: false,
+            ),
+          ),
         ),
       ],
     );

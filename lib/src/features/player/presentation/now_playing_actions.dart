@@ -118,7 +118,9 @@ class _ActionRowState extends ConsumerState<_ActionRow>
         const GroupListeningSessionButton(),
       _NowPlayingActionButton(
         icon: mixIcon,
-        label: l10n.nowPlayingInstantMixLabel,
+        label: preferredMixMode == PreferredMixMode.legacyInstantMix
+            ? l10n.nowPlayingInstantMixLabel
+            : l10n.nowPlayingSameVibesLabel,
         isDisabled: legacyMixUnavailable,
         onTap: widget.songId == null
             ? null

@@ -29,6 +29,7 @@ import 'package:navis/src/features/player/domain/instant_mix_state.dart';
 import 'package:navis/src/features/player/domain/same_vibes_state.dart';
 import 'package:navis/src/features/player/domain/smart_queue_state.dart';
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
+import 'package:navis/src/features/player/presentation/mix_mode_reconciliation_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/player/presentation/same_vibes_notifier.dart';
 import 'package:navis/src/features/player/presentation/smart_queue_notifier.dart';
@@ -537,6 +538,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     ref.watch(listenBrainzFeedbackDispatchControllerProvider);
     ref.watch(starSyncDispatchControllerProvider);
     ref.watch(autoDownloadStarredDispatchControllerProvider);
+    ref.watch(mixModeReconciliationProvider);
 
     // Wire the preferred-mix-mode callbacks for Android Auto More-tab actions
     // (Instant Mix / Instant Radio). Registered here because app_shell has
@@ -616,6 +618,9 @@ class _AppShellState extends ConsumerState<AppShell> {
     // Global Same Vibes snackbar / error notifications.
     ref.listen<SameVibesState>(sameVibesProvider, (prev, next) {
       if (!mounted) return;
+      if (ref.read(preferredMixModeProvider) != PreferredMixMode.sameVibes) {
+        return;
+      }
       if (!(prev?.active ?? false) && next.active && next.refilling) {
         _appNoticeController.show(
           message: '${l10n.nowPlayingSameVibesLabel}...',

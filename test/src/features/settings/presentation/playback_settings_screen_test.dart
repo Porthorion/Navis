@@ -249,6 +249,46 @@ void main() {
       expect(savedModel!.crossfadeEnabled, isTrue);
       expect(savedModel!.gaplessEnabled, isTrue);
     });
+
+    testWidgets('legacy instant mix persists when leaving before debounce', (
+      tester,
+    ) async {
+      AppSettingsModel? savedModel;
+      when(() => repository.saveSettings(any())).thenAnswer((invocation) async {
+        savedModel = invocation.positionalArguments.first as AppSettingsModel;
+      });
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            settingsRepositoryProvider.overrideWithValue(repository),
+            lastFmApiKeyProvider.overrideWithValue('test-key'),
+            appSettingsProvider.overrideWithValue(
+              const AsyncData(initialSettings),
+            ),
+          ],
+          child: _buildTestApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final legacyToggle = find.widgetWithText(
+        SwitchListTile,
+        'Legacy Instant Mix',
+      );
+      await tester.ensureVisible(legacyToggle);
+      await tester.pumpAndSettle();
+      await tester.tap(legacyToggle);
+      await tester.pump();
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+
+      verify(() => repository.saveSettings(any())).called(greaterThan(0));
+      expect(savedModel, isNotNull);
+      expect(savedModel!.legacyInstantMixEnabled, isTrue);
+      expect(tester.takeException(), isNull);
+    });
   });
 }
 

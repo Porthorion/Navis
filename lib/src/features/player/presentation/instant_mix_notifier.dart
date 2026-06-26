@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/features/player/domain/instant_mix_state.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
@@ -152,29 +153,35 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
   /// Internal implementation of the refill fetch, called inside [_refill].
   Future<void> _doRefill(String seedSongId, {bool isInitial = false}) async {
     try {
-      // ── 1. Try AudioMuse AI recommendations first ──
-      final audioMuseRepo = ref.read(audioMuseRepositoryProvider);
-      if (audioMuseRepo != null) {
-        try {
-          final recs = await audioMuseRepo.getRecommendations(
-            seedSongId: seedSongId,
-          );
-          // Guard 3: user may have deactivated Instant Mix while the fetch ran.
-          if (recs.isNotEmpty && state.active) {
-            final ids = recs.map((r) => r.id).toList(growable: false);
-            final handler = ref.read(audioHandlerProvider);
-            await handler?.playNext(ids, expandMatchFlows: false);
-            AppLogger.debug(
-              'InstantMix: queued ${ids.length} tracks via AudioMuse',
+      final legacyMode =
+          ref.read(preferredMixModeProvider) ==
+          PreferredMixMode.legacyInstantMix;
+
+      // ── 1. Try AudioMuse AI recommendations first (non-legacy only) ──
+      if (!legacyMode) {
+        final audioMuseRepo = ref.read(audioMuseRepositoryProvider);
+        if (audioMuseRepo != null) {
+          try {
+            final recs = await audioMuseRepo.getRecommendations(
+              seedSongId: seedSongId,
             );
-            state = state.copyWith(
-              refilling: false,
-              pendingSnackbar: isInitial ? '${recs.length}' : null,
-            );
-            return;
+            // Guard 3: user may have deactivated Instant Mix while the fetch ran.
+            if (recs.isNotEmpty && state.active) {
+              final ids = recs.map((r) => r.id).toList(growable: false);
+              final handler = ref.read(audioHandlerProvider);
+              await handler?.playNext(ids, expandMatchFlows: false);
+              AppLogger.debug(
+                'InstantMix: queued ${ids.length} tracks via AudioMuse',
+              );
+              state = state.copyWith(
+                refilling: false,
+                pendingSnackbar: isInitial ? '${recs.length}' : null,
+              );
+              return;
+            }
+          } on Object catch (e) {
+            AppLogger.debug('AudioMuse refill failed, falling back: $e');
           }
-        } on Object catch (e) {
-          AppLogger.debug('AudioMuse refill failed, falling back: $e');
         }
       }
 
@@ -184,14 +191,23 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
         return;
       }
 
-      // ── 2. Fall back to Subsonic getSimilarSongs ──
+      // ── 2. Subsonic recommendations ──
       final api = ref.read(subsonicApiProvider);
       if (api == null) {
         state = state.copyWith(refilling: false);
         return;
       }
 
-      final songs = await api.getSimilarSongs(seedSongId);
+      late final List<Song> songs;
+      if (legacyMode) {
+        try {
+          songs = await api.getInstantMix(seedSongId);
+        } on SubsonicNotFoundException {
+          songs = await api.getSimilarSongs(seedSongId);
+        }
+      } else {
+        songs = await api.getSimilarSongs(seedSongId);
+      }
       // Guard 3: deactivated while fetching — discard results.
       if (!state.active) {
         state = state.copyWith(refilling: false);
