@@ -55,6 +55,20 @@ String _label(_EntryType t) {
 // Newest version first.
 // ---------------------------------------------------------------------------
 const List<_Version> _changelogs = [
+  _Version('1.0.5', [
+    _Entry(
+      'Re-introduced smart in-app updates: Forgejo/sideload Android builds can self-update, Google Play installs are redirected to the Play Store, and desktop keeps the existing updater',
+      type: _EntryType.newFeature,
+    ),
+    _Entry(
+      'Update checks now respect the auto-check setting, throttle background Forgejo requests to once every 24 hours, and record update download usage in data-usage stats',
+      type: _EntryType.improvement,
+    ),
+    _Entry(
+      'Library metadata sync tolerates missing albums and transient per-album failures instead of failing the entire scan, and automatically retries after a failed sync',
+      type: _EntryType.fix,
+    ),
+  ]),
   _Version('1.0.4', [
     _Entry(
       'You Might Like can now include your ListenBrainz weekly recommendations, and song likes sync to ListenBrainz recording feedback when connected',

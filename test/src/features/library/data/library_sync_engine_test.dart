@@ -48,6 +48,10 @@ class _FakeLibrarySyncApi implements LibrarySyncApi {
   Exception? throwOnFastPath;
   Exception? throwOnIndexes;
   Exception? throwOnSongSearch;
+  Exception? throwOnGenres;
+  final Set<String> notFoundAlbumIds = <String>{};
+  final Set<String> notFoundArtistIds = <String>{};
+  final Set<String> permanentTransientAlbumIds = <String>{};
   final Map<String, int> transientAlbumFailures = <String, int>{};
   Duration albumDelay = Duration.zero;
   int currentAlbumRequests = 0;
@@ -65,6 +69,14 @@ class _FakeLibrarySyncApi implements LibrarySyncApi {
       transientAlbumFailures[id] = transientFailures - 1;
       currentAlbumRequests--;
       throw const SubsonicConnectionException('transient');
+    }
+    if (permanentTransientAlbumIds.contains(id)) {
+      currentAlbumRequests--;
+      throw const SubsonicConnectionException('transient');
+    }
+    if (notFoundAlbumIds.contains(id)) {
+      currentAlbumRequests--;
+      throw const SubsonicNotFoundException(message: 'Album not found');
     }
     if (albumDelay > Duration.zero) {
       await Future<void>.delayed(albumDelay);
@@ -96,6 +108,9 @@ class _FakeLibrarySyncApi implements LibrarySyncApi {
   @override
   Future<Artist> getArtist(String id) async {
     calls.add('getArtist:$id');
+    if (notFoundArtistIds.contains(id)) {
+      throw const SubsonicNotFoundException(message: 'Artist not found');
+    }
     final artist = artistDetails[id];
     if (artist == null) {
       throw StateError('Missing fake artist for id: $id');
@@ -116,6 +131,10 @@ class _FakeLibrarySyncApi implements LibrarySyncApi {
   @override
   Future<List<Genre>> getGenres() async {
     calls.add('getGenres');
+    final error = throwOnGenres;
+    if (error != null) {
+      throw error;
+    }
     return genres;
   }
 
@@ -1400,6 +1419,154 @@ void main() {
 
         expect(state.status, LibrarySyncStatus.failed);
         expect(songs.any((song) => song.id == 'existing-song'), isTrue);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      '404 on one getAlbum during hydration succeeds and removes stale album',
+      () async {
+        await saveSession(
+          lastSynced: DateTime.now(),
+          lastFullSyncedAt: DateTime.now(),
+        );
+        await database.libraryDao.replaceAlbums(
+          <AlbumsTableCompanion>[
+            AlbumsTableCompanion.insert(
+              id: 'album-1',
+              name: 'Album 1',
+              songsHydrated: const Value(false),
+            ),
+            AlbumsTableCompanion.insert(
+              id: 'album-stale',
+              name: 'Stale Album',
+              songsHydrated: const Value(false),
+            ),
+          ],
+        );
+        api.albumDetails['album-1'] = const Album(
+          id: 'album-1',
+          name: 'Album 1',
+          songs: <Song>[Song(id: 'song-1', title: 'Song 1', albumId: 'album-1')],
+        );
+        api.notFoundAlbumIds.add('album-stale');
+
+        final state = await engine.syncIfStale();
+        final albums = await database.select(database.albumsTable).get();
+        final songs = await database.select(database.songsTable).get();
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(albums.map((album) => album.id), contains('album-1'));
+        expect(albums.map((album) => album.id), isNot(contains('album-stale')));
+        expect(songs.single.id, 'song-1');
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'transient album failure in batch leaves album pending but sync succeeds',
+      () async {
+        await saveSession(
+          lastSynced: DateTime.now(),
+          lastFullSyncedAt: DateTime.now(),
+        );
+        await database.libraryDao.replaceAlbums(
+          <AlbumsTableCompanion>[
+            AlbumsTableCompanion.insert(
+              id: 'album-1',
+              name: 'Album 1',
+              songsHydrated: const Value(false),
+            ),
+            AlbumsTableCompanion.insert(
+              id: 'album-2',
+              name: 'Album 2',
+              songsHydrated: const Value(false),
+            ),
+          ],
+        );
+        api.albumDetails['album-1'] = const Album(
+          id: 'album-1',
+          name: 'Album 1',
+          songs: <Song>[Song(id: 'song-1', title: 'Song 1', albumId: 'album-1')],
+        );
+        api.permanentTransientAlbumIds.add('album-2');
+
+        final state = await engine.syncIfStale();
+        final pending = await database.libraryDao.countPendingHydrationAlbums();
+        final songs = await database.select(database.songsTable).get();
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(songs.single.id, 'song-1');
+        expect(pending, 1);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'genre fetch failure after hydration still completes sync',
+      () async {
+        await saveSession(
+          lastSynced: DateTime.now().subtract(const Duration(hours: 3)),
+          lastFullSyncedAt: DateTime.now(),
+        );
+        api.indexes = const Indexes(
+          shortcut: <Artist>[Artist(id: 'artist-1', name: 'Artist 1')],
+        );
+        api.artistDetails['artist-1'] = const Artist(
+          id: 'artist-1',
+          name: 'Artist 1',
+          albums: <Album>[],
+        );
+        api.genres = <Genre>[const Genre(name: 'Rock', songCount: 1)];
+        api.throwOnGenres = const SubsonicConnectionException('genres down');
+
+        final state = await engine.syncIfStale();
+        final config = await serverConfigRepository.getActiveServer();
+        final storedGenres = await database.select(database.genresTable).get();
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(config?.lastSynced, isNotNull);
+        expect(storedGenres, isEmpty);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'full sync artist fanout removes artists missing from getArtist',
+      () async {
+        await saveSession();
+        api.artists.addAll(const <Artist>[
+          Artist(id: 'artist-1', name: 'Artist 1'),
+          Artist(id: 'artist-2', name: 'Artist 2'),
+        ]);
+        api.throwOnFastPath = const SubsonicNotFoundException(
+          message: 'Album list unsupported',
+        );
+        api.notFoundArtistIds.add('artist-1');
+        api.artistDetails['artist-2'] = const Artist(
+          id: 'artist-2',
+          name: 'Artist 2',
+          albums: <Album>[
+            Album(id: 'album-2', name: 'Album 2', artistId: 'artist-2'),
+          ],
+        );
+        api.albumDetails['album-2'] = const Album(
+          id: 'album-2',
+          name: 'Album 2',
+          songs: <Song>[Song(id: 'song-2', title: 'Song 2', albumId: 'album-2')],
+        );
+        await database.libraryDao.replaceArtists(
+          <ArtistsTableCompanion>[
+            ArtistsTableCompanion.insert(id: 'artist-1', name: 'Artist 1'),
+          ],
+        );
+
+        final state = await engine.syncNow(forceFull: true);
+        final artists = await database.select(database.artistsTable).get();
+
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(artists.map((artist) => artist.id), contains('artist-2'));
+        expect(artists.map((artist) => artist.id), isNot(contains('artist-1')));
       },
       skip: !sqliteAvailable,
     );

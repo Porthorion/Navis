@@ -37,6 +37,10 @@ const List<ChangelogVersion> changelogs = [
         'Update checks now respect the auto-check setting, throttle background Forgejo requests to once every 24 hours, and record update download usage in data-usage stats',
         type: ChangelogEntryType.improvement,
       ),
+      ChangelogEntry(
+        'Library metadata sync tolerates missing albums and transient per-album failures instead of failing the entire scan, and automatically retries after a failed sync',
+        type: ChangelogEntryType.fix,
+      ),
     ],
   ),
   ChangelogVersion(

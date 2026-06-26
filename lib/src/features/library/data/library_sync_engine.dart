@@ -23,6 +23,51 @@ class SyncCancelledException implements Exception {
   String toString() => 'SyncCancelledException: sync was cancelled.';
 }
 
+/// Thrown when every album hydration attempt in a run failed with hard errors.
+class HydrationHardFailureException implements Exception {
+  const HydrationHardFailureException(this.failedAlbumCount);
+
+  final int failedAlbumCount;
+
+  @override
+  String toString() =>
+      'HydrationHardFailureException: $failedAlbumCount album(s) failed.';
+}
+
+enum _AlbumFetchOutcome { success, deleted, requeue, hardFailure }
+
+class _AlbumFetchResult {
+  const _AlbumFetchResult._(this.outcome, [this.album]);
+
+  const _AlbumFetchResult.success(Album album)
+    : this._(_AlbumFetchOutcome.success, album);
+
+  const _AlbumFetchResult.deleted() : this._(_AlbumFetchOutcome.deleted);
+
+  const _AlbumFetchResult.requeue() : this._(_AlbumFetchOutcome.requeue);
+
+  const _AlbumFetchResult.hardFailure() : this._(_AlbumFetchOutcome.hardFailure);
+
+  final _AlbumFetchOutcome outcome;
+  final Album? album;
+}
+
+class _AlbumBatchFetchResult {
+  const _AlbumBatchFetchResult({
+    required this.albums,
+    required this.deletedAlbumIds,
+    required this.requeueAlbumIds,
+    required this.hardFailedAlbumIds,
+    required this.hardFailureCount,
+  });
+
+  final List<Album> albums;
+  final List<String> deletedAlbumIds;
+  final List<String> requeueAlbumIds;
+  final List<String> hardFailedAlbumIds;
+  final int hardFailureCount;
+}
+
 class LibrarySyncEngine {
   Future<LibrarySyncState> syncIfStale({
     Iterable<String> priorityAlbumIds = const <String>[],
@@ -654,6 +699,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     onProgress?.call(current);
 
     List<Album> albums;
+    final deletedArtistIds = <String>{};
     try {
       albums = await _discoverAlbumsFastPath(
         metrics: metrics,
@@ -680,26 +726,43 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
         metrics,
       );
       onProgress?.call(current);
-      final artistDetails = await _mapConcurrent<Artist, Artist>(
+      deletedArtistIds.clear();
+      final artistDetails = await _mapConcurrent<Artist, Artist?>(
         artists,
         _artistConcurrency,
         (artist) async {
-          final detail = await _withRetry(
-            () => _api.getArtist(artist.id),
-            metrics: metrics,
-          );
-          current = _withMetrics(
-            current.copyWith(
-              processed: (current.processed ?? 0) + 1,
-            ),
-            metrics,
-          );
-          onProgress?.call(current);
-          return detail;
+          try {
+            final detail = await _withRetry(
+              () => _api.getArtist(artist.id),
+              metrics: metrics,
+            );
+            current = _withMetrics(
+              current.copyWith(
+                processed: (current.processed ?? 0) + 1,
+              ),
+              metrics,
+            );
+            onProgress?.call(current);
+            return detail;
+          } on SubsonicNotFoundException {
+            deletedArtistIds.add(artist.id);
+            current = _withMetrics(
+              current.copyWith(
+                processed: (current.processed ?? 0) + 1,
+              ),
+              metrics,
+            );
+            onProgress?.call(current);
+            return null;
+          }
         },
       );
+      for (final deletedArtistId in deletedArtistIds) {
+        await _database.libraryDao.removeArtistTree(deletedArtistId);
+        metrics.addDbWriteBatch();
+      }
       albums = _dedupeAlbums([
-        for (final artist in artistDetails) ...artist.albums,
+        for (final artist in artistDetails.whereType<Artist>()) ...artist.albums,
       ]);
     }
 
@@ -713,7 +776,10 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     // prevents Drift reactive streams from briefly seeing an empty library
     // between DELETE-all and INSERT-all (which could flash-blank the UI or
     // disrupt the currently-playing song's metadata).
-    final nextArtistIds = artists.map((a) => a.id).toSet();
+    final nextArtistIds = artists
+        .map((a) => a.id)
+        .where((id) => !deletedArtistIds.contains(id))
+        .toSet();
     final nextAlbumIds = albums.map((a) => a.id).toSet();
 
     await _database.libraryDao.upsertArtists(_toArtistCompanions(artists));
@@ -747,25 +813,11 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       metrics.addDbWriteBatch();
     }
 
-    current = _withMetrics(
-      current.copyWith(stage: LibrarySyncStage.fetchingGenres),
-      metrics,
+    current = await _syncGenresAndPlaylistsBestEffort(
+      current: current,
+      metrics: metrics,
+      onProgress: onProgress,
     );
-    onProgress?.call(current);
-    final genres = await _withRetry(_api.getGenres, metrics: metrics);
-    await _database.libraryDao.replaceGenres(_toGenreCompanions(genres));
-    metrics.addDbWriteBatch();
-
-    current = _withMetrics(
-      current.copyWith(stage: LibrarySyncStage.fetchingPlaylists),
-      metrics,
-    );
-    onProgress?.call(current);
-    final playlists = await _withRetry(_api.getPlaylists, metrics: metrics);
-    await _database.playlistDao.upsertPlaylists(
-      _toPlaylistCompanions(playlists),
-    );
-    metrics.addDbWriteBatch();
 
     current = await _hydratePendingSongs(
       state: _withMetrics(
@@ -829,6 +881,7 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     onProgress?.call(current);
 
     List<Album> albums;
+    final deletedArtistIds = <String>{};
     try {
       albums = await _discoverAlbumsFastPath(
         metrics: metrics,
@@ -855,24 +908,39 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
         metrics,
       );
       onProgress?.call(current);
-      final artistDetails = await _mapConcurrent<Artist, Artist>(
+      deletedArtistIds.clear();
+      final artistDetails = await _mapConcurrent<Artist, Artist?>(
         artists,
         _artistConcurrency,
         (artist) async {
-          final detail = await _withRetry(
-            () => _api.getArtist(artist.id),
-            metrics: metrics,
-          );
-          current = _withMetrics(
-            current.copyWith(processed: (current.processed ?? 0) + 1),
-            metrics,
-          );
-          onProgress?.call(current);
-          return detail;
+          try {
+            final detail = await _withRetry(
+              () => _api.getArtist(artist.id),
+              metrics: metrics,
+            );
+            current = _withMetrics(
+              current.copyWith(processed: (current.processed ?? 0) + 1),
+              metrics,
+            );
+            onProgress?.call(current);
+            return detail;
+          } on SubsonicNotFoundException {
+            deletedArtistIds.add(artist.id);
+            current = _withMetrics(
+              current.copyWith(processed: (current.processed ?? 0) + 1),
+              metrics,
+            );
+            onProgress?.call(current);
+            return null;
+          }
         },
       );
+      for (final deletedArtistId in deletedArtistIds) {
+        await _database.libraryDao.removeArtistTree(deletedArtistId);
+        metrics.addDbWriteBatch();
+      }
       albums = _dedupeAlbums([
-        for (final artist in artistDetails) ...artist.albums,
+        for (final artist in artistDetails.whereType<Artist>()) ...artist.albums,
       ]);
     }
 
@@ -884,7 +952,10 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
 
     final existingArtists = await _database.libraryDao.getAllArtists();
     final existingAlbums = await _database.libraryDao.getAllAlbums();
-    final nextArtistIds = artists.map((artist) => artist.id).toSet();
+    final nextArtistIds = artists
+        .map((artist) => artist.id)
+        .where((id) => !deletedArtistIds.contains(id))
+        .toSet();
     final nextAlbumsById = <String, Album>{
       for (final album in albums) album.id: album,
     };
@@ -972,25 +1043,11 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       onProgress: onProgress,
     );
 
-    current = _withMetrics(
-      current.copyWith(stage: LibrarySyncStage.fetchingGenres),
-      metrics,
+    current = await _syncGenresAndPlaylistsBestEffort(
+      current: current,
+      metrics: metrics,
+      onProgress: onProgress,
     );
-    onProgress?.call(current);
-    final genres = await _withRetry(_api.getGenres, metrics: metrics);
-    await _database.libraryDao.replaceGenres(_toGenreCompanions(genres));
-    metrics.addDbWriteBatch();
-
-    current = _withMetrics(
-      current.copyWith(stage: LibrarySyncStage.fetchingPlaylists),
-      metrics,
-    );
-    onProgress?.call(current);
-    final playlists = await _withRetry(_api.getPlaylists, metrics: metrics);
-    await _database.playlistDao.upsertPlaylists(
-      _toPlaylistCompanions(playlists),
-    );
-    metrics.addDbWriteBatch();
 
     return _withMetrics(
       current.copyWith(
@@ -1215,25 +1272,11 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       onProgress: onProgress,
     );
 
-    current = _withMetrics(
-      current.copyWith(stage: LibrarySyncStage.fetchingGenres),
-      metrics,
+    current = await _syncGenresAndPlaylistsBestEffort(
+      current: current,
+      metrics: metrics,
+      onProgress: onProgress,
     );
-    onProgress?.call(current);
-    final genres = await _withRetry(_api.getGenres, metrics: metrics);
-    await _database.libraryDao.replaceGenres(_toGenreCompanions(genres));
-    metrics.addDbWriteBatch();
-
-    current = _withMetrics(
-      current.copyWith(stage: LibrarySyncStage.fetchingPlaylists),
-      metrics,
-    );
-    onProgress?.call(current);
-    final playlists = await _withRetry(_api.getPlaylists, metrics: metrics);
-    await _database.playlistDao.upsertPlaylists(
-      _toPlaylistCompanions(playlists),
-    );
-    metrics.addDbWriteBatch();
 
     return _withMetrics(
       current.copyWith(
@@ -1247,6 +1290,46 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       ),
       metrics,
     );
+  }
+
+  Future<LibrarySyncState> _syncGenresAndPlaylistsBestEffort({
+    required LibrarySyncState current,
+    required _SyncRunMetrics metrics,
+    LibrarySyncProgressCallback? onProgress,
+  }) async {
+    var state = _withMetrics(
+      current.copyWith(stage: LibrarySyncStage.fetchingGenres),
+      metrics,
+    );
+    onProgress?.call(state);
+    try {
+      final genres = await _withRetry(_api.getGenres, metrics: metrics);
+      await _database.libraryDao.replaceGenres(_toGenreCompanions(genres));
+      metrics.addDbWriteBatch();
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning(
+        'Genre sync skipped after failure: $error\n$stackTrace',
+      );
+    }
+
+    state = _withMetrics(
+      state.copyWith(stage: LibrarySyncStage.fetchingPlaylists),
+      metrics,
+    );
+    onProgress?.call(state);
+    try {
+      final playlists = await _withRetry(_api.getPlaylists, metrics: metrics);
+      await _database.playlistDao.upsertPlaylists(
+        _toPlaylistCompanions(playlists),
+      );
+      metrics.addDbWriteBatch();
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning(
+        'Playlist sync skipped after failure: $error\n$stackTrace',
+      );
+    }
+
+    return state;
   }
 
   Future<LibrarySyncState> _hydratePendingSongs({
@@ -1289,6 +1372,9 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
 
     var processed = 0;
     var pendingRemaining = pending;
+    var hardFailureCount = 0;
+    final requeueAlbumIds = <String>{};
+    final hardFailedAlbumIds = <String>{};
     final observedBulkAlbumIds = <String>{};
     final hydrationStopwatch = Stopwatch()..start();
     final concurrencyController = _AdaptiveHydrationConcurrency(
@@ -1341,6 +1427,97 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
         metrics,
       );
       onProgress?.call(current);
+    }
+
+    Future<void> resolveRemovedAlbums(Iterable<String> albumIds) async {
+      var removed = 0;
+      for (final albumId in albumIds) {
+        if (pendingAlbumIds.remove(albumId)) {
+          prioritized.remove(albumId);
+          observedBulkAlbumIds.remove(albumId);
+          removed++;
+        }
+      }
+      if (removed == 0) {
+        return;
+      }
+      pendingRemaining -= removed;
+      metrics.deletedAlbums += removed;
+      current = _withMetrics(
+        current.copyWith(
+          metadataReady: true,
+          isHydrating: true,
+          pendingHydrationCount: pendingRemaining < 0 ? 0 : pendingRemaining,
+        ),
+        metrics,
+      );
+      onProgress?.call(current);
+    }
+
+    Future<void> processAlbumBatch(_AlbumBatchFetchResult batchResult) async {
+      if (batchResult.deletedAlbumIds.isNotEmpty) {
+        await resolveRemovedAlbums(batchResult.deletedAlbumIds);
+      }
+      requeueAlbumIds.addAll(batchResult.requeueAlbumIds);
+      hardFailureCount += batchResult.hardFailureCount;
+      if (batchResult.requeueAlbumIds.isNotEmpty) {
+        for (final albumId in batchResult.requeueAlbumIds) {
+          if (pendingAlbumIds.remove(albumId)) {
+            prioritized.remove(albumId);
+            observedBulkAlbumIds.remove(albumId);
+            pendingRemaining--;
+          }
+        }
+        current = _withMetrics(
+          current.copyWith(
+            metadataReady: true,
+            isHydrating: true,
+            pendingHydrationCount: pendingRemaining < 0 ? 0 : pendingRemaining,
+          ),
+          metrics,
+        );
+        onProgress?.call(current);
+      }
+      if (batchResult.hardFailedAlbumIds.isNotEmpty) {
+        for (final albumId in batchResult.hardFailedAlbumIds) {
+          if (pendingAlbumIds.remove(albumId)) {
+            prioritized.remove(albumId);
+            observedBulkAlbumIds.remove(albumId);
+            hardFailedAlbumIds.add(albumId);
+            pendingRemaining--;
+          }
+        }
+        current = _withMetrics(
+          current.copyWith(
+            metadataReady: true,
+            isHydrating: true,
+            pendingHydrationCount: pendingRemaining < 0 ? 0 : pendingRemaining,
+          ),
+          metrics,
+        );
+        onProgress?.call(current);
+      }
+
+      if (batchResult.albums.isEmpty) {
+        return;
+      }
+
+      final songsByAlbum = <String, List<SongsTableCompanion>>{};
+      final hydratedAlbumIds = <String>[];
+      for (final detail in batchResult.albums) {
+        songsByAlbum[detail.id] = await _toSongCompanions(
+          detail.songs,
+          defaultAlbumId: detail.id,
+          validArtistIds: validArtistIds,
+        );
+        hydratedAlbumIds.add(detail.id);
+      }
+
+      await _database.libraryDao.replaceSongsForAlbumsChunk(songsByAlbum);
+      metrics.addDbWriteBatch();
+      await _database.libraryDao.markAlbumsSongsHydratedByIds(hydratedAlbumIds);
+      metrics.addDbWriteBatch();
+      await publishProgress(hydratedAlbumIds);
     }
 
     void publishBulkObservedProgress(Iterable<String> albumIds) {
@@ -1445,39 +1622,54 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
         break;
       }
 
-      final details = await _fetchAlbumDetailsAdaptive(
+      final batchResult = await _fetchAlbumDetailsAdaptive(
         chunk: chunk,
         concurrencyController: concurrencyController,
         metrics: metrics,
       );
 
-      final songsByAlbum = <String, List<SongsTableCompanion>>{};
-      final hydratedAlbumIds = <String>[];
-      for (final detail in details) {
-        songsByAlbum[detail.id] = await _toSongCompanions(
-          detail.songs,
-          defaultAlbumId: detail.id,
-          validArtistIds: validArtistIds,
-        );
-        hydratedAlbumIds.add(detail.id);
-      }
-
-      await _database.libraryDao.replaceSongsForAlbumsChunk(songsByAlbum);
-      metrics.addDbWriteBatch();
-      await _database.libraryDao.markAlbumsSongsHydratedByIds(hydratedAlbumIds);
-      metrics.addDbWriteBatch();
-      await publishProgress(hydratedAlbumIds);
+      await processAlbumBatch(batchResult);
       // Yield to the event loop between write batches so the UI can
       // render frames and respond to user input during long hydrations.
       await Future<void>.delayed(Duration.zero);
     }
+
+    if (requeueAlbumIds.isNotEmpty) {
+      final retryRows = await _database.libraryDao.getPendingHydrationAlbumsByIds(
+        requeueAlbumIds.toList(growable: false),
+        limit: requeueAlbumIds.length,
+      );
+      if (retryRows.isNotEmpty) {
+        final retryController = _AdaptiveHydrationConcurrency(
+          initial: 1,
+          min: 1,
+          max: 2,
+        );
+        final retryResult = await _fetchAlbumDetailsAdaptive(
+          chunk: retryRows,
+          concurrencyController: retryController,
+          metrics: metrics,
+        );
+        await processAlbumBatch(retryResult);
+      }
+    }
+
+    if (processed == 0 &&
+        hardFailureCount > 0 &&
+        hardFailedAlbumIds.isNotEmpty &&
+        hardFailedAlbumIds.length >= pending + metrics.deletedAlbums - processed) {
+      throw HydrationHardFailureException(hardFailureCount);
+    }
+
+    final remainingPending = await _database.libraryDao
+        .countPendingHydrationAlbums();
 
     return _withMetrics(
       current.copyWith(
         metadataReady: true,
         isHydrating: false,
         fastPathActive: false,
-        pendingHydrationCount: 0,
+        pendingHydrationCount: remainingPending,
         clearProcessed: true,
         clearTotal: true,
       ),
@@ -1860,12 +2052,44 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     return false;
   }
 
-  Future<List<Album>> _fetchAlbumDetailsAdaptive({
+  Future<_AlbumFetchResult> _fetchAlbumDetailResilient(
+    String albumId, {
+    required _SyncRunMetrics metrics,
+  }) async {
+    try {
+      final album = await _withRetry(
+        () => _api.getAlbum(albumId),
+        metrics: metrics,
+      );
+      return _AlbumFetchResult.success(album);
+    } on SyncCancelledException {
+      rethrow;
+    } on SubsonicNotFoundException {
+      AppLogger.debug(
+        'Album $albumId not found during hydration; removing local row.',
+      );
+      await _database.libraryDao.deleteAlbumsByIds([albumId]);
+      metrics.addDbWriteBatch();
+      return const _AlbumFetchResult.deleted();
+    } on Object catch (error) {
+      if (_isTransient(error)) {
+        return const _AlbumFetchResult.requeue();
+      }
+      metrics.recordHardAlbumFailure();
+      return const _AlbumFetchResult.hardFailure();
+    }
+  }
+
+  Future<_AlbumBatchFetchResult> _fetchAlbumDetailsAdaptive({
     required List<AlbumsTableData> chunk,
     required _AdaptiveHydrationConcurrency concurrencyController,
     required _SyncRunMetrics metrics,
   }) async {
-    final details = <Album>[];
+    final albums = <Album>[];
+    final deletedAlbumIds = <String>[];
+    final requeueAlbumIds = <String>[];
+    final hardFailedAlbumIds = <String>[];
+    var hardFailureCount = 0;
     var offset = 0;
 
     while (offset < chunk.length) {
@@ -1880,25 +2104,48 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       final batchStopwatch = Stopwatch()..start();
       final results = await Future.wait(
         batch.map(
-          (album) => _withRetry(
-            () => _api.getAlbum(album.id),
+          (album) => _fetchAlbumDetailResilient(
+            album.id,
             metrics: metrics,
           ),
         ),
       );
       batchStopwatch.stop();
 
-      details.addAll(results);
-      final avgLatencyMs = results.isEmpty
+      var successCount = 0;
+      for (var index = 0; index < results.length; index++) {
+        final result = results[index];
+        final albumId = batch[index].id;
+        switch (result.outcome) {
+          case _AlbumFetchOutcome.success:
+            albums.add(result.album!);
+            successCount++;
+          case _AlbumFetchOutcome.deleted:
+            deletedAlbumIds.add(albumId);
+          case _AlbumFetchOutcome.requeue:
+            requeueAlbumIds.add(albumId);
+          case _AlbumFetchOutcome.hardFailure:
+            hardFailureCount++;
+            hardFailedAlbumIds.add(albumId);
+        }
+      }
+
+      final avgLatencyMs = successCount == 0
           ? 0
-          : (batchStopwatch.elapsedMilliseconds ~/ results.length);
+          : (batchStopwatch.elapsedMilliseconds ~/ successCount);
       concurrencyController.observeBatch(
         averageLatencyMs: avgLatencyMs,
         hadTransientRetries: metrics.apiRetries > retriesBefore,
       );
     }
 
-    return details;
+    return _AlbumBatchFetchResult(
+      albums: albums,
+      deletedAlbumIds: deletedAlbumIds,
+      requeueAlbumIds: requeueAlbumIds,
+      hardFailedAlbumIds: hardFailedAlbumIds,
+      hardFailureCount: hardFailureCount,
+    );
   }
 
   LibrarySyncState _withMetrics(
@@ -1973,9 +2220,12 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
       'Library sync summary: '
       'status=${state.status.name} '
       'mode=${state.mode?.name ?? 'unknown'} '
+      'stage=${state.stage.name} '
       'requests=${metrics.apiRequests} '
       'retries=${metrics.apiRetries} '
       'failures=${metrics.apiFailures} '
+      'deletedAlbums=${metrics.deletedAlbums} '
+      'hardAlbumFailures=${metrics.hardAlbumFailures} '
       'avgLatencyMs=${metrics.averageLatencyMs ?? 0} '
       'dbWriteBatches=${metrics.dbWriteBatches} '
       'hydrationAlbumsPerSecond='
@@ -2185,6 +2435,8 @@ class _SyncRunMetrics {
   int apiRetries = 0;
   int apiFailures = 0;
   int dbWriteBatches = 0;
+  int deletedAlbums = 0;
+  int hardAlbumFailures = 0;
   int _latencySumMs = 0;
   int _latencySamples = 0;
   double? hydrationThroughputAlbumsPerSecond;
@@ -2210,6 +2462,10 @@ class _SyncRunMetrics {
 
   void recordApiFailure() {
     apiFailures++;
+  }
+
+  void recordHardAlbumFailure() {
+    hardAlbumFailures++;
   }
 
   void addDbWriteBatch() {
@@ -2456,6 +2712,10 @@ DateTime? _parseIsoDate(String? value) {
 String _toSafeErrorMessage(Object error) {
   return switch (error) {
     SyncCancelledException() => 'Sync cancelled.',
+    HydrationHardFailureException(:final failedAlbumCount) =>
+      failedAlbumCount == 1
+          ? 'Metadata sync failed for 1 album.'
+          : 'Metadata sync failed for $failedAlbumCount albums.',
     SubsonicAuthException() => 'Authentication failed while syncing metadata.',
     SubsonicConnectionException() =>
       'Connection failed while syncing metadata. Retrying later may help.',

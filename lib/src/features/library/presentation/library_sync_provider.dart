@@ -86,8 +86,19 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   bool _isForeground = true;
   final Queue<String> _priorityAlbumIds = Queue<String>();
   static const int _maxPriorityAlbums = 120;
+  @visibleForTesting
+  static const Duration retryAfterFailureWindow = Duration(minutes: 15);
+  static const int _maxAutoRetries = 3;
+  static const List<Duration> _autoRetryDelays = <Duration>[
+    Duration(seconds: 30),
+    Duration(minutes: 2),
+    Duration(minutes: 5),
+  ];
   late final AppLifecycleListener _lifecycleListener;
   Timer? _periodicSyncTimer;
+  Timer? _autoRetryTimer;
+  DateTime? _lastFailedSyncAt;
+  int _autoRetryCount = 0;
 
   @override
   LibrarySyncState build() {
@@ -104,6 +115,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     ref.onDispose(() {
       _lifecycleListener.dispose();
       _cancelPeriodicSync();
+      _cancelAutoRetryTimer();
     });
 
     final serverConfig = ref.read(serverConfigStateProvider).asData?.value;
@@ -147,7 +159,12 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     return LibrarySyncState.idle(lastSyncedAt: serverConfig?.lastSynced);
   }
 
-  Future<LibrarySyncState> syncIfStale() => _runSync(force: false);
+  Future<LibrarySyncState> syncIfStale() {
+    if (_shouldForceRetryAfterFailure()) {
+      return syncNow(preferIncremental: true);
+    }
+    return _runSync(force: false);
+  }
 
   Future<LibrarySyncState> syncNow({
     bool forceFull = false,
@@ -189,6 +206,9 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       _startupSyncInFlight = false;
       _startupSyncDoneFingerprint = null;
       _sessionFingerprint = null;
+      _lastFailedSyncAt = null;
+      _autoRetryCount = 0;
+      _cancelAutoRetryTimer();
       state = const LibrarySyncState.idle();
       _priorityAlbumIds.clear();
       return;
@@ -318,8 +338,13 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
 
     switch (result.status) {
       case LibrarySyncStatus.succeeded:
+        _lastFailedSyncAt = null;
+        _autoRetryCount = 0;
+        _cancelAutoRetryTimer();
         unawaited(notifier.showComplete(result));
       case LibrarySyncStatus.failed:
+        _lastFailedSyncAt = DateTime.now();
+        _scheduleAutoRetry();
         unawaited(notifier.showFailed(result));
       case LibrarySyncStatus.skipped:
       case LibrarySyncStatus.idle:
@@ -436,5 +461,41 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   void _cancelPeriodicSync() {
     _periodicSyncTimer?.cancel();
     _periodicSyncTimer = null;
+  }
+
+  bool _shouldForceRetryAfterFailure() {
+    final lastFailed = _lastFailedSyncAt;
+    if (lastFailed == null) {
+      return false;
+    }
+    return DateTime.now().difference(lastFailed) < retryAfterFailureWindow;
+  }
+
+  void _scheduleAutoRetry() {
+    _cancelAutoRetryTimer();
+    if (_autoRetryCount >= _maxAutoRetries) {
+      return;
+    }
+    if (ref.read(networkTypeProvider) == NetworkType.offline) {
+      return;
+    }
+    final delayIndex = _autoRetryCount.clamp(0, _autoRetryDelays.length - 1);
+    final delay = _autoRetryDelays[delayIndex];
+    _autoRetryCount++;
+    AppLogger.debug(
+      'Scheduling library sync auto-retry #$_autoRetryCount in '
+      '${delay.inSeconds}s.',
+    );
+    _autoRetryTimer = Timer(delay, () {
+      if (!ref.mounted || state.isRunning) {
+        return;
+      }
+      unawaited(syncNow(preferIncremental: true));
+    });
+  }
+
+  void _cancelAutoRetryTimer() {
+    _autoRetryTimer?.cancel();
+    _autoRetryTimer = null;
   }
 }

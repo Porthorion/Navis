@@ -593,5 +593,77 @@ void main() {
 
       expect(engine.staleCalls, 0);
     });
+
+    test('syncIfStale forces sync within retry window after failure', () async {
+      var syncNowAttempts = 0;
+      final engine = _FakeLibrarySyncEngine(
+        ({
+          onProgress,
+        }) async {
+          return const LibrarySyncState(
+            status: LibrarySyncStatus.skipped,
+            stage: LibrarySyncStage.completed,
+          );
+        },
+        ({
+          forceFull = false,
+          onProgress,
+        }) async {
+          syncNowAttempts++;
+          if (syncNowAttempts == 1) {
+            return LibrarySyncState(
+              status: LibrarySyncStatus.failed,
+              stage: LibrarySyncStage.completed,
+              completedAt: DateTime.now(),
+              errorMessage: 'Sync failed.',
+            );
+          }
+          return LibrarySyncState(
+            status: LibrarySyncStatus.succeeded,
+            stage: LibrarySyncStage.completed,
+            completedAt: DateTime.now(),
+          );
+        },
+      );
+
+      final container = ProviderContainer(
+        overrides: [
+          _manualSyncInterval,
+          serverConfigStateProvider.overrideWithValue(
+            const AsyncData(
+              ServerConfigModel(
+                url: 'https://example.com',
+                username: 'alice',
+                password: 'secret',
+                apiVersion: '1.16.1',
+              ),
+            ),
+          ),
+          serverReachabilityControllerProvider.overrideWith(
+            () => _StaticReachabilityController(
+              const ServerReachabilityState(
+                status: ServerReachabilityStatus.online,
+              ),
+            ),
+          ),
+          librarySyncEngineProvider.overrideWithValue(engine),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final notifier = container.read(librarySyncControllerProvider.notifier);
+      await notifier.syncNow();
+      expect(container.read(librarySyncControllerProvider).status,
+          LibrarySyncStatus.failed);
+
+      await notifier.syncIfStale();
+
+      expect(syncNowAttempts, 2);
+      expect(engine.staleCalls, 0);
+      expect(
+        container.read(librarySyncControllerProvider).status,
+        LibrarySyncStatus.succeeded,
+      );
+    });
   });
 }
