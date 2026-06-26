@@ -180,6 +180,7 @@ rollouts use `--play-status=inProgress --play-user-fraction=<fraction>`.
 
 ## Documentation Index
 
+- [`AGENTS.md`](AGENTS.md) — canonical guide for AI coding agents
 - [`docs/architecture.md`](docs/architecture.md)
 - [`docs/development-workflow.md`](docs/development-workflow.md)
 - [`docs/ci-cd.md`](docs/ci-cd.md)
