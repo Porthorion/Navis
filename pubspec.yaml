@@ -5,8 +5,8 @@ publish_to: 'none'
 version: 1.0.5+10005
 
 environment:
-  sdk: ^3.11.0
-  flutter: ">=3.41.0"
+  sdk: ^3.12.0
+  flutter: ">=3.44.0"
 
 dependencies:
   audio_service: ^0.18.18
@@ -35,7 +35,7 @@ dependencies:
   intl: ^0.20.2
   just_audio: ^0.10.5
   logger: ^2.7.0
-  package_info_plus: ^10.1.0
+  package_info_plus: ^10.2.0
   path_provider: ^2.1.5
   scrollable_positioned_list: ^0.3.8
   url_launcher: ^6.3.2
@@ -59,7 +59,7 @@ dev_dependencies:
     sdk: flutter
   json_serializable: ^6.13.1
   mocktail: ^1.0.4
-  very_good_analysis: ^10.2.0
+  very_good_analysis: ^10.3.0
   flutter_launcher_icons: ^0.14.4
 
 flutter:

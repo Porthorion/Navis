@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-03-28
+Last updated: 2026-06-27
 
 ---
 
@@ -73,6 +73,7 @@ Last updated: 2026-03-28
 - [x] Future planning pass for ListenBrainz scrobbling roadmap (including Playback settings placement) — 2026-03-05 (evidence: `DEVELOPMENT_PLAN.md` Phase 29 + Future Considerations entry; `PROGRESS.md` Phase 29 section)
 - [x] Future planning pass for Spotify-style desktop widescreen UX and deferred Discovery system roadmap — 2026-03-07 (evidence: `DEVELOPMENT_PLAN.md` Phase 26 scope update + Phase 30 addition; `PROGRESS.md` Phase 26.2 + Phase 30 updates)
 - [x] Flutter 3.41.4 / Dart 3.11 upgrade + dependency refresh — 2026-07-07 (SDK constraints updated to `sdk: ^3.11.0`, `flutter: ">=3.41.0"`; `tool/bootstrap.sh` minimum bumped to 3.41.0; removed unused `cupertino_icons`; bumped `flutter_local_notifications` 20→21, `flutter_riverpod` 3.0→3.2.1, `dio` 5.9.0→5.9.2, `build_runner` 2.9→2.12.2, `riverpod_lint` 3.0→3.1.3, `drift`/`drift_dev` to 2.31.0; `custom_lint` temporarily disabled due to analyzer ^8.0.0 conflict with riverpod_lint 3.1+; migrated 3 `Image.network` sites to `CachedNetworkImage` in now_playing_screen, app_shell, artist_detail_screen; code regenerated; version bumped to 0.4.13+413; evidence: `flutter analyze` — 0 errors, `flutter test` — 218/218 pass, fat APK 72.4 MB)
+- [x] Built-in Kotlin Phase 1 package upgrades — 2026-06-27 (evidence: `pubspec.yaml` `sdk: ^3.12.0`, `flutter: ">=3.44.0"`; `package_info_plus` 10.1.0→10.2.0, `url_launcher_android` 6.3.30→6.3.32, `connectivity_plus` 7.1.1→7.2.0, `very_good_analysis` 10.2.0→10.3.0; kept `file_picker` ^12.0.0-beta.7; `tool/bootstrap.sh` min 3.44.0; `./tool/check.sh`; `flutter build apk --flavor sideload` KGP warning lists only `audio_session`)
 - [x] Scrobble compliance fix: pass `time` (ms since epoch) to Subsonic `scrobble.view` — 2026-04-12 (`SubsonicApiClient.scrobble()` now accepts an optional `DateTime? time` parameter encoded as Unix milliseconds; `DriftScrobbleService.flushDue()` passes `event.createdAt` so the server records the actual listen time rather than the delivery time — critical for offline-queued events and Navidrome's Last.fm forwarding; playback settings scrobble toggle subtitle updated to mention anonymous-listening use case; evidence: `lib/src/api/subsonic_api_client.dart`, `lib/src/features/player/data/scrobble_service.dart`, `test/src/features/player/data/scrobble_service_test.dart`, `lib/l10n/app_en.arb`, commit a925a03)
 - [x] Last.fm artist top-tracks wrong-artist fix — 2026-04-12 (`getArtistTopTracks` was passing `autocorrect: 1` to Last.fm, causing the API to silently substitute a completely different artist (e.g. "Pokelawls" → "Aurora") for any artist not in their database; fixed by setting `autocorrect: 0` so unknown artists return an error (empty list) instead of misleading results; added defence-in-depth `@attr.artist` response validation — if the resolved artist name doesn't match the requested name the result is discarded; 4 new unit tests added; evidence: `lib/src/api/lastfm_api_client.dart`, `test/src/api/lastfm_api_client_test.dart`)
 - [x] User-configurable Last.fm API key + Configuration screen — 2026-04-12 (settings "Server" tile/screen renamed to "Configuration"; new External Services section in that screen with a Last.fm card; when a build-time `NAVIS_LASTFM_API_KEY` is bundled the card shows a read-only notice; when absent the user can paste their own key with a Save button and a direct "Get API Key" link to last.fm/api/accounts; key stored in `app_settings` (schema v40, `last_fm_api_key` column, idempotent migration); `lastFmApiKeyProvider` is now reactive — prefers bundled key, falls back to user-saved DB value; `lastFmBundledKeyProvider` exposes bundled status as a `bool` for UI; evidence: `lib/src/features/settings/presentation/server_settings_screen.dart`, `lib/src/database/navis_database.dart`, `lib/src/providers/app_providers.dart`, `test/src/features/settings/presentation/server_settings_screen_test.dart`, schema v40, commit 8a15a18)
@@ -81,7 +82,7 @@ Last updated: 2026-03-28
 - [x] Tech stack and methodology validation refresh — 2026-02-18 (evidence: `DEVELOPMENT_PLAN.md` stack validation section + README tech stack update)
 
 ## Blockers
-- None currently tracked.
+- **AGP 9 / built-in Kotlin — `audio_session` 0.2.3** — 2026-06-27 (error: plugin applies unconditional `kotlin-android`; no migrated release on pub.dev; track https://github.com/ryanheise/audio_session/issues/175; next action: upgrade to AGP 9.0.1 + Gradle 9.1 only after upstream publishes built-in Kotlin support)
 
 ---
 

@@ -1447,7 +1447,9 @@ void main() {
         api.albumDetails['album-1'] = const Album(
           id: 'album-1',
           name: 'Album 1',
-          songs: <Song>[Song(id: 'song-1', title: 'Song 1', albumId: 'album-1')],
+          songs: <Song>[
+            Song(id: 'song-1', title: 'Song 1', albumId: 'album-1'),
+          ],
         );
         api.notFoundAlbumIds.add('album-stale');
 
@@ -1487,7 +1489,9 @@ void main() {
         api.albumDetails['album-1'] = const Album(
           id: 'album-1',
           name: 'Album 1',
-          songs: <Song>[Song(id: 'song-1', title: 'Song 1', albumId: 'album-1')],
+          songs: <Song>[
+            Song(id: 'song-1', title: 'Song 1', albumId: 'album-1'),
+          ],
         );
         api.permanentTransientAlbumIds.add('album-2');
 
@@ -1553,7 +1557,9 @@ void main() {
         api.albumDetails['album-2'] = const Album(
           id: 'album-2',
           name: 'Album 2',
-          songs: <Song>[Song(id: 'song-2', title: 'Song 2', albumId: 'album-2')],
+          songs: <Song>[
+            Song(id: 'song-2', title: 'Song 2', albumId: 'album-2'),
+          ],
         );
         await database.libraryDao.replaceArtists(
           <ArtistsTableCompanion>[

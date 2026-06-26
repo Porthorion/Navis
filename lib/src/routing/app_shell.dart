@@ -44,7 +44,6 @@ import 'package:navis/src/features/player/presentation/listenbrainz_feedback_dis
 import 'package:navis/src/features/player/presentation/smart_queue_sheet.dart';
 import 'package:navis/src/features/group_listening/presentation/group_listening_active_session_indicator.dart';
 import 'package:navis/src/features/group_listening/domain/group_listening_session_models.dart';
-import 'package:navis/src/features/group_listening/presentation/group_listening_providers.dart';
 import 'package:navis/src/features/group_listening/presentation/group_listening_session_controller.dart';
 import 'package:navis/src/features/library/presentation/star_sync_dispatch_provider.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';

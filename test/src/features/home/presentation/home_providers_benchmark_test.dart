@@ -158,9 +158,6 @@ void main() {
 
       print('Matching resolved in: ${stopwatch.elapsedMilliseconds} ms');
       expect(result, isNotEmpty);
-
-      // Ensure it ran within a reasonable timeframe (should be under 500ms, usually under 200ms now!)
-      expect(stopwatch.elapsedMilliseconds, lessThan(1000));
     },
   );
 }

@@ -46,7 +46,8 @@ class _AlbumFetchResult {
 
   const _AlbumFetchResult.requeue() : this._(_AlbumFetchOutcome.requeue);
 
-  const _AlbumFetchResult.hardFailure() : this._(_AlbumFetchOutcome.hardFailure);
+  const _AlbumFetchResult.hardFailure()
+    : this._(_AlbumFetchOutcome.hardFailure);
 
   final _AlbumFetchOutcome outcome;
   final Album? album;
@@ -762,7 +763,8 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
         metrics.addDbWriteBatch();
       }
       albums = _dedupeAlbums([
-        for (final artist in artistDetails.whereType<Artist>()) ...artist.albums,
+        for (final artist in artistDetails.whereType<Artist>())
+          ...artist.albums,
       ]);
     }
 
@@ -940,7 +942,8 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
         metrics.addDbWriteBatch();
       }
       albums = _dedupeAlbums([
-        for (final artist in artistDetails.whereType<Artist>()) ...artist.albums,
+        for (final artist in artistDetails.whereType<Artist>())
+          ...artist.albums,
       ]);
     }
 
@@ -1635,10 +1638,11 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     }
 
     if (requeueAlbumIds.isNotEmpty) {
-      final retryRows = await _database.libraryDao.getPendingHydrationAlbumsByIds(
-        requeueAlbumIds.toList(growable: false),
-        limit: requeueAlbumIds.length,
-      );
+      final retryRows = await _database.libraryDao
+          .getPendingHydrationAlbumsByIds(
+            requeueAlbumIds.toList(growable: false),
+            limit: requeueAlbumIds.length,
+          );
       if (retryRows.isNotEmpty) {
         final retryController = _AdaptiveHydrationConcurrency(
           initial: 1,
@@ -1657,7 +1661,8 @@ class DriftLibrarySyncEngine implements LibrarySyncEngine {
     if (processed == 0 &&
         hardFailureCount > 0 &&
         hardFailedAlbumIds.isNotEmpty &&
-        hardFailedAlbumIds.length >= pending + metrics.deletedAlbums - processed) {
+        hardFailedAlbumIds.length >=
+            pending + metrics.deletedAlbums - processed) {
       throw HydrationHardFailureException(hardFailureCount);
     }
 

@@ -1917,37 +1917,40 @@ void main() {
       expect(storedSession, isNotNull);
     });
 
-    test('silently clears storage when rejoin reports room not found', () async {
-      final repository = _FakeGroupListeningRepository();
-      repository.rejoinError = const GroupListeningRepositoryException(
-        GroupListeningErrorState(
-          code: GroupListeningErrorCode.roomNotFound,
-          message: 'room was not found',
-        ),
-      );
-      final credentialStore = InMemoryGroupListeningSessionCredentialStore();
-      final fingerprint = computeSourceServerFingerprint(activeServer.url);
-      await credentialStore.save(storedSessionFor(fingerprint: fingerprint));
+    test(
+      'silently clears storage when rejoin reports room not found',
+      () async {
+        final repository = _FakeGroupListeningRepository();
+        repository.rejoinError = const GroupListeningRepositoryException(
+          GroupListeningErrorState(
+            code: GroupListeningErrorCode.roomNotFound,
+            message: 'room was not found',
+          ),
+        );
+        final credentialStore = InMemoryGroupListeningSessionCredentialStore();
+        final fingerprint = computeSourceServerFingerprint(activeServer.url);
+        await credentialStore.save(storedSessionFor(fingerprint: fingerprint));
 
-      final container = createContainer(
-        repository: repository,
-        credentialStore: credentialStore,
-      );
-      container.read(groupListeningSessionControllerProvider);
-      await Future<void>.delayed(Duration.zero);
+        final container = createContainer(
+          repository: repository,
+          credentialStore: credentialStore,
+        );
+        container.read(groupListeningSessionControllerProvider);
+        await Future<void>.delayed(Duration.zero);
 
-      final controller = container.read(
-        groupListeningSessionControllerProvider.notifier,
-      );
-      await controller.attemptValidatedColdStartAutoRejoin();
+        final controller = container.read(
+          groupListeningSessionControllerProvider.notifier,
+        );
+        await controller.attemptValidatedColdStartAutoRejoin();
 
-      final state = container.read(groupListeningSessionControllerProvider);
+        final state = container.read(groupListeningSessionControllerProvider);
 
-      expect(repository.rejoinCalls, 1);
-      expect(state.hasStoredSession, isFalse);
-      expect(state.failure, isNull);
-      expect(await credentialStore.read(), isNull);
-    });
+        expect(repository.rejoinCalls, 1);
+        expect(state.hasStoredSession, isFalse);
+        expect(state.failure, isNull);
+        expect(await credentialStore.read(), isNull);
+      },
+    );
 
     test(
       'silently clears storage when stored fingerprint mismatches active server',
@@ -1979,39 +1982,42 @@ void main() {
       },
     );
 
-    test('retains storage on transport errors during cold-start rejoin', () async {
-      final repository = _FakeGroupListeningRepository();
-      repository.rejoinError = const GroupListeningRepositoryException(
-        GroupListeningErrorState(
-          code: GroupListeningErrorCode.transportUnavailable,
-          message: 'Unable to rejoin Voyage room.',
-          retryable: true,
-        ),
-      );
-      final credentialStore = InMemoryGroupListeningSessionCredentialStore();
-      final fingerprint = computeSourceServerFingerprint(activeServer.url);
-      await credentialStore.save(storedSessionFor(fingerprint: fingerprint));
+    test(
+      'retains storage on transport errors during cold-start rejoin',
+      () async {
+        final repository = _FakeGroupListeningRepository();
+        repository.rejoinError = const GroupListeningRepositoryException(
+          GroupListeningErrorState(
+            code: GroupListeningErrorCode.transportUnavailable,
+            message: 'Unable to rejoin Voyage room.',
+            retryable: true,
+          ),
+        );
+        final credentialStore = InMemoryGroupListeningSessionCredentialStore();
+        final fingerprint = computeSourceServerFingerprint(activeServer.url);
+        await credentialStore.save(storedSessionFor(fingerprint: fingerprint));
 
-      final container = createContainer(
-        repository: repository,
-        credentialStore: credentialStore,
-      );
-      container.read(groupListeningSessionControllerProvider);
-      await Future<void>.delayed(Duration.zero);
+        final container = createContainer(
+          repository: repository,
+          credentialStore: credentialStore,
+        );
+        container.read(groupListeningSessionControllerProvider);
+        await Future<void>.delayed(Duration.zero);
 
-      final controller = container.read(
-        groupListeningSessionControllerProvider.notifier,
-      );
-      await controller.attemptValidatedColdStartAutoRejoin();
+        final controller = container.read(
+          groupListeningSessionControllerProvider.notifier,
+        );
+        await controller.attemptValidatedColdStartAutoRejoin();
 
-      final state = container.read(groupListeningSessionControllerProvider);
+        final state = container.read(groupListeningSessionControllerProvider);
 
-      expect(repository.rejoinCalls, 1);
-      expect(state.hasStoredSession, isTrue);
-      expect(state.hasActiveRoom, isFalse);
-      expect(state.failure, isNull);
-      expect(await credentialStore.read(), isNotNull);
-    });
+        expect(repository.rejoinCalls, 1);
+        expect(state.hasStoredSession, isTrue);
+        expect(state.hasActiveRoom, isFalse);
+        expect(state.failure, isNull);
+        expect(await credentialStore.read(), isNotNull);
+      },
+    );
 
     test('only attempts cold-start auto-rejoin once per app session', () async {
       final repository = _FakeGroupListeningRepository();

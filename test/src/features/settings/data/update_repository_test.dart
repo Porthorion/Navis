@@ -58,92 +58,100 @@ void main() {
       expect(result, isNull);
     });
 
-    test('returns store redirect delivery for Play installs on Android', () async {
-      if (!Platform.isAndroid) {
-        return;
-      }
+    test(
+      'returns store redirect delivery for Play installs on Android',
+      () async {
+        if (!Platform.isAndroid) {
+          return;
+        }
 
-      when(
-        () => dio.get<List<dynamic>>(
-          any(),
-          options: any(named: 'options'),
-        ),
-      ).thenAnswer(
-        (_) async => Response<List<dynamic>>(
-          data: [
-            {
-              'tag_name': 'v99.0.0',
-              'prerelease': false,
-              'html_url': 'https://example.com/release',
-              'body': 'notes',
-              'assets': [
-                {
-                  'name': 'navis-v99.0.0.apk',
-                  'browser_download_url': 'https://example.com/navis.apk',
-                },
-              ],
-            },
-          ],
-          requestOptions: RequestOptions(path: '/releases'),
-          statusCode: 200,
-        ),
-      );
+        when(
+          () => dio.get<List<dynamic>>(
+            any(),
+            options: any(named: 'options'),
+          ),
+        ).thenAnswer(
+          (_) async => Response<List<dynamic>>(
+            data: [
+              {
+                'tag_name': 'v99.0.0',
+                'prerelease': false,
+                'html_url': 'https://example.com/release',
+                'body': 'notes',
+                'assets': [
+                  {
+                    'name': 'navis-v99.0.0.apk',
+                    'browser_download_url': 'https://example.com/navis.apk',
+                  },
+                ],
+              },
+            ],
+            requestOptions: RequestOptions(path: '/releases'),
+            statusCode: 200,
+          ),
+        );
 
-      final repository = UpdateRepository(
-        dio: dio,
-        installSourceService: _FakeInstallSourceService('com.android.vending'),
-        updateCheckStore: _MemoryUpdateCheckStore(allowCheck: true),
-      );
+        final repository = UpdateRepository(
+          dio: dio,
+          installSourceService: _FakeInstallSourceService(
+            'com.android.vending',
+          ),
+          updateCheckStore: _MemoryUpdateCheckStore(allowCheck: true),
+        );
 
-      final result = await repository.checkForUpdate(forceCheck: true);
-      expect(result, isNotNull);
-      expect(result!.delivery, UpdateDelivery.storeRedirect);
-      expect(result.downloadUrl, isNull);
-      expect(result.tagName, 'v99.0.0');
-    });
+        final result = await repository.checkForUpdate(forceCheck: true);
+        expect(result, isNotNull);
+        expect(result!.delivery, UpdateDelivery.storeRedirect);
+        expect(result.downloadUrl, isNull);
+        expect(result.tagName, 'v99.0.0');
+      },
+    );
 
-    test('returns forgejo self-update for sideload installs on Android', () async {
-      if (!Platform.isAndroid) {
-        return;
-      }
+    test(
+      'returns forgejo self-update for sideload installs on Android',
+      () async {
+        if (!Platform.isAndroid) {
+          return;
+        }
 
-      when(
-        () => dio.get<List<dynamic>>(
-          any(),
-          options: any(named: 'options'),
-        ),
-      ).thenAnswer(
-        (_) async => Response<List<dynamic>>(
-          data: [
-            {
-              'tag_name': 'v99.0.0',
-              'prerelease': false,
-              'html_url': 'https://example.com/release',
-              'body': 'notes',
-              'assets': [
-                {
-                  'name': 'navis-v99.0.0.apk',
-                  'browser_download_url': 'https://example.com/navis.apk',
-                },
-              ],
-            },
-          ],
-          requestOptions: RequestOptions(path: '/releases'),
-          statusCode: 200,
-        ),
-      );
+        when(
+          () => dio.get<List<dynamic>>(
+            any(),
+            options: any(named: 'options'),
+          ),
+        ).thenAnswer(
+          (_) async => Response<List<dynamic>>(
+            data: [
+              {
+                'tag_name': 'v99.0.0',
+                'prerelease': false,
+                'html_url': 'https://example.com/release',
+                'body': 'notes',
+                'assets': [
+                  {
+                    'name': 'navis-v99.0.0.apk',
+                    'browser_download_url': 'https://example.com/navis.apk',
+                  },
+                ],
+              },
+            ],
+            requestOptions: RequestOptions(path: '/releases'),
+            statusCode: 200,
+          ),
+        );
 
-      final repository = UpdateRepository(
-        dio: dio,
-        installSourceService: _FakeInstallSourceService('com.android.shell'),
-        updateCheckStore: _MemoryUpdateCheckStore(allowCheck: true),
-      );
+        final repository = UpdateRepository(
+          dio: dio,
+          installSourceService: _FakeInstallSourceService('com.android.shell'),
+          updateCheckStore: _MemoryUpdateCheckStore(allowCheck: true),
+        );
 
-      final result = await repository.checkForUpdate(forceCheck: true);
-      expect(result, isNotNull);
-      expect(result!.delivery, UpdateDelivery.forgejoSelfUpdate);
-      expect(result.downloadUrl, 'https://example.com/navis.apk');
-    });
+        final result = await repository.checkForUpdate(forceCheck: true);
+        expect(result, isNotNull);
+        expect(result!.delivery, UpdateDelivery.forgejoSelfUpdate);
+        expect(result.downloadUrl, 'https://example.com/navis.apk');
+      },
+    );
 
     test('skips network fetch when update check throttle is active', () async {
       if (Platform.isIOS) {

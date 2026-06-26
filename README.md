@@ -43,7 +43,7 @@ Minimum tested versions:
 
 | Layer | Package | Version |
 |---|---|---|
-| UI framework | Flutter | ≥ 3.41.0 |
+| UI framework | Flutter | ≥ 3.44.0 |
 | Language | Dart | ^3.11.0 |
 | State management | flutter_riverpod | ^3.3.1 |
 | Navigation | go_router | ^17.1.0 |

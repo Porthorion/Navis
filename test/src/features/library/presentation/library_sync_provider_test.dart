@@ -653,8 +653,10 @@ void main() {
 
       final notifier = container.read(librarySyncControllerProvider.notifier);
       await notifier.syncNow();
-      expect(container.read(librarySyncControllerProvider).status,
-          LibrarySyncStatus.failed);
+      expect(
+        container.read(librarySyncControllerProvider).status,
+        LibrarySyncStatus.failed,
+      );
 
       await notifier.syncIfStale();
 

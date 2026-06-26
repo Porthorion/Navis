@@ -6,7 +6,6 @@ import 'package:navis/src/features/player/domain/instant_mix_state.dart';
 import 'package:navis/src/features/player/domain/same_vibes_state.dart';
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
 import 'package:navis/src/features/player/presentation/same_vibes_notifier.dart';
-import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
@@ -22,7 +21,8 @@ Future<PreferredMixMode> _readPreferredMixModeFromContainer(
 ) async {
   return _resolvePreferredMixMode(
     readLocked: () => container.read(legacyInstantMixLockedProvider),
-    loadSettings: () => container.read(settingsRepositoryProvider).getSettings(),
+    loadSettings: () =>
+        container.read(settingsRepositoryProvider).getSettings(),
   );
 }
 

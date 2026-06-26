@@ -566,7 +566,8 @@ class GroupListeningSessionRoomOps {
           return discardStaleStoredSessionSilently(
             const GroupListeningErrorState(
               code: GroupListeningErrorCode.fingerprintMismatch,
-              message: 'Stored Voyage session does not match the active server.',
+              message:
+                  'Stored Voyage session does not match the active server.',
             ),
           );
         }

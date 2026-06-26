@@ -128,7 +128,7 @@ These strings in test output cause `check.sh` to fail:
 
 | Layer | Package | Version constraint |
 |-------|---------|-------------------|
-| Flutter | flutter | ≥ 3.41.0 |
+| Flutter | flutter | ≥ 3.44.0 |
 | Dart | sdk | ^3.11.0 |
 | State | flutter_riverpod | ^3.3.1 |
 | Routing | go_router | ^17.1.0 |
