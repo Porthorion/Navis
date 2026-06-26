@@ -99,7 +99,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     debugLabel: 'desktopQuickSearch',
   );
   bool _didCheckBatteryOptimizationPrompt = false;
-  bool _resumeRoomPromptShown = false;
+  bool _coldStartResumeAttempted = false;
   bool Function()? _nowPlayingBackInterceptor;
   bool _compactWideInternalOverlayActive = false;
   VoidCallback? _compactWideQueueRequestHandler;
@@ -206,46 +206,6 @@ class _AppShellState extends ConsumerState<AppShell> {
     if (executor == null) return false;
     unawaited(executor(action));
     return true;
-  }
-
-  Future<void> _maybeShowResumeRoomPrompt() async {
-    if (!mounted) {
-      return;
-    }
-    final stored = await ref
-        .read(groupListeningSessionCredentialStoreProvider)
-        .read();
-    if (!mounted || stored == null) {
-      return;
-    }
-    final shouldResume = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Resume Listen Together?'),
-          content: const Text(
-            'A previous Listen Together room is available on this server. '
-            'Resume where you left off?',
-          ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Not now'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Resume'),
-            ),
-          ],
-        );
-      },
-    );
-    if (!mounted || shouldResume != true) {
-      return;
-    }
-    await ref
-        .read(groupListeningSessionControllerProvider.notifier)
-        .restoreStoredSessionIfAvailable();
   }
 
   void _scheduleQueueCoverArtPrefetch() {
@@ -752,12 +712,16 @@ class _AppShellState extends ConsumerState<AppShell> {
             message: 'Left the Listen Together session',
           );
         }
-        if (!_resumeRoomPromptShown &&
+        if (!_coldStartResumeAttempted &&
             !next.hasActiveRoom &&
             next.hasStoredSession &&
             next.availability == GroupListeningAvailability.ready) {
-          _resumeRoomPromptShown = true;
-          unawaited(_maybeShowResumeRoomPrompt());
+          _coldStartResumeAttempted = true;
+          unawaited(
+            ref
+                .read(groupListeningSessionControllerProvider.notifier)
+                .attemptValidatedColdStartAutoRejoin(),
+          );
         }
         if (next.syncHealth == GroupListeningSyncHealth.catchingUp &&
             prev?.syncHealth != GroupListeningSyncHealth.catchingUp) {

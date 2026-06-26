@@ -538,7 +538,9 @@ class GroupListeningSessionRoomOps {
     );
   }
 
-  Future<GroupListeningSessionState> reconnect() async {
+  Future<GroupListeningSessionState> reconnect({
+    bool silentStaleSessionInvalidation = false,
+  }) async {
     try {
       final configuration = await configurationForRoomOperation(
         preferStoredServer: true,
@@ -548,6 +550,9 @@ class GroupListeningSessionRoomOps {
           .read();
       if (storedSession == null) {
         _clearStoredSessionFlag();
+        if (silentStaleSessionInvalidation) {
+          return discardStaleStoredSessionSilently();
+        }
         return setFailure(
           const GroupListeningErrorState(
             code: GroupListeningErrorCode.sessionUnavailable,
@@ -557,6 +562,14 @@ class GroupListeningSessionRoomOps {
       }
       if (storedSession.sourceServerFingerprint !=
           configuration.sourceServerFingerprint) {
+        if (silentStaleSessionInvalidation) {
+          return discardStaleStoredSessionSilently(
+            const GroupListeningErrorState(
+              code: GroupListeningErrorCode.fingerprintMismatch,
+              message: 'Stored Voyage session does not match the active server.',
+            ),
+          );
+        }
         await ref.read(groupListeningSessionCredentialStoreProvider).clear();
         writeRuntimeSession(null);
         _clearStoredSessionFlag();
@@ -600,6 +613,18 @@ class GroupListeningSessionRoomOps {
         fallbackMessage: 'Unable to rejoin Voyage room.',
         fallbackCode: GroupListeningErrorCode.transportUnavailable,
       );
+      if (silentStaleSessionInvalidation) {
+        if (shouldCollapseToLocalCleanup(failure.code) ||
+            isFatalSessionFailure(failure.code)) {
+          return discardStaleStoredSessionSilently(failure);
+        }
+        state = state.copyWith(
+          status: GroupListeningSessionStatus.idle,
+          connection: const GroupListeningConnectionState.disconnected(),
+          clearFailure: true,
+        );
+        return state;
+      }
       if (shouldCollapseToLocalCleanup(failure.code)) {
         return finishInvalidatedSessionCleanup(failure);
       }
@@ -667,10 +692,10 @@ class GroupListeningSessionRoomOps {
   }
 
   Future<void> restoreStoredSessionIfAvailable() async {
-    await attemptColdStartAutoRejoin();
+    await attemptValidatedColdStartAutoRejoin();
   }
 
-  Future<void> attemptColdStartAutoRejoin() async {
+  Future<void> attemptValidatedColdStartAutoRejoin() async {
     if (readColdStartAutoRejoinAttempted() || state.hasActiveRoom) {
       return;
     }
@@ -693,7 +718,7 @@ class GroupListeningSessionRoomOps {
       return;
     }
     state = stateApplier.withSyncHealth(state.copyWith(hasStoredSession: true));
-    await reconnect();
+    await reconnect(silentStaleSessionInvalidation: true);
     if (!ref.mounted) {
       return;
     }
@@ -842,6 +867,30 @@ class GroupListeningSessionRoomOps {
         connection: const GroupListeningConnectionState.disconnected(),
       );
     }
+  }
+
+  Future<GroupListeningSessionState> discardStaleStoredSessionSilently([
+    GroupListeningErrorState? failure,
+  ]) async {
+    AppLogger.debug(
+      'Group listening: discarding stale stored session'
+      '${failure == null ? '' : ' (${failure.code.name})'}.',
+    );
+    await disposeTransport();
+    writeRuntimeSession(null);
+    await ref.read(groupListeningSessionCredentialStoreProvider).clear();
+    state = state.copyWith(
+      status: GroupListeningSessionStatus.idle,
+      connection: const GroupListeningConnectionState.disconnected(),
+      clearRoom: true,
+      lastAppliedRoomVersion: 0,
+      lastAppliedEventId: 0,
+      snapshotRequired: false,
+      clearActiveInviteCode: true,
+      clearFailure: true,
+      hasStoredSession: false,
+    );
+    return state;
   }
 
   Future<GroupListeningSessionState> finishInvalidatedSessionCleanup(

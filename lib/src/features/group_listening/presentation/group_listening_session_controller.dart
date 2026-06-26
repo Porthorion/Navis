@@ -461,6 +461,9 @@ class GroupListeningSessionController
   Future<void> restoreStoredSessionIfAvailable() =>
       _roomOps.restoreStoredSessionIfAvailable();
 
+  Future<void> attemptValidatedColdStartAutoRejoin() =>
+      _roomOps.attemptValidatedColdStartAutoRejoin();
+
   void clearFailure() {
     state = state.copyWith(clearFailure: true);
   }
