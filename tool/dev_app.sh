@@ -63,9 +63,14 @@ else
   echo "    NAVIS_VOYAGE_SERVERS=missing (Listen Together stays manual-only)"
 fi
 
+# NAVIS_SELF_UPDATE=true enables the Gradle "sideload" product flavor. Flutter
+# must target it explicitly; otherwise it can install a stale legacy app-debug.apk
+# (wrong package id + old version) instead of app-sideload-*.apk.
+ANDROID_FLAVOR_ARGS=("--flavor" "sideload")
+
 case "${MODE}" in
   run)
-    flutter run --debug "${DART_DEFINE_ARGS[@]}" "$@"
+    flutter run --debug "${ANDROID_FLAVOR_ARGS[@]}" "${DART_DEFINE_ARGS[@]}" "$@"
     ;;
   linux)
     # Install user-level desktop file + icon before running so Wayland
@@ -86,7 +91,7 @@ case "${MODE}" in
     flutter run -d linux --debug "${DART_DEFINE_ARGS[@]}" "$@"
     ;;
   apk)
-    flutter build apk --release "${DART_DEFINE_ARGS[@]}" "$@"
+    flutter build apk --release "${ANDROID_FLAVOR_ARGS[@]}" "${DART_DEFINE_ARGS[@]}" "$@"
     ;;
   auto)
     # Run on an Android Automotive OS (AAOS) emulator — no DHU or phone needed.
@@ -116,7 +121,7 @@ case "${MODE}" in
     echo "  The browse tree (Playlists / Artists / Albums / Liked / Recent / Random Mix)"
     echo "  is served directly via MediaBrowserService — no Desktop Head Unit needed."
     echo ""
-    flutter run --debug "${DEVICE_ARGS[@]}" "${DART_DEFINE_ARGS[@]}" "$@"
+    flutter run --debug "${DEVICE_ARGS[@]}" "${ANDROID_FLAVOR_ARGS[@]}" "${DART_DEFINE_ARGS[@]}" "$@"
     ;;
   dhu)
     # Build a release APK, install it on the connected phone, verify the app
@@ -181,9 +186,9 @@ case "${MODE}" in
 
     # ── 1. Build release APK ────────────────────────────────────────────────
     echo "==> Building release APK…"
-    flutter build apk --release "${DART_DEFINE_ARGS[@]}"
+    flutter build apk --release "${ANDROID_FLAVOR_ARGS[@]}" "${DART_DEFINE_ARGS[@]}"
 
-    APK_PATH="build/app/outputs/flutter-apk/app-release.apk"
+    APK_PATH="build/app/outputs/flutter-apk/app-sideload-release.apk"
     if [[ ! -f "${APK_PATH}" ]]; then
       echo "ERROR: APK not found at ${APK_PATH}"
       exit 1

@@ -9,7 +9,7 @@ non-Android assets.
 - Android has two release paths:
   - **Forgejo APK** (`tool/release.sh --targets=android`) ships in-app APK
     self-update (`NAVIS_SELF_UPDATE=true`, `REQUEST_INSTALL_PACKAGES`, and
-    FileProvider in the `src/selfupdate` manifest overlay).
+    FileProvider in the `src/sideload` product flavor manifest).
   - **Google Play AAB** (`tool/play_release.sh`) must stay Play-safe
     (`NAVIS_SELF_UPDATE=false`, no install permissions, no APK installer
     MethodChannel registration).
@@ -20,7 +20,7 @@ non-Android assets.
 - Release signing certificate SHA-256:
   `12:C6:41:1B:2A:9F:D3:0B:2B:B8:63:01:9D:63:08:5E:5F:36:A1:D2:09:A1:D1:F1:55:9D:70:95:50:E9:B0:C7`.
 - `REQUEST_INSTALL_PACKAGES` must not be present in Play AAB builds (only in the
-  optional `src/selfupdate` manifest overlay used by Forgejo APK builds).
+  optional `src/sideload` product flavor manifest used by Forgejo APK builds).
 - Play builds must not register the APK installer MethodChannel at runtime.
 - Forgejo update checks run on Android and desktop; Play installs are redirected
   to the Play Store instead of downloading APKs.

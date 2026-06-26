@@ -66,13 +66,19 @@ android {
         targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-        buildConfigField("boolean", "SELF_UPDATE_ENABLED", selfUpdateEnabled.toString())
     }
 
-    sourceSets {
-        getByName("main") {
-            if (selfUpdateEnabled) {
-                manifest.srcDir("src/selfupdate")
+    flavorDimensions += "distribution"
+    productFlavors {
+        if (selfUpdateEnabled) {
+            create("sideload") {
+                dimension = "distribution"
+                buildConfigField("boolean", "SELF_UPDATE_ENABLED", "true")
+            }
+        } else {
+            create("play") {
+                dimension = "distribution"
+                buildConfigField("boolean", "SELF_UPDATE_ENABLED", "false")
             }
         }
     }

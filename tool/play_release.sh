@@ -61,8 +61,8 @@ SERVICE_ACCOUNT_JSON="${PLAY_SERVICE_ACCOUNT_JSON:-}"
 
 echo "==> Building release Android App Bundle"
 export NAVIS_SELF_UPDATE=false
-flutter build appbundle --release --dart-define=NAVIS_SELF_UPDATE=false
-AAB_PATH="build/app/outputs/bundle/release/app-release.aab"
+flutter build appbundle --release --flavor play --dart-define=NAVIS_SELF_UPDATE=false
+AAB_PATH="build/app/outputs/bundle/playRelease/app-play-release.aab"
 if [[ ! -f "${AAB_PATH}" ]]; then
   echo "AAB not found at ${AAB_PATH}" >&2
   exit 1

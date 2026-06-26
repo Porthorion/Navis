@@ -5,7 +5,7 @@
     <application>
         <!-- FileProvider used by the in-app updater to share the downloaded
              APK with the system package installer. Included only in
-             Forgejo/sideload APK builds (NAVIS_SELF_UPDATE=true). -->
+             Forgejo/sideload APK builds (sideload flavor, NAVIS_SELF_UPDATE=true). -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
