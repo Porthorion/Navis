@@ -431,7 +431,7 @@ void main() {
       expect(state.connection.clientConnectionId, 'conn-1');
     });
 
-    test('connects with stored v2alpha1 replay cursor state', () async {
+    test('connects with stored v4alpha1 replay cursor state', () async {
       final repository = _FakeGroupListeningRepository();
       final connection = _FakeRealtimeConnection();
       final fingerprint = computeSourceServerFingerprint(activeServer.url);
@@ -561,7 +561,7 @@ void main() {
       },
     );
 
-    test('uses event cursors as the v2alpha1 replay ordering signal', () async {
+    test('uses event cursors as the v4alpha1 replay ordering signal', () async {
       final repository = _FakeGroupListeningRepository();
       final fingerprint = computeSourceServerFingerprint(activeServer.url);
       repository.joinResponse = GroupListeningJoinResponse(
@@ -602,7 +602,7 @@ void main() {
       expect(state.lastAppliedRoomVersion, 5);
     });
 
-    test('ignores duplicate v2alpha1 replay events by event cursor', () async {
+    test('ignores duplicate v4alpha1 replay events by event cursor', () async {
       final repository = _FakeGroupListeningRepository();
       final fingerprint = computeSourceServerFingerprint(activeServer.url);
       repository.joinResponse = GroupListeningJoinResponse(
@@ -644,7 +644,7 @@ void main() {
     });
 
     test(
-      'marks snapshot required when a v2alpha1 event cursor gap appears',
+      'marks snapshot required when a v4alpha1 event cursor gap appears',
       () async {
         final repository = _FakeGroupListeningRepository();
         final fingerprint = computeSourceServerFingerprint(activeServer.url);

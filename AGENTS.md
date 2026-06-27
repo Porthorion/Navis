@@ -185,7 +185,7 @@ presentation/ # screens, widgets, *_provider.dart files
 | `search` | `lib/src/features/search/` | Desktop quick-search shortcut |
 | `home` | `lib/src/features/home/` | Adaptive layout breakpoints matter |
 | `settings` | `lib/src/features/settings/` | Scrobble credentials in secure storage |
-| `group_listening` | `lib/src/features/group_listening/` | Listen Together / Voyage; 800-line file guardrail |
+| `group_listening` | `lib/src/features/group_listening/` | Listen Together / Voyage v4; 800-line file guardrail |
 | `match_flow` | `lib/src/features/match_flow/` | Collaborative guessing game; `MatchFlowDao` in DB |
 | `auto` | `lib/src/features/auto/` | Android Auto — see `docs/android-auto-testing.md` |
 | `audiomuse` | `lib/src/features/audiomuse/` | AI integration |
@@ -226,6 +226,22 @@ User action → queueProvider (QueueController)
 ```
 
 Source resolution priority: **Permanent cache** → **Rolling cache (LRU lock-cache)** → **Stream**
+
+### Listen Together / Voyage
+
+- Active protocol is `voyage-sync.v4alpha1`; old V2/V3 branches should not be
+  reintroduced into the active path.
+- WebSocket sessions send `connection.init` first and expect `connection.ready`
+  before replay, snapshot, or live frames. There is no `connection.welcome`
+  path.
+- User gestures and intentional queue operations send `command` frames with
+  `command_id`, `client_connection_id`, `client_seq`, and `base_event_id`.
+- Passive position, buffering, readiness, unavailable-track, RTT, and clock
+  samples are sent as `member.status`, never as playback seek commands.
+- Playback anchors are applied against estimated server time using
+  `apply_at_server_ms`.
+- Keep `lib/src/features/group_listening/` files under the size guardrail by
+  splitting transport, wire codec, reducers, bridge, and UI concerns.
 
 ### Routing (`lib/src/routing/app_router.dart`)
 

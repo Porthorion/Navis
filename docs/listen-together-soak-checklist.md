@@ -7,7 +7,7 @@ Run Voyage with PostgreSQL and persistent replay enabled in production-like setu
 
 - Two devices or emulators on the same Subsonic/Navidrome origin
 - Navis pointed at the same Voyage server (`NAVIS_VOYAGE_SERVERS` or settings UI)
-- Protocol: `voyage-sync.v3alpha1` when available (check health endpoint)
+- Protocol: `voyage-sync.v4alpha1` (check health endpoint)
 
 ## Connection and sync
 
@@ -24,6 +24,10 @@ Run Voyage with PostgreSQL and persistent replay enabled in production-like setu
 - [ ] Member B queues track — both see queue; playback unchanged if pure append
 - [ ] Concurrent queue add from two members — no crash; eventual consistent queue
 - [ ] Lagging member does not drag room backward after reconnect
+- [ ] Passive position ticks do not create `playback.seek` command loops
+- [ ] Buffering/readiness/unavailable state appears through `member.status`
+- [ ] Track transition waits for ready clients and starts within 1s after final readiness
+- [ ] Readiness timeout starts playback after ~8s with late clients catching up
 
 ## Remote / search3 tracks
 
@@ -36,11 +40,18 @@ Run Voyage with PostgreSQL and persistent replay enabled in production-like setu
 - [ ] Revoked/removed member sees clear error and leaves room
 - [ ] Fingerprint mismatch blocked on join with readable message
 - [ ] Room close — all clients return to idle cleanly
+- [ ] Server-initiated resync sends a fresh snapshot without leaving the room
 
 ## Server ops
 
-- [ ] `GET /api/v1/health` lists `voyage-sync.v3alpha1`
+- [ ] `GET /api/v1/health` lists `voyage-sync.v4alpha1` as the only supported protocol
 - [ ] `GET /api/v1/ready` passes with Postgres
+- [ ] `voyagectl list rooms` shows room refs, mode, phase, readiness, and latest state
+- [ ] `voyagectl inspect room <ref>` accepts a short unique room prefix
+- [ ] `voyagectl mode room <ref> host_only` changes room mode and clients update
+- [ ] `voyagectl transfer host <room-ref> <member-ref>` transfers host by short refs
+- [ ] `voyagectl remove member <room-ref> <member-ref>` removes and disconnects member
+- [ ] `voyagectl resync room <ref>` pushes a snapshot to active clients
 - [ ] Metrics: `playback_rewind_rejected_total`, `broker_soft_drops_total` observable under load
 
 ## Automated CI (run before release)

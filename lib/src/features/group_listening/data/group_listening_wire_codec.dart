@@ -250,6 +250,7 @@ GroupListeningRoomState roomStateFromJson(
     roomId: stringValue(json['room_id']),
     roomStatus: roomStatusFromWire(json['room_status']),
     roomMode: _roomModeFromWire(json['room_mode']),
+    playbackPhase: nullableStringValue(json['playback_phase']) ?? 'idle',
     requiresPin: boolValue(json['requires_pin']),
     roomVersion: roomVersion,
     latestEventId: nullableIntValue(json['latest_event_id']) ?? 0,
@@ -322,6 +323,10 @@ GroupListeningRoomEvent roomEventFromJson(Map<String, dynamic> json) {
     roomStatus: nullableStringValue(json['room_status']) == null
         ? null
         : roomStatusFromWire(json['room_status']),
+    roomMode: nullableStringValue(json['room_mode']) == null
+        ? null
+        : _roomModeFromWire(json['room_mode']),
+    playbackPhase: nullableStringValue(json['playback_phase']),
     presenceVersion: nullableIntValue(json['presence_version']),
     authVersion: nullableIntValue(json['auth_version']),
   );
@@ -448,7 +453,7 @@ Map<String, dynamic> outboundTransportEnvelope(
   }
   if (message is GroupListeningClientStatusMessage) {
     return <String, Object?>{
-      'type': 'client.status',
+      'type': 'member.status',
       'data': <String, Object?>{
         'client_connection_id': message.clientConnectionId,
         'last_applied_playback_apply_id': message.lastAppliedPlaybackApplyId,
@@ -474,13 +479,14 @@ Map<String, dynamic> outboundTransportEnvelope(
   }
   if (message is GroupListeningTrackReadinessMessage) {
     return <String, Object?>{
-      'type': 'member.track_readiness',
+      'type': 'member.status',
       'data': <String, Object?>{
         'client_connection_id': message.clientConnectionId,
         'queue_entry_id': message.queueEntryId,
-        'status': message.status,
+        'track_readiness_status': message.status,
         if (message.resolvedSongId != null)
           'resolved_song_id': message.resolvedSongId,
+        'client_time_ms': DateTime.now().toUtc().millisecondsSinceEpoch,
       },
     };
   }
@@ -505,9 +511,11 @@ Map<String, dynamic> outboundTransportEnvelope(
         );
       }
       return <String, Object?>{
-        'type': 'mutation.playback_anchor',
+        'type': 'command',
         'data': <String, Object?>{
-          'event_type': _playbackMutationEventType(playbackAnchor.reason),
+          'type': _playbackCommandType(playbackAnchor.reason),
+          'command_id': message.clientMutationId,
+          'base_event_id': message.expectedRoomVersion,
           'expected_room_version': message.expectedRoomVersion,
           if (message.expectedQueueVersion != null)
             'expected_queue_version': message.expectedQueueVersion,
@@ -515,7 +523,6 @@ Map<String, dynamic> outboundTransportEnvelope(
             'expected_playback_version': message.expectedPlaybackVersion,
           if (message.expectedPlaybackEpoch != null)
             'expected_playback_epoch': message.expectedPlaybackEpoch,
-          'client_mutation_id': message.clientMutationId,
           'client_connection_id': message.clientConnectionId,
           'client_seq': message.clientSequence,
           if (playbackAnchor.currentIndex != null)
@@ -538,8 +545,11 @@ Map<String, dynamic> outboundTransportEnvelope(
         );
       }
       return <String, Object?>{
-        'type': 'mutation.queue_replace',
+        'type': 'command',
         'data': <String, Object?>{
+          'type': 'queue.replace',
+          'command_id': message.clientMutationId,
+          'base_event_id': message.expectedRoomVersion,
           'expected_room_version': message.expectedRoomVersion,
           if (message.expectedQueueVersion != null)
             'expected_queue_version': message.expectedQueueVersion,
@@ -547,7 +557,6 @@ Map<String, dynamic> outboundTransportEnvelope(
             'expected_playback_version': message.expectedPlaybackVersion,
           if (message.expectedPlaybackEpoch != null)
             'expected_playback_epoch': message.expectedPlaybackEpoch,
-          'client_mutation_id': message.clientMutationId,
           'client_connection_id': message.clientConnectionId,
           'client_seq': message.clientSequence,
           if (queue.currentIndex != null) 'current_index': queue.currentIndex,
@@ -595,12 +604,14 @@ Map<String, dynamic> outboundTransportEnvelope(
         );
       }
       return <String, Object?>{
-        'type': 'mutation.queue_add',
+        'type': 'command',
         'data': <String, Object?>{
+          'type': 'queue.add',
+          'command_id': message.clientMutationId,
+          'base_event_id': message.expectedRoomVersion,
           'expected_room_version': message.expectedRoomVersion,
           if (message.expectedQueueVersion != null)
             'expected_queue_version': message.expectedQueueVersion,
-          'client_mutation_id': message.clientMutationId,
           'client_connection_id': message.clientConnectionId,
           'client_seq': message.clientSequence,
           'song_id': queueEntry.songId,
@@ -620,12 +631,14 @@ Map<String, dynamic> outboundTransportEnvelope(
         );
       }
       return <String, Object?>{
-        'type': 'mutation.queue_remove',
+        'type': 'command',
         'data': <String, Object?>{
+          'type': 'queue.remove',
+          'command_id': message.clientMutationId,
+          'base_event_id': message.expectedRoomVersion,
           'expected_room_version': message.expectedRoomVersion,
           if (message.expectedQueueVersion != null)
             'expected_queue_version': message.expectedQueueVersion,
-          'client_mutation_id': message.clientMutationId,
           'client_connection_id': message.clientConnectionId,
           'client_seq': message.clientSequence,
           'queue_entry_id': queueEntryId,
@@ -642,10 +655,12 @@ Map<String, dynamic> outboundTransportEnvelope(
         );
       }
       return <String, Object?>{
-        'type': 'mutation.transfer_host',
+        'type': 'command',
         'data': <String, Object?>{
+          'type': 'host.transfer',
+          'command_id': message.clientMutationId,
+          'base_event_id': message.expectedRoomVersion,
           'expected_room_version': message.expectedRoomVersion,
-          'client_mutation_id': message.clientMutationId,
           'client_connection_id': message.clientConnectionId,
           'client_seq': message.clientSequence,
           'target_member_id': targetMemberId,
@@ -662,10 +677,12 @@ Map<String, dynamic> outboundTransportEnvelope(
         );
       }
       return <String, Object?>{
-        'type': 'mutation.remove_member',
+        'type': 'command',
         'data': <String, Object?>{
+          'type': 'member.remove',
+          'command_id': message.clientMutationId,
+          'base_event_id': message.expectedRoomVersion,
           'expected_room_version': message.expectedRoomVersion,
-          'client_mutation_id': message.clientMutationId,
           'client_connection_id': message.clientConnectionId,
           'client_seq': message.clientSequence,
           'target_member_id': targetMemberId,
@@ -1036,6 +1053,7 @@ GroupListeningRoomEventType _roomEventTypeFromWire(Object? value) {
     'member_left' => GroupListeningRoomEventType.memberLeft,
     'member_removed' => GroupListeningRoomEventType.memberRemoved,
     'room_closed' => GroupListeningRoomEventType.roomClosed,
+    'room_mode_set' => GroupListeningRoomEventType.roomModeSet,
     'sync_tick' => GroupListeningRoomEventType.seek,
     _ => throw const GroupListeningRepositoryException(
       GroupListeningErrorState(
@@ -1078,17 +1096,17 @@ void validateEnvelopeProtocolVersion(Map<String, dynamic> payload) {
   validateProtocolVersion(payload['protocol_version']);
 }
 
-String _playbackMutationEventType(GroupListeningPlaybackAnchorReason reason) {
+String _playbackCommandType(GroupListeningPlaybackAnchorReason reason) {
   switch (reason) {
     case GroupListeningPlaybackAnchorReason.play:
-      return 'play';
+      return 'playback.play';
     case GroupListeningPlaybackAnchorReason.pause:
-      return 'pause';
+      return 'playback.pause';
     case GroupListeningPlaybackAnchorReason.trackChange:
-      return 'track_change';
+      return 'playback.track_change';
     case GroupListeningPlaybackAnchorReason.seek:
     case GroupListeningPlaybackAnchorReason.snapshot:
-      return 'seek';
+      return 'playback.seek';
   }
 }
 

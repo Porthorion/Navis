@@ -8,7 +8,7 @@ import 'package:navis/src/features/group_listening/domain/group_listening_sessio
 
 void main() {
   group('GroupListeningCapabilityDiscovery', () {
-    test('detects v2alpha1 replay resume support from capabilities', () {
+    test('detects v4alpha1 replay resume support from capabilities', () {
       const replayDiscovery = GroupListeningCapabilityDiscovery(
         service: 'voyage',
         apiVersion: 'v1',
@@ -230,7 +230,7 @@ void main() {
   });
 
   group('IOWebSocketGroupListeningRealtimeTransportClient', () {
-    test('sends connection.init when connecting with v2alpha1', () async {
+    test('sends connection.init when connecting with v4alpha1', () async {
       final initCompleter = Completer<Map<String, dynamic>>();
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       addTearDown(() async {
@@ -341,8 +341,11 @@ void main() {
       final mutation = await mutationCompleter.future.timeout(
         const Duration(seconds: 2),
       );
-      expect(mutation['type'], 'mutation.playback_anchor');
+      expect(mutation['type'], 'command');
       final data = mutation['data'] as Map<String, dynamic>;
+      expect(data['type'], 'playback.track_change');
+      expect(data['command_id'], 'mut-1');
+      expect(data['base_event_id'], 12);
       expect(data['expected_room_version'], 12);
       expect(data['expected_queue_version'], 7);
       expect(data['expected_playback_version'], 9);
@@ -395,7 +398,7 @@ void main() {
       final status = await statusCompleter.future.timeout(
         const Duration(seconds: 2),
       );
-      expect(status['type'], 'client.status');
+      expect(status['type'], 'member.status');
       final data = status['data'] as Map<String, dynamic>;
       expect(data['last_applied_playback_apply_id'], 7);
       expect(data['observed_queue_entry_id'], 'entry-1');
@@ -406,7 +409,7 @@ void main() {
     });
 
     test(
-      'parses v2alpha1 ready, snapshot, and numeric event cursors',
+      'parses v4alpha1 ready, snapshot, and numeric event cursors',
       () async {
         final readyToSend = Completer<void>();
         final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);

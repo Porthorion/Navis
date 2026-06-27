@@ -2,9 +2,18 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+`AGENTS.md` is the canonical and most up-to-date agent guide. Prefer it when
+this file conflicts with code or newer docs.
+
 ## What This Is
 
 Navis is a multi-platform Subsonic/OpenSubsonic music client (Android, iOS, macOS, Linux, Windows) built with Flutter. Key features: gapless audio playback, offline cache + permanent downloads, adaptive UI (phone/tablet/desktop), synced lyrics, scrobbling, and smart queue generation.
+
+Listen Together is backed by the sibling Voyage service using
+`voyage-sync.v4alpha1`: `connection.init` -> `connection.ready` -> replay or
+snapshot -> live frames. User actions send `command`; passive local playback,
+buffering, readiness, RTT, and unavailable-track observations send
+`member.status`.
 
 ## Commands
 

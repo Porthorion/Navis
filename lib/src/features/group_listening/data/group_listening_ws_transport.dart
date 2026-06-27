@@ -148,25 +148,6 @@ class _IOWebSocketGroupListeningRealtimeConnection
       final serverTime = dateTimeFromEpochMs(envelope['server_time_ms']);
       final data = envelope['data'];
       switch (frameType) {
-        case 'connection.welcome':
-          final payload = mapValue(data);
-          _messagesController.add(
-            GroupListeningConnectionWelcomeMessage(
-              roomId: stringValue(payload['room_id']),
-              memberId: stringValue(payload['member_id']),
-              clientConnectionId: stringValue(payload['client_connection_id']),
-              roomVersion: intValue(payload['room_version']),
-              presenceVersion: intValue(payload['presence_version']),
-              heartbeatInterval: Duration(
-                milliseconds: intValue(payload['heartbeat_interval_ms']),
-              ),
-              memberStaleTimeout: Duration(
-                milliseconds: intValue(payload['member_stale_timeout_ms']),
-              ),
-              serverTime: dateTimeFromEpochMs(payload['server_time_ms']),
-            ),
-          );
-          return;
         case 'connection.ready':
           final payload = mapValue(data);
           final heartbeatPolicy = mapValue(payload['heartbeat_policy']);
@@ -256,7 +237,9 @@ class _IOWebSocketGroupListeningRealtimeConnection
           final payload = mapValue(data);
           _messagesController.add(
             GroupListeningMutationAckMessage(
-              clientMutationId: stringValue(payload['client_mutation_id']),
+              clientMutationId: stringValue(
+                payload['command_id'] ?? payload['client_mutation_id'],
+              ),
               eventId: intValue(payload['event_id']),
               roomVersion: intValue(payload['room_version']),
               queueVersion: nullableIntValue(payload['queue_version']) ?? 0,
@@ -277,7 +260,7 @@ class _IOWebSocketGroupListeningRealtimeConnection
             GroupListeningMutationRejectedMessage(
               error: errorStateFromApiError(mapValue(payload['error'])),
               clientMutationId: nullableStringValue(
-                payload['client_mutation_id'],
+                payload['command_id'] ?? payload['client_mutation_id'],
               ),
               roomVersion: nullableIntValue(payload['room_version']),
               queueVersion: nullableIntValue(payload['queue_version']),
@@ -290,6 +273,8 @@ class _IOWebSocketGroupListeningRealtimeConnection
               conflict: nullableStringValue(payload['conflict']),
             ),
           );
+          return;
+        case 'member.status':
           return;
         case 'room.closed':
           final payload = mapValue(data);

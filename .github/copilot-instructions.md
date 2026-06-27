@@ -1,5 +1,8 @@
 # Copilot Instructions for Navis
 
+`AGENTS.md` at the repository root is the canonical guide for AI coding agents.
+Use it first; this file is a short compatibility summary.
+
 ## Commands
 
 Use the repo scripts as the source of truth:
@@ -73,3 +76,8 @@ The app is structured around:
 - **Tests rely on shared helpers, not manual setup.** Use `createTestDatabase()` / `withTestDatabase()` from `test/helpers/test_database.dart` for database-backed tests, and `setAdaptiveTestViewport()` from `test/helpers/adaptive_test_harness.dart` for deterministic adaptive widget tests.
 - **Certain runtime warnings are release blockers.** `./tool/check.sh` fails if test output contains `"It looks like you've created the database class NavisDatabase multiple times"` or `"Tried to modify a provider while the widget tree was building"`.
 - **Hero tags follow a fixed pattern.** Use `buildCoverArtHeroTag(...)` from `lib/src/common_widgets/hero_cover_art.dart`; the tag shape is `cover_art_{context}_{entityId-or-coverArtId}`.
+- **Listen Together uses Voyage v4.** The active protocol is
+  `voyage-sync.v4alpha1`; the WebSocket path starts with client
+  `connection.init`, then server `connection.ready`, then replay or snapshot.
+  User actions send `command`; passive playback/readiness observations send
+  `member.status`, never synthetic seek commands.

@@ -191,12 +191,6 @@ class GroupListeningPlaybackSyncBridge extends Notifier<int> {
             GroupListeningSyncTimings.localPositionDebounce) {
       return;
     }
-    ref
-        .read(groupListeningUserIntentProvider.notifier)
-        .record(
-          UserPlaybackIntent.seek,
-        );
-    _schedulePublish(immediate: false);
   }
 
   void _handleSessionChanged(

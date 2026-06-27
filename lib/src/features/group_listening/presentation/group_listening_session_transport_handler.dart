@@ -891,18 +891,20 @@ class GroupListeningSessionTransportHandler {
 
       final messages = <GroupListeningTransportMessage>[];
       final ready = Completer<void>();
-      GroupListeningConnectionWelcomeMessage? welcome;
+      GroupListeningConnectionReadyMessage? connectionReady;
       GroupListeningRoomSnapshotMessage? snapshot;
       candidateSubscription = candidateConnection.messages.listen(
         (message) {
           messages.add(message);
-          if (message is GroupListeningConnectionWelcomeMessage) {
-            welcome = message;
+          if (message is GroupListeningConnectionReadyMessage) {
+            connectionReady = message;
           }
           if (message is GroupListeningRoomSnapshotMessage) {
             snapshot = message;
           }
-          if (welcome != null && snapshot != null && !ready.isCompleted) {
+          if (connectionReady != null &&
+              snapshot != null &&
+              !ready.isCompleted) {
             ready.complete();
           }
           if (message is GroupListeningTransportErrorMessage &&
@@ -956,7 +958,7 @@ class GroupListeningSessionTransportHandler {
       writeRuntimeSession(result.runtimeContext);
       connectingDiscovery = candidate.discovery;
       for (final message in messages) {
-        if (message is GroupListeningConnectionWelcomeMessage ||
+        if (message is GroupListeningConnectionReadyMessage ||
             message is GroupListeningRoomSnapshotMessage) {
           handleTransportMessage(message);
         }

@@ -24,6 +24,7 @@ enum GroupListeningRoomEventType {
   memberLeft,
   memberRemoved,
   roomClosed,
+  roomModeSet,
 }
 
 @immutable
@@ -170,6 +171,8 @@ class GroupListeningRoomEvent {
     this.removedMemberIds = const <String>[],
     this.hostMemberId,
     this.roomStatus,
+    this.roomMode,
+    this.playbackPhase,
     this.presenceVersion,
     this.authVersion,
     this.self,
@@ -193,6 +196,8 @@ class GroupListeningRoomEvent {
   final List<String> removedMemberIds;
   final String? hostMemberId;
   final GroupListeningRoomStatus? roomStatus;
+  final GroupListeningRoomMode? roomMode;
+  final String? playbackPhase;
   final int? presenceVersion;
   final int? authVersion;
   final GroupListeningSelfState? self;
@@ -205,6 +210,7 @@ class GroupListeningRoomState {
     required this.roomId,
     required this.roomStatus,
     this.roomMode = GroupListeningRoomMode.collaborative,
+    this.playbackPhase = 'idle',
     this.requiresPin = false,
     required this.roomVersion,
     this.latestEventId = 0,
@@ -226,6 +232,7 @@ class GroupListeningRoomState {
   final String roomId;
   final GroupListeningRoomStatus roomStatus;
   final GroupListeningRoomMode roomMode;
+  final String playbackPhase;
   final bool requiresPin;
   final int roomVersion;
   final int latestEventId;
@@ -270,6 +277,7 @@ class GroupListeningRoomState {
     String? roomId,
     GroupListeningRoomStatus? roomStatus,
     GroupListeningRoomMode? roomMode,
+    String? playbackPhase,
     bool? requiresPin,
     int? roomVersion,
     int? latestEventId,
@@ -292,6 +300,7 @@ class GroupListeningRoomState {
       roomId: roomId ?? this.roomId,
       roomStatus: roomStatus ?? this.roomStatus,
       roomMode: roomMode ?? this.roomMode,
+      playbackPhase: playbackPhase ?? this.playbackPhase,
       requiresPin: requiresPin ?? this.requiresPin,
       roomVersion: roomVersion ?? this.roomVersion,
       latestEventId: latestEventId ?? this.latestEventId,
@@ -337,22 +346,25 @@ class GroupListeningRoomState {
             ? GroupListeningMemberRole.member
             : self.role);
     final nextRoomStatus = event.roomStatus ?? roomStatus;
+    final nextRoomMode = event.roomMode ?? roomMode;
     final nextSelf =
         explicitSelf ??
         self.copyWith(
           role: nextSelfRole,
           canControl:
               nextRoomStatus == GroupListeningRoomStatus.active &&
-              (roomMode != GroupListeningRoomMode.hostOnly ||
+              (nextRoomMode != GroupListeningRoomMode.hostOnly ||
                   nextSelfRole == GroupListeningMemberRole.host),
           canPlayAudio:
               nextRoomStatus == GroupListeningRoomStatus.active &&
-              (roomMode != GroupListeningRoomMode.shotgun ||
+              (nextRoomMode != GroupListeningRoomMode.shotgun ||
                   nextSelfRole == GroupListeningMemberRole.host),
           authVersion: event.authVersion,
         );
     return copyWith(
       roomStatus: nextRoomStatus,
+      roomMode: nextRoomMode,
+      playbackPhase: event.playbackPhase,
       roomVersion: event.roomVersion,
       latestEventId: event.eventCursor ?? latestEventId,
       playbackVersion: event.playbackVersion ?? playbackVersion,
@@ -377,6 +389,7 @@ class GroupListeningRoomState {
           roomId == other.roomId &&
           roomStatus == other.roomStatus &&
           roomMode == other.roomMode &&
+          playbackPhase == other.playbackPhase &&
           requiresPin == other.requiresPin &&
           roomVersion == other.roomVersion &&
           latestEventId == other.latestEventId &&
@@ -399,6 +412,7 @@ class GroupListeningRoomState {
     roomId,
     roomStatus,
     roomMode,
+    playbackPhase,
     requiresPin,
     roomVersion,
     latestEventId,
