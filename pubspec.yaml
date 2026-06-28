@@ -35,7 +35,7 @@ dependencies:
   intl: ^0.20.2
   just_audio: ^0.10.5
   logger: ^2.7.0
-  package_info_plus: ^10.2.0
+  package_info_plus: 10.1.0
   path_provider: ^2.1.5
   scrollable_positioned_list: ^0.3.8
   url_launcher: ^6.3.2
